@@ -414,6 +414,7 @@ export class AuditController {
         photoCode: req.query.photoCode as string | undefined,
         photoType: req.query.photoType as string | undefined,
         category: req.query.category as string | undefined,
+        currentPhotoUrl: req.query.currentPhotoUrl as string | undefined,
         includeDeleted: req.query.includeDeleted !== 'false',
       };
       const result = await AuditService.getPhotoAuditRegistry(id, filters);

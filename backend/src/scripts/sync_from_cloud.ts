@@ -30,17 +30,17 @@ const targetDbName = process.env.TARGET_DB || process.env.LOCAL_DB_NAME || 'metr
 
 const REMOTE_POOL_CONFIG = process.env.REMOTE_DATABASE_URL
   ? {
-      connectionString: process.env.REMOTE_DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    }
+    connectionString: process.env.REMOTE_DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  }
   : {
-      host: process.env.REMOTE_DB_HOST || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_HOST : 'aws-0-ap-southeast-1.pooler.supabase.com'),
-      port: parseInt(process.env.REMOTE_DB_PORT || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_PORT || '6543' : '6543'), 10),
-      user: process.env.REMOTE_DB_USER || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_USER || 'postgres.zmbydzpytqyjnnawdssd' : 'postgres.zmbydzpytqyjnnawdssd'),
-      password: process.env.REMOTE_DB_PASSWORD || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_PASSWORD : undefined),
-      database: process.env.REMOTE_DB_NAME || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_NAME || 'postgres' : 'postgres'),
-      ssl: { rejectUnauthorized: false },
-    };
+    host: process.env.REMOTE_DB_HOST || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_HOST : 'aws-0-ap-southeast-1.pooler.supabase.com'),
+    port: parseInt(process.env.REMOTE_DB_PORT || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_PORT || '6543' : '6543'), 10),
+    user: process.env.REMOTE_DB_USER || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_USER || 'postgres.zmbydzpytqyjnnawdssd' : 'postgres.zmbydzpytqyjnnawdssd'),
+    password: process.env.REMOTE_DB_PASSWORD || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_PASSWORD : undefined),
+    database: process.env.REMOTE_DB_NAME || (process.env.DB_HOST?.includes('supabase') ? process.env.DB_NAME || 'postgres' : 'postgres'),
+    ssl: { rejectUnauthorized: false },
+  };
 
 const LOCAL_CONFIG = {
   host: 'localhost',
@@ -146,7 +146,7 @@ async function syncFromCloud() {
     console.log('\n⏳ Đang kết nối tới Cloud Supabase...');
     remoteClient = await remotePool.connect();
 
-    // 🔒 KHÓA BẢO VỆ CHẶT CHẼ 100%: Thiết lập Transaction CHỈ ĐỌC (READ-ONLY)
+    //  KHÓA BẢO VỆ CHẶT CHẼ 100%: Thiết lập Transaction CHỈ ĐỌC (READ-ONLY)
     await remoteClient.query('SET default_transaction_read_only = on;');
     await remoteClient.query('SET statement_timeout = 60000;');
     await remoteClient.query('BEGIN TRANSACTION READ ONLY;');
@@ -194,7 +194,7 @@ async function syncFromCloud() {
     remoteClient.release();
     remoteClient = null;
     await remotePool.end();
-    console.log('🔒 Đã đóng an toàn kết nối tới Cloud Supabase.');
+    console.log(' Đã đóng an toàn kết nối tới Cloud Supabase.');
 
     // 3. LƯU BẢN SAO ĐỘC LẬP RA FILE SNAPSHOT THEO THỜI GIAN
     const timestamp = getTimestampFormatted();
@@ -330,12 +330,12 @@ async function syncFromCloud() {
     if (localClient) {
       try {
         await localClient.query('ROLLBACK;');
-      } catch (rbErr) {}
+      } catch (rbErr) { }
     }
     if (remoteClient) {
       try {
         await remoteClient.query('ROLLBACK;');
-      } catch (rbErr) {}
+      } catch (rbErr) { }
     }
     console.error('\n❌ Lỗi trong quá trình đồng bộ:', err.message || err);
     process.exit(1);

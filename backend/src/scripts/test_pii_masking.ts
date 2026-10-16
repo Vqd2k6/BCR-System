@@ -15,7 +15,7 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runPiiTests() {
-  console.log('🔒 Bắt đầu kiểm thử che mờ PII cho vai trò GUEST...');
+  console.log(' Bắt đầu kiểm thử che mờ PII cho vai trò GUEST...');
 
   // 1. Kiểm thử Unit maskName và maskPii
   const name1 = maskName('Nguyễn Văn An');

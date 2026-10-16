@@ -127,7 +127,7 @@ async function migrate() {
     console.log(`📋 Found ${allTables.length} tables to synchronize.`);
 
     // 3. Vô hiệu hoá tạm thời ràng buộc khoá ngoại và trigger trên Supabase
-    console.log('🔒 Bypassing foreign key constraints & triggers on Supabase...');
+    console.log(' Bypassing foreign key constraints & triggers on Supabase...');
     await remoteClient.query("SET session_replication_role = 'replica';");
 
     // 4. Xoá dữ liệu cũ trên Supabase

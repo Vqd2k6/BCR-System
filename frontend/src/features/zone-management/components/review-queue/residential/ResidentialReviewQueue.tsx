@@ -12,6 +12,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Layers,
+  FileDiff,
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -32,7 +33,7 @@ interface Props {
   onStatsNeedRefresh?: () => void;
 }
 
-type ResidentialTab = 'ALL' | 'CRITICAL' | 'SLA' | 'REJECTED' | 'APPROVED';
+type ResidentialTab = 'ALL' | 'UNDER_REVIEW' | 'CRITICAL' | 'SLA' | 'REJECTED' | 'APPROVED';
 
 export const ResidentialReviewQueue: React.FC<Props> = ({
   selectedZone,
@@ -117,11 +118,18 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       }
 
       // Tab sub-filter
+      if (activeTab === 'UNDER_REVIEW') {
+        return (
+          item.status === 'UNDER_REVIEW' ||
+          Boolean(item.has_admin_diff) ||
+          (item.version_count ?? 0) > 1
+        ) && item.status !== 'APPROVED' && item.status !== 'REJECTED';
+      }
       if (activeTab === 'CRITICAL') {
         return ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
       }
       if (activeTab === 'SLA') {
-        if (item.status !== 'SUBMITTED') return false;
+        if (!['SUBMITTED', 'UNDER_REVIEW'].includes(item.status)) return false;
         const submittedTime = new Date(item.created_at || item.updated_at).getTime();
         const diffHours = (Date.now() - submittedTime) / (1000 * 60 * 60);
         return diffHours >= 48;
@@ -132,18 +140,22 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       if (activeTab === 'APPROVED') {
         return item.status === 'APPROVED';
       }
-      // 'ALL': show pending items (submitted or absent)
-      return item.status === 'SUBMITTED' || item.status === 'POSTPONED_ABSENT';
+      // 'ALL': show pending items (submitted, under_review or absent)
+      return ['SUBMITTED', 'UNDER_REVIEW', 'POSTPONED_ABSENT'].includes(item.status);
     });
   }, [items, debouncedSearch, activeTab]);
 
   // Tab counts
   const tabCounts = useMemo(() => {
     return {
-      all: items.filter((i) => i.status === 'SUBMITTED' || i.status === 'POSTPONED_ABSENT').length,
+      all: items.filter((i) => ['SUBMITTED', 'UNDER_REVIEW', 'POSTPONED_ABSENT'].includes(i.status)).length,
+      underReview: items.filter((i) =>
+        (i.status === 'UNDER_REVIEW' || Boolean(i.has_admin_diff) || (i.version_count ?? 0) > 1) &&
+        i.status !== 'APPROVED' && i.status !== 'REJECTED'
+      ).length,
       critical: items.filter((i) => ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(i.burland_damage_category || '')).length,
       sla: items.filter((i) => {
-        if (i.status !== 'SUBMITTED') return false;
+        if (!['SUBMITTED', 'UNDER_REVIEW'].includes(i.status)) return false;
         const diffHours = (Date.now() - new Date(i.created_at || i.updated_at).getTime()) / (1000 * 60 * 60);
         return diffHours >= 48;
       }).length,
@@ -189,6 +201,24 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
             <Home className="w-3.5 h-3.5" />
             <span>Chờ duyệt</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.all}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('UNDER_REVIEW')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'UNDER_REVIEW'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <FileDiff className="w-3.5 h-3.5 text-amber-500" />
+            <span>Có sửa đổi (Diff)</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              activeTab === 'UNDER_REVIEW' ? 'bg-white/20 text-white' : tabCounts.underReview > 0 ? 'bg-amber-100 text-amber-900 font-bold' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {tabCounts.underReview}
+            </span>
           </button>
 
           <button

@@ -374,7 +374,7 @@ Bảng tra cứu ma trận $4 \times 4$ kết hợp giữa **Cấp tổn thươn
 >    - **R4 - Rất cao / Nguy hiểm (Very High Risk / Grade 4-5):** Nền `#fef2f2`, viền `#dc2626`, chữ `#991b1b`.
 >    - *Khung Kết luận Đánh giá Rủi ro*: Có vạch nhấn viền trái (`border-left: 4px solid`) và nhãn phân cấp đồng bộ 100% với màu của ô Highlight phía trên.
 
-> 🔒 **QUY TẮC KHÓA AN TOÀN KỸ THUẬT (ENGINEERING JUDGEMENT SAFETY LOCK):**  
+>  **QUY TẮC KHÓA AN TOÀN KỸ THUẬT (ENGINEERING JUDGEMENT SAFETY LOCK):**  
 > - Nghiêm cấm mọi hành vi can thiệp của Kỹ sư để hạ cấp rủi ro (DOWNGRADE) nếu công trình đang mang **Cờ kết cấu nguy cấp ($E_2 \ge 3$)** hoặc **Điểm lún nghiêng ($E_3 \ge 3$)**.  
 > - Mọi trường hợp can thiệp chuyên môn (Engineering Judgement) phải được ghi rõ họ tên Kỹ sư trưởng, lý do kỹ thuật và lưu vết trong bảng `risk_score_cards`.
 

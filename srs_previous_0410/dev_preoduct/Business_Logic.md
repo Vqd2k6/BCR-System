@@ -179,7 +179,7 @@ graph TD
 1. **Xuất Báo Cáo Từng Căn Hộ Độc Lập:** Mỗi căn hộ được xuất 1 tập Báo cáo Hiện trạng độc lập (`REPORT-{ParcelCode}-{UnitCode}.pdf`, VD: `REPORT-B00128-U304.pdf`) để chủ căn hộ đó ký nhận độc lập phục vụ đền bù.
 2. **Bộ Ghép Hồ Sơ Tự Động (Auto-Merge Engine):** Khi xuất báo cáo cho Căn 304, hệ thống tự động kế thừa dữ liệu chung của Tòa nhà (Mặt đứng, móng, độ nghiêng $E_3$) ghép với dữ liệu khảo sát riêng bên trong căn 304 (vết nứt $D\text{-xx}$, ảnh $CU$, $E_1, E_4, E_6$, chữ ký chủ căn hộ).
 3. **Trạng thái `EXPORTED` Phân Cấp:**
-   - Khi Admin bấm xuất báo cáo chính thức cho Căn 304 $\implies$ Trạng thái của Căn 304 chuyển sang `EXPORTED` (Màu Xanh ngọc lục bảo `#047857` kèm icon `📄 🔒`). Dữ liệu căn này bị **khóa cứng 100%**.
+   - Khi Admin bấm xuất báo cáo chính thức cho Căn 304 $\implies$ Trạng thái của Căn 304 chuyển sang `EXPORTED` (Màu Xanh ngọc lục bảo `#047857` kèm icon `📄 `). Dữ liệu căn này bị **khóa cứng 100%**.
    - Khi **100% tất cả các căn hộ** trong tòa chung cư đều đã được xuất báo cáo (`EXPORTED`) $\implies$ Thửa đất trên bản đồ GIS đổi sang trạng thái hoàn tất toàn diện `EXPORTED`.
 
 ---

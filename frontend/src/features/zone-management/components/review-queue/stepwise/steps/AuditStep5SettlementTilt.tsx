@@ -97,32 +97,32 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
     Array.isArray(diff.photos) && diff.photos.length > 0
       ? diff.photos
       : diff.photoUrl
-      ? [{ url: diff.photoUrl, photoCode: diff.photoCode || 'SETTLE_01', notes: diff.notes }]
-      : [];
+        ? [{ url: diff.photoUrl, photoCode: diff.photoCode || 'SETTLE_01', notes: diff.notes }]
+        : [];
 
   // Danh sách ảnh độ nghiêng
   const tiltPhotos: Array<{ url: string; photoCode?: string; notes?: string }> =
     Array.isArray(tilt.photos) && tilt.photos.length > 0
       ? tilt.photos
       : tilt.photoUrl
-      ? [{ url: tilt.photoUrl, photoCode: tilt.photoCode || 'TILT_01', notes: tilt.notes }]
-      : [];
+        ? [{ url: tilt.photoUrl, photoCode: tilt.photoCode || 'TILT_01', notes: tilt.notes }]
+        : [];
 
   // Danh sách ảnh độ võng dầm
   const beamPhotos: Array<{ url: string; photoCode?: string; notes?: string }> =
     Array.isArray(beam.photos) && beam.photos.length > 0
       ? beam.photos
       : beam.photoUrl
-      ? [{ url: beam.photoUrl, photoCode: beam.photoCode || 'SAG_01', notes: beam.notes }]
-      : [];
+        ? [{ url: beam.photoUrl, photoCode: beam.photoCode || 'SAG_01', notes: beam.notes }]
+        : [];
 
   // Danh sách ảnh ngoại lệ bất thường
   const abnormalPhotos: Array<{ url: string; photoCode?: string; notes?: string }> =
     Array.isArray(abnormal.photos) && abnormal.photos.length > 0
       ? abnormal.photos
       : abnormal.photoUrl
-      ? [{ url: abnormal.photoUrl, photoCode: abnormal.photoCode || 'ANOMALY_01', notes: abnormal.notes }]
-      : [];
+        ? [{ url: abnormal.photoUrl, photoCode: abnormal.photoCode || 'ANOMALY_01', notes: abnormal.notes }]
+        : [];
 
   // Danh sách nguồn xác định dữ liệu
   const dataSources: string[] = Array.isArray(st.dataSource) ? (st.dataSource as string[]) : [];
@@ -317,7 +317,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       title="Xem lịch sử và khôi phục ảnh lún chênh đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                      <span> Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
@@ -506,7 +506,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       title="Xem lịch sử và khôi phục ảnh độ nghiêng đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                      <span> Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
@@ -685,7 +685,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       title="Xem lịch sử và khôi phục ảnh võng dầm đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                      <span> Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
@@ -807,7 +807,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       title="Xem lịch sử và khôi phục ảnh bất thường đã xóa"
                     >
                       <History className="w-3.5 h-3.5 text-sky-600" />
-                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                      <span> Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
@@ -879,9 +879,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 return (
                   <label
                     key={src}
-                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
-                      isChecked ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
-                    }`}
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${isChecked ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -890,10 +889,10 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         const updated = e.target.checked
                           ? [...dataSources, src]
                           : dataSources.filter((s) => {
-                              const sNorm = s.toLowerCase().trim();
-                              const srcNorm = src.toLowerCase().trim();
-                              return sNorm !== srcNorm && !sNorm.includes(srcNorm) && !srcNorm.includes(sNorm);
-                            });
+                            const sNorm = s.toLowerCase().trim();
+                            const srcNorm = src.toLowerCase().trim();
+                            return sNorm !== srcNorm && !sNorm.includes(srcNorm) && !srcNorm.includes(sNorm);
+                          });
                         handleNestedFieldChange('settlementTilt', 'dataSource', 'Nguồn dữ liệu', updated);
                       }}
                       className="rounded text-emerald-600"
@@ -934,11 +933,10 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               </span>
             </div>
             <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
-                monitoring.required
+              className={`px-2.5 py-0.5 rounded-full text-xs font-black ${monitoring.required
                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                   : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-              }`}
+                }`}
             >
               {monitoring.required ? '⚠️ CẦN QUAN TRẮC BỔ SUNG' : '✓ KHÔNG YÊU CẦU QUAN TRẮC'}
             </span>

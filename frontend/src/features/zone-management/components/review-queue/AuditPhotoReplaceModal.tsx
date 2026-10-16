@@ -325,13 +325,12 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
                 value={enteredPin}
                 onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="Nhập đúng 6 chữ số..."
-                className={`w-full py-2 px-3 rounded-xl bg-white text-slate-900 font-mono font-black text-center text-lg tracking-widest focus:outline-none border-2 transition-all ${
-                  isPinMatched
+                className={`w-full py-2 px-3 rounded-xl bg-white text-slate-900 font-mono font-black text-center text-lg tracking-widest focus:outline-none border-2 transition-all ${isPinMatched
                     ? 'border-emerald-500 ring-2 ring-emerald-500/30'
                     : enteredPin.length === 6
-                    ? 'border-red-500'
-                    : 'border-slate-300 focus:border-amber-400'
-                }`}
+                      ? 'border-red-500'
+                      : 'border-slate-300 focus:border-amber-400'
+                  }`}
               />
               {isPinMatched && (
                 <div className="text-center text-[11px] text-emerald-400 font-bold mt-1 flex items-center justify-center gap-1">
@@ -359,7 +358,7 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
             className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-40"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>{isSubmitting ? 'Đang lưu vết...' : 'Xác Nhận Thay Ảnh Này 🔒'}</span>
+            <span>{isSubmitting ? 'Đang lưu vết...' : 'Xác Nhận Thay Ảnh Này '}</span>
           </button>
         </div>
       </div>

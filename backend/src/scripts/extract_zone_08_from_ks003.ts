@@ -31,7 +31,7 @@ async function extractZone08() {
   // 2. Lấy danh sách mã thửa đất đã có trong CSDL (Khử trùng theo FCFS)
   const existingParcelsRes = await pool.query('SELECT official_cadastral_code FROM parcels;');
   const existingCodeSet = new Set(existingParcelsRes.rows.map((r) => String(r.official_cadastral_code)));
-  console.log(`🔒 Số thửa đã có trong CSDL (được bảo lưu): ${existingCodeSet.size}`);
+  console.log(` Số thửa đã có trong CSDL (được bảo lưu): ${existingCodeSet.size}`);
 
   // 3. Lọc sơ bộ theo Bounding Box của Zone 8 (Quận 10 dọc CMT8)
   const candidates = allParcels.filter((p) => {

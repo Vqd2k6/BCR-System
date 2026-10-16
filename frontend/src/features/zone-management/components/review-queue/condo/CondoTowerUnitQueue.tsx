@@ -142,6 +142,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       if (activeTab === 'GRADE_0') {
         return (
           item.status === 'SUBMITTED' &&
+          !item.has_admin_diff &&
+          (item.version_count ?? 0) <= 1 &&
           Number(item.defect_count) === 0 &&
           (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category)
         );
@@ -158,7 +160,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       masterArea: unitList.filter((i) => i.unit_type === 'MASTER' || i.unit_type === 'MASTER_AREA' || (i.unit_code && i.unit_code.startsWith('M-')) || i.report_type === 'MASTER_AREA').length,
       units: unitList.filter((i) => i.unit_type === 'UNIT' || (i.unit_code && i.unit_code.startsWith('U-')) || i.report_type === 'CONDO_UNIT' || i.report_type === 'UNIT_CHILD').length,
       absent: unitList.filter((i) => i.is_refused_or_absent || i.status === 'POSTPONED_ABSENT' || i.unit_status === 'POSTPONED_ABSENT' || i.unit_status === 'POSTPONED_ABSENT_VERIFIED').length,
-      grade0: unitList.filter((i) => i.status === 'SUBMITTED' && Number(i.defect_count) === 0 && (i.burland_damage_category === 'GRADE_0' || !i.burland_damage_category)).length,
+      grade0: unitList.filter((i) => i.status === 'SUBMITTED' && !i.has_admin_diff && (i.version_count ?? 0) <= 1 && Number(i.defect_count) === 0 && (i.burland_damage_category === 'GRADE_0' || !i.burland_damage_category)).length,
     };
   }, [items, towerParcelId]);
 
@@ -181,6 +183,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       (item) =>
         item.report_id &&
         item.status === 'SUBMITTED' &&
+        !item.has_admin_diff &&
+        (item.version_count ?? 0) <= 1 &&
         Number(item.defect_count) === 0 &&
         (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category)
     );

@@ -76,7 +76,7 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
           </div>
 
           <div className="text-xs text-slate-600 space-y-1.5 text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <p className="font-semibold text-slate-700">🔒 Để bảo vệ dữ liệu và tránh xung đột:</p>
+            <p className="font-semibold text-slate-700"> Để bảo vệ dữ liệu và tránh xung đột:</p>
             <ul className="list-disc list-inside space-y-1 text-slate-500 text-[11px]">
               <li>Hệ thống tạm khóa chỉnh sửa đối với tài khoản khác trong vòng 15 phút.</li>
               <li>Bạn có thể tiếp quản sau khi KSV {surveyorName} ngưng làm việc ít nhất 15 phút.</li>

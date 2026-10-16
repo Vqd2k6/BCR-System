@@ -94,9 +94,9 @@ export class AuditReviewService {
     }
 
     if (filters.slaFilter === 'OVERDUE_48H') {
-      whereClause += ` AND r.status = 'SUBMITTED' AND r.updated_at < NOW() - INTERVAL '48 HOURS'`;
+      whereClause += ` AND r.status::text IN ('SUBMITTED', 'UNDER_REVIEW') AND r.updated_at < NOW() - INTERVAL '48 HOURS'`;
     } else if (filters.slaFilter === 'WARNING_24H') {
-      whereClause += ` AND r.status = 'SUBMITTED' AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS'`;
+      whereClause += ` AND r.status::text IN ('SUBMITTED', 'UNDER_REVIEW') AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS'`;
     }
 
     const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200);
@@ -184,7 +184,37 @@ export class AuditReviewService {
         u_admin.role AS approver_role,
         p.seal_hash AS parent_parcel_seal_hash,
         p.locked_at AS parent_parcel_locked_at,
-        u_lock.full_name AS parent_parcel_locked_by_name
+        u_lock.full_name AS parent_parcel_locked_by_name,
+        COALESCE((
+          SELECT MAX(v.version_number)
+          FROM survey_report_versions v
+          WHERE v.report_id = r.id
+        ), 0) AS current_version_number,
+        (
+          SELECT COUNT(*)
+          FROM survey_report_versions v
+          WHERE v.report_id = r.id
+        ) AS version_count,
+        EXISTS (
+          SELECT 1
+          FROM survey_report_versions v
+          WHERE v.report_id = r.id
+            AND v.version_tag IN ('ADMIN_DIFF_SAVE', 'ROLLBACK_RESTORE', 'PHOTO_MODIFICATION', 'PHOTO_REPLACEMENT')
+        ) AS has_admin_diff,
+        (
+          SELECT v.version_tag
+          FROM survey_report_versions v
+          WHERE v.report_id = r.id
+          ORDER BY v.version_number DESC
+          LIMIT 1
+        ) AS latest_version_tag,
+        (
+          SELECT v.edit_reason
+          FROM survey_report_versions v
+          WHERE v.report_id = r.id
+          ORDER BY v.version_number DESC
+          LIMIT 1
+        ) AS latest_edit_reason
       FROM base_survey_reports r
       JOIN parcels p ON r.parcel_id = p.id
       LEFT JOIN building_units bu ON r.unit_id = bu.id
@@ -452,6 +482,8 @@ export class AuditReviewService {
     const identificationPhotos = {
       photoP01: {
         url: p01Data.url || p01Row?.annotated_photo_url || p01Row?.raw_photo_url || null,
+        rawUrl: p01Row?.raw_photo_url || p01Data.rawPhotoUrl || p01Data.url || null,
+        annotatedUrl: p01Row?.annotated_photo_url || p01Data.annotatedPhotoUrl || null,
         photoCode: p01Data.photoCode || p01Row?.photo_code || 'P-01',
         notApplicable: Boolean(p01Data.notApplicable ?? p01Row?.is_not_applicable),
         naReason: p01Data.naReason || p01Row?.na_reason || null,
@@ -459,6 +491,8 @@ export class AuditReviewService {
       },
       photoP02: {
         url: p02Data.url || p02Row?.annotated_photo_url || p02Row?.raw_photo_url || null,
+        rawUrl: p02Row?.raw_photo_url || p02Data.rawPhotoUrl || p02Data.url || null,
+        annotatedUrl: p02Row?.annotated_photo_url || p02Data.annotatedPhotoUrl || null,
         photoCode: p02Data.photoCode || p02Row?.photo_code || 'P-02',
         polygonPoints: p02Data.polygonPoints || p02Row?.facade_polygon_points_json || null,
         floorSplits: p02Data.floorSplits || p02Row?.floor_split_lines_json || null,
@@ -469,6 +503,8 @@ export class AuditReviewService {
       },
       photoP03: {
         url: p03Data.url || p03Row?.annotated_photo_url || p03Row?.raw_photo_url || null,
+        rawUrl: p03Row?.raw_photo_url || p03Data.rawPhotoUrl || p03Data.url || null,
+        annotatedUrl: p03Row?.annotated_photo_url || p03Data.annotatedPhotoUrl || null,
         photoCode: p03Data.photoCode || p03Row?.photo_code || 'P-03',
         tag: p03Data.tag || 'Bên hông phải',
         additionalPhotos: Array.isArray(p03Data.additionalPhotos) ? p03Data.additionalPhotos : [],
@@ -477,6 +513,8 @@ export class AuditReviewService {
       },
       photoP04: {
         url: p04Data.url || p04Row?.annotated_photo_url || p04Row?.raw_photo_url || null,
+        rawUrl: p04Row?.raw_photo_url || p04Data.rawPhotoUrl || p04Data.url || null,
+        annotatedUrl: p04Row?.annotated_photo_url || p04Data.annotatedPhotoUrl || null,
         photoCode: p04Data.photoCode || p04Row?.photo_code || 'P-04',
         notApplicable: Boolean(p04Data.notApplicable ?? p04Row?.is_not_applicable),
         ...p04Hist,
@@ -543,21 +581,22 @@ export class AuditReviewService {
           }
         });
       } else {
-        // Hỗ trợ cấu trúc phẳng condo-unit (surveyJson.zones & surveyJson.structuralElements)
-        if (Array.isArray(surveyJson.zones)) {
-          surveyJson.zones.forEach((z: any) => {
+        // Hỗ trợ cấu trúc phẳng hoặc nhà dân không chia floors (surveyJson.zones hoặc surveyJson.damageZones & surveyJson.structuralElements)
+        const flatZones = surveyJson.zones || surveyJson.damageZones;
+        if (Array.isArray(flatZones)) {
+          flatZones.forEach((z: any) => {
             extracted.push({
-              id: z.id,
+              id: z.id || z.zoneCode || z.zone_code,
               zone_code: z.zoneCode || z.zone_code,
               floor_name: z.floorName || `Tầng ${surveyJson.floorNumber || 1}`,
-              room_name: z.roomName || 'Không gian căn hộ',
+              room_name: z.roomName || z.zoneName || 'Không gian chính',
               component_type: z.componentType || 'Tường',
               wall_material: z.wallMaterial || 'Vữa trát',
-              ctx_photo_url: z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : null),
-              ctx_photo_code: z.ctxPhotoCode,
-              burland_grade: z.burlandGrade,
-              functional_impact_repair_needed: z.functionalImpactRepairNeeded,
-              defects: mapDefects(z.defects, z.id),
+              ctx_photo_url: z.ctxPhotoUrl || z.ctx_photo_url || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : null),
+              ctx_photo_code: z.ctxPhotoCode || z.ctx_photo_code,
+              burland_grade: z.burlandGrade ?? z.burland_grade ?? 0,
+              functional_impact_repair_needed: z.functionalImpactRepairNeeded ?? false,
+              defects: mapDefects(z.defects, z.id || z.zoneCode || z.zone_code || 'Z01'),
             });
           });
         }
@@ -854,6 +893,7 @@ export class AuditReviewService {
         buildingSpecs: specsRes.rows[0] || surveyJson.buildingSpecs || surveyJson.specs || null,
         deformation: deformRes.rows[0] || surveyJson.deformation || surveyJson.settlementTilt || null,
         interview: historyRes.rows[0] || surveyJson.interview || surveyJson.historyInterview || null,
+        identPhotos: photosRes.rows,
         signatures: normalizedSignatures,
         absenceLogs: absenceLogsRes.rows,
       },
@@ -1359,8 +1399,8 @@ export class AuditReviewService {
          COUNT(*) FILTER (WHERE sc.e1_burland_score = 3) AS burland_grade_3,
          COUNT(*) FILTER (WHERE sc.e1_burland_score >= 4) AS burland_grade_4_5,
          COUNT(*) FILTER (WHERE sc.e1_burland_score >= 3) AS total_critical_burland,
-         COUNT(*) FILTER (WHERE r.status = 'SUBMITTED' AND r.updated_at < NOW() - INTERVAL '48 HOURS') AS sla_overdue_48h,
-         COUNT(*) FILTER (WHERE r.status = 'SUBMITTED' AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS') AS sla_warning_24h,
+         COUNT(*) FILTER (WHERE r.status IN ('SUBMITTED', 'UNDER_REVIEW') AND r.updated_at < NOW() - INTERVAL '48 HOURS') AS sla_overdue_48h,
+         COUNT(*) FILTER (WHERE r.status IN ('SUBMITTED', 'UNDER_REVIEW') AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS') AS sla_warning_24h,
          COUNT(*) FILTER (WHERE r.created_at >= NOW() - INTERVAL '7 DAYS') AS recent_7days_count
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
@@ -1997,7 +2037,7 @@ export class AuditReviewService {
       JOIN parcels p ON r.parcel_id = p.id
       WHERE (p.building_type NOT IN ('CONDOMINIUM', 'CONDO') OR p.building_type IS NULL)
         AND r.unit_id IS NULL
-        AND r.status::text IN ('SUBMITTED', 'POSTPONED_ABSENT')
+        AND r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'POSTPONED_ABSENT')
         ${zoneFilterReports};
     `;
     const resCount = await Database.query(resSql, params);
@@ -2028,7 +2068,7 @@ export class AuditReviewService {
           WHERE a.report_id = r.id AND a.is_resolved = FALSE
         )
         OR (
-          r.status::text = 'SUBMITTED'
+          r.status::text IN ('SUBMITTED', 'UNDER_REVIEW')
           AND r.updated_at < NOW() - INTERVAL '48 HOURS'
           AND (
             COALESCE(sc.e1_burland_score, 0) >= 1

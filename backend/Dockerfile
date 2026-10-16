@@ -35,6 +35,7 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
+COPY database/migrations ./database/migrations
 
 EXPOSE 4000
 

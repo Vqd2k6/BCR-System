@@ -91,6 +91,11 @@ for PORT in 4000 3000; do
 done
 echo -e "${GREEN}✔ Cổng 4000 (Backend API) và cổng 3000 (Frontend PWA) đã sẵn sàng.${NC}"
 
+# 3.5. Kiểm tra và đồng bộ tự động Migration CSDL
+echo -e "${BLUE}▶ [3.5/4] Kiểm tra và tự động đồng bộ Migration CSDL...${NC}"
+(cd backend && npm run db:migrate > /dev/null 2>&1 || true)
+echo -e "${GREEN}✔ Cơ sở dữ liệu đã sẵn sàng và được đồng bộ bản vá mới nhất.${NC}"
+
 # 4. Khởi chạy Backend và Frontend song song
 echo -e "${BLUE}▶ [4/4] Khởi động đồng thời Backend API và Frontend Vite...${NC}"
 

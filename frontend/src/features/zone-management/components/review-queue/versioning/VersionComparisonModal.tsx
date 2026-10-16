@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   History,
@@ -23,6 +23,7 @@ import {
   Building,
   ChevronRight,
   FileCode,
+  Maximize2,
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -76,6 +77,10 @@ export const VersionComparisonModal: React.FC<Props> = ({
   const [viewMode, setViewMode] = useState<'DIFF' | 'FULL_SNAPSHOT'>('DIFF');
   const [copiedJson, setCopiedJson] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
+
+  // Photo comparison tab state: 'DIFF_ONLY' | 'IDENT' | 'SETTLEMENT' | 'DEFECTS' | 'SPECIAL' | 'ALL'
+  const [photoDiffTab, setPhotoDiffTab] = useState<'DIFF_ONLY' | 'IDENT' | 'SETTLEMENT' | 'DEFECTS' | 'SPECIAL' | 'ALL'>('DIFF_ONLY');
+  const [zoomPhoto, setZoomPhoto] = useState<{ url: string; title: string } | null>(null);
 
   // Rollback prompt state
   const [showRollbackPrompt, setShowRollbackPrompt] = useState(false);
@@ -137,6 +142,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
       setShowRollbackPrompt(false);
       setAdminPassword('');
       setRollbackReason('');
+      setPhotoDiffTab('DIFF_ONLY');
+      setZoomPhoto(null);
     }
   }, [isOpen, reportId]);
 
@@ -214,6 +221,284 @@ export const VersionComparisonModal: React.FC<Props> = ({
   // Extraction helpers
   const getParcelVal = (pane: any, field: string) => pane?.parcel?.[field] ?? pane?.[field] ?? '---';
   const getSpecVal = (pane: any, field: string) => pane?.specs?.[field] ?? '---';
+
+  interface PhotoDiffItem {
+    id: string;
+    category: 'IDENT' | 'SETTLEMENT' | 'DEFECTS' | 'SPECIAL';
+    categoryLabel: string;
+    title: string;
+    code?: string;
+    oldUrl?: string | null;
+    newUrl?: string | null;
+    status: 'UNCHANGED' | 'ADDED' | 'REPLACED' | 'REMOVED';
+    note?: string;
+  }
+
+  // Calculate comprehensive visual photo diff between snapshot and current state
+  const photoDiffItems = useMemo<PhotoDiffItem[]>(() => {
+    const items: PhotoDiffItem[] = [];
+
+    const getUrl = (val: any): string | null => {
+      if (!val) return null;
+      if (typeof val === 'string') return val.trim() || null;
+      if (typeof val === 'object' && val.url) return String(val.url).trim() || null;
+      if (typeof val === 'object' && val.photoUrl) return String(val.photoUrl).trim() || null;
+      return null;
+    };
+
+    const getStatus = (oldU: string | null, newU: string | null): 'UNCHANGED' | 'ADDED' | 'REPLACED' | 'REMOVED' => {
+      if (!oldU && newU) return 'ADDED';
+      if (oldU && !newU) return 'REMOVED';
+      if (oldU && newU && oldU !== newU) return 'REPLACED';
+      return 'UNCHANGED';
+    };
+
+    // 1. Identification Photos (P01..P04)
+    const snapIdent = snapData?.identificationPhotos || snapLeft?.identificationPhotos || snapJson?.identificationPhotos || {};
+    const curIdent = currentData?.identificationPhotos || curLeft?.identificationPhotos || curJson?.identificationPhotos || {};
+
+    const identDefs = [
+      { key: 'photoP01', code: 'P-01', title: 'P-01: Biển số nhà & Mặt tiền cận', snapKey: 'photoP01' },
+      { key: 'photoP02', code: 'P-02', title: 'P-02: Toàn cảnh mặt tiền công trình', snapKey: 'photoP02' },
+      { key: 'photoP03', code: 'P-03', title: 'P-03: Hiện trạng mặt bên / mặt sau', snapKey: 'photoP03' },
+      { key: 'photoP04', code: 'P-04', title: 'P-04: Không gian & kết cấu lân cận', snapKey: 'photoP04' },
+    ];
+
+    identDefs.forEach((d) => {
+      const oldU = getUrl(snapIdent[d.key]?.url || snapIdent[d.key]?.rawUrl || snapJson?.[d.snapKey]?.url);
+      const newU = getUrl(curIdent[d.key]?.url || curIdent[d.key]?.rawUrl || curJson?.[d.snapKey]?.url);
+
+      if (oldU || newU) {
+        items.push({
+          id: `ident_${d.code}`,
+          category: 'IDENT',
+          categoryLabel: 'Ảnh định danh',
+          title: d.title,
+          code: d.code,
+          oldUrl: oldU,
+          newUrl: newU,
+          status: getStatus(oldU, newU),
+        });
+      }
+    });
+
+    // P-03 Supplementary Photos
+    const oldP03Add: any[] = Array.isArray(snapIdent?.photoP03?.additionalPhotos) ? snapIdent.photoP03.additionalPhotos : (Array.isArray(snapJson?.photoP03?.additionalPhotos) ? snapJson.photoP03.additionalPhotos : []);
+    const newP03Add: any[] = Array.isArray(curIdent?.photoP03?.additionalPhotos) ? curIdent.photoP03.additionalPhotos : (Array.isArray(curJson?.photoP03?.additionalPhotos) ? curJson.photoP03.additionalPhotos : []);
+    const maxP03Add = Math.max(oldP03Add.length, newP03Add.length);
+    for (let i = 0; i < maxP03Add; i++) {
+      const oldU = getUrl(oldP03Add[i]);
+      const newU = getUrl(newP03Add[i]);
+      if (oldU || newU) {
+        items.push({
+          id: `ident_P03_add_${i + 1}`,
+          category: 'IDENT',
+          categoryLabel: 'Ảnh định danh P-03 bổ sung',
+          title: `P-03 (Bổ sung ${i + 1}): Mặt bên / mặt sau góc phụ`,
+          code: `P-03-EXTRA-${i + 1}`,
+          oldUrl: oldU,
+          newUrl: newU,
+          status: getStatus(oldU, newU),
+        });
+      }
+    }
+
+    // 2. Settlement & Tilt (Step 5)
+    const snapST = snapJson?.settlementTilt || snapData?.settlementTilt || {};
+    const curST = curJson?.settlementTilt || currentData?.settlementTilt || {};
+
+    const stCategories = [
+      { key: 'beamSagging', code: 'SAG', label: 'Võng dầm / sàn', photosOld: snapST?.beamSagging?.photos, photosNew: curST?.beamSagging?.photos },
+      { key: 'differentialSettlement', code: 'SETTLE', label: 'Lún lệch / chênh cốt', photosOld: snapST?.differentialSettlement?.photos, photosNew: curST?.differentialSettlement?.photos },
+      { key: 'tilt', code: 'TILT', label: 'Nghiêng lệch công trình', photosOld: snapST?.tilt?.photos, photosNew: curST?.tilt?.photos },
+    ];
+
+    stCategories.forEach((st) => {
+      const pOld: any[] = Array.isArray(st.photosOld) ? st.photosOld : [];
+      const pNew: any[] = Array.isArray(st.photosNew) ? st.photosNew : [];
+      const maxLen = Math.max(pOld.length, pNew.length);
+      for (let i = 0; i < maxLen; i++) {
+        const oldU = getUrl(pOld[i]);
+        const newU = getUrl(pNew[i]);
+        if (oldU || newU) {
+          items.push({
+            id: `st_${st.code}_${i + 1}`,
+            category: 'SETTLEMENT',
+            categoryLabel: `Lún nghiêng - ${st.label}`,
+            title: `${st.label} (Ảnh #${i + 1})`,
+            code: `${st.code}-${i + 1}`,
+            oldUrl: oldU,
+            newUrl: newU,
+            status: getStatus(oldU, newU),
+            note: (typeof pNew[i] === 'object' && pNew[i]?.description) || (typeof pOld[i] === 'object' && pOld[i]?.description) || undefined,
+          });
+        }
+      }
+    });
+
+    // 3. Defects & Damage Zones (Step 3)
+    const getZoneList = (data: any, json: any): any[] => {
+      if (Array.isArray(data?.damageZones) && data.damageZones.length > 0) return data.damageZones;
+      if (Array.isArray(data?.rightPane?.damageZones) && data.rightPane.damageZones.length > 0) return data.rightPane.damageZones;
+      if (Array.isArray(data?.floors) && data.floors.length > 0) {
+        const zArr: any[] = [];
+        data.floors.forEach((fl: any) => {
+          if (Array.isArray(fl.damageZones)) zArr.push(...fl.damageZones);
+          else if (Array.isArray(fl.zones)) zArr.push(...fl.zones);
+        });
+        if (zArr.length > 0) return zArr;
+      }
+      if (Array.isArray(json?.damageZones)) return json.damageZones;
+      return [];
+    };
+
+    const snapZones = getZoneList(snapData, snapJson);
+    const curZones = getZoneList(currentData, curJson);
+
+    const allZoneCodes = Array.from(new Set([
+      ...snapZones.map((z: any) => z.zoneCode || z.zone_code || z.id),
+      ...curZones.map((z: any) => z.zoneCode || z.zone_code || z.id)
+    ])).filter(Boolean);
+
+    allZoneCodes.forEach((zCode) => {
+      const sZone = snapZones.find((z: any) => (z.zoneCode || z.zone_code || z.id) === zCode);
+      const cZone = curZones.find((z: any) => (z.zoneCode || z.zone_code || z.id) === zCode);
+
+      // CTX Overview Photo
+      const oldCtx = getUrl(sZone?.ctxPhotoUrl || sZone?.ctx_photo_url || sZone?.photoUrl);
+      const newCtx = getUrl(cZone?.ctxPhotoUrl || cZone?.ctx_photo_url || cZone?.photoUrl);
+      if (oldCtx || newCtx) {
+        items.push({
+          id: `zone_ctx_${zCode}`,
+          category: 'DEFECTS',
+          categoryLabel: `Vùng hư hại ${zCode}`,
+          title: `Ảnh toàn cảnh (CTX) - ${sZone?.zoneName || cZone?.zoneName || zCode}`,
+          code: `${zCode}-CTX`,
+          oldUrl: oldCtx,
+          newUrl: newCtx,
+          status: getStatus(oldCtx, newCtx),
+        });
+      }
+
+      // Defects CU Photos
+      const sDefects: any[] = Array.isArray(sZone?.defects || sZone?.defectItems) ? (sZone?.defects || sZone?.defectItems) : [];
+      const cDefects: any[] = Array.isArray(cZone?.defects || cZone?.defectItems) ? (cZone?.defects || cZone?.defectItems) : [];
+
+      const allDefCodes = Array.from(new Set([
+        ...sDefects.map((d: any) => d.defectCode || d.defect_code || d.id),
+        ...cDefects.map((d: any) => d.defectCode || d.defect_code || d.id)
+      ])).filter(Boolean);
+
+      allDefCodes.forEach((dCode) => {
+        const sDef = sDefects.find((d: any) => (d.defectCode || d.defect_code || d.id) === dCode);
+        const cDef = cDefects.find((d: any) => (d.defectCode || d.defect_code || d.id) === dCode);
+
+        const oldCu = getUrl(sDef?.cuPhotoUrl || sDef?.cu_photo_url || (Array.isArray(sDef?.cuPhotos) ? sDef?.cuPhotos[0] : null));
+        const newCu = getUrl(cDef?.cuPhotoUrl || cDef?.cu_photo_url || (Array.isArray(cDef?.cuPhotos) ? cDef?.cuPhotos[0] : null));
+
+        if (oldCu || newCu) {
+          items.push({
+            id: `defect_cu_${zCode}_${dCode}`,
+            category: 'DEFECTS',
+            categoryLabel: `Khuyết tật ${zCode} / ${dCode}`,
+            title: `Ảnh cận cảnh (CU) - ${cDef?.defectType || sDef?.defectType || dCode}`,
+            code: `${dCode}-CU`,
+            oldUrl: oldCu,
+            newUrl: newCu,
+            status: getStatus(oldCu, newCu),
+            note: cDef?.widthMaxMm ? `Bề rộng nứt: ${cDef.widthMaxMm}mm` : (sDef?.widthMaxMm ? `Bề rộng nứt: ${sDef.widthMaxMm}mm` : undefined),
+          });
+        }
+      });
+    });
+
+    // 4. Special Photos (Signatures, Vacant Land, Construction)
+    const oldSurvSig = getUrl(snapData?.surveyorSignatureUrl || snapData?.signatures?.surveyorSignatureUrl || snapJson?.signatures?.surveyorSignatureUrl);
+    const newSurvSig = getUrl(currentData?.surveyorSignatureUrl || currentData?.signatures?.surveyorSignatureUrl || curJson?.signatures?.surveyorSignatureUrl);
+    if (oldSurvSig || newSurvSig) {
+      items.push({
+        id: 'special_surveyor_signature',
+        category: 'SPECIAL',
+        categoryLabel: 'Chữ ký biên bản',
+        title: 'Chữ ký Khảo sát viên (KSV)',
+        code: 'SIG-KSV',
+        oldUrl: oldSurvSig,
+        newUrl: newSurvSig,
+        status: getStatus(oldSurvSig, newSurvSig),
+      });
+    }
+
+    const oldOwnerSig = getUrl(snapData?.ownerSignatureUrl || snapData?.signatures?.ownerSignatureUrl || snapJson?.signatures?.ownerSignatureUrl);
+    const newOwnerSig = getUrl(currentData?.ownerSignatureUrl || currentData?.signatures?.ownerSignatureUrl || curJson?.signatures?.ownerSignatureUrl);
+    if (oldOwnerSig || newOwnerSig) {
+      items.push({
+        id: 'special_owner_signature',
+        category: 'SPECIAL',
+        categoryLabel: 'Chữ ký biên bản',
+        title: 'Chữ ký Chủ hộ / Đại diện',
+        code: 'SIG-OWNER',
+        oldUrl: oldOwnerSig,
+        newUrl: newOwnerSig,
+        status: getStatus(oldOwnerSig, newOwnerSig),
+      });
+    }
+
+    const oldVacant: any[] = Array.isArray(snapJson?.vacantLandPhotos) ? snapJson.vacantLandPhotos : (Array.isArray(snapData?.vacantLandPhotos) ? snapData.vacantLandPhotos : []);
+    const newVacant: any[] = Array.isArray(curJson?.vacantLandPhotos) ? curJson.vacantLandPhotos : (Array.isArray(currentData?.vacantLandPhotos) ? currentData.vacantLandPhotos : []);
+    const maxVacant = Math.max(oldVacant.length, newVacant.length);
+    for (let i = 0; i < maxVacant; i++) {
+      const oldU = getUrl(oldVacant[i]);
+      const newU = getUrl(newVacant[i]);
+      if (oldU || newU) {
+        items.push({
+          id: `special_vacant_${i + 1}`,
+          category: 'SPECIAL',
+          categoryLabel: 'Ảnh đất trống',
+          title: `Đất trống hiện trạng (Ảnh #${i + 1})`,
+          code: `VACANT-${i + 1}`,
+          oldUrl: oldU,
+          newUrl: newU,
+          status: getStatus(oldU, newU),
+        });
+      }
+    }
+
+    const oldConst: any[] = Array.isArray(snapJson?.constructionPhotos) ? snapJson.constructionPhotos : (Array.isArray(snapData?.constructionPhotos) ? snapData.constructionPhotos : []);
+    const newConst: any[] = Array.isArray(curJson?.constructionPhotos) ? curJson.constructionPhotos : (Array.isArray(currentData?.constructionPhotos) ? currentData.constructionPhotos : []);
+    const maxConst = Math.max(oldConst.length, newConst.length);
+    for (let i = 0; i < maxConst; i++) {
+      const oldU = getUrl(oldConst[i]);
+      const newU = getUrl(newConst[i]);
+      if (oldU || newU) {
+        items.push({
+          id: `special_const_${i + 1}`,
+          category: 'SPECIAL',
+          categoryLabel: 'Ảnh công trình đang XD',
+          title: `Công trình đang thi công (Ảnh #${i + 1})`,
+          code: `CONST-${i + 1}`,
+          oldUrl: oldU,
+          newUrl: newU,
+          status: getStatus(oldU, newU),
+        });
+      }
+    }
+
+    return items;
+  }, [snapData, snapLeft, snapJson, currentData, curLeft, curJson]);
+
+  const diffOnlyCount = useMemo(() => {
+    return photoDiffItems.filter((item) => item.status !== 'UNCHANGED').length;
+  }, [photoDiffItems]);
+
+  const filteredPhotoDiffItems = useMemo(() => {
+    if (photoDiffTab === 'DIFF_ONLY') {
+      return photoDiffItems.filter((item) => item.status !== 'UNCHANGED');
+    }
+    if (photoDiffTab === 'ALL') {
+      return photoDiffItems;
+    }
+    return photoDiffItems.filter((item) => item.category === photoDiffTab);
+  }, [photoDiffItems, photoDiffTab]);
 
   const handleExecuteRollback = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -606,6 +891,242 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Section 5: So Sánh Trực Quan Toàn Bộ Hồ Sơ Ảnh (Side-by-Side Visual Photo Diff) */}
+                <div className="bg-white rounded-xl border border-slate-200/80 p-4 space-y-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-indigo-600" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                          5. Đối Soát Trực Quan Hồ Sơ Ảnh (Side-by-Side Photo Diff)
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Đối chiếu hình ảnh trực tiếp giữa Bản chụp v{selectedVerNumber} và Hiện tại v{latestVersionNumber}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Category Filter Tab Bar */}
+                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('DIFF_ONLY')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          photoDiffTab === 'DIFF_ONLY'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>Chỉ xem ảnh có thay đổi</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                          photoDiffTab === 'DIFF_ONLY' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
+                        }`}>
+                          {diffOnlyCount}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('IDENT')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          photoDiffTab === 'IDENT' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Định danh (P01..P04)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('SETTLEMENT')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          photoDiffTab === 'SETTLEMENT' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Lún nghiêng (Step 5)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('DEFECTS')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          photoDiffTab === 'DEFECTS' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Khuyết tật (Step 3)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('SPECIAL')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          photoDiffTab === 'SPECIAL' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Chữ ký & Đất trống
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoDiffTab('ALL')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          photoDiffTab === 'ALL' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Tất cả ({photoDiffItems.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Photo Diff Grid */}
+                  {filteredPhotoDiffItems.length === 0 ? (
+                    <div className="py-10 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 space-y-1">
+                      <Camera className="w-8 h-8 text-slate-400 mx-auto" />
+                      <p className="text-xs font-medium">
+                        {photoDiffTab === 'DIFF_ONLY'
+                          ? `Không có thay đổi hình ảnh nào giữa Phiên bản v${selectedVerNumber} và Hiện tại.`
+                          : 'Không có ảnh nào trong chuyên mục này.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredPhotoDiffItems.map((item) => {
+                        const isDiff = item.status !== 'UNCHANGED';
+                        return (
+                          <div
+                            key={item.id}
+                            className={`rounded-xl border transition-all overflow-hidden flex flex-col ${
+                              isDiff
+                                ? 'bg-amber-50/40 border-amber-300 shadow-sm'
+                                : 'bg-slate-50/70 border-slate-200'
+                            }`}
+                          >
+                            {/* Card Header */}
+                            <div className="px-3.5 py-2.5 bg-white/90 border-b border-inherit flex items-center justify-between gap-2 shrink-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                                  {item.categoryLabel}
+                                </span>
+                                <h4 className="text-xs font-bold text-slate-800 truncate" title={item.title}>
+                                  {item.title}
+                                </h4>
+                              </div>
+
+                              <div className="shrink-0">
+                                {item.status === 'ADDED' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    + Mới thêm ở Hiện tại
+                                  </span>
+                                )}
+                                {item.status === 'REPLACED' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                                    <RotateCcw className="w-3 h-3 text-amber-700" />
+                                    Đã thay ảnh
+                                  </span>
+                                )}
+                                {item.status === 'REMOVED' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                    - Đã xóa ở Hiện tại
+                                  </span>
+                                )}
+                                {item.status === 'UNCHANGED' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                    Không thay đổi
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Side-by-Side Comparison Body */}
+                            <div className="grid grid-cols-2 gap-2 p-3 flex-1 bg-white/40">
+                              {/* Left: Snapshot Version */}
+                              <div className="flex flex-col space-y-1.5">
+                                <span className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                                  <span>Bản chụp v{selectedVerNumber}</span>
+                                  {item.oldUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setZoomPhoto({ url: item.oldUrl!, title: `${item.title} (v${selectedVerNumber})` })}
+                                      className="text-indigo-600 hover:text-indigo-800 p-0.5 rounded hover:bg-indigo-50 cursor-pointer"
+                                      title="Phóng to ảnh"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </span>
+                                {item.oldUrl ? (
+                                  <div
+                                    onClick={() => setZoomPhoto({ url: item.oldUrl!, title: `${item.title} (v${selectedVerNumber})` })}
+                                    className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-900 group cursor-pointer"
+                                  >
+                                    <img
+                                      src={item.oldUrl}
+                                      alt={`${item.title} (v${selectedVerNumber})`}
+                                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span>Phóng to</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="aspect-video rounded-lg border border-dashed border-slate-300 bg-slate-100/70 flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                                    <Camera className="w-5 h-5 mb-1 opacity-50" />
+                                    <span className="text-[10px] font-medium">Chưa có ảnh ở v{selectedVerNumber}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Right: Current State */}
+                              <div className="flex flex-col space-y-1.5">
+                                <span className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                                  <span>Hiện tại (v{latestVersionNumber})</span>
+                                  {item.newUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setZoomPhoto({ url: item.newUrl!, title: `${item.title} (Hiện tại)` })}
+                                      className="text-indigo-600 hover:text-indigo-800 p-0.5 rounded hover:bg-indigo-50 cursor-pointer"
+                                      title="Phóng to ảnh"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </span>
+                                {item.newUrl ? (
+                                  <div
+                                    onClick={() => setZoomPhoto({ url: item.newUrl!, title: `${item.title} (Hiện tại)` })}
+                                    className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-900 group cursor-pointer"
+                                  >
+                                    <img
+                                      src={item.newUrl}
+                                      alt={`${item.title} (Hiện tại)`}
+                                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span>Phóng to</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="aspect-video rounded-lg border border-dashed border-rose-300 bg-rose-50/50 flex flex-col items-center justify-center text-rose-400 p-2 text-center">
+                                    <Camera className="w-5 h-5 mb-1 opacity-50" />
+                                    <span className="text-[10px] font-medium">Đã xóa / Không có ảnh</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {item.note && (
+                              <div className="px-3.5 py-1.5 bg-slate-100/80 border-t border-inherit text-[11px] text-slate-600 italic">
+                                {item.note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -848,6 +1369,49 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   {renderSnapshotField('Ý kiến của chủ hộ', snapJson?.signatures?.ownerFeedback || snapData?.ownerRemarks)}
                   {renderSnapshotField('Khuyến nghị kỹ thuật', snapData?.engineeringRecommendations || snapLeft?.conclusions?.recommendations)}
                 </div>
+
+                {/* Visual Photo Gallery of Snapshot */}
+                {(() => {
+                  const snapPhotos = photoDiffItems.filter((item) => Boolean(item.oldUrl));
+                  if (snapPhotos.length === 0) return null;
+                  return (
+                    <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
+                      <span className="text-xs font-bold text-slate-300 block">
+                        Thư viện ảnh ghi nhận trong Bản chụp v{selectedVerNumber} ({snapPhotos.length} ảnh):
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {snapPhotos.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-slate-950 rounded-xl p-2 border border-slate-800 flex flex-col space-y-1.5 group"
+                          >
+                            <div
+                              onClick={() => setZoomPhoto({ url: item.oldUrl!, title: `${item.title} (v${selectedVerNumber})` })}
+                              className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 cursor-pointer"
+                            >
+                              <img
+                                src={item.oldUrl!}
+                                alt={item.title}
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Maximize2 className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div className="text-[11px] leading-tight">
+                              <span className="font-bold text-indigo-300 block truncate" title={item.title}>
+                                {item.title}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                {item.categoryLabel}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Section 6: Bản Chụp Dữ Liệu JSON (Raw Snapshot) */}
@@ -998,6 +1562,39 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Zoom Photo Dialog */}
+      {zoomPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-70 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in"
+          onClick={() => setZoomPhoto(null)}
+        >
+          <div
+            className="relative max-w-5xl w-full max-h-[92vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-950 border-b border-slate-800 text-xs">
+              <span className="font-bold text-white truncate pr-4">{zoomPhoto.title}</span>
+              <button
+                type="button"
+                onClick={() => setZoomPhoto(null)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3 flex items-center justify-center overflow-auto max-h-[82vh] bg-slate-950/60">
+              <img
+                src={zoomPhoto.url}
+                alt={zoomPhoto.title}
+                className="max-h-[80vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
           </div>
         </div>
       )}
