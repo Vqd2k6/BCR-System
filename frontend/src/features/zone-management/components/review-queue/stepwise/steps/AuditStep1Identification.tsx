@@ -107,22 +107,26 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
   // P01: Biển số nhà
   const p01Raw = toPhotoObj(identificationPhotos.photoP01 || sJson.photoP01);
-  const p01Url = p01Raw.url || p01Raw.photoUrl || p01Raw.raw_photo_url || p01Raw.annotated_photo_url || '';
+  const p01IsNa = Boolean(p01Raw.notApplicable ?? p01Raw.isNotApplicable);
+  const p01Url = p01IsNa ? '' : (p01Raw.url || p01Raw.photoUrl || p01Raw.raw_photo_url || p01Raw.annotated_photo_url || '');
 
   // P02: Mặt đứng chính diện
   const p02Raw = toPhotoObj(identificationPhotos.photoP02 || sJson.photoP02);
-  const p02Url = p02Raw.url || p02Raw.photoUrl || p02Raw.raw_photo_url || p02Raw.annotated_photo_url || '';
+  const p02IsNa = Boolean(p02Raw.notApplicable ?? p02Raw.isNotApplicable);
+  const p02Url = p02IsNa ? '' : (p02Raw.url || p02Raw.photoUrl || p02Raw.raw_photo_url || p02Raw.annotated_photo_url || '');
   const p02PolygonPoints = p02Raw.polygonPoints || (sJson.facadeBoundaryGeojson as PolygonPoint[] | null) || (rightPane.facadeBoundaryGeojson as PolygonPoint[] | null) || null;
   const p02FloorSplits = p02Raw.floorSplits || null;
 
   // P03: Mặt bên / Mặt sau (Ảnh chính + tối đa 2 ảnh bổ sung -> max 3 ảnh P-03)
   const p03Raw = toPhotoObj(identificationPhotos.photoP03 || sJson.photoP03);
-  const p03Url = p03Raw.url || p03Raw.photoUrl || p03Raw.raw_photo_url || p03Raw.annotated_photo_url || '';
+  const p03IsNa = Boolean(p03Raw.notApplicable ?? p03Raw.isNotApplicable);
+  const p03Url = p03IsNa ? '' : (p03Raw.url || p03Raw.photoUrl || p03Raw.raw_photo_url || p03Raw.annotated_photo_url || '');
   const p03AdditionalPhotos = Array.isArray(p03Raw.additionalPhotos) ? p03Raw.additionalPhotos : [];
 
   // P04: Toàn cảnh tuyến phố
   const p04Raw = toPhotoObj(identificationPhotos.photoP04 || sJson.photoP04);
-  const p04Url = p04Raw.url || p04Raw.photoUrl || p04Raw.raw_photo_url || p04Raw.annotated_photo_url || '';
+  const p04IsNa = Boolean(p04Raw.notApplicable ?? p04Raw.isNotApplicable);
+  const p04Url = p04IsNa ? '' : (p04Raw.url || p04Raw.photoUrl || p04Raw.raw_photo_url || p04Raw.annotated_photo_url || '');
 
   // Danh sách ảnh định danh ngoại quan linh hoạt (tối thiểu 4 ảnh, tối đa 6 ảnh)
   const dynamicPhotoList: DynamicPhotoItem[] = [
@@ -132,7 +136,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
       label: 'Biển số nhà / Tên cơ quan',
       url: p01Url,
       photoCode: (p01Raw.photoCode as string) || 'P01',
-      notApplicable: Boolean(p01Raw.notApplicable),
+      notApplicable: p01IsNa,
       naReason: p01Raw.naReason,
       historyCount: p01Raw.historyCount,
       hasHistory: p01Raw.hasHistory,
@@ -145,7 +149,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
       photoCode: (p02Raw.photoCode as string) || 'P02',
       polygonPoints: p02PolygonPoints,
       floorSplits: p02FloorSplits,
-      notApplicable: Boolean(p02Raw.notApplicable),
+      notApplicable: p02IsNa,
       naReason: p02Raw.naReason,
       historyCount: p02Raw.historyCount,
       hasHistory: p02Raw.hasHistory,
@@ -157,7 +161,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
       url: p03Url,
       photoCode: (p03Raw.photoCode as string) || 'P03',
       tag: p03Raw.tag || 'Bên hông',
-      notApplicable: Boolean(p03Raw.notApplicable),
+      notApplicable: p03IsNa,
       naReason: p03Raw.naReason,
       historyCount: p03Raw.historyCount,
       hasHistory: p03Raw.hasHistory,
@@ -184,7 +188,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
       label: 'Toàn cảnh tuyến phố & Không gian',
       url: p04Url,
       photoCode: (p04Raw.photoCode as string) || 'P04',
-      notApplicable: Boolean(p04Raw.notApplicable),
+      notApplicable: p04IsNa,
       naReason: p04Raw.naReason,
       historyCount: p04Raw.historyCount,
       hasHistory: p04Raw.hasHistory,
@@ -372,9 +376,16 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         )}
                       </>
                     ) : item.notApplicable ? (
-                      <div className="p-2 text-center text-slate-400">
-                        <span className="text-xs font-bold block">N/A</span>
-                        <span className="text-[10px] italic">{item.naReason || 'Không áp dụng'}</span>
+                      <div className="p-3 text-center text-slate-500 flex flex-col items-center justify-center gap-1.5 w-full h-full bg-slate-50 border border-dashed border-amber-300 rounded-lg">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs">
+                          N/A - Không Áp Dụng
+                        </span>
+                        <p className="text-[11px] text-slate-700 font-medium line-clamp-2 px-2 text-center">
+                          {item.naReason || 'Đã loại khỏi hồ sơ thẩm định'}
+                        </p>
+                        <span className="text-[9px] text-slate-400">
+                          ● Vị trí ảnh này đã được đánh dấu N/A
+                        </span>
                       </div>
                     ) : (
                       <span className="text-xs text-slate-400 italic">Chưa có ảnh</span>
@@ -451,12 +462,12 @@ export const AuditStep1Identification: React.FC<Props> = ({
                               }
                             }}
                             className="p-1 rounded text-sky-300 hover:text-white hover:bg-sky-600 transition-colors cursor-pointer"
-                            title="Thay thế / cập nhật ảnh chuẩn M2"
+                            title={item.notApplicable ? "Tải ảnh thay thế cho vị trí N/A này" : "Thay thế / cập nhật ảnh chuẩn M2"}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
 
-                          {onOpenPhotoAction && (
+                          {onOpenPhotoAction && !item.notApplicable && (
                             <button
                               type="button"
                               onClick={(e) => {

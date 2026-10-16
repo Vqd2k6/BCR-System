@@ -1,18 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Home,
   Building2,
   ShieldAlert,
-  Search,
-  Filter,
-  RefreshCw,
-  Clock,
-  Layers,
-  MapPin,
-  CheckCircle2,
+  Lock,
+  X,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
-import { getErrorMessage } from '@/utils/errorUtils';
 import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
@@ -27,6 +21,23 @@ import type { GisParcel } from '../../../../components/gis/shared/types';
 import { ResidentialReviewQueue } from './residential/ResidentialReviewQueue';
 import { CondoProjectsReviewQueue } from './condo/CondoProjectsReviewQueue';
 import { UrgentReviewQueue } from './urgent/UrgentReviewQueue';
+
+const isProductionScopeLockActive = (): boolean => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('prodPreview') === '1') return true;
+    const host = window.location.hostname;
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.startsWith('192.168.') ||
+      host.endsWith('.trycloudflare.com')
+    ) {
+      return false;
+    }
+  }
+  return import.meta.env.PROD && !import.meta.env.DEV;
+};
 
 export interface PendingSubmissionItem {
   report_id: string | null;
@@ -111,12 +122,16 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
   selectedZone,
   onStatsNeedRefresh,
   externalFilterCategory,
-  externalFilterValue,
-  onClearExternalFilter,
   title,
 }) => {
+  const isProdScopeLocked = isProductionScopeLockActive();
+  const [lockedScopeNotice, setLockedScopeNotice] = useState<'CONDO' | 'URGENT' | null>(null);
+
   // Determine initial scope from URL query parameter or externalFilterCategory
   const getInitialScope = (): ReviewScope => {
+    if (isProdScopeLocked) {
+      return 'RESIDENTIAL';
+    }
     const params = new URLSearchParams(window.location.search);
     const scopeParam = params.get('scope')?.toUpperCase();
     if (scopeParam === 'CONDO') return 'CONDO';
@@ -136,15 +151,33 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
 
   // Sync active scope when externalFilterCategory changes
   useEffect(() => {
+    if (isProdScopeLocked) {
+      setActiveScope('RESIDENTIAL');
+      return;
+    }
     if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
       setActiveScope('URGENT');
     } else if (externalFilterCategory === 'CONDO') {
       setActiveScope('CONDO');
     }
-  }, [externalFilterCategory]);
+  }, [externalFilterCategory, isProdScopeLocked]);
+
+  useEffect(() => {
+    if (!lockedScopeNotice) return;
+    const timer = window.setTimeout(() => {
+      setLockedScopeNotice(null);
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [lockedScopeNotice]);
 
   // Update URL search param on scope change
   const handleScopeChange = (newScope: ReviewScope) => {
+    if (isProdScopeLocked && newScope !== 'RESIDENTIAL') {
+      setLockedScopeNotice(newScope);
+      setActiveScope('RESIDENTIAL');
+      return;
+    }
+    setLockedScopeNotice(null);
     setActiveScope(newScope);
     const url = new URL(window.location.href);
     url.searchParams.set('nav', 'review');
@@ -309,7 +342,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
         </div>
 
         {/* Segmented Scope Switcher */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit shrink-0">
+        <div className="flex items-center flex-wrap gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit shrink-0">
           {/* Space 1: Residential */}
           <button
             type="button"
@@ -337,50 +370,113 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => handleScopeChange('CONDO')}
+            aria-disabled={isProdScopeLocked}
+            title={
+              isProdScopeLocked
+                ? 'Đang phát triển — Tạm khóa trên môi trường Production'
+                : 'Không gian thẩm định Dự Án Chung Cư'
+            }
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeScope === 'CONDO'
-                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              isProdScopeLocked
+                ? 'text-slate-400 dark:text-slate-500 opacity-80 hover:opacity-100'
+                : activeScope === 'CONDO'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+            {isProdScopeLocked ? (
+              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            ) : (
+              <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+            )}
             <span>Dự Án Chung Cư</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                activeScope === 'CONDO'
-                  ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              {scopeCounts.condoTowers} Tòa
-            </span>
+            {isProdScopeLocked ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                Đang phát triển
+              </span>
+            ) : (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                  activeScope === 'CONDO'
+                    ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {scopeCounts.condoTowers} Tòa
+              </span>
+            )}
           </button>
 
           {/* Space 3: Urgent */}
           <button
             type="button"
             onClick={() => handleScopeChange('URGENT')}
+            aria-disabled={isProdScopeLocked}
+            title={
+              isProdScopeLocked
+                ? 'Đang phát triển — Tạm khóa trên môi trường Production'
+                : 'Không gian thẩm định Cần Xử Lý Khẩn'
+            }
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeScope === 'URGENT'
-                ? 'bg-white dark:bg-slate-900 text-red-700 dark:text-red-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              isProdScopeLocked
+                ? 'text-slate-400 dark:text-slate-500 opacity-80 hover:opacity-100'
+                : activeScope === 'URGENT'
+                  ? 'bg-white dark:bg-slate-900 text-red-700 dark:text-red-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+            {isProdScopeLocked ? (
+              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            ) : (
+              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+            )}
             <span>Cần Xử Lý Khẩn</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                scopeCounts.urgent > 0 ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
-              }`}
-            >
-              {scopeCounts.urgent}
-            </span>
+            {isProdScopeLocked ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                Đang phát triển
+              </span>
+            ) : (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                  scopeCounts.urgent > 0 ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
+                }`}
+              >
+                {scopeCounts.urgent}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
+      {/* Thông báo khi bấm vào phân mục đang khóa trên môi trường Production */}
+      {isProdScopeLocked && lockedScopeNotice && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 text-xs">
+            <div className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-900/80 border border-amber-300 dark:border-amber-700 flex items-center justify-center shrink-0">
+              <Lock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
+            </div>
+            <div>
+              <span className="font-black">
+                Phân mục &ldquo;{lockedScopeNotice === 'CONDO' ? 'Dự Án Chung Cư' : 'Cần Xử Lý Khẩn'}&rdquo; đang phát triển:
+              </span>{' '}
+              <span className="font-medium text-amber-800 dark:text-amber-300">
+                Tính năng này hiện đang được khóa trên máy chủ Production để hoàn thiện logic nghiệp vụ. Hiện tại chỉ mở khóa thẩm định cho mục <strong>Nhà Dân Độc Lập</strong>.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLockedScopeNotice(null)}
+            className="p-1.5 rounded-lg text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer shrink-0"
+            title="Đóng thông báo"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Render Space Components */}
-      {activeScope === 'RESIDENTIAL' && (
+      {(activeScope === 'RESIDENTIAL' || isProdScopeLocked) && (
         <ResidentialReviewQueue
           selectedZone={selectedZone}
           onOpenStudio={handleOpenStudio}
@@ -424,7 +520,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
         />
       )}
 
-      {activeScope === 'CONDO' && (
+      {!isProdScopeLocked && activeScope === 'CONDO' && (
         <CondoProjectsReviewQueue
           selectedZone={selectedZone}
           onOpenStudio={handleOpenStudio}
@@ -467,7 +563,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
         />
       )}
 
-      {activeScope === 'URGENT' && (
+      {!isProdScopeLocked && activeScope === 'URGENT' && (
         <UrgentReviewQueue
           selectedZone={selectedZone}
           onOpenStudio={handleOpenStudio}
