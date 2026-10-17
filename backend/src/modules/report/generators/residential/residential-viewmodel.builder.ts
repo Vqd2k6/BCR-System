@@ -23,6 +23,12 @@ import {
   getBraBadge,
 } from './residential.constants';
 import { buildFloorSurveys } from './residential.floor-builder';
+import {
+  evaluateAddressStandard,
+  standardizeHouseNumber,
+  standardizeStreet,
+  standardizeWard,
+} from '../../../audit/utils/residential-address.standards';
 
 /**
  * Xây dựng toàn bộ ResidentialReportViewModel từ dữ liệu báo cáo thô của CSDL
@@ -183,20 +189,24 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   const cleanPhone = surveyorPhone.replace(/\D/g, '');
   const surveyId = cleanPhone.length >= 4 ? `P-${cleanPhone.slice(-4)}` : (reportData.surveyor_code || 'P-0000');
 
-  // Địa chỉ thực tế
-  const formatWard = (w?: string) => {
-    if (!w) return '';
-    return w.toLowerCase().startsWith('phường') || w.toLowerCase().startsWith('xã') ? w : `Phường ${w}`;
-  };
-  const formatDistrict = (d?: string) => {
-    if (!d) return '';
-    return d.toLowerCase().startsWith('quận') || d.toLowerCase().startsWith('huyện') || d.toLowerCase().startsWith('thành phố') || d.toLowerCase().startsWith('tp') ? d : `Quận ${d}`;
-  };
+  // Địa chỉ thực tế - Chuẩn hóa theo NQ 1685/NQ-UBTVQH15
+  const rawHn = json.houseNumber || reportData.house_number || '';
+  const rawStreet = json.street || reportData.street || '';
+  const rawWard = json.ward || reportData.ward || '';
+  const rawDistrict = json.district || reportData.district || '';
+  const zoneId = reportData.zone_id || json.zoneId;
+
+  const addressEval = evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+  const standardizedHn = addressEval.suggested.houseNumber || rawHn;
+  const standardizedStreet = addressEval.suggested.street || rawStreet;
+  const standardizedWard = addressEval.suggested.ward || rawWard;
+  const standardizedDistrict = addressEval.suggested.district || rawDistrict;
+
   const addressParts = [
-    json.houseNumber || reportData.house_number,
-    json.street || reportData.street,
-    formatWard(reportData.ward),
-    formatDistrict(reportData.district),
+    standardizedHn ? (standardizedHn.toLowerCase().startsWith('số') ? standardizedHn : `Số ${standardizedHn}`) : '',
+    standardizedStreet,
+    standardizedWard,
+    standardizedDistrict,
   ].filter(Boolean);
   const address = addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || '');
 
@@ -417,10 +427,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     officialCadastralCode: json.officialCadastralCode || reportData.official_cadastral_code || '',
     surveyId,
     address,
-    houseNumber: json.houseNumber || reportData.house_number || '',
-    street: json.street || reportData.street || '',
-    ward: reportData.ward || '',
-    district: reportData.district || '',
+    houseNumber: standardizedHn,
+    street: standardizedStreet,
+    ward: standardizedWard,
+    district: standardizedDistrict,
     zoneId: reportData.zone_id || 'ZONE_01',
     zoneName: `Khu vực Ga ${reportData.zone_id || 'ZONE_01'}`,
     chainage: json.chainage || reportData.chainage || 'Km 0+000',

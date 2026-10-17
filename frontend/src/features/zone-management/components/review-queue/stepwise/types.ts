@@ -46,7 +46,7 @@ export interface StepwiseIdentificationPhotoItem {
   additionalPhotos?: Array<{ url: string; caption?: string; photoCode?: string; notes?: string; historyCount?: number; hasHistory?: boolean }>;
   historyCount?: number;
   hasHistory?: boolean;
-  history?: any[];
+  history?: unknown[];
   [key: string]: unknown;
 }
 

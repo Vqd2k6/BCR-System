@@ -8,6 +8,8 @@ import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisua
 
 import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
+import { SmartAddressSuggestionCard } from '../components/SmartAddressSuggestionCard';
+import { evaluateAddressStandard } from '../utils/residentialAddressStandards';
 
 interface Props extends AuditStepBaseProps {}
 
@@ -106,6 +108,33 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const sJson = data?.surveyJson || data?.survey_data_json || {};
   const rightPane = data?.rightPane || {};
   const identificationPhotos = rightPane.identificationPhotos || sJson.identificationPhotos || {};
+
+  // Đánh giá chuẩn hóa thông tin địa chỉ theo Nghị quyết số 1685/NQ-UBTVQH15
+  const addressEvaluation = useMemo(() => {
+    const rawHn = formState.houseNumber || (typeof sJson.houseNumber === 'string' ? sJson.houseNumber : undefined) || (typeof data?.houseNumber === 'string' ? data.houseNumber : undefined);
+    const rawStreet = formState.street || (typeof sJson.street === 'string' ? sJson.street : undefined) || (typeof data?.street === 'string' ? data.street : undefined);
+    const rawWard = formState.ward || (typeof sJson.ward === 'string' ? sJson.ward : undefined) || (typeof data?.ward === 'string' ? data.ward : undefined);
+    const rawDistrict = formState.district || (typeof sJson.district === 'string' ? sJson.district : undefined) || (typeof data?.district === 'string' ? data.district : undefined);
+    const rawZoneId = data?.zoneId || data?.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined);
+
+    return evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, rawZoneId);
+  }, [
+    formState.houseNumber,
+    formState.street,
+    formState.ward,
+    formState.district,
+    sJson.houseNumber,
+    sJson.street,
+    sJson.ward,
+    sJson.district,
+    sJson.zoneId,
+    data?.houseNumber,
+    data?.street,
+    data?.ward,
+    data?.district,
+    data?.zoneId,
+    data?.zone_id,
+  ]);
 
   // Case Type
   const caseType = formState.surveyCaseType || sJson.surveyCaseType || (data?.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL');
@@ -1247,6 +1276,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
               1.2. Thông Tin Định Danh Công Trình & Địa Chỉ Hành Chính
             </span>
           </div>
+
+          {/* Gợi ý chuẩn hóa thông tin địa chỉ thông minh theo NQ 1685 */}
+          <SmartAddressSuggestionCard
+            evaluation={addressEvaluation}
+            zoneId={data?.zoneId || data?.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined)}
+            isEditMode={isEditMode}
+            onApplyField={(fieldKey, label, val) => handleFieldChange(fieldKey, label, val)}
+            onApplyAll={(updates) => {
+              handleFieldChange('houseNumber', 'Số nhà', updates.houseNumber);
+              handleFieldChange('street', 'Tuyến đường', updates.street);
+              handleFieldChange('ward', 'Phường/Xã', updates.ward);
+              handleFieldChange('district', 'Quận/Huyện', updates.district);
+            }}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             {/* Tên công trình */}

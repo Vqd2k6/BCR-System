@@ -16,7 +16,9 @@ import {
   Undo2,
   GitBranch,
   ChevronDown,
+  MapPin,
 } from 'lucide-react';
+import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
 import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
 import { RejectReportModal } from './RejectReportModal';
@@ -152,8 +154,30 @@ export const AuditStudioModal: React.FC<Props> = ({
     stagedPhotoRotations: {},
   });
   const [showOrientationWarning, setShowOrientationWarning] = useState(false);
+  const [showAddressWarning, setShowAddressWarning] = useState(false);
   const [selectedPhotoRotation, setSelectedPhotoRotation] = useState<number>(0);
   const [selectedPhotoCode, setSelectedPhotoCode] = useState<string>('');
+
+  // Đánh giá chuẩn hóa thông tin địa chỉ thửa đất theo NQ 1685
+  const currentAddressEval = React.useMemo(() => {
+    if (!data) return null;
+    const sJson = data.surveyJson || data.survey_data_json || {};
+    const rawHn = pendingDirtyData.updates.houseNumber !== undefined
+      ? String(pendingDirtyData.updates.houseNumber)
+      : (typeof sJson.houseNumber === 'string' ? sJson.houseNumber : typeof data.houseNumber === 'string' ? data.houseNumber : undefined);
+    const rawStreet = pendingDirtyData.updates.street !== undefined
+      ? String(pendingDirtyData.updates.street)
+      : (typeof sJson.street === 'string' ? sJson.street : typeof data.street === 'string' ? data.street : undefined);
+    const rawWard = pendingDirtyData.updates.ward !== undefined
+      ? String(pendingDirtyData.updates.ward)
+      : (typeof sJson.ward === 'string' ? sJson.ward : typeof data.ward === 'string' ? data.ward : undefined);
+    const rawDistrict = pendingDirtyData.updates.district !== undefined
+      ? String(pendingDirtyData.updates.district)
+      : (typeof sJson.district === 'string' ? sJson.district : typeof data.district === 'string' ? data.district : undefined);
+    const zoneId = data.zoneId || data.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined);
+
+    return evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+  }, [data, pendingDirtyData.updates]);
 
   const fetchAuditData = async () => {
     setLoading(true);
@@ -297,6 +321,12 @@ export const AuditStudioModal: React.FC<Props> = ({
     // Ràng buộc hướng ảnh Nhà Dân Thường: Nếu còn ảnh lệch chuẩn FE -> Mở modal xác nhận 2 lựa chọn
     if (orientationAudit.hasMismatched && orientationAudit.violations.length > 0) {
       setShowOrientationWarning(true);
+      return;
+    }
+
+    // Ràng buộc chuẩn hóa địa chỉ (NQ 1685): Cảnh báo mềm nếu địa chỉ chưa chuẩn hóa hoặc ô đường bị nhiễm bẩn
+    if (currentAddressEval && !currentAddressEval.isCompliant && (currentAddressEval.hasAnomalies || currentAddressEval.isContaminated)) {
+      setShowAddressWarning(true);
       return;
     }
 
@@ -992,6 +1022,70 @@ export const AuditStudioModal: React.FC<Props> = ({
                 type="button"
                 onClick={async () => {
                   setShowOrientationWarning(false);
+                  await executeApprove();
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              >
+                Bỏ Qua & Tiếp Tục Phê Duyệt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận phê duyệt khi địa chỉ chưa chuẩn hóa (Soft Approval Gatekeeper - NQ 1685) */}
+      {showAddressWarning && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-amber-300 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 border border-amber-300">
+                <MapPin className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-slate-900">
+                  Cảnh Báo Thông Tin Địa Chỉ Chưa Chuẩn Hóa
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Hồ sơ hiện còn thông tin địa chỉ chưa chuẩn hóa theo quy chuẩn hành chính sau sáp nhập (NQ 1685/NQ-UBTVQH15) hoặc chứa lỗi chính tả, viết tắt.
+                </p>
+              </div>
+            </div>
+
+            {/* Chi tiết cảnh báo */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2 text-xs">
+              <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Các điểm cần lưu ý:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-700 font-medium">
+                {currentAddressEval?.anomalyReasons.map((reason, idx) => (
+                  <li key={idx}>{reason}</li>
+                ))}
+              </ul>
+              {currentAddressEval?.isContaminated && (
+                <div className="mt-2 text-rose-800 font-bold bg-rose-100/80 p-2 rounded-lg border border-rose-300">
+                  ⚠️ Ô Tên đường đang bị điền nhầm tên Phường. Báo cáo in ấn sẽ bị sai lệch nếu chưa điều chỉnh!
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-700 font-medium">
+              Bạn có muốn quay lại để chuẩn hóa tự động hay bỏ qua và tiếp tục phê duyệt?
+            </p>
+
+            {/* 2 nút quyết định */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowAddressWarning(false)}
+                className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Quay Lại Chuẩn Hóa Địa Chỉ
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowAddressWarning(false);
                   await executeApprove();
                 }}
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
