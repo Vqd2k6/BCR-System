@@ -41,11 +41,14 @@ export interface DamageZoneData {
   isCompleted?: boolean;
   customizedFields?: string[];
   syncedFromZoneCode?: string;
+  is_deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface StructuralElementData {
   id: string;
   elementCode: string; // E-01, E-02...
+  element_code?: string;
   floorName: string;
   roomName: string;
   customRoomName?: string;
@@ -65,6 +68,8 @@ export interface StructuralElementData {
   isCompleted?: boolean;
   customizedFields?: string[];
   syncedFromElementCode?: string;
+  is_deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface FloorSurveyData {

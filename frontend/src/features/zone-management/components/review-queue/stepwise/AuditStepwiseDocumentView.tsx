@@ -170,7 +170,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
               <div className="text-[11px] font-bold text-amber-950 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span>{isEditMode ? 'Đang hiệu chỉnh' : 'Chế độ xem'}: {dirtyCount} sửa đổi</span>
+                  <span>
+                    {isEditMode ? 'Đang hiệu chỉnh' : 'Chế độ xem'}: {dirtyCount + (stagedPhotoActions?.length || 0)} sửa đổi
+                    {stagedPhotoActions && stagedPhotoActions.length > 0 ? ` (${stagedPhotoActions.length} ảnh)` : ''}
+                  </span>
                 </div>
                 {!isEditMode && (
                   <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded">Chưa lưu</span>
@@ -191,7 +194,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
                   className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Lưu Diff</span>
+                  <span>Lưu Diff ({dirtyCount + (stagedPhotoActions?.length || 0)})</span>
                 </button>
               </div>
             </div>
@@ -213,6 +216,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          stagedPhotoActions={stagedPhotoActions}
+          onUndoPhotoAction={onUndoPhotoAction}
         />
 
         {/* Bước 02: Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc */}

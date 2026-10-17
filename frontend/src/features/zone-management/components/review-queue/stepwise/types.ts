@@ -359,6 +359,8 @@ export interface AuditStepBaseProps {
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onRefresh?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
 }
 
 export interface AuditStep3FloorDefectsProps extends AuditStepBaseProps {

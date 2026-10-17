@@ -24,26 +24,51 @@ export interface CadZonePin {
 }
 
 /**
- * Thuật toán tự bù số thứ tự nhỏ nhất còn trống cho mã ghim (Z-xx, E-xx, D-xx)
+ * Thuật toán sinh mã ghim tăng tịnh tiến cực đại (Monotonic Max + 1)
+ * Bảo đảm tuyệt đối không bù lỗ hổng cũ khi có mục ở giữa bị xóa,
+ * bảo toàn danh tính lịch sử, tọa độ ghim CAD và giá trị pháp lý BCS Metro 2.
  */
-export function getNextAvailablePinCode(pins: { zoneCode?: string }[] | undefined | null, prefix: string): string {
+export function getNextAvailablePinCode(
+  pins: { zoneCode?: string; zone_code?: string; defectCode?: string; defect_code?: string; label?: string }[] | undefined | null,
+  prefix: string,
+  additionalHistoricalCodes?: string[]
+): string {
   const safePins = Array.isArray(pins) ? pins : [];
-  const usedNumbers = new Set<number>();
+  let maxNum = 0;
   const regex = new RegExp(`^${prefix}-?(\\d+)`, 'i');
-  for (const p of safePins) {
-    if (p && typeof p.zoneCode === 'string') {
-      const match = p.zoneCode.match(regex);
+
+  const checkCode = (code: string | undefined | null) => {
+    if (typeof code === 'string') {
+      const match = code.trim().match(regex);
       if (match) {
-        usedNumbers.add(parseInt(match[1], 10));
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxNum) {
+          maxNum = val;
+        }
       }
     }
+  };
+
+  for (const p of safePins) {
+    if (p) {
+      checkCode(p.zoneCode);
+      checkCode(p.zone_code);
+      checkCode(p.defectCode);
+      checkCode(p.defect_code);
+      checkCode(p.label);
+    }
   }
-  let num = 1;
-  while (usedNumbers.has(num)) {
-    num++;
+
+  if (Array.isArray(additionalHistoricalCodes)) {
+    for (const hCode of additionalHistoricalCodes) {
+      checkCode(hCode);
+    }
   }
-  return `${prefix}-${String(num).padStart(2, '0')}`;
+
+  return `${prefix}-${String(maxNum + 1).padStart(2, '0')}`;
 }
+
+export const getNextMonotonicPinCode = getNextAvailablePinCode;
 
 interface Props {
   cadPhotoUrl: string;

@@ -4,7 +4,7 @@ import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../comp
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
 import React, { useState, useRef } from 'react';
-import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair } from 'lucide-react';
+import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair, Undo2 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
 
@@ -144,6 +144,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   const [cadViewMode, setCadViewMode] = useState<'ARCH' | 'STRUCT'>('ARCH');
   const [showCadPins, setShowCadPins] = useState(true);
   const [showCtxPins, setShowCtxPins] = useState(true);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
+  const [zoneToDelete, setZoneToDelete] = useState<DamageZoneData | null>(null);
   const [highlightedDefectId, setHighlightedDefectId] = useState<string | null>(null);
 
   // Pinning & Drag state for CAD (Z & E)
@@ -186,9 +188,28 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   const currentFloor: FloorSurveyData = (floorsList[activeFloorIndex] || floorsList[0] || {}) as FloorSurveyData;
   const currentZones: DamageZoneData[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
   const currentElements: StructuralElementData[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
+
+  const activeZones = currentZones.filter((z) => !z.is_deleted && !(z as any).isDeleted);
+  const deletedZones = currentZones.filter((z) => z.is_deleted || (z as any).isDeleted);
+  const displayedZones = showDeletedItems ? currentZones : activeZones;
+
+  const activeElements = currentElements.filter((e) => !e.is_deleted && !(e as any).isDeleted);
+  const deletedElements = currentElements.filter((e) => e.is_deleted || (e as any).isDeleted);
+  const displayedElements = showDeletedItems ? currentElements : activeElements;
+
   const currentCadPins: CadZonePin[] = cadViewMode === 'ARCH'
     ? (Array.isArray(currentFloor.cadZonePins) ? currentFloor.cadZonePins : [])
     : (Array.isArray(currentFloor.cadElementPins) ? currentFloor.cadElementPins : []);
+
+  const displayedCadPins = currentCadPins.filter((p) => {
+    if (showDeletedItems) return true;
+    const pinCode = p.zoneCode || p.zone_code || '';
+    if (cadViewMode === 'ARCH') {
+      return !deletedZones.some((dz) => (dz.zoneCode || dz.zone_code) === pinCode);
+    } else {
+      return !deletedElements.some((de) => (de.elementCode || de.element_code) === pinCode);
+    }
+  });
 
   const cadPhotoUrl = cadViewMode === 'ARCH'
     ? (currentFloor.cadSketchPhotoUrl || currentFloor.cad_drawing_url || '')
@@ -237,7 +258,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     const pinsToCheck = isStruct
       ? (Array.isArray(currentFloor.cadElementPins) ? currentFloor.cadElementPins : [])
       : (Array.isArray(currentFloor.cadZonePins) ? currentFloor.cadZonePins : []);
-    const nextPinCode = getNextAvailablePinCode(pinsToCheck, prefix);
+    const historicalCodes = isStruct
+      ? (currentFloor.structuralElements || []).map((e) => e.elementCode || '')
+      : (currentFloor.zones || []).map((z) => z.zoneCode || z.zone_code || '');
+    const nextPinCode = getNextAvailablePinCode(pinsToCheck, prefix, historicalCodes);
 
     const newPin: CadZonePin = {
       id: `pin-${prefix.toLowerCase()}-${Date.now()}`,
@@ -339,9 +363,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     const pinY = Math.round(Math.max(2, Math.min(98, rawY)) * 10) / 10;
 
     const defectsList: DefectItem[] = Array.isArray(zone.defects) ? zone.defects : [];
+    const historicalDCodes = defectsList.map((d) => d.defectCode || d.defect_code || '');
     const nextDCode = getNextAvailablePinCode(
       defectsList.map((d) => ({ zoneCode: d.defectCode || d.defect_code })),
-      'D'
+      'D',
+      historicalDCodes
     );
 
     const newDefectId = `D-${Date.now().toString().slice(-4)}`;
@@ -498,28 +524,152 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Remove defect from a zone
+  // Soft-remove defect from a zone (Preserve code, watermark and pin history)
   const handleRemoveDefect = (zoneId: string, defectId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa khuyết tật này khỏi hồ sơ?')) return;
-
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
-          const defects = (z.defects || []).filter((d: DefectItem) => d.id !== defectId && d.defectCode !== defectId);
+          const defects = (z.defects || []).map((d: DefectItem) => {
+            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            return { ...d, is_deleted: true };
+          });
           return { ...z, defects };
         });
         return { ...fl, zones };
       });
-      handleFieldChange('floors', `Xóa khuyết tật`, updatedFloors);
+      handleFieldChange('floors', `Xóa mềm khuyết tật ${defectId}`, updatedFloors);
     } else {
       const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).filter((d: DefectItem) => d.id !== defectId && d.defectCode !== defectId);
+        const defects = (z.defects || []).map((d: DefectItem) => {
+          if (d.id !== defectId && d.defectCode !== defectId) return d;
+          return { ...d, is_deleted: true };
+        });
         return { ...z, defects };
       });
-      handleFieldChange('damageZones', `Xóa khuyết tật`, updatedZones);
+      handleFieldChange('damageZones', `Xóa mềm khuyết tật ${defectId}`, updatedZones);
+    }
+  };
+
+  // Restore defect
+  const handleRestoreDefect = (zoneId: string, defectId: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
+          if (z.id !== zoneId) return z;
+          const defects = (z.defects || []).map((d: DefectItem) => {
+            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            return { ...d, is_deleted: false };
+          });
+          return { ...z, defects };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Khôi phục khuyết tật ${defectId}`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
+        if (z.id !== zoneId) return z;
+        const defects = (z.defects || []).map((d: DefectItem) => {
+          if (d.id !== defectId && d.defectCode !== defectId) return d;
+          return { ...d, is_deleted: false };
+        });
+        return { ...z, defects };
+      });
+      handleFieldChange('damageZones', `Khôi phục khuyết tật ${defectId}`, updatedZones);
+    }
+  };
+
+  // Request zone deletion (prompt danger modal if defects exist)
+  const handleRemoveZone = (zone: DamageZoneData) => {
+    const activeChildDefects = (zone.defects || []).filter((d: DefectItem) => !d.is_deleted && !(d as any).isDeleted);
+    if (activeChildDefects.length > 0) {
+      setZoneToDelete(zone);
+      return;
+    }
+    executeSoftDeleteZone(zone);
+  };
+
+  // Execute cascade soft-delete on zone and its defects
+  const executeSoftDeleteZone = (zone: DamageZoneData) => {
+    const zCode = zone.zoneCode || zone.zone_code || 'Z-??';
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
+          if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+          const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true }));
+          return { ...z, is_deleted: true, defects };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Xóa mềm Vùng ${zCode} và các khuyết tật con`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
+        if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+        const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true }));
+        return { ...z, is_deleted: true, defects };
+      });
+      handleFieldChange('damageZones', `Xóa mềm Vùng ${zCode} và các khuyết tật con`, updatedZones);
+    }
+    setZoneToDelete(null);
+  };
+
+  // Restore zone and its defects
+  const handleRestoreZone = (zone: DamageZoneData) => {
+    const zCode = zone.zoneCode || zone.zone_code || 'Z-??';
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
+          if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+          const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false }));
+          return { ...z, is_deleted: false, defects };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Khôi phục Vùng ${zCode} và các khuyết tật con`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
+        if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+        const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false }));
+        return { ...z, is_deleted: false, defects };
+      });
+      handleFieldChange('damageZones', `Khôi phục Vùng ${zCode} và các khuyết tật con`, updatedZones);
+    }
+  };
+
+  // Soft-remove structural element
+  const handleRemoveElement = (elemId: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          const defects = (e.defects || []).map((d: any) => ({ ...d, is_deleted: true }));
+          return { ...e, is_deleted: true, defects };
+        });
+        return { ...fl, structuralElements };
+      });
+      handleFieldChange('floors', `Xóa mềm cấu kiện E ${elemId}`, updatedFloors);
+    }
+  };
+
+  // Restore structural element
+  const handleRestoreElement = (elemId: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          const defects = (e.defects || []).map((d: any) => ({ ...d, is_deleted: false }));
+          return { ...e, is_deleted: false, defects };
+        });
+        return { ...fl, structuralElements };
+      });
+      handleFieldChange('floors', `Khôi phục cấu kiện E ${elemId}`, updatedFloors);
     }
   };
 
@@ -896,7 +1046,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                 {/* Lớp phủ các điểm ghim Z hoặc E - Cho phép kéo điều chỉnh vị trí */}
                 {showCadPins &&
-                  currentCadPins.map((pin: CadZonePin, pIdx: number) => {
+                  displayedCadPins.map((pin: CadZonePin, pIdx: number) => {
                     const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
                     const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
                     const pCode = pin.zoneCode || pin.zone_code || `${cadViewMode === 'ARCH' ? 'Z' : 'E'}-${pIdx + 1}`;
@@ -1011,44 +1161,74 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
         {/* Khối Danh sách các Vùng Kiến Trúc Z của Tầng */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                4.2. Chi Tiết Các Vùng Kiến Trúc Z ({currentZones.length} Vùng)
+                4.2. Chi Tiết Các Vùng Kiến Trúc Z ({activeZones.length} Vùng{deletedZones.length > 0 ? ` • ${deletedZones.length} đã xóa` : ''})
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCtxPins(!showCtxPins)}
-              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-            >
-              {showCtxPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-600" />}
-              <span>{showCtxPins ? 'Ẩn ghim D trên ảnh CTX' : 'Hiện ghim D trên ảnh CTX'}</span>
-            </button>
+            <div className="flex items-center gap-2.5">
+              {(deletedZones.length > 0 || deletedElements.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeletedItems(!showDeletedItems)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                    showDeletedItems
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  {showDeletedItems ? <EyeOff className="w-3.5 h-3.5 text-rose-700" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
+                  <span>{showDeletedItems ? 'Ẩn mục đã xóa' : `Hiện ${deletedZones.length + deletedElements.length} mục đã xóa`}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowCtxPins(!showCtxPins)}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+              >
+                {showCtxPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-600" />}
+                <span>{showCtxPins ? 'Ẩn ghim D trên ảnh CTX' : 'Hiện ghim D trên ảnh CTX'}</span>
+              </button>
+            </div>
           </div>
 
-          {currentZones.length === 0 ? (
+          {displayedZones.length === 0 ? (
             <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400">
               <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
               <span className="font-semibold text-xs">Tầng này không có Vùng Kiến Trúc Z nào</span>
             </div>
           ) : (
-            currentZones.map((z: DamageZoneData) => {
+            displayedZones.map((z: DamageZoneData) => {
               const zCode = z.zoneCode || z.zone_code || 'Z-??';
-              const defectsList: DefectItem[] = Array.isArray(z.defects)
+              const isZoneDeleted = Boolean(z.is_deleted || (z as any).isDeleted);
+              const rawDefectsList: DefectItem[] = Array.isArray(z.defects)
                 ? z.defects
                 : typeof z.defects === 'string'
                 ? JSON.parse(z.defects)
                 : [];
-              const ctxUrl = z.ctxPhotoUrl || z.ctx_photo_url || '';
+              const activeDefectsList = rawDefectsList.filter((d) => !d.is_deleted && !(d as any).isDeleted);
+              const defectsList = showDeletedItems ? rawDefectsList : activeDefectsList;
+
+              const stagedCtx = getStagedAction({
+                category: 'ZONE_CTX',
+                targetPhotoId: zCode,
+              });
+              const isCtxDeleted = stagedCtx?.action === 'DELETE';
+              const isCtxReplaced = stagedCtx?.action === 'REPLACE' || stagedCtx?.action === 'ADD';
+              const ctxUrl = stagedCtx ? (isCtxDeleted ? '' : stagedCtx.newPhotoUrl || stagedCtx.oldPhotoUrl) : (z.ctxPhotoUrl || z.ctx_photo_url || '');
               const ctxCode = z.ctxPhotoCode || z.ctx_photo_code || `${zCode}_CTX`;
 
               return (
                 <div
                   key={z.id || zCode}
                   id={`zone-card-${zCode}`}
-                  className="border border-slate-200 rounded-2xl p-4 bg-slate-50/40 space-y-4 transition-all"
+                  className={`rounded-2xl p-4 space-y-4 transition-all ${
+                    isZoneDeleted
+                      ? 'border-2 border-dashed border-rose-300 bg-rose-50/30 opacity-80'
+                      : 'border border-slate-200 bg-slate-50/40'
+                  }`}
                 >
                   {/* Header Vùng Z */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
@@ -1123,26 +1303,56 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {isEditMode ? (
-                        <label className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(z.functionalImpactRepairNeeded)}
-                            onChange={(e) => handleZoneFieldChange(z.id, 'functionalImpactRepairNeeded', e.target.checked, 'Cần sửa chữa')}
-                            className="rounded text-amber-600"
-                          />
-                          <span>Ảnh hưởng CN / Cần sửa chữa</span>
-                        </label>
-                      ) : (
-                        z.functionalImpactRepairNeeded && (
-                          <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
-                            ⚠️ Cần sửa chữa / Ảnh hưởng CN
+                      {isZoneDeleted ? (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-mono font-bold text-[10px] shadow-xs animate-pulse">
+                            ĐÃ XÓA MỀM
                           </span>
-                        )
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreZone(z)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                            title="Khôi phục vùng này và các khuyết tật con"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {isEditMode ? (
+                            <label className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(z.functionalImpactRepairNeeded)}
+                                onChange={(e) => handleZoneFieldChange(z.id, 'functionalImpactRepairNeeded', e.target.checked, 'Cần sửa chữa')}
+                                className="rounded text-amber-600"
+                              />
+                              <span>Ảnh hưởng CN / Cần sửa chữa</span>
+                            </label>
+                          ) : (
+                            z.functionalImpactRepairNeeded && (
+                              <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                                ⚠️ Cần sửa chữa / Ảnh hưởng CN
+                              </span>
+                            )
+                          )}
+                          <Badge variant={activeDefectsList.length > 0 ? 'warning' : 'success'} size="sm">
+                            {activeDefectsList.length} khuyết tật nứt
+                          </Badge>
+                          {isEditMode && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveZone(z)}
+                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title={`Xóa Vùng ${zCode}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Xóa Vùng</span>
+                            </button>
+                          )}
+                        </>
                       )}
-                      <Badge variant={defectsList.length > 0 ? 'warning' : 'success'} size="sm">
-                        {defectsList.length} khuyết tật nứt
-                      </Badge>
                     </div>
                   </div>
 
@@ -1287,8 +1497,14 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </div>
 
                       <div
-                        className={`flex-1 min-h-[180px] rounded-lg bg-black/5 relative overflow-hidden flex items-center justify-center group ${
+                        className={`flex-1 min-h-[180px] rounded-lg bg-black/5 relative overflow-hidden flex items-center justify-center group transition-all ${
                           pinningCtxZone === zCode ? 'cursor-crosshair ring-2 ring-rose-400' : 'cursor-pointer'
+                        } ${
+                          isCtxDeleted
+                            ? 'border-2 border-rose-500 opacity-60'
+                            : isCtxReplaced
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-md'
+                            : 'border border-slate-200'
                         }`}
                         onClick={(e) => {
                           if (hasJustDraggedRef.current) {
@@ -1298,10 +1514,58 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           if (pinningCtxZone === zCode) {
                             handleCtxImageClick(e, z);
                           } else if (ctxUrl) {
-                            onOpenPhotoZoom(ctxUrl, `${zCode} - Ảnh Bối Cảnh Mảng Tường`, ctxCode);
+                            const zoomTitle = isCtxReplaced
+                              ? `${zCode} - Ảnh Bối Cảnh Mảng Tường (Chờ lưu Diff)`
+                              : `${zCode} - Ảnh Bối Cảnh Mảng Tường`;
+                            onOpenPhotoZoom(ctxUrl, zoomTitle, ctxCode);
                           }
                         }}
                       >
+                        {/* Optimistic Pending Badge for CTX */}
+                        {stagedCtx && isCtxReplaced && (
+                          <div className="absolute top-2 left-2 z-30 flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10px] shadow-sm animate-pulse">
+                            <span>⚡ Chờ lưu Diff ({stagedCtx.action === 'REPLACE' ? 'Đã đổi ảnh' : 'Đã thêm ảnh'})</span>
+                            {onUndoPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUndoPhotoAction(stagedCtx);
+                                }}
+                                className="underline cursor-pointer hover:text-amber-100 flex items-center gap-0.5 ml-1"
+                                title="Hoàn tác thay đổi"
+                              >
+                                <Undo2 className="w-2.5 h-2.5" /> Hoàn tác
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Optimistic Deleted Overlay for CTX */}
+                        {stagedCtx && isCtxDeleted && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1.5 p-2 z-30"
+                          >
+                            <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px] shadow-sm animate-pulse">
+                              Đã đánh dấu Xóa ảnh CTX • Chờ lưu
+                            </span>
+                            {onUndoPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUndoPhotoAction(stagedCtx);
+                                }}
+                                className="px-2.5 py-1 bg-white hover:bg-slate-100 text-rose-800 rounded-lg text-[10px] font-black shadow-md flex items-center gap-1 cursor-pointer"
+                              >
+                                <Undo2 className="w-3 h-3 text-rose-600" />
+                                <span>Hoàn tác (Undo)</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         {/* Banner hướng dẫn khi đang ở chế độ ghim D */}
                         {pinningCtxZone === zCode && (
                           <div className="absolute top-2 left-2 right-2 z-30 px-2 py-1 rounded-lg bg-rose-600/90 text-white text-[11px] font-bold flex items-center justify-between shadow-md animate-pulse">
@@ -1618,6 +1882,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       ) : (
                         defectsList.map((d: DefectItem) => {
                           const dCode = d.defectCode || d.defect_code || 'D-??';
+                          const isDefectDeleted = Boolean(d.is_deleted || (d as any).isDeleted);
                           const cuPhotos: string[] =
                             Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
                               ? d.cuPhotos
@@ -1632,7 +1897,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               key={d.id || dCode}
                               id={`defect-card-${d.id || dCode}`}
                               className={`rounded-xl border p-3 shadow-2xs space-y-2.5 transition-all duration-300 ${
-                                highlightedDefectId === (d.id || dCode)
+                                isDefectDeleted
+                                  ? 'bg-rose-50/50 border-rose-300 border-dashed opacity-85'
+                                  : highlightedDefectId === (d.id || dCode)
                                   ? 'bg-rose-50/70 border-rose-500 ring-4 ring-rose-300/60 shadow-md'
                                   : 'bg-white border-slate-200'
                               }`}
@@ -1643,7 +1910,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                   <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-mono font-black text-xs">
                                     {dCode}
                                   </span>
-                                  {isEditMode ? (
+                                  {isDefectDeleted ? (
+                                    <span className="text-xs font-bold text-slate-800">
+                                      {d.screeningCategory || d.defectType || 'Vết nứt tường'}
+                                    </span>
+                                  ) : isEditMode ? (
                                     <div className="flex items-center gap-2">
                                       <select
                                         value={d.screeningCategory || d.defectType || 'Vết nứt tường'}
@@ -1683,9 +1954,24 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                   )}
                                 </div>
 
-                                {/* Thông số Bề rộng & Chiều dài + Nút xóa */}
+                                {/* Thông số Bề rộng & Chiều dài + Nút xóa / Hoàn tác */}
                                 <div className="flex items-center gap-2">
-                                  {isEditMode ? (
+                                  {isDefectDeleted ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-mono font-bold text-[10px] shadow-2xs animate-pulse">
+                                        ĐÃ XÓA MỀM
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRestoreDefect(z.id, d.id || d.defectCode)}
+                                        className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                                        title="Khôi phục khuyết tật này"
+                                      >
+                                        <Undo2 className="w-3 h-3" />
+                                        <span>Hoàn tác</span>
+                                      </button>
+                                    </div>
+                                  ) : isEditMode ? (
                                     <div className="flex items-center gap-2 text-xs">
                                       <label className="text-[11px] font-bold text-slate-500">Rộng (mm):</label>
                                       <input
@@ -1953,34 +2239,50 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-amber-600" />
               <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E ({currentElements.length} Cấu Kiện)
+                4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E ({activeElements.length} Cấu Kiện
+                {deletedElements.length > 0 && ` • ${deletedElements.length} đã xóa`})
               </span>
             </div>
             <span className="text-xs text-slate-500 font-semibold">
-              {currentElements.reduce((acc, el) => acc + (el.defects?.length || 0), 0)} khuyết tật kết cấu
+              {displayedElements.reduce((acc, el) => acc + (el.defects?.filter((d: any) => !d.is_deleted && !d.isDeleted)?.length || 0), 0)} khuyết tật kết cấu
             </span>
           </div>
 
-          {currentElements.length === 0 ? (
+          {displayedElements.length === 0 ? (
             <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 flex items-center justify-between">
               <span>Tầng này không phát hiện cấu kiện chịu lực riêng lẻ bị nứt vỡ hoặc KSV gom khuyết tật theo mảng tường Vùng Z.</span>
               <span className="font-bold text-emerald-700">✓ Không có khuyết tật cấu kiện riêng lẻ</span>
             </div>
           ) : (
             <div className="space-y-4">
-              {currentElements.map((elem: StructuralElementData) => {
+              {displayedElements.map((elem: StructuralElementData) => {
                 const eCode = elem.elementCode || 'E-??';
-                const eDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
+                const isElemDeleted = Boolean(elem.is_deleted || (elem as any).isDeleted);
+                const rawEDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
+                const eDefects = showDeletedItems ? rawEDefects : rawEDefects.filter((d: any) => !d.is_deleted && !d.isDeleted);
                 const overviewPhotos = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
 
                 return (
-                  <div id={`element-card-${eCode}`} key={elem.id || eCode} className="p-4 bg-amber-50/30 rounded-xl border border-amber-200 space-y-3">
+                  <div
+                    id={`element-card-${eCode}`}
+                    key={elem.id || eCode}
+                    className={`p-4 rounded-xl space-y-3 transition-all ${
+                      isElemDeleted
+                        ? 'bg-rose-50/30 border-2 border-dashed border-rose-300 opacity-80'
+                        : 'bg-amber-50/30 border border-amber-200'
+                    }`}
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2 flex-wrap flex-1">
                         <span className="px-2.5 py-0.5 rounded-lg bg-amber-700 text-white font-mono font-black text-xs">
                           {eCode}
                         </span>
-                        {isEditMode ? (
+                        {isElemDeleted ? (
+                          <span className="text-xs font-bold text-slate-800">
+                            {elem.elementType || 'Cột BTCT'} &bull; {elem.materialType || 'BTCT'}
+                            {elem.dimensions ? ` &bull; ${elem.dimensions}` : ''}
+                          </span>
+                        ) : isEditMode ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <select
                               value={elem.elementType || 'Cột BTCT'}
@@ -2037,9 +2339,39 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           </span>
                         )}
                       </div>
-                      <Badge variant={eDefects.length > 0 ? 'warning' : 'success'} size="sm">
-                        {eDefects.length} khuyết tật kết cấu
-                      </Badge>
+                      {isElemDeleted ? (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-mono font-bold text-[10px] shadow-xs animate-pulse">
+                            ĐÃ XÓA MỀM
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreElement(elem.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                            title="Khôi phục cấu kiện này"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Badge variant={eDefects.length > 0 ? 'warning' : 'success'} size="sm">
+                            {eDefects.length} khuyết tật kết cấu
+                          </Badge>
+                          {isEditMode && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveElement(elem.id)}
+                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title={`Xóa cấu kiện ${eCode}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Xóa Cấu Kiện</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Ảnh bối cảnh hoặc tổng quan của cấu kiện E */}
@@ -2326,6 +2658,56 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {/* Modal xác nhận xóa Vùng có khuyết tật (Cascade Soft-Delete Warning Modal) */}
+      {zoneToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-rose-200 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 bg-rose-100 rounded-xl">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-slate-900">Xác nhận xóa Vùng Kiến Trúc</h3>
+                <p className="text-xs text-rose-700 font-bold font-mono">
+                  {zoneToDelete.zoneCode || zoneToDelete.zone_code || 'Z-??'} ({zoneToDelete.roomName || 'Không gian'})
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs space-y-1.5 text-slate-700">
+              <p className="font-semibold text-rose-900">
+                ⚠️ Vùng này đang chứa{' '}
+                <strong className="text-rose-700 font-black">
+                  {(zoneToDelete.defects || []).filter((d: any) => !d.is_deleted && !d.isDeleted).length}
+                </strong>{' '}
+                khuyết tật nứt (D) đang hoạt động!
+              </p>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Hành động này sẽ thực hiện <strong>Xóa mềm phân tầng (Cascade Soft-Delete)</strong>: Vùng và toàn bộ các khuyết tật con sẽ được ẩn khỏi danh sách chính nhưng được bảo toàn mã hiệu, toạ độ CAD và lịch sử thẩm định.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setZoneToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => executeSoftDeleteZone(zoneToDelete)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Xác nhận xóa Vùng & Khuyết tật</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
