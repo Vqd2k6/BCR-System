@@ -45,6 +45,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     const url = typeof jsonObj === 'string' ? jsonObj : jsonObj.url;
     // Tuyệt đối không nạp URL blob: tạm thời của client vào Chromium server
     if (!url || typeof url !== 'string' || url.startsWith('blob:')) return null;
+    const rot = jsonObj.rotation ?? json.photoRotations?.[photoType] ?? json.photoRotations?.[jsonObj.photoCode] ?? 0;
     return {
       photoId: photoType.substring(0, 8),
       photoType: photoType as any,
@@ -55,6 +56,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
       gpsLat: defaultLat,
       gpsLng: defaultLng,
       tag: jsonObj.tag || '',
+      rotation: rot,
     };
   };
 
@@ -69,8 +71,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
         capturedAt: reportData.survey_date,
         gpsLat: defaultLat,
         gpsLng: defaultLng,
+        rotation: 0,
       };
     }
+    const rot = json.photoRotations?.[type] ?? json.photoRotations?.[p.photo_code] ?? (p.metadata?.rotation || 0);
     return {
       photoId: p.id ? p.id.substring(0, 8).toUpperCase() : 'PHOTO-ID',
       photoType: p.photo_type,
@@ -80,14 +84,26 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
       capturedAt: p.watermark_timestamp ? new Date(p.watermark_timestamp).toLocaleString('vi-VN') : reportData.survey_date,
       gpsLat: p.watermark_lat ? Number(p.watermark_lat) : defaultLat,
       gpsLng: p.watermark_lng ? Number(p.watermark_lng) : defaultLng,
+      rotation: rot,
     };
   };
 
   const p01 = getPhotoFromSurveyJson(json.photoP01, 'P01_HOUSE_NUMBER') || findPhotoInRelational('P01_HOUSE_NUMBER');
+  if (json.photoRotations?.['P-01'] !== undefined) p01.rotation = json.photoRotations['P-01'];
+  if (json.photoRotations?.['photoP01'] !== undefined) p01.rotation = json.photoRotations['photoP01'];
+
   const p02 = getPhotoFromSurveyJson(json.photoP02, 'P02_MAIN_FACADE') || findPhotoInRelational('P02_MAIN_FACADE');
+  if (json.photoRotations?.['P-02'] !== undefined) p02.rotation = json.photoRotations['P-02'];
+  if (json.photoRotations?.['photoP02'] !== undefined) p02.rotation = json.photoRotations['photoP02'];
+
   const p03 = getPhotoFromSurveyJson(json.photoP03, 'P03_SIDE_OR_REAR') || findPhotoInRelational('P03_SIDE_OR_REAR');
   if (json.photoP03?.tag && !p03.tag) p03.tag = json.photoP03.tag;
+  if (json.photoRotations?.['P-03'] !== undefined) p03.rotation = json.photoRotations['P-03'];
+  if (json.photoRotations?.['photoP03'] !== undefined) p03.rotation = json.photoRotations['photoP03'];
+
   const p04 = getPhotoFromSurveyJson(json.photoP04, 'P04_CONTEXT_STREET') || findPhotoInRelational('P04_CONTEXT_STREET');
+  if (json.photoRotations?.['P-04'] !== undefined) p04.rotation = json.photoRotations['P-04'];
+  if (json.photoRotations?.['photoP04'] !== undefined) p04.rotation = json.photoRotations['photoP04'];
 
   // Gom khuyết tật, vùng và cấu kiện theo Tầng thông qua floor-builder
   const {

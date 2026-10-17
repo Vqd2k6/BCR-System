@@ -29,7 +29,7 @@
     <!-- ẢNH ĐỊNH DANH NGOẠI THẤT P-02 TRÊN TRANG BÌA (TĂNG 150% CHIỀU CAO: 375PX) -->
     <div class="cover-photo">
       {{#if p02.url}}
-        <img src="{{p02.url}}" alt="Mặt đứng chính công trình">
+        <img src="{{p02.url}}" alt="Mặt đứng chính công trình" {{#if p02.rotation}}style="transform: rotate({{p02.rotation}}deg);"{{/if}}>
       {{else}}
         <div style="height: 375px; width: 100%; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #64748b;">
           [ Chưa có ảnh mặt đứng chính P-02 ]
@@ -420,7 +420,7 @@
     </div>
     <div class="photo-frame-full">
       {{#if p01.url}}
-        <img src="{{p01.url}}" alt="P-01 Biển số nhà">
+        <img src="{{p01.url}}" alt="P-01 Biển số nhà" {{#if p01.rotation}}style="transform: rotate({{p01.rotation}}deg);"{{/if}}>
         <div class="pdf-watermark-overlay">
           <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
           <div class="pdf-watermark-bottom-right">
@@ -459,7 +459,7 @@
       </div>
       <div class="photo-frame-vertical">
         {{#if p02.url}}
-          <img src="{{p02.url}}" alt="P-02 Mặt đứng chính">
+          <img src="{{p02.url}}" alt="P-02 Mặt đứng chính" {{#if p02.rotation}}style="transform: rotate({{p02.rotation}}deg);"{{/if}}>
           <div class="pdf-watermark-overlay">
             <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
             <div class="pdf-watermark-bottom-right">
@@ -494,7 +494,7 @@
       </div>
       <div class="photo-frame-vertical">
         {{#if p03.url}}
-          <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau">
+          <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau" {{#if p03.rotation}}style="transform: rotate({{p03.rotation}}deg);"{{/if}}>
           <div class="pdf-watermark-overlay">
             <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
             <div class="pdf-watermark-bottom-right">
@@ -537,7 +537,7 @@
     </div>
     <div class="photo-frame-full">
       {{#if p04.url}}
-        <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro">
+        <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro" {{#if p04.rotation}}style="transform: rotate({{p04.rotation}}deg);"{{/if}}>
         <div class="pdf-watermark-overlay">
           <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
           <div class="pdf-watermark-bottom-right">

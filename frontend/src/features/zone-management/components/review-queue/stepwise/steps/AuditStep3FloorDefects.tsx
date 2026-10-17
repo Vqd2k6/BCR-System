@@ -96,13 +96,15 @@ interface Props {
   isEditMode: boolean;
   formState: Record<string, unknown>;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  stagedPhotoRotations?: Record<string, number>;
+  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
 }
 
 export const AuditStep3FloorDefects: React.FC<Props> = ({
@@ -116,6 +118,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   isFieldDirty,
   stagedPhotoActions = [],
   onUndoPhotoAction,
+  stagedPhotoRotations = {},
+  onRotatePhoto,
 }) => {
   // Helper tra cứu trạng thái can thiệp ảnh staged trong phiên thẩm định
   const getStagedAction = (filter: {
@@ -1412,6 +1416,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             photoIndex: ovIdx,
                             url: ovUrl,
                           });
+                          const rotKey = `zone_${z.id || zCode}_ctx`;
+                          const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`${zCode}-CTX`] ?? 0;
                           return (
                             <AuditPhotoCard
                               key={ovIdx}
@@ -1427,6 +1433,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               isEditMode={isEditMode}
                               aspectRatio="aspect-4/3"
                               badgeColor="slate"
+                              rotation={rot}
+                              expectedOrientation="LANDSCAPE"
+                              onRotate={(newRot) => onRotatePhoto?.(rotKey, newRot)}
+                              domId={`audit-photo-card-zone-${zCode}`}
                               historyCount={(z as any)?.historyCount}
                               hasHistory={(z as any)?.hasHistory}
                               optimisticStatus={stagedOv ? (stagedOv.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
@@ -2164,6 +2174,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       photoIndex: cuIdx,
                                       url: cuUrl,
                                     });
+                                    const rotKey = `defect_${d.id || dCode}_cu`;
+                                    const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`${dCode}-CU`] ?? 0;
                                     return (
                                       <AuditPhotoCard
                                         key={cuIdx}
@@ -2182,6 +2194,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         isEditMode={isEditMode}
                                         aspectRatio="h-24"
                                         badgeColor="slate"
+                                        rotation={rot}
+                                        expectedOrientation="LANDSCAPE"
+                                        onRotate={(newRot) => onRotatePhoto?.(rotKey, newRot)}
+                                        domId={`audit-photo-card-defect-${dCode}`}
                                         historyCount={(d as any)?.historyCount}
                                         hasHistory={(d as any)?.hasHistory}
                                         optimisticStatus={stagedCu ? (stagedCu.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2 } from 'lucide-react';
+import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2, RotateCw } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
@@ -79,6 +79,8 @@ export const AuditStep1Identification: React.FC<Props> = ({
   onOpenPhotoHistory,
   stagedPhotoActions,
   onUndoPhotoAction,
+  stagedPhotoRotations = {},
+  onRotatePhoto,
 }) => {
   const checkDirty = (fieldKey: string, subKey?: string) => {
     return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
@@ -353,10 +355,12 @@ export const AuditStep1Identification: React.FC<Props> = ({
               const isStagedDeleted = optResult.status === 'DELETED';
               const isStagedReplaced = optResult.status === 'REPLACED' || optResult.status === 'ADDED';
               const hasPolygon = item.key === 'photoP02' && item.polygonPoints && Array.isArray(item.polygonPoints) && item.polygonPoints.length >= 3;
+              const rotation = stagedPhotoRotations[item.key] ?? stagedPhotoRotations[item.code] ?? 0;
 
               return (
                 <div
                   key={item.key}
+                  id={`audit-photo-card-${item.code}`}
                   className={`group relative rounded-xl bg-slate-100 overflow-hidden flex flex-col h-48 shadow-xs transition-all ${
                     isStagedDeleted
                       ? 'border-2 border-rose-500 opacity-60'
@@ -372,7 +376,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         const zoomTitle = isStagedReplaced
                           ? `${item.code} - ${item.label} (Chờ lưu Diff)`
                           : `${item.code} - ${item.label}`;
-                        onOpenPhotoZoom(url, zoomTitle, item.code);
+                        onOpenPhotoZoom(url, zoomTitle, item.code, rotation);
                       }
                     }}
                   >
@@ -381,7 +385,8 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         <img
                           src={url}
                           alt={item.label}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          style={{ transform: `rotate(${rotation}deg)` }}
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
                         />
                         {/* Lớp phủ đa giác SVG nếu có polygonPoints */}
                         {hasPolygon && (
@@ -420,6 +425,14 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       <span>{item.code}</span>
                       {hasPolygon && <span className="text-emerald-400 text-[9px]">● Polygon</span>}
                     </div>
+
+                    {/* Badge Góc xoay nếu khác 0° */}
+                    {rotation !== 0 && (
+                      <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs flex items-center gap-0.5">
+                        <RotateCw className="w-2.5 h-2.5" />
+                        <span>{rotation}°</span>
+                      </div>
+                    )}
 
                     {/* Badge Optimistic Staged Action chờ Lưu Diff */}
                     {isStaged && isStagedReplaced && (
@@ -479,12 +492,27 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             const zoomTitle = isStagedReplaced
                               ? `${item.code} - ${item.label} (Chờ lưu Diff)`
                               : `${item.code} - ${item.label}`;
-                            onOpenPhotoZoom(url, zoomTitle, item.code);
+                            onOpenPhotoZoom(url, zoomTitle, item.code, rotation);
                           }}
                           className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
                           title="Phóng to soi chi tiết"
                         >
                           <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {url && onRotatePhoto && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextRot = (rotation + 90) % 360;
+                            onRotatePhoto(item.key, nextRot);
+                          }}
+                          className="p-1 rounded text-amber-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                          title={`Xoay ảnh 90° cùng chiều kim đồng hồ (Hiện tại: ${rotation}°)`}
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
                         </button>
                       )}
 

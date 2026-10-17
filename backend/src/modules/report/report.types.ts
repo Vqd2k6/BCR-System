@@ -11,6 +11,7 @@ export interface ReportPhotoItem {
   label?: string;
   notes?: string;
   tag?: string;
+  rotation?: number;
 }
 
 export interface DefectItemReport {

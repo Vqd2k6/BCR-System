@@ -353,7 +353,7 @@ export interface AuditStepBaseProps {
   reportId?: string;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
@@ -361,6 +361,8 @@ export interface AuditStepBaseProps {
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  stagedPhotoRotations?: Record<string, number>;
+  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
 }
 
 export interface AuditStep3FloorDefectsProps extends AuditStepBaseProps {

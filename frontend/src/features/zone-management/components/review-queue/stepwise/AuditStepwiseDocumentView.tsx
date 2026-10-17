@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../../../../../core/components/ui/Button';
 import { useAuditStepwiseForm } from './hooks/useAuditStepwiseForm';
+import { usePhotoOrientationAudit, type PhotoOrientationViolation } from './hooks/usePhotoOrientationAudit';
+import { PhotoOrientationAlertBanner } from './components/PhotoOrientationAlertBanner';
 import { AuditStep1Identification } from './steps/AuditStep1Identification';
 import { AuditStep2OwnerInterview } from './steps/AuditStep2OwnerInterview';
 import { AuditStep3FloorDefects } from './steps/AuditStep3FloorDefects';
@@ -31,7 +33,7 @@ export interface AuditStepwiseDocumentViewProps {
   data: AuditStepwiseData | Record<string, unknown>;
   reportId: string;
   onRefresh: () => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenDiffModal: (diffItems: DiffItem[], updates: Record<string, unknown>) => void;
@@ -45,6 +47,13 @@ export interface AuditStepwiseDocumentViewProps {
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
+  onOrientationAuditChange?: (status: {
+    hasMismatched: boolean;
+    hasStrictViolations: boolean;
+    mismatchedCount: number;
+    violations: PhotoOrientationViolation[];
+    stagedPhotoRotations: Record<string, number>;
+  }) => void;
 }
 
 export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps> = ({
@@ -60,6 +69,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   onDirtyChange,
   stagedPhotoActions = [],
   onUndoPhotoAction,
+  onOrientationAuditChange,
 }) => {
   const {
     isEditMode,
@@ -76,6 +86,48 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     handleReviewSave,
     getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
+
+  // Kiểm toán hướng ảnh Nhà Dân Thường theo khuyến nghị chuẩn FE
+  const {
+    violations,
+    hasMismatchedPhotos,
+    hasStrictViolations,
+    mismatchedCount,
+    stagedPhotoRotations,
+    setPhotoRotation,
+    getPhotoRotation,
+  } = usePhotoOrientationAudit(data as Record<string, unknown>);
+
+  // Đồng bộ trạng thái kiểm toán hướng ảnh lên modal cấp cha
+  React.useEffect(() => {
+    if (onOrientationAuditChange) {
+      onOrientationAuditChange({
+        hasMismatched: hasMismatchedPhotos,
+        hasStrictViolations,
+        mismatchedCount,
+        violations,
+        stagedPhotoRotations,
+      });
+    }
+  }, [hasMismatchedPhotos, hasStrictViolations, mismatchedCount, violations, stagedPhotoRotations, onOrientationAuditChange]);
+
+  const handleNavigateToPhoto = (v: PhotoOrientationViolation) => {
+    scrollToStep(v.stepId);
+    setTimeout(() => {
+      const el = document.getElementById(v.domElementId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-amber-500', 'ring-offset-2', 'animate-pulse');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-amber-500', 'ring-offset-2', 'animate-pulse');
+        }, 3500);
+      }
+    }, 350);
+  };
+
+  const handleQuickRotate = (photoKey: string, currentRot: number) => {
+    setPhotoRotation(photoKey, (currentRot + 90) % 360);
+  };
 
   // Đồng bộ dirty state lên AuditStudioModal cấp cha
   React.useEffect(() => {
@@ -204,6 +256,13 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
 
       {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
       <div className="flex-1 space-y-6">
+        {/* Banner cảnh báo sai lệch hướng ảnh theo chuẩn FE Nhà Dân */}
+        <PhotoOrientationAlertBanner
+          violations={violations}
+          onNavigateToPhoto={handleNavigateToPhoto}
+          onQuickRotate={handleQuickRotate}
+        />
+
         {/* Bước 01: Nhận Diện & Hiện Trạng Tổng Quan */}
         <AuditStep1Identification
           isEditMode={isEditMode}
@@ -218,6 +277,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isFieldDirty={isFieldDirty}
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
+          stagedPhotoRotations={stagedPhotoRotations}
+          onRotatePhoto={setPhotoRotation}
         />
 
         {/* Bước 02: Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc */}
@@ -232,6 +293,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isFieldDirty={isFieldDirty}
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
+          stagedPhotoRotations={stagedPhotoRotations}
+          onRotatePhoto={setPhotoRotation}
         />
 
         {/* Bước 03: Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ */}
@@ -259,6 +322,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isFieldDirty={isFieldDirty}
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
+          stagedPhotoRotations={stagedPhotoRotations}
+          onRotatePhoto={setPhotoRotation}
         />
 
         {/* Bước 05: Khuyết Tật Bề Mặt & Tổng Hợp Nứt Burland 1977 */}
@@ -322,6 +387,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoHistory={onOpenPhotoHistory}
           onConfirmAbsenteeSurvey={onRefresh}
           isFieldDirty={isFieldDirty}
+          stagedPhotoRotations={stagedPhotoRotations}
+          onRotatePhoto={setPhotoRotation}
         />
       </div>
     </div>

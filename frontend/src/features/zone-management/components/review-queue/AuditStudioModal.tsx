@@ -124,6 +124,37 @@ export const AuditStudioModal: React.FC<Props> = ({
   // Modal cảnh báo khi bấm Phê duyệt mà còn thay đổi chưa lưu
   const [showUnsavedChangesWarning, setShowUnsavedChangesWarning] = useState(false);
 
+  // Kiểm toán hướng ảnh Nhà Dân Thường (Photo Orientation Audit)
+  const [orientationAudit, setOrientationAudit] = useState<{
+    hasMismatched: boolean;
+    hasStrictViolations: boolean;
+    mismatchedCount: number;
+    violations: Array<{
+      key: string;
+      photoCode?: string;
+      title: string;
+      photoUrl: string;
+      stepId: string;
+      domElementId: string;
+      currentOrientation: string;
+      expectedOrientation: string;
+      effectiveRotation: number;
+      suggestedRotation?: number;
+      isStrict: boolean;
+      message: string;
+    }>;
+    stagedPhotoRotations: Record<string, number>;
+  }>({
+    hasMismatched: false,
+    hasStrictViolations: false,
+    mismatchedCount: 0,
+    violations: [],
+    stagedPhotoRotations: {},
+  });
+  const [showOrientationWarning, setShowOrientationWarning] = useState(false);
+  const [selectedPhotoRotation, setSelectedPhotoRotation] = useState<number>(0);
+  const [selectedPhotoCode, setSelectedPhotoCode] = useState<string>('');
+
   const fetchAuditData = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -263,6 +294,12 @@ export const AuditStudioModal: React.FC<Props> = ({
       return;
     }
 
+    // Ràng buộc hướng ảnh Nhà Dân Thường: Nếu còn ảnh lệch chuẩn FE -> Mở modal xác nhận 2 lựa chọn
+    if (orientationAudit.hasMismatched && orientationAudit.violations.length > 0) {
+      setShowOrientationWarning(true);
+      return;
+    }
+
     const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
     if (!window.confirm(confirmMsg)) return;
 
@@ -279,10 +316,14 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   const handleSaveDiffFirst = () => {
     setShowUnsavedChangesWarning(false);
+    const hasRotations = Object.keys(orientationAudit.stagedPhotoRotations).length > 0;
     setDiffModalData({
       isOpen: true,
       diffItems: [...pendingDirtyData.diffItems, ...stagedPhotoDiffs],
-      updates: pendingDirtyData.updates,
+      updates: {
+        ...pendingDirtyData.updates,
+        ...(hasRotations ? { photoRotations: orientationAudit.stagedPhotoRotations } : {}),
+      },
     });
   };
 
@@ -702,11 +743,14 @@ export const AuditStudioModal: React.FC<Props> = ({
                   data={data || {}}
                   reportId={reportId}
                   onRefresh={fetchAuditData}
-                  onOpenPhotoZoom={(url, title) => {
+                  onOpenPhotoZoom={(url, title, photoCode, rotation) => {
                     setSelectedPhotoUrl(url);
                     setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
+                    setSelectedPhotoCode(photoCode || '');
+                    setSelectedPhotoRotation(rotation || 0);
                     setShowImageZoom(true);
                   }}
+                  onOrientationAuditChange={setOrientationAudit}
                   onOpenPhotoReplace={(params) => {
                     setPhotoActionData({
                       isOpen: true,
@@ -872,8 +916,91 @@ export const AuditStudioModal: React.FC<Props> = ({
           isOpen={showImageZoom}
           imageUrl={selectedPhotoUrl}
           title={selectedPhotoTitle}
+          initialRotation={selectedPhotoRotation}
+          onSaveRotation={(deg) => {
+            if (selectedPhotoCode) {
+              setOrientationAudit((prev) => ({
+                ...prev,
+                stagedPhotoRotations: {
+                  ...prev.stagedPhotoRotations,
+                  [selectedPhotoCode]: deg,
+                },
+              }));
+            }
+            setSelectedPhotoRotation(deg);
+          }}
           onClose={() => setShowImageZoom(false)}
         />
+      )}
+
+      {/* Modal xác nhận phê duyệt khi có ảnh lệch chuẩn kỹ thuật (Approval Gatekeeper) */}
+      {showOrientationWarning && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-amber-300 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 border border-amber-300">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-slate-900">
+                  Cảnh Báo Hướng Ảnh Chưa Khớp Chuẩn Thẩm Định
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Hồ sơ hiện có{' '}
+                  <strong className="text-amber-700 font-bold">
+                    {orientationAudit.mismatchedCount} ảnh
+                  </strong>{' '}
+                  chưa đúng kỹ thuật quy chuẩn xuất báo cáo A4 (khuyến nghị từ hiện trường FE).
+                </p>
+              </div>
+            </div>
+
+            {/* Danh sách ảnh vi phạm tóm tắt */}
+            <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-1.5">
+              {orientationAudit.violations.map((v) => (
+                <div
+                  key={v.key}
+                  className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-slate-200"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="font-mono font-bold text-[10px] px-1 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                      {v.photoCode || 'Ảnh'}
+                    </span>
+                    <span className="truncate text-slate-700 font-medium">{v.title}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 shrink-0 font-mono">
+                    {v.currentOrientation} ➔ <strong className="text-emerald-700">{v.expectedOrientation}</strong>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-slate-700 font-medium">
+              Bạn có muốn bỏ qua các khuyến nghị này và tiếp tục phê duyệt hay không?
+            </p>
+
+            {/* 2 nút quyết định (đã thống nhất trong plan & grill-me) */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowOrientationWarning(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Quay Lại Điều Chỉnh Ảnh
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowOrientationWarning(false);
+                  await executeApprove();
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              >
+                Bỏ Qua & Tiếp Tục Phê Duyệt
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {diffModalData.isOpen && (
