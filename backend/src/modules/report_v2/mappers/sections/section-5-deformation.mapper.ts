@@ -64,19 +64,22 @@ export class Section5DeformationMapper {
     const tiltY = tiltDeform.yPermille ?? deformObj.tilt_angle_y;
     const tiltDir = tiltDeform.direction || deformObj.tilt_direction;
     const tiltPhotoCode = tiltDeform.photoCode || deformObj.tilt_photo_code || (p05Url ? 'P-05' : '');
-    const rawMethod = (deformObj.measurement_method || tiltDeform.method || '').toUpperCase();
-    const isLaserMeasured = rawMethod.includes('LASER') || rawMethod.includes('TOTAL_STATION') || Boolean(p05Url);
     const hasNonZeroTilt = (Number(tiltX) !== 0 && !isNaN(Number(tiltX))) || (Number(tiltY) !== 0 && !isNaN(Number(tiltY)));
-    const hasTiltMeas = isLaserMeasured || hasNonZeroTilt;
+    // #29: chỉ coi là 'có đo' khi có số đo thực (ảnh P-05 hoặc cờ Laser đơn thuần không đủ)
+    const hasTiltValues = [tiltX, tiltY].some((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v)));
+    const hasTiltMeas = hasTiltValues;
 
     let measuredTilt = '';
     if (hasTiltMeas) {
-      measuredTilt = `X = ${Number(tiltX || 0).toFixed(3)}‰ ; Y = ${Number(tiltY || 0).toFixed(3)}‰`;
+      // #29: không in 0.000‰ khi chưa có số đo (thiếu giá trị → '--')
+      const fmtPermille = (v: unknown): string =>
+        v === undefined || v === null || v === '' || isNaN(Number(v)) ? '--' : `${Number(v).toFixed(3)}‰`;
+      measuredTilt = `X = ${fmtPermille(tiltX)} ; Y = ${fmtPermille(tiltY)}`;
       if (tiltDir) {
         measuredTilt += ` (Hướng: ${tiltDir})`;
       }
     } else {
-      measuredTilt = 'Quan sát hiện trường (Không đo Laser)';
+      measuredTilt = '-- (Quan sát ngoại quan, không đo đạc)';
     }
     const isTiltObserved = tiltLevel > 0 || hasNonZeroTilt;
 
@@ -152,8 +155,12 @@ export class Section5DeformationMapper {
               en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
             }
           : {
-              vi: `Thân nhà thẳng đứng, độ nghiêng trong giới hạn cho phép${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
-              en: `Building upright, inclination within permissible limits${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
+              vi: hasTiltMeas
+                ? `Thân nhà thẳng đứng, độ nghiêng trong giới hạn cho phép${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`
+                : `Quan sát ngoại quan: không ghi nhận nghiêng (chưa đo đạc)${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
+              en: hasTiltMeas
+                ? `Building upright, inclination within permissible limits${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`
+                : `Visual observation: no inclination noted (not measured)${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
             },
         details: isTiltObserved
           ? {
@@ -161,8 +168,12 @@ export class Section5DeformationMapper {
               en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
             }
           : {
-              vi: `Thân nhà thẳng đứng, độ nghiêng trong giới hạn cho phép${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
-              en: `Building upright, inclination within permissible limits${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
+              vi: hasTiltMeas
+                ? `Thân nhà thẳng đứng, độ nghiêng trong giới hạn cho phép${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`
+                : `Quan sát ngoại quan: không ghi nhận nghiêng (chưa đo đạc)${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
+              en: hasTiltMeas
+                ? `Building upright, inclination within permissible limits${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`
+                : `Visual observation: no inclination noted (not measured)${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
             },
       },
       beamDeflection: {
@@ -192,8 +203,8 @@ export class Section5DeformationMapper {
         en: hasTiltMeas ? 'Site visual inspection & Laser measurement' : 'Site visual inspection (Visual check only)',
       },
       reliability: {
-        vi: deformObj.reliability || 'HIGH',
-        en: deformObj.reliability || 'HIGH',
+        vi: deformObj.reliability || '--',
+        en: deformObj.reliability || '--',
       },
       remarks: (() => {
         const attachedPhotos: string[] = [];

@@ -125,7 +125,7 @@ export class SurveyBaseRepository {
          ORDER BY created_at ASC LIMIT 1
        ) default_sa ON true
        LEFT JOIN building_units bu ON r.unit_id = bu.id
-       ${whereClause} 
+       ${whereClause} AND r.deleted_at IS NULL 
        ORDER BY r.created_at DESC 
        LIMIT 1;`,
       [reportId]

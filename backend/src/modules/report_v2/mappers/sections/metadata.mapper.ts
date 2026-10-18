@@ -42,8 +42,16 @@ export class MetadataMapper {
       rawReport.zone_id || 'ZONE_09',
       rawReport.segment_type || 'C&C'
     ) : 'CHƯA_ĐỊNH_DANH');
-    const surveyId = rawReport.id ? `P-${rawReport.id.substring(0, 4).toUpperCase()}` : (json.surveyId || '');
-    const revision = overrides?.revision || rawReport.revision || '00';
+    // #3: Survey ID = 'P-' + 4 số cuối SDT khảo sát viên (fallback surveyor_code); thiếu dữ liệu → '--' (không dùng UUID)
+    const phoneDigits = String(rawReport.surveyor_phone || '').replace(/\D/g, '');
+    const surveyIdSuffix = phoneDigits.length >= 4
+      ? phoneDigits.slice(-4)
+      : String(rawReport.surveyor_code || '').trim();
+    const surveyId = overrides?.surveyId || (surveyIdSuffix ? `P-${surveyIdSuffix}` : '--');
+    // #4: Rev lấy từ export_revision (2 chữ số); chỉ tăng khi Zone Admin phát hành Rev mới (D2)
+    const rawRev = Number(rawReport.export_revision);
+    const revFromDb = Number.isFinite(rawRev) && rawRev >= 0 ? String(Math.floor(rawRev)).padStart(2, '0') : '00';
+    const revision = overrides?.revision || revFromDb;
     const reportNo = overrides?.reportNo || (rawParcelCode ? CadastralInfoMapper.formatReportNo(
       buildingId,
       rawParcelCode,
@@ -124,6 +132,10 @@ export class MetadataMapper {
     const zoneAdminSigUrl = rawReport.zone_admin_signature_img || json.signatures?.checkedBy?.signatureImg;
     const superAdminSigUrl = rawReport.super_admin_signature_img || json.signatures?.approvedBy?.signatureImg;
 
+    // D5: Chỉ 2 cấp ký: Người lập (KSV, ngày = ngày khảo sát) và Kiểm tra/Duyệt (Zone Admin, ngày = ngày APPROVE).
+    const isApproved = String(rawReport.status || '').toUpperCase() === 'APPROVED';
+    const approvalDateFormatted = isApproved && rawReport.approved_at ? formatDateVi(new Date(rawReport.approved_at)) : '';
+
     const signatures3Party: ApprovalSignatureItem[] = [
       {
         roleVi: 'NGƯỜI LẬP',
@@ -136,24 +148,14 @@ export class MetadataMapper {
         date: surveyDateFormatted,
       },
       {
-        roleVi: 'NGƯỜI KIỂM TRA',
-        roleEn: 'CHECKED BY',
+        roleVi: 'KIỂM TRA / DUYỆT',
+        roleEn: 'CHECKED / APPROVED BY',
         fullName: zoneAdminName,
         titleVi: 'Quản trị phân khu',
         titleEn: 'Zone Administrator',
         signatureUrl: zoneAdminSigUrl,
         signatureBase64: zoneAdminSigUrl ? ReportImageResolver.resolveToBase64(zoneAdminSigUrl) : undefined,
-        date: surveyDateFormatted,
-      },
-      {
-        roleVi: 'NGƯỜI PHÊ DUYỆT',
-        roleEn: 'APPROVED BY',
-        fullName: superAdminName,
-        titleVi: 'Giám đốc dự án / Tư vấn trưởng',
-        titleEn: 'Project Director / Lead Consultant',
-        signatureUrl: superAdminSigUrl,
-        signatureBase64: superAdminSigUrl ? ReportImageResolver.resolveToBase64(superAdminSigUrl) : undefined,
-        date: surveyDateFormatted,
+        date: approvalDateFormatted,
       },
     ];
 

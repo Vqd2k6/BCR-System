@@ -9,6 +9,10 @@
 </head>
 <body{{#if isGuestWatermark}} class="guest-watermark-mode"{{else if isPiiMasked}} class="guest-watermark-mode"{{/if}}>
 
+  {{#if isDraft}}
+  <div class="draft-watermark" aria-hidden="true">DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ</div>
+  {{/if}}
+
   {{> page-01-cover}}
   {{> page-02-signatures-notice}}
   {{> page-03-toc-and-sections-1-2}}

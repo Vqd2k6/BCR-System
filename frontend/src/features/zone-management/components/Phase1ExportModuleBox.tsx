@@ -2,7 +2,6 @@ import React from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { Phase1ExportHeader } from './phase1-export/components/Phase1ExportHeader';
 import { Phase1FilterToolbar } from './phase1-export/components/Phase1FilterToolbar';
-import { BatchResultCard } from './phase1-export/components/BatchResultCard';
 import { Phase1ParcelsTable } from './phase1-export/components/Phase1ParcelsTable';
 import { Phase1PreviewModal } from './phase1-export/components/modals/Phase1PreviewModal';
 import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
@@ -40,13 +39,9 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     selectedParcelIds,
     actionMessage,
     setActionMessage,
-    isBatchExporting,
-    batchResult,
-    setBatchResult,
     fetchExportableParcels,
     toggleSelectAll,
     toggleSelectParcel,
-    handleCreateBatchExport,
   } = usePhase1ExportData({
     initialZoneId,
     assignedZoneId: user?.assignedZoneId,
@@ -111,17 +106,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         setSearchQuery={setSearchQuery}
         isLoading={isLoading}
         onRefresh={fetchExportableParcels}
-        isBatchExporting={isBatchExporting}
-        selectedCount={selectedParcelIds.length}
-        totalFilteredCount={filteredParcels.length}
-        onCreateBatchExport={handleCreateBatchExport}
         hideZoneSelect={hideZoneSelect}
-      />
-
-      {/* 3. Thẻ kết quả mẻ xuất tập hợp (nếu có) */}
-      <BatchResultCard
-        batchResult={batchResult}
-        onClose={() => setBatchResult(null)}
       />
 
       {/* 4. Bảng danh sách công trình & các nút thao tác xuất báo cáo */}

@@ -25,8 +25,12 @@
     <div style="margin-bottom: 8px;">
       {{#each section9.conclusions}}
         <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      {{else}}
+        <p>--</p>
       {{/each}}
+      {{#if section9.witnessNarrative.vi}}
       <p>- {{section9.witnessNarrative.vi}}<br><span class="text-muted">- {{section9.witnessNarrative.en}}</span></p>
+      {{/if}}
     </div>
 
     <h3 class="section-header" style="color: #b45309;">Hạn chế khảo sát / Limitations:</h3>
@@ -35,7 +39,7 @@
         <p style="color: #b45309;">- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
       {{/each}}
     {{else}}
-      <p style="color: #b45309;">- Không<br><span class="text-muted">- None</span></p>
+      <p style="color: #b45309;">--</p>
     {{/if}}
 
     <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>

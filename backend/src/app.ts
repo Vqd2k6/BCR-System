@@ -17,6 +17,7 @@ import { SurveyController } from './modules/survey/survey.controller';
 import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
+import { ReportV3Controller } from './modules/report_v3/report-v3.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
 import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
@@ -213,9 +214,7 @@ export function createApp(): express.Application {
   api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);
   api.get('/admin/mutations/history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZoneMutationHistory);
 
-  // Xuất Báo Cáo Phân khu & Toàn tuyến
-  api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);
-  api.get('/reports/batch-export/:batchId/status', authenticateJwt, ExportController.getBatchStatus);
+  // D12: Xuất mẻ hàng loạt đã gỡ – chưa triển khai thật; sẽ làm lại ở giai đoạn sau
 
   // ==========================================
   // 3. SUPER ADMIN USER LIFECYCLE & GLOBAL HUB
@@ -228,9 +227,6 @@ export function createApp(): express.Application {
   api.post('/admin/users/:id/reset-password', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.resetPassword);
   api.delete('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.deleteUser);
 
-  api.post('/admin/reports/batch-export', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.createBatchExport);
-  api.get('/admin/reports/exports', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.listAllExportBatches);
-  api.delete('/admin/reports/exports/:batchId', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.revokeExport);
 
   // ==========================================
   // 4. CONTRACTOR & GUEST VIEW ENDPOINTS
@@ -258,6 +254,13 @@ export function createApp(): express.Application {
   api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
   api.get('/v2/reports/:id/preview/html', optionalAuthenticateJwt, ReportV2Controller.previewResidentialHtml);
   api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
+
+  // 5.2. TECHNICAL BCS REPORT V3 (snapshot APPROVED + Rev + SHA-256)
+  api.get('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf);
+  api.get('/v3/reports/:id/preview/html', optionalAuthenticateJwt, ReportV3Controller.previewHtml);
+  api.post('/v3/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.previewHtml);
+  api.get('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.listReleases);
+  api.post('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.issueRelease);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

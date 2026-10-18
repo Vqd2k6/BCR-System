@@ -620,6 +620,7 @@ CREATE TABLE base_survey_reports (
     handover_history JSONB NOT NULL DEFAULT '[]'::jsonb,
     submitted_at TIMESTAMPTZ,
     approved_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ, -- Soft delete (#30)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -841,12 +842,12 @@ CREATE TABLE risk_score_cards (
     ecs_class ecs_class_enum NOT NULL DEFAULT 'GOOD',
     v1_importance_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
     v2_structure_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
-    v3_foundation_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
-    v4_age_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
+    v3_foundation_score NUMERIC(4,2) DEFAULT 1.0, -- NULL = chưa đủ dữ liệu CAT
+    v4_age_score NUMERIC(4,2) DEFAULT 1.0, -- NULL = chưa có năm xây dựng
     v5_ecs_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
     v6_sensitivity_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
-    avg_vi_score NUMERIC(4,2) NOT NULL DEFAULT 1.0,
-    vi_class vi_class_enum NOT NULL DEFAULT 'LOW',
+    avg_vi_score NUMERIC(4,2) DEFAULT 1.0,
+    vi_class vi_class_enum DEFAULT 'LOW',
     construction_impact_level_i INT NOT NULL DEFAULT 1,
     building_risk_assessment_bra VARCHAR(32) NOT NULL DEFAULT 'LOW_RISK',
     is_engineering_judgement_applied BOOLEAN NOT NULL DEFAULT FALSE,
@@ -985,3 +986,20 @@ FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
 CREATE TRIGGER trg_update_reports_timestamp
 BEFORE UPDATE ON base_survey_reports
 FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
+
+-- Phát hành Rev báo cáo (D2). Đồng bộ với migration 20261019_risk_score_cards_nullable_vi_and_report_v3.sql
+CREATE TABLE IF NOT EXISTS report_releases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  report_id UUID NOT NULL REFERENCES base_survey_reports(id) ON DELETE RESTRICT,
+  revision INTEGER NOT NULL CHECK (revision >= 0),
+  reason TEXT NOT NULL,
+  is_final BOOLEAN NOT NULL DEFAULT FALSE,
+  file_path TEXT NOT NULL,
+  file_size_bytes BIGINT NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  snapshot_version_id UUID,
+  released_by_user_id UUID NOT NULL REFERENCES users(id),
+  released_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  UNIQUE (report_id, revision)
+);

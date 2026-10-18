@@ -29,34 +29,8 @@ export class Section9ConclusionMapper {
         vi: `Kết luận của Khảo sát viên hiện trường: ${surveyorConclusionText}`,
         en: `Surveyor field conclusion: ${surveyorConclusionText}`,
       });
-    } else {
-      const crackCount = allDefectRows.filter((d) => d.widthMm !== '–').length;
-      const otherCount = allDefectRows.length - crackCount;
-      const deformInit = json.settlementTilt || rawReport.deformation || {};
-      const hasDeform = (deformInit.buildingTilt?.level ?? 0) > 0 ||
-                        (deformInit.diffSettlement?.level ?? 0) > 0 ||
-                        Boolean(deformInit.diffSettlement?.notes?.trim()) ||
-                        (deformInit.beamSagging?.level ?? 0) > 0;
-
-      const defectSummaryStrVi = allDefectRows.length > 0
-        ? `Ghi nhận tổng cộng ${allDefectRows.length} khuyết tật (${crackCount} vết nứt${otherCount > 0 ? `, ${otherCount} vị trí thấm ẩm/bong rộp` : ''}; chi tiết tại Phụ lục 2).`
-        : 'Không ghi nhận khuyết tật nứt hoặc thấm ẩm rõ rệt.';
-      const defectSummaryStrEn = allDefectRows.length > 0
-        ? `A total of ${allDefectRows.length} defect(s) were recorded (${crackCount} crack(s)${otherCount > 0 ? `, ${otherCount} dampness/spalling spot(s)` : ''}; detailed in Appendix 2).`
-        : 'No noticeable cracks or dampness defects recorded.';
-
-      const deformSummaryStrVi = hasDeform
-        ? 'Ghi nhận biến dạng đo đạc tại hiện trường (chi tiết Mục V).'
-        : 'Không phát hiện lún, nghiêng, võng bất thường bằng trực quan.';
-      const deformSummaryStrEn = hasDeform
-        ? 'Measured deformation was recorded on-site (detailed in Section V).'
-        : 'No abnormal visual settlement, tilt, or deflection was observed.';
-
-      conclusionsList.push({
-        vi: `Sau khi hoàn thành công tác khảo sát hiện trường và đánh giá hiện trạng, công trình đang sử dụng ổn định. ${defectSummaryStrVi} ${deformSummaryStrVi}`,
-        en: `Following on-site survey and condition assessment, the building is in stable use. ${defectSummaryStrEn} ${deformSummaryStrEn}`,
-      });
     }
+    // D6: Không tự sinh kết luận. Nếu KSV/Admin không nhập, mục kết luận để trống (template in '--').
 
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey);
     const ownerName = rawReport.owner_name || json.ownerName || 'Chủ hộ';
@@ -79,10 +53,8 @@ export class Section9ConclusionMapper {
         en: 'The survey was witnessed by the property owner, who agreed with the survey results and signed the field record.',
       };
     } else {
-      witnessNarrative = {
-        vi: `Khảo sát được thực hiện với sự chứng kiến của đại diện chủ hộ (${ownerName}); biên bản hiện trường được lập theo quy trình khảo sát.`,
-        en: 'The survey was conducted in the presence of the property owner; the field record was prepared according to survey procedures.',
-      };
+      // D6: không tự khẳng định có người chứng kiến khi không có dữ liệu
+      witnessNarrative = { vi: '', en: '' };
     }
 
     const conclusionFullText = (rawReport.summary_conclusions || json.summaryConclusions || '').toLowerCase();
@@ -204,9 +176,8 @@ export class Section9ConclusionMapper {
       });
     }
 
-    const finalLimitations: BilingualText[] = limitationsList.length > 0
-      ? limitationsList
-      : [{ vi: 'Không', en: 'None' }];
+    // D6: không có hạn chế được ghi nhận -> mảng rỗng, template in '--' (không khẳng định 'Không')
+    const finalLimitations: BilingualText[] = limitationsList;
 
     const section9: Section9ConclusionRecommendation = {
       conclusions: conclusionsList,
@@ -231,10 +202,6 @@ export class Section9ConclusionMapper {
         en: 'This Phase 1 report is a preliminary survey and screening record.',
       },
       pendingFieldDesignItems: [
-        {
-          vi: 'Dự báo lún Smax, PPV, biến dạng góc và điểm A – lấy từ thiết kế / đánh giá tác động được phê duyệt.',
-          en: 'Predicted Smax, PPV, angular distortion and score A – from the approved design / impact assessment.',
-        },
         {
           vi: 'Hồ sơ pháp lý xác nhận hiện trạng trước thi công hoàn thiện theo Giai đoạn 2 trước khi máy TBM đào qua.',
           en: 'Pre-construction condition legal dossier to be finalized under Phase 2 prior to TBM passage.',

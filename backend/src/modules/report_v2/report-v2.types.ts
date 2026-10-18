@@ -311,15 +311,6 @@ export interface Section7BurlandClassification {
   structuralEngineerReview?: BilingualText;
 }
 
-export interface RiskScoreCategoryItem {
-  code: string;                      // A, B, C, D, E
-  title: BilingualText;
-  basis: BilingualText;
-  maxScore: number;
-  scoreDisplay: string;              // "Chờ / Pending" or "8"
-  scoreNumeric?: number;
-}
-
 export interface EcsAssessmentItem {
   code: string;                      // E1..E6
   title: BilingualText;
@@ -333,7 +324,8 @@ export interface ViAssessmentItem {
   title: BilingualText;
   basis: BilingualText;
   scale: string;                     // 0–4 or 1–4
-  score: number;
+  score: number | null;              // null = chưa đủ dữ liệu
+  scoreDisplay: string;              // '--' khi null
 }
 
 export interface BraMatrixCell {
@@ -369,10 +361,13 @@ export interface Section8BuildingConditionAssessment {
   };
   vi: {
     items: ViAssessmentItem[];
-    totalScore: number;              // 6–24
-    averageScore: number;            // 1.00–4.00
+    totalScore: number | null;       // 6–24; null = chưa đủ dữ liệu
+    averageScore: number | null;     // 1.00–4.00; null = chưa đủ dữ liệu
+    totalScoreDisplay: string;       // '--' khi thiếu dữ liệu
+    averageScoreDisplay: string;
+    foundationCatDisplay: string;    // 'Cat 3 / 5' hoặc '--'
     classGrade: BilingualText;       // Thấp / Low, etc.
-    vCode: 'V1' | 'V2' | 'V3' | 'V4';
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
     foundationCatScore?: number;
     engineeringJudgement?: {
       isApplied: boolean;
@@ -389,7 +384,7 @@ export interface Section8BuildingConditionAssessment {
     basis: BilingualText;
   };
   braMatrix: {
-    vCode: 'V1' | 'V2' | 'V3' | 'V4';
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
     iCode: 'I1' | 'I2' | 'I3' | 'I4';
     rows: BraMatrixRow[];
     finalRiskLevel: BilingualText;
@@ -404,11 +399,6 @@ export interface Section8BuildingConditionAssessment {
     ecsGrade: BilingualText;
     burlandGrade: number;
     baselineRisk: BilingualText;
-    narrative: BilingualText;
-  };
-  scoring?: {
-    items: RiskScoreCategoryItem[];
-    totalBraScoreDisplay: string;
     narrative: BilingualText;
   };
   supplementaryPhase1?: any;

@@ -15,6 +15,7 @@ import {
   BraMatrixCell,
   BilingualText,
 } from '../report-v2.types';
+import { v3FromCat, v4FromAge } from '../../scoring/vi-calculator';
 
 export class RiskScoringCalculator {
   public static computeRiskAssessment(
@@ -116,8 +117,8 @@ export class RiskScoringCalculator {
         code: 'E3',
         title: { vi: 'Biến dạng Lún / Nghiêng / Võng', en: 'Deformation (Settlement / Tilt / Deflection)' },
         basis: {
-          vi: e3 === 0 ? 'Thân nhà thẳng đứng, không lún võng bất thường' : `Phát hiện biến dạng hiện trường (Mức ${e3}/4đ)`,
-          en: e3 === 0 ? 'Upright building, no abnormal deflection/tilt' : `Deformation detected on-site (Level ${e3}/4)`,
+          vi: e3 === 0 ? 'Mức 0/4đ theo đánh giá hiện trường (không ghi nhận biến dạng)' : `Phát hiện biến dạng hiện trường (Mức ${e3}/4đ)`,
+          en: e3 === 0 ? 'Level 0/4 per field assessment (no deformation recorded)' : `Deformation detected on-site (Level ${e3}/4)`,
         },
         scale: '0–4',
         score: e3,
@@ -126,8 +127,8 @@ export class RiskScoringCalculator {
         code: 'E4',
         title: { vi: 'Suy giảm vật liệu / độ bền lâu', en: 'Material degradation' },
         basis: {
-          vi: e4 === 0 ? 'Vật liệu nguyên vẹn, không phong hóa/thấm ẩm' : `Ghi nhận suy giảm vật liệu (Mức ${e4}/4đ)`,
-          en: e4 === 0 ? 'Materials intact, no weathering/moisture' : `Material degradation observed (Level ${e4}/4)`,
+          vi: e4 === 0 ? 'Mức 0/4đ theo đánh giá đã xác nhận (không ghi nhận suy giảm vật liệu)' : `Ghi nhận suy giảm vật liệu (Mức ${e4}/4đ)`,
+          en: e4 === 0 ? 'Level 0/4 per confirmed assessment (no material degradation recorded)' : `Material degradation observed (Level ${e4}/4)`,
         },
         scale: '0–4',
         score: e4,
@@ -136,8 +137,8 @@ export class RiskScoringCalculator {
         code: 'E5',
         title: { vi: 'Lịch sử / cơi nới / sự cố & toàn vẹn', en: 'Historical sensitivity & structural integrity' },
         basis: {
-          vi: e5 === 0 ? 'Công trình nguyên bản, không tiền sử sự cố' : `Tiền sử sửa chữa/sự cố ghi nhận (Mức ${e5}/4đ)`,
-          en: e5 === 0 ? 'Original structure, no history of incidents' : `Reported past repairs/incidents (Level ${e5}/4)`,
+          vi: e5 === 0 ? 'Mức 0/4đ theo lịch sử đã ghi nhận (không có sự cố được khai báo)' : `Tiền sử sửa chữa/sự cố ghi nhận (Mức ${e5}/4đ)`,
+          en: e5 === 0 ? 'Level 0/4 per recorded history (no incident reported)' : `Reported past repairs/incidents (Level ${e5}/4)`,
         },
         scale: '0–4',
         score: e5,
@@ -146,8 +147,8 @@ export class RiskScoringCalculator {
         code: 'E6',
         title: { vi: 'Tình trạng chức năng / tổng thể', en: 'Overall serviceability & functional condition' },
         basis: {
-          vi: e6 === 0 ? 'Khai thác bình thường, không kẹt cửa/thấm dột' : `Ảnh hưởng công năng vận hành (Mức ${e6}/4đ)`,
-          en: e6 === 0 ? 'Normal operation, no jammed doors/leakage' : `Functional serviceability impact (Level ${e6}/4)`,
+          vi: e6 === 0 ? 'Mức 0/4đ theo đánh giá đã xác nhận (không ghi nhận ảnh hưởng công năng)' : `Ảnh hưởng công năng vận hành (Mức ${e6}/4đ)`,
+          en: e6 === 0 ? 'Level 0/4 per confirmed assessment (no functional impact recorded)' : `Functional serviceability impact (Level ${e6}/4)`,
         },
         scale: '0–4',
         score: e6,
@@ -173,9 +174,12 @@ export class RiskScoringCalculator {
     const v2 = viData.v2 !== undefined ? Number(viData.v2) : v2Calc;
 
     // V3: Loại móng & Nền đất (Cat 1-2: 1đ, Cat 3: 2đ, Cat 4: 3đ, Cat 5: 4đ)
-    const catScore = json.foundationCatScore ?? specs.foundationCatScore ?? 5;
-    let v3Calc = catScore <= 2 ? 1 : catScore === 3 ? 2 : catScore === 4 ? 3 : 4;
-    const v3 = viData.v3 !== undefined ? Number(viData.v3) : v3Calc;
+    // D3/D7: KHÔNG gán CAT mặc định. Thiếu CAT → V3 = null → báo cáo in '--'.
+    const catRaw = json.foundationCatScore ?? specs.foundationCatScore;
+    const catNum = catRaw === undefined || catRaw === null || catRaw === '' ? NaN : Number(catRaw);
+    const catScore: number | null = Number.isInteger(catNum) && catNum >= 1 && catNum <= 5 ? catNum : null;
+    const v3Saved = viData.v3 !== undefined && viData.v3 !== null ? Number(viData.v3) : null;
+    const v3: number | null = v3Saved ?? v3FromCat(catScore);
 
     // V4: Tuổi đời / Cơi nới (<10n: 1, 10-25n: 2, 25-40n: 3, >40n: 4)
     const rawConstrYear = specs.constructionYear || specs.year_of_construction || json.constructionYear;
@@ -189,16 +193,15 @@ export class RiskScoringCalculator {
       v4BasisVi = `Năm XD ~${constrYear} (~${ageYears} năm)`;
       v4BasisEn = `Built ~${constrYear} (~${ageYears} yrs)`;
     } else {
-      v4BasisVi = 'Chưa có dữ liệu năm XD (ước tính niên hạn 10–25 năm)';
-      v4BasisEn = 'Built year unrecorded (estimated 10–25 yrs)';
+      v4BasisVi = 'Chưa có dữ liệu năm xây dựng';
+      v4BasisEn = 'Built year not recorded';
     }
 
-    let v4Calc = 2; // Tạm tính theo niên hạn phổ biến 10-25 năm
-    if (ageYears !== null) {
-      v4Calc = ageYears < 10 ? 1 : ageYears <= 25 ? 2 : ageYears <= 40 ? 3 : 4;
-    }
+    // D7: V4 theo tuổi công trình; cơi nới nặng (renovationLoad ≥ 3) → 4; thiếu cả hai → null ('--')
+    let v4Calc: number | null = ageYears !== null ? v4FromAge(ageYears) : null;
     if ((json.historyInterview?.renovationLoad ?? 0) >= 3) v4Calc = 4;
-    const v4 = viData.v4 !== undefined ? Number(viData.v4) : v4Calc;
+    const v4Saved = viData.v4 !== undefined && viData.v4 !== null ? Number(viData.v4) : null;
+    const v4: number | null = v4Saved ?? v4Calc;
 
     // V5: Hiện trạng kỹ thuật ECS (Good: 1, Medium: 2, Deficient: 3, Critical: 4)
     let v5Calc = totalEcs >= 17 ? 4 : totalEcs >= 11 ? 3 : totalEcs >= 6 ? 2 : 1;
@@ -210,15 +213,25 @@ export class RiskScoringCalculator {
     else if (json.historyInterview?.sensitiveEquipment?.has) v6Calc = 3;
     const v6 = viData.v6 !== undefined ? Number(viData.v6) : v6Calc;
 
-    const totalVi = viData.totalVi !== undefined ? Number(viData.totalVi) : (v1 + v2 + v3 + v4 + v5 + v6);
-    const viAvg = viData.viAvg !== undefined
-      ? parseFloat(Number(viData.viAvg).toFixed(2))
-      : parseFloat((totalVi / 6).toFixed(2));
+    // Thiếu V3 hoặc V4 → chưa đủ dữ liệu để kết luận VI (không đoán)
+    const viComplete = v3 !== null && v4 !== null;
+    const totalVi: number | null = !viComplete
+      ? null
+      : (viData.totalVi !== undefined && viData.totalVi !== null ? Number(viData.totalVi) : (v1 + v2 + v3 + v4 + v5 + v6));
+    const viAvg: number | null = totalVi === null
+      ? null
+      : (viData.viAvg !== undefined && viData.viAvg !== null
+        ? parseFloat(Number(viData.viAvg).toFixed(2))
+        : parseFloat((totalVi / 6).toFixed(2)));
 
     let viClassVi = 'Thấp';
     let viClassEn = 'Low';
-    let vCode: 'V1' | 'V2' | 'V3' | 'V4' = 'V1';
-    if (viAvg > 3.25) {
+    let vCode: 'V1' | 'V2' | 'V3' | 'V4' | null = 'V1';
+    if (viAvg === null) {
+      viClassVi = '--';
+      viClassEn = '--';
+      vCode = null;
+    } else if (viAvg > 3.25) {
       viClassVi = 'Rất cao';
       viClassEn = 'Very High';
       vCode = 'V4';
@@ -236,7 +249,7 @@ export class RiskScoringCalculator {
       vCode = 'V1';
     }
 
-    const viItems: ViAssessmentItem[] = [
+    const viItemsRaw: Array<Omit<ViAssessmentItem, 'scoreDisplay'>> = [
       {
         code: 'V1',
         title: { vi: 'Công năng & Quy mô', en: 'Building importance & use' },
@@ -254,7 +267,9 @@ export class RiskScoringCalculator {
       {
         code: 'V3',
         title: { vi: 'Loại móng & Nền đất', en: 'Foundation type & ground condition' },
-        basis: { vi: `Căn cứ móng CAT ${catScore}`, en: `Foundation certainty CAT ${catScore}` },
+        basis: catScore === null
+          ? { vi: 'Chưa xác định CAT móng', en: 'Foundation CAT not determined' }
+          : { vi: `Căn cứ móng CAT ${catScore}`, en: `Foundation certainty CAT ${catScore}` },
         scale: '1–4',
         score: v3,
       },
@@ -280,6 +295,11 @@ export class RiskScoringCalculator {
         score: v6,
       },
     ];
+
+    const viItems: ViAssessmentItem[] = viItemsRaw.map((it) => ({
+      ...it,
+      scoreDisplay: it.score === null ? '--' : String(it.score),
+    }));
 
     // =========================================================================
     // 3. TÍNH TOÁN CẤP TÁC ĐỘNG THI CÔNG (IMPACT: I1 - I4)
@@ -360,7 +380,7 @@ export class RiskScoringCalculator {
 
       const cells: BraMatrixCell[] = iKeys.map((ik) => {
         const item = rawLookup[vk][ik];
-        const isCur = (vk === vCode && ik === iCode);
+        const isCur = vCode !== null && vk === vCode && ik === iCode;
         return {
           vCode: vk,
           iCode: ik,
@@ -379,19 +399,18 @@ export class RiskScoringCalculator {
       };
     });
 
-    const activeLookup = rawLookup[vCode][iCode];
-    const finalRiskLevel = {
-      vi: activeLookup.riskLevelVi,
-      en: activeLookup.riskLevelEn,
-    };
-    const recommendation = {
-      vi: activeLookup.recVi,
-      en: activeLookup.recEn,
-    };
+    // Thiếu dữ liệu VI → không xếp cấp rủi ro (không đoán)
+    const activeLookup = vCode !== null ? rawLookup[vCode][iCode] : null;
+    const finalRiskLevel = activeLookup
+      ? { vi: activeLookup.riskLevelVi, en: activeLookup.riskLevelEn }
+      : { vi: '--', en: '--' };
+    const recommendation = activeLookup
+      ? { vi: activeLookup.recVi, en: activeLookup.recEn }
+      : { vi: 'Chưa đủ dữ liệu (CAT móng / năm xây dựng) để xếp cấp rủi ro.', en: 'Insufficient data (foundation CAT / construction year) to classify risk.' };
 
     const braNarrative = {
-      vi: `Ma trận rủi ro cơ sở BRA (Phase 1): Cấp độ tổn thương ${vCode} (${viClassVi}) × Cấp tác động thi công ${iCode} (${impactVi}, ${distanceLabel.vi} ${metroOffset}m) → Cấp rủi ro tổng thể: ${finalRiskLevel.vi}.`,
-      en: `Phase 1 BRA Matrix: Vulnerability ${vCode} (${viClassEn}) × Impact ${iCode} (${impactEn}, ${distanceLabel.en} ${metroOffset}m) → Overall Baseline Risk: ${finalRiskLevel.en}.`,
+      vi: `Ma trận rủi ro cơ sở BRA (Phase 1): Cấp độ tổn thương ${vCode ?? '--'} (${viClassVi}) × Cấp tác động thi công ${iCode} (${impactVi}, ${distanceLabel.vi} ${metroOffset}m) → Cấp rủi ro tổng thể: ${finalRiskLevel.vi}.`,
+      en: `Phase 1 BRA Matrix: Vulnerability ${vCode ?? '--'} (${viClassEn}) × Impact ${iCode} (${impactEn}, ${distanceLabel.en} ${metroOffset}m) → Overall Baseline Risk: ${finalRiskLevel.en}.`,
     };
 
     const flagDisplay = flagLevel === 'NONE' ? 'None' : flagLevel === 'LOW' ? 'Low' : flagLevel === 'MODERATE' ? 'Moderate' : flagLevel === 'HIGH' ? 'High' : flagLevel === 'CRITICAL' ? 'Critical' : 'None';
@@ -435,7 +454,10 @@ export class RiskScoringCalculator {
         averageScore: viAvg,
         classGrade: { vi: viClassVi, en: viClassEn },
         vCode,
-        foundationCatScore: catScore,
+        foundationCatScore: catScore ?? undefined,
+        foundationCatDisplay: catScore === null ? '--' : `Cat ${catScore} / 5`,
+        totalScoreDisplay: totalVi === null ? '--' : String(totalVi),
+        averageScoreDisplay: viAvg === null ? '--' : viAvg.toFixed(2),
         engineeringJudgement: {
           isApplied: isViJudgementApplied,
           action: viAction,

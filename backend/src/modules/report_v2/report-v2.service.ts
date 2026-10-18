@@ -131,6 +131,18 @@ export class ReportV2Service {
     enableWatermark: boolean = true
   ): Promise<{ html: string; viewModel: ReportV2ViewModel }> {
     const rawReport = await this.resolveReport(identifier);
+    return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark);
+  }
+
+  /**
+   * Dựng HTML từ bản ghi đã được resolve (V3 truyền bản ghi đã gắn điểm từ snapshot APPROVED_RELEASE)
+   */
+  public static async generateResidentialHtmlFromReport(
+    rawReport: any,
+    overrides?: any,
+    maskPii: boolean = false,
+    enableWatermark: boolean = true
+  ): Promise<{ html: string; viewModel: ReportV2ViewModel }> {
     let activeReport = applyOverridesToReportV2(rawReport, overrides);
     if (maskPii) {
       activeReport = maskReportPii(activeReport);
@@ -172,6 +184,7 @@ export class ReportV2Service {
       isPiiMasked: maskPii,
       isGuestWatermark: maskPii,
       enableWatermark: effectiveWatermark,
+      isDraft: String(activeReport.status || '').toUpperCase() !== 'APPROVED',
     });
 
     return { html, viewModel };

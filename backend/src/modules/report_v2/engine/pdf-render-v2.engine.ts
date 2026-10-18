@@ -19,6 +19,16 @@ export interface PdfRenderOptions {
   footerTitle?: string;
 }
 
+/** Escape ký tự HTML để an toàn khi chèn vào header/footer template của Chromium */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export class PdfRenderV2Engine {
   private static browserInstance: Browser | null = null;
   private static isLaunching = false;
@@ -105,13 +115,14 @@ export class PdfRenderV2Engine {
       // Chờ script dựng khung ảnh (photo-stage), xoay Z/E/D, đánh số trang xong trước khi in
       try {
         await page.waitForFunction('window.__reportReady === true', { timeout: 60000 });
-      } catch {
-        // Không chặn xuất PDF nếu script báo cáo không phản hồi kịp
+      } catch (err) {
+        // Không chặn xuất PDF nhưng phải ghi log để biết layout có thể chưa hoàn tất
+        console.error('[PdfRenderV2Engine] __reportReady không phản hồi kịp, PDF có thể chưa hoàn chỉnh layout:', err);
       }
 
-      const headerTitle = options?.headerTitle || 'LIÊN DANH CRLG–CRSRI–TT | METRO 2 (BẾN THÀNH - THAM LƯƠNG)';
-      const buildingId = options?.buildingId || '';
-      const reportNo = options?.reportNo || '';
+      const headerTitle = escapeHtml(options?.headerTitle || 'LIÊN DANH CRLG–CRSRI–TT | METRO 2 (BẾN THÀNH - THAM LƯƠNG)');
+      const buildingId = escapeHtml(options?.buildingId || '');
+      const reportNo = escapeHtml(options?.reportNo || '');
 
       const headerTemplate = `
         <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 12mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #94a3b8; color: #475569; padding-bottom: 1.5mm;">
@@ -124,7 +135,6 @@ export class PdfRenderV2Engine {
         <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #cbd5e1; color: #64748b; padding-top: 1.5mm;">
           <span>${reportNo || buildingId}</span>
           <span style="font-weight: 600; color: #334155;">Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
-          <span style="font-weight: 700; letter-spacing: 0.5px; color: #b91c1c;">TÀI LIỆU KIỂM SOÁT</span>
         </div>
       `;
 
@@ -148,8 +158,8 @@ export class PdfRenderV2Engine {
         if (fs.existsSync(tempHtmlPath)) {
           fs.unlinkSync(tempHtmlPath);
         }
-      } catch {
-        // ignore unlink error
+      } catch (err) {
+        console.error('[PdfRenderV2Engine] Không xóa được file HTML tạm:', tempHtmlPath, err);
       }
       await page.close();
     }

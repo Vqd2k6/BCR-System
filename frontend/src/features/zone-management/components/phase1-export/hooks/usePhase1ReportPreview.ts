@@ -57,7 +57,7 @@ export const usePhase1ReportPreview = ({
 
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const previewEndpoint = ver === 'v2'
-      ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+      ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
       : `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
     try {
@@ -111,7 +111,7 @@ export const usePhase1ReportPreview = ({
     setIsPreviewLoading(true);
     try {
       const endpoint = targetVersion === 'v2'
-        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
         : `/reports/${encodeURIComponent(reportId)}/preview/html`;
       
       let htmlRes;
@@ -211,7 +211,7 @@ export const usePhase1ReportPreview = ({
       });
 
       const previewEndpoint = reportVersion === 'v2'
-        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
         : `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
       const htmlRes = await api.get(previewEndpoint, {
@@ -245,7 +245,7 @@ export const usePhase1ReportPreview = ({
     try {
       const payload = buildReportPayload(editFormData, previewReportData);
       const endpoint = reportVersion === 'v2'
-        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
         : `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
       const htmlRes = await api.post(endpoint, payload, {
@@ -302,7 +302,7 @@ export const usePhase1ReportPreview = ({
     } else {
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
       const baseApi = (api.defaults.baseURL || '/api/v1').replace(/\/+$/, '');
-      const prefix = reportVersion === 'v2' ? `${baseApi}/v2/reports` : `${baseApi}/reports`;
+      const prefix = reportVersion === 'v2' ? `${baseApi}/v3/reports` : `${baseApi}/reports`;
       window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html`, '_blank');
     }
   };
@@ -335,7 +335,7 @@ export const usePhase1ReportPreview = ({
     setIsPreviewLoading(true);
     try {
       const endpoint = reportVersion === 'v2'
-        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
         : `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
       let htmlRes;
@@ -421,7 +421,7 @@ export const usePhase1ReportPreview = ({
 
     try {
       const endpoint = isV2
-        ? `/v2/reports/${reportId}/export/pdf`
+        ? `/v3/reports/${reportId}/export/pdf`
         : `/reports/${reportId}/export/pdf`;
 
       const response = overrides

@@ -17,6 +17,7 @@ import {
 import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage } from '../../types';
 import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
+import { ReleaseRevisionPanel } from './ReleaseRevisionPanel';
 import { Phase1EditFormTab } from './Phase1EditFormTab';
 import { Phase1JsonTab } from './Phase1JsonTab';
 
@@ -296,6 +297,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
             >
               Đóng
             </button>
+
+            <ReleaseRevisionPanel
+              reportId={previewParcel.activePhase1ReportId || previewParcel.id || previewParcel.projectParcelCode}
+              onFeedback={(type, text) => setModalFeedback({ type, text, timestamp: new Date().toLocaleTimeString('vi-VN') })}
+            />
 
             {previewTab === 'edit' && (
               <button

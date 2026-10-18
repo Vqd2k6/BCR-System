@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Search, RefreshCw, Download } from 'lucide-react';
+import { Layers, Search, RefreshCw } from 'lucide-react';
 import {
   METRO_22_ZONES,
   type MetroZoneConfig,
@@ -14,10 +14,6 @@ interface Phase1FilterToolbarProps {
   setSearchQuery: (query: string) => void;
   isLoading: boolean;
   onRefresh: () => void;
-  isBatchExporting: boolean;
-  selectedCount: number;
-  totalFilteredCount: number;
-  onCreateBatchExport: () => void;
   hideZoneSelect?: boolean;
 }
 
@@ -30,10 +26,6 @@ export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
   setSearchQuery,
   isLoading,
   onRefresh,
-  isBatchExporting,
-  selectedCount,
-  totalFilteredCount,
-  onCreateBatchExport,
   hideZoneSelect = false,
 }) => {
   return (
@@ -112,19 +104,7 @@ export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
           <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">Tải lại</span>
         </button>
-
-        <button
-          onClick={onCreateBatchExport}
-          disabled={isBatchExporting || totalFilteredCount === 0}
-          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-200 flex items-center gap-2 disabled:opacity-50"
-        >
-          <Download size={14} />
-          <span>
-            {selectedCount > 0
-              ? `Xuất mẻ (${selectedCount} lô đã chọn)`
-              : 'Xuất mẻ toàn Phân khu'}
-          </span>
-        </button>
+        {/* D12: Nút Xuất mẻ đã ẩn – chức năng đóng gói hàng loạt chưa triển khai (backend là mock) */}
       </div>
     </div>
   );

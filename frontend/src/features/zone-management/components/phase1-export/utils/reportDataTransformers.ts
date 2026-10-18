@@ -418,7 +418,7 @@ export const initializeEditFormData = (reportData: ServerReportData | null | und
     foundationDepthM: json.foundationDepthM !== undefined ? String(json.foundationDepthM) : (specs.foundation_depth_m ? String(specs.foundation_depth_m) : '0.4'),
     pileDimensionMm: json.pileDimensionMm || '22x25 cm',
     pileLengthMm: json.pileLengthMm || '18000',
-    foundationCatScore: json.foundationCatScore !== undefined ? json.foundationCatScore : 4,
+    foundationCatScore: json.foundationCatScore !== undefined ? json.foundationCatScore : "",
     foundationNotes: json.foundationNotes || specs.foundation_notes || '',
 
     // 4. Liền kề

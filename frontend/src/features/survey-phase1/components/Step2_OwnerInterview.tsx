@@ -235,7 +235,12 @@ export const Step2_OwnerInterview: React.FC = () => {
               id="input-foundationType"
               label="Loại Móng (Foundation Type) *"
               value={formData.foundationType}
-              onChange={(e) => updateFormData({ foundationType: e.target.value })}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Móng không rõ thông tin → bắt buộc CAT 5 (rủi ro cao nhất, không đoán)
+                if (next.startsWith('Unknown')) updateFormData({ foundationType: next, foundationCatScore: 5 });
+                else updateFormData({ foundationType: next });
+              }}
               options={[
                 { value: '', label: '--- Chọn loại móng công trình ---' },
                 ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f })),

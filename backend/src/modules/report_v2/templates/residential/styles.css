@@ -364,7 +364,7 @@ table.signature-table th {
   text-transform: uppercase;
   border: 1px solid #cbd5e1;
   text-align: center;
-  width: 33.33%;
+  width: 50%;
 }
 
 table.signature-table td {
@@ -372,7 +372,7 @@ table.signature-table td {
   padding: 6px 8px;
   text-align: center;
   vertical-align: top;
-  width: 33.33%;
+  width: 50%;
   font-size: 9.5pt;
 }
 
@@ -1532,7 +1532,7 @@ body.guest-watermark-mode .a4-page-sheet::before {
 }
 .review-note-sign { display: flex; justify-content: space-between; font-size: 8pt; color: #334155; }
 
-/* Footer kiểm soát tài liệu: mã báo cáo | Trang X/Y | TÀI LIỆU KIỂM SOÁT */
+/* Footer: mã báo cáo | Trang X/Y */
 .page-number-footer {
   display: flex;
   justify-content: space-between;
@@ -1548,4 +1548,21 @@ body.guest-watermark-mode .a4-page-sheet::before {
 @media print {
   .page-number-footer { display: none !important; }
   .report-subpage-topbar { display: none !important; }
+}
+
+/* ==========================================================================
+   WATERMARK DRAFT (D1): Hồ sơ chưa APPROVED không có giá trị pháp lý
+   ========================================================================== */
+.draft-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  font-size: 34pt;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(185, 28, 28, 0.13);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
 }

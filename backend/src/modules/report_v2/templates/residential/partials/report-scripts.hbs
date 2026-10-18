@@ -99,8 +99,7 @@
           var footer = sheet.querySelector('.page-number-footer');
           if (!footer) return;
           footer.innerHTML = '<span class="pf-code">' + code + '</span>' +
-            '<span class="pf-page">Trang ' + (idx + 1) + ' / ' + total + '</span>' +
-            '<span class="pf-ctrl">TÀI LIỆU KIỂM SOÁT</span>';
+            '<span class="pf-page">Trang ' + (idx + 1) + ' / ' + total + '</span>';
         });
         var totalEl = document.getElementById('report-total-pages');
         if (totalEl) totalEl.textContent = String(total);

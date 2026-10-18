@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
-import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ConflictError } from '../../../common/errors/problem-details';
+import { ReportSnapshotService } from '../../report_v3/report-snapshot.service';
 
 export class AuditReviewService {
   /**
@@ -1050,8 +1051,9 @@ export class AuditReviewService {
         current_step: number;
         unit_id: string | null;
         report_type: string | null;
+        status: string;
       }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)
@@ -1065,29 +1067,40 @@ export class AuditReviewService {
 
       const actualReportId = repRes.rows[0].id;
       const actualParcelId = repRes.rows[0].parcel_id;
-      const officialPdfUrl = `https://storage.metro2.vn/reports/REPORT_${repRes.rows[0].project_parcel_code}_OFFICIAL.pdf`;
 
-      await client.query(
+      // D1: APPROVED là bản Final – không duyệt lại để tránh chụp lại snapshot ngoài quy trình Rev
+      if (repRes.rows[0].status === 'APPROVED') {
+        throw new ConflictError('Hồ sơ đã APPROVED. Muốn thay đổi hãy dùng "Phát hành Rev mới" kèm lý do.');
+      }
+
+      // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả
+      const approveRes = await client.query<{ approved_at: Date }>(
         `UPDATE base_survey_reports
          SET status = 'APPROVED',
              zone_admin_id = $2,
              approved_at = NOW(),
-             official_pdf_url = $3,
-             engineering_recommendations = COALESCE($4, engineering_recommendations),
+             engineering_recommendations = COALESCE($3, engineering_recommendations),
              updated_at = NOW()
-         WHERE id = $1;`,
-        [actualReportId, adminId, officialPdfUrl, judgementNotes || null]
+         WHERE id = $1
+         RETURNING approved_at;`,
+        [actualReportId, adminId, judgementNotes || null]
+      );
+
+      // D1/D3: chụp snapshot điểm bất biến (APPROVED_RELEASE + SHA-256) trong CÙNG transaction với APPROVE
+      const approvedSnapshot = await ReportSnapshotService.writeApprovedRelease(
+        client,
+        actualReportId,
+        adminId,
+        approveRes.rows[0].approved_at,
+        'Chốt điểm tại thời điểm APPROVE'
       );
 
       let parcelApprovedStatus = 'APPROVED';
       if (repRes.rows[0].is_refused_or_absent) {
         parcelApprovedStatus = 'POSTPONED_ABSENT';
-      } else if (
-        repRes.rows[0].summary_conclusions?.toLowerCase().includes('đang thi công') ||
-        repRes.rows[0].summary_conclusions?.toLowerCase().includes('đang xây')
-      ) {
-        parcelApprovedStatus = 'UNDER_CONSTRUCTION';
       }
+      // Lưu ý: 'UNDER_CONSTRUCTION' KHÔNG tồn tại trong parcel_survey_status_enum nên trước đây APPROVE hồ sơ
+      // có kết luận 'đang thi công' luôn lỗi 22P02. Hồ sơ vẫn APPROVED; tình trạng thi công nằm trong dữ liệu khảo sát.
 
       const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
 
@@ -1129,7 +1142,8 @@ export class AuditReviewService {
             parcelId: actualParcelId,
             status: 'APPROVED',
             judgementNotes: judgementNotes || null,
-            officialPdfUrl,
+            snapshotVersionId: approvedSnapshot.versionId,
+            snapshotSha256: approvedSnapshot.snapshot.contentSha256,
             timestamp: new Date().toISOString(),
           }),
         ]
@@ -1139,8 +1153,9 @@ export class AuditReviewService {
         reportId: actualReportId,
         parcelId: actualParcelId,
         status: 'APPROVED',
-        officialPdfUrl,
-        message: 'Đã phê duyệt báo cáo thành công và sinh file PDF/A ký số điện tử',
+        snapshotVersionId: approvedSnapshot.versionId,
+        snapshotSha256: approvedSnapshot.snapshot.contentSha256,
+        message: 'Đã phê duyệt báo cáo và chốt snapshot điểm (APPROVED_RELEASE). File Final được phát hành khi xuất lần đầu.',
       };
     });
   }

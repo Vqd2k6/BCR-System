@@ -48,3 +48,4 @@ backend/uploads/
 backend/database/backups/*
 !backend/database/backups/restore_pre_multiphoto_backup.js
 data/
+backend/storage/

@@ -308,7 +308,7 @@ export interface Phase1SurveyFormData {
   asBuiltDrawingPhotoUrl?: string;
   asBuiltDrawingPhotos?: EvidencePhotoItem[];
   asBuiltDrawingFiles: { id: string; name: string; url: string }[];
-  foundationCatScore: number; // 1..5
+  foundationCatScore: number; // 1..5 (0 = chưa chọn)
 
   // Step 2.2 History
   historyInterview: HistoryInterviewState;
