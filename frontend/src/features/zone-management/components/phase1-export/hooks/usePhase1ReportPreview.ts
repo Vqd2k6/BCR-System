@@ -307,24 +307,72 @@ export const usePhase1ReportPreview = ({
     }
   };
 
-  const handleDirectPrint = () => {
-    if (!previewHtmlContent) {
+  const handleDirectPrint = async () => {
+    if (!previewParcel) {
       setModalFeedback({
         type: 'error',
-        text: 'Chưa nạp được bản in để thực hiện in!',
+        text: 'Chưa chọn thửa đất để thực hiện in!',
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
       return;
     }
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.open();
-      printWindow.document.write(previewHtmlContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
+    const ver = reportVersion;
+    const rawId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
+    const reportId = encodeURIComponent(rawId);
+    const isV2 = ver === 'v2';
+
+    setModalFeedback({
+      type: 'info',
+      text: 'Đang tạo PDF máy chủ chuẩn để mở bản in...',
+      timestamp: new Date().toLocaleTimeString('vi-VN'),
+    });
+
+    try {
+      const endpoint = isV2
+        ? `/v3/reports/${reportId}/export/pdf`
+        : `/reports/${reportId}/export/pdf`;
+
+      const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
+      const response = payload
+        ? await api.post(endpoint, { ...payload, enableWatermark }, { params: { watermark: String(enableWatermark) }, responseType: 'blob' })
+        : await api.get(endpoint, { params: { watermark: String(enableWatermark) }, responseType: 'blob' });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const pdfUrl = URL.createObjectURL(blob);
+      const printWindow = window.open(pdfUrl, '_blank');
+
+      const filename = isV2
+        ? `BaoCao_SongNgu_Phase1_V2_${previewParcel.projectParcelCode}.pdf`
+        : `BaoCao_KhaoSat_Phase1_${previewParcel.projectParcelCode}.pdf`;
+
+      if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setModalFeedback({
+          type: 'info',
+          text: 'Trình duyệt chặn mở tab mới. Đã tự động tải tệp PDF về máy của bạn để mở và in trực tiếp.',
+          timestamp: new Date().toLocaleTimeString('vi-VN'),
+        });
+      } else {
+        printWindow.focus();
+        setModalFeedback({
+          type: 'success',
+          text: 'Đã mở bản in PDF máy chủ trong tab mới. Hãy nhấn biểu tượng Máy in hoặc Ctrl+P / Cmd+P trong trình xem PDF để in.',
+          timestamp: new Date().toLocaleTimeString('vi-VN'),
+        });
+      }
+    } catch (err: unknown) {
+      console.error('Lỗi khi mở bản in PDF:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không thể tạo PDF để in: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
     }
   };
 

@@ -20,7 +20,7 @@ import {
 } from '../modules/report_v3/report-snapshot.service';
 import { ReportSnapshotSchema } from '../modules/report_v3/report-snapshot.schema';
 import { RenderQueue, RenderTimeoutError } from '../modules/report_v3/render-queue';
-import { ReportReleaseService } from '../modules/report_v3/report-release.service';
+import { ReportReleaseService, getReleaseStorageDir } from '../modules/report_v3/report-release.service';
 import { ReportV3Service } from '../modules/report_v3/report-v3.service';
 import { escapeHtml, PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
 import { MetadataMapper } from '../modules/report_v2/mappers/sections/metadata.mapper';
@@ -319,6 +319,24 @@ async function partA(): Promise<void> {
 
 async function partB(): Promise<void> {
   console.log('\n══ PHẦN B: Tích hợp DB local – 6 hồ sơ bộ kiểm chứng (D16) ══');
+  // Reset releases và export_revision cho các hồ sơ kiểm chứng để test chạy lặp lại an toàn (idempotent)
+  await Database.query(
+    `DELETE FROM report_releases WHERE report_id = ANY($1::uuid[]);`,
+    [VERIFICATION_SET.map((r) => r.id)]
+  );
+  await Database.query(
+    `UPDATE base_survey_reports SET export_revision = 0 WHERE id = ANY($1::uuid[]);`,
+    [VERIFICATION_SET.map((r) => r.id)]
+  );
+
+  const releaseBaseDir = getReleaseStorageDir();
+  for (const r of VERIFICATION_SET) {
+    const dir = path.join(releaseBaseDir, r.id);
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   // Không giữ HTML trong bộ nhớ (HTML nhúng base64 có thể > 150MB/hồ sơ) – chỉ lưu cờ kiểm tra
   const flagsById = new Map<string, { hasNaN: boolean; usesUuidSurveyId: boolean }>();
 

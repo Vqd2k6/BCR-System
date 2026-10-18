@@ -125,16 +125,16 @@ export class PdfRenderV2Engine {
       const reportNo = escapeHtml(options?.reportNo || '');
 
       const headerTemplate = `
-        <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 12mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #94a3b8; color: #475569; padding-bottom: 1.5mm;">
+        <div style="font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; font-size: 9pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #000000; color: #000000; padding-bottom: 1.5mm;">
           <span style="font-weight: bold; text-transform: uppercase;">${headerTitle}</span>
-          <span style="font-weight: bold; color: #0f3b6c;">${buildingId} ${reportNo ? ' | ' + reportNo : ''}</span>
+          <span style="font-weight: bold; color: #000000;">${buildingId} ${reportNo ? ' | ' + reportNo : ''}</span>
         </div>
       `;
 
       const footerTemplate = `
-        <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #cbd5e1; color: #64748b; padding-top: 1.5mm;">
+        <div style="font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; font-size: 9pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #000000; color: #000000; padding-top: 1.5mm;">
           <span>${reportNo || buildingId}</span>
-          <span style="font-weight: 600; color: #334155;">Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+          <span style="font-weight: 600; color: #000000;">Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
         </div>
       `;
 

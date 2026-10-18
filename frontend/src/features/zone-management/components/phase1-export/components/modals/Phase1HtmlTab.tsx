@@ -114,11 +114,11 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                 <button
                   type="button"
                   onClick={handleDirectPrint}
-                  className="py-2 px-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                  title="In trực tiếp bản xem trước qua máy in"
+                  className="py-2 px-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  title="Mở tệp PDF chuẩn máy chủ trong tab mới để in hoặc lưu trữ"
                 >
                   <Printer size={13} />
-                  <span>In Ngay</span>
+                  <span>In / Tải PDF</span>
                 </button>
               )}
               <button

@@ -18,6 +18,7 @@ import { ReportWatermarkCanvasService } from './services/report-watermark-canvas
 import { maskReportPii } from '../../common/utils/pii.utils';
 import { preloadImageOrientations } from '../report/generators/residential/residential.image-sniff';
 import { ReportImageResolver } from './services/report-image-resolver.service';
+import { ReportFontsService } from './services/report-fonts.service';
 
 function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] {
   if (!obj) return [];
@@ -92,7 +93,9 @@ export class ReportV2Service {
       this.registerHelpersAndPartials();
 
       const templateSource = fs.readFileSync(templatePath, 'utf8');
-      this.cachedStyles = fs.readFileSync(stylesPath, 'utf8');
+      const baseStyles = fs.readFileSync(stylesPath, 'utf8');
+      const fontStyles = ReportFontsService.getFontCss();
+      this.cachedStyles = `${fontStyles}\n${baseStyles}`;
 
       this.cachedTemplate = Handlebars.compile(templateSource);
     }

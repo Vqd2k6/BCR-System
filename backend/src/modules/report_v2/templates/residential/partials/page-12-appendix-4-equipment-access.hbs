@@ -1,5 +1,5 @@
   <!-- =====================================================================
-       TRANG 12: PHỤ LỤC 4 (THIẾT BỊ VÀ PHẠM VI TIẾP CẬN)
+       PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN
        ===================================================================== -->
   <div class="a4-page-sheet">
     
@@ -9,13 +9,13 @@
   </div>
 
 
-    <h2 class="chapter-header">PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)</h2>
-    <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
-      APPENDIX 4 EQUIPMENT AND ACCESS
+    <h2 class="chapter-header" data-section="pl-3">PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)</h2>
+    <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
+      APPENDIX 3: EQUIPMENT AND ACCESS
     </div>
 
     <!-- BẢNG 1: THIẾT BỊ KHẢO SÁT CHUYÊN DỤNG -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 4px 0 2px 0; color: var(--c-black);">
       1. Danh mục thiết bị khảo sát chuyên dụng - Dedicated Survey Equipment
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 6px;">
@@ -40,7 +40,7 @@
     </table>
 
     <!-- BẢNG 2: PHẠM VI TIẾP CẬN CÔNG TRÌNH -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 6px 0 2px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 2px 0; color: var(--c-black);">
       2. Phạm vi tiếp cận khảo sát các khu vực - Building Survey Access Scope
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 6px;">
@@ -60,11 +60,11 @@
             </td>
             <td class="text-center font-bold">
               {{#if this.accessed}}
-                <span style="color: #166534;">☑ Có / Yes</span>
+                <span>☑ Có / Yes</span>
               {{else if this.notAccessed}}
-                <span style="color: #dc2626;">☒ Không / No</span>
+                <span>☒ Không / No</span>
               {{else}}
-                <span style="color: #64748b;">– N/A</span>
+                <span>– N/A</span>
               {{/if}}
             </td>
             <td>
@@ -77,17 +77,17 @@
     </table>
 
     <!-- KHUNG ĐÁNH GIÁ & HIỆU CHUẨN -->
-    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; margin-top: 6px; border-radius: 2px; font-size: 7.5pt; line-height: 1.35;">
+    <div style="background-color: #f9f9f9; border: 1pt solid #000000; padding: 6px 10px; margin-top: 6px; font-size: var(--fs-c1); line-height: 1.35;">
       <div style="margin-bottom: 3px;">
         <strong>Phân loại tiếp cận (Access classification):</strong>
-        <span style="color: #0f3b6c; font-weight: bold; margin-left: 4px;">{{appendix4.accessClassification.vi}}</span>
+        <span style="font-weight: bold; margin-left: 4px;">{{appendix4.accessClassification.vi}}</span>
         <span class="text-muted" style="margin-left: 4px;">({{appendix4.accessClassification.en}})</span>
       </div>
       <div>
         <strong>Hiệu chuẩn thiết bị (Calibration notes):</strong>
-        <span style="color: #475569; margin-left: 4px;">{{appendix4.calibrationNotes.vi}}</span>
+        <span style="margin-left: 4px;">{{appendix4.calibrationNotes.vi}}</span>
       </div>
     </div>
 
-    <div class="page-number-footer">{{tocPageNumbers.appendix4}}</div>
+    <div class="page-number-footer">{{#if tocPageNumbers.appendix3}}{{tocPageNumbers.appendix3}}{{else}}{{tocPageNumbers.appendix4}}{{/if}}</div>
   </div>

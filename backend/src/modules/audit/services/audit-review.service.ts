@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ConflictError } from '../../../common/errors/problem-details';
 import { ReportSnapshotService } from '../../report_v3/report-snapshot.service';
+import { RiskScoringCalculator } from '../../report_v2/mappers/risk-scoring-calculator';
 
 export class AuditReviewService {
   /**
@@ -1052,8 +1053,9 @@ export class AuditReviewService {
         unit_id: string | null;
         report_type: string | null;
         status: string;
+        survey_data_json: any;
       }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.survey_data_json
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)
@@ -1071,6 +1073,80 @@ export class AuditReviewService {
       // D1: APPROVED là bản Final – không duyệt lại để tránh chụp lại snapshot ngoài quy trình Rev
       if (repRes.rows[0].status === 'APPROVED') {
         throw new ConflictError('Hồ sơ đã APPROVED. Muốn thay đổi hãy dùng "Phát hành Rev mới" kèm lý do.');
+      }
+
+      const reportRow = repRes.rows[0];
+      const surveyJson = reportRow.survey_data_json || {};
+
+      // =======================================================================
+      // CONSISTENCY GATE: Kiểm tra tính nhất quán dữ liệu trước khi APPROVE
+      // =======================================================================
+
+      // 1. Kiểm tra mâu thuẫn cứng (Hard Inconsistency):
+      // Mái / Sân thượng ghi nhận "Không tiếp cận" nhưng trong danh mục khảo sát lại có vết nứt/khuyết tật
+      const rawScope = surveyJson.surveyScope || {};
+      const rawLimitation = surveyJson.accessLimitation || {};
+      const hasRoofScope = rawScope.roofTerrace ?? rawScope.roof;
+      let roofRestricted = hasRoofScope === false;
+      if (!roofRestricted && rawLimitation.restrictedAreas && Array.isArray(rawLimitation.restrictedAreas)) {
+        roofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
+          typeof a === 'string' && (a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof'))
+        );
+      }
+
+      if (roofRestricted && Array.isArray(surveyJson.floors)) {
+        for (const fl of surveyJson.floors) {
+          const flName = (fl.floorName || '').toLowerCase();
+          const flNameEn = (fl.floorNameEn || '').toLowerCase();
+          const isRoofFloor = flName.includes('mái') || flName.includes('sân thượng') || flNameEn.includes('roof') || flNameEn.includes('terrace');
+
+          if (isRoofFloor && Array.isArray(fl.defects) && fl.defects.length > 0) {
+            throw new BadRequestError(
+              'Mâu thuẫn dữ liệu: Phạm vi tiếp cận ghi nhận "Mái / Sân thượng: Không tiếp cận" nhưng danh sách khảo sát lại có vết nứt/khuyết tật tại tầng mái/sân thượng. Vui lòng chuẩn hóa trước khi phê duyệt.'
+            );
+          }
+
+          if (Array.isArray(fl.zones)) {
+            for (const z of fl.zones) {
+              const rName = (z.roomName || '').toLowerCase();
+              const rNameEn = (z.roomNameEn || '').toLowerCase();
+              const isRoofZone = isRoofFloor || rName.includes('mái') || rName.includes('sân thượng') || rNameEn.includes('roof') || rNameEn.includes('terrace');
+              if (isRoofZone && Array.isArray(z.defects) && z.defects.length > 0) {
+                throw new BadRequestError(
+                  `Mâu thuẫn dữ liệu: Phạm vi tiếp cận ghi nhận "Mái / Sân thượng: Không tiếp cận" nhưng khu vực khảo sát mái/sân thượng (${z.roomName || 'Sân thượng'}) có chứa khuyết tật. Vui lòng chuẩn hóa trước khi phê duyệt.`
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Kiểm tra mâu thuẫn mềm (Soft Inconsistency):
+      // ECS score >= 11 (Kém / Nguy hiểm) nhưng BRA risk level là Thấp -> bắt buộc có giải trình ít nhất 10 ký tự
+      try {
+        const riskAssessment = RiskScoringCalculator.computeRiskAssessment(
+          reportRow,
+          surveyJson.burlandSummary?.localMaxGrade ?? 0,
+          surveyJson.burlandSummary?.predominantGrade
+        );
+        const totalEcs = riskAssessment.ecs?.totalScore ?? 0;
+        const riskLevelVi = riskAssessment.braMatrix?.finalRiskLevel?.vi || riskAssessment.overallRisk?.grade?.vi || '';
+        const riskLevelEn = riskAssessment.braMatrix?.finalRiskLevel?.en || riskAssessment.overallRisk?.grade?.en || '';
+        const isLowRisk = riskLevelVi.includes('Thấp') || riskLevelEn.toLowerCase().includes('low');
+
+        if (totalEcs >= 11 && isLowRisk) {
+          const trimmedNotes = (judgementNotes || '').trim();
+          if (trimmedNotes.length < 10) {
+            throw new BadRequestError(
+              'Cảnh báo mâu thuẫn chỉ số: Công trình có chỉ số hiện trạng ECS ≥ 11 (Kém / Nguy hiểm) nhưng mức đánh giá rủi ro cơ sở BRA là Thấp. Zone Admin bắt buộc phải nhập lý do giải trình chuyên môn (tối thiểu 10 ký tự) vào ô ghi chú thẩm định trước khi phê duyệt.'
+            );
+          }
+        }
+      } catch (err: any) {
+        if (err instanceof BadRequestError) {
+          throw err;
+        }
+        // Bỏ qua lỗi tính toán phụ trợ nếu thiếu trường
       }
 
       // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả

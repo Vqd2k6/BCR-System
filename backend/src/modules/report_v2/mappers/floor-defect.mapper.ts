@@ -215,6 +215,7 @@ export class FloorDefectMapper {
       const zoneAndElementConditions: FloorConditionZoneElementItem[] = [];
 
       let defectNo = 0;
+      const usedDefectCodes = new Set<string>();
 
       const rawZones = (fl.zones && fl.zones.length > 0)
         ? fl.zones
@@ -241,7 +242,11 @@ export class FloorDefectMapper {
         if (defects.length > 0) {
           for (const d of defects) {
             defectNo++;
-            const dCode = d.defectCode || `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode;
+            if (!dCode || usedDefectCodes.has(dCode)) {
+              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            }
+            usedDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
@@ -263,8 +268,10 @@ export class FloorDefectMapper {
               descPartsEn.push(d.notes.trim());
             }
             if (d.azimuth || d.crackDirection) {
-              descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
-              descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
+              const dir = d.azimuth || d.crackDirection;
+              const isAngle = !isNaN(Number(dir));
+              descPartsVi.push(`Hướng vết nứt: ${dir}${isAngle ? '°' : ''}`);
+              descPartsEn.push(`Crack direction: ${dir}${isAngle ? '°' : ''}`);
             }
             const actState = d.activityState || 'S';
             const actStateDisplay = actState === 'A'
@@ -274,7 +281,7 @@ export class FloorDefectMapper {
             descPartsEn.push(`Status: ${actStateDisplay.en}`);
 
             const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
-              ? `[Ghim CAD: ${dCode} tại ${zCode}]`
+              ? `Ghim CAD: ${dCode} tại ${zCode}`
               : undefined;
 
             defectSummaryRows.push({
@@ -486,7 +493,11 @@ export class FloorDefectMapper {
         if (eDefects.length > 0) {
           for (const d of eDefects) {
             defectNo++;
-            const dCode = d.defectCode || `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode;
+            if (!dCode || usedDefectCodes.has(dCode)) {
+              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            }
+            usedDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
@@ -508,8 +519,10 @@ export class FloorDefectMapper {
               descPartsEn.push(d.notes.trim());
             }
             if (d.azimuth || d.crackDirection) {
-              descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
-              descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
+              const dir = d.azimuth || d.crackDirection;
+              const isAngle = !isNaN(Number(dir));
+              descPartsVi.push(`Hướng vết nứt: ${dir}${isAngle ? '°' : ''}`);
+              descPartsEn.push(`Crack direction: ${dir}${isAngle ? '°' : ''}`);
             }
             const actState = d.activityState || 'S';
             const actStateDisplay = actState === 'A'
@@ -519,7 +532,7 @@ export class FloorDefectMapper {
             descPartsEn.push(`Status: ${actStateDisplay.en}`);
 
             const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
-              ? `[Ghim CAD: ${dCode} tại ${eCode}]`
+              ? `Ghim CAD: ${dCode} tại ${eCode}`
               : undefined;
 
             defectSummaryRows.push({

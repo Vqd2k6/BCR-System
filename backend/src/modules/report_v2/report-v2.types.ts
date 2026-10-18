@@ -636,10 +636,15 @@ export interface TocPageNumbers {
   section7: number;
   section8: number;
   section9: number;
+  sectionX?: number;
+  sectionXI?: number;
   appendix1: number;
   appendix2: number;
   appendix3: number;
-  appendix4: number;
+  appendix4?: number;
+  appendix1New?: number;
+  appendix2New?: number;
+  appendix3New?: number;
 }
 
 export interface ReportV2ViewModel {

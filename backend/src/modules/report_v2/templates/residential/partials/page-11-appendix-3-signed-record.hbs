@@ -1,5 +1,5 @@
 <!-- =====================================================================
-       PHỤ LỤC 3: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG ĐÃ KÝ
+       MỤC XI: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG ĐÃ KÝ
        ===================================================================== -->
 <div class="a4-page-sheet">
   <div class="report-subpage-topbar">
@@ -7,9 +7,9 @@
     <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
   </div>
 
-  <h2 class="chapter-header">PHỤ LỤC 3: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*)</h2>
-  <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
-    APPENDIX 3 SIGNED SITE-SURVEY RECORD
+  <h2 class="chapter-header" data-section="sec-xi">XI. BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*)</h2>
+  <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
+    SECTION XI: SIGNED SITE-SURVEY RECORD
   </div>
 
   <table class="tech-table">
@@ -39,7 +39,7 @@
     </tr>
     <tr>
       <td class="label-col">Xác nhận ký số / điện tử<br><span class="text-muted">Electronic sign-off</span></td>
-      <td class="val-col" style="color: #047857; font-weight: bold;">{{appendix3.electronicSignOff.vi}}</td>
+      <td class="val-col font-bold">{{appendix3.electronicSignOff.vi}}</td>
     </tr>
   </table>
 </div>
@@ -52,9 +52,9 @@
     <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
   </div>
 
-  <h2 class="chapter-header">PHỤ LỤC 3: BẢN GỐC BIÊN BẢN HIỆN TRƯỜNG CÓ CHỮ KÝ PHÁP LÝ</h2>
-  <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
-    APPENDIX 3 LEGAL SIGNED WORKING MINUTES (Page {{this.pageIndex}})
+  <h2 class="chapter-header">XI. BẢN GỐC BIÊN BẢN HIỆN TRƯỜNG CÓ CHỮ KÝ PHÁP LÝ</h2>
+  <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 8px;">
+    SECTION XI: LEGAL SIGNED WORKING MINUTES (Page {{this.pageIndex}})
   </div>
 
   <div style="text-align: center; margin: 6px 0;">
@@ -63,19 +63,19 @@
       {{#if @root.isPiiMasked}}
       {{#if this.base64}}
       <img src="{{this.base64}}" alt="{{this.title.vi}}"
-        style="height: 235mm; max-width: 100%; object-fit: contain; border: 1px solid #94a3b8; display: block; margin: 0 auto; filter: blur(6px); opacity: 0.65; pointer-events: none;">
+        style="height: 245mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto; filter: blur(6px); opacity: 0.65; pointer-events: none;">
       {{else if this.url}}
       <img src="{{this.url}}" alt="{{this.title.vi}}"
-        style="height: 235mm; max-width: 100%; object-fit: contain; border: 1px solid #94a3b8; display: block; margin: 0 auto; filter: blur(6px); opacity: 0.65; pointer-events: none;">
+        style="height: 245mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto; filter: blur(6px); opacity: 0.65; pointer-events: none;">
       {{else}}
-      <div class="photo-placeholder" style="height: 235mm;">[ Chưa có ảnh biên bản trang {{this.pageIndex}} ]</div>
+      <div class="photo-placeholder" style="height: 245mm;">[ Chưa có ảnh biên bản trang {{this.pageIndex}} ]</div>
       {{/if}}
       <div
-        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.88); color: #fff; padding: 16px 24px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); box-shadow: 0 4px 16px rgba(0,0,0,0.35); text-align: center; max-width: 82%; width: 440px;">
-        <div style="font-size: 13pt; font-weight: bold; margin-bottom: 6px; color: #f87171; letter-spacing: 0.5px;">
+        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.88); color: #fff; padding: 16px 24px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(4px); box-shadow: 0 4px 16px rgba(0,0,0,0.35); text-align: center; max-width: 82%; width: 440px;">
+        <div style="font-size: 12pt; font-weight: bold; margin-bottom: 6px; color: #ffffff; letter-spacing: 0.5px;">
           BẢO MẬT THÔNG TIN CÁ NHÂN (PII MASKED)
         </div>
-        <div style="font-size: 8.5pt; color: #cbd5e1; line-height: 1.45;">
+        <div style="font-size: 8.5pt; color: #f1f5f9; line-height: 1.45;">
           Bản quét biên bản hiện trường chứa thông tin định danh &amp; chữ ký tay của chủ sở hữu công trình đã được làm
           mờ bảo mật theo Nghị định 13/2023/NĐ-CP.
         </div>
@@ -83,12 +83,12 @@
       {{else}}
       {{#if this.base64}}
       <img src="{{this.base64}}" alt="{{this.title.vi}}"
-        style="height: 235mm; max-width: 100%; object-fit: contain; border: 1px solid #94a3b8; display: block; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        style="height: 245mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto;">
       {{else if this.url}}
       <img src="{{this.url}}" alt="{{this.title.vi}}"
-        style="height: 235mm; max-width: 100%; object-fit: contain; border: 1px solid #94a3b8; display: block; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        style="height: 245mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto;">
       {{else}}
-      <div class="photo-placeholder" style="height: 235mm;">[ Chưa có ảnh biên bản trang {{this.pageIndex}} ]</div>
+      <div class="photo-placeholder" style="height: 245mm;">[ Chưa có ảnh biên bản trang {{this.pageIndex}} ]</div>
       {{/if}}
       {{/if}}
     </div>

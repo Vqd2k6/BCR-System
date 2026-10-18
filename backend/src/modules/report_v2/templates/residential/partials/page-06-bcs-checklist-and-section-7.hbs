@@ -9,15 +9,15 @@
   </div>
 
     <!-- CHƯƠNG VII: PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND -->
-    <h2 class="chapter-header" style="margin-top: 4px;">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</h2>
-    <div style="margin-bottom: 5px; font-size: 7.5pt; color: #334155; line-height: 1.3;">
+    <h2 class="chapter-header" data-section="sec-7" style="margin-top: 4px;">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</h2>
+    <div style="margin-bottom: 5px; font-size: var(--fs-e1); color: var(--c-sub); line-height: 1.3;">
       Phân loại mức độ hư hỏng dựa theo tiêu chuẩn Burland et al. (1977) và BRE Digest 251 căn cứ trên bề rộng vết nứt lớn nhất ghi nhận được trên kết cấu công trình.
     </div>
 
     <!-- BỐ CỤC 2 CỘT SONG SONG CHO BẢNG VII.1 VÀ BẢNG VII.2 -->
     <div class="burland-duo-container">
       <div class="burland-col-left">
-        <div style="font-size: 7.8pt; font-weight: bold; margin-bottom: 2px; color: #0f172a;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; margin-bottom: 2px; color: var(--c-black);">
           Bảng VII.1: Bảng 6 cấp chuẩn Burland (1977)
         </div>
         <table class="tech-table compact-table" style="margin-bottom: 0;">
@@ -32,16 +32,16 @@
           </thead>
           <tbody>
             {{#each section7.burlandTable}}
-              <tr style="{{#if this.isCurrentLevel}}background-color: #f8fafc; font-weight: bold;{{/if}}">
+              <tr style="{{#if this.isCurrentLevel}}background-color: #f9f9f9; font-weight: bold;{{/if}}">
                 <td class="text-center font-bold">{{this.grade}}</td>
                 <td class="font-bold">{{this.categoryVi}}<br><span class="text-muted">{{this.categoryEn}}</span></td>
                 <td>{{this.crackWidthLimit}}</td>
                 <td>{{this.descriptionVi}}</td>
                 <td class="text-center">
                   {{#if this.isCurrentLevel}}
-                    <span style="color: #0f172a; font-weight: bold; font-size: 7pt;">☒ Có</span>
+                    <span style="color: var(--c-black); font-weight: bold; font-size: var(--fs-c1);">☒ Có</span>
                   {{else}}
-                    <span style="color: #64748b; font-size: 7pt;">☐ Không</span>
+                    <span style="color: var(--c-sub); font-size: var(--fs-c1);">☐ Không</span>
                   {{/if}}
                 </td>
               </tr>
@@ -51,7 +51,7 @@
       </div>
 
       <div class="burland-col-right">
-        <div style="font-size: 7.8pt; font-weight: bold; margin-bottom: 2px; color: #0f172a;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; margin-bottom: 2px; color: var(--c-black);">
           Bảng VII.2: Phân bổ cấp Burland toàn công trình
         </div>
         <table class="tech-table compact-table" style="margin-bottom: 0;">
@@ -70,7 +70,7 @@
                 <td class="text-center">{{this.percentage}}</td>
               </tr>
             {{/each}}
-            <tr style="background-color: #f1f5f9; font-weight: bold;">
+            <tr style="background-color: #f9f9f9; font-weight: bold;">
               <td>Tổng (Z + E):</td>
               <td class="text-center">{{section7.totalSurveyedObjects}}</td>
               <td class="text-center">100.0%</td>
@@ -81,7 +81,7 @@
     </div>
 
     <!-- BẢNG VII.3: BẢNG MINH CHỨNG PHÂN LOẠI BURLAND THEO TỪNG VÙNG KHẢO SÁT -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 6px 0 3px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 3px 0; color: var(--c-black);">
       Bảng VII.3: Bảng minh chứng phân loại Burland theo từng vùng khảo sát - Burland Classification Evidence by Surveyed Zone
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 4px;">
@@ -127,7 +127,7 @@
 
     <!-- KHUNG VII.4: KẾT LUẬN PHÂN LOẠI BURLAND -->
     <div class="loss-adjuster-card">
-      <div style="font-weight: bold; color: #0f172a; font-size: 8pt; margin-bottom: 4px; text-transform: uppercase;">
+      <div style="font-weight: bold; color: var(--c-black); font-size: var(--fs-c1); margin-bottom: 4px; text-transform: uppercase;">
         Kết luận phân loại Burland (Burland Damage Classification Conclusion)
       </div>
       <div class="loss-adjuster-grid">

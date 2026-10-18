@@ -9,7 +9,7 @@
   </div>
 
 
-    <h2 class="chapter-header">V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS</h2>
+    <h2 class="chapter-header" data-section="sec-5">V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS</h2>
     <table class="tech-table compact-table">
       <thead>
         <tr>
@@ -21,7 +21,7 @@
       <tbody>
         <tr>
           <td>Lún lệch quan sát được<br><span class="text-muted">Differential settlement</span></td>
-          <td class="text-center">{{section5.differentialSettlement.observedDisplay.vi}} / <span class="text-muted">{{section5.differentialSettlement.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.differentialSettlement.observedDisplay.vi}}{{#if section5.differentialSettlement.observedDisplay.en}}<br><span class="text-muted">{{section5.differentialSettlement.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             {{section5.differentialSettlement.location.vi}}<br>
             <span class="text-muted">{{section5.differentialSettlement.location.en}}</span>
@@ -29,7 +29,7 @@
         </tr>
         <tr>
           <td>Suy thoái cấu kiện kết cấu<br><span class="text-muted">Component deterioration</span></td>
-          <td class="text-center">{{section5.componentDeterioration.observedDisplay.vi}} / <span class="text-muted">{{section5.componentDeterioration.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.componentDeterioration.observedDisplay.vi}}{{#if section5.componentDeterioration.observedDisplay.en}}<br><span class="text-muted">{{section5.componentDeterioration.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             {{section5.componentDeterioration.location.vi}}<br>
             <span class="text-muted">{{section5.componentDeterioration.location.en}}</span>
@@ -37,7 +37,7 @@
         </tr>
         <tr>
           <td>Dấu hiệu sửa chữa trước đây<br><span class="text-muted">Evidence of repairs</span></td>
-          <td class="text-center">{{section5.evidenceOfRepairs.observedDisplay.vi}} / <span class="text-muted">{{section5.evidenceOfRepairs.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.evidenceOfRepairs.observedDisplay.vi}}{{#if section5.evidenceOfRepairs.observedDisplay.en}}<br><span class="text-muted">{{section5.evidenceOfRepairs.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             {{section5.evidenceOfRepairs.location.vi}}<br>
             <span class="text-muted">{{section5.evidenceOfRepairs.location.en}}</span>
@@ -45,7 +45,7 @@
         </tr>
         <tr>
           <td>Sụp đổ / Hư hỏng nghiêm trọng<br><span class="text-muted">Collapse / Severe Failure</span></td>
-          <td class="text-center">{{section5.collapse.observedDisplay.vi}} / <span class="text-muted">{{section5.collapse.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.collapse.observedDisplay.vi}}{{#if section5.collapse.observedDisplay.en}}<br><span class="text-muted">{{section5.collapse.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             {{section5.collapse.location.vi}}<br>
             <span class="text-muted">{{section5.collapse.location.en}}</span>
@@ -53,7 +53,7 @@
         </tr>
         <tr>
           <td>Độ nghiêng thân nhà<br><span class="text-muted">Building inclination</span></td>
-          <td class="text-center">{{section5.buildingInclination.observedDisplay.vi}} / <span class="text-muted">{{section5.buildingInclination.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.buildingInclination.observedDisplay.vi}}{{#if section5.buildingInclination.observedDisplay.en}}<br><span class="text-muted">{{section5.buildingInclination.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             <strong>{{section5.buildingInclination.measured}}</strong><br>
             {{section5.buildingInclination.location.vi}}<br>
@@ -62,7 +62,7 @@
         </tr>
         <tr>
           <td>Độ võng dầm / sàn<br><span class="text-muted">Deflection of beam/floor</span></td>
-          <td class="text-center">{{section5.beamDeflection.observedDisplay.vi}} / <span class="text-muted">{{section5.beamDeflection.observedDisplay.en}}</span></td>
+          <td class="text-center">{{section5.beamDeflection.observedDisplay.vi}}{{#if section5.beamDeflection.observedDisplay.en}}<br><span class="text-muted">{{section5.beamDeflection.observedDisplay.en}}</span>{{/if}}</td>
           <td>
             <strong>{{section5.beamDeflection.measured}}</strong><br>
             {{section5.beamDeflection.location.vi}}<br>
@@ -72,9 +72,9 @@
       </tbody>
     </table>
 
-    <h2 class="chapter-header">VI. TỔNG HỢP VÀ PHÂN TÍCH HIỆN TRẠNG KHUYẾT TẬT - SUMMARY OF DEFECT INVESTIGATION</h2>
+    <h2 class="chapter-header" data-section="sec-6">VI. TỔNG HỢP VÀ PHÂN TÍCH HIỆN TRẠNG KHUYẾT TẬT - SUMMARY OF DEFECT INVESTIGATION</h2>
     <!-- BẢNG VI.1: MA TRẬN PHÂN BỐ KHUYẾT TẬT THEO TỪNG TẦNG -->
-    <div style="font-size: 8.5pt; font-weight: bold; margin: 6px 0 4px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 4px 0; color: var(--c-black);">
       Bảng VI.1: Ma trận phân bố khuyết tật theo từng tầng - Defect Distribution Matrix by Floor
     </div>
     <table class="tech-table compact-table">
@@ -101,14 +101,14 @@
               {{/if}}
             </td>
             <td class="text-center">{{this.surveyedObjectsCount}}</td>
-            <td class="text-center font-bold" style="{{#if this.structuralCracksCount}}color: #ea580c;{{/if}}">{{this.structuralCracksCount}}</td>
-            <td class="text-center font-bold" style="{{#if this.masonryPlasterCracksCount}}color: #b45309;{{/if}}">{{this.masonryPlasterCracksCount}}</td>
-            <td class="text-center font-bold" style="{{#if this.moistureCount}}color: #0369a1;{{/if}}">{{this.moistureCount}}</td>
-            <td class="text-center font-bold" style="{{#if this.spallingCount}}color: #475569;{{/if}}">{{this.spallingCount}}</td>
+            <td class="text-center font-bold">{{this.structuralCracksCount}}</td>
+            <td class="text-center font-bold">{{this.masonryPlasterCracksCount}}</td>
+            <td class="text-center font-bold">{{this.moistureCount}}</td>
+            <td class="text-center font-bold">{{this.spallingCount}}</td>
             <td class="text-center font-bold">{{this.maxCrackWidthMm}}</td>
             <td>
               {{#if (eq this.conditionStatus.vi 'Không')}}
-                Không / <span class="text-muted">None</span>
+                Không<br><span class="text-muted">None</span>
               {{else}}
                 {{this.conditionStatus.vi}}<br>
                 <span class="text-muted">{{this.conditionStatus.en}}</span>
@@ -117,20 +117,20 @@
           </tr>
         {{/each}}
         <!-- DÒNG TỔNG CỘNG -->
-        <tr style="background-color: #f8fafc; font-weight: bold; border-top: 1.5px solid #0f3b6c;">
-          <td style="color: #0f3b6c;">Tổng / Total</td>
+        <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5pt solid #000000;">
+          <td>Tổng / Total</td>
           <td class="text-center">{{section6.totalSurveyedObjects}}</td>
-          <td class="text-center" style="{{#if section6.structuralCracksCount}}color: #ea580c;{{/if}}">{{section6.structuralCracksCount}}</td>
-          <td class="text-center" style="{{#if section6.masonryPlasterCracksCount}}color: #b45309;{{/if}}">{{section6.masonryPlasterCracksCount}}</td>
-          <td class="text-center" style="{{#if section6.moistureDefectsCount}}color: #0369a1;{{/if}}">{{section6.moistureDefectsCount}}</td>
-          <td class="text-center" style="{{#if section6.spallingDefectsCount}}color: #475569;{{/if}}">{{section6.spallingDefectsCount}}</td>
+          <td class="text-center font-bold">{{section6.structuralCracksCount}}</td>
+          <td class="text-center font-bold">{{section6.masonryPlasterCracksCount}}</td>
+          <td class="text-center font-bold">{{section6.moistureDefectsCount}}</td>
+          <td class="text-center font-bold">{{section6.spallingDefectsCount}}</td>
           <td class="text-center">{{section6.totalMaxCrackWidthDisplay}}</td>
           <td>
             {{#if section6.totalDefects}}
               Tổng cộng {{section6.totalDefects}} khuyết tật<br>
               <span class="text-muted">Total {{section6.totalDefects}} defect(s)</span>
             {{else}}
-              Không / <span class="text-muted">None</span>
+              Không<br><span class="text-muted">None</span>
             {{/if}}
           </td>
         </tr>
@@ -138,7 +138,7 @@
     </table>
 
     <!-- BẢNG VI.2: DANH MỤC 8 NHÓM BCS CHECKLIST CHUẨN QUỐC TẾ -->
-    <div style="font-size: 8.5pt; font-weight: bold; margin: 6px 0 3px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 3px 0; color: var(--c-black);">
       Bảng VI.2: Bảng kiểm tra toàn diện danh mục 8 nhóm BCS Checklist - BCS Comprehensive Checklist
     </div>
     <table class="tech-table compact-table">
@@ -155,15 +155,15 @@
           <tr>
             <td class="font-bold">{{this.groupVi}}<br><span class="text-muted">{{this.groupEn}}</span></td>
             <td>{{this.indicatorVi}}<br><span class="text-muted">{{this.indicatorEn}}</span></td>
-            <td class="text-center font-bold" style="{{#if this.recorded}}color: #ea580c;{{/if}}">
-              {{this.recordedLabel.vi}} / <span class="text-muted">{{this.recordedLabel.en}}</span>
+            <td class="text-center font-bold">
+              {{this.recordedLabel.vi}}{{#if this.recordedLabel.en}}<br><span class="text-muted">{{this.recordedLabel.en}}</span>{{/if}}
             </td>
             <td>
               {{#if this.recorded}}
                 {{this.locationSeverity.vi}}<br>
                 <span class="text-muted">{{this.locationSeverity.en}}</span>
               {{else}}
-                Không / <span class="text-muted">None</span>
+                Không<br><span class="text-muted">None</span>
               {{/if}}
             </td>
           </tr>

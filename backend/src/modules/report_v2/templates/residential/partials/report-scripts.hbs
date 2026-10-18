@@ -38,8 +38,9 @@
       function whenLoaded(img) {
         return new Promise(function(resolve) {
           if (img.complete && img.naturalWidth > 0) return resolve();
-          img.addEventListener('load', function() { resolve(); }, { once: true });
-          img.addEventListener('error', function() { resolve(); }, { once: true });
+          var timer = setTimeout(resolve, 3000);
+          img.addEventListener('load', function() { clearTimeout(timer); resolve(); }, { once: true });
+          img.addEventListener('error', function() { clearTimeout(timer); resolve(); }, { once: true });
         });
       }
 
@@ -103,6 +104,27 @@
         });
         var totalEl = document.getElementById('report-total-pages');
         if (totalEl) totalEl.textContent = String(total);
+
+        // Đo toạ độ và số trang thực tế của các chương mục để cập nhật Mục lục động
+        var sectionPageMap = {};
+        document.querySelectorAll('[data-section]').forEach(function(secEl) {
+          var secKey = secEl.getAttribute('data-section');
+          if (!secKey || sectionPageMap[secKey]) return;
+          var parentSheet = secEl.closest('.a4-page-sheet');
+          if (parentSheet) {
+            var sheetIdx = Array.prototype.indexOf.call(sheets, parentSheet);
+            if (sheetIdx !== -1) {
+              sectionPageMap[secKey] = sheetIdx + 1;
+            }
+          }
+        });
+
+        document.querySelectorAll('[data-toc-target]').forEach(function(tocTargetEl) {
+          var targetKey = tocTargetEl.getAttribute('data-toc-target');
+          if (targetKey && sectionPageMap[targetKey]) {
+            tocTargetEl.textContent = String(sectionPageMap[targetKey]);
+          }
+        });
       }
 
       function run() {

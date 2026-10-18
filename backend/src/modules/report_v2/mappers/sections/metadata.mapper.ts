@@ -123,10 +123,23 @@ export class MetadataMapper {
       coverWatermarkDateTime,
     };
 
-    // Khung ký 3 bên trang bìa: Chỉ hiển thị tên khi có dữ liệu thực tế trong DB / JSON snapshot.
-    const surveyorName = rawReport.surveyor_name || json.signatures?.preparedBy?.fullName || '';
-    const zoneAdminName = rawReport.zone_admin_name || json.signatures?.checkedBy?.fullName || '';
+    // Khung ký 2 bên trang bìa (Senior PM Q2/Q8): Chỉ in họ tên + chức danh khi có thực, không in username test
+    const rawSurveyorName = rawReport.surveyor_name || json.signatures?.preparedBy?.fullName || '';
+    const rawZoneAdminName = rawReport.zone_admin_name || json.signatures?.checkedBy?.fullName || '';
     const superAdminName = rawReport.super_admin_name || json.signatures?.approvedBy?.fullName || '';
+
+    const cleanSignerName = (name: string | undefined | null): string => {
+      if (!name || typeof name !== 'string') return '--';
+      const trimmed = name.trim();
+      if (!trimmed || trimmed === '--') return '--';
+      if (/^([a-z0-9_-]*test[a-z0-9_-]*|[a-z0-9_]+_\d+)$/i.test(trimmed)) {
+        return '--';
+      }
+      return trimmed;
+    };
+
+    const surveyorName = cleanSignerName(rawSurveyorName);
+    const zoneAdminName = cleanSignerName(rawZoneAdminName);
 
     const surveyorSigUrl = rawReport.surveyor_signature_img || json.signatures?.preparedBy?.signatureImg;
     const zoneAdminSigUrl = rawReport.zone_admin_signature_img || json.signatures?.checkedBy?.signatureImg;

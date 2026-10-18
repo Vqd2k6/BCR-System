@@ -15,71 +15,75 @@
       <ul class="toc-list">
         <li class="toc-item">
           <span>I. THÔNG TIN CHUNG - GENERAL INFORMATION</span>
-          <span>{{tocPageNumbers.section1}}</span>
+          <span data-toc-target="sec-1">{{tocPageNumbers.section1}}</span>
         </li>
         <li class="toc-item">
           <span>II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION</span>
-          <span>{{tocPageNumbers.section2}}</span>
+          <span data-toc-target="sec-2">{{tocPageNumbers.section2}}</span>
         </li>
         <li class="toc-item">
           <span>III. LỊCH SỬ VÀ TÌNH TRẠNG SỬ DỤNG - BUILDING HISTORY AND OCCUPANCY</span>
-          <span>{{tocPageNumbers.section3}}</span>
+          <span data-toc-target="sec-3">{{tocPageNumbers.section3}}</span>
         </li>
         <li class="toc-item">
           <span>IV. ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG - STRUCTURAL AND FOUNDATION CHARACTERISTICS</span>
-          <span>{{tocPageNumbers.section4}}</span>
+          <span data-toc-target="sec-4">{{tocPageNumbers.section4}}</span>
         </li>
         <li class="toc-item">
           <span>V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS</span>
-          <span>{{tocPageNumbers.section5}}</span>
+          <span data-toc-target="sec-5">{{tocPageNumbers.section5}}</span>
         </li>
         <li class="toc-item">
-          <span>VI. TÓM TẮT TÌNH TRẠNG ĐIỀU TRA LỖI - SUMMARY OF DEFECT INVESTIGATION</span>
-          <span>{{tocPageNumbers.section6}}</span>
+          <span>VI. TỔNG HỢP VÀ PHÂN TÍCH HIỆN TRẠNG KHUYẾT TẬT - SUMMARY OF DEFECT INVESTIGATION</span>
+          <span data-toc-target="sec-6">{{tocPageNumbers.section6}}</span>
         </li>
         <li class="toc-item">
           <span>VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</span>
-          <span>{{tocPageNumbers.section7}}</span>
+          <span data-toc-target="sec-7">{{tocPageNumbers.section7}}</span>
         </li>
         <li class="toc-item">
           <span>VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT</span>
-          <span>{{tocPageNumbers.section8}}</span>
+          <span data-toc-target="sec-8">{{tocPageNumbers.section8}}</span>
         </li>
         <li class="toc-item sub">
           <span>1. Đánh giá theo ma trận rủi ro - Risk Matrix Assessment</span>
-          <span>{{tocPageNumbers.section8}}</span>
+          <span data-toc-target="sec-8">{{tocPageNumbers.section8}}</span>
         </li>
         <li class="toc-item sub">
           <span>2. Chấm điểm đánh giá rủi ro công trình - Building Risk Assessment Scoring</span>
-          <span>{{tocPageNumbers.section8}}</span>
+          <span data-toc-target="sec-8">{{tocPageNumbers.section8}}</span>
         </li>
         <li class="toc-item sub">
           <span>3. Cấp độ rủi ro tổng thể - Overall Risk Grade</span>
-          <span>{{tocPageNumbers.section8}}</span>
+          <span data-toc-target="sec-8">{{tocPageNumbers.section8}}</span>
         </li>
         <li class="toc-item sub">
           <span>4. Đánh giá bổ sung theo phương pháp Giai đoạn 1 (*) (ECS / VI / BRA V×I)</span>
-          <span>{{tocPageNumbers.section8}}</span>
+          <span data-toc-target="sec-8">{{tocPageNumbers.section8}}</span>
         </li>
         <li class="toc-item">
           <span>IX. KẾT LUẬN VÀ KIẾN NGHỊ - CONCLUSION AND RECOMMENDATION</span>
-          <span>{{tocPageNumbers.section9}}</span>
+          <span data-toc-target="sec-9">{{tocPageNumbers.section9}}</span>
+        </li>
+        <li class="toc-item">
+          <span>X. BẢN VẼ MẶT ĐỨNG NGOÀI &amp; BỘ ẢNH ĐỊNH DANH CÔNG TRÌNH (EXTERIOR ELEVATIONS)</span>
+          <span data-toc-target="sec-x">{{#if tocPageNumbers.sectionX}}{{tocPageNumbers.sectionX}}{{else}}{{tocPageNumbers.appendix1}}{{/if}}</span>
+        </li>
+        <li class="toc-item">
+          <span>XI. BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*) (SIGNED SITE-SURVEY RECORD)</span>
+          <span data-toc-target="sec-xi">{{#if tocPageNumbers.sectionXI}}{{tocPageNumbers.sectionXI}}{{else}}{{tocPageNumbers.appendix3}}{{/if}}</span>
         </li>
         <li class="toc-item appendix">
-          <span>PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI CÔNG TRÌNH (EXTERIOR ELEVATIONS)</span>
-          <span>{{tocPageNumbers.appendix1}}</span>
+          <span>PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (NHÓM CÓ VẾT NỨT)</span>
+          <span data-toc-target="pl-1">{{#if tocPageNumbers.appendix1New}}{{tocPageNumbers.appendix1New}}{{else}}{{tocPageNumbers.appendix2}}{{/if}}</span>
         </li>
         <li class="toc-item appendix">
-          <span>PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (FLOOR DEFECTS)</span>
-          <span>{{tocPageNumbers.appendix2}}</span>
+          <span>PHỤ LỤC 2: HỒ SƠ ẢNH LƯU TRỮ ĐỐI CHỨNG (NHÓM KHÔNG NỨT)</span>
+          <span data-toc-target="pl-2">{{#if tocPageNumbers.appendix2New}}{{tocPageNumbers.appendix2New}}{{else}}{{tocPageNumbers.appendix2}}{{/if}}</span>
         </li>
         <li class="toc-item appendix">
-          <span>PHỤ LỤC 3: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*) (SIGNED SITE-SURVEY RECORD)</span>
-          <span>{{tocPageNumbers.appendix3}}</span>
-        </li>
-        <li class="toc-item appendix">
-          <span>PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*) (EQUIPMENT AND ACCESS)</span>
-          <span>{{tocPageNumbers.appendix4}}</span>
+          <span>PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*) (EQUIPMENT AND ACCESS)</span>
+          <span data-toc-target="pl-3">{{#if tocPageNumbers.appendix3New}}{{tocPageNumbers.appendix3New}}{{else if tocPageNumbers.appendix3}}{{tocPageNumbers.appendix3}}{{else}}{{tocPageNumbers.appendix4}}{{/if}}</span>
         </li>
       </ul>
     </div>

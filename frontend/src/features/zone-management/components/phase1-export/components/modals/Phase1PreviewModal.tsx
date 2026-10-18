@@ -320,11 +320,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               type="button"
               onClick={handleDirectPrint}
               disabled={isSavingEdits}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-              title="In trực tiếp bản báo cáo ra máy in giấy hoặc PDF trình duyệt"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+              title="Mở tệp PDF chuẩn máy chủ trong tab mới để in hoặc lưu trữ"
             >
               <Printer size={14} />
-              <span>🖨️ In Ngay</span>
+              <span>🖨️ In / Tải PDF</span>
             </button>
 
             <button
