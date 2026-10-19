@@ -148,11 +148,9 @@
             <td>{{this.elementType}}</td>
             <td>{{this.materialType}}</td>
             <td>
-              {{#if (gt this.defectCount 0)}}
-                <span class="font-bold" style="color: #b91c1c;">{{this.conditionVi}}</span>
-              {{else}}
-                <span style="color: #15803d;">{{this.conditionVi}}</span>
-              {{/if}}
+              <span class="{{#if (gt this.defectCount 0)}}font-bold{{/if}}" style="color: #000000;">
+                {{this.conditionVi}}
+              </span>
             </td>
           </tr>
         {{/each}}
