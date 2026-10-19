@@ -266,6 +266,7 @@ export function createApp(): express.Application {
 
   // 5.2. TECHNICAL BCS REPORT V3 (snapshot APPROVED + Rev + SHA-256)
   api.get('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf);
+  api.post('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf); // Hỗ trợ xuất PDF có overrides (không sửa DB)
   api.get('/v3/reports/:id/preview/html', optionalAuthenticateJwt, ReportV3Controller.previewHtml);
   api.post('/v3/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.previewHtml);
   api.get('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.listReleases);

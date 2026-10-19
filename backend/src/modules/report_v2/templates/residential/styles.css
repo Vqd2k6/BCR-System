@@ -1151,24 +1151,82 @@ table.tech-table.compact-table th {
   object-fit: contain !important;
 }
 
-/* Bảng: không cắt ngang dòng, lặp tiêu đề cột khi bảng sang trang */
-table { page-break-inside: auto; }
+/* Bảng: không cắt ngang dòng, lặp tiêu đề cột khi bảng sang trang, tự động bẻ từ */
+table {
+  page-break-inside: auto;
+  table-layout: fixed;
+  width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
 tr { break-inside: avoid; page-break-inside: avoid; }
 thead { display: table-header-group; }
 h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after: avoid; }
 
-/* Sơ đồ CAD: thu gọn để bảng khuyết tật của tầng nằm cùng trang (<= 220mm) */
-.cad-map-pinning-wrapper { min-height: 0 !important; padding: 1.5pt !important; }
-.cad-map-image { max-height: 105px !important; }
-.cad-map-container.full-width img { max-height: 105px !important; }
-.cad-map-dual-grid { gap: 4pt !important; margin: 2pt 0 3pt 0 !important; }
-.cad-map-title { font-size: var(--fs-c1) !important; margin-bottom: 1.5pt !important; line-height: 1.1 !important; }
-.cad-pin-legend { font-size: var(--fs-f1) !important; padding: 1pt 3pt !important; }
+/* ==========================================================================
+   QUY CHUẨN SƠ ĐỒ CAD MẶT BẰNG TẦNG (HERO CAD SHEET - ĐỘC LẬP TỪNG TẦNG)
+   ========================================================================== */
+.cad-map-pinning-wrapper {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--c-white);
+  border: var(--border-line);
+  padding: 3pt;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-height: 0 !important;
+}
+
+.cad-map-image,
+.cad-map-container.full-width img {
+  max-height: 175mm !important;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cad-map-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6pt !important;
+  margin: 2pt 0 4pt 0 !important;
+}
+
+.cad-map-dual-grid .cad-map-image {
+  max-height: 160mm !important;
+}
+
+.cad-map-title {
+  font-size: var(--fs-b2) !important;
+  font-weight: bold;
+  margin-bottom: 3pt !important;
+  line-height: 1.2 !important;
+  text-align: center;
+}
+
+.cad-pin-legend {
+  font-size: var(--fs-c1) !important;
+  padding: 2pt 4pt !important;
+  margin-top: 4pt;
+}
 
 /* Tiêu đề chương luôn đi cùng nội dung ngay sau nó (tránh tiêu đề lẻ cuối trang) */
 .chapter-header + table, .chapter-header + div, .section-header + table { break-before: avoid; page-break-before: avoid; }
 .chapter-header { break-inside: avoid; }
 
-/* Bảng tổng hợp khuyết tật Phụ lục 1: gọn hơn để cùng trang với sơ đồ CAD */
-.defect-summary-table td, .defect-summary-table th { font-size: var(--fs-e1); padding: 1.2pt 2.5pt; line-height: 1.15; }
+/* Bảng tổng hợp khuyết tật Phụ lục 1 */
+.defect-summary-table td, .defect-summary-table th {
+  font-size: var(--fs-e1);
+  padding: 2pt 3pt;
+  line-height: 1.2;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
 .defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-f1); }

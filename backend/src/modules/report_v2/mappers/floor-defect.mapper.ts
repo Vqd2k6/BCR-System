@@ -744,8 +744,8 @@ export class FloorDefectMapper {
       const beamDeflectionMm = fl.beamDeflectionMm || 0.0;
       const hasDefects = defectSummaryRows.length > 0;
 
-      // Phân trang danh mục khuyết tật: Nếu > 5 khuyết tật, tách sang các Sheet riêng biệt (12 dòng/trang) để chống tràn lề A4
-      const hasSeparateDefectTableSheets = defectSummaryRows.length > 5;
+      // Phân trang danh mục khuyết tật: Tách sang các Sheet riêng biệt (12 dòng/trang) ngay sau trang CAD Hero
+      const hasSeparateDefectTableSheets = defectSummaryRows.length > 0;
       const defectSummaryPages: Array<{ pageIndex: number; totalPages: number; rows: FloorDefectSummaryRow[] }> = [];
       if (hasSeparateDefectTableSheets) {
         const ROWS_PER_PAGE = 12;

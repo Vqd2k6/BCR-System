@@ -33,7 +33,11 @@ export class ReportV3Controller {
       const resolved = await ReportV3Service.resolve(req.params.id);
       const rev = parseRevision(req.query.rev);
 
-      if (resolved.status === 'APPROVED') {
+      const rawOverrides = req.method === 'POST' ? (req.body?.overrides ?? req.body) : undefined;
+      const hasOverrides = rawOverrides && typeof rawOverrides === 'object' && Object.keys(rawOverrides).length > 0;
+      const overrides = hasOverrides ? rawOverrides : undefined;
+
+      if (resolved.status === 'APPROVED' && !overrides) {
         const { buffer, release } = await ReportReleaseService.getOrCreateFinalFile(resolved, req.user, rev);
         const label = `_Rev${String(release.revision).padStart(2, '0')}`;
         res.setHeader('Content-Type', 'application/pdf');
@@ -48,8 +52,9 @@ export class ReportV3Controller {
         return;
       }
 
-      const enableWatermark = req.query.watermark !== 'false' && req.query.watermark !== '0';
-      const { pdfBuffer, reportNo } = await ReportV3Service.renderDraftPdf(resolved, undefined, enableWatermark);
+      const enableWatermark =
+        req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false;
+      const { pdfBuffer, reportNo } = await ReportV3Service.renderDraftPdf(resolved, overrides, enableWatermark);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeFilename(reportNo, '_DRAFT'))}"`);
       res.setHeader('X-Report-Status', 'DRAFT');

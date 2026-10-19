@@ -50,3 +50,6 @@ backend/database/backups/*
 data/
 backend/storage/
 report_0410/resuilt/
+report_0410/audit/
+backend/report_0410/
+

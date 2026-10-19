@@ -253,6 +253,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               previewReportData={previewReportData}
               reportVersion={reportVersion}
               handleDirectPrint={handleDirectPrint}
+              hasUnsavedChanges={hasUnsavedChanges}
               enableWatermark={enableWatermark}
               handleToggleWatermark={handleToggleWatermark}
             />
@@ -331,7 +332,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               type="button"
               onClick={() => {
                 if (previewParcel) {
-                  const payload = editFormData ? buildReportPayload(editFormData, previewReportData) : undefined;
+                  const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
                   handleExportSinglePdf(previewParcel, payload);
                 }
               }}

@@ -31,6 +31,7 @@ interface Phase1HtmlTabProps {
   previewReportData: ServerReportData | Record<string, unknown> | null;
   reportVersion?: 'v2' | 'v1';
   handleDirectPrint?: () => void;
+  hasUnsavedChanges?: boolean;
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
 }
@@ -51,6 +52,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   previewReportData,
   reportVersion = 'v2',
   handleDirectPrint,
+  hasUnsavedChanges = false,
   enableWatermark = true,
   handleToggleWatermark,
 }) => {
@@ -58,7 +60,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const handleExportPdf = () => {
-    const payload = editFormData ? buildReportPayload(editFormData, previewReportData) : undefined;
+    const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
     handleExportSinglePdf(previewParcel, payload);
   };
 

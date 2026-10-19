@@ -191,7 +191,11 @@ export class Section1And2Mapper {
     };
 
     // CHƯƠNG II: THÔNG TIN CƠ BẢN VỀ TÒA NHÀ (SECTION II)
-    const storeysAbove = isVacantLand ? 0 : (specs.aboveFloors || json.aboveFloors || specs.above_floors || specs.floor_count || rawReport.parcel_floor_count || 1);
+    const surveyedFloorsCount = Array.isArray(rawReport.floors)
+      ? rawReport.floors.length
+      : (Array.isArray(json.floors) ? json.floors.length : 0);
+    const baseAboveFloors = Number(specs.aboveFloors || json.aboveFloors || specs.above_floors || specs.floor_count || rawReport.parcel_floor_count || 1);
+    const storeysAbove = isVacantLand ? 0 : Math.max(baseAboveFloors, surveyedFloorsCount || 1);
     const storeysBasement = isVacantLand ? 0 : (specs.undergroundFloors || json.undergroundFloors || specs.underground_floors || specs.basement_count || 0);
 
     // 1. Diện tích đất ban đầu (parcels.land_area_m2)
