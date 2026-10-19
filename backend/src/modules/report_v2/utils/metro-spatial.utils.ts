@@ -264,6 +264,15 @@ export function generateMetroSpatialVisualSvg(
   </defs>`;
   svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="url(#grid)"/>`;
 
+function escapeXml(unsafe: string): string {
+  return String(unsafe || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
   // Ranh công trình ga
   for (const st of nearbyStations) {
     const pts = st.pts.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
@@ -271,7 +280,7 @@ export function generateMetroSpatialVisualSvg(
     if (st.pts.length > 0) {
       const avgX = st.pts.reduce((s, p) => s + p[0], 0) / st.pts.length;
       const avgY = st.pts.reduce((s, p) => s + p[1], 0) / st.pts.length;
-      svgContent += `<text x="${toSvgX(avgX).toFixed(1)}" y="${toSvgY(avgY).toFixed(1)}" fill="#475569" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${st.name || 'Công trình Ga'}</text>`;
+      svgContent += `<text x="${toSvgX(avgX).toFixed(1)}" y="${toSvgY(avgY).toFixed(1)}" fill="#475569" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${escapeXml(st.name || 'Công trình Ga')}</text>`;
     }
   }
 
@@ -296,7 +305,7 @@ export function generateMetroSpatialVisualSvg(
   // Nhãn thửa đất
   const pAvgX = localParcel.reduce((s, p) => s + p[0], 0) / localParcel.length;
   const pAvgY = localParcel.reduce((s, p) => s + p[1], 0) / localParcel.length;
-  svgContent += `<text x="${toSvgX(pAvgX).toFixed(1)}" y="${(toSvgY(pAvgY) + 3).toFixed(1)}" fill="#b91c1c" font-size="9.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${parcelCode || 'Thửa đất'}</text>`;
+  svgContent += `<text x="${toSvgX(pAvgX).toFixed(1)}" y="${(toSvgY(pAvgY) + 3).toFixed(1)}" fill="#b91c1c" font-size="9.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${escapeXml(parcelCode || 'Thửa đất')}</text>`;
 
   // La bàn chỉ hướng Bắc (North Arrow) góc trên bên phải
   svgContent += `

@@ -87,6 +87,22 @@ body {
     flex-direction: column;
     justify-content: flex-start;
   }
+
+  .screen-print-guide {
+    display: block;
+    max-width: 210mm;
+    margin: 0 auto 16px auto;
+    padding: 10px 16px;
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #000000;
+    border-radius: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    color: #1e293b;
+    line-height: 1.45;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
 }
 
 /* ==========================================================================
@@ -99,6 +115,10 @@ body {
     margin: 0 !important;
   }
 
+  .screen-print-guide {
+    display: none !important;
+  }
+
   .a4-page-sheet {
     width: 100% !important;
     min-height: 0 !important;
@@ -108,6 +128,8 @@ body {
     box-shadow: none !important;
     page-break-after: always !important;
     break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .a4-page-sheet:last-child {
@@ -211,7 +233,7 @@ body {
    ========================================================================== */
 .cover-page-border {
   border: var(--border-line);
-  padding: 8pt 12pt;
+  padding: 6pt 10pt;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -222,20 +244,20 @@ body {
 
 .cover-project-box {
   border-bottom: var(--border-line);
-  padding-bottom: 6pt;
+  padding-bottom: 4pt;
   text-align: left;
 }
 
 .cover-doc-title-box {
-  margin: 8pt 0 6pt 0;
+  margin: 4pt 0 3pt 0;
 }
 
 .cover-doc-title-box h1 {
   font-size: var(--fs-t0);
   font-weight: bold;
   color: var(--c-black);
-  margin: 0 0 3pt 0;
-  line-height: 1.2;
+  margin: 0 0 2pt 0;
+  line-height: 1.15;
   text-transform: uppercase;
 }
 
@@ -243,8 +265,8 @@ body {
   font-size: var(--fs-t1);
   font-weight: bold;
   color: var(--c-black);
-  margin: 0 0 4pt 0;
-  line-height: 1.2;
+  margin: 0 0 3pt 0;
+  line-height: 1.15;
   text-transform: uppercase;
 }
 
@@ -253,16 +275,16 @@ body {
   font-size: var(--fs-b1);
   font-weight: bold;
   color: var(--c-black);
-  padding: 2pt 8pt;
+  padding: 1.5pt 6pt;
   border: var(--border-line);
   background-color: transparent;
-  margin: 3pt 0 6pt 0;
+  margin: 2pt 0 4pt 0;
 }
 
 /* Khung ảnh mặt tiền và Sơ đồ vị trí Metro bìa (2 cột cân đối) */
 .cover-facade-section {
   width: 100%;
-  margin: 4pt auto 6pt auto;
+  margin: 3pt auto 4pt auto;
 }
 
 .cover-facade-grid {
@@ -290,7 +312,7 @@ body {
 .cover-spatial-wrapper {
   position: relative;
   width: 100%;
-  height: 215px;
+  height: 160px;
   line-height: 0;
   border: var(--border-line);
   overflow: hidden;
@@ -312,7 +334,7 @@ body {
   font-size: var(--fs-f1);
   font-weight: bold;
   color: #000000;
-  margin-top: 3pt;
+  margin-top: 2pt;
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.2px;
@@ -321,15 +343,15 @@ body {
 .cover-address-section {
   border-top: var(--border-line);
   border-bottom: var(--border-line);
-  padding: 4pt 2pt;
+  padding: 3pt 2pt;
   font-size: var(--fs-b2);
   font-weight: bold;
-  line-height: 1.3;
+  line-height: 1.25;
   text-align: center;
 }
 
 .cover-time-section {
-  padding: 4pt 2pt;
+  padding: 3pt 2pt;
   font-size: var(--fs-b2);
   font-weight: bold;
   text-align: center;
@@ -342,7 +364,7 @@ table.signature-table {
   width: 100%;
   border-collapse: collapse;
   border: var(--border-line);
-  margin-top: 6pt;
+  margin-top: 4pt;
   page-break-inside: avoid;
   break-inside: avoid;
 }
@@ -350,8 +372,8 @@ table.signature-table {
 table.signature-table th {
   background-color: transparent !important;
   color: var(--c-black);
-  padding: 4pt;
-  font-size: var(--fs-b1);
+  padding: 3pt;
+  font-size: var(--fs-b2);
   font-weight: bold;
   text-transform: uppercase;
   border: var(--border-line);
@@ -361,23 +383,23 @@ table.signature-table th {
 
 table.signature-table td {
   border: var(--border-line);
-  padding: 4pt 6pt;
+  padding: 3pt 5pt;
   text-align: center;
   vertical-align: top;
   width: 50%;
-  font-size: var(--fs-b1);
+  font-size: var(--fs-b2);
 }
 
 .signature-box {
-  height: 60px;
+  height: 45px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
 .signature-box img {
-  max-height: 55px;
+  max-height: 40px;
   max-width: 120px;
   object-fit: contain;
 }
@@ -438,7 +460,7 @@ h2.chapter-header {
   color: var(--c-black);
   border-bottom: var(--border-line);
   padding-bottom: 2pt;
-  margin: 8pt 0 4pt 0;
+  margin: 5pt 0 3pt 0;
   text-transform: uppercase;
   page-break-after: avoid;
   break-after: avoid;
@@ -479,13 +501,13 @@ table.tech-table th {
   font-weight: bold;
   font-size: var(--fs-b2);
   text-align: left;
-  padding: 3pt 4pt;
+  padding: 2.2pt 4pt;
   border: var(--border-line);
   vertical-align: middle;
 }
 
 table.tech-table td {
-  padding: 3pt 4pt;
+  padding: 2.2pt 4pt;
   border: var(--border-line);
   vertical-align: top;
   color: var(--c-black);
@@ -1060,14 +1082,14 @@ table.tech-table.compact-table th {
 }
 
 .defect-trio-top-ctx .defect-photo-wrapper {
-  height: 90mm !important;
-  min-height: 90mm !important;
-  max-height: 90mm !important;
+  height: 75mm !important;
+  min-height: 75mm !important;
+  max-height: 75mm !important;
 }
 
 .defect-trio-top-ctx .defect-photo-wrapper img.photo-main,
 .defect-trio-top-ctx .defect-photo-wrapper img.defect-pair-img {
-  max-height: 88mm !important;
+  max-height: 73mm !important;
   max-width: 100% !important;
 }
 
@@ -1079,23 +1101,23 @@ table.tech-table.compact-table th {
 }
 
 .defect-trio-bottom-pairs .defect-photo-wrapper {
-  height: 95mm !important;
-  min-height: 95mm !important;
-  max-height: 95mm !important;
+  height: 80mm !important;
+  min-height: 80mm !important;
+  max-height: 80mm !important;
 }
 
 .defect-trio-bottom-pairs .defect-photo-wrapper img.photo-main,
 .defect-trio-bottom-pairs .defect-photo-wrapper img.defect-pair-img {
-  max-height: 93mm !important;
+  max-height: 78mm !important;
   max-width: 100% !important;
 }
 
 .defect-photo-wrapper {
   position: relative;
   width: 100%;
-  height: 68mm !important;
-  min-height: 68mm !important;
-  max-height: 68mm !important;
+  height: 64mm !important;
+  min-height: 64mm !important;
+  max-height: 64mm !important;
   overflow: hidden;
   display: flex !important;
   align-items: center;
@@ -1107,7 +1129,7 @@ table.tech-table.compact-table th {
 .defect-photo-wrapper img.photo-main,
 .defect-photo-wrapper img.defect-pair-img {
   max-width: 100% !important;
-  max-height: 66mm !important;
+  max-height: 62mm !important;
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;
@@ -1135,15 +1157,18 @@ tr { break-inside: avoid; page-break-inside: avoid; }
 thead { display: table-header-group; }
 h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after: avoid; }
 
-/* Sơ đồ CAD: thu gọn để bảng khuyết tật của tầng nằm cùng trang */
-.cad-map-pinning-wrapper { min-height: 0 !important; }
-.cad-map-image { max-height: 250px !important; }
-.cad-map-container.full-width img { max-height: 250px !important; }
+/* Sơ đồ CAD: thu gọn để bảng khuyết tật của tầng nằm cùng trang (<= 220mm) */
+.cad-map-pinning-wrapper { min-height: 0 !important; padding: 1.5pt !important; }
+.cad-map-image { max-height: 105px !important; }
+.cad-map-container.full-width img { max-height: 105px !important; }
+.cad-map-dual-grid { gap: 4pt !important; margin: 2pt 0 3pt 0 !important; }
+.cad-map-title { font-size: var(--fs-c1) !important; margin-bottom: 1.5pt !important; line-height: 1.1 !important; }
+.cad-pin-legend { font-size: var(--fs-f1) !important; padding: 1pt 3pt !important; }
 
 /* Tiêu đề chương luôn đi cùng nội dung ngay sau nó (tránh tiêu đề lẻ cuối trang) */
 .chapter-header + table, .chapter-header + div, .section-header + table { break-before: avoid; page-break-before: avoid; }
 .chapter-header { break-inside: avoid; }
 
 /* Bảng tổng hợp khuyết tật Phụ lục 1: gọn hơn để cùng trang với sơ đồ CAD */
-.defect-summary-table td, .defect-summary-table th { font-size: var(--fs-b2); padding: 3pt 4pt; line-height: 1.25; }
-.defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-e1); }
+.defect-summary-table td, .defect-summary-table th { font-size: var(--fs-e1); padding: 1.2pt 2.5pt; line-height: 1.15; }
+.defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-f1); }

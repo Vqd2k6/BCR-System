@@ -127,7 +127,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                 className={`py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border border-slate-200 ${
                   !handleDirectPrint ? 'col-span-2' : ''
                 }`}
-                title="Mở toàn màn hình trong tab mới của trình duyệt"
+                title="Mở toàn màn hình trong tab mới (Để in A4 chuẩn nhất, khuyến nghị dùng nút 'In / Tải PDF' kế bên)"
               >
                 <ExternalLink size={13} />
                 <span>Mở Tab Mới</span>
