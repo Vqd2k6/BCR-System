@@ -40,6 +40,22 @@ export class ReportV2Service {
   private static cachedTemplate: Handlebars.TemplateDelegate | null = null;
   private static cachedStyles: string | null = null;
   private static partialsRegistered = false;
+  private static cachedTemplatesMtime = 0;
+
+  /** mtime mới nhất của index.hbs, styles.css và các partial (dùng để làm mới cache khi dev) */
+  private static latestTemplateMtime(): number {
+    const dir = path.join(__dirname, 'templates/residential');
+    let latest = 0;
+    for (const sub of ['', 'partials']) {
+      const d = path.join(dir, sub);
+      if (!fs.existsSync(d)) continue;
+      for (const f of fs.readdirSync(d)) {
+        if (!/\.(hbs|css)$/.test(f)) continue;
+        latest = Math.max(latest, fs.statSync(path.join(d, f)).mtimeMs);
+      }
+    }
+    return latest;
+  }
 
   /**
    * Đăng ký các helper và partials Handlebars cần thiết
@@ -79,7 +95,16 @@ export class ReportV2Service {
     template: Handlebars.TemplateDelegate;
     styles: string;
   } {
+    // ts-node-dev chỉ restart khi .ts đổi: ngoài production, nạp lại template nếu file .hbs/.css đã được sửa
+    if (process.env.NODE_ENV !== 'production' && this.cachedTemplate) {
+      const mtime = this.latestTemplateMtime();
+      if (mtime > this.cachedTemplatesMtime) {
+        this.cachedTemplate = null;
+        this.cachedStyles = null;
+      }
+    }
     if (!this.cachedTemplate || !this.cachedStyles) {
+      this.cachedTemplatesMtime = this.latestTemplateMtime();
       const templatePath = path.join(__dirname, 'templates/residential/index.hbs');
       const stylesPath = path.join(__dirname, 'templates/residential/styles.css');
 

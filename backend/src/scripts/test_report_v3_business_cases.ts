@@ -317,8 +317,7 @@ async function partA(): Promise<void> {
   });
 }
 
-async function partB(): Promise<void> {
-  console.log('\n══ PHẦN B: Tích hợp DB local – 6 hồ sơ bộ kiểm chứng (D16) ══');
+async function resetVerificationReleases(): Promise<void> {
   // Reset releases và export_revision cho các hồ sơ kiểm chứng để test chạy lặp lại an toàn (idempotent)
   await Database.query(
     `DELETE FROM report_releases WHERE report_id = ANY($1::uuid[]);`,
@@ -336,6 +335,11 @@ async function partB(): Promise<void> {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
+}
+
+async function partB(): Promise<void> {
+  console.log('\n══ PHẦN B: Tích hợp DB local – 6 hồ sơ bộ kiểm chứng (D16) ══');
+  await resetVerificationReleases();
 
   // Không giữ HTML trong bộ nhớ (HTML nhúng base64 có thể > 150MB/hồ sơ) – chỉ lưu cờ kiểm tra
   const flagsById = new Map<string, { hasNaN: boolean; usesUuidSurveyId: boolean }>();
@@ -588,7 +592,11 @@ async function main(): Promise<void> {
     dbAvailable = false;
     console.error('[TEST] Không kết nối được DB local, bỏ qua Phần B:', err);
   }
-  if (dbAvailable) await partB();
+  if (dbAvailable) {
+    await partB();
+    // Dọn bản FINAL do test tạo ra: nếu để lại, giao diện local sẽ tải bản PDF đóng băng cũ thay vì render mới
+    await resetVerificationReleases().catch((err: unknown) => console.error('[TEST] Dọn release lỗi:', err));
+  }
 
   await pool.end().catch((err: unknown) => console.error('[TEST] pool.end lỗi:', err));
   try {
