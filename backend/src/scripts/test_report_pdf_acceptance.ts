@@ -55,7 +55,9 @@ async function main() {
     const defectCount = JSON.stringify(raw).match(/"defect_type"/g)?.length ?? 0;
     const tocIdx = sq.findIndex((t) => t.includes('tableofcontents'));
     const pl1Start = sq.findIndex((t, i) => i > tocIdx && t.includes(squeeze('PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT')) );
-    if (pl1Start >= 0) {
+    if (pl1Start >= 0 && defectCount === 0) {
+      check(sq[pl1Start].includes(squeeze('không phát hiện')), 'Phụ lục 1 nêu rõ "không phát hiện vết nứt" khi DB không có khuyết tật');
+    } else if (pl1Start >= 0) {
       const pl1Pages = sq.filter((t) => t.includes(squeeze('Bảng tổng hợp khuyết tật tầng')) || t.includes('d01') || t.includes('d02'));
       check(pl1Pages.length > 0, `Phụ lục 1 có bảng khuyết tật (DB ~${defectCount} bản ghi defect_type)`);
     } else {
