@@ -46,6 +46,7 @@
     "@types/uuid": "^9.0.8",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "docx": "^8.5.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "handlebars": "^4.7.9",
@@ -53,12 +54,12 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "pdfjs-dist": "^3.11.174",
     "pg": "^8.11.5",
     "puppeteer-core": "^21.11.0",
     "supertest": "^6.3.4",
     "typescript": "^5.4.5",
     "uuid": "^9.0.1",
-    "docx": "^8.5.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

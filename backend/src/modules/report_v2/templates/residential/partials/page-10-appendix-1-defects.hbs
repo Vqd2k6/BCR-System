@@ -2,7 +2,7 @@
      PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (NHÓM CÓ VẾT NỨT)
      Sắp xếp: Tầng → Sơ đồ CAD (ghim Z/E) → Bảng khuyết tật → Cặp ảnh thước đo
      ===================================================================== -->
-{{#if scenarioFlags.hasCracksOrDefects}}
+{{#if scenarioFlags.hasAnyDefects}}
   {{#each appendix2}}
     {{#if this.hasDefects}}
       <!-- Trang 1 của Tầng có nứt: Sơ đồ CAD và Bảng thống kê khuyết tật -->
@@ -82,7 +82,7 @@
         {{else}}
           <div style="border: 1px dashed #000000; background: #f9f9f9; padding: 12px; margin: 8px 0; text-align: center;">
             <div style="font-weight: bold; font-size: var(--fs-c1); margin-bottom: 2px;">
-              📌 Chưa số hóa sơ đồ CAD mặt bằng tầng / CAD floor plan drawing not uploaded
+              Chưa số hóa sơ đồ CAD mặt bằng tầng / CAD floor plan drawing not uploaded
             </div>
             <div style="font-size: var(--fs-e1); color: var(--c-sub);">
               Vị trí khảo sát và khuyết tật được định vị chi tiết theo mã phân vùng (Zone Z / Element E) trong các bảng và hồ sơ ảnh đối chiếu bên dưới.
@@ -92,7 +92,7 @@
 
         {{#unless this.hasStructuralElements}}
           <div style="background: #f9f9f9; border-left: 2pt solid #000000; padding: 6px 10px; margin: 6px 0; font-size: var(--fs-c1);">
-            <strong>ℹ️ Đặc điểm kết cấu tầng:</strong> {{this.noStructuralElementsReason.vi}}<br>
+            <strong>Đặc điểm kết cấu tầng:</strong> {{this.noStructuralElementsReason.vi}}<br>
             <span class="text-muted" style="font-size: var(--fs-e1);"><strong>Structural Feature:</strong> {{this.noStructuralElementsReason.en}}</span>
           </div>
         {{/unless}}
@@ -109,7 +109,7 @@
         {{#if this.hasSeparateDefectTableSheets}}
           <div style="background: #f9f9f9; border: 1pt solid #000000; padding: 10px 14px; margin-top: 10px;">
             <div style="font-weight: bold; font-size: var(--fs-c1); margin-bottom: 2px;">
-              📋 BẢNG TỔNG HỢP KHUYẾT TẬT MẶT BẰNG TẦNG ({{this.defectSummaryRows.length}} khuyết tật ghi nhận)
+              BẢNG TỔNG HỢP KHUYẾT TẬT MẶT BẰNG TẦNG ({{this.defectSummaryRows.length}} khuyết tật ghi nhận)
             </div>
             <div style="font-size: var(--fs-e1); color: var(--c-sub); line-height: 1.4;">
               Do số lượng khuyết tật lớn, toàn bộ bảng thống kê thông số kỹ thuật (vị trí, loại khuyết tật, bề rộng wmax, chiều dài L, phân cấp Burland) được trình bày chi tiết tại <strong>{{this.defectSummaryPages.length}} trang bảng biểu riêng biệt</strong> ngay sau trang sơ đồ CAD này.
@@ -122,11 +122,11 @@
               <tr>
                 <th style="width: 5%;">No.</th>
                 <th style="width: 14%;">Mã lỗi / Pin</th>
-                <th style="width: 23%;">Vị trí / Location</th>
-                <th style="width: 16%;">Loại khuyết tật</th>
+                <th style="width: 21%;">Vị trí / Location</th>
+                <th style="width: 15%;">Loại khuyết tật</th>
                 <th style="width: 12%;">W / L</th>
                 <th style="width: 11%; text-align: center;">Burland</th>
-                <th style="width: 19%;">Ghi chú</th>
+                <th style="width: 23%;">Ghi chú</th>
               </tr>
             </thead>
             <tbody>
@@ -168,11 +168,11 @@
                 <tr>
                   <th style="width: 5%;">No.</th>
                   <th style="width: 14%;">Mã lỗi / Pin</th>
-                  <th style="width: 23%;">Vị trí / Location</th>
-                  <th style="width: 16%;">Loại khuyết tật</th>
+                  <th style="width: 21%;">Vị trí / Location</th>
+                  <th style="width: 15%;">Loại khuyết tật</th>
                   <th style="width: 12%;">W / L</th>
                   <th style="width: 11%; text-align: center;">Burland</th>
-                  <th style="width: 19%;">Ghi chú</th>
+                  <th style="width: 23%;">Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
@@ -422,7 +422,7 @@
 
     <div class="zero-defects-banner" style="margin-top: 30px;">
       <div>
-        <strong>✓ Đánh giá hiện trạng mặt bằng:</strong> Khảo sát hiện trường không phát hiện vết nứt hoặc khuyết tật kết cấu tại các tầng công trình.<br>
+        <strong>Đánh giá hiện trạng mặt bằng:</strong> Khảo sát hiện trường không phát hiện vết nứt hoặc khuyết tật kết cấu tại các tầng công trình.<br>
         <span style="font-size: var(--fs-e1); font-style: italic;">Field survey recorded no cracks or structural defects on the building floor plans. All rooms and structural members are preserved as archival control records in Appendix 2.</span>
       </div>
     </div>

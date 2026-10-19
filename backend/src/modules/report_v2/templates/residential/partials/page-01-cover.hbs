@@ -10,7 +10,7 @@
         {{#if metadata.headerLogoBase64}}
           <img src="{{metadata.headerLogoBase64}}" alt="Logo THACO REC">
         {{else}}
-          <div style="font-weight: bold; font-size: 11pt; color: #003366;">THACO REC</div>
+          <div style="font-weight: bold; font-size: var(--fs-b1); color: #000000;">THACO REC</div>
         {{/if}}
       </td>
       <td class="col-title">
@@ -31,16 +31,16 @@
     <div class="cover-page-border">
       <!-- TIÊU ĐỀ DỰ ÁN (PROJECT TITLE) -->
       <div class="cover-project-box">
-        <div style="font-size: 9pt; font-weight: bold; color: #000000; margin-bottom: 2px;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; color: #000000; margin-bottom: 2px;">
           PROJECT TITLE:
         </div>
-        <div style="font-size: 9.5pt; font-weight: bold; color: #000000; margin-bottom: 2px;">
+        <div style="font-size: var(--fs-b2); font-weight: bold; color: #000000; margin-bottom: 2px;">
           {{metadata.projectTitleVi}}
         </div>
-        <div style="font-size: 9pt; color: #334155; margin-bottom: 2px;">
+        <div style="font-size: var(--fs-c1); color: #000000; margin-bottom: 2px;">
           {{metadata.projectTitleEn}}
         </div>
-        <div style="font-size: 8.5pt; font-weight: bold; color: #475569;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; color: #000000;">
           EPC Contract
         </div>
       </div>
@@ -97,7 +97,7 @@
         <thead>
           <tr>
             {{#each signatures3Party}}
-              <th>{{this.roleVi}}<br><span style="font-size: 7.5pt; font-weight: normal;">{{this.roleEn}}</span></th>
+              <th>{{this.roleVi}}<br><span style="font-size: var(--fs-f1); font-weight: normal;">{{this.roleEn}}</span></th>
             {{/each}}
           </tr>
         </thead>
@@ -105,13 +105,13 @@
           <tr>
             {{#each signatures3Party}}
               <td>
-                <div style="font-size: 7.5pt; color: #475569; margin-bottom: 2px;">HỌ TÊN / FULL NAME</div>
-                <div class="font-bold" style="font-size: 9pt; color: #000000; min-height: 14px; margin-bottom: 2px;">
+                <div style="font-size: var(--fs-f1); color: #000000; margin-bottom: 2px;">HỌ TÊN / FULL NAME</div>
+                <div class="font-bold" style="font-size: var(--fs-c1); color: #000000; min-height: 14px; margin-bottom: 2px;">
                   {{#if this.fullName}}{{this.fullName}}{{else}}&nbsp;{{/if}}
                 </div>
-                <div style="font-size: 7.5pt; color: #64748b; margin-bottom: 4px;">{{this.titleVi}}</div>
+                <div style="font-size: var(--fs-f1); color: #000000; margin-bottom: 4px;">{{this.titleVi}}</div>
                 
-                <div style="font-size: 7.5pt; color: #475569; margin-bottom: 2px;">CHỮ KÝ / SIGNATURE</div>
+                <div style="font-size: var(--fs-f1); color: #000000; margin-bottom: 2px;">CHỮ KÝ / SIGNATURE</div>
                 <div class="signature-box">
                   {{#if this.signatureBase64}}
                     <img src="{{this.signatureBase64}}" alt="Chữ ký">
@@ -120,7 +120,7 @@
                   {{/if}}
                 </div>
 
-                <div style="font-size: 7.5pt; color: #000000; font-weight: bold; border-top: 1px dotted #cbd5e1; padding-top: 4px;">
+                <div style="font-size: var(--fs-f1); color: #000000; font-weight: bold; border-top: 1px dotted #000000; padding-top: 4px;">
                   NGÀY / DATE: {{#if this.date}}{{this.date}}{{else}}&nbsp;{{/if}}
                 </div>
               </td>

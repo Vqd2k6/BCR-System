@@ -157,11 +157,11 @@ export class FloorDefectMapper {
         const mCode = photoCode || (buildingId ? `HCM_M2.[${buildingId}]_${zoneCode}_${photoId}` : photoId);
 
         const defaultBadgeVi = isNormal
-          ? (isStructural ? '✓ Tổng thể cấu kiện' : '✓ Toàn cảnh không gian')
-          : '⚠️ Ghi nhận khuyết tật';
+          ? (isStructural ? 'Tổng thể cấu kiện' : 'Toàn cảnh không gian')
+          : 'Ghi nhận khuyết tật';
         const defaultBadgeEn = isNormal
-          ? (isStructural ? '✓ Member overview' : '✓ Space overview')
-          : '⚠️ Defect observed';
+          ? (isStructural ? 'Member overview' : 'Space overview')
+          : 'Defect observed';
 
         const photoItem: RoomOverviewPhotoItem = {
           photoId,
@@ -440,8 +440,8 @@ export class FloorDefectMapper {
               item?.photoCode,
               false,
               isDefectPhoto
-                ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Toàn cảnh không gian', en: '✓ Space overview' },
+                ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+                : { vi: 'Toàn cảnh không gian', en: 'Space overview' },
               item?.capturedAt || item?.shot_at
             );
           });
@@ -466,8 +466,8 @@ export class FloorDefectMapper {
             z.ctxPhotoCode,
             false,
             isDefectPhoto
-              ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Bề mặt ổn định', en: '✓ Intact surface' },
+              ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+              : { vi: 'Bề mặt ổn định', en: 'Intact surface' },
             (z as any).ctxCapturedAt || (z as any).capturedAt
           );
         }
@@ -676,8 +676,8 @@ export class FloorDefectMapper {
               item?.photoCode,
               true,
               isDefectPhoto
-                ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Tổng thể cấu kiện', en: '✓ Member overview' },
+                ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+                : { vi: 'Tổng thể cấu kiện', en: 'Member overview' },
               item?.capturedAt || item?.shot_at
             );
           });
@@ -702,8 +702,8 @@ export class FloorDefectMapper {
             e.ctxPhotoCode,
             true,
             isDefectPhoto
-              ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Cấu kiện ổn định', en: '✓ Stable member' },
+              ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+              : { vi: 'Cấu kiện ổn định', en: 'Stable member' },
             (e as any).ctxCapturedAt || (e as any).capturedAt
           );
         }
@@ -720,7 +720,10 @@ export class FloorDefectMapper {
 
       const PHOTOS_PER_OVERVIEW_PAGE = 4;
       const buildBalancedPages = (items: RoomOverviewPhotoItem[]): FloorOverviewPageViewModel[] => {
-        const sortedItems = sortLandscapeFirst(items);
+        // Ảnh bối cảnh khuyết tật đã nằm trong cặp ảnh của Phụ lục 1 -> Phụ lục 2 chỉ lưu ảnh không nứt
+        const archivalOnly = items.filter((it) => it.statusBadge?.isNormal !== false);
+        const sortedItems = sortLandscapeFirst(archivalOnly);
+
         const pageCount = Math.ceil(sortedItems.length / PHOTOS_PER_OVERVIEW_PAGE);
         if (pageCount === 0) return [];
         const perPage = Math.ceil(sortedItems.length / pageCount);

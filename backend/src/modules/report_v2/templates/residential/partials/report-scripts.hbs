@@ -105,6 +105,19 @@
         var totalEl = document.getElementById('report-total-pages');
         if (totalEl) totalEl.textContent = String(total);
 
+        // Danh sách tiêu đề chương theo thứ tự tài liệu: engine PDF dùng để dò số trang thật (2-pass)
+        var headings = [];
+        var seenKeys = {};
+        document.querySelectorAll('[data-section]').forEach(function(secEl) {
+          var key = secEl.getAttribute('data-section');
+          if (!key || seenKeys[key]) return;
+          var h = secEl.matches('.chapter-header') ? secEl : secEl.querySelector('.chapter-header');
+          if (!h) return;
+          seenKeys[key] = true;
+          headings.push({ key: key, text: (h.textContent || '').replace(/\s+/g, ' ').trim() });
+        });
+        window.__sectionHeadings = headings;
+
         // Đo toạ độ và số trang thực tế của các chương mục để cập nhật Mục lục động
         var sectionPageMap = {};
         document.querySelectorAll('[data-section]').forEach(function(secEl) {

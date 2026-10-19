@@ -11,15 +11,15 @@
   --font-main: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif;
   --font-mono: 'Latin Modern Mono', monospace;
 
-  /* 8 bậc kích thước chữ cố định theo quy chuẩn Senior PM (Section 10) */
-  --fs-t0: 20pt; /* Tên báo cáo trên bìa (VI) - Đậm, in hoa */
-  --fs-t1: 14pt; /* Tiêu đề Mục lớn (I, II... / Phụ lục) - Đậm, in hoa, kẻ ngang đen dưới */
-  --fs-t2: 12pt; /* Tiêu đề bảng / tiểu mục */
-  --fs-b1: 11pt; /* Nội dung chính (đoạn văn, ô bảng tiếng Việt) */
-  --fs-b2: 10pt; /* Nội dung bảng dày (ma trận, bảng nhiều cột) */
-  --fs-e1: 9pt;  /* Tiếng Anh phụ (dòng dịch dưới/cạnh tiếng Việt, in nghiêng) */
-  --fs-c1: 9pt;  /* Chú thích ảnh, ghi chú, chú giải (*) */
-  --fs-f1: 9pt;  /* Header / footer trang */
+  /* 8 bậc kích thước chữ cố định (nâng nội dung chính lên 13pt theo yêu cầu; sàn tối thiểu 10pt) */
+  --fs-t0: 24pt; /* Tên báo cáo trên bìa (VI) - Đậm, in hoa */
+  --fs-t1: 16pt; /* Tiêu đề Mục lớn (I, II... / Phụ lục) - Đậm, in hoa, kẻ ngang đen dưới */
+  --fs-t2: 14pt; /* Tiêu đề bảng / tiểu mục */
+  --fs-b1: 13pt; /* Nội dung chính (đoạn văn, ô bảng tiếng Việt) */
+  --fs-b2: 12pt; /* Nội dung bảng dày (ma trận, bảng nhiều cột) */
+  --fs-e1: 11pt; /* Tiếng Anh phụ (dòng dịch dưới/cạnh tiếng Việt, in nghiêng) */
+  --fs-c1: 11pt; /* Chú thích ảnh, ghi chú, chú giải (*) */
+  --fs-f1: 10pt; /* Header / footer trang */
 
   /* Bảng màu đơn sắc chuẩn công sở - Không màu nền sặc sỡ */
   --c-black: #000000;
@@ -772,7 +772,7 @@ table.tech-table.bra-matrix-table td.highlight-cell.risk-very-high {
 
 .cad-pin-badge {
   padding: 1px 3px;
-  font-size: 6pt;
+  font-size: 9pt;
   font-weight: bold;
   font-family: var(--font-main);
   border-radius: 2px;
@@ -862,7 +862,7 @@ img.watermark-logo-top-right,
 }
 
 .photo-defect-pin-badge {
-  font-size: 7pt;
+  font-size: 9pt;
   font-weight: 800;
   padding: 1px 4px;
   background-color: #000000;
@@ -948,3 +948,126 @@ table.tech-table.compact-table th {
   padding: 2.5pt 4pt;
   font-size: var(--fs-b2);
 }
+
+/* ==========================================================================
+   BỐ CỤC ẢNH LẤP ĐẦY TRANG A4 (v2)
+   - Nội dung 1 trang in: 180mm x 261mm. Mỗi lưới ảnh 2 cột x 2 hàng.
+   - minmax(0,1fr): ngăn ảnh gốc độ phân giải lớn làm phình cột (nguyên nhân ảnh bị cắt/dải hẹp trước đây).
+   - object-fit: contain: không bao giờ crop ảnh; ảnh dọc/ngang đều hiển thị trọn vẹn.
+   ========================================================================== */
+.photo-grid-exterior,
+.room-overview-grid,
+.element-overview-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: start;
+}
+
+.photo-card,
+.room-photo-card {
+  min-width: 0;
+  height: auto;
+}
+
+.photo-card-img-wrapper,
+.room-photo-wrapper,
+.photo-card-img-wrapper.is-portrait,
+.room-photo-wrapper.is-portrait,
+.photo-card-img-wrapper.is-landscape,
+.room-photo-wrapper.is-landscape,
+.photo-wrapper-fit {
+  height: 80mm !important;
+  min-height: 80mm !important;
+  max-height: 80mm !important;
+  overflow: hidden;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.photo-card-img-wrapper img.photo-main,
+.room-photo-wrapper img.photo-main,
+.photo-card-img-wrapper > img.photo-card-main-img,
+.photo-card-img-wrapper > img:first-child,
+.room-photo-img {
+  max-width: 86mm !important;
+  max-height: 78mm !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+/* Cặp / bộ ba ảnh khuyết tật ở Phụ lục 1 */
+.defect-pair-container,
+.defect-trio-container {
+  display: grid;
+  gap: 6pt;
+  break-inside: avoid;
+}
+.defect-pair-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.defect-trio-container { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.defect-photo-wrapper {
+  position: relative;
+  width: 100%;
+  height: 68mm !important;
+  min-height: 68mm !important;
+  max-height: 68mm !important;
+  overflow: hidden;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-white);
+  border-bottom: var(--border-line);
+}
+.defect-trio-container .defect-photo-wrapper {
+  height: 58mm !important;
+  min-height: 58mm !important;
+  max-height: 58mm !important;
+}
+.defect-photo-wrapper img.photo-main,
+.defect-photo-wrapper img.defect-pair-img {
+  max-width: 100% !important;
+  max-height: 66mm !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+.defect-trio-container .defect-photo-wrapper img.photo-main,
+.defect-trio-container .defect-photo-wrapper img.defect-pair-img {
+  max-height: 56mm !important;
+}
+
+/* Biên bản ký scan: hiển thị TRỌN VẸN, không cắt (khung ảnh dùng chung từng có max-height 250px + overflow hidden) */
+.signed-record-img-wrapper {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+}
+.signed-record-img-wrapper img {
+  height: 205mm !important;
+  max-height: 205mm !important;
+  max-width: 100% !important;
+  width: auto !important;
+  object-fit: contain !important;
+}
+
+/* Bảng: không cắt ngang dòng, lặp tiêu đề cột khi bảng sang trang */
+table { page-break-inside: auto; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+thead { display: table-header-group; }
+h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after: avoid; }
+
+/* Sơ đồ CAD: thu gọn để bảng khuyết tật của tầng nằm cùng trang */
+.cad-map-pinning-wrapper { min-height: 0 !important; }
+.cad-map-image { max-height: 300px !important; }
+.cad-map-container.full-width img { max-height: 300px !important; }
