@@ -116,6 +116,11 @@
         </td>
       </tr>
     </table>
+    {{#if asteriskFootnote.vi}}
+    <div style="font-size: var(--fs-c1); font-style: italic; color: #333333; margin-top: 4pt; line-height: 1.25;">
+      {{asteriskFootnote.vi}}{{#if asteriskFootnote.en}} / {{asteriskFootnote.en}}{{/if}}
+    </div>
+    {{/if}}
 
     <div class="page-number-footer">{{tocPageNumbers.section3}}</div>
   </div>

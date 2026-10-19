@@ -5,6 +5,7 @@
  * ============================================================================
  */
 
+import { classifyStructureSystem, STRUCTURE_LABELS } from '../structure-system.classifier';
 import {
   Section3HistoryOccupancy,
   Section4StructuralFoundation,
@@ -150,22 +151,16 @@ export class Section3And4Mapper {
     const isVacantLand = Boolean(json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND');
     const isUnderConstruction = Boolean(json.surveyCaseType === 'UNDER_CONSTRUCTION');
 
-    // 1. Tách biệt Loại hình kết cấu (Vật liệu / Hệ chịu lực)
-    const rawStructSys = json.structureSystem || specs.structural_system || specs.structuralSystem || 'RC - BTCT';
-    let structTypeVi = 'Khung bê tông cốt thép toàn khối (RC) (cột, dầm, sàn BTCT)';
-    let structTypeEn = 'Reinforced Concrete (RC) Frame (columns, beams, slabs)';
+    // 1. Tách biệt Loại hình kết cấu (Vật liệu / Hệ chịu lực) – dùng chung bộ phân loại với chỉ số V2
+    const rawStructSys = json.structureSystem || specs.structural_system || specs.structuralSystem || '';
+    const structClass = classifyStructureSystem(rawStructSys);
+    let structTypeVi = STRUCTURE_LABELS[structClass].vi;
+    let structTypeEn = STRUCTURE_LABELS[structClass].en;
     if (isVacantLand) {
       structTypeVi = 'Khu đất trống – Không có công trình xây dựng';
       structTypeEn = 'Vacant land – No building structure';
-    } else if (rawStructSys.includes('Steel') || rawStructSys.toLowerCase().includes('thép')) {
-      structTypeVi = 'Khung kết cấu thép tiền chế';
-      structTypeEn = 'Pre-engineered Steel Structure';
-    } else if (rawStructSys.includes('Masonry') || rawStructSys.toLowerCase().includes('gạch')) {
-      structTypeVi = 'Tường gạch chịu lực kết hợp sàn BTCT';
-      structTypeEn = 'Load-bearing Brick Masonry with RC Slabs';
-    } else if (rawStructSys.includes('Mixed') || rawStructSys.toLowerCase().includes('hỗn hợp')) {
-      structTypeVi = 'Kết cấu hỗn hợp (BTCT kết hợp gạch/thép)';
-      structTypeEn = 'Composite / Mixed Structural System';
+    } else if (structClass === 'OTHER') {
+      structTypeVi = String(rawStructSys).replace(/^Khác:\s*/i, '').trim() || structTypeVi;
     }
 
     // 2. Tách biệt Hình thức kết cấu (Hình thái kiến trúc không gian đô thị)

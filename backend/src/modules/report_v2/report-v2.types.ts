@@ -589,14 +589,18 @@ export interface Appendix3SignedRecord {
   }>;
 }
 
+export interface Appendix4EquipmentItem {
+  no: number;
+  equipment: BilingualText;
+  modelSerial?: BilingualText;
+  specs: BilingualText;
+  purpose: BilingualText;
+  calibration?: BilingualText;
+}
+
 export interface Appendix4EquipmentAndAccess {
-  equipmentList: Array<{
-    no: number;
-    equipment: BilingualText;
-    specs: BilingualText;
-    purpose: BilingualText;
-  }>;
-  calibrationNotes: BilingualText;
+  equipmentList: Appendix4EquipmentItem[];
+  calibrationNotes?: BilingualText | null;
   accessAreas: Array<{
     area: BilingualText;
     accessed: boolean;
@@ -666,4 +670,6 @@ export interface ReportV2ViewModel {
   appendix2: FloorPlanDefectReport[];
   appendix3: Appendix3SignedRecord;
   appendix4: Appendix4EquipmentAndAccess;
+  asteriskFootnote?: BilingualText | null;
+  standardTextVersionNumber?: number | null;
 }

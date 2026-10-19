@@ -22,6 +22,7 @@ import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
 import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
 import { DevController } from './modules/dev/dev.controller';
+import { ReportConfigController } from './modules/report_config/report-config.controller';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -226,6 +227,14 @@ export function createApp(): express.Application {
   api.put('/admin/users/:id/status', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.updateStatus);
   api.post('/admin/users/:id/reset-password', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.resetPassword);
   api.delete('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.deleteUser);
+
+  // Nội dung chuẩn báo cáo (văn bản Mục IX/PL3 theo phiên bản) & danh mục thiết bị dự án
+  api.get('/admin/report-config/standard-text', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.listStandardText);
+  api.post('/admin/report-config/standard-text', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.createStandardText);
+  api.get('/admin/report-config/equipment', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.listEquipment);
+  api.post('/admin/report-config/equipment', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.createEquipment);
+  api.put('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.updateEquipment);
+  api.delete('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.deleteEquipment);
 
 
   // ==========================================

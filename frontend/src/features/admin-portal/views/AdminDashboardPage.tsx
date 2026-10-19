@@ -7,6 +7,7 @@ import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, L
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
+import { ReportContentConfigTab } from '../components/ReportContentConfigTab';
 import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -76,6 +77,7 @@ export const AdminDashboardPage: React.FC = () => {
           { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
+          { key: 'report-content', label: 'Nội Dung Chuẩn & Thiết Bị Báo Cáo', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
         ] as const).map((tab) => (
           <button
@@ -107,6 +109,11 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Tab Users: Dynamic UserManagementTab */}
       {activeTab === 'users' && (
         <UserManagementTab />
+      )}
+
+      {/* Tab Report Content & Equipment Config */}
+      {activeTab === 'report-content' && (
+        <ReportContentConfigTab />
       )}
 
       {/* Tab Audit */}

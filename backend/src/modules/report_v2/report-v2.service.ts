@@ -19,6 +19,8 @@ import { maskReportPii } from '../../common/utils/pii.utils';
 import { preloadImageOrientations } from '../report/generators/residential/residential.image-sniff';
 import { ReportImageResolver } from './services/report-image-resolver.service';
 import { ReportFontsService } from './services/report-fonts.service';
+import { ReportConfigService } from '../report_config/report-config.service';
+import type { ReportContentConfig } from '../report_config/report-config.types';
 
 function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] {
   if (!obj) return [];
@@ -192,8 +194,12 @@ export class ReportV2Service {
     await preloadImageOrientations(allPhotoUrls);
     await ReportImageResolver.preloadAndResolveAll(allPhotoUrls);
 
-    // 2. Chuyển đổi và tính toán toàn bộ ViewModel
-    const viewModel = ReportV2ViewModelMapper.buildViewModel(activeReport, overrides);
+    // 2. Tải cấu hình nội dung chuẩn báo cáo (Q1, Q5)
+    const config: ReportContentConfig =
+      activeReport.reportContentConfig || (await ReportConfigService.getActiveConfig());
+
+    // 3. Chuyển đổi và tính toán toàn bộ ViewModel
+    const viewModel = ReportV2ViewModelMapper.buildViewModel(activeReport, overrides, config);
     if (maskPii) {
       (viewModel as any).isPiiMasked = true;
     }

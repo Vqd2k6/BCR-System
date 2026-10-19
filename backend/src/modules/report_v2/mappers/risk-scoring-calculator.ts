@@ -7,6 +7,7 @@
  * ============================================================================
  */
 
+import { classifyStructureSystem, v2ScoreForStructure } from './structure-system.classifier';
 import {
   Section8BuildingConditionAssessment,
   EcsAssessmentItem,
@@ -165,12 +166,9 @@ export class RiskScoringCalculator {
     let v1Calc = isAbandoned ? 0 : objGroup === 'CRITICAL' ? 4 : objGroup === 'IMPORTANT' ? 3 : 2;
     const v1 = viData.v1 !== undefined ? Number(viData.v1) : v1Calc;
 
-    // V2: Hệ kết cấu chịu lực (RC: 1.0, RC+brick: 2.0, Masonry: 3.0, Substandard: 4.0)
+    // V2: Hệ kết cấu chịu lực (RC: 1.0, RC+brick/thép/khác: 2.0, Masonry: 3.0, Substandard: 4.0) – cùng bộ phân loại với Mục IV
     const structSys = json.structureSystem || specs.structuralType || '';
-    let v2Calc = 2;
-    if (structSys.includes('RC') || structSys.includes('BTCT toàn khối')) v2Calc = 1;
-    else if (structSys.includes('Masonry') || structSys.includes('Tường gạch')) v2Calc = 3;
-    else if (structSys.includes('Kém ổn định') || structSys.includes('tạm')) v2Calc = 4;
+    const v2Calc = v2ScoreForStructure(classifyStructureSystem(structSys));
     const v2 = viData.v2 !== undefined ? Number(viData.v2) : v2Calc;
 
     // V3: Loại móng & Nền đất (Cat 1-2: 1đ, Cat 3: 2đ, Cat 4: 3đ, Cat 5: 4đ)

@@ -20,6 +20,8 @@ import {
 import type { JwtPayload } from '../../common/guards/auth.guard';
 import { ReportSnapshotService, sha256Hex } from './report-snapshot.service';
 import { ReportV3Service, type ResolvedReportV3 } from './report-v3.service';
+import { ReportConfigService } from '../report_config/report-config.service';
+import type { ReportContentConfig } from '../report_config/report-config.types';
 
 export const MIN_RELEASE_REASON_LENGTH = 10;
 
@@ -40,6 +42,8 @@ export interface ReportReleaseRecord {
   sha256: string;
   releasedByUserId: string;
   releasedAt: string;
+  standardTextVersionId?: string | null;
+  equipmentSnapshotJson?: unknown;
 }
 
 interface ReleaseRow {
@@ -53,6 +57,8 @@ interface ReleaseRow {
   sha256: string;
   released_by_user_id: string;
   released_at: Date;
+  standard_text_version_id?: string | null;
+  equipment_snapshot_json?: unknown;
 }
 
 function toRecord(row: ReleaseRow): ReportReleaseRecord {
@@ -67,6 +73,8 @@ function toRecord(row: ReleaseRow): ReportReleaseRecord {
     sha256: row.sha256,
     releasedByUserId: row.released_by_user_id,
     releasedAt: row.released_at.toISOString(),
+    standardTextVersionId: row.standard_text_version_id ?? null,
+    equipmentSnapshotJson: row.equipment_snapshot_json ?? null,
   };
 }
 
@@ -78,7 +86,7 @@ export class ReportReleaseService {
   public static async list(reportId: string): Promise<ReportReleaseRecord[]> {
     const res = await Database.query<ReleaseRow>(
       `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-              released_by_user_id, released_at
+              released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
        FROM report_releases
        WHERE report_id = $1 AND deleted_at IS NULL
        ORDER BY revision DESC;`,
@@ -90,8 +98,12 @@ export class ReportReleaseService {
   public static async get(reportId: string, revision?: number): Promise<ReportReleaseRecord | null> {
     const res = await Database.query<ReleaseRow>(
       revision === undefined
-        ? `SELECT * FROM report_releases WHERE report_id = $1 AND deleted_at IS NULL ORDER BY revision DESC LIMIT 1;`
-        : `SELECT * FROM report_releases WHERE report_id = $1 AND revision = $2 AND deleted_at IS NULL LIMIT 1;`,
+        ? `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
+                  released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
+           FROM report_releases WHERE report_id = $1 AND deleted_at IS NULL ORDER BY revision DESC LIMIT 1;`
+        : `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
+                  released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
+           FROM report_releases WHERE report_id = $1 AND revision = $2 AND deleted_at IS NULL LIMIT 1;`,
       revision === undefined ? [reportId] : [reportId, revision]
     );
     return res.rows[0] ? toRecord(res.rows[0]) : null;
@@ -204,8 +216,11 @@ export class ReportReleaseService {
           `Phát hành Rev ${String(nextRev).padStart(2, '0')}`
         );
 
+        // Lấy cấu hình nội dung chuẩn & thiết bị hiện hành để ghim chặt vào bản Rev này
+        const activeConfig = await ReportConfigService.getActiveConfig();
+
         const resolved = await ReportV3Service.resolve(reportId);
-        const { pdfBuffer } = await ReportV3Service.renderFinalPdf(resolved, snap.snapshot, nextRev);
+        const { pdfBuffer } = await ReportV3Service.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig);
 
         const filePath = releaseFilePath(reportId, nextRev);
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -216,10 +231,22 @@ export class ReportReleaseService {
         const ins = await client.query<ReleaseRow>(
           `INSERT INTO report_releases (
              report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-             snapshot_version_id, released_by_user_id
-           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8)
+             snapshot_version_id, released_by_user_id,
+             standard_text_version_id, equipment_snapshot_json
+           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10)
            RETURNING *;`,
-          [reportId, nextRev, reason, filePath, pdfBuffer.length, sha, snap.versionId, user.userId]
+          [
+            reportId,
+            nextRev,
+            reason,
+            filePath,
+            pdfBuffer.length,
+            sha,
+            snap.versionId,
+            user.userId,
+            activeConfig.standardTextVersionId,
+            JSON.stringify(activeConfig.equipment),
+          ]
         );
 
         await client.query(
@@ -244,6 +271,8 @@ export class ReportReleaseService {
               reason,
               sha256: sha,
               snapshotVersionId: snap.versionId,
+              standardTextVersionNumber: activeConfig.standardTextVersionNumber,
+              equipmentCount: activeConfig.equipment.length,
               timestamp: new Date().toISOString(),
             }),
           ]

@@ -11,17 +11,6 @@
 
     <h2 class="chapter-header" data-section="sec-9">IX. KẾT LUẬN VÀ KIẾN NGHỊ - CONCLUSION AND RECOMMENDATION</h2>
 
-    {{#if section9.hasWarningConclusion}}
-      <div style="background-color: transparent; border: 1.5pt solid #000000; padding: 8px 12px; margin-bottom: 10px;">
-        <div style="font-weight: bold; color: var(--c-black); font-size: var(--fs-c1); margin-bottom: 2px;">
-          {{section9.warningBadge.vi}}
-        </div>
-        <div style="font-size: var(--fs-e1); color: var(--c-sub); font-style: italic;">
-          {{section9.warningBadge.en}}
-        </div>
-      </div>
-    {{/if}}
-
     <div style="margin-bottom: 8px;">
       {{#each section9.conclusions}}
         <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
@@ -45,12 +34,16 @@
     <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>
     {{#each section9.recommendations}}
       <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+    {{else}}
+      <p>--</p>
     {{/each}}
 
-    <h3 class="section-header">Nội dung cần bổ sung từ hiện trường / thiết kế (*) - Items pending field or design data</h3>
+    {{#if section9.pendingFieldDesignItems.length}}
+    <h3 class="section-header">Nội dung cần bổ sung từ hiện trường / thiết kế - Items pending field or design data</h3>
     {{#each section9.pendingFieldDesignItems}}
       <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
     {{/each}}
+    {{/if}}
 
     <div class="page-number-footer">{{tocPageNumbers.section9}}</div>
   </div>

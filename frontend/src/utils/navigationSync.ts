@@ -1,7 +1,7 @@
 import type { NavTab } from '../components/layout/SurveyorBottomNav';
 import type { ZoneNavView } from '../features/zone-management/components/layout/ZoneAdminSidebar';
 
-export type AdminTab = 'export' | 'gis-mutation' | 'users' | 'audit' | 'config';
+export type AdminTab = 'export' | 'gis-mutation' | 'users' | 'audit' | 'report-content' | 'config';
 
 export interface NavigationState {
   tab?: NavTab;
@@ -38,6 +38,7 @@ const VALID_ADMIN_TABS: readonly AdminTab[] = [
   'gis-mutation',
   'users',
   'audit',
+  'report-content',
   'config',
 ];
 

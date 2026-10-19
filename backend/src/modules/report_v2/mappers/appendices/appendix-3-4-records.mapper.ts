@@ -14,6 +14,7 @@ import {
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from '../floor-defect.mapper';
 import { extractPhotoDateTime } from '../formatters.mapper';
+import type { ReportContentConfig } from '../../../report_config/report-config.types';
 
 export class Appendix3And4Mapper {
   public static mapAppendix3(
@@ -151,7 +152,8 @@ export class Appendix3And4Mapper {
     appendix1: Appendix1PhotoItem[],
     appendix2: FloorPlanDefectReport[],
     rawReport?: any,
-    json?: any
+    json?: any,
+    config?: ReportContentConfig
   ): Appendix4EquipmentAndAccess {
     const rawScope = json?.surveyScope || {};
     const rawLimitation = json?.accessLimitation || {};
@@ -197,51 +199,91 @@ export class Appendix3And4Mapper {
     }
 
     // Phân loại tiếp cận
-    let accessClassVi = 'Phân loại tiếp cận: không hạn chế (100%).';
-    let accessClassEn = 'Access classification: no restriction (100%).';
+    const hasLimitations = Boolean(
+      rawLimitation.type === 'PARTIAL' ||
+      rawLimitation.type === 'REFUSED' ||
+      roofNotAccessed ||
+      basementNotAccessed ||
+      (Array.isArray(rawLimitation.restrictedAreas) && rawLimitation.restrictedAreas.length > 0)
+    );
+
+    let accessClassVi = 'Phân loại tiếp cận: Không hạn chế (100%).';
+    let accessClassEn = 'Access classification: No restriction (100%).';
 
     if (isAbsentee) {
       accessClassVi = 'Phân loại tiếp cận: Khảo sát vắng chủ (chỉ tiếp cận mặt ngoài).';
       accessClassEn = 'Access classification: Absentee survey (exterior only).';
-    } else if (rawLimitation.type === 'PARTIAL' || roofNotAccessed || basementNotAccessed) {
-      accessClassVi = 'Phân loại tiếp cận: Hạn chế một phần (xem chi tiết Mục IX).';
-      accessClassEn = 'Access classification: Partially restricted (see Section IX).';
     } else if (rawLimitation.type === 'REFUSED') {
       accessClassVi = 'Phân loại tiếp cận: Chủ hộ từ chối tiếp cận một số khu vực.';
       accessClassEn = 'Access classification: Owner refused access to certain areas.';
+    } else if (hasLimitations) {
+      accessClassVi = 'Phân loại tiếp cận: Hạn chế một phần (xem chi tiết Mục IX – Hạn chế khảo sát).';
+      accessClassEn = 'Access classification: Partially restricted (see Section IX – Survey Limitations).';
     }
 
-    return {
-      equipmentList: [
+    // Danh mục thiết bị từ CSDL cấu hình dự án (Q5)
+    let equipmentList: any[] = [];
+    if (config?.equipment && config.equipment.length > 0) {
+      equipmentList = config.equipment.map((item, idx) => ({
+        no: item.sortOrder || idx + 1,
+        equipment: { vi: item.nameVi, en: item.nameEn || item.nameVi },
+        modelSerial: {
+          vi: item.model || item.serialNo ? `${item.model || '--'} (S/N: ${item.serialNo || '--'})` : '--',
+          en: item.model || item.serialNo ? `${item.model || '--'} (S/N: ${item.serialNo || '--'})` : '--',
+        },
+        specs: { vi: item.specificationVi || '--', en: item.specificationEn || item.specificationVi || '--' },
+        purpose: { vi: item.purposeVi || '--', en: item.purposeEn || item.purposeVi || '--' },
+        calibration: {
+          vi: item.calibrationCertNo || item.calibrationValidTo
+            ? `Số: ${item.calibrationCertNo || '--'} · Hạn: ${item.calibrationValidTo || '--'}`
+            : '--',
+          en: item.calibrationCertNo || item.calibrationValidTo
+            ? `Cert: ${item.calibrationCertNo || '--'} · Exp: ${item.calibrationValidTo || '--'}`
+            : '--',
+        },
+      }));
+    } else {
+      equipmentList = [
         {
           no: 1,
           equipment: { vi: 'Máy ảnh số có GPS', en: 'Digital camera with GPS' },
+          modelSerial: { vi: '--', en: '--' },
           specs: { vi: '≥ 12MP, tọa độ EXIF WGS-84', en: '≥ 12 MP, EXIF WGS-84' },
           purpose: { vi: 'Ảnh định danh P-01 – P-07, bối cảnh vết nứt', en: 'Identification photos, crack context' },
+          calibration: { vi: '--', en: '--' },
         },
         {
           no: 2,
           equipment: { vi: 'Thước đo bề rộng nứt', en: 'Crack width gauge' },
+          modelSerial: { vi: '--', en: '--' },
           specs: { vi: 'Vạch chia 0,1 – 10,0 mm', en: '0.1 – 10.0 mm' },
           purpose: { vi: 'Đo bề rộng lớn nhất wmax', en: 'Measure wmax' },
+          calibration: { vi: '--', en: '--' },
         },
         {
           no: 3,
           equipment: { vi: 'Thước laser / thước thép', en: 'Laser / steel tape' },
+          modelSerial: { vi: '--', en: '--' },
           specs: { vi: '± 1,5 mm, tầm đo 40 m', en: '± 1.5 mm, 40 m range' },
           purpose: { vi: 'Chiều dài nứt, kích thước phòng', en: 'Crack length, room size' },
+          calibration: { vi: '--', en: '--' },
         },
         {
           no: 4,
           equipment: { vi: 'Máy đo nghiêng / thước bọt nước', en: 'Inclinometer / spirit level' },
-          specs: { vi: 'Độ chính xác 0,1‰ (cần kiểm tra)', en: 'Accuracy 0.1‰ (to be checked)' },
+          modelSerial: { vi: '--', en: '--' },
+          specs: { vi: '--', en: '--' },
           purpose: { vi: 'Nghiêng thân nhà X/Y, võng dầm sàn', en: 'Building tilt X/Y, deflection' },
+          calibration: { vi: '--', en: '--' },
         },
-      ],
-      calibrationNotes: {
-        vi: 'Model, số serial và chứng chỉ hiệu chuẩn thiết bị lưu tại hồ sơ phòng thí nghiệm.',
-        en: 'Model, serial number and calibration certificates on file at testing laboratory.',
-      },
+      ];
+    }
+
+    const calibrationNotes = config?.standardText?.calibrationNote ?? null;
+
+    return {
+      equipmentList,
+      calibrationNotes,
       accessAreas: [
         {
           area: { vi: 'Mặt ngoài', en: 'Exterior' },

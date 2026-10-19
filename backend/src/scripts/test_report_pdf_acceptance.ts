@@ -12,7 +12,18 @@ const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
 const squeeze = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
-const FORBIDDEN = ['blob:', 'localhost', '[[', 'undefined', 'NaN', '[ Đã ký', 'zoneAdminTest', '(cần kiểm tra)'];
+const FORBIDDEN = [
+  'blob:',
+  'localhost',
+  '[[',
+  'undefined',
+  'NaN',
+  '[ Đã ký',
+  'zoneAdminTest',
+  '(cần kiểm tra)',
+  'CẢNH BÁO HIỆN TRƯỜNG',
+  'lưu tại hồ sơ phòng thí nghiệm',
+];
 
 async function pageTexts(buf: Buffer): Promise<string[]> {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true, disableFontFace: true, verbosity: 0 }).promise;

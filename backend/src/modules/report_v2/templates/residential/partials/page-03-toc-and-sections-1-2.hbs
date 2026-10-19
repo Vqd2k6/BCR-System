@@ -195,9 +195,11 @@
       {{/if}}
     </table>
 
+    {{#if asteriskFootnote.vi}}
     <div style="font-size: var(--fs-c1); font-style: italic; color: #333333; margin-top: 4pt; line-height: 1.25;">
-      (*) Các thông số bổ sung theo yêu cầu kỹ thuật của Chủ đầu tư &amp; Ban Quản lý Tuyến Metro 2.
+      {{asteriskFootnote.vi}}{{#if asteriskFootnote.en}} / {{asteriskFootnote.en}}{{/if}}
     </div>
+    {{/if}}
 
     <div class="page-number-footer">{{tocPageNumbers.section1}}</div>
   </div>

@@ -9,7 +9,7 @@
   </div>
 
 
-    <h2 class="chapter-header" data-section="pl-3">PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)</h2>
+    <h2 class="chapter-header" data-section="pl-3">PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN</h2>
     <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
       APPENDIX 3: EQUIPMENT AND ACCESS
     </div>
@@ -21,19 +21,34 @@
     <table class="tech-table compact-table" style="margin-bottom: 6px;">
       <thead>
         <tr>
-          <th style="width: 8%; text-align: center;">STT</th>
-          <th style="width: 28%;">Thiết bị đo đạc / Equipment</th>
-          <th style="width: 32%;">Thông số kỹ thuật / Specification</th>
-          <th style="width: 32%;">Mục đích sử dụng / Purpose</th>
+          <th style="width: 6%; text-align: center;">STT</th>
+          <th style="width: 25%;">Thiết bị đo đạc / Equipment</th>
+          <th style="width: 23%;">Thông số kỹ thuật / Specification</th>
+          <th style="width: 23%;">Mục đích sử dụng / Purpose</th>
+          <th style="width: 23%;">Hiệu chuẩn / Calibration</th>
         </tr>
       </thead>
       <tbody>
         {{#each appendix4.equipmentList}}
           <tr>
             <td class="text-center font-bold">{{this.no}}</td>
-            <td class="font-bold">{{this.equipment.vi}}<br><span class="text-muted">{{this.equipment.en}}</span></td>
+            <td class="font-bold">
+              {{this.equipment.vi}}<br><span class="text-muted">{{this.equipment.en}}</span>
+              {{#if this.modelSerial}}
+                <div style="font-size: var(--fs-e1); font-weight: normal; margin-top: 2px;">
+                  {{this.modelSerial.vi}}
+                </div>
+              {{/if}}
+            </td>
             <td>{{this.specs.vi}}<br><span class="text-muted">{{this.specs.en}}</span></td>
             <td>{{this.purpose.vi}}<br><span class="text-muted">{{this.purpose.en}}</span></td>
+            <td>
+              {{#if this.calibration}}
+                {{this.calibration.vi}}
+              {{else}}
+                --
+              {{/if}}
+            </td>
           </tr>
         {{/each}}
       </tbody>
@@ -77,16 +92,18 @@
     </table>
 
     <!-- KHUNG ĐÁNH GIÁ & HIỆU CHUẨN -->
-    <div style="background-color: #f9f9f9; border: 1pt solid #000000; padding: 6px 10px; margin-top: 6px; font-size: var(--fs-c1); line-height: 1.35;">
+    <div style="background-color: transparent; border: 1pt solid #000000; padding: 6px 10px; margin-top: 6px; font-size: var(--fs-c1); line-height: 1.35;">
       <div style="margin-bottom: 3px;">
         <strong>Phân loại tiếp cận (Access classification):</strong>
         <span style="font-weight: bold; margin-left: 4px;">{{appendix4.accessClassification.vi}}</span>
         <span class="text-muted" style="margin-left: 4px;">({{appendix4.accessClassification.en}})</span>
       </div>
+      {{#if appendix4.calibrationNotes.vi}}
       <div>
         <strong>Hiệu chuẩn thiết bị (Calibration notes):</strong>
         <span style="margin-left: 4px;">{{appendix4.calibrationNotes.vi}}</span>
       </div>
+      {{/if}}
     </div>
 
     <div class="page-number-footer">{{#if tocPageNumbers.appendix3}}{{tocPageNumbers.appendix3}}{{else}}{{tocPageNumbers.appendix4}}{{/if}}</div>

@@ -14,6 +14,7 @@ import { PdfRenderV2Engine } from '../report_v2/engine/pdf-render-v2.engine';
 import { ReportSnapshotService } from './report-snapshot.service';
 import type { ReportSnapshot } from './report-snapshot.schema';
 import { RenderQueue } from './render-queue';
+import type { ReportContentConfig } from '../report_config/report-config.types';
 
 export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG';
 
@@ -67,9 +68,13 @@ export class ReportV3Service {
   public static async renderFinalPdf(
     resolved: ResolvedReportV3,
     snapshot: ReportSnapshot,
-    revision: number
+    revision: number,
+    pinnedConfig?: ReportContentConfig
   ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string }> {
     const finalReport = this.buildFinalReport(resolved, snapshot, revision);
+    if (pinnedConfig) {
+      finalReport.reportContentConfig = pinnedConfig;
+    }
     return RenderQueue.run(async () => {
       const { html, viewModel } = await ReportV2Service.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
       const reportNo = viewModel.metadata.reportNo;
