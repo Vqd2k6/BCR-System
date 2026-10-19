@@ -198,6 +198,10 @@ export class ReportV2ViewModelMapper {
     );
     const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2, rawReport, json, config);
 
+    // Gắn thông tin phạm vi tiếp cận khảo sát vào Mục IX theo quy chuẩn nghiệp vụ
+    section9.accessAreas = appendix4.accessAreas;
+    section9.accessClassification = appendix4.accessClassification;
+
     // 12. Bộ cờ kịch bản thích ứng & Mục lục động
     const scenarioFlags = ScenarioFlagsAndTocMapper.mapScenarioFlags(
       json,

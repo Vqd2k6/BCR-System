@@ -4,9 +4,29 @@ import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../comp
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
 import React, { useState, useRef } from 'react';
-import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair, Undo2 } from 'lucide-react';
+import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair, Undo2, RotateCw, RotateCcw } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
+
+interface PinUndoActionMove {
+  type: 'PIN_MOVE';
+  pinCode: string;
+  isStruct: boolean;
+  prevX: number;
+  prevY: number;
+}
+
+interface PinUndoActionRotate {
+  type: 'CAD_ROTATE';
+  floorId?: string;
+  floorIndex: number;
+  cadKey: string;
+  prevRotation: number;
+  prevZonePins: CadZonePin[];
+  prevElementPins: CadZonePin[];
+}
+
+type PinUndoAction = PinUndoActionMove | PinUndoActionRotate;
 
 const ROOM_PRESETS = [
   'Phòng khách',
@@ -160,6 +180,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     currentX: number;
     currentY: number;
   } | null>(null);
+  const [undoPinStack, setUndoPinStack] = useState<PinUndoAction[]>([]);
+  const [selectedPinCode, setSelectedPinCode] = useState<string | null>(null);
+  const initialPinCoordsRef = useRef<Record<string, { x: number; y: number }>>({});
   const cadImageWrapperRef = useRef<HTMLDivElement | null>(null);
 
   // Pinning & Drag state for CTX (D)
@@ -218,6 +241,150 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   const cadPhotoUrl = cadViewMode === 'ARCH'
     ? (currentFloor.cadSketchPhotoUrl || currentFloor.cad_drawing_url || '')
     : (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url || '');
+
+  const cadKey = `floor_${currentFloor.id || activeFloorIndex}_cad`;
+  const cadRotation = stagedPhotoRotations[cadKey] ?? (currentFloor as any).cadSketchRotation ?? 0;
+
+  // Khởi tạo và ghi nhớ toạ độ gốc KSV của từng ghim
+  React.useEffect(() => {
+    const allPins = [...(currentFloor.cadZonePins || []), ...(currentFloor.cadElementPins || [])];
+    allPins.forEach((p) => {
+      const code = p.zoneCode || p.zone_code;
+      if (code && !initialPinCoordsRef.current[code]) {
+        initialPinCoordsRef.current[code] = {
+          x: Number((p as any).originPinX ?? p.pinX ?? p.pin_x ?? 50),
+          y: Number((p as any).originPinY ?? p.pinY ?? p.pin_y ?? 50),
+        };
+      }
+    });
+  }, [currentFloor]);
+
+  // Hoàn tác thao tác ghim (Ctrl+Z / Cmd+Z hoặc bấm nút Hoàn Tác)
+  const handleUndoPin = () => {
+    if (undoPinStack.length === 0) return;
+    const lastAction = undoPinStack[undoPinStack.length - 1];
+    setUndoPinStack((prev) => prev.slice(0, -1));
+
+    if (lastAction.type === 'PIN_MOVE') {
+      handleCommitCadPinCoord(lastAction.pinCode, lastAction.isStruct, lastAction.prevX, lastAction.prevY);
+    } else if (lastAction.type === 'CAD_ROTATE') {
+      onRotatePhoto?.(lastAction.cadKey, lastAction.prevRotation);
+      if (hasFloors) {
+        const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+          if (fi !== lastAction.floorIndex && fl.id !== lastAction.floorId) return fl;
+          return {
+            ...fl,
+            cadZonePins: lastAction.prevZonePins,
+            cadElementPins: lastAction.prevElementPins,
+            cadSketchRotation: lastAction.prevRotation,
+          };
+        });
+        handleFieldChange('floors', `Hoàn tác xoay CAD tầng ${currentFloor.floorName || activeFloorIndex + 1}`, updatedFloors);
+      }
+      const reverseCoords = (x: number, y: number) => {
+        const rx = Math.round(Math.max(1, Math.min(99, y)) * 10) / 10;
+        const ry = Math.round(Math.max(1, Math.min(99, 100 - x)) * 10) / 10;
+        return { x: rx, y: ry };
+      };
+      lastAction.prevZonePins.concat(lastAction.prevElementPins).forEach((p) => {
+        const code = p.zoneCode || p.zone_code;
+        if (code && initialPinCoordsRef.current[code]) {
+          const cur = initialPinCoordsRef.current[code];
+          initialPinCoordsRef.current[code] = reverseCoords(cur.x, cur.y);
+        }
+      });
+    }
+  };
+
+  // Lắng nghe phím tắt Ctrl+Z / Cmd+Z để hoàn tác ghim
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if (undoPinStack.length > 0) {
+          e.preventDefault();
+          handleUndoPin();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoPinStack]);
+
+  // Xoay CAD 90° cùng chiều kim đồng hồ kèm tự động chuyển vị toạ độ ghim: (x, y) -> (100 - y, x)
+  const handleRotateCad = () => {
+    const nextRotation = (cadRotation + 90) % 360;
+    onRotatePhoto?.(cadKey, nextRotation);
+
+    const transformCoords = (x: number, y: number) => {
+      const newX = Math.round(Math.max(1, Math.min(99, 100 - y)) * 10) / 10;
+      const newY = Math.round(Math.max(1, Math.min(99, x)) * 10) / 10;
+      return { x: newX, y: newY };
+    };
+
+    const oldZonePins = currentFloor.cadZonePins || [];
+    const oldElementPins = currentFloor.cadElementPins || [];
+
+    const updatedZonePins = oldZonePins.map((p) => {
+      const pX = Number(p.pinX ?? p.pin_x ?? 50);
+      const pY = Number(p.pinY ?? p.pin_y ?? 50);
+      const { x: newX, y: newY } = transformCoords(pX, pY);
+      return {
+        ...p,
+        pinX: newX,
+        pinY: newY,
+        pin_x: newX,
+        pin_y: newY,
+      };
+    });
+
+    const updatedElementPins = oldElementPins.map((p) => {
+      const pX = Number(p.pinX ?? p.pin_x ?? 50);
+      const pY = Number(p.pinY ?? p.pin_y ?? 50);
+      const { x: newX, y: newY } = transformCoords(pX, pY);
+      return {
+        ...p,
+        pinX: newX,
+        pinY: newY,
+        pin_x: newX,
+        pin_y: newY,
+      };
+    });
+
+    setUndoPinStack((prev) => [
+      ...prev.slice(-19),
+      {
+        type: 'CAD_ROTATE',
+        floorId: currentFloor.id,
+        floorIndex: activeFloorIndex,
+        cadKey,
+        prevRotation: cadRotation,
+        prevZonePins: oldZonePins,
+        prevElementPins: oldElementPins,
+      },
+    ]);
+
+    // Đồng bộ toạ độ gốc KSV theo ma trận chuyển vị
+    oldZonePins.concat(oldElementPins).forEach((p) => {
+      const code = p.zoneCode || p.zone_code;
+      if (code && initialPinCoordsRef.current[code]) {
+        const cur = initialPinCoordsRef.current[code];
+        initialPinCoordsRef.current[code] = transformCoords(cur.x, cur.y);
+      }
+    });
+
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        return {
+          ...fl,
+          cadZonePins: updatedZonePins,
+          cadElementPins: updatedElementPins,
+          cadSketchRotation: nextRotation,
+        };
+      });
+      handleFieldChange('floors', `Xoay CAD tầng ${currentFloor.floorName || activeFloorIndex + 1} 90°`, updatedFloors);
+    }
+  };
 
   // Commit new coordinates for CAD pins (Z or E)
   const handleCommitCadPinCoord = (pinCode: string, isStruct: boolean, newX: number, newY: number) => {
@@ -935,6 +1102,40 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </button>
                     )}
 
+                    {isEditMode && effectiveCad && (
+                      <button
+                        type="button"
+                        onClick={handleRotateCad}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                        title="Xoay bản vẽ CAD 90° cùng chiều kim đồng hồ & tự động chuyển vị toạ độ toàn bộ ghim (x, y) -> (100 - y, x)"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Xoay CAD 90°</span>
+                        {cadRotation > 0 && <span className="text-[10px] opacity-90 font-mono">({cadRotation}°)</span>}
+                      </button>
+                    )}
+
+                    {isEditMode && (
+                      <button
+                        type="button"
+                        disabled={undoPinStack.length === 0}
+                        onClick={handleUndoPin}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shadow-xs ${
+                          undoPinStack.length > 0
+                            ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer'
+                            : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                        }`}
+                        title={
+                          undoPinStack.length > 0
+                            ? `Hoàn tác thao tác ghim gần nhất (${undoPinStack.length} bước lưu) - Phím tắt Ctrl+Z / Cmd+Z`
+                            : 'Chưa có thao tác ghim nào để hoàn tác'
+                        }
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        <span>Hoàn tác ({undoPinStack.length})</span>
+                      </button>
+                    )}
+
                     {onOpenPhotoHistory && (
                       <button
                         type="button"
@@ -1045,6 +1246,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   <img
                     src={effectiveCad}
                     alt="CAD Floor Plan"
+                    style={{
+                      transform: cadRotation ? `rotate(${cadRotation}deg)` : undefined,
+                      transition: 'transform 0.3s ease',
+                    }}
                     className="max-w-full max-h-[460px] w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
                   />
 
@@ -1059,6 +1264,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const displayX = isBeingDragged ? draggingCadPin.currentX : pX;
                     const displayY = isBeingDragged ? draggingCadPin.currentY : pY;
 
+                    const origin = initialPinCoordsRef.current[pCode] || {
+                      x: Number((pin as any).originPinX ?? pin.pinX ?? pin.pin_x ?? 50),
+                      y: Number((pin as any).originPinY ?? pin.pinY ?? pin.pin_y ?? 50),
+                    };
+                    const isMovedFromOrigin = Math.abs(pX - origin.x) > 0.5 || Math.abs(pY - origin.y) > 0.5;
+
                     return (
                       <div
                         key={pin.id || `${pCode}-${pIdx}`}
@@ -1067,7 +1278,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           top: `${displayY}%`,
                           left: `${displayX}%`,
                           transform: 'translate(-50%, -100%)',
-                          zIndex: isBeingDragged ? 50 : 25,
+                          zIndex: isBeingDragged ? 50 : selectedPinCode === pCode ? 40 : 25,
                           touchAction: 'none',
                         }}
                         className={`flex flex-col items-center pointer-events-auto select-none group ${
@@ -1106,20 +1317,27 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           const finalY = draggingCadPin.currentY;
                           setDraggingCadPin(null);
                           if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
+                            setUndoPinStack((prev) => [
+                              ...prev.slice(-19),
+                              {
+                                type: 'PIN_MOVE',
+                                pinCode: pCode,
+                                isStruct,
+                                prevX: pX,
+                                prevY: pY,
+                              },
+                            ]);
                             handleCommitCadPinCoord(pCode, isStruct, finalX, finalY);
                           } else {
-                            // Bấm không kéo -> Cuộn đến thẻ vùng / cấu kiện tương ứng
-                            const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
-                            if (targetElem) {
-                              targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              targetElem.classList.add('ring-4', 'ring-sky-400');
-                              setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
-                            }
+                            setSelectedPinCode((prev) => (prev === pCode ? null : pCode));
                           }
                         }}
                         onClick={(e) => {
-                          if (isEditMode) return;
                           e.stopPropagation();
+                          if (isEditMode) {
+                            setSelectedPinCode((prev) => (prev === pCode ? null : pCode));
+                            return;
+                          }
                           const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
                           if (targetElem) {
                             targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1128,6 +1346,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           }
                         }}
                       >
+                        {/* Badge Đã dời vị trí KSV */}
+                        {isMovedFromOrigin && (
+                          <span className="px-1 py-0.2 rounded-xs bg-amber-500 text-white font-black text-[7px] shadow-xs uppercase tracking-tighter mb-0.5 animate-pulse">
+                            Đã dời
+                          </span>
+                        )}
                         <div
                           className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg transition-transform ${
                             isBeingDragged
@@ -1136,7 +1360,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               ? 'bg-amber-600 text-white group-hover:scale-110'
                               : 'bg-emerald-600 text-white group-hover:scale-110'
                           }`}
-                          title={isEditMode ? `Kéo để đổi vị trí ghim ${pCode}` : `Bấm xem ${pCode}`}
+                          title={isEditMode ? `Bấm xem toạ độ / Kéo đổi vị trí ghim ${pCode}` : `Bấm xem ${pCode}`}
                         >
                           {pCode}
                           {isBeingDragged && (
@@ -1154,6 +1378,69 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               : 'bg-emerald-400'
                           }`}
                         />
+
+                        {/* Popover Tuỳ chọn Ghim (Bao gồm khôi phục vị trí KSV) */}
+                        {selectedPinCode === pCode && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white p-2.5 rounded-xl shadow-2xl border border-slate-700 whitespace-nowrap text-left text-[11px] space-y-1.5 backdrop-blur-md min-w-[180px]"
+                          >
+                            <div className="font-bold flex items-center justify-between gap-3 border-b border-slate-700/80 pb-1">
+                              <span className="text-amber-400 font-mono">Ghim {pCode}</span>
+                              <span className="text-slate-400 font-mono text-[9px]">({pX.toFixed(1)}%, {pY.toFixed(1)}%)</span>
+                            </div>
+                            {isMovedFromOrigin ? (
+                              <div className="text-[10px] text-amber-300 flex items-center gap-1">
+                                <span>Toạ độ gốc KSV:</span>
+                                <span className="font-mono font-bold">({origin.x.toFixed(1)}%, {origin.y.toFixed(1)}%)</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                <span>✓ Toạ độ KSV ban đầu</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 pt-1">
+                              {isMovedFromOrigin && isEditMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUndoPinStack((prev) => [
+                                      ...prev.slice(-19),
+                                      {
+                                        type: 'PIN_MOVE',
+                                        pinCode: pCode,
+                                        isStruct,
+                                        prevX: pX,
+                                        prevY: pY,
+                                      },
+                                    ]);
+                                    handleCommitCadPinCoord(pCode, isStruct, origin.x, origin.y);
+                                    setSelectedPinCode(null);
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                                >
+                                  <RotateCcw className="w-2.5 h-2.5" />
+                                  <span>Khôi phục KSV</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
+                                  if (targetElem) {
+                                    targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    targetElem.classList.add('ring-4', 'ring-sky-400');
+                                    setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
+                                  }
+                                  setSelectedPinCode(null);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium text-[10px] cursor-pointer transition-colors"
+                              >
+                                Xem thẻ
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

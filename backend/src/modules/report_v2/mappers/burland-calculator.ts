@@ -11,6 +11,7 @@ import {
   BurlandZoneSummaryItem,
   BurlandTableRow,
   BurlandDistributionItem,
+  BurlandStructuralElementItem,
 } from '../report-v2.types';
 
 export class BurlandCalculator {
@@ -65,6 +66,7 @@ export class BurlandCalculator {
     rawSummary?: any
   ): Section7BurlandClassification {
     const zoneSummaries: BurlandZoneSummaryItem[] = [];
+    const structuralElements: BurlandStructuralElementItem[] = [];
     const gradeCountMap: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     let totalSurveyedObjects = 0;
 
@@ -139,17 +141,16 @@ export class BurlandCalculator {
         }
       }
 
-      // 2. Duyệt Cấu kiện Kết cấu E
+      // 2. Duyệt Cấu kiện Kết cấu Chịu lực E (Kiểm tra tình trạng chịu lực riêng tại Bảng VII.4)
       for (const e of fl.structuralElements || []) {
-        totalSurveyedObjects++;
         const eCode = e.elementCode || 'E-01';
         const locVi = e.roomName || 'Khu vực chính';
         const locEn = e.roomNameEn || locVi;
-        const matVi = e.materialType || e.elementType || 'Cột BTCT';
+        const elemTypeVi = e.elementType || 'Cột / Dầm / Sàn';
+        const matVi = e.materialType || 'Bê tông cốt thép';
 
         const defects: any[] = e.defects || [];
         let maxW = 0;
-        let crackDesc = '';
         let elemCrackCount = 0;
         for (const d of defects) {
           const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
@@ -162,37 +163,29 @@ export class BurlandCalculator {
           }
           if (w > maxW) {
             maxW = w;
-            crackDesc = d.notes || d.description || d.defectType || '';
           }
         }
 
-        const elemGrade = maxW > 0 ? BurlandCalculator.calculateGradeFromCrackWidth(maxW) : 0;
-        gradeCountMap[elemGrade] = (gradeCountMap[elemGrade] || 0) + 1;
-
-        if (elemGrade > calculatedMaxGrade || (elemGrade === calculatedMaxGrade && elemGrade > 0)) {
-          calculatedMaxGrade = elemGrade;
-          governingItem = {
-            code: eCode,
-            floorVi: flNameVi,
-            floorEn: flNameEn,
-            locationVi: `Cấu kiện ${eCode} (${matVi}), ${locVi}`,
-            locationEn: `Member ${eCode} (${locEn})`,
-            wmax: maxW,
-            descVi: crackDesc,
-          };
+        let condVi = 'Bình thường, không ghi nhận khuyết tật';
+        let condEn = 'Normal, no defects recorded';
+        if (maxW > 0) {
+          condVi = `Xuất hiện vết nứt (wmax = ${maxW} mm)`;
+          condEn = `Cracking observed (wmax = ${maxW} mm)`;
+        } else if (defects.length > 0) {
+          condVi = `Ghi nhận ${defects.length} khuyết tật bề mặt`;
+          condEn = `${defects.length} surface defects recorded`;
         }
 
-        if (defects.length > 0) {
-          zoneSummaries.push({
-            zoneCode: eCode,
-            floorName: { vi: flNameVi, en: flNameEn },
-            location: { vi: `Cấu kiện ${eCode} (${locVi})`, en: `Member ${eCode} (${locEn})` },
-            wallMaterial: { vi: matVi, en: matVi },
-            wmaxMm: maxW > 0 ? maxW : '–',
-            crackCount: elemCrackCount,
-            burlandGrade: elemGrade,
-          });
-        }
+        structuralElements.push({
+          elementCode: eCode,
+          floorName: { vi: flNameVi, en: flNameEn },
+          location: { vi: locVi, en: locEn },
+          elementType: elemTypeVi,
+          materialType: matVi,
+          defectCount: defects.length,
+          conditionVi: condVi,
+          conditionEn: condEn,
+        });
       }
     }
 
@@ -248,7 +241,7 @@ export class BurlandCalculator {
         crackWidthLimit: '≤ 0.1 mm',
         descriptionVi: 'Vết nứt chân chim tóc cực nhỏ, bình thường cho khối xây và lớp vữa.',
         descriptionEn: 'Hairline cracks, normal for masonry and plaster.',
-        isCurrentLevel: finalLocalMax === 0,
+        isCurrentLevel: (gradeCountMap[0] || 0) > 0,
       },
       {
         grade: 1,
@@ -256,7 +249,7 @@ export class BurlandCalculator {
         crackWidthLimit: '0.1 – 1.0 mm',
         descriptionVi: 'Vết nứt tinh xảo, dễ dàng xử lý bằng sơn lót hoặc bả mastic cục bộ.',
         descriptionEn: 'Fine cracks, easily treated during normal decoration.',
-        isCurrentLevel: finalLocalMax === 1,
+        isCurrentLevel: (gradeCountMap[1] || 0) > 0,
       },
       {
         grade: 2,
@@ -264,7 +257,7 @@ export class BurlandCalculator {
         crackWidthLimit: '1.0 – 5.0 mm',
         descriptionVi: 'Vết nứt dễ trát vá vữa, cửa sổ và cửa đi có thể hơi kẹt nhẹ.',
         descriptionEn: 'Cracks easily filled. Doors and windows may stick slightly.',
-        isCurrentLevel: finalLocalMax === 2,
+        isCurrentLevel: (gradeCountMap[2] || 0) > 0,
       },
       {
         grade: 3,
@@ -272,7 +265,7 @@ export class BurlandCalculator {
         crackWidthLimit: '5.0 – 15.0 mm',
         descriptionVi: 'Nứt cần thợ nề đục tẩy xử lý mạch vữa, khả năng chống thấm thời tiết bị suy giảm.',
         descriptionEn: 'Cracks require masonry opening and repointing, weather-tightness often impaired.',
-        isCurrentLevel: finalLocalMax === 3,
+        isCurrentLevel: (gradeCountMap[3] || 0) > 0,
       },
       {
         grade: 4,
@@ -280,7 +273,7 @@ export class BurlandCalculator {
         crackWidthLimit: '15.0 – 25.0 mm',
         descriptionVi: 'Hư hỏng trên diện rộng, tường xây bị lệch chuyển, dầm sàn võng nứt.',
         descriptionEn: 'Extensive damage, walls leaning or bowing, beams deflect noticeably.',
-        isCurrentLevel: finalLocalMax === 4,
+        isCurrentLevel: (gradeCountMap[4] || 0) > 0,
       },
       {
         grade: 5,
@@ -288,7 +281,7 @@ export class BurlandCalculator {
         crackWidthLimit: '> 25.0 mm',
         descriptionVi: 'Nguy cơ sụp đổ từng phần, yêu cầu chống đỡ khẩn cấp hoặc tái thiết cấu kiện.',
         descriptionEn: 'Structural danger, partial collapse risk requiring urgent propping or partial rebuilding.',
-        isCurrentLevel: finalLocalMax === 5,
+        isCurrentLevel: (gradeCountMap[5] || 0) > 0,
       },
     ];
 
@@ -300,11 +293,12 @@ export class BurlandCalculator {
     const govDesc = rawBs.governingZoneDescription || governingItem?.descVi || '';
 
     // Cờ kết cấu (E2) - Giá trị Có / Không chuẩn xác theo dữ liệu khảo sát
+    const hasStructuralIssue = structuralElements.some(e => e.defectCount > 0);
     const hasFlag = rawBs.hasStructuralFlag !== undefined
       ? Boolean(rawBs.hasStructuralFlag)
       : (rawBs.structuralFlagLevel && rawBs.structuralFlagLevel !== 'NONE' && rawBs.structuralFlagLevel !== 'None' && rawBs.structuralFlagLevel !== '0' && rawBs.structuralFlagLevel !== 'NO')
         ? true
-        : finalLocalMax >= 3;
+        : (finalLocalMax >= 3 || hasStructuralIssue);
 
     const structFlagVi = hasFlag ? 'Có' : 'Không';
     const structFlagEn = hasFlag ? 'Yes' : 'No';
@@ -316,7 +310,7 @@ export class BurlandCalculator {
     const repEn = isGlobal ? 'Global' : 'Local';
 
     // Thẩm tra kỹ sư
-    const needReview = Boolean(rawBs.needStructuralEngineerReview) || (rawBs.needStructuralReview !== undefined ? Boolean(rawBs.needStructuralReview) : finalLocalMax >= 3);
+    const needReview = Boolean(rawBs.needStructuralEngineerReview) || (rawBs.needStructuralReview !== undefined ? Boolean(rawBs.needStructuralReview) : (finalLocalMax >= 3 || hasStructuralIssue));
 
     return {
       burlandTable,
@@ -359,6 +353,7 @@ export class BurlandCalculator {
       },
       gradeCounts: distribution.map(d => ({ grade: d.grade, nameVi: d.nameVi, nameEn: d.nameEn, count: d.count })),
       zones: zoneSummaries,
+      structuralElements,
       structuralDefectFlag: { vi: structFlagVi, en: structFlagEn },
       structuralEngineerReview: {
         vi: needReview ? 'Có' : 'Không',

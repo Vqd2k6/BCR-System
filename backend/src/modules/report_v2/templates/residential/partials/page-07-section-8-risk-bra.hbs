@@ -19,10 +19,9 @@
       <thead>
         <tr>
           <th style="width: 8%; text-align: center;">Mã</th>
-          <th style="width: 36%;">Tiêu chí đánh giá / Criteria</th>
+          <th style="width: 40%;">Tiêu chí đánh giá / Criteria</th>
           <th style="width: 38%;">Căn cứ tính điểm hiện trường / Basis</th>
-          <th style="width: 8%; text-align: center;">Thang</th>
-          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+          <th style="width: 14%; text-align: center;">Điểm / Score<br><span class="text-muted">(Thang 0-4)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -31,7 +30,6 @@
             <td class="font-bold text-center">{{this.code}}</td>
             <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
             <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
-            <td class="text-center text-muted">{{this.scale}}</td>
             <td class="text-center font-bold">{{this.score}}</td>
           </tr>
         {{/each}}
@@ -56,7 +54,7 @@
         </tr>
         <tr>
           <td>
-            <span class="summary-label">Quy đổi đề xuất:</span> 0–5 Good | 6–10 Medium | 11–16 Deficient | 17–24 Critical
+            <span class="summary-label">Quy đổi đề xuất:</span> 0-5 Good | 6-10 Medium | 11-16 Deficient | 17-24 Critical
           </td>
           <td>
             <span class="summary-label">Structural flag:</span>
@@ -108,10 +106,9 @@
       <thead>
         <tr>
           <th style="width: 8%; text-align: center;">Mã</th>
-          <th style="width: 36%;">Yếu tố đánh giá / Vulnerability Factor</th>
+          <th style="width: 40%;">Yếu tố đánh giá / Vulnerability Factor</th>
           <th style="width: 38%;">Thông số công trình / Building Parameter</th>
-          <th style="width: 8%; text-align: center;">Thang</th>
-          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+          <th style="width: 14%; text-align: center;">Điểm / Score<br><span class="text-muted">(Thang 1-4)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -120,7 +117,6 @@
             <td class="font-bold text-center">{{this.code}}</td>
             <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
             <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
-            <td class="text-center text-muted">{{this.scale}}</td>
             <td class="text-center font-bold">{{this.scoreDisplay}}</td>
           </tr>
         {{/each}}
@@ -148,7 +144,7 @@
             </span>
           </td>
           <td>
-            <span class="summary-label">Phân loại đề xuất:</span> Low ≤ 1.5 | Medium > 1.5–2.5 | High > 2.5–3.25 | Very High > 3.25
+            <span class="summary-label">Phân loại đề xuất:</span> Low ≤ 1.5 | Medium > 1.5-2.5 | High > 2.5-3.25 | Very High > 3.25
           </td>
         </tr>
         <tr>

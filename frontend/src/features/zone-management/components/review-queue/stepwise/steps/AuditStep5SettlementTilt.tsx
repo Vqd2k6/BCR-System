@@ -18,7 +18,7 @@ import {
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES as PHASE1_DATA_SOURCES } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
-import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
+import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload, PhotoOrientationViolation } from '../types';
 
 interface Props {
   isEditMode: boolean;
@@ -33,6 +33,7 @@ interface Props {
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export const isDataSourceMatched = (selectedSources: string[], target: string): boolean => {
@@ -64,6 +65,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   onUndoPhotoAction,
   stagedPhotoRotations = {},
   onRotatePhoto,
+  violationsMap,
 }) => {
   const st: StepwiseSettlementTilt = formState.settlementTilt || {};
   const tilt = st.buildingTilt || {};
@@ -261,6 +263,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       url: p.url,
                     });
                     const rot = stagedPhotoRotations[p.photoCode || `SETTLE_${pIdx + 1}`] ?? stagedPhotoRotations['diffSettlement'] ?? 0;
+                    const orientStatus = violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`) || violationsMap?.get('diffSettlement');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -275,6 +278,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         aspectRatio="aspect-video"
                         badgeColor="amber"
                         rotation={rot}
+                        isOrientationMismatch={Boolean(orientStatus)}
+                        isStrictOrientation={orientStatus?.isStrict ?? false}
                         expectedOrientation="LANDSCAPE"
                         onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'diffSettlement', newRot)}
                         domId={`audit-photo-card-${p.photoCode || 'diff-settlement'}`}
@@ -455,6 +460,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       url: p.url,
                     });
                     const rot = stagedPhotoRotations[p.photoCode || `TILT_${pIdx + 1}`] ?? stagedPhotoRotations['buildingTilt'] ?? 0;
+                    const orientStatus = violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`) || violationsMap?.get('buildingTilt');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -469,6 +475,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         aspectRatio="aspect-video"
                         badgeColor="amber"
                         rotation={rot}
+                        isOrientationMismatch={Boolean(orientStatus)}
+                        isStrictOrientation={orientStatus?.isStrict ?? true}
                         expectedOrientation="PORTRAIT"
                         onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'buildingTilt', newRot)}
                         domId="audit-photo-card-building-tilt"
@@ -639,6 +647,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       url: p.url,
                     });
                     const rot = stagedPhotoRotations[p.photoCode || `SAG_${pIdx + 1}`] ?? stagedPhotoRotations['beamSagging'] ?? 0;
+                    const orientStatus = violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`) || violationsMap?.get('beamSagging');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -653,6 +662,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         aspectRatio="aspect-video"
                         badgeColor="amber"
                         rotation={rot}
+                        isOrientationMismatch={Boolean(orientStatus)}
+                        isStrictOrientation={orientStatus?.isStrict ?? true}
                         expectedOrientation="LANDSCAPE"
                         onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'beamSagging', newRot)}
                         domId="audit-photo-card-beam-sagging"

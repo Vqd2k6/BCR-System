@@ -11,6 +11,7 @@ import { ReportImageResolver } from '../../services/report-image-resolver.servic
 import { LOGO_THACO_REC_BASE64 } from '../../assets/report-logos';
 import { isPhotoAlreadyWatermarked } from '../floor-defect.mapper';
 import { formatDateVi, extractPhotoDateTime } from '../formatters.mapper';
+import { extractParcelPolygonCoords, generateMetroSpatialVisualSvg } from '../../utils/metro-spatial.utils';
 
 export interface MetadataMappingResult {
   metadata: ReportV2Metadata;
@@ -101,6 +102,12 @@ export class MetadataMapper {
     const coverPhotoBase64 = coverPhotoUrl ? ReportImageResolver.resolveToBase64(coverPhotoUrl) : undefined;
     const coverWatermarkDateTime = extractPhotoDateTime(coverPhotoUrl, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate);
 
+    // Điểm 8: Sơ đồ vị trí không gian thửa đất và tuyến Metro 2
+    const polygonCoords = extractParcelPolygonCoords(rawReport, json);
+    const spatialVisualMapBase64 = polygonCoords
+      ? generateMetroSpatialVisualSvg(polygonCoords, buildingId || rawParcelCode)
+      : undefined;
+
     // Metadata
     const metadata: ReportV2Metadata = {
       buildingId,
@@ -117,6 +124,7 @@ export class MetadataMapper {
       coverPhotoUrl,
       coverPhotoBase64,
       coverAlreadyWatermarked: isPhotoAlreadyWatermarked(coverPhotoUrl),
+      spatialVisualMapBase64,
       headerLogoBase64: LOGO_THACO_REC_BASE64,
       surveyDateFormatted,
       watermarkDateTime,

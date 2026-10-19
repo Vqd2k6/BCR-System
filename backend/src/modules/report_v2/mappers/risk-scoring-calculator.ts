@@ -104,14 +104,14 @@ export class RiskScoringCalculator {
         code: 'E1',
         title: { vi: 'Hư hỏng nhìn thấy tường / khối xây', en: 'Visible damage to walls / masonry' },
         basis: { vi: `Burland cục bộ lớn nhất: Cấp ${e1BurlandGrade}`, en: `Local max Burland grade: Grade ${e1BurlandGrade}` },
-        scale: '0–4',
+        scale: '0-4',
         score: e1,
       },
       {
         code: 'E2',
         title: { vi: 'Khuyết tật kết cấu cột/dầm/sàn/tường', en: 'Structural defects in columns/beams/slabs' },
         basis: { vi: `Cờ kết cấu chịu lực: ${flagLevel}`, en: `Structural flag level: ${flagLevel}` },
-        scale: '0–4',
+        scale: '0-4',
         score: e2,
       },
       {
@@ -121,7 +121,7 @@ export class RiskScoringCalculator {
           vi: e3 === 0 ? 'Mức 0/4đ theo đánh giá hiện trường (không ghi nhận biến dạng)' : `Phát hiện biến dạng hiện trường (Mức ${e3}/4đ)`,
           en: e3 === 0 ? 'Level 0/4 per field assessment (no deformation recorded)' : `Deformation detected on-site (Level ${e3}/4)`,
         },
-        scale: '0–4',
+        scale: '0-4',
         score: e3,
       },
       {
@@ -131,7 +131,7 @@ export class RiskScoringCalculator {
           vi: e4 === 0 ? 'Mức 0/4đ theo đánh giá đã xác nhận (không ghi nhận suy giảm vật liệu)' : `Ghi nhận suy giảm vật liệu (Mức ${e4}/4đ)`,
           en: e4 === 0 ? 'Level 0/4 per confirmed assessment (no material degradation recorded)' : `Material degradation observed (Level ${e4}/4)`,
         },
-        scale: '0–4',
+        scale: '0-4',
         score: e4,
       },
       {
@@ -141,7 +141,7 @@ export class RiskScoringCalculator {
           vi: e5 === 0 ? 'Mức 0/4đ theo lịch sử đã ghi nhận (không có sự cố được khai báo)' : `Tiền sử sửa chữa/sự cố ghi nhận (Mức ${e5}/4đ)`,
           en: e5 === 0 ? 'Level 0/4 per recorded history (no incident reported)' : `Reported past repairs/incidents (Level ${e5}/4)`,
         },
-        scale: '0–4',
+        scale: '0-4',
         score: e5,
       },
       {
@@ -151,7 +151,7 @@ export class RiskScoringCalculator {
           vi: e6 === 0 ? 'Mức 0/4đ theo đánh giá đã xác nhận (không ghi nhận ảnh hưởng công năng)' : `Ảnh hưởng công năng vận hành (Mức ${e6}/4đ)`,
           en: e6 === 0 ? 'Level 0/4 per confirmed assessment (no functional impact recorded)' : `Functional serviceability impact (Level ${e6}/4)`,
         },
-        scale: '0–4',
+        scale: '0-4',
         score: e6,
       },
     ];
@@ -252,14 +252,14 @@ export class RiskScoringCalculator {
         code: 'V1',
         title: { vi: 'Công năng & Quy mô', en: 'Building importance & use' },
         basis: { vi: `Nhóm ${objGroup} (Hệ số quy mô: ${v1}đ)`, en: `${objGroup} group (Factor: ${v1} pts)` },
-        scale: '0–4',
+        scale: '0-4',
         score: v1,
       },
       {
         code: 'V2',
         title: { vi: 'Hệ kết cấu chịu lực', en: 'Structural system' },
         basis: { vi: structSys ? `Kết cấu: ${structSys}` : 'Chưa xác định hệ kết cấu', en: structSys ? `System: ${structSys}` : 'Unverified structural system' },
-        scale: '1–4',
+        scale: '1-4',
         score: v2,
       },
       {
@@ -268,28 +268,28 @@ export class RiskScoringCalculator {
         basis: catScore === null
           ? { vi: 'Chưa xác định CAT móng', en: 'Foundation CAT not determined' }
           : { vi: `Căn cứ móng CAT ${catScore}`, en: `Foundation certainty CAT ${catScore}` },
-        scale: '1–4',
+        scale: '1-4',
         score: v3,
       },
       {
         code: 'V4',
         title: { vi: 'Tuổi đời & Cơi nới', en: 'Building age & extension' },
         basis: { vi: v4BasisVi, en: v4BasisEn },
-        scale: '1–4',
+        scale: '1-4',
         score: v4,
       },
       {
         code: 'V5',
         title: { vi: 'Hiện trạng kỹ thuật ECS', en: 'Existing condition ECS' },
         basis: { vi: `ECS = ${totalEcs} (${ecsClassVi}) → ${v5}đ`, en: `ECS = ${totalEcs} (${ecsClassEn}) → ${v5} pts` },
-        scale: '1–4',
+        scale: '1-4',
         score: v5,
       },
       {
         code: 'V6',
         title: { vi: 'Thiết bị nhạy cảm & Vận hành', en: 'Vibration sensitivity & occupancy' },
         basis: { vi: v6 === 1 ? 'Không có thiết bị nhạy cảm rung' : 'Có thiết bị nhạy cảm / vận hành đặc biệt', en: v6 === 1 ? 'No vibration-sensitive equipment' : 'Sensitive equipment recorded' },
-        scale: '1–4',
+        scale: '1-4',
         score: v6,
       },
     ];
@@ -374,7 +374,7 @@ export class RiskScoringCalculator {
 
     const braRows: BraMatrixRow[] = vKeys.map((vk) => {
       const vLabelVi = vk === 'V1' ? 'V1 (Thấp / Low)' : vk === 'V2' ? 'V2 (Trung bình / Medium)' : vk === 'V3' ? 'V3 (Cao / High)' : 'V4 (Rất cao / Very High)';
-      const vLabelEn = vk === 'V1' ? 'V1 (Low ≤ 1.50)' : vk === 'V2' ? 'V2 (Medium 1.51–2.50)' : vk === 'V3' ? 'V3 (High 2.51–3.25)' : 'V4 (Very High > 3.25)';
+      const vLabelEn = vk === 'V1' ? 'V1 (Low ≤ 1.50)' : vk === 'V2' ? 'V2 (Medium 1.51-2.50)' : vk === 'V3' ? 'V3 (High 2.51-3.25)' : 'V4 (Very High > 3.25)';
 
       const cells: BraMatrixCell[] = iKeys.map((ik) => {
         const item = rawLookup[vk][ik];

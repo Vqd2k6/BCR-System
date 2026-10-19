@@ -167,8 +167,15 @@ export const RESIDENTIAL_PHOTO_RULES: Record<string, OrientationRuleDefinition> 
   D_CU: {
     expected: 'LANDSCAPE',
     label: 'Ảnh cận cảnh vết nứt & thước đo (D_CU)',
-    feHint: 'Khuyến nghị: Xoay ngang điện thoại (4:3) để chụp rõ toàn bộ vết nứt cùng thước đo tỷ lệ',
-    isStrict: false,
+    feHint: 'Quy chuẩn bắt buộc: Chụp ảnh NGANG (4:3) để vạch chia thước đo nứt hiển thị rõ ràng trên Báo cáo A4',
+    isStrict: true,
+    aspectRatioHint: '4:3',
+  },
+  CAD_SKETCH: {
+    expected: 'LANDSCAPE',
+    label: 'Bản vẽ CAD mặt bằng tầng',
+    feHint: 'Quy chuẩn: Bản vẽ kỹ thuật luôn nằm NGANG (4:3 / 16:10) để đọc chữ số và mã phòng',
+    isStrict: true,
     aspectRatioHint: '4:3',
   },
 

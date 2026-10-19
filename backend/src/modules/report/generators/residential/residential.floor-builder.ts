@@ -78,6 +78,8 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
               .filter((p: string) => p && typeof p === 'string' && !p.startsWith('blob:')),
             cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : []),
             notes: d.notes || '',
+            cuPhotoRotation: json.photoRotations?.[`defect_${d.id || d.defectCode}_cu`] ?? json.photoRotations?.[d.defectCode] ?? json.photoRotations?.[d.cuPhotoCode] ?? 0,
+            ctxPhotoRotation: json.photoRotations?.[`defect_${d.id || d.defectCode}_ctx`] ?? json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ?? json.photoRotations?.[z.zoneCode] ?? 0,
           };
         });
 
@@ -94,6 +96,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           burlandLabel: burlandLabels[Number(z.burlandGrade || 0)] || 'Grade 0',
           notes: z.notes || '',
           ctxPhotoUrl: (z.ctxPhotoUrl && typeof z.ctxPhotoUrl === 'string' && !z.ctxPhotoUrl.startsWith('blob:')) ? z.ctxPhotoUrl : '',
+          ctxPhotoRotation: json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ?? json.photoRotations?.[z.zoneCode] ?? 0,
           overviewPhotos: uniqueZonePhotos,
           hasDamage: Boolean(z.hasDamage || zDefects.length > 0),
           defects: zDefects,
@@ -113,6 +116,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           hasDamage: Boolean(el.hasDamage),
           notes: el.notes || '',
           ctxPhotoUrl: (el.ctxPhotoUrl && typeof el.ctxPhotoUrl === 'string' && !el.ctxPhotoUrl.startsWith('blob:')) ? el.ctxPhotoUrl : '',
+          ctxPhotoRotation: json.photoRotations?.[`element_${el.id || el.elementCode}_ctx`] ?? json.photoRotations?.[el.elementCode] ?? 0,
           overviewPhotos: uniqueElPhotos,
         };
       });
@@ -144,6 +148,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
         notes: f.notes || '',
         cadSketchPhotoUrl: f.cadSketchPhotoUrl || '',
         cadStructuralSketchPhotoUrl: f.cadStructuralSketchPhotoUrl || '',
+        cadSketchRotation: json.photoRotations?.[`floor_${f.id || fIdx}_cad`] ?? json.photoRotations?.[`cad_${f.id || fIdx}`] ?? json.photoRotations?.[f.floorName] ?? 0,
         isDualPortrait,
         overviewPhotos,
         zones,

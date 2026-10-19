@@ -759,17 +759,49 @@ export class FloorDefectMapper {
         }
       }
 
-      // Phân cụm các cặp ảnh khuyết tật: 2 cặp / trang A4 để tối ưu bố cục in ấn và chống ngắt trang đơn lẻ
+      // Phân trang ảnh khuyết tật:
+      // - Khuyết tật có 3 ảnh (hasExtraCloseUp): chiếm trọn 1 trang A4 riêng biệt (weight = 2)
+      // - Cặp 2 ảnh thông thường (hasExtraCloseUp === false): 2 cặp / trang A4 (weight = 1)
       const defectPairPages: Array<{ pageIndex: number; totalPages: number; pairs: DefectPairPhotoItem[] }> = [];
-      const PAIRS_PER_PAGE = 2;
-      const totalDefectPages = Math.ceil(defectPairPhotos.length / PAIRS_PER_PAGE) || 1;
-      for (let i = 0; i < defectPairPhotos.length; i += PAIRS_PER_PAGE) {
+      let currentPagePairs: DefectPairPhotoItem[] = [];
+      let currentWeight = 0;
+
+      for (const item of defectPairPhotos) {
+        const itemWeight = item.hasExtraCloseUp ? 2 : 1;
+        if (currentWeight + itemWeight > 2 && currentPagePairs.length > 0) {
+          defectPairPages.push({
+            pageIndex: 0,
+            totalPages: 0,
+            pairs: currentPagePairs,
+          });
+          currentPagePairs = [];
+          currentWeight = 0;
+        }
+        currentPagePairs.push(item);
+        currentWeight += itemWeight;
+        if (currentWeight >= 2) {
+          defectPairPages.push({
+            pageIndex: 0,
+            totalPages: 0,
+            pairs: currentPagePairs,
+          });
+          currentPagePairs = [];
+          currentWeight = 0;
+        }
+      }
+      if (currentPagePairs.length > 0) {
         defectPairPages.push({
-          pageIndex: Math.floor(i / PAIRS_PER_PAGE) + 1,
-          totalPages: totalDefectPages,
-          pairs: defectPairPhotos.slice(i, i + PAIRS_PER_PAGE),
+          pageIndex: 0,
+          totalPages: 0,
+          pairs: currentPagePairs,
         });
       }
+
+      const totalDefectPages = defectPairPages.length || 1;
+      defectPairPages.forEach((page, idx) => {
+        page.pageIndex = idx + 1;
+        page.totalPages = totalDefectPages;
+      });
 
       results.push({
         floorOrder: floorIndex,

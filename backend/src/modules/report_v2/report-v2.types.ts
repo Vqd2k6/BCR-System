@@ -38,6 +38,7 @@ export interface ReportV2Metadata {
   coverPhotoBase64?: string;
   coverPhotoUrl?: string;
   coverAlreadyWatermarked?: boolean;
+  spatialVisualMapBase64?: string;
   headerLogoBase64?: string;
   surveyDateFormatted?: string;
   watermarkDateTime?: string;
@@ -286,6 +287,17 @@ export interface BurlandDistributionItem {
   isPredominant: boolean;
 }
 
+export interface BurlandStructuralElementItem {
+  elementCode: string;
+  floorName: BilingualText;
+  location: BilingualText;
+  elementType: string;
+  materialType: string;
+  defectCount: number;
+  conditionVi: string;
+  conditionEn: string;
+}
+
 export interface Section7BurlandClassification {
   burlandTable: BurlandTableRow[];
   distribution: BurlandDistributionItem[];
@@ -307,6 +319,7 @@ export interface Section7BurlandClassification {
     count: number;
   }>;
   zones?: BurlandZoneSummaryItem[];
+  structuralElements?: BurlandStructuralElementItem[];
   structuralDefectFlag?: BilingualText;
   structuralEngineerReview?: BilingualText;
 }
@@ -409,6 +422,13 @@ export interface Section9ConclusionRecommendation {
   overallRisk: BilingualText;
   witnessNarrative: BilingualText;
   limitations: BilingualText[];
+  accessAreas?: Array<{
+    area: BilingualText;
+    accessed: boolean;
+    notAccessed: boolean;
+    remark: BilingualText;
+  }>;
+  accessClassification?: BilingualText;
   recommendations: BilingualText[];
   phase1Notice: BilingualText;
   pendingFieldDesignItems: BilingualText[];

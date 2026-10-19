@@ -22,12 +22,15 @@ export class CadastralInfoMapper {
     segmentType?: string
   ): string {
     if (!rawCode || typeof rawCode !== 'string') {
-      return 'B-00000-C&C (ST0)';
+      return 'B-00000-C&C (ST00)';
     }
 
-    const trimmed = rawCode.trim();
+    let trimmed = rawCode.trim();
 
-    // Nếu đã có định dạng hoàn chỉnh B-XXXXX-SEG (STX) thì giữ nguyên
+    // Chuẩn hóa bất kỳ mã ga 1 chữ số nào (STX) thành 2 chữ số (ST0X)
+    trimmed = trimmed.replace(/\(ST(\d)\)/gi, (_, d) => `(ST0${d})`);
+
+    // Nếu đã có định dạng hoàn chỉnh B-XXXXX-SEG (STXX) thì giữ nguyên
     if (/^B-\d{4,5}-[A-Za-z&]+(\s*\([^)]+\))?$/i.test(trimmed)) {
       if (!trimmed.includes('(') && zoneId) {
         const stationCode = CadastralInfoMapper.resolveStationCode(zoneId);
@@ -53,34 +56,43 @@ export class CadastralInfoMapper {
       segment = 'C&C';
     }
 
-    // Tách Station Code từ zoneId (ZONE_01 -> ST1, ZONE_09 -> ST5/ST9)
+    // Tách Station Code từ zoneId (ZONE_01 -> ST01, ZONE_09 -> ST05)
     const stationCode = CadastralInfoMapper.resolveStationCode(zoneId || trimmed);
 
     return `B-${bNumber}-${segment} (${stationCode})`;
   }
 
   /**
-   * Ánh xạ Zone ID sang Station code kỹ thuật
+   * Ánh xạ Zone ID sang Station code kỹ thuật chuẩn 2 chữ số (ST01, ST05, ST10...)
    */
-  public static resolveStationCode(zoneIdOrString: string): string {
-    const upper = (zoneIdOrString || '').toUpperCase();
-    if (upper.includes('ZONE_01') || upper.includes('ZONE-01') || upper.includes('S1.01')) return 'ST1';
-    if (upper.includes('ZONE_02') || upper.includes('ZONE-02')) return 'ST2';
-    if (upper.includes('ZONE_03') || upper.includes('ZONE-03')) return 'ST3';
-    if (upper.includes('ZONE_04') || upper.includes('ZONE-04')) return 'ST4';
-    if (upper.includes('ZONE_05') || upper.includes('ZONE-05')) return 'ST5';
-    if (upper.includes('ZONE_06') || upper.includes('ZONE-06')) return 'ST6';
-    if (upper.includes('ZONE_07') || upper.includes('ZONE-07')) return 'ST7';
-    if (upper.includes('ZONE_08') || upper.includes('ZONE-08')) return 'ST8';
-    if (upper.includes('ZONE_09') || upper.includes('ZONE-09')) return 'ST5'; // Thường gắn phân đoạn ga S1.05
-    if (upper.includes('ZONE_10') || upper.includes('ZONE-10')) return 'ST10';
+  public static resolveStationCode(zoneIdOrString: string | number): string {
+    const upper = String(zoneIdOrString || '').trim().toUpperCase();
+    if (/^\d+$/.test(upper)) {
+      const num = parseInt(upper, 10);
+      if (num >= 1 && num <= 20) return `ST${String(num).padStart(2, '0')}`;
+    }
+    if (upper.includes('ZONE_01') || upper.includes('ZONE-01') || upper.includes('S1.01') || upper.includes('(ST1)') || upper.includes('(ST01)')) return 'ST01';
+    if (upper.includes('ZONE_02') || upper.includes('ZONE-02') || upper.includes('(ST2)') || upper.includes('(ST02)')) return 'ST02';
+    if (upper.includes('ZONE_03') || upper.includes('ZONE-03') || upper.includes('(ST3)') || upper.includes('(ST03)')) return 'ST03';
+    if (upper.includes('ZONE_04') || upper.includes('ZONE-04') || upper.includes('(ST4)') || upper.includes('(ST04)')) return 'ST04';
+    if (upper.includes('ZONE_05') || upper.includes('ZONE-05') || upper.includes('(ST5)') || upper.includes('(ST05)')) return 'ST05';
+    if (upper.includes('ZONE_06') || upper.includes('ZONE-06') || upper.includes('(ST6)') || upper.includes('(ST06)')) return 'ST06';
+    if (upper.includes('ZONE_07') || upper.includes('ZONE-07') || upper.includes('(ST7)') || upper.includes('(ST07)')) return 'ST07';
+    if (upper.includes('ZONE_08') || upper.includes('ZONE-08') || upper.includes('(ST8)') || upper.includes('(ST08)')) return 'ST08';
+    if (upper.includes('ZONE_09') || upper.includes('ZONE-09')) return 'ST05'; // Thường gắn phân đoạn ga S1.05
+    if (upper.includes('ZONE_10') || upper.includes('ZONE-10') || upper.includes('(ST10)')) return 'ST10';
+
+    const matchSt = upper.match(/ST_?(\d+)/);
+    if (matchSt) {
+      return `ST${String(parseInt(matchSt[1], 10)).padStart(2, '0')}`;
+    }
 
     const matchNum = upper.match(/ZONE_?(\d+)/);
     if (matchNum) {
-      return `ST${parseInt(matchNum[1], 10)}`;
+      return `ST${String(parseInt(matchNum[1], 10)).padStart(2, '0')}`;
     }
 
-    return 'ST1';
+    return 'ST01';
   }
 
   /**

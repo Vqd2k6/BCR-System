@@ -38,6 +38,10 @@ export interface AuditPhotoCardProps {
   historyCount?: number;
   hasHistory?: boolean;
   rotation?: number;
+  isAutoRotated?: boolean;
+  isOrientationMismatch?: boolean;
+  isStrictOrientation?: boolean;
+  orientationRecommendation?: string;
   expectedOrientation?: 'PORTRAIT' | 'LANDSCAPE' | 'ANY';
   onRotate?: (newRotation: number) => void;
   domId?: string;
@@ -71,6 +75,10 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   historyCount,
   hasHistory,
   rotation = 0,
+  isAutoRotated = false,
+  isOrientationMismatch = false,
+  isStrictOrientation = false,
+  orientationRecommendation,
   expectedOrientation,
   onRotate,
   domId,
@@ -268,15 +276,18 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     );
   }
 
-  // Border & Glow styling theo trạng thái Optimistic
-  const statusBorderClass =
-    optimisticStatus === 'DELETED'
-      ? 'border-2 border-rose-500 opacity-60'
-      : optimisticStatus === 'REPLACED'
-      ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
-      : optimisticStatus === 'ADDED'
-      ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
-      : 'border border-slate-200';
+  // Border & Glow styling theo trạng thái Optimistic hoặc Orientation Mismatch (Line vàng hổ phách)
+  const statusBorderClass = optimisticStatus === 'DELETED'
+    ? 'border-2 border-rose-500 opacity-60'
+    : optimisticStatus === 'REPLACED'
+    ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+    : optimisticStatus === 'ADDED'
+    ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
+    : isOrientationMismatch || isAutoRotated
+    ? isStrictOrientation
+      ? 'border-2 border-amber-500 ring-4 ring-amber-500/30 shadow-md shadow-amber-500/10' // Bắt buộc: Line vàng hổ phách đậm
+      : 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'                      // Khuyến nghị: Line vàng hổ phách nhẹ
+    : 'border border-slate-200';
 
   // Trường hợp Có Ảnh
   const finalDomId = domId || (photoCode ? `audit-photo-card-${photoCode}` : undefined);
@@ -302,7 +313,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
 
       {/* Top Bar: Mã ảnh bên trái & Cụm Icon tinh gọn bên phải */}
       <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 z-10">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {photoCode && (
             <span
               className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] shadow-sm tracking-wide ${badgeColorClasses}`}
@@ -324,6 +335,22 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               title={`Ảnh đã xoay ${rotation}°`}
             >
               {rotation}°
+            </span>
+          )}
+          {(isOrientationMismatch || isAutoRotated) && (
+            <span
+              className={`px-1.5 py-0.5 rounded font-bold text-[9px] shadow-xs flex items-center gap-1 border ${
+                isStrictOrientation
+                  ? 'bg-amber-500 text-slate-950 border-amber-600'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+              title={
+                isStrictOrientation
+                  ? `Quy chuẩn A4 bắt buộc: Ảnh cần xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}. Hãy bấm nút xoay để chỉnh.`
+                  : `Khuyến nghị thẩm mỹ: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'} để báo cáo A4 đẹp mắt hơn.`
+              }
+            >
+              <span>{isStrictOrientation ? '⚠️ Cần xoay A4' : '💡 Khuyến nghị xoay'}</span>
             </span>
           )}
           {extraBadges}

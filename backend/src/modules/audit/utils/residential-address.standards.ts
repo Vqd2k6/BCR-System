@@ -466,3 +466,34 @@ export function evaluateAddressStandard(
     diffCount,
   };
 }
+
+/**
+ * Định dạng chuỗi địa chỉ chuẩn hóa theo mô hình 168 ĐVHC cấp xã TP.HCM
+ * (113 phường, 54 xã, 01 đặc khu - Không còn cấp quận/huyện)
+ * Quy chuẩn: Số [Số nhà] [Tên đường], [Phường/Xã mới], TP. Hồ Chí Minh
+ */
+export function formatStandardizedAddress168(
+  houseNumber?: string | null,
+  street?: string | null,
+  ward?: string | null,
+  _district?: string | null
+): string {
+  const parts: string[] = [];
+  const hn = (houseNumber || '').trim();
+  const st = (street || '').trim();
+  const wd = (ward || '').trim();
+
+  let firstPart = '';
+  if (hn && st) {
+    firstPart = hn.toLowerCase().startsWith('số') ? `${hn} ${st}` : `Số ${hn} ${st}`;
+  } else if (hn) {
+    firstPart = hn.toLowerCase().startsWith('số') ? hn : `Số ${hn}`;
+  } else if (st) {
+    firstPart = st;
+  }
+  if (firstPart) parts.push(firstPart);
+  if (wd) parts.push(wd);
+  parts.push('TP. Hồ Chí Minh');
+
+  return parts.join(', ');
+}

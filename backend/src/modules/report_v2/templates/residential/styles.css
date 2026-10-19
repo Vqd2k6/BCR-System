@@ -259,34 +259,63 @@ body {
   margin: 3pt 0 6pt 0;
 }
 
-/* Khung ảnh mặt tiền bìa */
+/* Khung ảnh mặt tiền và Sơ đồ vị trí Metro bìa (2 cột cân đối) */
 .cover-facade-section {
   width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 6pt auto 8pt auto;
-  text-align: center;
+  margin: 4pt auto 6pt auto;
 }
 
-.cover-facade-wrapper {
+.cover-facade-grid {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 8pt;
+  width: 100%;
+}
+
+.cover-grid-cell {
+  flex: 1 1 50%;
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cover-facade-grid.cover-single-col .cover-grid-cell {
+  flex: 0 1 auto;
+  max-width: 75%;
+}
+
+.cover-facade-wrapper,
+.cover-spatial-wrapper {
   position: relative;
-  display: inline-block;
-  margin: 0 auto;
+  width: 100%;
+  height: 215px;
   line-height: 0;
   border: var(--border-line);
   overflow: hidden;
   background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.cover-facade-photo {
-  max-width: 360px;
-  max-height: 250px;
-  width: auto;
-  height: auto;
+.cover-facade-photo,
+.cover-spatial-img {
+  width: 100%;
+  height: 100%;
   object-fit: contain !important;
   display: block;
-  margin: 0 auto;
+}
+
+.cover-sub-caption {
+  font-size: var(--fs-f1);
+  font-weight: bold;
+  color: #000000;
+  margin-top: 3pt;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
 }
 
 .cover-address-section {
@@ -859,16 +888,22 @@ img.watermark-logo-top-right,
   align-items: center;
   z-index: 15;
   pointer-events: none;
+  line-height: normal !important;
 }
 
 .photo-defect-pin-badge {
-  font-size: 9pt;
+  font-size: 8.5pt;
   font-weight: 800;
-  padding: 1px 4px;
-  background-color: #000000;
-  color: #ffffff;
-  border: 1px solid #ffffff;
+  line-height: 1.25 !important;
+  display: inline-block !important;
+  padding: 2px 5px !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #ffffff !important;
+  border-radius: 2px;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
 }
 
 .photo-defect-pin-pointer {
@@ -1004,15 +1039,56 @@ table.tech-table.compact-table th {
   object-fit: contain !important;
 }
 
-/* Cặp / bộ ba ảnh khuyết tật ở Phụ lục 1 */
-.defect-pair-container,
-.defect-trio-container {
+/* Cặp ảnh 2 ảnh & Cụm 3 ảnh xếp tầng (Stacked Trio) ở Phụ lục 1 */
+.defect-pair-container {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6pt;
   break-inside: avoid;
 }
-.defect-pair-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.defect-trio-container { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.defect-trio-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6pt;
+  break-inside: avoid;
+  width: 100%;
+}
+
+.defect-trio-top-ctx {
+  width: 100%;
+}
+
+.defect-trio-top-ctx .defect-photo-wrapper {
+  height: 90mm !important;
+  min-height: 90mm !important;
+  max-height: 90mm !important;
+}
+
+.defect-trio-top-ctx .defect-photo-wrapper img.photo-main,
+.defect-trio-top-ctx .defect-photo-wrapper img.defect-pair-img {
+  max-height: 88mm !important;
+  max-width: 100% !important;
+}
+
+.defect-trio-bottom-pairs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6pt;
+  width: 100%;
+}
+
+.defect-trio-bottom-pairs .defect-photo-wrapper {
+  height: 95mm !important;
+  min-height: 95mm !important;
+  max-height: 95mm !important;
+}
+
+.defect-trio-bottom-pairs .defect-photo-wrapper img.photo-main,
+.defect-trio-bottom-pairs .defect-photo-wrapper img.defect-pair-img {
+  max-height: 93mm !important;
+  max-width: 100% !important;
+}
 
 .defect-photo-wrapper {
   position: relative;
@@ -1027,11 +1103,7 @@ table.tech-table.compact-table th {
   background: var(--c-white);
   border-bottom: var(--border-line);
 }
-.defect-trio-container .defect-photo-wrapper {
-  height: 58mm !important;
-  min-height: 58mm !important;
-  max-height: 58mm !important;
-}
+
 .defect-photo-wrapper img.photo-main,
 .defect-photo-wrapper img.defect-pair-img {
   max-width: 100% !important;
@@ -1039,10 +1111,6 @@ table.tech-table.compact-table th {
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;
-}
-.defect-trio-container .defect-photo-wrapper img.photo-main,
-.defect-trio-container .defect-photo-wrapper img.defect-pair-img {
-  max-height: 56mm !important;
 }
 
 /* Biên bản ký scan: hiển thị TRỌN VẸN, không cắt (khung ảnh dùng chung từng có max-height 250px + overflow hidden) */

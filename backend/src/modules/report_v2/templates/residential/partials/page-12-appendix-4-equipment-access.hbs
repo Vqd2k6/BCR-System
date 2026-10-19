@@ -9,9 +9,9 @@
   </div>
 
 
-    <h2 class="chapter-header" data-section="pl-3">PHỤ LỤC 3: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN</h2>
+    <h2 class="chapter-header" data-section="pl-3">PHỤ LỤC 3: THIẾT BỊ KHẢO SÁT CHUYÊN DỤNG</h2>
     <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
-      APPENDIX 3: EQUIPMENT AND ACCESS
+      APPENDIX 3: DEDICATED SURVEY EQUIPMENT &amp; CALIBRATION
     </div>
 
     <!-- BẢNG 1: THIẾT BỊ KHẢO SÁT CHUYÊN DỤNG -->
@@ -54,56 +54,20 @@
       </tbody>
     </table>
 
-    <!-- BẢNG 2: PHẠM VI TIẾP CẬN CÔNG TRÌNH -->
-    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 2px 0; color: var(--c-black);">
-      2. Phạm vi tiếp cận khảo sát các khu vực - Building Survey Access Scope
-    </div>
-    <table class="tech-table compact-table" style="margin-bottom: 6px;">
-      <thead>
-        <tr>
-          <th style="width: 28%;">Khu vực công trình / Building Area</th>
-          <th style="width: 18%; text-align: center;">Tiếp cận / Accessed</th>
-          <th style="width: 54%;">Ghi chú hiện trạng / Field Remarks</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each appendix4.accessAreas}}
-          <tr>
-            <td class="font-bold">
-              {{this.area.vi}}<br>
-              <span class="text-muted">{{this.area.en}}</span>
-            </td>
-            <td class="text-center font-bold">
-              {{#if this.accessed}}
-                <span>☑ Có / Yes</span>
-              {{else if this.notAccessed}}
-                <span>☒ Không / No</span>
-              {{else}}
-                <span>– N/A</span>
-              {{/if}}
-            </td>
-            <td>
-              {{this.remark.vi}}<br>
-              <span class="text-muted">{{this.remark.en}}</span>
-            </td>
-          </tr>
-        {{/each}}
-      </tbody>
-    </table>
-
-    <!-- KHUNG ĐÁNH GIÁ & HIỆU CHUẨN -->
-    <div style="background-color: transparent; border: 1pt solid #000000; padding: 6px 10px; margin-top: 6px; font-size: var(--fs-c1); line-height: 1.35;">
-      <div style="margin-bottom: 3px;">
-        <strong>Phân loại tiếp cận (Access classification):</strong>
-        <span style="font-weight: bold; margin-left: 4px;">{{appendix4.accessClassification.vi}}</span>
-        <span class="text-muted" style="margin-left: 4px;">({{appendix4.accessClassification.en}})</span>
+    <!-- KHUNG GHI CHÚ HIỆU CHUẨN THIẾT BỊ -->
+    <div style="background-color: transparent; border: 1pt solid #000000; padding: 6px 10px; margin-top: 10px; font-size: var(--fs-c1); line-height: 1.4;">
+      <div style="font-weight: bold; margin-bottom: 3px; text-transform: uppercase;">
+        Ghi chú kiểm định hiệu chuẩn thiết bị (Equipment Calibration &amp; Verification)
       </div>
-      {{#if appendix4.calibrationNotes.vi}}
       <div>
-        <strong>Hiệu chuẩn thiết bị (Calibration notes):</strong>
-        <span style="margin-left: 4px;">{{appendix4.calibrationNotes.vi}}</span>
+        {{#if appendix4.calibrationNotes.vi}}
+          <span>{{appendix4.calibrationNotes.vi}}</span>
+          <br><span class="text-muted">{{appendix4.calibrationNotes.en}}</span>
+        {{else}}
+          <span>Toàn bộ thiết bị đo đạc chuyên dụng phục vụ công tác khảo sát hiện trạng công trình đều tuân thủ quy chuẩn kiểm định, hiệu chuẩn định kỳ còn hiệu lực theo quy định đo lường của Nhà nước và quy trình kỹ thuật của Dự án Tuyến Metro số 2 TP. Hồ Chí Minh.</span>
+          <br><span class="text-muted">All dedicated survey and measurement equipment comply with valid periodic calibration and verification standards under national metrology regulations and Technical Specifications of HCMC Metro Line 2 Project.</span>
+        {{/if}}
       </div>
-      {{/if}}
     </div>
 
     <div class="page-number-footer">{{#if tocPageNumbers.appendix3}}{{tocPageNumbers.appendix3}}{{else}}{{tocPageNumbers.appendix4}}{{/if}}</div>

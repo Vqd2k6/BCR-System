@@ -13,6 +13,10 @@ import {
   ReportV2Metadata,
 } from '../../report-v2.types';
 import { calculateMetroDistances } from '../../utils/metro-spatial.utils';
+import {
+  evaluateAddressStandard,
+  formatStandardizedAddress168,
+} from '../../../audit/utils/residential-address.standards';
 
 export interface Section1And2Result {
   section1: Section1GeneralInfo;
@@ -43,13 +47,17 @@ export class Section1And2Mapper {
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
 
     // Tên công trình song ngữ chuẩn hóa
+    const bldgType = (rawReport.building_type || json.buildingType || specs.buildingType || '').toUpperCase();
     const rawBldgName = isVacantLand
       ? 'Khu đất trống'
-      : (json.buildingName || rawReport.building_name || 'Nhà ở gia đình');
+      : (rawReport.building_name || json.buildingName || specs.buildingNameVi || (bldgType === 'WAREHOUSE' ? 'Kho hàng' : 'Nhà ở gia đình'));
     let bldgNameVi = rawBldgName;
-    let bldgNameEn = isVacantLand ? 'Vacant Land' : 'Private Residential Townhouse';
+    let bldgNameEn = isVacantLand ? 'Vacant Land' : (bldgType === 'WAREHOUSE' ? 'Commercial Warehouse' : 'Private Residential Townhouse');
     if (!isVacantLand) {
-      if (rawBldgName.toLowerCase().includes('kinh doanh') || rawBldgName.toLowerCase().includes('shophouse')) {
+      if (bldgType === 'WAREHOUSE' || rawBldgName.toLowerCase().includes('kho')) {
+        bldgNameVi = 'Kho hàng';
+        bldgNameEn = 'Commercial Warehouse';
+      } else if (rawBldgName.toLowerCase().includes('kinh doanh') || rawBldgName.toLowerCase().includes('shophouse')) {
         bldgNameVi = 'Nhà ở kết hợp kinh doanh';
         bldgNameEn = 'Shophouse / Mixed-use Townhouse';
       } else if (rawBldgName.toLowerCase().includes('chung cư') || rawBldgName.toLowerCase().includes('căn hộ')) {
@@ -65,8 +73,8 @@ export class Section1And2Mapper {
       }
     }
 
-    // Chủ sở hữu / người sử dụng song ngữ
-    const ownerVi = rawReport.owner_name || json.signatures?.ownerRepresentative?.fullName || json.ownerName || 'Chủ hộ';
+    // Chủ sở hữu / người sử dụng song ngữ (ưu tiên thông tin chủ hộ thực tế thu thập tại hiện trường)
+    const ownerVi = json.signatures?.ownerRepresentative?.fullName || json.ownerName || rawReport.owner_name || 'Chủ hộ';
     let ownerEn = ownerVi;
     if (ownerVi.toLowerCase().includes('chủ hộ')) {
       ownerEn = ownerVi.replace(/chủ hộ/i, 'Property Owner').replace(/thửa/i, 'Plot').replace(/tờ/i, 'Sheet');
@@ -74,11 +82,9 @@ export class Section1And2Mapper {
       ownerEn = `Mr./Ms. ${ownerVi}`;
     }
 
-    // Đoạn tuyến / Khu vực song ngữ từ bảng metro_segments PostGIS
+    // Đoạn tuyến / Khu vực song ngữ từ bảng metro_segments PostGIS (chỉ Zone và tên Zone, không kèm Lý trình Km)
     const zoneNameVi = rawReport.metro_segment_name || `Zone 9: Ga S5 Lê Thị Riêng (C&C)`;
-    const startKm = rawReport.metro_start_chainage || 'Km 4+090';
-    const endKm = rawReport.metro_end_chainage || 'Km 4+300';
-    const sectionZoneVi = `${zoneNameVi} [Lý trình: ${startKm} – ${endKm}]`;
+    const sectionZoneVi = zoneNameVi;
     const zoneNameEn = zoneNameVi
       .replace(/Ga\s+S(\d+)/i, 'S$1 Station')
       .replace('Ga', 'Station')
@@ -87,7 +93,7 @@ export class Section1And2Mapper {
       .replace('Khu vực ga', 'Station Area')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
-    const sectionZoneEn = `${zoneNameEn} [Chainage: ${startKm} – ${endKm}]`;
+    const sectionZoneEn = zoneNameEn;
 
     // 4 nhóm Hạng mục Metro chuẩn theo ENUM PostGIS (C&C, POR, ELV, DEP)
     const rawSegType = (rawReport.segment_type || rawReport.metro_construction_type || 'C&C').toUpperCase();
@@ -114,56 +120,50 @@ export class Section1And2Mapper {
       },
       address: {
         vi: (() => {
-          const rawHouse = json.houseNumber || rawReport.house_number;
-          const rawStreet = json.street || rawReport.street;
-          const rawWard = json.ward || rawReport.ward;
-          const rawDistrict = json.district || rawReport.district;
+          // Chuẩn hóa 168 ĐVHC cấp xã TP.HCM (không còn cấp quận): Số [Số nhà] [Tên đường], [Phường mới], TP. Hồ Chí Minh
+          const rawHouse = rawReport.house_number || json.houseNumber;
+          const rawStreet = rawReport.street || json.street;
+          const rawWard = rawReport.ward || json.ward;
+          const rawDistrict = rawReport.district || json.district;
 
-          const parts: string[] = [];
-          if (rawHouse) parts.push(`Số ${rawHouse}`);
-          if (rawStreet) {
-            const st = rawStreet.trim();
-            // Nếu tên đường bị gán nhầm thành tên Phường (do import shapefile thô), không thêm tiền tố "đường"
-            if (/^phường\s*\d+/i.test(st) || (rawWard && st.toLowerCase() === rawWard.toLowerCase())) {
-              parts.push(st.startsWith('P.') || st.startsWith('Phường') ? st : `P. ${st}`);
-            } else {
-              parts.push(st.startsWith('đường') || st.startsWith('Đường') ? st : `đường ${st}`);
-            }
-          }
-          if (rawWard && (!rawStreet || rawStreet.toLowerCase() !== rawWard.toLowerCase())) {
-            const w = rawWard.trim();
-            parts.push(w.startsWith('P.') || w.startsWith('Phường') ? w : `P. ${w}`);
-          }
-          if (rawDistrict) {
-            const d = rawDistrict.trim();
-            parts.push(d.startsWith('Q.') || d.startsWith('Quận') ? d : `Q. ${d}`);
-          }
-          parts.push(rawReport.city || json.city || 'TP Hồ Chí Minh');
-          parts.push('Việt Nam');
-          return parts.length > 2 ? parts.join(', ') : (rawReport.address_combined || 'Chưa ghi nhận địa chỉ chi tiết');
+          const evalRes = evaluateAddressStandard(rawHouse, rawStreet, rawWard, rawDistrict);
+          const finalHn = evalRes.suggested.houseNumber || rawHouse;
+          const finalSt = evalRes.suggested.street || rawStreet;
+          const finalWd = evalRes.suggested.ward || rawWard;
+
+          const formatted = formatStandardizedAddress168(finalHn, finalSt, finalWd);
+          return formatted && formatted !== 'TP. Hồ Chí Minh' ? formatted : (rawReport.address_combined || 'Chưa ghi nhận địa chỉ chi tiết');
         })(),
         en: (() => {
-          const rawHouse = json.houseNumber || rawReport.house_number;
-          const rawStreet = json.street || rawReport.street;
-          const rawWard = json.ward || rawReport.ward;
-          const rawDistrict = json.district || rawReport.district;
+          const rawHouse = rawReport.house_number || json.houseNumber;
+          const rawStreet = rawReport.street || json.street;
+          const rawWard = rawReport.ward || json.ward;
+          const rawDistrict = rawReport.district || json.district;
+
+          const evalRes = evaluateAddressStandard(rawHouse, rawStreet, rawWard, rawDistrict);
+          const finalHn = (evalRes.suggested.houseNumber || rawHouse || '').trim();
+          const finalSt = (evalRes.suggested.street || rawStreet || '').trim();
+          const finalWd = (evalRes.suggested.ward || rawWard || '').trim();
 
           const parts: string[] = [];
-          if (rawHouse) parts.push(`No. ${rawHouse}`);
-          if (rawStreet) {
-            const st = rawStreet.trim();
-            if (/^phường\s*\d+/i.test(st) || (rawWard && st.toLowerCase() === rawWard.toLowerCase())) {
-              parts.push(`Ward ${st.replace(/^phường\s*/i, '')}`);
+          if (finalHn && finalSt) {
+            parts.push(`No. ${finalHn.replace(/^số\s*/i, '')}, ${finalSt} St.`);
+          } else if (finalHn) {
+            parts.push(`No. ${finalHn.replace(/^số\s*/i, '')}`);
+          } else if (finalSt) {
+            parts.push(`${finalSt} St.`);
+          }
+
+          if (finalWd) {
+            if (/^phường\s*\d+/i.test(finalWd)) {
+              parts.push(`Ward ${finalWd.replace(/^phường\s*/i, '')}`);
             } else {
-              parts.push(`${st} St.`);
+              const wdClean = finalWd.replace(/^phường\s*/i, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              parts.push(`${wdClean} Ward`);
             }
           }
-          if (rawWard && (!rawStreet || rawStreet.toLowerCase() !== rawWard.toLowerCase())) {
-            parts.push(`Ward ${rawWard.replace(/^phường\s*/i, '')}`);
-          }
-          if (rawDistrict) parts.push(`Dist. ${rawDistrict.replace(/^quận\s*/i, '')}`);
-          parts.push('Ho Chi Minh City, Viet Nam');
-          return parts.length > 2 ? parts.join(', ') : (rawReport.address_combined || 'Address unrecorded');
+          parts.push('Ho Chi Minh City');
+          return parts.length > 1 ? parts.join(', ') : (rawReport.address_combined || 'Address unrecorded');
         })(),
       },
       cadastralCode,
@@ -261,13 +261,13 @@ export class Section1And2Mapper {
       const widthM = Math.min(rawSide1, rawSide2).toFixed(1);
       const lengthM = Math.max(rawSide1, rawSide2).toFixed(1);
       mainDimensions = {
-        vi: `Mặt tiền ${widthM} m × Chiều sâu ${lengthM} m${maxHeightM !== '–' && maxHeightM !== '0.0' ? ` (Chiều cao: ${maxHeightM} m)` : ''}`,
-        en: `Width ${widthM} m × Length ${lengthM} m${maxHeightM !== '–' && maxHeightM !== '0.0' ? ` (Height: ${maxHeightM} m)` : ''}`,
+        vi: `Mặt tiền ${widthM} m × Chiều sâu ${lengthM} m`,
+        en: `Width ${widthM} m × Length ${lengthM} m`,
       };
     } else {
       mainDimensions = {
-        vi: `Chưa đo đạc kích thước ranh thửa${maxHeightM !== '–' && maxHeightM !== '0.0' ? ` (Chiều cao: ${maxHeightM} m)` : ''}`,
-        en: `Plot dimensions unrecorded${maxHeightM !== '–' && maxHeightM !== '0.0' ? ` (Height: ${maxHeightM} m)` : ''}`,
+        vi: `Chưa đo đạc kích thước ranh thửa`,
+        en: `Plot dimensions unrecorded`,
       };
     }
 
@@ -343,22 +343,27 @@ export class Section1And2Mapper {
       };
     }
 
-    // Nhóm đối tượng khảo sát: Ghi theo loại công trình trong payload
+    // Nhóm đối tượng khảo sát: Ghi theo loại công trình trong payload (tinh gọn, không lặp từ với tên báo cáo)
     const caseType = (json.surveyCaseType || 'NORMAL').toUpperCase();
-    let categoryVi = `Công trình ${bldgNameVi} – Khảo sát hiện trạng công trình`;
-    let categoryEn = `${bldgNameEn} – Building condition survey`;
+    let categoryVi = bldgNameVi.toLowerCase().includes('nhà')
+      ? 'Nhà dân / Nhà phố riêng lẻ'
+      : bldgNameVi.toLowerCase().includes('kho')
+        ? 'Công trình Kho hàng'
+        : `Công trình ${bldgNameVi}`;
+    let categoryEn = bldgNameEn || (bldgNameVi.toLowerCase().includes('kho') ? 'Commercial Warehouse' : 'Private Residential Townhouse');
+
     if (isVacantLand || caseType === 'VACANT_LAND') {
-      categoryVi = 'Khu đất trống – Khảo sát ranh giới & khuôn viên';
-      categoryEn = 'Vacant Land – Boundary & site survey';
+      categoryVi = 'Khu đất trống';
+      categoryEn = 'Vacant Land';
     } else if (isAbsentee || caseType === 'ABSENTEE') {
-      categoryVi = `${bldgNameVi} – Khảo sát hiện trạng ngoại thất (Chủ hộ vắng mặt)`;
-      categoryEn = `${bldgNameEn} – Exterior condition survey (Absentee property owner)`;
+      categoryVi = `${bldgNameVi} (Khảo sát ngoại thất - Vắng chủ)`;
+      categoryEn = `${bldgNameEn} (Exterior survey - Absentee owner)`;
     } else if (isUnderConstruction || caseType === 'UNDER_CONSTRUCTION') {
       categoryVi = `Công trình đang xây dựng / cải tạo (${bldgNameVi})`;
       categoryEn = `Building under construction / renovation (${bldgNameEn})`;
     } else if (bldgNameVi.includes('Căn hộ') || bldgNameVi.includes('Chung cư')) {
-      categoryVi = 'Căn hộ chung cư – Khảo sát hiện trạng căn hộ';
-      categoryEn = 'Apartment Unit – Building condition survey';
+      categoryVi = 'Căn hộ chung cư';
+      categoryEn = 'Apartment Unit';
     }
 
     const section2: Section2BasicBuildingInfo = {

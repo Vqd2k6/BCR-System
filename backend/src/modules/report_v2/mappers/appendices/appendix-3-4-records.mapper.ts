@@ -61,31 +61,37 @@ export class Appendix3And4Mapper {
 
     const ownerFeedbackText = rawReport.owner_remarks || json.signatures?.ownerFeedback || json.ownerRemarks || '';
 
+    const actualSignerName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name;
+    const finalOwnerName = actualSignerName || rawReport.owner_name || json.ownerName || 'Chủ hộ';
+    const isOwnerItself = !actualSignerName || actualSignerName === (rawReport.owner_name || json.ownerName);
+    const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu';
+    const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative';
+
     return {
       surveyTime: surveyDateWithTime,
       ownerRepresentative: {
         vi: isAbsentee
-          ? `${rawReport.owner_name || json.ownerName || 'Chủ hộ'} (Vắng mặt tại thời điểm khảo sát)`
-          : `${rawReport.owner_name || json.signatures?.ownerRepresentative?.fullName || json.ownerName || 'Chủ hộ'} - Chủ nhà`,
+          ? `${finalOwnerName} (Vắng mặt tại thời điểm khảo sát)`
+          : `${finalOwnerName} - ${roleSuffixVi}`,
         en: isAbsentee
-          ? `${rawReport.owner_name || json.ownerName || 'Property Owner'} (Absent during survey)`
-          : `${rawReport.owner_name || json.signatures?.ownerRepresentative?.fullName || json.ownerName || 'Property Owner'} - Owner`,
+          ? `${finalOwnerName} (Absent during survey)`
+          : `${finalOwnerName} - ${roleSuffixEn}`,
       },
       localAuthority: {
         vi: json.signatures?.localAuthority?.fullName
           ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
-          : 'Đại diện chính quyền địa phương (chưa ký)',
+          : '--',
         en: json.signatures?.localAuthority?.fullName
           ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
-          : 'Local authority representative (unsigned)',
+          : '--',
       },
       supervisionConsultant: {
         vi: json.signatures?.supervisionConsultant?.fullName
           ? `${json.signatures.supervisionConsultant.fullName}${json.signatures.supervisionConsultant.title ? ` - ${json.signatures.supervisionConsultant.title}` : ''}`
-          : 'Đang mời tham gia xác nhận hiện trường',
+          : '--',
         en: json.signatures?.supervisionConsultant?.fullName
           ? `${json.signatures.supervisionConsultant.fullName}${json.signatures.supervisionConsultant.title ? ` - ${json.signatures.supervisionConsultant.title}` : ''}`
-          : 'Invited to site witness',
+          : '--',
       },
       surveyUnit: {
         vi: surveyorName
@@ -183,20 +189,13 @@ export class Appendix3And4Mapper {
       }
     }
 
-    // Tầng hầm
-    const basementCount = Number(rawReport?.basement_count ?? json?.undergroundFloors ?? 0);
-    let basementAccessed = false;
-    let basementNotAccessed = false;
-    let basementRemarkVi = 'Không có tầng hầm (N/A)';
-    let basementRemarkEn = 'No basement (N/A)';
-
-    if (basementCount > 0) {
-      const hasBaseScope = Boolean(rawScope.basement);
-      basementAccessed = hasBaseScope;
-      basementNotAccessed = !hasBaseScope;
-      basementRemarkVi = hasBaseScope ? 'Đã khảo sát tầng hầm' : 'Chưa khảo sát tầng hầm';
-      basementRemarkEn = hasBaseScope ? 'Basement surveyed' : 'Basement not surveyed';
-    }
+    // Tầng hầm: Chỉ tính khi công trình thực tế có thiết kế tầng hầm
+    const basementCount = Number(rawReport?.basement_count ?? rawReport?.buildingSpecs?.basementCount ?? json?.buildingSpecs?.basementCount ?? json?.basementCount ?? json?.undergroundFloors ?? 0);
+    const hasBaseScope = Boolean(rawScope.basement);
+    const basementAccessed = basementCount > 0 && hasBaseScope;
+    const basementNotAccessed = basementCount > 0 && !hasBaseScope;
+    const basementRemarkVi = hasBaseScope ? 'Đã khảo sát tầng hầm' : 'Chưa khảo sát tầng hầm';
+    const basementRemarkEn = hasBaseScope ? 'Basement surveyed' : 'Basement not surveyed';
 
     // Phân loại tiếp cận
     const hasLimitations = Boolean(
@@ -207,18 +206,18 @@ export class Appendix3And4Mapper {
       (Array.isArray(rawLimitation.restrictedAreas) && rawLimitation.restrictedAreas.length > 0)
     );
 
-    let accessClassVi = 'Phân loại tiếp cận: Không hạn chế (100%).';
-    let accessClassEn = 'Access classification: No restriction (100%).';
+    let accessClassVi = 'Không hạn chế (100%).';
+    let accessClassEn = 'No restriction (100%).';
 
     if (isAbsentee) {
-      accessClassVi = 'Phân loại tiếp cận: Khảo sát vắng chủ (chỉ tiếp cận mặt ngoài).';
-      accessClassEn = 'Access classification: Absentee survey (exterior only).';
+      accessClassVi = 'Khảo sát vắng chủ (chỉ tiếp cận mặt ngoài).';
+      accessClassEn = 'Absentee survey (exterior only).';
     } else if (rawLimitation.type === 'REFUSED') {
-      accessClassVi = 'Phân loại tiếp cận: Chủ hộ từ chối tiếp cận một số khu vực.';
-      accessClassEn = 'Access classification: Owner refused access to certain areas.';
+      accessClassVi = 'Chủ hộ từ chối tiếp cận một số khu vực.';
+      accessClassEn = 'Owner refused access to certain areas.';
     } else if (hasLimitations) {
-      accessClassVi = 'Phân loại tiếp cận: Hạn chế một phần (xem chi tiết Mục IX – Hạn chế khảo sát).';
-      accessClassEn = 'Access classification: Partially restricted (see Section IX – Survey Limitations).';
+      accessClassVi = 'Hạn chế một phần (xem chi tiết Mục IX – Hạn chế khảo sát).';
+      accessClassEn = 'Partially restricted (see Section IX – Survey Limitations).';
     }
 
     // Danh mục thiết bị từ CSDL cấu hình dự án (Q5)
@@ -284,32 +283,37 @@ export class Appendix3And4Mapper {
     return {
       equipmentList,
       calibrationNotes,
-      accessAreas: [
-        {
-          area: { vi: 'Mặt ngoài', en: 'Exterior' },
-          accessed: appendix1.length > 0,
-          notAccessed: appendix1.length === 0,
-          remark: { vi: `P-01 – P-0${Math.min(7, appendix1.length)}`, en: `P-01 – P-0${Math.min(7, appendix1.length)}` },
-        },
-        {
-          area: { vi: 'Tầng trệt & các lầu', en: 'Ground floor & upper floors' },
-          accessed: appendix2.length > 0,
-          notAccessed: appendix2.length === 0,
-          remark: { vi: `${appendix2.length} tầng khảo sát đầy đủ`, en: `${appendix2.length} floors surveyed` },
-        },
-        {
-          area: { vi: 'Mái / Sân thượng', en: 'Roof / Terrace' },
-          accessed: roofAccessed,
-          notAccessed: roofNotAccessed,
-          remark: { vi: roofRemarkVi, en: roofRemarkEn },
-        },
-        {
-          area: { vi: 'Tầng hầm', en: 'Basement' },
-          accessed: basementAccessed,
-          notAccessed: basementNotAccessed,
-          remark: { vi: basementRemarkVi, en: basementRemarkEn },
-        },
-      ],
+      accessAreas: (() => {
+        const list = [
+          {
+            area: { vi: 'Mặt ngoài', en: 'Exterior' },
+            accessed: appendix1.length > 0,
+            notAccessed: appendix1.length === 0,
+            remark: { vi: `P-01 – P-0${Math.min(7, appendix1.length)}`, en: `P-01 – P-0${Math.min(7, appendix1.length)}` },
+          },
+          {
+            area: { vi: 'Tầng trệt & các lầu', en: 'Ground floor & upper floors' },
+            accessed: appendix2.length > 0,
+            notAccessed: appendix2.length === 0,
+            remark: { vi: `${appendix2.length} tầng khảo sát đầy đủ`, en: `${appendix2.length} floors surveyed` },
+          },
+          {
+            area: { vi: 'Mái / Sân thượng', en: 'Roof / Terrace' },
+            accessed: roofAccessed,
+            notAccessed: roofNotAccessed,
+            remark: { vi: roofRemarkVi, en: roofRemarkEn },
+          },
+        ];
+        if (basementCount > 0) {
+          list.push({
+            area: { vi: 'Tầng hầm', en: 'Basement' },
+            accessed: basementAccessed,
+            notAccessed: basementNotAccessed,
+            remark: { vi: basementRemarkVi, en: basementRemarkEn },
+          });
+        }
+        return list;
+      })(),
       accessClassification: {
         vi: accessClassVi,
         en: accessClassEn,

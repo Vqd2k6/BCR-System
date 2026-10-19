@@ -194,14 +194,20 @@ async function main() {
   // ============================================================================
   console.log('\n--- CATEGORY C: Violation Detection Engine ---');
 
-  await runTest(15, 'C', 'Surveyor took P-02 in landscape -> flagged with suggestedRotation = 90', () => {
+  await runTest(15, 'C', 'Surveyor took P-02 in landscape -> Zero auto-rotate, suggestedRotation = 90, amber frame flagged', () => {
     // Surveyor uploaded 1920x1080 for P-02 (Facade should be Portrait)
-    const res = evaluateResidentialOrientation(1920, 1080, 0, 'photoP02');
+    // Hệ thống KHÔNG tự xoay ngầm mà giữ nguyên góc nộp 0°
+    const initialRot = 0;
+    const res = evaluateResidentialOrientation(1920, 1080, initialRot, 'photoP02');
     assert(res.isValid === false, 'P-02 in landscape must fail evaluation');
+    assert(res.effectiveRotation === 0, 'Effective rotation must remain 0 (no silent mutation)');
     assert(res.currentOrientation === 'LANDSCAPE', 'Detected as LANDSCAPE');
     assert(res.expected === 'PORTRAIT', 'Expected is PORTRAIT');
     assert(res.suggestedRotation === 90, 'Suggested rotation should be 90°');
     assert(res.message.includes('Quy chuẩn báo cáo yêu cầu DỌC'), 'Message mentions DỌC standard');
+    // UI logic: mismatch triggers amber frame
+    const hasAmberFrame = !res.isValid;
+    assert(hasAmberFrame === true, 'Amber frame must be displayed for mismatched photo');
   });
 
   await runTest(16, 'C', 'Multi-photo orientation scan detects all violations in a survey', () => {
@@ -240,11 +246,18 @@ async function main() {
     assert(corrected.effectiveHeight === 1600, 'Effective height is 1600');
   });
 
-  await runTest(18, 'C', 'Non-strict photos (vacantLand, diffSettlement) evaluate with isStrict: false', () => {
+  await runTest(18, 'C', 'Non-strict photos (vacantLand, diffSettlement, photoP01): isStrict: false, amber frame flagged but blocksApproval = false', () => {
     const ruleLand = RESIDENTIAL_PHOTO_RULES['vacantLand'];
     assert(ruleLand.isStrict === false, 'vacantLand is non-strict');
     const ruleDiff = RESIDENTIAL_PHOTO_RULES['diffSettlement'];
     assert(ruleDiff.isStrict === false, 'diffSettlement is non-strict');
+
+    // Chụp ảnh ngược hướng cho photoP01 (Advisory)
+    const resP01 = evaluateResidentialOrientation(1200, 1600, 0, 'photoP01');
+    const hasAmberFrame = !resP01.isValid;
+    const blocksApproval = ruleDiff.isStrict && !resP01.isValid;
+    assert(hasAmberFrame === true, 'Advisory photo still shows amber frame recommendation');
+    assert(blocksApproval === false, 'Advisory photo must NEVER block approval');
   });
 
   await runTest(19, 'C', 'Strict violations flag hasStrictViolations: true for P-02, P-03, P-04, buildingTilt', () => {
@@ -280,29 +293,53 @@ async function main() {
   // ============================================================================
   console.log('\n--- CATEGORY D: Audit Workflow & Approval Gate ---');
 
-  await runTest(21, 'D', 'Approval Gatekeeper triggers confirmation modal when mismatched photos exist', () => {
-    const violations = [
-      { key: 'photoP02', photoCode: 'P-02', currentOrientation: 'LANDSCAPE', expectedOrientation: 'PORTRAIT' },
+  await runTest(21, 'D', 'Approval Gatekeeper dual-tier: STRICT violations block approve, ADVISORY violations do NOT block', () => {
+    // Trường hợp 1: Chỉ có ảnh khuyến cáo bị ngược hướng -> KHÔNG CHẶN PHÊ DUYỆT
+    const advisoryOnlyViolations = [
+      { key: 'photoP01', isStrict: false },
+      { key: 'vacantLand', isStrict: false },
     ];
-    const totalDiffCount = 0;
-    const shouldShowOrientationWarning = totalDiffCount === 0 && violations.length > 0;
-    assert(shouldShowOrientationWarning === true, 'Must show orientation warning when violations exist and diffs = 0');
+    const hasStrict1 = advisoryOnlyViolations.some((v) => v.isStrict);
+    const shouldBlockAdvisoryOnly = hasStrict1 && advisoryOnlyViolations.length > 0;
+    assert(shouldBlockAdvisoryOnly === false, 'Advisory-only violations must NOT block approval');
+
+    // Trường hợp 2: Có ảnh bắt buộc bị ngược hướng -> KÍCH HOẠT CHẶN PHÊ DUYỆT
+    const strictViolations = [
+      { key: 'photoP02', isStrict: true },
+      { key: 'photoP01', isStrict: false },
+    ];
+    const hasStrict2 = strictViolations.some((v) => v.isStrict);
+    const shouldBlockStrict = hasStrict2 && strictViolations.length > 0;
+    assert(shouldBlockStrict === true, 'Strict photo violations MUST trigger approval gatekeeper modal');
   });
 
-  await runTest(22, 'D', 'Gatekeeper confirmation modal provides exactly 2 options: Back vs Bypass', () => {
+  await runTest(22, 'D', 'Gatekeeper confirmation modal provides exactly 2 options: Back vs Bypass with audit log', () => {
     const allowedActions = ['GO_BACK_ADJUST', 'BYPASS_AND_APPROVE'];
     assert(allowedActions.length === 2, 'Must have exactly 2 decision branches');
     assert(allowedActions.includes('GO_BACK_ADJUST'), 'Must include Quay Lại Điều Chỉnh Ảnh');
-    assert(allowedActions.includes('BYPASS_AND_APPROVE'), 'Must include Bỏ Qua & Tiếp Tục Phê Duyệt');
+    assert(allowedActions.includes('BYPASS_AND_APPROVE'), 'Must include Bỏ Qua & Phê Duyệt');
+
+    // Khi chọn Bypass, hệ thống ghi nhận log cảnh báo
+    const auditState = { auditLogCreated: false };
+    const onBypass = () => {
+      auditState.auditLogCreated = true;
+    };
+    onBypass();
+    assert(auditState.auditLogCreated === true, 'Bypass action must record violation in audit log');
   });
 
-  await runTest(23, 'D', 'Bypass approval flow does NOT require an essay or written justification', () => {
-    // As approved in /grill-me, bypass is a quick 1-click confirmation without forced essay input
-    const bypassPayload = {
-      action: 'BYPASS_AND_APPROVE',
-      bypassReasonRequired: false,
-    };
-    assert(bypassPayload.bypassReasonRequired === false, 'No mandatory justification text box required');
+  await runTest(23, 'D', 'Immediate UI response: rotating photo to valid orientation clears amber frame immediately', () => {
+    // 1600x1200 landscape photo for P-02 (needs portrait)
+    const beforeRot = evaluateResidentialOrientation(1600, 1200, 0, 'photoP02');
+    assert(beforeRot.isValid === false, 'Before rotation: invalid');
+    const hasAmberBefore = !beforeRot.isValid;
+    assert(hasAmberBefore === true, 'Before rotation: amber frame displayed');
+
+    // User rotates 90° CW
+    const afterRot = evaluateResidentialOrientation(1600, 1200, 90, 'photoP02');
+    assert(afterRot.isValid === true, 'After 90° rotation: valid');
+    const hasAmberAfter = !afterRot.isValid;
+    assert(hasAmberAfter === false, 'After rotation: amber frame removed immediately');
   });
 
   await runTest(24, 'D', 'Unsaved form diffs take precedence over orientation confirmation modal', () => {

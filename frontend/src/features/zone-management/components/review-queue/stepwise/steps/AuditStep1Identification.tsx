@@ -1,15 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2, RotateCw } from 'lucide-react';
+import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2, RotateCw, CheckCircle2 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
 import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
+import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 import { SmartAddressSuggestionCard } from '../components/SmartAddressSuggestionCard';
-import { evaluateAddressStandard } from '../utils/residentialAddressStandards';
+import { evaluateAddressStandard, formatStandardizedAddress168 } from '../utils/residentialAddressStandards';
 
 interface Props extends AuditStepBaseProps {}
 
@@ -83,6 +84,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
   onUndoPhotoAction,
   stagedPhotoRotations = {},
   onRotatePhoto,
+  violationsMap,
 }) => {
   const checkDirty = (fieldKey: string, subKey?: string) => {
     return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
@@ -276,6 +278,57 @@ export const AuditStep1Identification: React.FC<Props> = ({
     return [];
   }, [formState.parcelCoordinates, sJson.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
+  // Định dạng địa chỉ chuẩn hóa mặc định theo mô hình 168 ĐVHC cấp xã TP.HCM
+  const defaultStandardized168 = useMemo(() => {
+    return formatStandardizedAddress168(
+      addressEvaluation.suggested.houseNumber || formState.houseNumber,
+      addressEvaluation.suggested.street || formState.street,
+      addressEvaluation.suggested.ward || formState.ward
+    );
+  }, [
+    addressEvaluation.suggested.houseNumber,
+    addressEvaluation.suggested.street,
+    addressEvaluation.suggested.ward,
+    formState.houseNumber,
+    formState.street,
+    formState.ward,
+  ]);
+
+  const activeStandardizedAddress: string =
+    typeof formState.standardizedAddress === 'string' && formState.standardizedAddress
+      ? formState.standardizedAddress
+      : defaultStandardized168;
+
+  const [isAddressAccepted, setIsAddressAccepted] = useState<boolean>(() => {
+    return Boolean(formState.standardizedAddress || sJson.standardizedAddress);
+  });
+
+  const handleAcceptAddress = (formattedAddress: string) => {
+    setIsAddressAccepted(true);
+    handleFieldChange('standardizedAddress', 'Địa chỉ chuẩn hóa A4 (168 ĐVHC)', formattedAddress);
+  };
+
+  const handleEditAddress = () => {
+    setIsAddressAccepted(false);
+  };
+
+  const handleChangeStandardizedAddress = (val: string) => {
+    handleFieldChange('standardizedAddress', 'Địa chỉ chuẩn hóa A4 (168 ĐVHC)', val);
+  };
+
+  // Đồng bộ cự ly trắc địa 1-click từ bản đồ GIS
+  const handleSyncFromGis = () => {
+    const metrics = calculateComprehensiveMetroSpatialMetrics(parcelCoords);
+    if (metrics.distanceToCenterlineMeters !== undefined) {
+      handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', metrics.distanceToCenterlineMeters.toFixed(1));
+    }
+    if (metrics.outerBoundaryType === 'STATION_OUTLINE' && metrics.distanceToOuterBoundaryMeters !== null) {
+      handleFieldChange('clearanceOffsetDistance', 'Cự ly mép ga trắng', metrics.distanceToOuterBoundaryMeters.toFixed(1));
+    } else if (metrics.outerBoundaryType === 'NO_STATION') {
+      handleFieldChange('clearanceOffsetDistance', 'Cự ly mép ga trắng', 'Không có ga trong khu vực');
+    }
+  };
+
   // Adjacent Buildings Data
   const adjacent: AdjacentBuildings = (formState.adjacentBuildings || sJson.adjacentBuildings || {
     left: { details: '', note: '' },
@@ -385,6 +438,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
               const isStagedReplaced = optResult.status === 'REPLACED' || optResult.status === 'ADDED';
               const hasPolygon = item.key === 'photoP02' && item.polygonPoints && Array.isArray(item.polygonPoints) && item.polygonPoints.length >= 3;
               const rotation = stagedPhotoRotations[item.key] ?? stagedPhotoRotations[item.code] ?? 0;
+              const violation = violationsMap?.get(item.key) || violationsMap?.get(item.code);
+              const isMismatched = Boolean(violation);
+              const isStrict = violation?.isStrict ?? false;
 
               return (
                 <div
@@ -395,6 +451,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       ? 'border-2 border-rose-500 opacity-60'
                       : isStagedReplaced
                       ? 'ring-2 ring-amber-400 border-2 border-amber-500 shadow-md'
+                      : isMismatched
+                      ? isStrict
+                        ? 'border-2 border-amber-500 ring-4 ring-amber-500/30 shadow-md' // Bắt buộc: Line vàng đậm
+                        : 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs' // Khuyến nghị: Line vàng nhẹ
                       : 'border border-slate-200'
                   }`}
                 >
@@ -460,6 +520,24 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs flex items-center gap-0.5">
                         <RotateCw className="w-2.5 h-2.5" />
                         <span>{rotation}°</span>
+                      </div>
+                    )}
+
+                    {/* Badge Khuyến nghị xoay / Bắt buộc chuẩn A4 */}
+                    {isMismatched && !isStagedReplaced && (
+                      <div
+                        className={`absolute top-8 left-2 z-10 px-1.5 py-0.5 rounded font-bold text-[9px] shadow-xs flex items-center gap-1 border pointer-events-none ${
+                          isStrict
+                            ? 'bg-amber-500 text-slate-950 border-amber-600'
+                            : 'bg-amber-100 text-amber-900 border-amber-300'
+                        }`}
+                        title={
+                          isStrict
+                            ? `Bắt buộc chuẩn A4: Cần xoay sang khổ ${violation?.expectedOrientation || 'chuẩn'}`
+                            : `Khuyến nghị: Nên xoay sang khổ ${violation?.expectedOrientation || 'chuẩn'}`
+                        }
+                      >
+                        <span>{isStrict ? '⚠️ Cần xoay A4' : '💡 Khuyến nghị xoay'}</span>
                       </div>
                     )}
 
@@ -1277,19 +1355,28 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </span>
           </div>
 
-          {/* Gợi ý chuẩn hóa thông tin địa chỉ thông minh theo NQ 1685 */}
+          {/* Gợi ý chuẩn hóa thông tin địa chỉ thông minh theo mô hình 168 ĐVHC cấp xã TP.HCM */}
           <SmartAddressSuggestionCard
             evaluation={addressEvaluation}
             zoneId={data?.zoneId || data?.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined)}
             isEditMode={isEditMode}
+            standardizedAddressValue={activeStandardizedAddress}
+            isAccepted={isAddressAccepted}
+            onAccept={handleAcceptAddress}
+            onEdit={handleEditAddress}
+            onChangeStandardizedAddress={handleChangeStandardizedAddress}
             onApplyField={(fieldKey, label, val) => handleFieldChange(fieldKey, label, val)}
-            onApplyAll={(updates) => {
-              handleFieldChange('houseNumber', 'Số nhà', updates.houseNumber);
-              handleFieldChange('street', 'Tuyến đường', updates.street);
-              handleFieldChange('ward', 'Phường/Xã', updates.ward);
-              handleFieldChange('district', 'Quận/Huyện', updates.district);
-            }}
           />
+
+          {/* Thông báo bảo lưu dữ liệu KSV khi đã Accept */}
+          {isAddressAccepted && (
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong>Đã khóa 4 ô chi tiết:</strong> Dữ liệu gốc KSV nhập được bảo lưu 100% làm căn cứ pháp lý. Báo cáo PDF A4 sẽ sử dụng địa chỉ chuẩn hóa duy nhất ở trên. Bấm "Điều Chỉnh" nếu muốn sửa lại.
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             {/* Tên công trình */}
@@ -1313,7 +1400,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Số nhà */}
-            <div>
+            <div className={`transition-all duration-200 ${isAddressAccepted ? 'opacity-40 pointer-events-none select-none' : 'opacity-100'}`}>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
                 Số nhà / Địa chỉ số * {renderDirtyBadge('houseNumber')}
               </label>
@@ -1332,7 +1419,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Tuyến đường */}
-            <div>
+            <div className={`transition-all duration-200 ${isAddressAccepted ? 'opacity-40 pointer-events-none select-none' : 'opacity-100'}`}>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
                 Tuyến đường * {renderDirtyBadge('street')}
               </label>
@@ -1351,7 +1438,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Phường */}
-            <div>
+            <div className={`transition-all duration-200 ${isAddressAccepted ? 'opacity-40 pointer-events-none select-none' : 'opacity-100'}`}>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
                 Phường / Xã {renderDirtyBadge('ward')}
               </label>
@@ -1371,7 +1458,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Quận */}
-            <div>
+            <div className={`transition-all duration-200 ${isAddressAccepted ? 'opacity-40 pointer-events-none select-none' : 'opacity-100'}`}>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
                 Quận / Huyện {renderDirtyBadge('district')}
               </label>
@@ -1564,14 +1651,27 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
         {/* 1.3. CỰ LY KHÔNG GIAN TRẮC ĐỊA & TỌA ĐỘ GPS TUYẾN METRO 2 */}
         <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-black uppercase text-sky-950 flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-sky-700" />
               <span>1.3. Cự Ly Không Gian Trắc Địa & Tọa Độ GPS (Tuyến Metro Số 2)</span>
             </span>
-            <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-300">
-              Có thể bù sai số GPS thủ công
-            </span>
+            <div className="flex items-center gap-2">
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleSyncFromGis}
+                  className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-sky-800 bg-white border border-sky-300 rounded-lg hover:bg-sky-100 shadow-2xs transition-all active:scale-95"
+                  title="Tự động tính cự ly tim hầm và cự ly mép ga trắng từ bản đồ GIS và điền vào form"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Lấy số đo từ bản đồ GIS</span>
+                </button>
+              )}
+              <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-300">
+                Có thể bù sai số GPS thủ công
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">

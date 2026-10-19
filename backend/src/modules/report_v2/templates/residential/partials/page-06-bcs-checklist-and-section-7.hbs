@@ -71,7 +71,7 @@
               </tr>
             {{/each}}
             <tr style="background-color: #f9f9f9; font-weight: bold;">
-              <td>Tổng (Z + E):</td>
+              <td>Tổng số vùng kiến trúc (Z):</td>
               <td class="text-center">{{section7.totalSurveyedObjects}}</td>
               <td class="text-center">100.0%</td>
             </tr>
@@ -125,10 +125,45 @@
       </tbody>
     </table>
 
-    <!-- KHUNG VII.4: KẾT LUẬN PHÂN LOẠI BURLAND -->
+    <!-- BẢNG VII.4: BẢNG KIỂM TRA TÌNH TRẠNG CÁC CẤU KIỆN KẾT CẤU CHỊU LỰC (E) -->
+    {{#if section7.structuralElements.length}}
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 3px 0; color: var(--c-black);">
+      Bảng VII.4: Bảng kiểm tra tình trạng các cấu kiện kết cấu chịu lực (E) - Structural Elements Integrity Check
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 4px;">
+      <thead>
+        <tr>
+          <th style="width: 12%;">Mã cấu kiện<br><span class="text-muted">Element ID</span></th>
+          <th style="width: 26%;">Tầng / Vị trí<br><span class="text-muted">Floor / Location</span></th>
+          <th style="width: 20%;">Loại cấu kiện<br><span class="text-muted">Element Type</span></th>
+          <th style="width: 18%;">Vật liệu<br><span class="text-muted">Material</span></th>
+          <th style="width: 24%;">Tình trạng chịu lực / Khuyết tật<br><span class="text-muted">Structural Condition</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section7.structuralElements}}
+          <tr>
+            <td class="font-bold">{{this.elementCode}}</td>
+            <td>{{this.floorName.vi}} – {{this.location.vi}}</td>
+            <td>{{this.elementType}}</td>
+            <td>{{this.materialType}}</td>
+            <td>
+              {{#if (gt this.defectCount 0)}}
+                <span class="font-bold" style="color: #b91c1c;">{{this.conditionVi}}</span>
+              {{else}}
+                <span style="color: #15803d;">{{this.conditionVi}}</span>
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+
+    <!-- KẾT LUẬN PHÂN LOẠI BURLAND VÀ KẾT CẤU -->
     <div class="loss-adjuster-card">
       <div style="font-weight: bold; color: var(--c-black); font-size: var(--fs-c1); margin-bottom: 4px; text-transform: uppercase;">
-        Kết luận phân loại Burland (Burland Damage Classification Conclusion)
+        Kết luận phân loại Burland & Khảo sát kết cấu (Damage Classification Conclusion)
       </div>
       <div class="loss-adjuster-grid">
         <div class="loss-adjuster-item">

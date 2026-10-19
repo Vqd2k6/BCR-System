@@ -114,7 +114,7 @@ function getMetroBoundaryData() {
 /**
  * Trích xuất mảng tọa độ [lat, lng] từ dữ liệu thửa đất
  */
-function extractParcelPolygonCoords(rawReport: any, json: any): [number, number][] | null {
+export function extractParcelPolygonCoords(rawReport: any, json: any): [number, number][] | null {
   // 1. Thử từ json.polygonCoords
   if (Array.isArray(json?.polygonCoords) && json.polygonCoords.length >= 3) {
     return json.polygonCoords;
@@ -136,7 +136,204 @@ function extractParcelPolygonCoords(rawReport: any, json: any): [number, number]
     }
   }
 
+  // 3. Fallback đa giác hình chữ nhật quanh tọa độ GPS (nếu có GPS)
+  const gpsLat = Number(rawReport?.gps_lat ?? json?.gpsLocation?.lat ?? rawReport?.latitude ?? (typeof rawReport?.gps_coordinates === 'string' ? rawReport.gps_coordinates.split(',')[0] : null));
+  const gpsLng = Number(rawReport?.gps_lng ?? json?.gpsLocation?.lng ?? rawReport?.longitude ?? (typeof rawReport?.gps_coordinates === 'string' ? rawReport.gps_coordinates.split(',')[1] : null));
+  if (!isNaN(gpsLat) && !isNaN(gpsLng) && gpsLat > 0 && gpsLng > 0) {
+    const dLat = 0.00007; // ~8m
+    const dLng = 0.00009; // ~10m
+    return [
+      [gpsLat - dLat, gpsLng - dLng],
+      [gpsLat - dLat, gpsLng + dLng],
+      [gpsLat + dLat, gpsLng + dLng],
+      [gpsLat + dLat, gpsLng - dLng],
+    ];
+  }
+
   return null;
+}
+
+/**
+ * Sinh sơ đồ vector SVG vị trí không gian thửa đất đối với tuyến Metro 2:
+ * - Thửa đất khảo sát (đa giác viền đỏ, nền đỏ nhạt)
+ * - Tim tuyến Metro 2 (nét đứt xanh dương)
+ * - Ranh công trình ga / ranh hành lang đào (nét đứt xám)
+ * - La bàn chỉ hướng Bắc (N) và Thước tỷ lệ trắc địa
+ * - TUYỆT ĐỐI KHÔNG vẽ 2 đường dóng cự ly (lines) theo đúng chỉ đạo
+ */
+export function generateMetroSpatialVisualSvg(
+  polygonCoords: [number, number][] | null,
+  parcelCode: string = 'Thửa đất'
+): string {
+  const boundaryData = getMetroBoundaryData();
+  if (!polygonCoords || polygonCoords.length < 3) {
+    return '';
+  }
+
+  // 1. Tính tâm thửa đất
+  const centerLat = polygonCoords.reduce((sum, p) => sum + p[0], 0) / polygonCoords.length;
+  const centerLng = polygonCoords.reduce((sum, p) => sum + p[1], 0) / polygonCoords.length;
+
+  const cosLat = Math.cos((centerLat * Math.PI) / 180);
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * cosLat;
+
+  // Chuyển đổi WGS84 -> tọa độ mét cục bộ [x, y]
+  const toLocal = (p: [number, number]): [number, number] => {
+    return [(p[1] - centerLng) * mPerDegLng, (p[0] - centerLat) * mPerDegLat];
+  };
+
+  const localParcel = polygonCoords.map(toLocal);
+
+  // 2. Thu thập đối tượng Metro lân cận trong bán kính ~180m
+  const maxSearchRadiusM = 180;
+  const centerline = boundaryData?.centerline || [];
+  const nearbyCenterline: [number, number][] = [];
+  for (const pt of centerline) {
+    const loc = toLocal(pt);
+    if (Math.hypot(loc[0], loc[1]) <= maxSearchRadiusM) {
+      nearbyCenterline.push(loc);
+    }
+  }
+
+  const nearbyStations: Array<{ name: string; pts: [number, number][] }> = [];
+  for (const st of boundaryData?.stationDetailedFootprints || []) {
+    const localStPts = (st.coords || []).map(toLocal);
+    const isNear = localStPts.some(pt => Math.hypot(pt[0], pt[1]) <= maxSearchRadiusM);
+    if (isNear) {
+      nearbyStations.push({ name: st.name, pts: localStPts });
+    }
+  }
+
+  const nearbyCorridors: Array<[number, number][]> = [];
+  for (const cor of boundaryData?.corridorBoundaries || []) {
+    const localCorPts = (cor.coords || []).map(toLocal);
+    const isNear = localCorPts.some(pt => Math.hypot(pt[0], pt[1]) <= maxSearchRadiusM);
+    if (isNear) {
+      nearbyCorridors.push(localCorPts);
+    }
+  }
+
+  // 3. Tính toán Bounding Box
+  const allPoints: [number, number][] = [...localParcel];
+  if (nearbyCenterline.length > 0) allPoints.push(...nearbyCenterline);
+  for (const st of nearbyStations) allPoints.push(...st.pts);
+  for (const cor of nearbyCorridors) allPoints.push(...cor);
+
+  let minX = Math.min(...allPoints.map(p => p[0]));
+  let maxX = Math.max(...allPoints.map(p => p[0]));
+  let minY = Math.min(...allPoints.map(p => p[1]));
+  let maxY = Math.max(...allPoints.map(p => p[1]));
+
+  const padM = 12;
+  minX -= padM;
+  maxX += padM;
+  minY -= padM;
+  maxY += padM;
+
+  const widthM = Math.max(maxX - minX, 20);
+  const heightM = Math.max(maxY - minY, 20);
+
+  const svgWidth = 420;
+  const svgHeight = 280;
+  const padPx = 25;
+
+  const drawW = svgWidth - 2 * padPx;
+  const drawH = svgHeight - 2 * padPx;
+
+  const scale = Math.min(drawW / widthM, drawH / heightM);
+
+  const cxPx = svgWidth / 2;
+  const cyPx = svgHeight / 2;
+  const midXM = (minX + maxX) / 2;
+  const midYM = (minY + maxY) / 2;
+
+  const toSvgX = (xM: number) => cxPx + (xM - midXM) * scale;
+  const toSvgY = (yM: number) => cyPx - (yM - midYM) * scale;
+
+  const parcelSvgPts = localParcel.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+
+  let svgContent = '';
+
+  // Nền lưới kỹ thuật ô vuông
+  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="#f8fafc" stroke="#000000" stroke-width="1"/>`;
+  svgContent += `<defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e2e8f0" stroke-width="0.75"/>
+    </pattern>
+  </defs>`;
+  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="url(#grid)"/>`;
+
+  // Ranh công trình ga
+  for (const st of nearbyStations) {
+    const pts = st.pts.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+    svgContent += `<polygon points="${pts}" fill="rgba(226, 232, 240, 0.7)" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,2"/>`;
+    if (st.pts.length > 0) {
+      const avgX = st.pts.reduce((s, p) => s + p[0], 0) / st.pts.length;
+      const avgY = st.pts.reduce((s, p) => s + p[1], 0) / st.pts.length;
+      svgContent += `<text x="${toSvgX(avgX).toFixed(1)}" y="${toSvgY(avgY).toFixed(1)}" fill="#475569" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${st.name || 'Công trình Ga'}</text>`;
+    }
+  }
+
+  // Ranh hành lang đào
+  for (const cor of nearbyCorridors) {
+    const pts = cor.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+    svgContent += `<polyline points="${pts}" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>`;
+  }
+
+  // Tim tuyến Metro 2
+  if (nearbyCenterline.length > 1) {
+    const pts = nearbyCenterline.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+    svgContent += `<polyline points="${pts}" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-dasharray="6,3"/>`;
+    const midIdx = Math.floor(nearbyCenterline.length / 2);
+    const midPt = nearbyCenterline[midIdx];
+    svgContent += `<text x="${toSvgX(midPt[0]).toFixed(1)}" y="${(toSvgY(midPt[1]) - 6).toFixed(1)}" fill="#0284c7" font-size="8.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">Tim tuyến Metro 2</text>`;
+  }
+
+  // Đa giác thửa đất khảo sát
+  svgContent += `<polygon points="${parcelSvgPts}" fill="rgba(239, 68, 68, 0.25)" stroke="#dc2626" stroke-width="2.5"/>`;
+
+  // Nhãn thửa đất
+  const pAvgX = localParcel.reduce((s, p) => s + p[0], 0) / localParcel.length;
+  const pAvgY = localParcel.reduce((s, p) => s + p[1], 0) / localParcel.length;
+  svgContent += `<text x="${toSvgX(pAvgX).toFixed(1)}" y="${(toSvgY(pAvgY) + 3).toFixed(1)}" fill="#b91c1c" font-size="9.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${parcelCode || 'Thửa đất'}</text>`;
+
+  // La bàn chỉ hướng Bắc (North Arrow) góc trên bên phải
+  svgContent += `
+    <g transform="translate(${svgWidth - 32}, 30)">
+      <circle cx="0" cy="0" r="14" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <polygon points="0,-11 -4,-1 0,1 4,-1" fill="#000000"/>
+      <polygon points="0,11 -4,1 0,-1 4,1" fill="#ffffff" stroke="#000000" stroke-width="0.5"/>
+      <text x="0" y="-13" fill="#000000" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">N</text>
+    </g>
+  `;
+
+  // Thước tỷ lệ trắc địa (Scale bar) góc dưới bên trái
+  const scaleBarM = widthM > 100 ? 50 : (widthM > 40 ? 20 : 10);
+  const scaleBarPx = scaleBarM * scale;
+  svgContent += `
+    <g transform="translate(14, ${svgHeight - 16})">
+      <rect x="0" y="-12" width="${scaleBarPx + 20}" height="18" fill="rgba(255,255,255,0.85)" stroke="#cbd5e1" stroke-width="0.5"/>
+      <line x1="10" y1="0" x2="${10 + scaleBarPx}" y2="0" stroke="#000000" stroke-width="2"/>
+      <line x1="10" y1="-3" x2="10" y2="3" stroke="#000000" stroke-width="1.5"/>
+      <line x1="${10 + scaleBarPx}" y1="-3" x2="${10 + scaleBarPx}" y2="3" stroke="#000000" stroke-width="1.5"/>
+      <text x="${10 + scaleBarPx / 2}" y="-4" fill="#000000" font-size="7.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${scaleBarM} m</text>
+    </g>
+  `;
+
+  // Chú thích góc dưới bên phải (Legend)
+  svgContent += `
+    <g transform="translate(${svgWidth - 145}, ${svgHeight - 28})">
+      <rect x="0" y="0" width="138" height="24" fill="rgba(255,255,255,0.9)" stroke="#cbd5e1" stroke-width="0.5"/>
+      <rect x="6" y="5" width="10" height="6" fill="rgba(239, 68, 68, 0.3)" stroke="#dc2626" stroke-width="1.2"/>
+      <text x="20" y="11" font-size="7" font-family="'Latin Modern Roman', serif" fill="#000000">Thửa đất khảo sát</text>
+      <line x1="6" y1="18" x2="16" y2="18" stroke="#0284c7" stroke-width="1.8" stroke-dasharray="3,1.5"/>
+      <text x="20" y="20" font-size="7" font-family="'Latin Modern Roman', serif" fill="#000000">Tim tuyến Metro 2</text>
+    </g>
+  `;
+
+  const finalSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%">${svgContent}</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(finalSvg, 'utf8').toString('base64')}`;
 }
 
 /**
@@ -197,11 +394,14 @@ export function calculateDistancesFromPolygon(
   }
 
   let outerBoundaryDist: number | null = null;
-  const isNearStation = minStationDist < 180 && minStationDist < minCorridorDist * 1.5;
-  if (isNearStation && minStationDist < Infinity) {
+  // LUÔN LUÔN ưu tiên đường bao ngoài màu trắng của công trình ga nếu có nhà ga trong khu vực (< 300m)
+  // Tuyệt đối không lấy theo đường mép hố đào nét đứt màu xanh
+  const hasStationFootprint = minStationDist < 300 && minStationDist < Infinity;
+  if (hasStationFootprint) {
     outerBoundaryDist = minStationDist;
-  } else if (minCorridorDist < Infinity) {
-    outerBoundaryDist = minCorridorDist;
+  } else {
+    // Đoạn hầm thuần túy không có công trình ga: để null để báo cáo hiển thị 'Không có công trình ga trong zone'
+    outerBoundaryDist = null;
   }
 
   return {

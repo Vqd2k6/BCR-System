@@ -866,14 +866,14 @@
       <div class="cad-dual-grid">
         {{#if cadSketchPhotoUrl}}
         <div class="cad-box">
-          <img src="{{cadSketchPhotoUrl}}" alt="Damage Map {{floorName}}">
+          <img src="{{cadSketchPhotoUrl}}" alt="Damage Map {{floorName}}" {{#if cadSketchRotation}}style="transform: rotate({{cadSketchRotation}}deg);"{{/if}}>
           <div class="cad-caption">SƠ ĐỒ BẢN ĐỒ HƯ HỎNG (DAMAGE MAP) - GHIM PIN VÙNG Z & KHUYẾT TẬT D</div>
         </div>
         {{/if}}
 
         {{#if cadStructuralSketchPhotoUrl}}
         <div class="cad-box">
-          <img src="{{cadStructuralSketchPhotoUrl}}" alt="Structural Map {{floorName}}">
+          <img src="{{cadStructuralSketchPhotoUrl}}" alt="Structural Map {{floorName}}" {{#if cadStructuralSketchRotation}}style="transform: rotate({{cadStructuralSketchRotation}}deg);"{{/if}}>
           <div class="cad-caption">SƠ ĐỒ BỐ TRÍ KẾT CẤU CHỊU LỰC - GHIM PIN CẤU KIỆN CỘT / DẦM E</div>
         </div>
         {{/if}}
@@ -1034,7 +1034,7 @@
                 <span class="photo-header-title">ẢNH BỐI CẢNH MẢNG TƯỜNG (CONTEXT) &bull; {{../roomName}} &bull; {{../componentType}}</span>
               </div>
               <div class="defect-evidence-full">
-                <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}">
+                <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}" {{#if ctxPhotoRotation}}style="transform: rotate({{ctxPhotoRotation}}deg);"{{/if}}>
                 <div class="pdf-watermark-overlay">
                   <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO 2</div>
                   <div class="pdf-watermark-bottom-right">
@@ -1064,7 +1064,7 @@
                   <span class="photo-header-title">ẢNH CẬN CẢNH CÓ THƯỚC ĐO NỨT (VỊ TRÍ #{{addOne @index}}) &bull; w<sub>max</sub> = {{../widthMaxMm}} mm</span>
                 </div>
                 <div class="defect-evidence-full">
-                  <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})">
+                  <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})" {{#if ../cuPhotoRotation}}style="transform: rotate({{../cuPhotoRotation}}deg);"{{/if}}>
                   <div class="pdf-watermark-overlay">
                     <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
                     <div class="pdf-watermark-bottom-right">
@@ -1091,7 +1091,7 @@
                 <span class="photo-header-title">ẢNH CẬN CẢNH CÓ THƯỚC ĐO NỨT (CRACK GAUGE) &bull; w<sub>max</sub> = {{widthMaxMm}} mm</span>
               </div>
               <div class="defect-evidence-full">
-                <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}">
+                <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}" {{#if cuPhotoRotation}}style="transform: rotate({{cuPhotoRotation}}deg);"{{/if}}>
                 <div class="pdf-watermark-overlay">
                   <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
                   <div class="pdf-watermark-bottom-right">

@@ -142,7 +142,14 @@ export const RESIDENTIAL_PHOTO_RULES: Record<string, OrientationRuleDefinition> 
     expected: 'LANDSCAPE',
     label: 'Ảnh cận cảnh vết nứt & thước đo (D_CU)',
     feHint: 'Khuyến nghị: Xoay ngang điện thoại (4:3) để chụp rõ toàn bộ vết nứt cùng thước đo tỷ lệ',
-    isStrict: false,
+    isStrict: true,
+    aspectRatioHint: '4:3',
+  },
+  CAD_SKETCH: {
+    expected: 'LANDSCAPE',
+    label: 'Bản vẽ CAD sơ đồ mặt bằng tầng',
+    feHint: 'Khuyến nghị: Bản vẽ CAD mặt bằng đặt theo khổ NGANG để dàn trang toàn bộ phòng',
+    isStrict: true,
     aspectRatioHint: '4:3',
   },
   MINUTES: {

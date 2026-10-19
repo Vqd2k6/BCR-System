@@ -1,23 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Check,
   AlertTriangle,
-  ArrowRight,
   MapPin,
   ChevronDown,
   Info,
   CheckCheck,
+  Edit3,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import type { AddressEvaluationResult } from '../utils/residentialAddressStandards';
-import { ZONE_SUGGESTED_STREETS } from '../utils/residentialAddressStandards';
+import {
+  ZONE_SUGGESTED_STREETS,
+  formatStandardizedAddress168,
+} from '../utils/residentialAddressStandards';
 
 interface Props {
   evaluation: AddressEvaluationResult;
   zoneId?: string;
   isEditMode: boolean;
-  onApplyField: (fieldKey: 'houseNumber' | 'street' | 'ward' | 'district', label: string, val: string) => void;
-  onApplyAll: (updates: { houseNumber: string; street: string; ward: string; district: string }) => void;
+  standardizedAddressValue: string;
+  isAccepted: boolean;
+  onAccept: (formattedAddress: string) => void;
+  onEdit: () => void;
+  onChangeStandardizedAddress: (val: string) => void;
+  onApplyField?: (fieldKey: 'houseNumber' | 'street' | 'ward' | 'district', label: string, val: string) => void;
   onDismiss?: () => void;
 }
 
@@ -25,32 +34,34 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
   evaluation,
   zoneId,
   isEditMode,
+  standardizedAddressValue,
+  isAccepted,
+  onAccept,
+  onEdit,
+  onChangeStandardizedAddress,
   onApplyField,
-  onApplyAll,
   onDismiss,
 }) => {
   const { current, suggested, anomalyReasons, isContaminated } = evaluation;
   const [selectedStreet, setSelectedStreet] = useState<string>(suggested.street);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  if (isDismissed || (evaluation.isCompliant && !isContaminated)) {
+  // Giữ đồng bộ selectedStreet khi suggested.street thay đổi
+  useEffect(() => {
+    if (suggested.street) {
+      setSelectedStreet(suggested.street);
+    }
+  }, [suggested.street]);
+
+  if (isDismissed) {
     return null;
   }
 
   const zKey = (zoneId || 'DEFAULT').toUpperCase();
   const zoneStreets = ZONE_SUGGESTED_STREETS[zKey] || ZONE_SUGGESTED_STREETS['DEFAULT'];
 
-  const handleApplyAllClick = () => {
-    onApplyAll({
-      houseNumber: suggested.houseNumber,
-      street: selectedStreet || suggested.street,
-      ward: suggested.ward,
-      district: suggested.district,
-    });
-  };
-
   return (
-    <div className="my-4 rounded-xl border border-amber-300 bg-linear-to-br from-amber-50/90 via-orange-50/50 to-white p-4 shadow-xs transition-all">
+    <div className="my-3 rounded-xl border border-amber-300 bg-gradient-to-br from-amber-50/95 via-orange-50/40 to-white p-4 shadow-xs transition-all">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
         <div className="flex items-center gap-2">
@@ -58,38 +69,34 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <h4 className="text-xs font-black tracking-wide text-amber-950 uppercase sm:text-sm">
-              Đề Xuất Chuẩn Hóa Thông Tin Địa Chỉ (NQ 1685/NQ-UBTVQH15)
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-black tracking-wide text-amber-950 uppercase sm:text-sm">
+                Đề Xuất Chuẩn Hóa Thông Tin Địa Chỉ
+              </h4>
+              <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                Mô hình 168 ĐVHC cấp xã TP.HCM
+              </span>
+            </div>
             <p className="text-[11px] font-medium text-amber-800">
-              Phát hiện {anomalyReasons.length} điểm cần đồng bộ hành chính & chính tả
+              {anomalyReasons.length > 0
+                ? `Phát hiện ${anomalyReasons.length} điểm cần đồng bộ hành chính & chính tả`
+                : 'Đã chuẩn hóa theo quy chuẩn địa chỉ không còn cấp quận/huyện'}
             </p>
           </div>
         </div>
 
-        {isEditMode && (
-          <div className="flex items-center gap-2">
-            {onDismiss && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDismissed(true);
-                  onDismiss?.();
-                }}
-                className="cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              >
-                Ẩn gợi ý
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleApplyAllClick}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-95"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              <span>Chấp Nhận Chuẩn Hóa Tất Cả</span>
-            </button>
-          </div>
+        {/* Nút Ẩn */}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsDismissed(true);
+              onDismiss?.();
+            }}
+            className="cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          >
+            Ẩn
+          </button>
         )}
       </div>
 
@@ -107,7 +114,18 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
               <div className="relative">
                 <select
                   value={selectedStreet}
-                  onChange={(e) => setSelectedStreet(e.target.value)}
+                  onChange={(e) => {
+                    const st = e.target.value;
+                    setSelectedStreet(st);
+                    onApplyField?.('street', 'Tuyến đường', st);
+                    // Cập nhật lại chuỗi địa chỉ chuẩn hóa 168
+                    const newAddr = formatStandardizedAddress168(
+                      suggested.houseNumber || current.houseNumber,
+                      st,
+                      suggested.ward || current.ward
+                    );
+                    onChangeStandardizedAddress(newAddr);
+                  }}
                   className="cursor-pointer appearance-none rounded-md border border-rose-300 bg-white py-1 pr-7 pl-2 text-xs font-bold text-slate-900 shadow-2xs focus:border-rose-500 focus:outline-hidden"
                 >
                   {zoneStreets.map((st) => (
@@ -118,175 +136,94 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
                 </select>
                 <ChevronDown className="pointer-events-none absolute top-1.5 right-1.5 h-3.5 w-3.5 text-slate-500" />
               </div>
-              <button
-                type="button"
-                onClick={() => onApplyField('street', 'Tuyến đường', selectedStreet)}
-                className="cursor-pointer rounded-md bg-rose-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-rose-700"
-              >
-                Gán đường này
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bảng so sánh 4 trường địa chỉ */}
-      <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-        {/* 1. Số nhà */}
-        <div
-          className={`flex flex-col justify-between rounded-lg border p-2.5 ${
-            current.houseNumber !== suggested.houseNumber
-              ? 'border-amber-300 bg-amber-100/60'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
-              <span>Số nhà / Hẻm</span>
-              {current.houseNumber !== suggested.houseNumber && (
-                <span className="rounded bg-amber-200 px-1 text-[10px] text-amber-800">Cần sửa</span>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 line-through">
-              {current.houseNumber || '(Trống)'}
-            </div>
-            <div className="flex items-center gap-1 text-xs font-black text-slate-900">
-              <ArrowRight className="h-3 w-3 text-emerald-600" />
-              <span className="text-emerald-700">{suggested.houseNumber || '(Trống)'}</span>
-            </div>
-          </div>
-          {isEditMode && current.houseNumber !== suggested.houseNumber && (
-            <button
-              type="button"
-              onClick={() => onApplyField('houseNumber', 'Số nhà', suggested.houseNumber)}
-              className="mt-2 flex cursor-pointer items-center justify-center gap-1 rounded bg-white py-1 text-[11px] font-bold text-emerald-700 shadow-2xs border border-emerald-200 hover:bg-emerald-50"
-            >
-              <Check className="h-3 w-3" /> Áp dụng
-            </button>
-          )}
-        </div>
+      {/* Ô KẾT QUẢ ĐỊA CHỈ DUY NHẤT (SINGLE-TRUTH BOX) & 2 NÚT ACCEPT / EDIT */}
+      <div className="mt-3 p-3 rounded-xl border border-amber-300/80 bg-white/90 shadow-2xs space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="text-[11px] font-black uppercase text-slate-700 flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Địa chỉ hiển thị trên Báo cáo A4 (Single-Truth Address)</span>
+          </label>
 
-        {/* 2. Tuyến đường */}
-        <div
-          className={`flex flex-col justify-between rounded-lg border p-2.5 ${
-            current.street !== (selectedStreet || suggested.street)
-              ? 'border-amber-300 bg-amber-100/60'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
-              <span>Tuyến đường</span>
-              {current.street !== (selectedStreet || suggested.street) && (
-                <span className="rounded bg-amber-200 px-1 text-[10px] text-amber-800">Cần sửa</span>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 line-through">
-              {current.street || '(Trống)'}
-            </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-slate-900">
-              <ArrowRight className="h-3 w-3 text-emerald-600" />
-              <span className="text-emerald-700">{selectedStreet || suggested.street}</span>
-            </div>
-          </div>
-          {isEditMode && current.street !== (selectedStreet || suggested.street) && (
-            <button
-              type="button"
-              onClick={() =>
-                onApplyField('street', 'Tuyến đường', selectedStreet || suggested.street)
-              }
-              className="mt-2 flex cursor-pointer items-center justify-center gap-1 rounded bg-white py-1 text-[11px] font-bold text-emerald-700 shadow-2xs border border-emerald-200 hover:bg-emerald-50"
-            >
-              <Check className="h-3 w-3" /> Áp dụng
-            </button>
-          )}
-        </div>
-
-        {/* 3. Phường / Xã */}
-        <div
-          className={`flex flex-col justify-between rounded-lg border p-2.5 ${
-            current.ward !== suggested.ward
-              ? 'border-amber-300 bg-amber-100/60'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
-              <span>Phường / Xã (NQ 1685)</span>
-              {current.ward !== suggested.ward && (
-                <span className="rounded bg-amber-200 px-1 text-[10px] text-amber-800">Sáp nhập</span>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 line-through">
-              {current.ward || '(Trống)'}
-            </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-slate-900">
-              <ArrowRight className="h-3 w-3 text-emerald-600" />
-              <span className="text-emerald-700">{suggested.ward}</span>
-            </div>
-            {suggested.mergerNote && (
-              <div className="mt-1 text-[10px] text-slate-600 italic">
-                {suggested.mergerNote}
-              </div>
+          {/* Trạng thái khóa / mở */}
+          <div className="flex items-center gap-1.5">
+            {isAccepted ? (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">
+                <Lock className="h-3 w-3 text-emerald-600" />
+                <span>Đã chấp nhận (4 ô con được khóa)</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">
+                <Unlock className="h-3 w-3 text-amber-600" />
+                <span>Chế độ điều chỉnh (4 ô con mở khóa)</span>
+              </span>
             )}
           </div>
-          {isEditMode && current.ward !== suggested.ward && (
-            <button
-              type="button"
-              onClick={() => onApplyField('ward', 'Phường/Xã', suggested.ward)}
-              className="mt-2 flex cursor-pointer items-center justify-center gap-1 rounded bg-white py-1 text-[11px] font-bold text-emerald-700 shadow-2xs border border-emerald-200 hover:bg-emerald-50"
-            >
-              <Check className="h-3 w-3" /> Áp dụng
-            </button>
-          )}
         </div>
 
-        {/* 4. Quận / Huyện */}
-        <div
-          className={`flex flex-col justify-between rounded-lg border p-2.5 ${
-            current.district !== suggested.district
-              ? 'border-amber-300 bg-amber-100/60'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
-              <span>Quận / Huyện</span>
-              {current.district !== suggested.district && (
-                <span className="rounded bg-amber-200 px-1 text-[10px] text-amber-800">Cập nhật</span>
+        {/* Ô Input/Textarea địa chỉ chuẩn hóa cho phép sửa trực tiếp */}
+        <div className="relative">
+          <input
+            type="text"
+            value={standardizedAddressValue}
+            disabled={!isEditMode}
+            onChange={(e) => onChangeStandardizedAddress(e.target.value)}
+            placeholder="Số [Số nhà] [Tên đường], [Phường/Xã mới], TP. Hồ Chí Minh"
+            className={`w-full rounded-lg px-3 py-2 text-xs font-bold font-mono transition-all ${
+              isAccepted
+                ? 'bg-emerald-50/60 border border-emerald-300 text-emerald-950 focus:ring-2 focus:ring-emerald-400'
+                : 'bg-white border border-amber-300 text-slate-900 focus:ring-2 focus:ring-amber-400'
+            }`}
+          />
+        </div>
+
+        {/* Thanh công cụ 2 nút: Chấp Nhận & Điều Chỉnh */}
+        {isEditMode && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
+            <span className="text-[11px] text-slate-500 italic">
+              {isAccepted
+                ? '✓ Bốn ô chi tiết bên dưới đã mờ đi để bảo lưu dữ liệu KSV. Báo cáo PDF A4 sẽ in địa chỉ trên.'
+                : '✎ Bạn có thể sửa trực tiếp ô trên hoặc sửa 4 ô con bên dưới để ô trên tự đồng bộ hai chiều.'}
+            </span>
+
+            <div className="flex items-center gap-2">
+              {isAccepted ? (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-2xs transition-all hover:bg-amber-100 active:scale-95"
+                >
+                  <Edit3 className="h-3.5 w-3.5 text-amber-700" />
+                  <span>Điều Chỉnh (Mở khóa 4 ô con)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onAccept(standardizedAddressValue)}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-95"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  <span>Chấp Nhận (Accept & Khóa 4 ô con)</span>
+                </button>
               )}
             </div>
-            <div className="mt-1 text-xs text-slate-500 line-through">
-              {current.district || '(Trống)'}
-            </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-slate-900">
-              <ArrowRight className="h-3 w-3 text-emerald-600" />
-              <span className="text-emerald-700">{suggested.district}</span>
-            </div>
           </div>
-          {isEditMode && current.district !== suggested.district && (
-            <button
-              type="button"
-              onClick={() => onApplyField('district', 'Quận/Huyện', suggested.district)}
-              className="mt-2 flex cursor-pointer items-center justify-center gap-1 rounded bg-white py-1 text-[11px] font-bold text-emerald-700 shadow-2xs border border-emerald-200 hover:bg-emerald-50"
-            >
-              <Check className="h-3 w-3" /> Áp dụng
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Footer ghi chú tổng quan */}
-      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-900">
-        <Info className="h-3.5 w-3.5 shrink-0 text-amber-700" />
-        <span>
-          Địa chỉ sau khi chuẩn hóa sẽ hiển thị trong báo cáo in ấn A4 là:{' '}
-          <strong className="text-slate-900">
-            Số {suggested.houseNumber} {selectedStreet || suggested.street}, {suggested.ward},{' '}
-            {suggested.district}
-          </strong>
-        </span>
-      </div>
+      {/* Ghi chú gợi ý sáp nhập theo NQ 1685 nếu có */}
+      {suggested.mergerNote && (
+        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-amber-900">
+          <Info className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+          <span>
+            <strong>Ghi chú địa giới:</strong> {suggested.mergerNote}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

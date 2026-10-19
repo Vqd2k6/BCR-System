@@ -208,7 +208,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     standardizedWard,
     standardizedDistrict,
   ].filter(Boolean);
-  const address = addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || '');
+  const address = json.standardizedAddress || (addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || ''));
 
   // Revision
   const revision = reportData.export_revision !== undefined && reportData.export_revision !== null

@@ -212,97 +212,101 @@
 
             {{#each this.pairs}}
               {{#if this.hasExtraCloseUp}}
-                <!-- Bộ 3 ảnh đối chiếu khi khuyết tật có thêm ảnh thước đo chuyên dụng -->
-                <div class="defect-trio-container" style="margin-bottom: 6px;">
-                  <div class="photo-card">
-                    <div class="defect-photo-wrapper" style="height: 195px;">
-                      {{#if this.contextPhotoBase64}}
-                        <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
-                      {{else if this.contextPhotoUrl}}
-                        <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
-                      {{else}}
-                        <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
-                          [ Ảnh bối cảnh ]
-                        </div>
-                      {{/if}}
-                      {{#if this.hasPin}}
-                        <div class="photo-defect-pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="Vị trí khuyết tật {{this.defectId}}">
-                          <div class="photo-defect-pin-badge">{{this.defectId}}</div>
-                          <div class="photo-defect-pin-pointer"></div>
-                          <div class="photo-defect-pin-target"></div>
-                        </div>
-                      {{/if}}
-                      {{#if this.contextPhotoUrl}}
-                        {{#if @root.enableWatermark}}
-                          {{#unless this.contextAlreadyWatermarked}}
-                            {{#if @root.metadata.headerLogoBase64}}
-                              <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                            {{/if}}
-                            <div class="watermark-text-bottom-right watermark-text-sm">
-                              <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
-                            </div>
-                          {{/unless}}
+                <!-- Bộ 3 ảnh đối chiếu: 1 bối cảnh toàn cảnh trên rộng + 2 cận cảnh/thước đo song song phía dưới -->
+                <div class="defect-trio-stacked" style="margin-bottom: 6px;">
+                  <div class="defect-trio-top-ctx">
+                    <div class="photo-card">
+                      <div class="defect-photo-wrapper">
+                        {{#if this.contextPhotoBase64}}
+                          <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                        {{else if this.contextPhotoUrl}}
+                          <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                        {{else}}
+                          <div style="height: 90mm; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
+                            [ Ảnh bối cảnh ]
+                          </div>
                         {{/if}}
-                      {{/if}}
+                        {{#if this.hasPin}}
+                          <div class="photo-defect-pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="Vị trí khuyết tật {{this.defectId}}">
+                            <div class="photo-defect-pin-badge">{{this.defectId}}</div>
+                            <div class="photo-defect-pin-pointer"></div>
+                            <div class="photo-defect-pin-target"></div>
+                          </div>
+                        {{/if}}
+                        {{#if this.contextPhotoUrl}}
+                          {{#if @root.enableWatermark}}
+                            {{#unless this.contextAlreadyWatermarked}}
+                              {{#if @root.metadata.headerLogoBase64}}
+                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                              {{/if}}
+                              <div class="watermark-text-bottom-right watermark-text-sm">
+                                <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
+                              </div>
+                            {{/unless}}
+                          {{/if}}
+                        {{/if}}
+                      </div>
+                      <div class="photo-caption font-bold">{{this.contextCaption.vi}}</div>
                     </div>
-                    <div class="photo-caption">{{this.contextCaption.vi}}</div>
                   </div>
 
-                  <div class="photo-card">
-                    <div class="defect-photo-wrapper" style="height: 195px;">
-                      {{#if this.closeUpPhotoBase64}}
-                        <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
-                      {{else if this.closeUpPhotoUrl}}
-                        <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
-                      {{else}}
-                        <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
-                          [ Cận cảnh 1 ]
-                        </div>
-                      {{/if}}
-                      {{#if this.closeUpPhotoUrl}}
-                        {{#if @root.enableWatermark}}
-                          {{#unless this.closeUpAlreadyWatermarked}}
-                            {{#if @root.metadata.headerLogoBase64}}
-                              <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                            {{/if}}
-                            <div class="watermark-text-bottom-right watermark-text-sm">
-                              <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
-                            </div>
-                          {{/unless}}
+                  <div class="defect-trio-bottom-pairs">
+                    <div class="photo-card">
+                      <div class="defect-photo-wrapper">
+                        {{#if this.closeUpPhotoBase64}}
+                          <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
+                        {{else if this.closeUpPhotoUrl}}
+                          <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
+                        {{else}}
+                          <div style="height: 95mm; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
+                            [ Cận cảnh 1 ]
+                          </div>
                         {{/if}}
-                      {{/if}}
+                        {{#if this.closeUpPhotoUrl}}
+                          {{#if @root.enableWatermark}}
+                            {{#unless this.closeUpAlreadyWatermarked}}
+                              {{#if @root.metadata.headerLogoBase64}}
+                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                              {{/if}}
+                              <div class="watermark-text-bottom-right watermark-text-sm">
+                                <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
+                              </div>
+                            {{/unless}}
+                          {{/if}}
+                        {{/if}}
+                      </div>
+                      <div class="photo-caption font-bold">{{this.closeUpCaption.vi}}</div>
                     </div>
-                    <div class="photo-caption font-bold">{{this.closeUpCaption.vi}}</div>
-                  </div>
 
-                  <div class="photo-card">
-                    <div class="defect-photo-wrapper" style="height: 195px;">
-                      {{#if this.extraCloseUpPhotoBase64}}
-                        <img src="{{this.extraCloseUpPhotoBase64}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
-                      {{else if this.extraCloseUpPhotoUrl}}
-                        <img src="{{this.extraCloseUpPhotoUrl}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
-                      {{else}}
-                        <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
-                          [ Thước đo nứt ]
-                        </div>
-                      {{/if}}
-                      {{#if this.extraCloseUpPhotoUrl}}
-                        {{#if @root.enableWatermark}}
-                          {{#unless this.extraCloseUpAlreadyWatermarked}}
-                            {{#if @root.metadata.headerLogoBase64}}
-                              <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                            {{/if}}
-                            <div class="watermark-text-bottom-right watermark-text-sm">
-                              <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
-                            </div>
-                          {{/unless}}
+                    <div class="photo-card">
+                      <div class="defect-photo-wrapper">
+                        {{#if this.extraCloseUpPhotoBase64}}
+                          <img src="{{this.extraCloseUpPhotoBase64}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
+                        {{else if this.extraCloseUpPhotoUrl}}
+                          <img src="{{this.extraCloseUpPhotoUrl}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
+                        {{else}}
+                          <div style="height: 95mm; display: flex; align-items: center; justify-content: center; background: #f9f9f9; color: var(--c-sub); font-size: var(--fs-e1); border: 1px dashed #000000; text-align: center; padding: 8px;">
+                            [ Thước đo nứt ]
+                          </div>
                         {{/if}}
-                      {{/if}}
+                        {{#if this.extraCloseUpPhotoUrl}}
+                          {{#if @root.enableWatermark}}
+                            {{#unless this.extraCloseUpAlreadyWatermarked}}
+                              {{#if @root.metadata.headerLogoBase64}}
+                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                              {{/if}}
+                              <div class="watermark-text-bottom-right watermark-text-sm">
+                                <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
+                              </div>
+                            {{/unless}}
+                          {{/if}}
+                        {{/if}}
+                      </div>
+                      <div class="photo-caption font-bold">{{this.extraCloseUpCaption.vi}}</div>
                     </div>
-                    <div class="photo-caption font-bold">{{this.extraCloseUpCaption.vi}}</div>
                   </div>
                 </div>
 

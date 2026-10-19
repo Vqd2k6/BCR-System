@@ -56,7 +56,7 @@ export class Section3And4Mapper {
 
     const section3: Section3HistoryOccupancy = {
       changeOfUse: renovationLoad === 0
-        ? { vi: 'Chưa ghi nhận', en: 'Not recorded' }
+        ? { vi: 'Không ghi nhận', en: 'Not recorded' }
         : renovationLoad === 1
           ? { vi: 'Nhẹ – Đã xử lý ổn định', en: 'Minor – Stabilised' }
           : renovationLoad === 2
@@ -70,7 +70,7 @@ export class Section3And4Mapper {
           : { vi: 'Có cơi nới / mở rộng quy mô lớn', en: 'Substantial extension reported' },
 
       structuralAlteration: majorRepair === 0
-        ? { vi: 'Chưa ghi nhận', en: 'Not recorded' }
+        ? { vi: 'Không ghi nhận', en: 'Not recorded' }
         : majorRepair === 1
           ? { vi: 'Có cải tạo nhẹ kết cấu', en: 'Minor structural alteration' }
           : { vi: 'Có cải tạo lớn ảnh hưởng chịu lực', en: 'Major structural alteration' },
@@ -136,15 +136,20 @@ export class Section3And4Mapper {
             ? { vi: 'Có – Ảnh hưởng đáng kể', en: 'Yes – Substantial damage' }
             : { vi: 'Có – Tranh chấp / Ảnh hưởng nghiêm trọng', en: 'Yes – Severe damage / Disputed' },
 
-      informationSource: (json.isAbsenteeSurvey || rawReport.is_absentee_survey)
+      informationSource: (json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE' || json.foundationCatScore === 4 || String(json.foundationSource || '').includes('suy luận'))
         ? {
-            vi: 'Quan sát hiện trường bên ngoài (Khảo sát vắng chủ)',
-            en: 'Exterior site observation (Absentee survey)',
+            vi: 'Quan sát hiện trường',
+            en: 'Site observation',
           }
-        : {
-            vi: 'Phỏng vấn chủ hộ, Quan sát hiện trường',
-            en: 'Property owner interview, Site observation',
-          },
+        : (json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND')
+          ? {
+              vi: 'Khảo sát thực địa',
+              en: 'Field inspection',
+            }
+          : {
+              vi: 'Phỏng vấn chủ hộ',
+              en: 'Property owner interview',
+            },
     };
 
     // CHƯƠNG IV: ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG

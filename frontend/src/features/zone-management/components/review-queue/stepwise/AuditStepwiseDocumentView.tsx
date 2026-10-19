@@ -43,6 +43,7 @@ export interface AuditStepwiseDocumentViewProps {
     diffItems: DiffItem[];
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
+    discardDiffItem?: (fieldKey: string) => void;
   }) => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
@@ -83,6 +84,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     handleFieldChange,
     handleNestedFieldChange,
     handleDiscard,
+    discardDiffItem,
     handleReviewSave,
     getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
@@ -90,6 +92,9 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   // Kiểm toán hướng ảnh Nhà Dân Thường theo khuyến nghị chuẩn FE
   const {
     violations,
+    strictViolations,
+    advisoryViolations,
+    violationsMap,
     hasMismatchedPhotos,
     hasStrictViolations,
     mismatchedCount,
@@ -138,6 +143,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
         diffItems,
         updates: updatesPayload,
         discardAll: (silent = false) => handleDiscard(silent),
+        discardDiffItem: (fieldKey: string) => discardDiffItem(fieldKey),
       });
     }
   }, [dirtyCount, dirtyFields, onDirtyChange]);
@@ -279,6 +285,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={setPhotoRotation}
+          violationsMap={violationsMap}
         />
 
         {/* Bước 02: Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc */}
@@ -295,6 +302,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={setPhotoRotation}
+          violationsMap={violationsMap}
         />
 
         {/* Bước 03: Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ */}

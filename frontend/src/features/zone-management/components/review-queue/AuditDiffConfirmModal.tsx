@@ -51,6 +51,7 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   onJumpToStep?: (stepId: number) => void;
+  onDiscardDiffItem?: (fieldKey: string) => void;
 }
 
 export const AuditDiffConfirmModal: React.FC<Props> = ({
@@ -64,6 +65,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   onClose,
   onSuccess,
   onJumpToStep,
+  onDiscardDiffItem,
 }) => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -376,14 +378,15 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200 text-[11px] sticky top-0 z-10 shadow-2xs">
                 <tr>
                   <th className="p-3 w-1/4">Trường Thông Tin</th>
-                  <th className="p-3 w-[37.5%]">Giá Trị Ban Đầu (KSV Nộp)</th>
-                  <th className="p-3 w-[37.5%]">Giá Trị Mới (Admin Sửa)</th>
+                  <th className={`p-3 ${onDiscardDiffItem ? 'w-[32%]' : 'w-[37.5%]'}`}>Giá Trị Ban Đầu (KSV Nộp)</th>
+                  <th className={`p-3 ${onDiscardDiffItem ? 'w-[32%]' : 'w-[37.5%]'}`}>Giá Trị Mới (Admin Sửa)</th>
+                  {onDiscardDiffItem && <th className="p-3 w-[11%] text-right">Thao Tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDiffItems.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-slate-400">
+                    <td colSpan={onDiscardDiffItem ? 4 : 3} className="p-6 text-center text-slate-400">
                       Không có trường nào trong tab này bị thay đổi.
                     </td>
                   </tr>
@@ -400,6 +403,19 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
                       <td className="p-3 bg-emerald-50/60 text-emerald-800 font-bold">
                         <span>{formatDisplayValue(item.newValue)}</span>
                       </td>
+                      {onDiscardDiffItem && (
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onDiscardDiffItem(item.field)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 text-[11px] font-bold border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer shadow-2xs"
+                            title="Bỏ thay đổi trường này, khôi phục giá trị KSV ban đầu"
+                          >
+                            <RotateCcw className="w-3 h-3 text-slate-500 hover:text-rose-500" />
+                            <span>Bỏ sửa</span>
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

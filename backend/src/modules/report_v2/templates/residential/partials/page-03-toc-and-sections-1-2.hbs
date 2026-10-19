@@ -22,10 +22,7 @@
         <td class="label-col">Mã công trình<br><span class="text-muted">Building ID</span></td>
         <td class="val-col font-bold" style="color: #0f3b6c;">{{section1.buildingId}}</td>
       </tr>
-      <tr>
-        <td class="label-col">Mã khảo sát (*)<br><span class="text-muted">Survey ID</span></td>
-        <td class="val-col">{{section1.surveyId}}</td>
-      </tr>
+
       <tr>
         <td class="label-col">Số hiệu báo cáo (*)<br><span class="text-muted">Report No.</span></td>
         <td class="val-col font-bold">{{section1.reportNo}}</td>
@@ -124,8 +121,8 @@
       <tr>
         <td class="label-col">Chiều cao (m)<br><span class="text-muted">Height</span></td>
         <td class="val-col">
-          Cao nhất: {{section2.maxHeightM}} m &nbsp;|&nbsp; Tầng điển hình: {{section2.typicalStoreyHeightM}}<br>
-          <span class="text-muted">Max height: {{section2.maxHeightM}} m &nbsp;|&nbsp; Typical storey: {{section2.typicalStoreyHeightM}}</span>
+          {{#if (and section2.maxHeightM (ne section2.maxHeightM '–'))}}Cao nhất: {{section2.maxHeightM}} m{{else}}Cao nhất: –{{/if}} &nbsp;|&nbsp; Tầng điển hình: {{section2.typicalStoreyHeightM}}<br>
+          <span class="text-muted">{{#if (and section2.maxHeightM (ne section2.maxHeightM '–'))}}Max height: {{section2.maxHeightM}} m{{else}}Max height: –{{/if}} &nbsp;|&nbsp; Typical storey: {{section2.typicalStoreyHeightM}}</span>
         </td>
       </tr>
       <tr>

@@ -23,12 +23,47 @@
     </div>
 
     <h3 class="section-header">Hạn chế khảo sát / Limitations:</h3>
-    {{#if section9.limitations.length}}
-      {{#each section9.limitations}}
-        <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
-      {{/each}}
-    {{else}}
-      <p>--</p>
+    {{#if section9.accessAreas.length}}
+    <table class="tech-table compact-table" style="margin-bottom: 5px;">
+      <thead>
+        <tr>
+          <th style="width: 28%;">Khu vực công trình / Building Area</th>
+          <th style="width: 18%; text-align: center;">Tiếp cận / Accessed</th>
+          <th style="width: 54%;">Ghi chú hiện trạng / Field Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section9.accessAreas}}
+          <tr>
+            <td class="font-bold">
+              {{this.area.vi}}<br>
+              <span class="text-muted">{{this.area.en}}</span>
+            </td>
+            <td class="text-center font-bold" style="color: #000000;">
+              {{#if this.accessed}}
+                <span>☑ Có / Yes</span>
+              {{else if this.notAccessed}}
+                <span>☒ Không / No</span>
+              {{else}}
+                <span>– N/A</span>
+              {{/if}}
+            </td>
+            <td>
+              {{this.remark.vi}}<br>
+              <span class="text-muted">{{this.remark.en}}</span>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+
+    {{#if section9.accessClassification.vi}}
+    <div style="background-color: transparent; border: 1pt solid #000000; padding: 4px 8px; margin-bottom: 6px; font-size: var(--fs-c1); line-height: 1.35;">
+      <strong>Phân loại mức độ tiếp cận (Access Classification):</strong>
+      <span style="font-weight: bold; margin-left: 4px; color: #000000;">{{section9.accessClassification.vi}}</span>
+      <span class="text-muted" style="margin-left: 4px;">({{section9.accessClassification.en}})</span>
+    </div>
     {{/if}}
 
     <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>

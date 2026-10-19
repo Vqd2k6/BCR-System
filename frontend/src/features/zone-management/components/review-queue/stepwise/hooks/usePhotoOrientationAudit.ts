@@ -59,7 +59,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
   // State lưu kích thước ảnh đã đo được
   const [measuredDimensions, setMeasuredDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
-  // Cập nhật góc xoay cho 1 ảnh cụ thể
+  // Cập nhật góc xoay cho 1 ảnh cụ thể (Thẩm định viên chủ động xoay)
   const setPhotoRotation = useCallback((photoKey: string, rotationDeg: number) => {
     const norm = normalizeRotationAngle(rotationDeg);
     setStagedPhotoRotations((prev) => ({
@@ -256,6 +256,64 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
       });
     }
 
+    // Nhóm Bước 3: Tầng & Bản vẽ CAD, Vùng Z, Khuyết tật D trong surveyJson.floors
+    const floors = (surveyJson.floors || []) as Array<Record<string, unknown>>;
+    if (Array.isArray(floors)) {
+      floors.forEach((f, fIdx) => {
+        const floorName = (f.floorName || `Tầng ${fIdx + 1}`) as string;
+        const cadUrl = (f.cadSketchPhotoUrl || f.cadPhotoUrl || '') as string;
+        if (cadUrl) {
+          list.push({
+            key: `floor_${f.id || fIdx}_cad`,
+            ruleKey: 'CAD_SKETCH',
+            photoCode: `CAD-${fIdx + 1}`,
+            title: `Bản vẽ CAD ${floorName}`,
+            photoUrl: cadUrl,
+            stepId: 'step-3',
+            domElementId: `audit-cad-sketch-${fIdx}`,
+          });
+        }
+
+        const fZones = (f.zones || []) as Array<Record<string, unknown>>;
+        if (Array.isArray(fZones)) {
+          fZones.forEach((z, zIdx) => {
+            const zCode = (z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
+            const ctxUrl = (z.ctxPhotoUrl || '') as string;
+            if (ctxUrl) {
+              list.push({
+                key: `zone_${z.id || zCode}_ctx`,
+                ruleKey: 'Z_CTX',
+                photoCode: `${zCode}-CTX`,
+                title: `Bối cảnh Vùng ${zCode} (${floorName})`,
+                photoUrl: ctxUrl,
+                stepId: 'step-3',
+                domElementId: `audit-photo-card-zone-${zCode}`,
+              });
+            }
+
+            const zDefects = (z.defects || []) as Array<Record<string, unknown>>;
+            if (Array.isArray(zDefects)) {
+              zDefects.forEach((d) => {
+                const dCode = (d.defectCode || 'D') as string;
+                const cuUrl = (d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : '')) as string;
+                if (cuUrl) {
+                  list.push({
+                    key: `defect_${d.id || dCode}_cu`,
+                    ruleKey: 'D_CU',
+                    photoCode: `${dCode}-CU`,
+                    title: `Cận cảnh thước đo nứt ${dCode} (${floorName})`,
+                    photoUrl: cuUrl,
+                    stepId: 'step-3',
+                    domElementId: `audit-photo-card-defect-${dCode}`,
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
     return list;
   }, [surveyJson]);
 
@@ -291,7 +349,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
     };
   }, [photoCandidates]);
 
-  // 3. Đánh giá toàn bộ vi phạm hướng ảnh
+  // 3. Đánh giá toàn bộ vi phạm hướng ảnh theo quy chuẩn FE Nhà Dân (KHÔNG tự động xoay ngầm)
   const violations = useMemo<PhotoOrientationViolation[]>(() => {
     const list: PhotoOrientationViolation[] = [];
 
@@ -327,18 +385,59 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
     return list;
   }, [photoCandidates, measuredDimensions, stagedPhotoRotations, getPhotoRotation]);
 
+  // Phân loại vi phạm thành 2 nhóm: Bắt buộc (Strict) vs Khuyến nghị (Advisory)
+  const strictViolations = useMemo(() => violations.filter((v) => v.isStrict), [violations]);
+  const advisoryViolations = useMemo(() => violations.filter((v) => !v.isStrict), [violations]);
+
+  // Tra cứu vi phạm nhanh theo key, photoCode hoặc domElementId
+  const violationsMap = useMemo(() => {
+    const map = new Map<string, PhotoOrientationViolation>();
+    violations.forEach((v) => {
+      map.set(v.key, v);
+      if (v.photoCode) map.set(v.photoCode, v);
+      if (v.domElementId) map.set(v.domElementId, v);
+    });
+    return map;
+  }, [violations]);
+
+  // Helper tra cứu trạng thái xoay của từng ảnh cho các Card con
+  const getPhotoOrientationStatus = useCallback(
+    (keyOrCode: string) => {
+      const violation = violationsMap.get(keyOrCode);
+      return {
+        hasMismatch: Boolean(violation),
+        violation,
+        isStrict: violation?.isStrict ?? false,
+        suggestedRotation: violation?.suggestedRotation,
+        expected: violation?.expectedOrientation,
+      };
+    },
+    [violationsMap]
+  );
+
   const hasMismatchedPhotos = violations.length > 0;
-  const hasStrictViolations = violations.some((v) => v.isStrict);
+  const hasStrictViolations = strictViolations.length > 0;
+  const hasAdvisoryViolations = advisoryViolations.length > 0;
   const mismatchedCount = violations.length;
+  const strictCount = strictViolations.length;
+  const advisoryCount = advisoryViolations.length;
 
   return {
     violations,
+    strictViolations,
+    advisoryViolations,
+    violationsMap,
     hasMismatchedPhotos,
     hasStrictViolations,
+    hasAdvisoryViolations,
     mismatchedCount,
+    strictCount,
+    advisoryCount,
     stagedPhotoRotations,
     setPhotoRotation,
     getPhotoRotation,
+    getPhotoOrientationStatus,
+    isAutoRotated: (_key: string) => false, // Đã loại bỏ tự động xoay ngầm
     photoCandidatesCount: photoCandidates.length,
   };
 }

@@ -3,8 +3,9 @@ import type { PhotoActionMode, PhotoActionPayload } from '../AuditPhotoActionMod
 import type { FloorSurveyData, DamageZoneData, DefectItem, CadZonePin, PolygonPoint } from '../../../../survey-phase1/types/phase1.types';
 import type { AuditHistoryLogItem } from '../AuditHistoryModal';
 import type { RiskCardData } from '../EngineeringJudgementModal';
+import type { PhotoOrientationViolation } from './hooks/usePhotoOrientationAudit';
 
-export type { PhotoReplaceParams, RiskCardData, PhotoActionMode, PhotoActionPayload };
+export type { PhotoReplaceParams, RiskCardData, PhotoActionMode, PhotoActionPayload, PhotoOrientationViolation };
 
 export interface AuditPhotoActionParams {
   initialMode?: PhotoActionMode;
@@ -363,6 +364,7 @@ export interface AuditStepBaseProps {
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export interface AuditStep3FloorDefectsProps extends AuditStepBaseProps {
