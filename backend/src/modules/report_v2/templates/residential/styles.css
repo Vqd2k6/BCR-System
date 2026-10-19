@@ -1069,5 +1069,13 @@ h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after:
 
 /* Sơ đồ CAD: thu gọn để bảng khuyết tật của tầng nằm cùng trang */
 .cad-map-pinning-wrapper { min-height: 0 !important; }
-.cad-map-image { max-height: 300px !important; }
-.cad-map-container.full-width img { max-height: 300px !important; }
+.cad-map-image { max-height: 250px !important; }
+.cad-map-container.full-width img { max-height: 250px !important; }
+
+/* Tiêu đề chương luôn đi cùng nội dung ngay sau nó (tránh tiêu đề lẻ cuối trang) */
+.chapter-header + table, .chapter-header + div, .section-header + table { break-before: avoid; page-break-before: avoid; }
+.chapter-header { break-inside: avoid; }
+
+/* Bảng tổng hợp khuyết tật Phụ lục 1: gọn hơn để cùng trang với sơ đồ CAD */
+.defect-summary-table td, .defect-summary-table th { font-size: var(--fs-b2); padding: 3pt 4pt; line-height: 1.25; }
+.defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-e1); }

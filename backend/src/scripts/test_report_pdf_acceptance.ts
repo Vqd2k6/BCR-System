@@ -53,7 +53,8 @@ async function main() {
     // 3. Phụ lục 1 phải có khuyết tật khi DB có khuyết tật
     const raw: any = resolved.raw;
     const defectCount = JSON.stringify(raw).match(/"defect_type"/g)?.length ?? 0;
-    const pl1Start = sq.findIndex((t) => t.includes(squeeze('PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT')) );
+    const tocIdx = sq.findIndex((t) => t.includes('tableofcontents'));
+    const pl1Start = sq.findIndex((t, i) => i > tocIdx && t.includes(squeeze('PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT')) );
     if (pl1Start >= 0) {
       const pl1Pages = sq.filter((t) => t.includes(squeeze('Bảng tổng hợp khuyết tật tầng')) || t.includes('d01') || t.includes('d02'));
       check(pl1Pages.length > 0, `Phụ lục 1 có bảng khuyết tật (DB ~${defectCount} bản ghi defect_type)`);
