@@ -17,7 +17,7 @@ async function bootstrap() {
   // Tự động kiểm tra và cấu hình CORS cho Cloudflare R2 bucket nếu đang chạy R2 storage
   await StorageService.autoConfigureR2Cors();
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     console.log(`================================================================`);
     console.log(`🚀 METRO 2 SURVEY BACKEND API SERVICE IS RUNNING`);
     console.log(`📡 URL: http://localhost:${config.port}${config.apiPrefix}`);
@@ -26,6 +26,11 @@ async function bootstrap() {
     console.log(`📦 ENVIRONMENT: ${config.env}`);
     console.log(`================================================================`);
   });
+
+  // Tăng timeout kết nối lên 300s (5 phút) phục vụ các tác vụ nạp bản đồ lớn và internet latency
+  server.timeout = 300000;
+  server.keepAliveTimeout = 305000;
+  server.headersTimeout = 310000;
 }
 
 bootstrap().catch((err) => {

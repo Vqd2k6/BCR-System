@@ -195,10 +195,16 @@ export const ZoneIngestionTab: React.FC<Props> = ({ onOpenMapPreview }) => {
     try {
       setIsImporting(true);
       setErrorMsg(null);
-      const res = await api.post(`/admin/zones/${targetZone.zoneCode}/import-data`, {
-        parcels: rawParcelsPayload,
-        forceCleanReimport: forceReimport,
-      });
+      const res = await api.post(
+        `/admin/zones/${targetZone.zoneCode}/import-data`,
+        {
+          parcels: rawParcelsPayload,
+          forceCleanReimport: forceReimport,
+        },
+        {
+          timeout: 300000, // 5 phút cho các file phân đoạn lớn (Zone 8: 784 thửa)
+        }
+      );
 
       if (res.data?.success) {
         setSuccessToast(`Nạp thành công ${res.data.data.insertedCount} thửa đất cho ${targetZone.zoneCode} [${res.data.data.startCode} -> ${res.data.data.endCode}]!`);
