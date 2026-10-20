@@ -25,6 +25,7 @@ import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/Unifi
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
+import type { ImportPreviewState } from './components/gis/shared/types';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
 import { GuestDashboardPage } from './features/guest-portal/views/GuestDashboardPage';
 import { GuestReportPreviewPage } from './features/guest-portal/views/GuestReportPreviewPage';
@@ -94,6 +95,8 @@ export const App: React.FC = () => {
     }
     return 'ZONE_09';
   });
+
+  const [previewImportState, setPreviewImportState] = useState<ImportPreviewState | null>(null);
 
   // Tự động đồng bộ zone theo khu vực phân công của surveyor (user.assignedZoneId) nếu URL chưa có zone
   useEffect(() => {
@@ -929,7 +932,13 @@ export const App: React.FC = () => {
         )}
 
         {user?.role === 'SUPER_ADMIN' && activeTab === 'admin-export' && (
-          <AdminDashboardPage />
+          <AdminDashboardPage
+            onOpenMapPreview={(previewState) => {
+              setPreviewImportState(previewState);
+              setSelectedZone(previewState.zoneCode);
+              handleChangeTab('map');
+            }}
+          />
         )}
 
         {user?.role !== 'ZONE_ADMIN' && activeTab === 'home' && (
@@ -973,6 +982,29 @@ export const App: React.FC = () => {
               }}
               onSwapSuccess={() => loadParcels()}
               userGps={liveUserGps}
+              previewImportState={previewImportState}
+              onConfirmImportPreview={async () => {
+                if (!previewImportState) return;
+                try {
+                  const res = await api.post(`/admin/zones/${previewImportState.zoneCode}/import`, {
+                    parcels: previewImportState.parcels,
+                    forceReimport: true,
+                  });
+                  if (res.data?.success) {
+                    alert(`Nạp thành công ${res.data.importedCount} thửa đất cho ${previewImportState.zoneName}!`);
+                    setPreviewImportState(null);
+                    await loadParcels();
+                    handleChangeTab('admin-export');
+                  }
+                } catch (err: unknown) {
+                  console.error('[App:onConfirmImportPreview] Lỗi nạp dữ liệu vào cơ sở dữ liệu:', err);
+                  alert(getErrorMessage(err, 'Lỗi nạp dữ liệu vào cơ sở dữ liệu'));
+                }
+              }}
+              onCancelImportPreview={() => {
+                setPreviewImportState(null);
+                handleChangeTab('admin-export');
+              }}
             />
           </div>
         )}

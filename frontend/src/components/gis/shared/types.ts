@@ -108,6 +108,30 @@ export interface CadastralBoundaryEditorProps {
   onToastMessage?: (msg: string) => void;
 }
 
+export interface PreviewParcelItem {
+  mathuadat: string;
+  projectParcelCode: string;
+  codeSlug: string;
+  soto: string;
+  sothua: string;
+  dientich: number;
+  street: string;
+  ward: string;
+  district: string;
+  latitude: number;
+  longitude: number;
+  ranhCoords: [number, number][];
+}
+
+export interface ImportPreviewState {
+  zoneCode: string;
+  zoneName: string;
+  totalIncoming: number;
+  parcels: PreviewParcelItem[];
+  startCode: string;
+  endCode: string;
+}
+
 export interface LeafletSweepMapProps {
   parcels: GisParcel[];
   selectedZone: string;
@@ -122,4 +146,8 @@ export interface LeafletSweepMapProps {
   thematicMode?: 'WORKFLOW' | 'BRA_RISK';
   hideBottomSheet?: boolean;
   onSwapSuccess?: () => void;
+  previewImportState?: ImportPreviewState | null;
+  onConfirmImportPreview?: () => void;
+  onCancelImportPreview?: () => void;
 }
+

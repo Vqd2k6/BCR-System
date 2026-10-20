@@ -9,6 +9,8 @@ import { SweepMapHeader } from './sweep-map/components/SweepMapHeader';
 import { SweepMapFilterModal } from './sweep-map/components/SweepMapFilterModal';
 import { MetroGisOverlays } from './sweep-map/components/layers/MetroGisOverlays';
 import { ParcelsLayer } from './sweep-map/components/layers/ParcelsLayer';
+import { PreviewParcelsLayer } from './sweep-map/components/layers/PreviewParcelsLayer';
+import { FloatingImportPreviewBar } from './sweep-map/components/FloatingImportPreviewBar';
 import { ParcelDetailBottomSheet } from './sweep-map/components/ParcelDetailBottomSheet';
 
 // Re-export GisParcel for backward compatibility across the entire system
@@ -29,6 +31,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   thematicMode,
   hideBottomSheet = false,
   onSwapSuccess,
+  previewImportState,
+  onConfirmImportPreview,
+  onCancelImportPreview,
 }) => {
   const {
     currentZoneConfig,
@@ -108,6 +113,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         handleSelectSearchResult={handleSelectSearchResult}
         isCustomFilterActive={isCustomFilterActive}
         setShowFilterModal={setShowFilterModal}
+        parcels={parcels}
       />
 
       {/* 2. 3-Bar Filter & Legend Drawer/Modal */}
@@ -184,7 +190,21 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             onSelectParcel={onSelectParcel}
             thematicMode={thematicMode}
           />
+
+          {/* 4b. Lớp đa giác nét đứt cho tệp đang xem trước (Preview Layer) */}
+          {previewImportState && (
+            <PreviewParcelsLayer previewParcels={previewImportState.parcels} />
+          )}
         </MapContainer>
+
+        {/* Thanh điều khiển nổi xem trước dữ liệu nạp (Floating Import Preview Bar) */}
+        {previewImportState && onConfirmImportPreview && onCancelImportPreview && (
+          <FloatingImportPreviewBar
+            previewState={previewImportState}
+            onConfirm={onConfirmImportPreview}
+            onCancel={onCancelImportPreview}
+          />
+        )}
 
         {/* Clean DB / Zero Parcels Status Floating Banner */}
         {displayedParcels.length === 0 && (

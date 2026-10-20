@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CadastralService } from './cadastral.service';
+import { CadastralIngestionService } from './services/cadastral-ingestion.service';
 import {
   StartSurveyDto,
   RecordAbsenceDto,
@@ -557,6 +558,141 @@ export class CadastralController {
       res.status(200).json({
         success: true,
         data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // PHÂN HỆ QUẢN TRỊ 22 ZONE & NẠP DỮ LIỆU ĐỊA CHÍNH (SUPER ADMIN)
+  // ==========================================
+
+  static async getZonesOverview(req: Request, res: Response, next: NextFunction) {
+    try {
+      const overview = await CadastralIngestionService.getZonesOverview();
+      res.status(200).json({
+        success: true,
+        data: overview,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async auditZoneData(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneCode } = req.params;
+      const { parcels } = req.body;
+
+      if (!zoneCode) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneCode (ví dụ: ZONE_07)');
+      }
+      if (!parcels || !Array.isArray(parcels)) {
+        throw new BadRequestError('Dữ liệu parcels tải lên phải là một mảng danh sách các thửa đất');
+      }
+
+      const auditResult = await CadastralIngestionService.auditZonePayload(zoneCode, parcels);
+      res.status(200).json({
+        success: true,
+        data: auditResult,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async importZoneData(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneCode } = req.params;
+      const { parcels, forceCleanReimport } = req.body;
+      const adminId = req.user?.userId;
+
+      if (!zoneCode) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneCode (ví dụ: ZONE_07)');
+      }
+      if (!parcels || !Array.isArray(parcels) || parcels.length === 0) {
+        throw new BadRequestError('Dữ liệu parcels tải lên rỗng hoặc không đúng định dạng');
+      }
+
+      const importResult = await CadastralIngestionService.executeImportZone(
+        zoneCode,
+        parcels,
+        adminId,
+        Boolean(forceCleanReimport)
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Nạp thành công ${importResult.insertedCount} thửa đất cho ${zoneCode}`,
+        data: importResult,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async setZoneActive(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneCode } = req.params;
+      const { isActive } = req.body;
+      const adminId = req.user?.userId;
+
+      if (!zoneCode) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneCode');
+      }
+      if (typeof isActive !== 'boolean') {
+        throw new BadRequestError('Trường isActive phải là boolean (true hoặc false)');
+      }
+
+      await CadastralIngestionService.setZoneActive(zoneCode, isActive, adminId);
+      res.status(200).json({
+        success: true,
+        message: isActive ? `Đã kích hoạt và công bố ${zoneCode} cho Khảo sát viên` : `Đã chuyển ${zoneCode} về chế độ Nháp`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async assignZoneAdmin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneCode } = req.params;
+      const { adminUserId } = req.body;
+      const performedByUserId = req.user?.userId;
+
+      if (!zoneCode) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneCode');
+      }
+
+      await CadastralIngestionService.assignZoneAdmin(zoneCode, adminUserId || null, performedByUserId);
+      res.status(200).json({
+        success: true,
+        message: adminUserId ? `Đã phân công Zone Admin cho ${zoneCode}` : `Đã hủy phân công Zone Admin cho ${zoneCode}`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async syncZoneToCloud(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneCode } = req.params;
+      const { adminPassword } = req.body;
+      const adminUserId = req.user!.userId;
+
+      if (!zoneCode) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneCode');
+      }
+      if (!adminPassword || !adminPassword.trim()) {
+        throw new BadRequestError('Vui lòng nhập mật khẩu tài khoản Super Admin để phê duyệt đồng bộ Cloud');
+      }
+
+      const syncResult = await CadastralIngestionService.syncZoneToCloud(zoneCode, adminUserId, adminPassword);
+      res.status(200).json({
+        success: true,
+        message: `Đã sao lưu snapshot và đồng bộ thành công ${syncResult.cloudSyncedCount} thửa đất của ${zoneCode} lên Cloud Production!`,
+        data: syncResult,
       });
     } catch (error) {
       next(error);

@@ -215,7 +215,15 @@ export function createApp(): express.Application {
   api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);
   api.get('/admin/mutations/history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZoneMutationHistory);
 
-  // D12: Xuất mẻ hàng loạt đã gỡ – chưa triển khai thật; sẽ làm lại ở giai đoạn sau
+  // ==========================================
+  // 2b. PHÂN HỆ QUẢN TRỊ 22 ZONE & NẠP DỮ LIỆU ĐỊA CHÍNH (SUPER ADMIN)
+  // ==========================================
+  api.get('/admin/zones/overview', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZonesOverview);
+  api.post('/admin/zones/:zoneCode/audit-data', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.auditZoneData);
+  api.post('/admin/zones/:zoneCode/import-data', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.importZoneData);
+  api.put('/admin/zones/:zoneCode/activation', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.setZoneActive);
+  api.put('/admin/zones/:zoneCode/assign-admin', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.assignZoneAdmin);
+  api.post('/admin/zones/:zoneCode/sync-cloud', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.syncZoneToCloud);
 
   // ==========================================
   // 3. SUPER ADMIN USER LIFECYCLE & GLOBAL HUB

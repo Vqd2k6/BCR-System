@@ -159,12 +159,13 @@ const LEGACY_MAP: Record<string, string> = {
 };
 
 const READY_ZONES: Record<string, number> = {
-  ZONE_01: 302,
+  ZONE_01: 304,
   ZONE_02: 153,
   ZONE_03: 138,
   ZONE_04: 442,
-  ZONE_08: 415,
-  ZONE_09: 192,
+  ZONE_07: 391,
+  ZONE_08: 784,
+  ZONE_09: 196,
 };
 
 export const METRO_22_ZONES: MetroZoneConfig[] = (typedGisData.segments || []).map((seg) => {
