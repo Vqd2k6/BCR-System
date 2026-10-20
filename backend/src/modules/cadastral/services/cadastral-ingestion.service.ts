@@ -410,6 +410,10 @@ export class CadastralIngestionService {
         if (!startCode) startCode = projectParcelCode;
         endCode = projectParcelCode;
 
+        if (insertedCount % 100 === 0) {
+          console.log(`[CadastralIngestion] Đang nạp ${zoneCode}: đã xử lý ${insertedCount} thửa...`);
+        }
+
         // Chuẩn hóa closed ring WKT
         const pts = coords.map(([lat, lng]) => `${lng} ${lat}`);
         if (pts[0] !== pts[pts.length - 1]) {
