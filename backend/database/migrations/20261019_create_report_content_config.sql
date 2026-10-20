@@ -45,6 +45,25 @@ CREATE TABLE IF NOT EXISTS project_survey_equipment (
 CREATE INDEX IF NOT EXISTS idx_project_survey_equipment_active
   ON project_survey_equipment(sort_order) WHERE deleted_at IS NULL;
 
+-- Đảm bảo bảng report_releases tồn tại trước khi thêm cột mới (phòng trường hợp file này chạy trước)
+CREATE TABLE IF NOT EXISTS report_releases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  report_id UUID NOT NULL REFERENCES base_survey_reports(id) ON DELETE RESTRICT,
+  revision INTEGER NOT NULL CHECK (revision >= 0),
+  reason TEXT NOT NULL,
+  is_final BOOLEAN NOT NULL DEFAULT FALSE,
+  file_path TEXT NOT NULL,
+  file_size_bytes BIGINT NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  snapshot_version_id UUID REFERENCES survey_report_versions(id),
+  released_by_user_id UUID NOT NULL REFERENCES users(id),
+  released_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  UNIQUE (report_id, revision)
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_releases_report_id ON report_releases(report_id, revision DESC);
+
 ALTER TABLE report_releases ADD COLUMN IF NOT EXISTS standard_text_version_id UUID REFERENCES report_standard_text_versions(id);
 ALTER TABLE report_releases ADD COLUMN IF NOT EXISTS equipment_snapshot_json JSONB;
 

@@ -10,10 +10,9 @@
 ALTER TABLE metro_zones 
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT FALSE;
 
--- 2. Kích hoạt sẵn các Zone đang hoạt động thực tế trên hệ thống
+-- 2. Kích hoạt sẵn tất cả 22 Zone trên toàn hệ thống
 UPDATE metro_zones 
-SET is_active = TRUE 
-WHERE zone_code IN ('ZONE_01', 'ZONE_02', 'ZONE_03', 'ZONE_04', 'ZONE_09');
+SET is_active = TRUE;
 
 -- 3. Tạo Index tối ưu hóa truy vấn lọc các Zone đang hoạt động
 CREATE INDEX IF NOT EXISTS idx_metro_zones_is_active ON metro_zones(is_active);
