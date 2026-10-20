@@ -319,12 +319,14 @@ CREATE TABLE metro_zones (
     total_parcels_count INT NOT NULL DEFAULT 0,
     approved_parcels_count INT NOT NULL DEFAULT 0,
     assigned_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_metro_zones_code ON metro_zones(zone_code);
 CREATE INDEX idx_metro_zones_boundary ON metro_zones USING GIST(boundary_geom);
 CREATE INDEX idx_metro_zones_center ON metro_zones USING GIST(center_geom);
+CREATE INDEX IF NOT EXISTS idx_metro_zones_is_active ON metro_zones(is_active);
 
 CREATE TABLE metro_alignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
