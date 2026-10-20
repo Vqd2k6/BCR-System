@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * REPORT V2 TYPES (METRO 2 BUILDING CONDITION SURVEY - PHASE 1)
- * Chuẩn song ngữ Việt - Anh theo tài liệu mẫu: report_0410/template_report.docx
+ * Chuẩn song ngữ Việt - Anh theo tài liệu mẫu: docs/04_modules/report_engine/templates/template_report.docx
  * Liên danh CRLG – CRSRI – TT
  * ============================================================================
  */

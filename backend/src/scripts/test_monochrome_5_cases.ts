@@ -171,7 +171,7 @@ async function runMonochrome5Cases() {
     console.log(`     Đã render PDF thành công cho ${buildingId}, kích thước: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
     // Lưu file để kiểm tra
-    const outDir = path.resolve(__dirname, '../../../report_0410/resuilt');
+    const outDir = path.resolve(__dirname, '../../test_output/result');
     fs.mkdirSync(outDir, { recursive: true });
     const outPdf = path.join(outDir, `BCS_${buildingId}_Monochrome_Standard.pdf`);
     fs.writeFileSync(outPdf, pdfBuffer);

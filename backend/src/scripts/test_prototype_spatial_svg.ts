@@ -326,7 +326,7 @@ export function generateSmartFocusedMetroSvg(
 
 async function run() {
   const boundaryData = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../data/metro_boundary_data.json'), 'utf8'));
-  const outDir = path.resolve(__dirname, '../../report_0410/audit/spatial_test');
+  const outDir = path.resolve(__dirname, '../../test_output/audit/spatial_test');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await PdfRenderV2Engine.getBrowser();

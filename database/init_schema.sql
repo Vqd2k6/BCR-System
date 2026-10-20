@@ -2,7 +2,7 @@
 -- HỆ THỐNG CƠ SỞ DỮ LIỆU KHẢO SÁT HIỆN TRẠNG QUY HOẠCH TUYẾN METRO 2 (BẾN THÀNH - THAM LƯƠNG)
 -- Tiêu chuẩn: PostgreSQL 16 + PostGIS Extension
 -- Kiến trúc: 7 Phân hệ Modular (Domain-Driven Bounded Contexts)
--- Đặc tả kỹ thuật: Bám sát 100% srs/API_SPECIFICATION.md & srs/CLASS_DIAGRAM.md
+-- Đặc tả kỹ thuật: Bám sát 100% docs/02_api/api_specification.md & docs/01_architecture/class_diagram_and_db_schema.md
 -- ============================================================================
 
 -- 1. KÍCH HOẠT EXTENSIONS

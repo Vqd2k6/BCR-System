@@ -14,7 +14,7 @@ async function main() {
     { id: '52eff9ab-90fa-4ed3-9b05-90d5bfcd6793', code: 'B-0063', note: '0 khuyết tật, lưu trữ đối chứng' },
   ];
 
-  const outDir = path.resolve(__dirname, '../../../report_0410/resuilt');
+  const outDir = path.resolve(__dirname, '../../test_output/result');
   fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await PdfRenderV2Engine.getBrowser();

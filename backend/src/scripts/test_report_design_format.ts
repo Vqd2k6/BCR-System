@@ -135,7 +135,7 @@ async function runDesignFormatTests() {
   // --------------------------------------------------------------------------
   // TC6: Render và lưu trữ PDF thực tế các công trình mẫu (B-00026, B-00116, B-0063)
   // --------------------------------------------------------------------------
-  console.log('▶ TC6: Render PDF thực tế và lưu trữ vào report_0410/audit/ để nghiệm thu trực quan');
+  console.log('▶ TC6: Render PDF thực tế và lưu trữ vào backend/test_output/audit/ để nghiệm thu trực quan');
   try {
     const testCases = [
       { id: 'd730fc32-3c55-4d4f-94d2-14d4bdcf5060', filename: 'B-00026-CC.pdf' },
@@ -143,7 +143,7 @@ async function runDesignFormatTests() {
       { id: '52eff9ab-90fa-4ed3-9b05-90d5bfcd6793', filename: 'B-0063-CC.pdf' },
     ];
 
-    const outDir = path.resolve(__dirname, '../../report_0410/audit');
+    const outDir = path.resolve(__dirname, '../../test_output/audit');
     if (!fs.existsSync(outDir)) {
       fs.mkdirSync(outDir, { recursive: true });
     }
@@ -189,7 +189,7 @@ async function runDesignFormatTests() {
       }
     }
 
-    console.log('  ✅ PASSED: Đã render thành công 3/3 file PDF thực tế và lưu trữ tại report_0410/audit/!\n');
+    console.log('  ✅ PASSED: Đã render thành công 3/3 file PDF thực tế và lưu trữ tại backend/test_output/audit/!\n');
     passed++;
   } catch (err: any) {
     console.error('  ❌ FAILED TC6:', err.message);

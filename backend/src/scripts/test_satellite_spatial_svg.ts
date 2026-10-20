@@ -297,7 +297,7 @@ async function run() {
     { id: 'd730fc32-3c55-4d4f-94d2-14d4bdcf5060', code: 'B00026' },
   ];
 
-  const outDir = path.resolve(process.cwd(), 'report_0410/audit/satellite_test');
+  const outDir = path.resolve(__dirname, '../../test_output/audit/satellite_test');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await PdfRenderV2Engine.getBrowser();

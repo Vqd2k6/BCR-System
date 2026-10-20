@@ -1,5 +1,5 @@
 # KẾ HOẠCH TRIỂN KHAI & ĐẶC TẢ KIẾN TRÚC MODULE REPORT V2 (BCS METRO 2)
-> **Căn cứ tài liệu mẫu:** `report_0410/template_report.docx`  
+> **Căn cứ tài liệu mẫu:** [`templates/template_report.docx`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/templates/template_report.docx)  
 > **Tiêu chuẩn pháp lý:** Liên danh CRLG – CRSRI – TT | Dự án Tuyến Tàu điện ngầm số 2 TP.HCM (Bến Thành – Tham Lương)  
 > **Đơn vị xây dựng:** Đội ngũ Agent Chuyên Trách (BA Lead, Technical Architect, Data Specialist, QA/Dev Lead)  
 > **Cập nhật ngày 04/10/2026:** Đã tích hợp các quyết định của người dùng và Kế hoạch Quy hoạch Dữ liệu Toàn trình Chống Rơi Rụng Thông Tin (Zero-Data-Drop Architecture).
@@ -37,7 +37,7 @@ graph LR
 - **Rơi rụng dữ liệu (Data Drop):** Surveyor ngoài hiện trường thu thập rất nhiều trường chi tiết (kích thước cọc, khoảng cách tĩnh không, biến động ranh thửa Căn A/Căn B, độ võng sàn, thiết bị đo kiểm, cơi nới ngập lụt...), nhưng module cũ bỏ qua khiến báo cáo in ra nhiều chỗ bị thiếu hoặc hiển thị "Chưa ghi nhận".
 - **Lỗi ngắt trang:** Hình ảnh nứt và thước đo thường bị tràn mép, bảng biểu bị cắt đôi giữa trang.
 
-### 1.2. Mẫu chuẩn mới `report_0410/template_report.docx` (Target V2)
+### 1.2. Mẫu chuẩn mới [`templates/template_report.docx`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/templates/template_report.docx) (Target V2)
 File `template_report.docx` thiết lập bộ tiêu chuẩn toàn diện:
 1. **100% Song ngữ Việt - Anh (Bilingual)** toàn bộ tiêu đề, nhãn, bảng, ghi chú.
 2. **Khung duyệt 3 bên trang bìa**: Người lập – Người kiểm tra – Người phê duyệt kèm chữ ký số và ngày ký.
@@ -308,7 +308,7 @@ gantt
 
 ### Bước 4: Tích hợp Puppeteer Pool & Docx Engine
 - Xây dựng `pdf-render-v2.engine.ts` với cơ chế quản lý vòng đời Chromium: timeout 30s, auto-kill zombie process, in PDF độ phân giải cao kèm footer đánh số trang động `Trang X / Y`.
-- Tích hợp `docx-render-v2.engine.ts` dựa trên file mẫu `report_0410/template_report.docx` để xuất file Word có thể chỉnh sửa.
+- Tích hợp `docx-render-v2.engine.ts` dựa trên file mẫu `templates/template_report.docx` để xuất file Word có thể chỉnh sửa.
 
 ### Bước 5: Xây dựng API Controller & Trigger trên Frontend
 - Thiết lập endpoint API mới:
@@ -319,7 +319,7 @@ gantt
 
 ### Bước 6: Kiểm thử E2E & Nghiệm thu
 - Kiểm thử tự động với dữ liệu của công trình thực tế `B-01064-C&C`.
-- Đối chiếu file PDF xuất ra từ hệ thống tự động với file `report_0410/template_report.docx`:
+- Đối chiếu file PDF xuất ra từ hệ thống tự động với file `templates/template_report.docx`:
   - Độ chính xác dữ liệu: 100%.
   - Ngắt trang: Không cắt đôi bảng, không tách rời ảnh và thước đo.
   - Tốc độ render: Dưới 15 giây cho báo cáo đầy đủ 50-60 trang.

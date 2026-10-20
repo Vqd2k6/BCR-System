@@ -49,7 +49,5 @@ backend/database/backups/*
 !backend/database/backups/restore_pre_multiphoto_backup.js
 data/
 backend/storage/
-report_0410/resuilt/
-report_0410/audit/
-backend/report_0410/
+backend/test_output/
 

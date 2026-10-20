@@ -2,9 +2,9 @@
 ## METRO LINE 2 (BẾN THÀNH – THAM LƯƠNG) | PHASE 1 BCS REPORT AUTOMATION V2
 
 > **Căn cứ tài liệu & Hồ sơ kỹ thuật:**
-> - Hồ sơ mẫu chuẩn: `report_0410/template_report.docx` & `report_0410/template.pdf` (Liên danh CRLG – CRSRI – TT)
-> - Đặc tả kiến trúc hiện hữu: [`docs/report/report_v2_architecture_blueprint.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/report/report_v2_architecture_blueprint.md)
-> - Từ điển dữ liệu song ngữ: [`docs/report/bcs_report_v2_field_dictionary_and_mapping_spec.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/report/bcs_report_v2_field_dictionary_and_mapping_spec.md)
+> - Hồ sơ mẫu chuẩn: [`templates/template_report.docx`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/templates/template_report.docx) & [`templates/template.pdf`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/templates/template.pdf) (Liên danh CRLG – CRSRI – TT)
+> - Đặc tả kiến trúc hiện hữu: [`architecture_blueprint.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/architecture_blueprint.md)
+> - Từ điển dữ liệu song ngữ: [`field_dictionary_and_mapping.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/04_modules/report_engine/field_dictionary_and_mapping.md)
 > - Quy chuẩn kiến trúc & lỗi hệ thống: [`architectural_standards_and_system_rules.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/.agents/rules/architectural_standards_and_system_rules.md)
 > - Mã nguồn khảo sát Frontend: `frontend/src/features/survey-phase1/` & `frontend/src/features/survey-condo-unit/`
 > - Mã nguồn kết xuất Backend Report V2: `backend/src/modules/report_v2/`

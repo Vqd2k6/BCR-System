@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **TÀI LIỆU ĐẶC TẢ PHÂN QUYỀN RBAC & CÁC KỊCH BẢN SỬ DỤNG KHỚP 100% VỚI HỢP ĐỒNG API:**
-> Toàn bộ 4 vai trò người dùng (`SUPER_ADMIN`, `ZONE_ADMIN`, `SURVEYOR`, `CONTRACTOR_GUEST`), Ma trận phân quyền 10 nghiệp vụ, và 10 Kịch bản Sử dụng (Use Cases) đã được đồng bộ chuẩn xác với `srs/API_SPECIFICATION.md` và `srs/notchange/Business_Logic.md`.
+> Toàn bộ 4 vai trò người dùng (`SUPER_ADMIN`, `ZONE_ADMIN`, `SURVEYOR`, `CONTRACTOR_GUEST`), Ma trận phân quyền 10 nghiệp vụ, và 10 Kịch bản Sử dụng (Use Cases) đã được đồng bộ chuẩn xác với [`docs/02_api/api_specification.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/02_api/api_specification.md) và [`docs/01_architecture/business_logic_and_dual_id.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/01_architecture/business_logic_and_dual_id.md).
 
 ---
 

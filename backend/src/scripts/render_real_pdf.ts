@@ -9,7 +9,7 @@ import { ReportV3Service } from '../modules/report_v3/report-v3.service';
 
 async function main() {
   const ids = process.argv.slice(2);
-  const outDir = path.resolve(__dirname, '../../../report_0410/resuilt');
+  const outDir = path.resolve(__dirname, '../../test_output/result');
   fs.mkdirSync(outDir, { recursive: true });
   for (const id of ids) {
     const resolved = await ReportV3Service.resolve(id);

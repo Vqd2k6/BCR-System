@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **TÀI LIỆU ĐẶC TẢ MÔ HÌNH DỮ LIỆU OOP & THỰC THỂ KHỚP 100% VỚI HỢP ĐỒNG API:**
-> Toàn bộ mô hình lớp hướng đối tượng (OOP Class Diagram), kiến trúc thực thể quan hệ (ERD Entities), thuộc tính, phương thức nghiệp vụ và danh mục Enums đã được chuẩn hóa đồng bộ với `srs/API_SPECIFICATION.md` và `srs/notchange/Business_Logic.md`.
+> Toàn bộ mô hình lớp hướng đối tượng (OOP Class Diagram), kiến trúc thực thể quan hệ (ERD Entities), thuộc tính, phương thức nghiệp vụ và danh mục Enums đã được chuẩn hóa đồng bộ với [`docs/02_api/api_specification.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/02_api/api_specification.md) và [`docs/01_architecture/business_logic_and_dual_id.md`](file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/docs/01_architecture/business_logic_and_dual_id.md).
 
 ---
 

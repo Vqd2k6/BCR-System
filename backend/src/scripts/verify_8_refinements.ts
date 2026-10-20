@@ -23,7 +23,7 @@ async function pageTexts(buf: Buffer): Promise<string[]> {
 }
 
 async function verify() {
-  const pdfPath = '/Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/report_0410/resuilt/BCS_B-00116-C&C (ST05)_Senior_PM_Standard.pdf';
+  const pdfPath = path.resolve(__dirname, '../../test_output/result/BCS_B-00116-C&C (ST05)_Senior_PM_Standard.pdf');
   if (!fs.existsSync(pdfPath)) {
     console.error(`Không tìm thấy file PDF tại: ${pdfPath}`);
     process.exit(1);
