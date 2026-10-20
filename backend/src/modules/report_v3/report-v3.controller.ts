@@ -37,7 +37,15 @@ export class ReportV3Controller {
       const hasOverrides = rawOverrides && typeof rawOverrides === 'object' && Object.keys(rawOverrides).length > 0;
       const overrides = hasOverrides ? rawOverrides : undefined;
 
-      if (resolved.status === 'APPROVED' && !overrides) {
+      const enableWatermark =
+        req.query.watermark !== 'false' &&
+        req.query.watermark !== '0' &&
+        req.body?.enableWatermark !== false &&
+        req.body?.watermark !== false;
+
+      const forceFresh = req.query.fresh === '1' || req.query.force === 'true';
+
+      if (resolved.status === 'APPROVED' && !overrides && enableWatermark && !forceFresh) {
         const { buffer, release } = await ReportReleaseService.getOrCreateFinalFile(resolved, req.user, rev);
         const label = `_Rev${String(release.revision).padStart(2, '0')}`;
         res.setHeader('Content-Type', 'application/pdf');
@@ -48,17 +56,21 @@ export class ReportV3Controller {
         res.setHeader('X-Report-Status', 'FINAL');
         res.setHeader('X-Report-Revision', String(release.revision));
         res.setHeader('X-Content-SHA256', release.sha256);
+        res.setHeader('X-Watermark-Enabled', 'true');
         res.status(200).send(buffer);
         return;
       }
 
-      const enableWatermark =
-        req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false;
       const { pdfBuffer, reportNo } = await ReportV3Service.renderDraftPdf(resolved, overrides, enableWatermark);
+      const isApproved = resolved.status === 'APPROVED';
+      const suffix = isApproved
+        ? (enableWatermark ? '_APPROVED' : '_APPROVED_NO_WM')
+        : (enableWatermark ? '_DRAFT' : '_DRAFT_NO_WM');
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeFilename(reportNo, '_DRAFT'))}"`);
-      res.setHeader('X-Report-Status', 'DRAFT');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeFilename(reportNo, suffix))}"`);
+      res.setHeader('X-Report-Status', isApproved ? 'FINAL' : 'DRAFT');
       res.setHeader('X-Report-Revision', String(resolved.exportRevision));
+      res.setHeader('X-Watermark-Enabled', String(enableWatermark));
       res.status(200).send(pdfBuffer);
     } catch (err) {
       next(err);
@@ -71,7 +83,11 @@ export class ReportV3Controller {
       const overrides = req.method === 'POST' ? req.body?.overrides ?? req.body : undefined;
       const isGuest = req.user?.role === 'GUEST' || req.query.isGuest === 'true' || req.query.maskPii === 'true';
       const enableWatermark =
-        isGuest || (req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false);
+        isGuest ||
+        (req.query.watermark !== 'false' &&
+          req.query.watermark !== '0' &&
+          req.body?.enableWatermark !== false &&
+          req.body?.watermark !== false);
 
       const { html, viewModel } = await ReportV3Service.renderDraftHtml(resolved, overrides, isGuest, enableWatermark);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

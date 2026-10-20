@@ -22,7 +22,8 @@ export class RiskScoringCalculator {
   public static computeRiskAssessment(
     rawReport: any,
     burlandMaxGrade: number,
-    burlandPredominantGrade?: number
+    burlandPredominantGrade?: number,
+    isZeroDefectsParam?: boolean
   ): Section8BuildingConditionAssessment {
     const json = rawReport.survey_data_json || {};
     const ecsData = json.ecs || {};
@@ -30,23 +31,36 @@ export class RiskScoringCalculator {
     const specs = rawReport.buildingSpecs || json || {};
     const rScores = rawReport.riskScores;
 
+    // Kiểm tra công trình nguyên vẹn không khuyết tật (Zero Defects)
+    const hasAnyFloorDefects = Array.isArray(json.floors) && json.floors.some((fl: any) =>
+      (fl.zones || []).some((zn: any) => (zn.defects || []).length > 0) ||
+      (fl.elements || []).some((el: any) => (el.defects || []).length > 0)
+    );
+    const isZeroDefects = isZeroDefectsParam !== undefined
+      ? isZeroDefectsParam
+      : (burlandMaxGrade === 0 && !hasAnyFloorDefects);
+
     // =========================================================================
     // 1. TÍNH TOÁN BẢNG 11: ECS (EXISTING CONDITION SCORE: 0 - 24)
     // =========================================================================
     // E1: Hư hỏng nhìn thấy tường/khối xây (Burland Grade Max)
     // Quy tắc ecsCalculator.ts: B <= 1: 0đ; B = 2: 1đ; B = 3: 2đ; B = 4: 3đ; B >= 5: 4đ
-    const e1BurlandGrade = burlandMaxGrade ?? (json.burlandSummary?.localMaxGrade ?? 0);
+    const e1BurlandGrade = isZeroDefects ? 0 : (burlandMaxGrade ?? (json.burlandSummary?.localMaxGrade ?? 0));
     const e1Calc = e1BurlandGrade <= 1 ? 0 : e1BurlandGrade === 2 ? 1 : e1BurlandGrade === 3 ? 2 : e1BurlandGrade === 4 ? 3 : 4;
-    const e1 = ecsData.e1 !== undefined ? Number(ecsData.e1) : e1Calc;
+    const e1 = isZeroDefects ? 0 : (ecsData.e1 !== undefined ? Math.max(Number(ecsData.e1), e1Calc) : e1Calc);
 
     // E2: Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực
-    const flagLevel = (json.burlandSummary?.structuralFlagLevel || 'NONE').toUpperCase();
+    const flagLevel = isZeroDefects
+      ? 'NONE'
+      : (json.burlandSummary?.structuralFlagLevel || 'NONE').toUpperCase();
     let flagVal = 0;
-    if (flagLevel === 'LOW') flagVal = 1;
-    else if (flagLevel === 'MODERATE') flagVal = 2;
-    else if (flagLevel === 'HIGH') flagVal = 3;
-    else if (flagLevel === 'CRITICAL') flagVal = 4;
-    const e2 = ecsData.e2 !== undefined ? Number(ecsData.e2) : flagVal;
+    if (!isZeroDefects) {
+      if (flagLevel === 'LOW') flagVal = 1;
+      else if (flagLevel === 'MODERATE') flagVal = 2;
+      else if (flagLevel === 'HIGH') flagVal = 3;
+      else if (flagLevel === 'CRITICAL') flagVal = 4;
+    }
+    const e2 = isZeroDefects ? 0 : Math.max(ecsData.e2 !== undefined ? Number(ecsData.e2) : 0, flagVal);
 
     // E3: Lún/nghiêng/võng/biến dạng
     const st = json.settlementTilt || {};
@@ -80,7 +94,7 @@ export class RiskScoringCalculator {
     const e6 = ecsData.e6 !== undefined ? Number(ecsData.e6) : 0;
 
     const totalEcs = ecsData.totalEcs !== undefined
-      ? Number(ecsData.totalEcs)
+      ? Math.max(Number(ecsData.totalEcs), e1 + e2 + e3 + e4 + e5 + e6)
       : (e1 + e2 + e3 + e4 + e5 + e6);
 
     let ecsClassVi = 'Tốt';
@@ -103,14 +117,20 @@ export class RiskScoringCalculator {
       {
         code: 'E1',
         title: { vi: 'Hư hỏng nhìn thấy tường / khối xây', en: 'Visible damage to walls / masonry' },
-        basis: { vi: `Burland cục bộ lớn nhất: Cấp ${e1BurlandGrade}`, en: `Local max Burland grade: Grade ${e1BurlandGrade}` },
+        basis: {
+          vi: isZeroDefects ? 'Burland Cấp 0 (Không phát hiện vết nứt kiến trúc)' : `Burland cục bộ lớn nhất: Cấp ${e1BurlandGrade}`,
+          en: isZeroDefects ? 'Burland Grade 0 (No cracks detected)' : `Local max Burland grade: Grade ${e1BurlandGrade}`,
+        },
         scale: '0-4',
         score: e1,
       },
       {
         code: 'E2',
         title: { vi: 'Khuyết tật kết cấu cột/dầm/sàn/tường', en: 'Structural defects in columns/beams/slabs' },
-        basis: { vi: `Cờ kết cấu chịu lực: ${flagLevel}`, en: `Structural flag level: ${flagLevel}` },
+        basis: {
+          vi: isZeroDefects ? 'Cờ kết cấu: NONE (Không phát hiện khuyết tật kết cấu)' : `Cờ kết cấu chịu lực: ${flagLevel}`,
+          en: isZeroDefects ? 'Structural flag: NONE (No structural defects)' : `Structural flag level: ${flagLevel}`,
+        },
         scale: '0-4',
         score: e2,
       },

@@ -1,0 +1,45 @@
+{{#if section12AsBuilt.hasDrawings}}
+{{#each section12AsBuilt.sheets}}
+<div class="a4-page-sheet" {{#if (eq this.sheetIndex 1)}}data-section="sec-xii"{{/if}}>
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
+  </div>
+
+  <h2 class="chapter-header">XII. HỒ SƠ BẢN VẼ KẾT CẤU / HOÀN CÔNG MÓNG DO CHỦ HỘ CUNG CẤP</h2>
+  <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
+    SECTION XII: AS-BUILT STRUCTURAL &amp; FOUNDATION DRAWINGS PROVIDED BY OWNER (Sheet {{this.sheetIndex}}/{{this.totalSheets}})
+  </div>
+
+  <div class="asbuilt-drawings-grid" style="display: flex; flex-direction: column; gap: 8px; margin-top: 2px;">
+    {{#each this.drawings}}
+    <div class="asbuilt-drawing-card" style="border: 1px solid #1e293b; background: #ffffff; padding: 3px; border-radius: 2px; break-inside: avoid; page-break-inside: avoid;">
+      <div style="text-align: center; height: 86mm; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff;">
+        {{#if this.base64}}
+        <img src="{{this.base64}}" alt="{{this.title.vi}}"
+          style="max-height: 100%; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;">
+        {{else if this.url}}
+        <img src="{{this.url}}" alt="{{this.title.vi}}"
+          style="max-height: 100%; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;">
+        {{else}}
+        <div class="photo-placeholder" style="height: 80px; color: #94a3b8; display: flex; align-items: center; justify-content: center;">
+          [ Chưa có ảnh bản vẽ {{this.index}} ]
+        </div>
+        {{/if}}
+      </div>
+      <div style="padding: 3px 6px; background: #f8fafc; border-top: 1px solid #cbd5e1; font-size: var(--fs-c2);">
+        <div class="font-bold text-dark" style="line-height: 1.25;">
+          Bản vẽ {{this.index}}: {{this.title.vi}}
+        </div>
+        <div class="text-muted" style="font-style: italic; font-size: 8pt; line-height: 1.15;">
+          Drawing {{this.index}}: {{this.title.en}}
+        </div>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="page-number-footer">{{#if ../tocPageNumbers.sectionXII}}{{../tocPageNumbers.sectionXII}}{{else}}–{{/if}}</div>
+</div>
+{{/each}}
+{{/if}}

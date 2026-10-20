@@ -161,108 +161,91 @@ export function extractParcelPolygonCoords(rawReport: any, json: any): [number, 
  * - La bàn chỉ hướng Bắc (N) và Thước tỷ lệ trắc địa
  * - TUYỆT ĐỐI KHÔNG vẽ 2 đường dóng cự ly (lines) theo đúng chỉ đạo
  */
-export function generateMetroSpatialVisualSvg(
-  polygonCoords: [number, number][] | null,
-  parcelCode: string = 'Thửa đất'
-): string {
-  const boundaryData = getMetroBoundaryData();
-  if (!polygonCoords || polygonCoords.length < 3) {
-    return '';
+function getSatelliteCacheDir(): string {
+  const candidates = [
+    path.resolve(process.cwd(), 'data/cache/satellite_tiles'),
+    path.resolve(process.cwd(), 'backend/data/cache/satellite_tiles'),
+    path.resolve(__dirname, '../../../../data/cache/satellite_tiles'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  const defaultDir = path.resolve(process.cwd(), 'data/cache/satellite_tiles');
+  try {
+    fs.mkdirSync(defaultDir, { recursive: true });
+  } catch (e) {}
+  return defaultDir;
+}
+
+export function fetchSatelliteTileBase64Sync(z: number, y: number, x: number): string | null {
+  const cacheDir = getSatelliteCacheDir();
+  const cacheFile = path.join(cacheDir, `${z}_${y}_${x}.jpg`);
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const buf = fs.readFileSync(cacheFile);
+      return `data:image/jpeg;base64,${buf.toString('base64')}`;
+    } catch (e) {}
+  }
+  return null;
+}
+
+export async function fetchSatelliteTileBase64(z: number, y: number, x: number): Promise<string | null> {
+  const cacheDir = getSatelliteCacheDir();
+  const cacheFile = path.join(cacheDir, `${z}_${y}_${x}.jpg`);
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const buf = fs.readFileSync(cacheFile);
+      return `data:image/jpeg;base64,${buf.toString('base64')}`;
+    } catch (e) {}
   }
 
-  // 1. Tính tâm thửa đất
-  const centerLat = polygonCoords.reduce((sum, p) => sum + p[0], 0) / polygonCoords.length;
-  const centerLng = polygonCoords.reduce((sum, p) => sum + p[1], 0) / polygonCoords.length;
+  const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      try {
+        fs.writeFileSync(cacheFile, buffer);
+      } catch (e) {}
+      return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    }
+  } catch (e) {}
+  return null;
+}
 
-  const cosLat = Math.cos((centerLat * Math.PI) / 180);
-  const mPerDegLat = 111320;
-  const mPerDegLng = 111320 * cosLat;
+export async function preloadSatelliteTiles(polygonCoords: [number, number][]): Promise<void> {
+  if (!polygonCoords || polygonCoords.length === 0) return;
+  const normalized = polygonCoords.map(p => (p[0] > p[1] ? [p[1], p[0]] : p) as [number, number]);
+  const centerLat = normalized.reduce((s, p) => s + p[0], 0) / normalized.length;
+  const centerLng = normalized.reduce((s, p) => s + p[1], 0) / normalized.length;
 
-  // Chuyển đổi WGS84 -> tọa độ mét cục bộ [x, y]
-  const toLocal = (p: [number, number]): [number, number] => {
-    return [(p[1] - centerLng) * mPerDegLng, (p[0] - centerLat) * mPerDegLat];
-  };
+  const zoom = 18;
+  const n = 2 ** zoom;
+  const dLat = 0.0015;
+  const dLng = 0.0015;
 
-  const localParcel = polygonCoords.map(toLocal);
+  const leftLng = centerLng - dLng;
+  const rightLng = centerLng + dLng;
+  const topLat = centerLat + dLat;
+  const bottomLat = centerLat - dLat;
 
-  // 2. Thu thập đối tượng Metro lân cận trong bán kính ~180m
-  const maxSearchRadiusM = 180;
-  const centerline = boundaryData?.centerline || [];
-  const nearbyCenterline: [number, number][] = [];
-  for (const pt of centerline) {
-    const loc = toLocal(pt);
-    if (Math.hypot(loc[0], loc[1]) <= maxSearchRadiusM) {
-      nearbyCenterline.push(loc);
+  const minTileX = Math.floor(((leftLng + 180) / 360) * n);
+  const maxTileX = Math.floor(((rightLng + 180) / 360) * n);
+  const minTileY = Math.floor((1 - Math.log(Math.tan((topLat * Math.PI) / 180) + 1 / Math.cos((topLat * Math.PI) / 180)) / Math.PI) / 2 * n);
+  const maxTileY = Math.floor((1 - Math.log(Math.tan((bottomLat * Math.PI) / 180) + 1 / Math.cos((bottomLat * Math.PI) / 180)) / Math.PI) / 2 * n);
+
+  const tasks: Promise<any>[] = [];
+  for (let tx = minTileX; tx <= maxTileX; tx++) {
+    for (let ty = minTileY; ty <= maxTileY; ty++) {
+      tasks.push(fetchSatelliteTileBase64(zoom, ty, tx));
     }
   }
-
-  const nearbyStations: Array<{ name: string; pts: [number, number][] }> = [];
-  for (const st of boundaryData?.stationDetailedFootprints || []) {
-    const localStPts = (st.coords || []).map(toLocal);
-    const isNear = localStPts.some(pt => Math.hypot(pt[0], pt[1]) <= maxSearchRadiusM);
-    if (isNear) {
-      nearbyStations.push({ name: st.name, pts: localStPts });
-    }
-  }
-
-  const nearbyCorridors: Array<[number, number][]> = [];
-  for (const cor of boundaryData?.corridorBoundaries || []) {
-    const localCorPts = (cor.coords || []).map(toLocal);
-    const isNear = localCorPts.some(pt => Math.hypot(pt[0], pt[1]) <= maxSearchRadiusM);
-    if (isNear) {
-      nearbyCorridors.push(localCorPts);
-    }
-  }
-
-  // 3. Tính toán Bounding Box
-  const allPoints: [number, number][] = [...localParcel];
-  if (nearbyCenterline.length > 0) allPoints.push(...nearbyCenterline);
-  for (const st of nearbyStations) allPoints.push(...st.pts);
-  for (const cor of nearbyCorridors) allPoints.push(...cor);
-
-  let minX = Math.min(...allPoints.map(p => p[0]));
-  let maxX = Math.max(...allPoints.map(p => p[0]));
-  let minY = Math.min(...allPoints.map(p => p[1]));
-  let maxY = Math.max(...allPoints.map(p => p[1]));
-
-  const padM = 12;
-  minX -= padM;
-  maxX += padM;
-  minY -= padM;
-  maxY += padM;
-
-  const widthM = Math.max(maxX - minX, 20);
-  const heightM = Math.max(maxY - minY, 20);
-
-  const svgWidth = 420;
-  const svgHeight = 280;
-  const padPx = 25;
-
-  const drawW = svgWidth - 2 * padPx;
-  const drawH = svgHeight - 2 * padPx;
-
-  const scale = Math.min(drawW / widthM, drawH / heightM);
-
-  const cxPx = svgWidth / 2;
-  const cyPx = svgHeight / 2;
-  const midXM = (minX + maxX) / 2;
-  const midYM = (minY + maxY) / 2;
-
-  const toSvgX = (xM: number) => cxPx + (xM - midXM) * scale;
-  const toSvgY = (yM: number) => cyPx - (yM - midYM) * scale;
-
-  const parcelSvgPts = localParcel.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
-
-  let svgContent = '';
-
-  // Nền lưới kỹ thuật ô vuông
-  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="#f8fafc" stroke="#000000" stroke-width="1"/>`;
-  svgContent += `<defs>
-    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e2e8f0" stroke-width="0.75"/>
-    </pattern>
-  </defs>`;
-  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="url(#grid)"/>`;
+  await Promise.allSettled(tasks);
+}
 
 function escapeXml(unsafe: string): string {
   return String(unsafe || '')
@@ -273,75 +256,224 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
-  // Ranh công trình ga
-  for (const st of nearbyStations) {
-    const pts = st.pts.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
-    svgContent += `<polygon points="${pts}" fill="rgba(226, 232, 240, 0.7)" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,2"/>`;
-    if (st.pts.length > 0) {
-      const avgX = st.pts.reduce((s, p) => s + p[0], 0) / st.pts.length;
-      const avgY = st.pts.reduce((s, p) => s + p[1], 0) / st.pts.length;
-      svgContent += `<text x="${toSvgX(avgX).toFixed(1)}" y="${toSvgY(avgY).toFixed(1)}" fill="#475569" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${escapeXml(st.name || 'Công trình Ga')}</text>`;
+/**
+ * Sinh sơ đồ không gian trang bìa khổ dọc 3:4 (Portrait Crop: 300x400)
+ * Nền ảnh vệ tinh Esri World Imagery (LOD 18) có bộ nhớ đệm đĩa và graceful fallback.
+ * Phong cách Pure Clean Map: loại bỏ toàn bộ đường dóng, ô badge cự ly, nhãn mã công trình và chú thích thừa.
+ */
+export function generateMetroSpatialVisualSvg(
+  polygonCoords: [number, number][] | null,
+  parcelCode: string = 'Thửa đất',
+  boundaryDataInput?: any
+): string {
+  const boundaryData = boundaryDataInput || getMetroBoundaryData();
+  if (!polygonCoords || polygonCoords.length < 3) {
+    return '';
+  }
+
+  // Chuẩn hóa tọa độ [lat, lng]
+  const normalizedCoords = polygonCoords.map(p => (p[0] > p[1] ? [p[1], p[0]] : p) as [number, number]);
+  const centerline: [number, number][] = boundaryData?.centerline || [];
+  const stations: Array<{ name: string; coords: [number, number][] }> = boundaryData?.stationDetailedFootprints || [];
+  const corridorBoundaries: Array<{ name: string; coords: [number, number][] }> = boundaryData?.corridorBoundaries || [];
+
+  // Điểm dóng tim tuyến và ga gần nhất
+  let minCenterDist = Infinity;
+  let bestCenterProj: [number, number] = [0, 0];
+  for (const v of normalizedCoords) {
+    for (let i = 0; i < centerline.length - 1; i++) {
+      const d = pointToSegmentDistance(v, centerline[i], centerline[i + 1]);
+      if (d.distance < minCenterDist) {
+        minCenterDist = d.distance;
+        bestCenterProj = d.projection;
+      }
     }
   }
 
-  // Ranh hành lang đào
-  for (const cor of nearbyCorridors) {
-    const pts = cor.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
-    svgContent += `<polyline points="${pts}" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>`;
+  let minStDist = Infinity;
+  let bestStProj: [number, number] = [0, 0];
+  for (const st of stations) {
+    for (const v of normalizedCoords) {
+      for (let j = 0; j < st.coords.length; j++) {
+        const p1 = st.coords[j];
+        const p2 = st.coords[(j + 1) % st.coords.length];
+        const d = pointToSegmentDistance(v, p1, p2);
+        if (d.distance < minStDist) {
+          minStDist = d.distance;
+          bestStProj = d.projection;
+        }
+      }
+    }
   }
 
-  // Tim tuyến Metro 2
-  if (nearbyCenterline.length > 1) {
-    const pts = nearbyCenterline.map(p => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
-    svgContent += `<polyline points="${pts}" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-dasharray="6,3"/>`;
-    const midIdx = Math.floor(nearbyCenterline.length / 2);
-    const midPt = nearbyCenterline[midIdx];
-    svgContent += `<text x="${toSvgX(midPt[0]).toFixed(1)}" y="${(toSvgY(midPt[1]) - 6).toFixed(1)}" fill="#0284c7" font-size="8.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">Tim tuyến Metro 2</text>`;
+  // Hệ quy chiếu cục bộ [x, y] (đơn vị mét) quanh tâm thửa đất
+  const parcelCenterLat = normalizedCoords.reduce((s, p) => s + p[0], 0) / normalizedCoords.length;
+  const parcelCenterLng = normalizedCoords.reduce((s, p) => s + p[1], 0) / normalizedCoords.length;
+  const cosLat = Math.cos((parcelCenterLat * Math.PI) / 180);
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * cosLat;
+  const toLocal = (p: [number, number]): [number, number] => [
+    (p[1] - parcelCenterLng) * mPerDegLng,
+    (p[0] - parcelCenterLat) * mPerDegLat,
+  ];
+
+  const localParcel = normalizedCoords.map(toLocal);
+  const localCenterProj = toLocal(bestCenterProj);
+  const hasStation = minStDist < 250 && minStDist < Infinity;
+  const localStProj = toLocal(bestStProj);
+
+  // Focal Bounding Box
+  const focusPts: [number, number][] = [...localParcel];
+  if (minCenterDist < 1000 && minCenterDist < Infinity) {
+    focusPts.push(localCenterProj);
+  }
+  if (hasStation) {
+    focusPts.push(localStProj);
   }
 
-  // Đa giác thửa đất khảo sát
-  svgContent += `<polygon points="${parcelSvgPts}" fill="rgba(239, 68, 68, 0.25)" stroke="#dc2626" stroke-width="2.5"/>`;
+  const fMinX = Math.min(...focusPts.map((p) => p[0]));
+  const fMaxX = Math.max(...focusPts.map((p) => p[0]));
+  const fMinY = Math.min(...focusPts.map((p) => p[1]));
+  const fMaxY = Math.max(...focusPts.map((p) => p[1]));
 
-  // Nhãn thửa đất
-  const pAvgX = localParcel.reduce((s, p) => s + p[0], 0) / localParcel.length;
-  const pAvgY = localParcel.reduce((s, p) => s + p[1], 0) / localParcel.length;
-  svgContent += `<text x="${toSvgX(pAvgX).toFixed(1)}" y="${(toSvgY(pAvgY) + 3).toFixed(1)}" fill="#b91c1c" font-size="9.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${escapeXml(parcelCode || 'Thửa đất')}</text>`;
+  const midX = (fMinX + fMaxX) / 2;
+  const midY = (fMinY + fMaxY) / 2;
+  const spanX = fMaxX - fMinX;
+  const spanY = fMaxY - fMinY;
 
-  // La bàn chỉ hướng Bắc (North Arrow) góc trên bên phải
+  // Khổ dọc 3:4 (SVG width: 300, height: 400)
+  const svgWidth = 300;
+  const svgHeight = 400;
+  const aspectRatio = svgWidth / svgHeight; // 0.75
+
+  const padM = 40;
+  const minSpanW = 110;
+  const minSpanH = 146;
+
+  let viewW = Math.max(spanX + 2 * padM, minSpanW);
+  let viewH = Math.max(spanY + 2 * padM, minSpanH);
+
+  if (viewW / viewH < aspectRatio) {
+    viewW = viewH * aspectRatio;
+  } else {
+    viewH = viewW / aspectRatio;
+  }
+
+  const padPx = 15;
+  const drawW = svgWidth - 2 * padPx;
+  const drawH = svgHeight - 2 * padPx;
+  const scale = Math.min(drawW / viewW, drawH / viewH);
+
+  const cxPx = svgWidth / 2;
+  const cyPx = svgHeight / 2;
+
+  const toSvgX = (xM: number) => cxPx + (xM - midX) * scale;
+  const toSvgY = (yM: number) => cyPx - (yM - midY) * scale;
+
+  // Mảnh ảnh vệ tinh (XYZ Tiles) ở zoom 18
+  const zoom = 18;
+  const n = 2 ** zoom;
+
+  const leftLng = parcelCenterLng + ((0 - cxPx) / scale + midX) / mPerDegLng;
+  const rightLng = parcelCenterLng + ((svgWidth - cxPx) / scale + midX) / mPerDegLng;
+  const topLat = parcelCenterLat + ((cyPx - 0) / scale + midY) / mPerDegLat;
+  const bottomLat = parcelCenterLat + ((cyPx - svgHeight) / scale + midY) / mPerDegLat;
+
+  const minTileX = Math.floor(((leftLng + 180) / 360) * n);
+  const maxTileX = Math.floor(((rightLng + 180) / 360) * n);
+  const minTileY = Math.floor((1 - Math.log(Math.tan((topLat * Math.PI) / 180) + 1 / Math.cos((topLat * Math.PI) / 180)) / Math.PI) / 2 * n);
+  const maxTileY = Math.floor((1 - Math.log(Math.tan((bottomLat * Math.PI) / 180) + 1 / Math.cos((bottomLat * Math.PI) / 180)) / Math.PI) / 2 * n);
+
+  let tilesSvg = '';
+  const tileCountX = Math.abs(maxTileX - minTileX) + 1;
+  const tileCountY = Math.abs(maxTileY - minTileY) + 1;
+  if (tileCountX <= 10 && tileCountY <= 10) {
+    for (let tx = Math.min(minTileX, maxTileX); tx <= Math.max(minTileX, maxTileX); tx++) {
+      for (let ty = Math.min(minTileY, maxTileY); ty <= Math.max(minTileY, maxTileY); ty++) {
+      const tileBase64 = fetchSatelliteTileBase64Sync(zoom, ty, tx);
+      if (!tileBase64) continue;
+
+      const tileLng = (tx / n) * 360 - 180;
+      const tileLatRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * ty) / n)));
+      const tileLat = (tileLatRad * 180) / Math.PI;
+
+      const nextTileLng = ((tx + 1) / n) * 360 - 180;
+      const nextTileLatRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * (ty + 1)) / n)));
+      const nextTileLat = (nextTileLatRad * 180) / Math.PI;
+
+      const locTopLeft = toLocal([tileLat, tileLng]);
+      const locBottomRight = toLocal([nextTileLat, nextTileLng]);
+
+      const xPx = toSvgX(locTopLeft[0]);
+      const yPx = toSvgY(locTopLeft[1]);
+      const wPx = toSvgX(locBottomRight[0]) - xPx;
+      const hPx = toSvgY(locBottomRight[1]) - yPx;
+
+      tilesSvg += `<image href="${tileBase64}" x="${xPx.toFixed(1)}" y="${yPx.toFixed(1)}" width="${wPx.toFixed(1)}" height="${hPx.toFixed(1)}" preserveAspectRatio="none"/>`;
+      }
+    }
+  }
+
+  let svgContent = '';
+  // Nền sáng chuẩn báo cáo A4
+  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="#f8fafc"/>`;
+
+  if (tilesSvg) {
+    svgContent += `<g id="satellite-tiles">${tilesSvg}</g>`;
+    svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="rgba(0,0,0,0.12)"/>`;
+  }
+
+  // Khung viền ngoài
+  svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="none" stroke="#000000" stroke-width="1"/>`;
+
+  const viewRadiusM = Math.hypot(viewW, viewH) / 2 + 50;
+  const isNearView = (loc: [number, number]) => Math.hypot(loc[0] - midX, loc[1] - midY) <= viewRadiusM;
+
+  // 1. Ranh công trình ga (Màu vàng/trắng nét đứt)
+  for (const st of stations) {
+    const locs = st.coords.map(toLocal);
+    if (locs.some(isNearView)) {
+      const ptsStr = locs.map((p) => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+      svgContent += `<polygon points="${ptsStr}" fill="rgba(255, 255, 255, 0.15)" stroke="#fef08a" stroke-width="2" stroke-dasharray="5,3"/>`;
+    }
+  }
+
+  // 2. Ranh hành lang đào (Corridor)
+  for (const cor of corridorBoundaries) {
+    const locs = cor.coords.map(toLocal);
+    if (locs.some(isNearView)) {
+      const ptsStr = locs.map((p) => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+      svgContent += `<polyline points="${ptsStr}" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    }
+  }
+
+  // 3. Tim tuyến Metro 2 (Đỏ đậm nổi bật)
+  const localCenterline = centerline.map(toLocal);
+  const nearCenterline = localCenterline.filter(isNearView);
+  if (nearCenterline.length > 1) {
+    const ptsStr = localCenterline.map((p) => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+    // Buffer ribbon đỏ nhạt
+    svgContent += `<polyline points="${ptsStr}" fill="none" stroke="rgba(239, 68, 68, 0.28)" stroke-width="18" stroke-linecap="round"/>`;
+    // Tim tuyến đỏ nét liền đậm
+    svgContent += `<polyline points="${ptsStr}" fill="none" stroke="#ef4444" stroke-width="3"/>`;
+  }
+
+  // 4. Đa giác Thửa đất nhà dân (Viền Đỏ đậm, viền kép phát sáng trắng)
+  const parcelPtsStr = localParcel.map((p) => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`).join(' ');
+  svgContent += `<polygon points="${parcelPtsStr}" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linejoin="round"/>`;
+  svgContent += `<polygon points="${parcelPtsStr}" fill="rgba(239, 68, 68, 0.45)" stroke="#dc2626" stroke-width="2.5" stroke-linejoin="round"/>`;
+
+  // 5. La bàn chỉ hướng Bắc (N) góc trên bên phải
   svgContent += `
-    <g transform="translate(${svgWidth - 32}, 30)">
-      <circle cx="0" cy="0" r="14" fill="#ffffff" stroke="#000000" stroke-width="1"/>
-      <polygon points="0,-11 -4,-1 0,1 4,-1" fill="#000000"/>
-      <polygon points="0,11 -4,1 0,-1 4,1" fill="#ffffff" stroke="#000000" stroke-width="0.5"/>
-      <text x="0" y="-13" fill="#000000" font-size="9" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">N</text>
+    <g transform="translate(${svgWidth - 24}, 24)">
+      <circle cx="0" cy="0" r="12" fill="rgba(255,255,255,0.92)" stroke="#000000" stroke-width="0.8"/>
+      <polygon points="0,-9 -3,-1 0,1 3,-1" fill="#dc2626"/>
+      <polygon points="0,9 -3,1 0,-1 3,1" fill="#ffffff" stroke="#000000" stroke-width="0.5"/>
+      <text x="0" y="-11" fill="#000000" font-size="8" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">N</text>
     </g>
   `;
 
-  // Thước tỷ lệ trắc địa (Scale bar) góc dưới bên trái
-  const scaleBarM = widthM > 100 ? 50 : (widthM > 40 ? 20 : 10);
-  const scaleBarPx = scaleBarM * scale;
-  svgContent += `
-    <g transform="translate(14, ${svgHeight - 16})">
-      <rect x="0" y="-12" width="${scaleBarPx + 20}" height="18" fill="rgba(255,255,255,0.85)" stroke="#cbd5e1" stroke-width="0.5"/>
-      <line x1="10" y1="0" x2="${10 + scaleBarPx}" y2="0" stroke="#000000" stroke-width="2"/>
-      <line x1="10" y1="-3" x2="10" y2="3" stroke="#000000" stroke-width="1.5"/>
-      <line x1="${10 + scaleBarPx}" y1="-3" x2="${10 + scaleBarPx}" y2="3" stroke="#000000" stroke-width="1.5"/>
-      <text x="${10 + scaleBarPx / 2}" y="-4" fill="#000000" font-size="7.5" font-family="'Latin Modern Roman', serif" font-weight="bold" text-anchor="middle">${scaleBarM} m</text>
-    </g>
-  `;
-
-  // Chú thích góc dưới bên phải (Legend)
-  svgContent += `
-    <g transform="translate(${svgWidth - 145}, ${svgHeight - 28})">
-      <rect x="0" y="0" width="138" height="24" fill="rgba(255,255,255,0.9)" stroke="#cbd5e1" stroke-width="0.5"/>
-      <rect x="6" y="5" width="10" height="6" fill="rgba(239, 68, 68, 0.3)" stroke="#dc2626" stroke-width="1.2"/>
-      <text x="20" y="11" font-size="7" font-family="'Latin Modern Roman', serif" fill="#000000">Thửa đất khảo sát</text>
-      <line x1="6" y1="18" x2="16" y2="18" stroke="#0284c7" stroke-width="1.8" stroke-dasharray="3,1.5"/>
-      <text x="20" y="20" font-size="7" font-family="'Latin Modern Roman', serif" fill="#000000">Tim tuyến Metro 2</text>
-    </g>
-  `;
-
-  const finalSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%">${svgContent}</svg>`;
+  const finalSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="${svgWidth}" height="${svgHeight}" data-parcel="${escapeXml(parcelCode)}">${svgContent}</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(finalSvg, 'utf8').toString('base64')}`;
 }
 

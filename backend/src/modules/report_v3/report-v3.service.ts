@@ -88,7 +88,7 @@ export class ReportV3Service {
     });
   }
 
-  /** Render DRAFT (HTML) – overrides chỉ được áp dụng cho hồ sơ chưa APPROVED */
+  /** Render DRAFT (HTML) – overrides chỉ được áp dụng cho hồ sơ chưa APPROVED; hồ sơ APPROVED luôn nạp Snapshot bất biến */
   public static async renderDraftHtml(
     resolved: ResolvedReportV3,
     overrides: unknown,
@@ -96,7 +96,19 @@ export class ReportV3Service {
     enableWatermark: boolean
   ) {
     const effectiveOverrides = resolved.status === 'APPROVED' ? undefined : overrides;
-    return ReportV2Service.generateResidentialHtmlFromReport(resolved.raw, effectiveOverrides, maskPii, enableWatermark);
+    let reportData = resolved.raw;
+    if (resolved.status === 'APPROVED') {
+      try {
+        const approved = await ReportSnapshotService.getLatestApprovedSnapshot(resolved.id);
+        if (approved?.snapshot) {
+          reportData = ReportSnapshotService.applySnapshotToReport(resolved.raw, approved.snapshot);
+          reportData.status = 'APPROVED';
+        }
+      } catch (err) {
+        console.warn(`[ReportV3Service] Không thể tải snapshot phê duyệt cho report ${resolved.id}:`, err);
+      }
+    }
+    return ReportV2Service.generateResidentialHtmlFromReport(reportData, effectiveOverrides, maskPii, enableWatermark);
   }
 
   public static async renderDraftPdf(

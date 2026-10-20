@@ -10,6 +10,9 @@ import {
   Appendix4EquipmentAndAccess,
   FloorPlanDefectReport,
   Appendix1PhotoItem,
+  Section12AsBuiltReport,
+  AsBuiltDrawingSheet,
+  AsBuiltDrawingItem,
 } from '../../report-v2.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from '../floor-defect.mapper';
@@ -20,12 +23,12 @@ export class Appendix3And4Mapper {
   public static mapAppendix3(
     rawReport: any,
     json: any,
-    identPhotos: any[],
-    surveyDateWithTime: string,
-    surveyDateFormatted: string,
-    surveyorName: string,
-    zoneAdminName: string,
-    reportNo: string,
+    identPhotos: any[] = [],
+    surveyDateWithTime: string = '',
+    surveyDateFormatted: string = '',
+    surveyorName: string = '',
+    zoneAdminName: string = '',
+    reportNo: string = '',
     buildingId?: string,
     rawSurveyDate?: any
   ): Appendix3SignedRecord {
@@ -43,29 +46,24 @@ export class Appendix3And4Mapper {
         .filter(Boolean);
     }
 
-    // Nếu có thêm ảnh biên bản vắng chủ (khi có biên bản thường) hoặc ảnh hồ sơ hoàn công bổ sung
+    // Nếu có thêm ảnh biên bản vắng chủ (khi có biên bản thường)
     const extraDocs: string[] = [];
     if (!isAbsentee && Array.isArray(json.absenteeMinutesPhotos) && json.absenteeMinutesPhotos.length > 0) {
       extraDocs.push(...json.absenteeMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean));
     }
-    const asBuiltList = json.asBuiltDrawingPhotos || json.asBuiltDrawingFiles || rawReport.as_built_drawing_photos_json;
-    if (Array.isArray(asBuiltList) && asBuiltList.length > 0) {
-      for (const item of asBuiltList) {
-        const u = typeof item === 'string' ? item : item?.url;
-        if (u && !minutesPhotos.includes(u) && !extraDocs.includes(u)) {
-          extraDocs.push(u);
-        }
-      }
-    }
+    // Bản gốc Biên bản hiện trường chỉ chứa ảnh biên bản làm việc thực địa (không chứa bản vẽ móng CAT)
     const allDocPhotos = [...minutesPhotos, ...extraDocs].filter(Boolean);
 
     const ownerFeedbackText = rawReport.owner_remarks || json.signatures?.ownerFeedback || json.ownerRemarks || '';
 
-    const actualSignerName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name;
-    const finalOwnerName = actualSignerName || rawReport.owner_name || json.ownerName || 'Chủ hộ';
-    const isOwnerItself = !actualSignerName || actualSignerName === (rawReport.owner_name || json.ownerName);
-    const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu';
-    const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative';
+    const rawRepName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name || '';
+    const isRepCadastral = !rawRepName || /chủ\s*hộ\s*thửa/i.test(rawRepName) || /tờ\s*bản\s*đồ/i.test(rawRepName);
+    const actualSignerName = isRepCadastral ? '' : rawRepName.trim();
+    const ownerName = (rawReport.owner_name || json.ownerName || '').trim();
+    const finalOwnerName = actualSignerName || ownerName || 'Chủ hộ';
+    const isOwnerItself = !actualSignerName || actualSignerName === ownerName;
+    const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
+    const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative / Occupant';
 
     return {
       surveyTime: surveyDateWithTime,
@@ -122,17 +120,12 @@ export class Appendix3And4Mapper {
         en: `Software export ${reportNo}, exported at ${new Date().toISOString()}`,
       },
       signedRecordPages: allDocPhotos.map((url: string, idx: number) => {
-        const isAsBuilt = asBuiltList && Array.isArray(asBuiltList) && asBuiltList.some((ab: any) => (typeof ab === 'string' ? ab : ab?.url) === url);
-        const docTitleVi = isAsBuilt
-          ? `Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp - trang ${idx + 1}`
-          : isAbsentee
-            ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
-            : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
-        const docTitleEn = isAsBuilt
-          ? `As-built / structural drawing provided by owner - page ${idx + 1}`
-          : isAbsentee
-            ? `Absentee survey notice / record - page ${idx + 1}/${allDocPhotos.length || 1}`
-            : `Signed site-survey record - page ${idx + 1}/${allDocPhotos.length || 1}`;
+        const docTitleVi = isAbsentee
+          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
+          : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
+        const docTitleEn = isAbsentee
+          ? `Absentee survey notice / record - page ${idx + 1}/${allDocPhotos.length || 1}`
+          : `Signed site-survey record - page ${idx + 1}/${allDocPhotos.length || 1}`;
 
         return {
           pageIndex: idx + 1,
@@ -144,11 +137,9 @@ export class Appendix3And4Mapper {
           base64: ReportImageResolver.resolveToBase64(url),
           alreadyWatermarked: isPhotoAlreadyWatermarked(url),
           watermarkDateTime: extractPhotoDateTime(url, null, rawSurveyDate),
-          metroPhotoCode: isAsBuilt
-            ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_AS_BUILT_${String(idx + 1).padStart(2, '0')}`
-            : isAbsentee
-              ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_ABSENTEE_${String(idx + 1).padStart(2, '0')}`
-              : `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`,
+          metroPhotoCode: isAbsentee
+            ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_ABSENTEE_${String(idx + 1).padStart(2, '0')}`
+            : `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`,
         };
       }),
     };
@@ -316,4 +307,57 @@ export class Appendix3And4Mapper {
       },
     };
   }
+
+  public static mapSection12AsBuilt(
+    rawReport: any,
+    json: any
+  ): Section12AsBuiltReport {
+    const rawList =
+      json.asBuiltDrawingPhotos ||
+      json.asBuiltDrawingFiles ||
+      json.asBuiltDrawings ||
+      rawReport.as_built_drawings ||
+      rawReport.as_built_drawing_photos_json ||
+      [];
+    const list = Array.isArray(rawList) ? rawList : [];
+    const validItems = list.filter((item: any) => {
+      const u = typeof item === 'string' ? item : (item?.url || item?.photoUrl);
+      return Boolean(u && typeof u === 'string' && u.trim() !== '' && !u.startsWith('blob:'));
+    });
+
+    const drawings: AsBuiltDrawingItem[] = validItems.map((item: any, idx: number) => {
+      const url = typeof item === 'string' ? item : (item?.url || item?.photoUrl);
+      const photoCode = item?.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
+      const customTitle = item?.title || item?.caption || item?.pageNote;
+      const titleVi = customTitle || `Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (Bản vẽ ${idx + 1})`;
+      const titleEn = customTitle || `As-built / structural foundation drawing provided by owner (Drawing ${idx + 1})`;
+      const rotation = item?.rotation ?? json.photoRotations?.[photoCode] ?? json.photoRotations?.[url] ?? 0;
+      return {
+        index: idx + 1,
+        title: { vi: titleVi, en: titleEn },
+        url,
+        base64: ReportImageResolver.resolveToBase64(url),
+        photoCode,
+        rotation,
+      };
+    });
+
+    const sheets: AsBuiltDrawingSheet[] = [];
+    const chunkSize = 2; // 2 bản vẽ / trang A4
+    for (let i = 0; i < drawings.length; i += chunkSize) {
+      const chunk = drawings.slice(i, i + chunkSize);
+      sheets.push({
+        sheetIndex: Math.floor(i / chunkSize) + 1,
+        totalSheets: Math.ceil(drawings.length / chunkSize),
+        drawings: chunk,
+      });
+    }
+
+    return {
+      hasDrawings: drawings.length > 0,
+      totalDrawings: drawings.length,
+      sheets,
+    };
+  }
 }
+

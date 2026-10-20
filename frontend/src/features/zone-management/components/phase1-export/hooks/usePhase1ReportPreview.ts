@@ -63,6 +63,7 @@ export const usePhase1ReportPreview = ({
     try {
       const [htmlResResult, dataResResult] = await Promise.allSettled([
         api.get(previewEndpoint, {
+          params: { watermark: String(enableWatermark) },
           responseType: 'text',
         }),
         api.get(`/reports/${encodeURIComponent(reportId)}`),
@@ -116,10 +117,19 @@ export const usePhase1ReportPreview = ({
       
       let htmlRes;
       if (hasUnsavedChanges && editFormData) {
-        const payload = buildReportPayload(editFormData, previewReportData);
-        htmlRes = await api.post(endpoint, payload, { responseType: 'text' });
+        const payload = {
+          ...buildReportPayload(editFormData, previewReportData),
+          enableWatermark,
+        };
+        htmlRes = await api.post(endpoint, payload, {
+          params: { watermark: String(enableWatermark) },
+          responseType: 'text',
+        });
       } else {
-        htmlRes = await api.get(endpoint, { responseType: 'text' });
+        htmlRes = await api.get(endpoint, {
+          params: { watermark: String(enableWatermark) },
+          responseType: 'text',
+        });
       }
 
       const html = htmlRes.data;
@@ -215,6 +225,7 @@ export const usePhase1ReportPreview = ({
         : `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
       const htmlRes = await api.get(previewEndpoint, {
+        params: { watermark: String(enableWatermark) },
         responseType: 'text',
       });
       setPreviewHtmlContent(typeof htmlRes.data === 'string' ? htmlRes.data : JSON.stringify(htmlRes.data));
@@ -303,7 +314,7 @@ export const usePhase1ReportPreview = ({
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
       const baseApi = (api.defaults.baseURL || '/api/v1').replace(/\/+$/, '');
       const prefix = reportVersion === 'v2' ? `${baseApi}/v3/reports` : `${baseApi}/reports`;
-      window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html`, '_blank');
+      window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html?watermark=${enableWatermark}`, '_blank');
     }
   };
 
@@ -378,6 +389,12 @@ export const usePhase1ReportPreview = ({
 
   const handleToggleWatermark = async (enabled: boolean) => {
     setEnableWatermark(enabled);
+    try {
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach((ifr) => {
+        ifr.contentWindow?.postMessage({ type: 'SET_WATERMARK', enableWatermark: enabled }, '*');
+      });
+    } catch (_) {}
     if (!previewParcel) return;
     const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
     setIsPreviewLoading(true);

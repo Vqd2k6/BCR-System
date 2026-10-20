@@ -134,12 +134,12 @@
               <thead>
                 <tr>
                   <th style="width: 4%;">No.</th>
-                  <th style="width: 12%;">Mã lỗi / Pin</th>
-                  <th style="width: 20%;">Vị trí / Location</th>
-                  <th style="width: 14%;">Loại khuyết tật</th>
-                  <th style="width: 10%;">W / L</th>
-                  <th style="width: 14%; text-align: center;">Burland</th>
-                  <th style="width: 26%;">Ghi chú</th>
+                  <th style="width: 11%;">Mã lỗi / Pin</th>
+                  <th style="width: 19%;">Vị trí / Location</th>
+                  <th style="width: 15%;">Loại khuyết tật</th>
+                  <th style="width: 13%; text-align: center;">W / L</th>
+                  <th style="width: 13%; text-align: center;">Burland</th>
+                  <th style="width: 25%;">Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,7 +152,7 @@
                     </td>
                     <td>{{this.location.vi}}</td>
                     <td>{{this.defectType.vi}}</td>
-                    <td>{{this.widthMm}} / {{this.lengthM}}</td>
+                    <td class="text-center" style="white-space: nowrap;">{{this.widthMm}} / {{this.lengthM}}</td>
                     <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
                     <td>{{this.description.vi}}</td>
                   </tr>

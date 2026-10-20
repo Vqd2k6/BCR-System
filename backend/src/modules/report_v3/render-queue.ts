@@ -44,12 +44,13 @@ export class RenderQueue {
     if (next) next();
   }
 
-  public static async run<T>(task: () => Promise<T>, timeoutMs: number = 150000): Promise<T> {
+  public static async run<T>(task: () => Promise<T>, timeoutMs?: number): Promise<T> {
+    const effectiveTimeoutMs = timeoutMs ?? parseInt(process.env.REPORT_RENDER_TIMEOUT_MS || '300000', 10);
     await RenderQueue.acquire();
     let timer: NodeJS.Timeout | undefined;
     try {
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new RenderTimeoutError(timeoutMs)), timeoutMs);
+        timer = setTimeout(() => reject(new RenderTimeoutError(effectiveTimeoutMs)), effectiveTimeoutMs);
       });
       return await Promise.race([task(), timeout]);
     } catch (err) {

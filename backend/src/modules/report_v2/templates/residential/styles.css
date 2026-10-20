@@ -312,21 +312,27 @@ body {
 .cover-spatial-wrapper {
   position: relative;
   width: 100%;
-  height: 160px;
+  height: 175px; /* Khổ dọc 3:4, tuyệt đối không đẩy Bảng chữ ký sang trang 2 */
   line-height: 0;
   border: var(--border-line);
   overflow: hidden;
-  background-color: #ffffff;
+  background-color: #ffffff; /* Nền trắng thuần túy cho báo cáo A4, tuyệt đối không dùng nền tối */
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.cover-facade-photo,
-.cover-spatial-img {
+.cover-facade-photo {
   width: 100%;
   height: 100%;
   object-fit: contain !important;
+  display: block;
+}
+
+.cover-spatial-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover !important;
   display: block;
 }
 

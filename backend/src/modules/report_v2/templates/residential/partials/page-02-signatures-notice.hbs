@@ -73,6 +73,12 @@
           <span>XI. BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (SIGNED SITE-SURVEY RECORD)</span>
           <span data-toc-target="sec-xi">{{#if tocPageNumbers.sectionXI}}{{tocPageNumbers.sectionXI}}{{else}}{{tocPageNumbers.appendix3}}{{/if}}</span>
         </li>
+        {{#if section12AsBuilt.hasDrawings}}
+        <li class="toc-item">
+          <span>XII. HỒ SƠ BẢN VẼ KẾT CẤU / HOÀN CÔNG MÓNG DO CHỦ HỘ CUNG CẤP</span>
+          <span data-toc-target="sec-xii">{{tocPageNumbers.sectionXII}}</span>
+        </li>
+        {{/if}}
         <li class="toc-item appendix">
           <span>PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (NHÓM CÓ VẾT NỨT)</span>
           <span data-toc-target="pl-1">{{#if tocPageNumbers.appendix1New}}{{tocPageNumbers.appendix1New}}{{else}}{{tocPageNumbers.appendix2}}{{/if}}</span>

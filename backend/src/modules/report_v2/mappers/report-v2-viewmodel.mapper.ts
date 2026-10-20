@@ -87,12 +87,16 @@ export class ReportV2ViewModelMapper {
     );
 
     // 3. Phụ lục 2: Map tầng & Gom khuyết tật (Tính toán sớm để phục vụ các chương sau)
-    const rawFloors = (rawReport.floors && Array.isArray(rawReport.floors) && rawReport.floors.length > 0)
-      ? rawReport.floors
-      : (json.floors && Array.isArray(json.floors) && json.floors.length > 0)
-        ? json.floors
-        : [];
-    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate);
+    const rawFloors = (json.floors && Array.isArray(json.floors) && json.floors.length > 0)
+      ? json.floors
+      : (rawReport.floors && Array.isArray(rawReport.floors) && rawReport.floors.length > 0)
+        ? rawReport.floors
+        : (rawReport.floorSurveys && Array.isArray(rawReport.floorSurveys) && rawReport.floorSurveys.length > 0)
+          ? rawReport.floorSurveys
+          : [];
+
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
+    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate, rotMap);
 
     // 4. Chương VI: Tóm tắt khuyết tật & Danh mục 8 nhóm BCS checklist
     const {
@@ -149,8 +153,13 @@ export class ReportV2ViewModelMapper {
             : typeof section7.predominantGrade.vi === 'string' && section7.predominantGrade.vi.includes('Cấp 1')
               ? 1
               : 0;
-
-    const section8 = RiskScoringCalculator.computeRiskAssessment(rawReport, burlandMaxNum, burlandPredominantNum);
+    const isZeroDefects = allDefectRows.length === 0;
+    const section8 = RiskScoringCalculator.computeRiskAssessment(
+      rawReport,
+      burlandMaxNum,
+      burlandPredominantNum,
+      isZeroDefects
+    );
 
     // 9. Chương IX: Kết luận & Kiến nghị kỹ thuật (Đọc từ cấu hình chuẩn Q1)
     const section9 = Section9ConclusionMapper.map(
@@ -196,6 +205,8 @@ export class ReportV2ViewModelMapper {
       buildingId,
       rawSurveyDate
     );
+    // Mục XII (Mới): Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (nếu có)
+    const section12AsBuilt = Appendix3And4Mapper.mapSection12AsBuilt(rawReport, json);
     const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2, rawReport, json, config);
 
     // Gắn thông tin phạm vi tiếp cận khảo sát vào Mục IX theo quy chuẩn nghiệp vụ
@@ -217,7 +228,8 @@ export class ReportV2ViewModelMapper {
       metadata,
       appendix1Pages,
       appendix2,
-      appendix3
+      appendix3,
+      section12AsBuilt
     );
 
     return {
@@ -238,6 +250,7 @@ export class ReportV2ViewModelMapper {
       appendix1Pages,
       appendix2,
       appendix3,
+      section12AsBuilt,
       appendix4,
       asteriskFootnote: config?.standardText?.asteriskFootnote || null,
       standardTextVersionNumber: config?.standardTextVersionNumber || null,

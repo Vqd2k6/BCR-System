@@ -81,8 +81,41 @@ export const Step4_BurlandSummary: React.FC = () => {
     });
   }
 
-  // Tự động áp dụng giá trị kế thừa từ Vùng Z khi chưa khởi tạo
+  // Đếm tổng số khuyết tật toàn công trình (Kiến trúc Z + Kết cấu E)
+  let totalDefectsCount = 0;
+  (formData.floors || []).forEach((f) => {
+    (f.zones || []).forEach((z) => {
+      totalDefectsCount += (z.defects || []).length;
+    });
+    (f.structuralElements || []).forEach((e) => {
+      totalDefectsCount += (e.defects || []).length;
+    });
+  });
+  const isZeroDefects = totalDefectsCount === 0;
+
+  // Tự động đồng bộ và bảo vệ an toàn dữ liệu
   React.useEffect(() => {
+    // Zero-defect guardrail: Nếu nhà 0 khuyết tật thì cờ kết cấu bắt buộc phải là NONE và cấp Burland = 0
+    if (isZeroDefects) {
+      if (
+        bs.structuralFlagLevel !== 'NONE' ||
+        bs.predominantGrade !== 0 ||
+        bs.localMaxGrade !== 0 ||
+        bs.needStructuralEngineerReview !== false
+      ) {
+        updateFormData({
+          burlandSummary: {
+            ...bs,
+            predominantGrade: 0,
+            localMaxGrade: 0,
+            structuralFlagLevel: 'NONE',
+            needStructuralEngineerReview: false,
+          },
+        });
+      }
+      return;
+    }
+
     if (
       zDefects.length > 0 &&
       (bs.predominantGrade === undefined || bs.predominantGrade === null) &&
@@ -97,7 +130,7 @@ export const Step4_BurlandSummary: React.FC = () => {
         },
       });
     }
-  }, []);
+  }, [isZeroDefects]);
 
   const handleApplyInheritedBurland = () => {
     updateFormData({
@@ -388,34 +421,48 @@ export const Step4_BurlandSummary: React.FC = () => {
           </InfoPopover>
         </div>
 
-        <p className="text-xs text-slate-500 mb-3">
-          Cờ kết cấu đánh giá độc lập các khuyết tật cột/dầm/sàn/tường chịu lực
-        </p>
+        {isZeroDefects ? (
+          <div className="mb-4 p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-start gap-2.5">
+            <Sparkles className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-900 leading-relaxed">
+              <strong>Công trình nguyên vẹn (0 khuyết tật):</strong> Không ghi nhận vết nứt kiến trúc hay khuyết tật kết cấu chịu lực nào tại hiện trường. Cờ kết cấu được cố định an toàn ở mức <strong>None (0đ)</strong>. Nếu công trình có hư hỏng kết cấu, vui lòng quay lại Bước 3 để ghi nhận cấu kiện / vị trí nứt tương ứng.
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 mb-3">
+            Cờ kết cấu đánh giá độc lập các khuyết tật cột/dầm/sàn/tường chịu lực
+          </p>
+        )}
 
         <div className="space-y-2">
           {STRUCTURAL_FLAG_LEVELS.map((flag) => {
             const isSelected = (bs.structuralFlagLevel || 'NONE') === flag.value;
+            const isDisabled = isZeroDefects && flag.value !== 'NONE';
             return (
               <label
                 key={flag.value}
-                className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                  isSelected
-                    ? `${flag.color} border-current shadow-sm font-semibold`
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${
+                  isDisabled
+                    ? 'border-slate-100 bg-slate-50 text-slate-400 opacity-50 cursor-not-allowed'
+                    : isSelected
+                    ? `${flag.color} border-current shadow-sm font-semibold cursor-pointer`
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 cursor-pointer'
                 }`}
               >
                 <input
                   type="radio"
                   name="structuralFlagLevel"
                   checked={isSelected}
-                  onChange={() =>
+                  disabled={isDisabled}
+                  onChange={() => {
+                    if (isDisabled) return;
                     updateFormData({
                       burlandSummary: {
                         ...bs,
                         structuralFlagLevel: flag.value,
                       },
-                    })
-                  }
+                    });
+                  }}
                   className="text-red-600 focus:ring-red-500"
                 />
                 <span className="text-xs sm:text-sm">{flag.label}</span>

@@ -45,9 +45,12 @@ export class FloorDefectMapper {
     rawFloors: any[],
     photoCounter: { current: number } = { current: 5 },
     buildingId: string = '',
-    rawSurveyDate: any = null
+    rawSurveyDate: any = null,
+    photoRotations: Record<string, number> = {}
   ): FloorPlanDefectReport[] {
     const results: FloorPlanDefectReport[] = [];
+
+    const rotMap = photoRotations || {};
 
     let floorIndex = 0;
     for (const fl of rawFloors || []) {
@@ -64,11 +67,13 @@ export class FloorDefectMapper {
 
       // 1. Sơ đồ CAD hư hỏng & kết cấu
       const damageMapUrl = fl.damageMapUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || fl.cadArchUrl || fl.cadDrawingUrl || '';
-      const damageMapBase64 = damageMapUrl ? ReportImageResolver.resolveToBase64(damageMapUrl) : undefined;
+      const damageMapRot = fl.cadRotation ?? rotMap[`floor_${fl.id || floorIndex}_cad`] ?? rotMap[`cad_${fl.id || floorIndex}`] ?? rotMap[damageMapUrl] ?? rotMap[fl.floorName] ?? 0;
+      const damageMapBase64 = damageMapUrl ? ReportImageResolver.resolveToBase64(damageMapUrl, damageMapRot) : undefined;
       const explicitStructuralMapUrl = fl.structuralMapUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || fl.cadStructuralDrawingUrl || '';
       const hasStructuralCadMap = Boolean(explicitStructuralMapUrl && explicitStructuralMapUrl !== damageMapUrl);
       const structuralMapUrl = hasStructuralCadMap ? explicitStructuralMapUrl : '';
-      const structuralMapBase64 = hasStructuralCadMap && structuralMapUrl ? ReportImageResolver.resolveToBase64(structuralMapUrl) : undefined;
+      const structMapRot = fl.structuralCadRotation ?? rotMap[`floor_${fl.id || floorIndex}_structural_cad`] ?? rotMap[structuralMapUrl] ?? 0;
+      const structuralMapBase64 = hasStructuralCadMap && structuralMapUrl ? ReportImageResolver.resolveToBase64(structuralMapUrl, structMapRot) : undefined;
       const hasCadMap = Boolean(damageMapBase64 || damageMapUrl || structuralMapBase64 || structuralMapUrl);
 
       const hasStructuralElements = fl.hasStructuralElements !== false;
@@ -150,7 +155,8 @@ export class FloorDefectMapper {
         if (!cleanUrl || cleanUrl.startsWith('blob:') || seenPhotoUrls.has(cleanUrl)) return;
         seenPhotoUrls.add(cleanUrl);
 
-        const base64 = ReportImageResolver.resolveToBase64(cleanUrl);
+        const photoRot = (photoCode ? rotMap[photoCode] : undefined) ?? rotMap[cleanUrl] ?? 0;
+        const base64 = ReportImageResolver.resolveToBase64(cleanUrl, photoRot);
         photoCounter.current++;
         const photoId = photoCode || `P-${photoCounter.current.toString().padStart(2, '0')}`;
         const itemDt = extractPhotoDateTime(cleanUrl, capturedAt || null, rawSurveyDate);
@@ -316,9 +322,13 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Surface defect (spalling/dampness)';
 
-            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl) : '';
-            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl) : '';
-            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl) : '';
+            const ctxRot = d.ctxRotation ?? z.ctxRotation ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[zCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+
+            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
+            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
+            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl, extraCuRot) : '';
 
             const resolvedCtxBase64 = rawCtxBase64 && !rawCtxBase64.startsWith('blob:') ? rawCtxBase64 : undefined;
             const resolvedCuBase64 = rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined;
@@ -384,6 +394,7 @@ export class FloorDefectMapper {
         }
 
         const zPhotoUrl = z.photoUrl || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '';
+        const zPhotoRot = z.photoRotation ?? rotMap[`zone_${z.id || zCode}_photo`] ?? rotMap[zCode] ?? rotMap[zPhotoUrl] ?? 0;
         zoneAndElementConditions.push({
           code: zCode,
           location: { vi: roomVi, en: roomEn },
@@ -391,7 +402,7 @@ export class FloorDefectMapper {
           condition: { vi: zoneConditionVi, en: zoneConditionEn },
           photoRefLabel: pZoneLabel,
           photoUrl: zPhotoUrl,
-          photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl) : undefined,
+          photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl, zPhotoRot) : undefined,
         });
 
         // Thu thập ảnh tổng thể phòng (Vùng Z)
@@ -567,9 +578,13 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật cấu kiện kết cấu';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Structural element defect';
 
-            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl) : '';
-            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl) : '';
-            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl) : '';
+            const ctxRot = d.ctxRotation ?? e.ctxRotation ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[eCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+
+            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
+            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
+            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl, extraCuRot) : '';
 
             const cuPhotoCode = d.cuPhotoCode || (Array.isArray(d.cuPhotoCodes) ? d.cuPhotoCodes[0] : undefined) || `${dCode}_CU_01`;
             const extraCuPhotoCode = (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 1 ? d.cuPhotoCodes[1] : undefined) || `${dCode}_CU_02`;
@@ -625,6 +640,7 @@ export class FloorDefectMapper {
           elemConditionEn = `Structural crack (B-${elemBurland}) - ${firstDefectCode} (w=${maxElemW}mm)`;
         }
 
+        const ePhotoRot = e.photoRotation ?? rotMap[`element_${e.id || eCode}_photo`] ?? rotMap[eCode] ?? rotMap[ePhotoUrl] ?? 0;
         zoneAndElementConditions.push({
           code: eCode,
           location: { vi: eRoomVi, en: eRoomEn },
@@ -632,7 +648,7 @@ export class FloorDefectMapper {
           condition: { vi: elemConditionVi, en: elemConditionEn },
           photoRefLabel: pElemLabel,
           photoUrl: ePhotoUrl,
-          photoBase64: ePhotoUrl ? ReportImageResolver.resolveToBase64(ePhotoUrl) : undefined,
+          photoBase64: ePhotoUrl ? ReportImageResolver.resolveToBase64(ePhotoUrl, ePhotoRot) : undefined,
         });
 
         // Thu thập ảnh cấu kiện kết cấu (Cấu kiện E - Ảnh dọc)

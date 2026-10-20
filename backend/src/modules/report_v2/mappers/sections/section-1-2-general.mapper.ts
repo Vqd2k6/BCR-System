@@ -73,11 +73,16 @@ export class Section1And2Mapper {
       }
     }
 
-    // Chủ sở hữu / người sử dụng song ngữ (ưu tiên thông tin chủ hộ thực tế thu thập tại hiện trường)
-    const ownerVi = json.signatures?.ownerRepresentative?.fullName || json.ownerName || rawReport.owner_name || 'Chủ hộ';
+    // Chủ sở hữu / người sử dụng: KSV thu thập thông tin gì thì ghi thông tin đó (ownerName)
+    // Tuyệt đối không để chuỗi placeholder địa chính thửa đất (Chủ hộ thửa...) đè lên
+    const candidateOwner = (json.ownerName || rawReport.owner_name || '').trim();
+    const repFullName = (json.signatures?.ownerRepresentative?.fullName || '').trim();
+    const isCadastralPlaceholder = !repFullName || /chủ\s*hộ\s*thửa/i.test(repFullName) || /tờ\s*bản\s*đồ/i.test(repFullName);
+
+    const ownerVi = candidateOwner || (!isCadastralPlaceholder ? repFullName : '') || 'Chủ hộ';
     let ownerEn = ownerVi;
     if (ownerVi.toLowerCase().includes('chủ hộ')) {
-      ownerEn = ownerVi.replace(/chủ hộ/i, 'Property Owner').replace(/thửa/i, 'Plot').replace(/tờ/i, 'Sheet');
+      ownerEn = ownerVi.replace(/chủ\s*hộ/i, 'Property Owner').replace(/thửa/i, 'Plot').replace(/tờ/i, 'Sheet');
     } else {
       ownerEn = `Mr./Ms. ${ownerVi}`;
     }
@@ -171,6 +176,7 @@ export class Section1And2Mapper {
         vi: ownerVi,
         en: ownerEn,
       },
+      ownerName: ownerVi,
       contactPhone: rawReport.owner_phone || json.ownerPhone || 'Chưa ghi nhận trong hồ sơ phần mềm',
       surveyConsultant: {
         vi: 'Liên danh CRLG – CRSRI – TT',
@@ -191,9 +197,8 @@ export class Section1And2Mapper {
     };
 
     // CHƯƠNG II: THÔNG TIN CƠ BẢN VỀ TÒA NHÀ (SECTION II)
-    const surveyedFloorsCount = Array.isArray(rawReport.floors)
-      ? rawReport.floors.length
-      : (Array.isArray(json.floors) ? json.floors.length : 0);
+    const floorList = rawReport.floors || rawReport.floorSurveys || json.floors || [];
+    const surveyedFloorsCount = Array.isArray(floorList) ? floorList.length : 0;
     const baseAboveFloors = Number(specs.aboveFloors || json.aboveFloors || specs.above_floors || specs.floor_count || rawReport.parcel_floor_count || 1);
     const storeysAbove = isVacantLand ? 0 : Math.max(baseAboveFloors, surveyedFloorsCount || 1);
     const storeysBasement = isVacantLand ? 0 : (specs.undergroundFloors || json.undergroundFloors || specs.underground_floors || specs.basement_count || 0);
@@ -260,18 +265,38 @@ export class Section1And2Mapper {
       maxHeightM = '–';
     }
 
+    // Kích thước chính: Ưu tiên số đo thực tế tại hiện trường (frontageWidth, lotDepth)
+    // Quy tắc: Nếu thiếu thì hiển thị '--', tuyệt đối không bịa số liệu
+    const rawWidth = json.frontageWidth ?? rawReport.frontage_width;
+    const rawDepth = json.lotDepth ?? rawReport.lot_depth;
+
+    const hasWidth = rawWidth !== undefined && rawWidth !== null && rawWidth !== '' && !isNaN(Number(rawWidth)) && Number(rawWidth) > 0;
+    const hasDepth = rawDepth !== undefined && rawDepth !== null && rawDepth !== '' && !isNaN(Number(rawDepth)) && Number(rawDepth) > 0;
+
+    let widthDisplay = hasWidth ? `${Number(rawWidth).toFixed(1)} m` : '-- m';
+    let depthDisplay = hasDepth ? `${Number(rawDepth).toFixed(1)} m` : '-- m';
+
     let mainDimensions: BilingualText;
-    if (rawSide1 > 0 && rawSide2 > 0) {
-      const widthM = Math.min(rawSide1, rawSide2).toFixed(1);
-      const lengthM = Math.max(rawSide1, rawSide2).toFixed(1);
-      mainDimensions = {
-        vi: `Mặt tiền ${widthM} m × Chiều sâu ${lengthM} m`,
-        en: `Width ${widthM} m × Length ${lengthM} m`,
-      };
+    if (!hasWidth && !hasDepth) {
+      const rawSide1 = Number(rawReport.parcel_side_a_m);
+      const rawSide2 = Number(rawReport.parcel_side_b_m);
+      if (rawSide1 > 0 && rawSide2 > 0) {
+        const wGis = Math.min(rawSide1, rawSide2).toFixed(1);
+        const lGis = Math.max(rawSide1, rawSide2).toFixed(1);
+        mainDimensions = {
+          vi: `Mặt tiền ${wGis} m × Chiều sâu ${lGis} m (Theo ranh địa chính GIS)`,
+          en: `Width ${wGis} m × Length ${lGis} m (Per GIS cadastral boundary)`,
+        };
+      } else {
+        mainDimensions = {
+          vi: `Mặt tiền -- m × Chiều sâu -- m (Chưa đo đạc)`,
+          en: `Width -- m × Depth -- m (Unmeasured)`,
+        };
+      }
     } else {
       mainDimensions = {
-        vi: `Chưa đo đạc kích thước ranh thửa`,
-        en: `Plot dimensions unrecorded`,
+        vi: `Mặt tiền ${widthDisplay} × Chiều sâu ${depthDisplay}`,
+        en: `Width ${widthDisplay} × Depth ${depthDisplay}`,
       };
     }
 
@@ -388,6 +413,7 @@ export class Section1And2Mapper {
       totalFloorAreaM2,
       floorAreaDisplay,
       mainDimensions,
+      dimensionsDisplay: mainDimensions,
       maxHeightM,
       typicalStoreyHeightM: `${typicalStoreyM} m`,
       yearConstructed: isVacantLand ? 'N/A' : (specs.constructionYear || json.constructionYear || specs.year_of_construction || '–'),

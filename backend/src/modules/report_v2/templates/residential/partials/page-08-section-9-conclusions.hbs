@@ -14,11 +14,13 @@
     <div style="margin-bottom: 8px;">
       {{#each section9.conclusions}}
         <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
-      {{else}}
-        <p>--</p>
       {{/each}}
       {{#if section9.witnessNarrative.vi}}
-      <p>- {{section9.witnessNarrative.vi}}<br><span class="text-muted">- {{section9.witnessNarrative.en}}</span></p>
+        <p>- {{section9.witnessNarrative.vi}}<br><span class="text-muted">- {{section9.witnessNarrative.en}}</span></p>
+      {{else}}
+        {{#unless section9.conclusions.length}}
+          <p>--</p>
+        {{/unless}}
       {{/if}}
     </div>
 

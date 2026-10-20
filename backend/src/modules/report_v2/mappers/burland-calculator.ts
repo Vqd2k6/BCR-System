@@ -127,8 +127,12 @@ export class BurlandCalculator {
         };
         zoneSummaries.push(item);
 
-        if (zoneGrade > calculatedMaxGrade || !governingItem) {
-          calculatedMaxGrade = zoneGrade;
+        if (
+          zoneGrade > calculatedMaxGrade ||
+          (zoneGrade === calculatedMaxGrade && maxW > (governingItem?.wmax || 0)) ||
+          !governingItem
+        ) {
+          calculatedMaxGrade = Math.max(calculatedMaxGrade, zoneGrade);
           governingItem = {
             code: zCode,
             floorVi: flNameVi,
@@ -286,22 +290,56 @@ export class BurlandCalculator {
     ];
 
     // Vùng chi phối
-    const govCode = rawBs.governingZoneCode || governingItem?.code || 'Z-01';
+    const govCode = (calculatedMaxGrade > 0 && governingItem?.code)
+      ? governingItem.code
+      : (rawBs.governingZoneCode || governingItem?.code || 'Z-01');
     const govFloor = governingItem?.floorVi || 'Tầng trệt';
     const govLoc = governingItem?.locationVi || 'Khu vực chính';
     const govW = governingItem?.wmax || 0;
     const govDesc = rawBs.governingZoneDescription || governingItem?.descVi || '';
 
-    // Cờ kết cấu (E2) - Giá trị Có / Không chuẩn xác theo dữ liệu khảo sát
+    // Cờ kết cấu (E2) - Giá trị chuẩn xác tuyệt đối theo dữ liệu khảo sát
     const hasStructuralIssue = structuralElements.some(e => e.defectCount > 0);
-    const hasFlag = rawBs.hasStructuralFlag !== undefined
-      ? Boolean(rawBs.hasStructuralFlag)
-      : (rawBs.structuralFlagLevel && rawBs.structuralFlagLevel !== 'NONE' && rawBs.structuralFlagLevel !== 'None' && rawBs.structuralFlagLevel !== '0' && rawBs.structuralFlagLevel !== 'NO')
-        ? true
-        : (finalLocalMax >= 3 || hasStructuralIssue);
+    const totalZoneCracks = zoneSummaries.reduce((sum, z) => sum + z.crackCount, 0);
+    const totalStructuralDefects = structuralElements.reduce((sum, e) => sum + e.defectCount, 0);
+    const isZeroDefects = (totalZoneCracks === 0 && totalStructuralDefects === 0 && calculatedMaxGrade === 0);
 
-    const structFlagVi = hasFlag ? 'Có' : 'Không';
-    const structFlagEn = hasFlag ? 'Yes' : 'No';
+    const rawFlagStr = (rawBs.structuralFlagLevel ?? '').toString().trim().toUpperCase();
+
+    let hasFlag = false;
+    let structFlagVi = 'Không';
+    let structFlagEn = 'No';
+
+    if (isZeroDefects) {
+      // Công trình nguyên vẹn hoàn toàn không có khuyết tật: Tuyệt đối không thể có cờ kết cấu
+      hasFlag = false;
+      structFlagVi = 'Không';
+      structFlagEn = 'No';
+    } else if (['LOW', 'MODERATE', 'HIGH', 'CRITICAL'].includes(rawFlagStr)) {
+      hasFlag = true;
+      const levelLabels: Record<string, { vi: string; en: string }> = {
+        LOW: { vi: 'Có (Cấp Low)', en: 'Yes (Low)' },
+        MODERATE: { vi: 'Có (Cấp Moderate)', en: 'Yes (Moderate)' },
+        HIGH: { vi: 'Có (Cấp High)', en: 'Yes (High)' },
+        CRITICAL: { vi: 'Có (Cấp Critical)', en: 'Yes (Critical)' },
+      };
+      structFlagVi = levelLabels[rawFlagStr]?.vi || 'Có';
+      structFlagEn = levelLabels[rawFlagStr]?.en || 'Yes';
+    } else if (rawFlagStr === 'NONE' || rawFlagStr === '0' || rawFlagStr === 'NO') {
+      // Khảo sát viên đã kết luận rõ ràng KHÔNG có cờ kết cấu
+      hasFlag = false;
+      structFlagVi = 'Không';
+      structFlagEn = 'No';
+    } else if (rawBs.hasStructuralFlag !== undefined && rawBs.hasStructuralFlag !== null) {
+      hasFlag = Boolean(rawBs.hasStructuralFlag);
+      structFlagVi = hasFlag ? 'Có' : 'Không';
+      structFlagEn = hasFlag ? 'Yes' : 'No';
+    } else {
+      // Fallback chỉ khi hoàn toàn không có dữ liệu cờ kết cấu từ khảo sát
+      hasFlag = finalLocalMax >= 4 || (hasStructuralIssue && finalLocalMax >= 3);
+      structFlagVi = hasFlag ? 'Có' : 'Không';
+      structFlagEn = hasFlag ? 'Yes' : 'No';
+    }
 
     // Tính đại diện
     const rawRep = rawBs.representativeness || (finalLocalMax > 0 ? 'LOCAL' : 'GLOBAL');
@@ -309,8 +347,18 @@ export class BurlandCalculator {
     const repVi = isGlobal ? 'Toàn công trình (Global)' : 'Cục bộ (Local)';
     const repEn = isGlobal ? 'Global' : 'Local';
 
-    // Thẩm tra kỹ sư
-    const needReview = Boolean(rawBs.needStructuralEngineerReview) || (rawBs.needStructuralReview !== undefined ? Boolean(rawBs.needStructuralReview) : (finalLocalMax >= 3 || hasStructuralIssue));
+    // Thẩm tra kỹ sư kết cấu: Ưu tiên tuyệt đối quyết định của KSV (nếu đã lưu boolean)
+    let needReview = false;
+    if (isZeroDefects) {
+      needReview = false;
+    } else if (rawBs.needStructuralEngineerReview !== undefined && rawBs.needStructuralEngineerReview !== null) {
+      needReview = Boolean(rawBs.needStructuralEngineerReview);
+    } else if (rawBs.needStructuralReview !== undefined && rawBs.needStructuralReview !== null) {
+      needReview = Boolean(rawBs.needStructuralReview);
+    } else {
+      // Fallback khi chưa có thông tin: chỉ yêu cầu thẩm tra khi có cờ kết cấu mức HIGH/CRITICAL hoặc cấp nứt >= 4
+      needReview = hasFlag && (rawFlagStr === 'HIGH' || rawFlagStr === 'CRITICAL' || finalLocalMax >= 4);
+    }
 
     return {
       burlandTable,
@@ -330,8 +378,12 @@ export class BurlandCalculator {
         en: `${govCode} – ${governingItem?.floorEn || govFloor} (${governingItem?.locationEn || govLoc})`,
       },
       governingZoneDescription: {
-        vi: govDesc || `Vị trí có độ mở rộng vết nứt lớn nhất của công trình (${govW > 0 ? `wmax = ${govW} mm` : 'hiện trạng ổn định'}).`,
-        en: govDesc || `Governing location with maximum crack width (${govW > 0 ? `wmax = ${govW} mm` : 'stable'}).`,
+        vi: isZeroDefects
+          ? 'Toàn bộ công trình nguyên vẹn, không phát hiện vết nứt hoặc hư hỏng kết cấu hiện trường.'
+          : (govDesc || `Vị trí có độ mở rộng vết nứt lớn nhất của công trình (${govW > 0 ? `wmax = ${govW} mm` : 'hiện trạng ổn định'}).`),
+        en: isZeroDefects
+          ? 'The building is completely sound with no cracks or structural defects recorded.'
+          : (govDesc || `Governing location with maximum crack width (${govW > 0 ? `wmax = ${govW} mm` : 'stable'}).`),
       },
       representativeness: { vi: repVi, en: repEn },
       structuralFlagLevel: { vi: structFlagVi, en: structFlagEn },
@@ -340,12 +392,16 @@ export class BurlandCalculator {
         en: needReview ? 'Yes' : 'No',
       },
       serviceabilityNarrative: {
-        vi: finalLocalMax <= 2
-          ? 'Công trình duy trì khả năng chịu lực bình thường. Các hư hỏng ghi nhận chủ yếu mang tính thẩm mỹ và hoàn thiện kiến trúc, không đe dọa đến an toàn khai thác tổng thể.'
-          : 'Công trình có khuyết tật kết cấu cục bộ đạt ngưỡng cần theo dõi. Khuyến nghị quan trắc biến dạng định kỳ trong suốt quá trình thi công ngầm.',
-        en: finalLocalMax <= 2
-          ? 'The building retains normal structural load-bearing capacity. Recorded defects are primarily aesthetic and architectural, with no threat to overall operational safety.'
-          : 'The building has localised structural defects requiring monitoring. Deformation observation is recommended during underground construction works.',
+        vi: isZeroDefects
+          ? 'Công trình duy trì khả năng chịu lực bình thường, toàn bộ cấu kiện và bề mặt kiến trúc nguyên vẹn, không ghi nhận bất kỳ khuyết tật hoặc hư hỏng nào.'
+          : finalLocalMax <= 2
+            ? 'Công trình duy trì khả năng chịu lực bình thường. Các hư hỏng ghi nhận chủ yếu mang tính thẩm mỹ và hoàn thiện kiến trúc, không đe dọa đến an toàn khai thác tổng thể.'
+            : 'Công trình có khuyết tật kết cấu cục bộ đạt ngưỡng cần theo dõi. Khuyến nghị quan trắc biến dạng định kỳ trong suốt quá trình thi công ngầm.',
+        en: isZeroDefects
+          ? 'The building maintains normal load-bearing capacity; all structural members and finishes are completely sound with no defects recorded.'
+          : finalLocalMax <= 2
+            ? 'The building retains normal structural load-bearing capacity. Recorded defects are primarily aesthetic and architectural, with no threat to overall operational safety.'
+            : 'The building has localised structural defects requiring monitoring. Deformation observation is recommended during underground construction works.',
       },
       legalInsuranceBaselineNarrative: {
         vi: 'Toàn bộ các chỉ số và phân cấp Burland nêu trên là Hồ sơ Hiện trạng Gốc (Pre-construction Legal Baseline) xác lập trước ngày khởi công dự án Metro Tuyến 2. Đơn vị Bảo hiểm và Chủ đầu tư chỉ xem xét bồi thường đối với các vết nứt phát sinh mới chưa có trong báo cáo hoặc các vết nứt cũ phát triển tăng thêm do ảnh hưởng trực tiếp từ thi công ngầm.',

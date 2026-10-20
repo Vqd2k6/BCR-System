@@ -69,6 +69,7 @@ export class Appendix1PhotoMapper {
       findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06']);
 
     const appendix1: Appendix1PhotoItem[] = [];
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
 
     // 1. P-01: Biển số nhà
     const p01Url =
@@ -78,11 +79,13 @@ export class Appendix1PhotoMapper {
       json.step1Photos?.p01HouseNumberUrl ||
       findPhoto(['P01_HOUSE_NUMBER', 'P01', 'P-01']);
     if (p01Url) {
+      const rotP01 = rotMap['P-01'] ?? rotMap['photoP01'] ?? rotMap[p01Url] ?? 0;
       appendix1.push({
         photoCode: 'P-01',
         name: { vi: 'Biển số nhà / tên công trình', en: 'House number / signboard' },
         url: p01Url,
-        base64: ReportImageResolver.resolveToBase64(p01Url),
+        rotation: rotP01,
+        base64: ReportImageResolver.resolveToBase64(p01Url, rotP01),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P01_HOUS',
@@ -100,11 +103,13 @@ export class Appendix1PhotoMapper {
       json.step1Photos?.p02MainFacadeUrl ||
       findPhoto(['P02_MAIN_FACADE', 'P02', 'P-02']);
     if (p02Url) {
+      const rotP02 = rotMap['P-02'] ?? rotMap['photoP02'] ?? rotMap[p02Url] ?? 0;
       appendix1.push({
         photoCode: 'P-02',
         name: { vi: 'Mặt đứng chính toàn cảnh', en: 'Overall view of the main facade' },
         url: p02Url,
-        base64: ReportImageResolver.resolveToBase64(p02Url),
+        rotation: rotP02,
+        base64: ReportImageResolver.resolveToBase64(p02Url, rotP02),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P02_MAIN',
@@ -141,11 +146,13 @@ export class Appendix1PhotoMapper {
         const origTag = item.photo_code || `P03_0${idx + 1}`;
         const mCode = origTag.startsWith('HCM_M2.') ? origTag : `HCM_M2.[${buildingId}]_${origTag}`;
         const itemDt = extractPhotoDateTime(u, item.shot_at || item.created_at, rawSurveyDate);
+        const rotP03 = item?.rotation ?? rotMap[item?.photo_code] ?? rotMap['P-03'] ?? rotMap[u] ?? 0;
         appendix1.push({
           photoCode: 'P-03',
           name: { vi: `Mặt bên (${tag})`, en: tagEn },
           url: u,
-          base64: ReportImageResolver.resolveToBase64(u),
+          rotation: rotP03,
+          base64: ReportImageResolver.resolveToBase64(u, rotP03),
           capturedAt: surveyDateFormatted,
           gpsCoords: `${defaultLat}, ${defaultLng}`,
           originalTag: origTag,
@@ -155,11 +162,13 @@ export class Appendix1PhotoMapper {
         });
       });
     } else if (singleP03Url) {
+      const rotP03 = rotMap['P-03'] ?? rotMap['photoP03'] ?? rotMap[singleP03Url] ?? 0;
       appendix1.push({
         photoCode: 'P-03',
         name: { vi: 'Mặt bên (hông trái)', en: 'Side facade (left)' },
         url: singleP03Url,
-        base64: ReportImageResolver.resolveToBase64(singleP03Url),
+        rotation: rotP03,
+        base64: ReportImageResolver.resolveToBase64(singleP03Url, rotP03),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P03_SIDE',
@@ -177,11 +186,13 @@ export class Appendix1PhotoMapper {
       json.step1Photos?.p04ContextStreetUrl ||
       findPhoto(['P04_CONTEXT_STREET', 'P04', 'P-04']);
     if (p04Url) {
+      const rotP04 = rotMap['P-04'] ?? rotMap['photoP04'] ?? rotMap[p04Url] ?? 0;
       appendix1.push({
         photoCode: 'P-04',
         name: { vi: 'Bối cảnh đường phố & tuyến Metro', en: 'Street context & Metro alignment' },
         url: p04Url,
-        base64: ReportImageResolver.resolveToBase64(p04Url),
+        rotation: rotP04,
+        base64: ReportImageResolver.resolveToBase64(p04Url, rotP04),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P04_CONT',
@@ -194,11 +205,13 @@ export class Appendix1PhotoMapper {
     // 5. P-05: Kiểm tra độ nghiêng công trình (từ deformation_assessments hoặc settlementTilt)
     if (p05Url) {
       const tiltTag = tiltPhotoObj?.photoCode || 'EXT_TILT_01';
+      const rotP05 = rotMap['P-05'] ?? rotMap['photoP05'] ?? rotMap[p05Url] ?? 0;
       appendix1.push({
         photoCode: 'P-05',
         name: { vi: 'Kiểm tra độ nghiêng công trình', en: 'Building inclination check' },
         url: p05Url,
-        base64: ReportImageResolver.resolveToBase64(p05Url),
+        rotation: rotP05,
+        base64: ReportImageResolver.resolveToBase64(p05Url, rotP05),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: tiltTag,
@@ -211,11 +224,13 @@ export class Appendix1PhotoMapper {
     // 6. P-06: Khảo sát lún móng & nền công trình
     if (p06Url) {
       const settleTag = settlePhotoObj?.photoCode || 'FOUND_SETTLE_01';
+      const rotP06 = rotMap['P-06'] ?? rotMap['photoP06'] ?? rotMap[p06Url] ?? 0;
       appendix1.push({
         photoCode: 'P-06',
         name: { vi: 'Khảo sát lún móng & nền công trình', en: 'Foundation & settlement survey' },
         url: p06Url,
-        base64: ReportImageResolver.resolveToBase64(p06Url),
+        rotation: rotP06,
+        base64: ReportImageResolver.resolveToBase64(p06Url, rotP06),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: settleTag,
@@ -233,11 +248,13 @@ export class Appendix1PhotoMapper {
       findPhoto(['EXT_ANOMALY', 'ANOMALY', 'P07', 'P-07']);
     if (p07Url) {
       const anomalyTag = anomalyPhotoObj?.photoCode || 'EXT_ANOMALY_01';
+      const rotP07 = rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[p07Url] ?? 0;
       appendix1.push({
         photoCode: 'P-07',
         name: { vi: 'Dấu hiệu bất thường ngoại quan', en: 'Exterior visual anomaly check' },
         url: p07Url,
-        base64: ReportImageResolver.resolveToBase64(p07Url),
+        rotation: rotP07,
+        base64: ReportImageResolver.resolveToBase64(p07Url, rotP07),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: anomalyTag,
@@ -247,11 +264,12 @@ export class Appendix1PhotoMapper {
       });
     }
 
-    // Phân loại: Xếp các ảnh chụp ngang (Landscape) hiển thị trước, các ảnh chụp dọc (Portrait) hiển thị sau
-    // để trong cùng 1 hàng 2 cột A4, các ảnh luôn đồng đều chiều cao, triệt tiêu khoảng trống sole
-    const landscapes = appendix1.filter((p) => !isPortraitImage(p.url || ''));
-    const portraits = appendix1.filter((p) => isPortraitImage(p.url || ''));
-    const sortedAppendix1 = [...landscapes, ...portraits];
+    // Sắp xếp bộ ảnh định danh theo đúng thứ tự chuẩn pháp lý (P-01 đến P-07)
+    const sortedAppendix1 = [...appendix1].sort((a, b) => {
+      const codeA = a.photoCode || '';
+      const codeB = b.photoCode || '';
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    });
 
     // Phân trang tự động cho Phụ lục 1: Tối đa 4 ảnh / trang A4 để chống vỡ khung in
     const PHOTOS_PER_PAGE = 4;

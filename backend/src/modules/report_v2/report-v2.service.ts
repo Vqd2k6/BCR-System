@@ -21,6 +21,7 @@ import { ReportImageResolver } from './services/report-image-resolver.service';
 import { ReportFontsService } from './services/report-fonts.service';
 import { ReportConfigService } from '../report_config/report-config.service';
 import type { ReportContentConfig } from '../report_config/report-config.types';
+import { extractParcelPolygonCoords, preloadSatelliteTiles } from './utils/metro-spatial.utils';
 
 function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] {
   if (!obj) return [];
@@ -191,8 +192,19 @@ export class ReportV2Service {
 
     // 1. Phân tích trước tỷ lệ khung ảnh và nhúng Base64 100% ảnh khảo sát (bao gồm cả Cloud R2)
     const allPhotoUrls = extractAllImageUrls(activeReport);
+    const photoRotationsMap = activeReport.survey_data_json?.photoRotations || activeReport.photoRotations || {};
     await preloadImageOrientations(allPhotoUrls);
-    await ReportImageResolver.preloadAndResolveAll(allPhotoUrls);
+    await ReportImageResolver.preloadAndResolveAll(allPhotoUrls, photoRotationsMap);
+
+    // 1.1. Tải trước ảnh vệ tinh Esri World Imagery cho sơ đồ không gian trang bìa
+    try {
+      const polygonCoords = extractParcelPolygonCoords(activeReport, activeReport.survey_data_json);
+      if (polygonCoords) {
+        await preloadSatelliteTiles(polygonCoords);
+      }
+    } catch (e) {
+      // Graceful fallback nếu không tải được tile vệ tinh
+    }
 
     // 2. Tải cấu hình nội dung chuẩn báo cáo (Q1, Q5)
     const config: ReportContentConfig =

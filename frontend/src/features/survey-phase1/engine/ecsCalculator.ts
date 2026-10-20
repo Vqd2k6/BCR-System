@@ -7,12 +7,12 @@ import type { Phase1SurveyFormData, EcsScoreState } from '../types/phase1.types'
 export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsScoreState {
   // 1. E1: Hư hỏng nhìn thấy tường/khối xây (Tự động map từ Burland Grade Max ở Bước 4)
   const burlandMax = formData.burlandSummary?.localMaxGrade ?? 0;
-  let e1 = 0;
-  if (burlandMax <= 1) e1 = 0;
-  else if (burlandMax === 2) e1 = 1;
-  else if (burlandMax === 3) e1 = 2;
-  else if (burlandMax === 4) e1 = 3;
-  else if (burlandMax >= 5) e1 = 4;
+  let e1Raw = 0;
+  if (burlandMax <= 1) e1Raw = 0;
+  else if (burlandMax === 2) e1Raw = 1;
+  else if (burlandMax === 3) e1Raw = 2;
+  else if (burlandMax === 4) e1Raw = 3;
+  else if (burlandMax >= 5) e1Raw = 4;
 
   // 2. E2: Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực (Tự động map từ Cờ kết cấu Bước 4 & Ý nghĩa KC Defect D-xx)
   let maxDefectStructural = 0;
@@ -33,14 +33,25 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
     });
   });
 
-  const flagLevel = formData.burlandSummary?.structuralFlagLevel || 'NONE';
-  let flagVal = 0;
-  if (flagLevel === 'LOW') flagVal = 1;
-  else if (flagLevel === 'MODERATE') flagVal = 2;
-  else if (flagLevel === 'HIGH') flagVal = 3;
-  else if (flagLevel === 'CRITICAL') flagVal = 4;
+  // Đếm tổng số khuyết tật toàn công trình
+  let totalDefectsCount = 0;
+  formData.floors?.forEach((fl) => {
+    fl.zones?.forEach((zn) => { totalDefectsCount += (zn.defects || []).length; });
+    fl.structuralElements?.forEach((el) => { totalDefectsCount += (el.defects || []).length; });
+  });
+  const isZeroDefects = totalDefectsCount === 0;
 
-  const e2 = Math.max(maxDefectStructural, flagVal);
+  const flagLevel = isZeroDefects ? 'NONE' : (formData.burlandSummary?.structuralFlagLevel || 'NONE');
+  let flagVal = 0;
+  if (!isZeroDefects) {
+    if (flagLevel === 'LOW') flagVal = 1;
+    else if (flagLevel === 'MODERATE') flagVal = 2;
+    else if (flagLevel === 'HIGH') flagVal = 3;
+    else if (flagLevel === 'CRITICAL') flagVal = 4;
+  }
+
+  const e1 = isZeroDefects ? 0 : e1Raw;
+  const e2 = isZeroDefects ? 0 : Math.max(maxDefectStructural, flagVal);
 
   // 3. E3: Lún/nghiêng/võng/biến dạng (Tự động tính từ Level của Lún chênh, Độ nghiêng B1 & Võng dầm sàn B5)
   let e3 = 0;

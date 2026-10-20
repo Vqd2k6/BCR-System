@@ -64,6 +64,7 @@ export interface Section1GeneralInfo {
   address: BilingualText;
   cadastralCode: string;
   ownerOccupant: BilingualText;
+  ownerName?: string;
   contactPhone: string;
   surveyConsultant: BilingualText;
   epcContractor: string;
@@ -87,6 +88,7 @@ export interface Section2BasicBuildingInfo {
   totalFloorAreaM2: number | string;
   floorAreaDisplay: BilingualText;
   mainDimensions: BilingualText;
+  dimensionsDisplay?: BilingualText;
   maxHeightM: number | string;
   typicalStoreyHeightM: number | string;
   yearConstructed: number | string;
@@ -441,6 +443,7 @@ export interface Appendix1PhotoItem {
   name: BilingualText;
   url: string;
   base64?: string;
+  rotation?: number;
   capturedAt: string;
   gpsCoords: string;
   originalTag?: string;
@@ -468,11 +471,13 @@ export interface DefectPairPhotoItem {
   contextCaption: BilingualText;
   contextAlreadyWatermarked?: boolean;
   contextPhotoCode?: string;
+  contextPhotoRotation?: number;
   closeUpPhotoUrl?: string;
   closeUpPhotoBase64?: string;
   closeUpCaption: BilingualText;
   closeUpAlreadyWatermarked?: boolean;
   closeUpPhotoCode?: string;
+  closeUpPhotoRotation?: number;
   contextDateTime?: string;
   closeUpDateTime?: string;
   extraCloseUpDateTime?: string;
@@ -485,6 +490,7 @@ export interface DefectPairPhotoItem {
   extraCloseUpCaption?: BilingualText;
   extraCloseUpAlreadyWatermarked?: boolean;
   extraCloseUpPhotoCode?: string;
+  extraCloseUpPhotoRotation?: number;
   hasExtraCloseUp?: boolean;
   activityState?: string;            // S hoặc A
   activityStateDisplay?: BilingualText;
@@ -548,8 +554,10 @@ export interface FloorPlanDefectReport {
   floorName: BilingualText;
   damageMapUrl?: string;
   damageMapBase64?: string;
+  damageMapRotation?: number;
   structuralMapUrl?: string;
   structuralMapBase64?: string;
+  structuralMapRotation?: number;
   hasStructuralCadMap: boolean;      // True nếu có bản vẽ kết cấu riêng biệt với bản vẽ kiến trúc
   hasCadMap?: boolean;               // True nếu tầng có ít nhất 1 bản vẽ CAD (kiến trúc hoặc kết cấu)
   hasDefects: boolean;               // True nếu tầng có ít nhất 1 khuyết tật
@@ -609,6 +617,27 @@ export interface Appendix3SignedRecord {
   }>;
 }
 
+export interface AsBuiltDrawingItem {
+  index: number;
+  title: BilingualText;
+  url: string;
+  base64?: string;
+  photoCode?: string;
+  rotation?: number;
+}
+
+export interface AsBuiltDrawingSheet {
+  sheetIndex: number;
+  totalSheets: number;
+  drawings: AsBuiltDrawingItem[]; // Tối đa 2 bản vẽ / trang A4
+}
+
+export interface Section12AsBuiltReport {
+  hasDrawings: boolean;
+  totalDrawings: number;
+  sheets: AsBuiltDrawingSheet[];
+}
+
 export interface Appendix4EquipmentItem {
   no: number;
   equipment: BilingualText;
@@ -662,6 +691,7 @@ export interface TocPageNumbers {
   section9: number;
   sectionX?: number;
   sectionXI?: number;
+  sectionXII?: number;
   appendix1: number;
   appendix2: number;
   appendix3: number;
@@ -669,6 +699,9 @@ export interface TocPageNumbers {
   appendix1New?: number;
   appendix2New?: number;
   appendix3New?: number;
+  pagePl1?: number;
+  pagePl2?: number;
+  pagePl3?: number;
 }
 
 export interface ReportV2ViewModel {
@@ -689,6 +722,7 @@ export interface ReportV2ViewModel {
   appendix1Pages?: Appendix1PhotoPage[];
   appendix2: FloorPlanDefectReport[];
   appendix3: Appendix3SignedRecord;
+  section12AsBuilt?: Section12AsBuiltReport;
   appendix4: Appendix4EquipmentAndAccess;
   asteriskFootnote?: BilingualText | null;
   standardTextVersionNumber?: number | null;

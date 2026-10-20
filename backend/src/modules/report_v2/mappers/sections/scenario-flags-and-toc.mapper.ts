@@ -12,6 +12,7 @@ import {
   FloorPlanDefectReport,
   Appendix1PhotoPage,
   Appendix3SignedRecord,
+  Section12AsBuiltReport,
 } from '../../report-v2.types';
 
 import { ScenarioResolver } from '../scenario-resolver';
@@ -50,12 +51,17 @@ export class ScenarioFlagsAndTocMapper {
     metadata: ReportV2Metadata,
     appendix1Pages: Appendix1PhotoPage[],
     appendix2: FloorPlanDefectReport[],
-    appendix3: Appendix3SignedRecord
+    appendix3: Appendix3SignedRecord,
+    section12AsBuilt?: Section12AsBuiltReport
   ): TocPageNumbers {
     const appendix1PageCount = appendix1Pages?.length || 1;
     const pageSectionX = 9;
     const sectionXIPageCount = 1 + (appendix3.signedRecordPages?.length || 0);
     const pageSectionXI = pageSectionX + appendix1PageCount;
+
+    // SECTION XII: Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (nếu có)
+    const section12PageCount = section12AsBuilt?.hasDrawings ? (section12AsBuilt.sheets?.length || 0) : 0;
+    const pageSectionXII = section12PageCount > 0 ? (pageSectionXI + sectionXIPageCount) : undefined;
 
     let pl1PageCount = 0;
     for (const fl of appendix2) {
@@ -69,7 +75,7 @@ export class ScenarioFlagsAndTocMapper {
       pl1PageCount = 1; // Trang thông báo kết cấu nguyên vẹn của Phụ lục 1
     }
 
-    const pagePl1 = pageSectionXI + sectionXIPageCount;
+    const pagePl1 = pageSectionXI + sectionXIPageCount + section12PageCount;
 
     let pl2PageCount = 0;
     for (const fl of appendix2) {
@@ -99,6 +105,7 @@ export class ScenarioFlagsAndTocMapper {
       section9: 8,
       sectionX: pageSectionX,
       sectionXI: pageSectionXI,
+      sectionXII: pageSectionXII,
       appendix1: pageSectionX,
       appendix2: pagePl1,
       appendix3: pagePl3,
@@ -106,6 +113,9 @@ export class ScenarioFlagsAndTocMapper {
       appendix1New: pagePl1,
       appendix2New: pagePl2,
       appendix3New: pagePl3,
+      pagePl1,
+      pagePl2,
+      pagePl3,
     };
 
     metadata.totalExpectedPages = totalExpectedPages;

@@ -69,7 +69,13 @@ async function main() {
     if (pl1Start >= 0 && defectCount === 0) {
       check(sq[pl1Start].includes(squeeze('không phát hiện')), 'Phụ lục 1 nêu rõ "không phát hiện vết nứt" khi DB không có khuyết tật');
     } else if (pl1Start >= 0) {
-      const pl1Pages = sq.filter((t) => t.includes(squeeze('Bảng tổng hợp khuyết tật tầng')) || t.includes('d01') || t.includes('d02'));
+      const pl1Pages = sq.filter((t) =>
+        t.includes(squeeze('Bảng tổng hợp khuyết tật tầng')) ||
+        t.includes(squeeze('Bảng thống kê chi tiết khuyết tật tầng')) ||
+        t.includes(squeeze('thong ke chi tiet khuyet tat')) ||
+        t.includes('d01') ||
+        t.includes('d02')
+      );
       check(pl1Pages.length > 0, `Phụ lục 1 có bảng khuyết tật (DB ~${defectCount} bản ghi defect_type)`);
     } else {
       check(defectCount === 0, `Không có Phụ lục 1 và DB không có khuyết tật (defect_type=${defectCount})`);
