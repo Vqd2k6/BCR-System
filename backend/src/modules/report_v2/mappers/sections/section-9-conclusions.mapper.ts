@@ -62,12 +62,13 @@ export class Section9ConclusionMapper {
     // Hạn chế khảo sát / Limitations: Liệt kê các trường thông tin bị thiếu từ khảo sát Phase 1
     const limitationsList: BilingualText[] = [];
 
-    // Mái / Sân thượng không tiếp cận
+    // Mái / Sân thượng không tiếp cận: Tôn trọng 100% khai báo của KSV
     const rawScope = json?.surveyScope || {};
     const rawLimitation = json?.accessLimitation || {};
-    const hasRoofScope = rawScope.roofTerrace ?? rawScope.roof;
-    let roofRestricted = hasRoofScope === false;
-    if (!roofRestricted && Array.isArray(rawLimitation.restrictedAreas)) {
+    const isFullAccess = rawLimitation.type === 'FULL_100';
+    let roofRestricted = false;
+
+    if (!isFullAccess && Array.isArray(rawLimitation.restrictedAreas)) {
       roofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
         typeof a === 'string' && (a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof'))
       );
@@ -196,8 +197,8 @@ export class Section9ConclusionMapper {
     const section9: Section9ConclusionRecommendation = {
       conclusions: conclusionsList,
       overallRisk: {
-        vi: `Cấp độ rủi ro tổng thể: ${section8.overallRisk.grade.vi} (Ma trận Rủi ro Cơ sở BRA = V × I); xác lập ranh giới hiện trạng cơ sở trước khi thi công ngầm.`,
-        en: `Overall risk grade: ${section8.overallRisk.grade.en} (Baseline BRA Matrix = V × I); establishing pre-construction baseline condition.`,
+        vi: `Cấp độ rủi ro tổng thể: ${section8?.overallRisk?.grade?.vi || '--'} (Ma trận Rủi ro Cơ sở BRA = V × I); xác lập ranh giới hiện trạng cơ sở trước khi thi công ngầm.`,
+        en: `Overall risk grade: ${section8?.overallRisk?.grade?.en || '--'} (Baseline BRA Matrix = V × I); establishing pre-construction baseline condition.`,
       },
       witnessNarrative,
       limitations: finalLimitations,

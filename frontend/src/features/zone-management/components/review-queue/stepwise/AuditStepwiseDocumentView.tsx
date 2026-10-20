@@ -118,6 +118,9 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
 
   const handleNavigateToPhoto = (v: PhotoOrientationViolation) => {
     scrollToStep(v.stepId);
+    if (v.floorIndex !== undefined) {
+      window.dispatchEvent(new CustomEvent('audit-switch-floor-tab', { detail: { floorIndex: v.floorIndex } }));
+    }
     setTimeout(() => {
       const el = document.getElementById(v.domElementId);
       if (el) {
@@ -332,6 +335,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={setPhotoRotation}
+          violationsMap={violationsMap}
         />
 
         {/* Bước 05: Khuyết Tật Bề Mặt & Tổng Hợp Nứt Burland 1977 */}

@@ -62,12 +62,15 @@ async function runTests() {
 
   console.log('\n=== TEST PHẦN 2: REPORT CONSISTENCY GATE ===');
 
-  // Case 2.1: Mái không tiếp cận nhưng có khuyết tật tại tầng mái -> Hard error
+  // Case 2.1: KSV chính thức khai báo Mái không tiếp cận nhưng có khuyết tật tại tầng mái -> Hard error
   const reportRoofConflict = {
     status: 'SUBMITTED',
   };
   const jsonRoofConflict = {
-    surveyScope: { roofTerrace: false },
+    accessLimitation: {
+      type: 'LIMITED',
+      restrictedAreas: ['Mái / Sân thượng'],
+    },
     floors: [
       {
         floorName: 'Tầng mái',
@@ -79,9 +82,12 @@ async function runTests() {
   assert(!roofResult.passed, 'Chốt chặn từ chối khi Mái không tiếp cận nhưng có khuyết tật');
   assert(roofResult.hardErrors.length > 0, 'hardErrors ghi nhận đúng mâu thuẫn mái');
 
-  // Case 2.2: Mái không tiếp cận và không có khuyết tật tại mái -> Passed
+  // Case 2.2: KSV khai báo Mái không tiếp cận và không có khuyết tật tại mái -> Passed
   const jsonRoofOk = {
-    surveyScope: { roofTerrace: false },
+    accessLimitation: {
+      type: 'LIMITED',
+      restrictedAreas: ['Mái / Sân thượng'],
+    },
     floors: [
       {
         floorName: 'Tầng trệt',

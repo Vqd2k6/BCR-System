@@ -17,6 +17,7 @@ import {
   GitBranch,
   ChevronDown,
   MapPin,
+  Loader2,
 } from 'lucide-react';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
@@ -157,6 +158,9 @@ export const AuditStudioModal: React.FC<Props> = ({
   });
   const [showOrientationWarning, setShowOrientationWarning] = useState(false);
   const [showAddressWarning, setShowAddressWarning] = useState(false);
+  const [showJudgementNotesModal, setShowJudgementNotesModal] = useState(false);
+  const [judgementNotesInput, setJudgementNotesInput] = useState('');
+  const [judgementNotesError, setJudgementNotesError] = useState('');
   const [selectedPhotoRotation, setSelectedPhotoRotation] = useState<number>(0);
   const [selectedPhotoCode, setSelectedPhotoCode] = useState<string>('');
 
@@ -219,12 +223,13 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  // Thực thi phê duyệt hồ sơ trực tiếp
-  const executeApprove = async () => {
+  // Thực thi phê duyệt hồ sơ trực tiếp (hỗ trợ truyền giải trình chuyên môn judgementNotes)
+  const executeApprove = async (notes?: string) => {
     if (!data) return;
     setIsApproving(true);
     try {
-      const res = await api.post(`/admin/reports/${reportId}/approve`);
+      const payload = notes ? { judgementNotes: notes } : {};
+      const res = await api.post(`/admin/reports/${reportId}/approve`, payload);
       if (res.data?.success || res.status === 200) {
         alert('Đã phê duyệt hồ sơ thành công!');
         onRefreshList();
@@ -234,7 +239,14 @@ export const AuditStudioModal: React.FC<Props> = ({
       }
     } catch (err: unknown) {
       console.error('[AuditStudioModal] Error approving:', err);
-      alert(getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.'));
+      const errMsg = getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.');
+      // Nếu gặp lỗi chốt chặn ECS >= 11 & BRA Thấp bắt buộc giải trình chuyên môn
+      if (errMsg.includes('ECS ≥ 11') || errMsg.includes('giải trình chuyên môn') || errMsg.includes('judgementNotes')) {
+        setJudgementNotesError(errMsg);
+        setShowJudgementNotesModal(true);
+      } else {
+        alert(errMsg);
+      }
     } finally {
       setIsApproving(false);
     }
@@ -350,12 +362,21 @@ export const AuditStudioModal: React.FC<Props> = ({
   const handleSaveDiffFirst = () => {
     setShowUnsavedChangesWarning(false);
     const hasRotations = Object.keys(orientationAudit.stagedPhotoRotations).length > 0;
+    const surveyJsonObj = ((data?.survey_data_json || data || {}) as Record<string, unknown>);
+    const existingPhotoRotations = (surveyJsonObj.photoRotations || {}) as Record<string, number>;
     setDiffModalData({
       isOpen: true,
       diffItems: [...pendingDirtyData.diffItems, ...stagedPhotoDiffs],
       updates: {
         ...pendingDirtyData.updates,
-        ...(hasRotations ? { photoRotations: orientationAudit.stagedPhotoRotations } : {}),
+        ...(hasRotations
+          ? {
+              photoRotations: {
+                ...existingPhotoRotations,
+                ...orientationAudit.stagedPhotoRotations,
+              },
+            }
+          : {}),
       },
     });
   };
@@ -951,12 +972,13 @@ export const AuditStudioModal: React.FC<Props> = ({
           title={selectedPhotoTitle}
           initialRotation={selectedPhotoRotation}
           onSaveRotation={(deg) => {
-            if (selectedPhotoCode) {
+            if (selectedPhotoCode || selectedPhotoUrl) {
               setOrientationAudit((prev) => ({
                 ...prev,
                 stagedPhotoRotations: {
                   ...prev.stagedPhotoRotations,
-                  [selectedPhotoCode]: deg,
+                  ...(selectedPhotoCode ? { [selectedPhotoCode]: deg } : {}),
+                  ...(selectedPhotoUrl ? { [selectedPhotoUrl]: deg } : {}),
                 },
               }));
             }
@@ -988,9 +1010,9 @@ export const AuditStudioModal: React.FC<Props> = ({
 
               {/* Danh sách ảnh vi phạm bắt buộc */}
               <div className="max-h-48 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50/40 p-2.5 space-y-1.5">
-                {strictViolations.map((v) => (
+                {strictViolations.map((v, vIdx) => (
                   <div
-                    key={v.key}
+                    key={`${v.key}_${vIdx}`}
                     className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-white border border-amber-200 shadow-2xs"
                   >
                     <div className="flex items-center gap-2 truncate">
@@ -1024,6 +1046,13 @@ export const AuditStudioModal: React.FC<Props> = ({
                   onClick={async () => {
                     console.warn('[AuditStudioModal] Admin bypassed orientation violation for strict photos:', strictViolations.map(v => v.photoCode || v.key));
                     setShowOrientationWarning(false);
+                    // Chaining Gatekeeper: Tiếp tục kiểm tra chốt chặn Địa chỉ NQ 1685 nếu có
+                    if (currentAddressEval && !currentAddressEval.isCompliant && (currentAddressEval.hasAnomalies || currentAddressEval.isContaminated)) {
+                      setShowAddressWarning(true);
+                      return;
+                    }
+                    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode || ''}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
+                    if (!window.confirm(confirmMsg)) return;
                     await executeApprove();
                   }}
                   className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
@@ -1089,6 +1118,8 @@ export const AuditStudioModal: React.FC<Props> = ({
                 type="button"
                 onClick={async () => {
                   setShowAddressWarning(false);
+                  const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
+                  if (!window.confirm(confirmMsg)) return;
                   await executeApprove();
                 }}
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
@@ -1099,6 +1130,77 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Yêu Cầu Giải Trình Chuyên Môn Kỹ Sư Trưởng (Chốt chặn ECS ≥ 11 & BRA Thấp) */}
+      {showJudgementNotesModal && (
+        <div className="fixed inset-0 z-[110] isolate flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="relative z-[111] bg-white rounded-2xl shadow-2xl border border-rose-300 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-300">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-slate-900">
+                  Yêu Cầu Giải Trình Chuyên Môn Kỹ Sư Trưởng
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Hồ sơ công trình có mức độ suy giảm hiện trạng cao (ECS ≥ 11) nhưng mức đánh giá rủi ro cơ sở BRA là Thấp. Quy chuẩn bắt buộc Zone Admin / Kỹ sư trưởng phải nhập lý do giải trình chuyên môn trước khi phê duyệt.
+                </p>
+              </div>
+            </div>
+
+            {judgementNotesError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium">
+                {judgementNotesError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Lý do giải trình kỹ thuật chuyên môn:</span>
+                <span className={`text-[11px] font-mono ${judgementNotesInput.trim().length >= 10 ? 'text-emerald-600 font-bold' : 'text-rose-500 font-bold'}`}>
+                  {judgementNotesInput.trim().length} / 10 ký tự tối thiểu
+                </span>
+              </label>
+              <textarea
+                rows={4}
+                value={judgementNotesInput}
+                onChange={(e) => setJudgementNotesInput(e.target.value)}
+                placeholder="Nhập chi tiết giải trình chuyên môn (ví dụ: Nứt bề mặt do co ngót vữa trát, kết cấu dầm cột chịu lực không biến dạng lún nghiêng...)"
+                className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJudgementNotesModal(false);
+                  setJudgementNotesError('');
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                disabled={judgementNotesInput.trim().length < 10 || isApproving}
+                onClick={async () => {
+                  const notes = judgementNotesInput.trim();
+                  if (notes.length < 10) return;
+                  setShowJudgementNotesModal(false);
+                  await executeApprove(notes);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                {isApproving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span>Xác Nhận & Phê Duyệt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {diffModalData.isOpen && (
         <AuditDiffConfirmModal

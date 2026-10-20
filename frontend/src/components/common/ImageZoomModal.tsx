@@ -85,13 +85,23 @@ export const ImageZoomModal: React.FC<Props> = ({
   };
   const handleRotate = () => setRotation((r) => (r + 90) % 360);
 
-  // Mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    setScale((s) => Math.min(Math.max(s + delta, 0.5), 6));
-  };
+  // Native non-passive wheel listener để zoom mượt mà và không bị lỗi Chromium passive event
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isOpen) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      setScale((s) => Math.min(Math.max(s + delta, 0.5), 6));
+    };
+
+    el.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, [isOpen]);
 
   // Mouse drag
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -269,7 +279,6 @@ export const ImageZoomModal: React.FC<Props> = ({
         ref={containerRef}
         className="flex-1 relative overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing p-4"
         onClick={(e) => e.stopPropagation()}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

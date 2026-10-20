@@ -49,14 +49,20 @@ export class ReportConsistencyGate {
     // -------------------------------------------------------------------------
     // 1. HARD INCONSISTENCY: Mái / Sân thượng không tiếp cận nhưng có khuyết tật
     // -------------------------------------------------------------------------
-    const hasRoofScope = rawScope.roofTerrace ?? rawScope.roof;
-    let roofRestricted = hasRoofScope === false;
-    if (!roofRestricted && Array.isArray(rawLimitation.restrictedAreas)) {
+    // NGUYÊN TẮC: Số liệu KSV/Approved là tối cao - Tuyệt đối không tự sinh, suy luận hay sửa đổi
+    // Nếu KSV khai báo FULL_100 (tiếp cận 100%), mặc nhiên KHÔNG có khu vực nào bị hạn chế.
+    // Chỉ coi là hạn chế tiếp cận mái khi KSV CHÍNH THỨC khai báo LIMITED/PARTIAL/EXTERNAL_ONLY
+    // và tick chọn hoặc ghi nhận cụ thể khu vực mái/sân thượng trong restrictedAreas.
+    const isFullAccess = rawLimitation.type === 'FULL_100';
+    let roofRestricted = false;
+
+    if (!isFullAccess && Array.isArray(rawLimitation.restrictedAreas)) {
       roofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
         typeof a === 'string' &&
         (a.toLowerCase().includes('mái') ||
           a.toLowerCase().includes('sân thượng') ||
-          a.toLowerCase().includes('roof'))
+          a.toLowerCase().includes('roof') ||
+          a.toLowerCase().includes('terrace'))
       );
     }
 

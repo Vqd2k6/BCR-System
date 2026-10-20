@@ -20,6 +20,10 @@ export interface PhotoOrientationViolation {
   suggestedRotation?: number;
   isStrict: boolean;
   message: string;
+  floorIndex?: number;
+  zoneCode?: string;
+  defectCode?: string;
+  photoIndex?: number;
 }
 
 export interface AuditedPhotoItem {
@@ -30,6 +34,10 @@ export interface AuditedPhotoItem {
   photoUrl: string;
   stepId: string;
   domElementId: string;
+  floorIndex?: number;
+  zoneCode?: string;
+  defectCode?: string;
+  photoIndex?: number;
 }
 
 // Global in-memory cache kích thước ảnh để tránh load lại nhiều lần
@@ -60,22 +68,32 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
   const [measuredDimensions, setMeasuredDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
   // Cập nhật góc xoay cho 1 ảnh cụ thể (Thẩm định viên chủ động xoay)
-  const setPhotoRotation = useCallback((photoKey: string, rotationDeg: number) => {
+  const setPhotoRotation = useCallback((photoKey: string, rotationDeg: number, photoUrl?: string) => {
     const norm = normalizeRotationAngle(rotationDeg);
     setStagedPhotoRotations((prev) => ({
       ...prev,
       [photoKey]: norm,
+      ...(photoUrl ? { [photoUrl]: norm } : {}),
     }));
   }, []);
 
-  // Lấy góc xoay hiện tại của 1 ảnh
+  // Lấy góc xoay hiện tại của 1 ảnh (hỗ trợ đọc cả theo photoKey và photoUrl)
   const getPhotoRotation = useCallback(
-    (photoKey: string): number => {
+    (photoKey: string, photoUrl?: string): number => {
       if (photoKey in stagedPhotoRotations) {
         return stagedPhotoRotations[photoKey];
       }
+      if (photoUrl && photoUrl in stagedPhotoRotations) {
+        return stagedPhotoRotations[photoUrl];
+      }
       const existingRotations = (surveyJson.photoRotations || {}) as Record<string, number>;
-      return existingRotations[photoKey] || 0;
+      if (photoKey in existingRotations) {
+        return existingRotations[photoKey];
+      }
+      if (photoUrl && photoUrl in existingRotations) {
+        return existingRotations[photoUrl];
+      }
+      return 0;
     },
     [stagedPhotoRotations, surveyJson]
   );
@@ -83,6 +101,14 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
   // 1. Thu thập toàn bộ danh sách ảnh cần kiểm toán trong hồ sơ Nhà Dân
   const photoCandidates = useMemo<AuditedPhotoItem[]>(() => {
     const list: AuditedPhotoItem[] = [];
+    const seenUrls = new Set<string>();
+
+    const addCandidate = (item: AuditedPhotoItem) => {
+      if (!item.photoUrl || typeof item.photoUrl !== 'string' || item.photoUrl.trim() === '') return;
+      if (seenUrls.has(item.photoUrl)) return; // Tránh quét trùng lặp tuyệt đối theo URL
+      seenUrls.add(item.photoUrl);
+      list.push(item);
+    };
 
     // Helper an toàn trích xuất URL & photoCode
     const getPhotoInfo = (obj: unknown): { url: string; code?: string } => {
@@ -102,7 +128,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
     const p1 = (surveyJson.identificationPhotos || {}) as Record<string, unknown>;
     const p01 = getPhotoInfo(p1.photoP01 || surveyJson.photoP01);
     if (p01.url) {
-      list.push({
+      addCandidate({
         key: 'photoP01',
         ruleKey: 'photoP01',
         photoCode: p01.code || 'P-01',
@@ -115,7 +141,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
 
     const p02 = getPhotoInfo(p1.photoP02 || surveyJson.photoP02);
     if (p02.url) {
-      list.push({
+      addCandidate({
         key: 'photoP02',
         ruleKey: 'photoP02',
         photoCode: p02.code || 'P-02',
@@ -128,7 +154,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
 
     const p03 = getPhotoInfo(p1.photoP03 || surveyJson.photoP03);
     if (p03.url) {
-      list.push({
+      addCandidate({
         key: 'photoP03',
         ruleKey: 'photoP03',
         photoCode: p03.code || 'P-03',
@@ -141,7 +167,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
 
     const p04 = getPhotoInfo(p1.photoP04 || surveyJson.photoP04);
     if (p04.url) {
-      list.push({
+      addCandidate({
         key: 'photoP04',
         ruleKey: 'photoP04',
         photoCode: p04.code || 'P-04',
@@ -155,86 +181,64 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
     // Nhóm Bước 2: Đo Biến Dạng & Lún Nghiêng
     const st = (surveyJson.settlementTilt || {}) as Record<string, unknown>;
     const tilt = (st.buildingTilt || surveyJson.buildingTilt || {}) as Record<string, unknown>;
-    const tiltInfo = getPhotoInfo(tilt.photoUrl || (Array.isArray(tilt.photos) ? tilt.photos[0] : null));
-    if (tiltInfo.url) {
-      list.push({
-        key: 'buildingTilt',
-        ruleKey: 'buildingTilt',
-        photoCode: tiltInfo.code || 'TILT',
-        title: 'Ảnh đo độ nghiêng thân nhà',
-        photoUrl: tiltInfo.url,
-        stepId: 'step-2',
-        domElementId: 'audit-photo-card-building-tilt',
-      });
-    }
+    const tiltPhotos = Array.isArray(tilt.photos) && tilt.photos.length > 0
+      ? tilt.photos
+      : (tilt.photoUrl ? [tilt.photoUrl] : []);
+    tiltPhotos.forEach((tp, pIdx) => {
+      const tpInfo = getPhotoInfo(tp);
+      if (tpInfo.url) {
+        addCandidate({
+          key: tiltPhotos.length > 1 ? `buildingTilt_${pIdx}` : 'buildingTilt',
+          ruleKey: 'buildingTilt',
+          photoCode: tpInfo.code || (tiltPhotos.length > 1 ? `TILT_${pIdx + 1}` : 'TILT'),
+          title: tiltPhotos.length > 1 ? `Ảnh đo độ nghiêng thân nhà #${pIdx + 1}` : 'Ảnh đo độ nghiêng thân nhà',
+          photoUrl: tpInfo.url,
+          stepId: 'step-2',
+          domElementId: `audit-photo-card-building-tilt${tiltPhotos.length > 1 ? `-${pIdx}` : ''}`,
+          photoIndex: pIdx,
+        });
+      }
+    });
 
     const sag = (st.beamSagging || surveyJson.beamSagging || {}) as Record<string, unknown>;
-    const sagInfo = getPhotoInfo(sag.photoUrl || (Array.isArray(sag.photos) ? sag.photos[0] : null));
-    if (sagInfo.url) {
-      list.push({
-        key: 'beamSagging',
-        ruleKey: 'beamSagging',
-        photoCode: sagInfo.code || 'SAG',
-        title: 'Ảnh đo độ võng dầm sàn',
-        photoUrl: sagInfo.url,
-        stepId: 'step-2',
-        domElementId: 'audit-photo-card-beam-sagging',
-      });
-    }
+    const sagPhotos = Array.isArray(sag.photos) && sag.photos.length > 0
+      ? sag.photos
+      : (sag.photoUrl ? [sag.photoUrl] : []);
+    sagPhotos.forEach((sp, pIdx) => {
+      const spInfo = getPhotoInfo(sp);
+      if (spInfo.url) {
+        addCandidate({
+          key: sagPhotos.length > 1 ? `beamSagging_${pIdx}` : 'beamSagging',
+          ruleKey: 'beamSagging',
+          photoCode: spInfo.code || (sagPhotos.length > 1 ? `SAG_${pIdx + 1}` : 'SAG'),
+          title: sagPhotos.length > 1 ? `Ảnh đo độ võng dầm sàn #${pIdx + 1}` : 'Ảnh đo độ võng dầm sàn',
+          photoUrl: spInfo.url,
+          stepId: 'step-2',
+          domElementId: `audit-photo-card-beam-sagging${sagPhotos.length > 1 ? `-${pIdx}` : ''}`,
+          photoIndex: pIdx,
+        });
+      }
+    });
 
     const settle = (st.diffSettlement || surveyJson.diffSettlement || {}) as Record<string, unknown>;
-    const settleInfo = getPhotoInfo(settle.photoUrl || (Array.isArray(settle.photos) ? settle.photos[0] : null));
-    if (settleInfo.url) {
-      list.push({
-        key: 'diffSettlement',
-        ruleKey: 'diffSettlement',
-        photoCode: settleInfo.code || 'SETTLE',
-        title: 'Ảnh lún lệch chân tường',
-        photoUrl: settleInfo.url,
-        stepId: 'step-2',
-        domElementId: 'audit-photo-card-diff-settlement',
-      });
-    }
-
-    // Nhóm Bước 4: Damage Zones (Z_CTX)
-    const zones = (surveyJson.damage_zones || surveyJson.damageZones || []) as Array<Record<string, unknown>>;
-    if (Array.isArray(zones)) {
-      zones.forEach((z, zIdx) => {
-        const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '') as string;
-        const zCode = (z.zone_code || z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
-        if (ctxUrl) {
-          list.push({
-            key: `zone_${z.id || zCode}_ctx`,
-            ruleKey: 'Z_CTX',
-            photoCode: `${zCode}-CTX`,
-            title: `Bối cảnh Vùng ${zCode}`,
-            photoUrl: ctxUrl,
-            stepId: 'step-4',
-            domElementId: `audit-photo-card-zone-${zCode}`,
-          });
-        }
-      });
-    }
-
-    // Nhóm Bước 4: Defect Items (D_CU)
-    const defects = (surveyJson.defect_items || surveyJson.defectItems || []) as Array<Record<string, unknown>>;
-    if (Array.isArray(defects)) {
-      defects.forEach((d, dIdx) => {
-        const cuUrl = (d.cu_photo_url || d.cuPhotoUrl || '') as string;
-        const dCode = (d.defect_code || d.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`) as string;
-        if (cuUrl) {
-          list.push({
-            key: `defect_${d.id || dCode}_cu`,
-            ruleKey: 'D_CU',
-            photoCode: `${dCode}-CU`,
-            title: `Cận cảnh vết nứt ${dCode}`,
-            photoUrl: cuUrl,
-            stepId: 'step-4',
-            domElementId: `audit-photo-card-defect-${dCode}`,
-          });
-        }
-      });
-    }
+    const settlePhotos = Array.isArray(settle.photos) && settle.photos.length > 0
+      ? settle.photos
+      : (settle.photoUrl ? [settle.photoUrl] : []);
+    settlePhotos.forEach((sep, pIdx) => {
+      const sepInfo = getPhotoInfo(sep);
+      if (sepInfo.url) {
+        addCandidate({
+          key: settlePhotos.length > 1 ? `diffSettlement_${pIdx}` : 'diffSettlement',
+          ruleKey: 'diffSettlement',
+          photoCode: sepInfo.code || (settlePhotos.length > 1 ? `SETTLE_${pIdx + 1}` : 'SETTLE'),
+          title: settlePhotos.length > 1 ? `Ảnh lún lệch chân tường #${pIdx + 1}` : 'Ảnh lún lệch chân tường',
+          photoUrl: sepInfo.url,
+          stepId: 'step-2',
+          domElementId: `audit-photo-card-diff-settlement${settlePhotos.length > 1 ? `-${pIdx}` : ''}`,
+          photoIndex: pIdx,
+        });
+      }
+    });
 
     // Nhóm Bước 9: Biên Bản Khảo Sát Hiện Trường A4
     const sigs = (surveyJson.signatures || {}) as Record<string, unknown>;
@@ -243,7 +247,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
       minutes.forEach((m, mIdx) => {
         const mInfo = getPhotoInfo(m);
         if (mInfo.url) {
-          list.push({
+          addCandidate({
             key: `minutes_${mIdx}`,
             ruleKey: 'MINUTES',
             photoCode: mInfo.code || `MINUTES-${mIdx + 1}`,
@@ -251,6 +255,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
             photoUrl: mInfo.url,
             stepId: 'step-9',
             domElementId: `audit-photo-card-minutes-${mIdx}`,
+            photoIndex: mIdx,
           });
         }
       });
@@ -258,60 +263,128 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
 
     // Nhóm Bước 3: Tầng & Bản vẽ CAD, Vùng Z, Khuyết tật D trong surveyJson.floors
     const floors = (surveyJson.floors || []) as Array<Record<string, unknown>>;
-    if (Array.isArray(floors)) {
+    const hasFloors = Array.isArray(floors) && floors.length > 0;
+
+    if (hasFloors) {
       floors.forEach((f, fIdx) => {
         const floorName = (f.floorName || `Tầng ${fIdx + 1}`) as string;
         const cadUrl = (f.cadSketchPhotoUrl || f.cadPhotoUrl || '') as string;
+        const fId = f.id ? String(f.id) : '';
+        const floorCadKey = fId ? (fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`) : `floor_${fIdx}_cad`;
         if (cadUrl) {
-          list.push({
-            key: `floor_${f.id || fIdx}_cad`,
+          addCandidate({
+            key: floorCadKey,
             ruleKey: 'CAD_SKETCH',
             photoCode: `CAD-${fIdx + 1}`,
             title: `Bản vẽ CAD ${floorName}`,
             photoUrl: cadUrl,
             stepId: 'step-3',
             domElementId: `audit-cad-sketch-${fIdx}`,
+            floorIndex: fIdx,
           });
         }
 
         const fZones = (f.zones || []) as Array<Record<string, unknown>>;
         if (Array.isArray(fZones)) {
           fZones.forEach((z, zIdx) => {
-            const zCode = (z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
-            const ctxUrl = (z.ctxPhotoUrl || '') as string;
+            const zCode = (z.zoneCode || z.zone_code || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
+            const ctxUrl = (z.ctxPhotoUrl || z.ctx_photo_url || '') as string;
+            // Composite key phân cấp duy nhất cho Vùng Z
+            const zId = z.id ? String(z.id) : '';
+            const zoneKey = zId ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`) : `zone_f${fIdx}_z${zCode}_ctx`;
             if (ctxUrl) {
-              list.push({
-                key: `zone_${z.id || zCode}_ctx`,
+              addCandidate({
+                key: zoneKey,
                 ruleKey: 'Z_CTX',
                 photoCode: `${zCode}-CTX`,
                 title: `Bối cảnh Vùng ${zCode} (${floorName})`,
                 photoUrl: ctxUrl,
                 stepId: 'step-3',
-                domElementId: `audit-photo-card-zone-${zCode}`,
+                domElementId: `audit-photo-card-f${fIdx}-zone-${zCode}`,
+                floorIndex: fIdx,
+                zoneCode: zCode,
               });
             }
 
             const zDefects = (z.defects || []) as Array<Record<string, unknown>>;
             if (Array.isArray(zDefects)) {
-              zDefects.forEach((d) => {
-                const dCode = (d.defectCode || 'D') as string;
-                const cuUrl = (d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : '')) as string;
-                if (cuUrl) {
-                  list.push({
-                    key: `defect_${d.id || dCode}_cu`,
+              zDefects.forEach((d, dIdx) => {
+                const dCode = (d.defectCode || d.defect_code || `D-${String(dIdx + 1).padStart(2, '0')}`) as string;
+                const cuPhotos = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                  ? d.cuPhotos
+                  : (d.cuPhotoUrl ? [d.cuPhotoUrl] : (d.cu_photo_url ? [d.cu_photo_url] : []));
+
+                cuPhotos.forEach((cuRaw, cuIdx) => {
+                  const cuUrl = typeof cuRaw === 'string' ? cuRaw : (cuRaw?.url || '');
+                  if (!cuUrl) return;
+                  const hasMultiCu = cuPhotos.length > 1;
+                  // Composite key phân cấp duy nhất cho từng khuyết tật và từng ảnh cận cảnh
+                  const dId = d.id ? String(d.id) : '';
+                  const defectKey = dId
+                    ? (dId.startsWith('defect_') ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}` : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`)
+                    : `defect_f${fIdx}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                  const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
+
+                  addCandidate({
+                    key: defectKey,
                     ruleKey: 'D_CU',
-                    photoCode: `${dCode}-CU`,
-                    title: `Cận cảnh thước đo nứt ${dCode} (${floorName})`,
+                    photoCode: `${dCode}-CU${cuSuffix}`,
+                    title: `Cận cảnh thước đo nứt ${dCode}${cuSuffix} (${floorName} - ${zCode})`,
                     photoUrl: cuUrl,
                     stepId: 'step-3',
-                    domElementId: `audit-photo-card-defect-${dCode}`,
+                    domElementId: `audit-photo-card-f${fIdx}-z${zCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`,
+                    floorIndex: fIdx,
+                    zoneCode: zCode,
+                    defectCode: dCode,
+                    photoIndex: cuIdx,
                   });
-                }
+                });
               });
             }
           });
         }
       });
+    } else {
+      // Ưu tiên floors; chỉ quét mảng phẳng cũ khi hồ sơ hoàn toàn không có floors
+      const zones = (surveyJson.damage_zones || surveyJson.damageZones || []) as Array<Record<string, unknown>>;
+      if (Array.isArray(zones)) {
+        zones.forEach((z, zIdx) => {
+          const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '') as string;
+          const zCode = (z.zone_code || z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
+          if (ctxUrl) {
+            addCandidate({
+              key: `zone_${z.id || zCode}_ctx`,
+              ruleKey: 'Z_CTX',
+              photoCode: `${zCode}-CTX`,
+              title: `Bối cảnh Vùng ${zCode}`,
+              photoUrl: ctxUrl,
+              stepId: 'step-4',
+              domElementId: `audit-photo-card-zone-${zCode}`,
+              zoneCode: zCode,
+            });
+          }
+        });
+      }
+
+      const defects = (surveyJson.defect_items || surveyJson.defectItems || []) as Array<Record<string, unknown>>;
+      if (Array.isArray(defects)) {
+        defects.forEach((d, dIdx) => {
+          const cuUrl = (d.cu_photo_url || d.cuPhotoUrl || '') as string;
+          const dCode = (d.defect_code || d.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`) as string;
+          if (cuUrl) {
+            addCandidate({
+              key: `defect_${d.id || dCode}_cu`,
+              ruleKey: 'D_CU',
+              photoCode: `${dCode}-CU`,
+              title: `Cận cảnh vết nứt ${dCode}`,
+              photoUrl: cuUrl,
+              stepId: 'step-4',
+              domElementId: `audit-photo-card-defect-${dCode}`,
+              defectCode: dCode,
+            });
+          }
+        });
+      }
     }
 
     return list;
@@ -360,7 +433,7 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
         return;
       }
 
-      const currentRotation = stagedPhotoRotations[item.key] ?? getPhotoRotation(item.key);
+      const currentRotation = stagedPhotoRotations[item.key] ?? getPhotoRotation(item.key, item.photoUrl);
       const evalRes = evaluateResidentialOrientation(dims.width, dims.height, currentRotation, item.ruleKey);
 
       if (!evalRes.isValid) {
@@ -378,6 +451,10 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
           suggestedRotation: evalRes.suggestedRotation,
           isStrict: ruleDef?.isStrict ?? false,
           message: evalRes.message,
+          floorIndex: item.floorIndex,
+          zoneCode: item.zoneCode,
+          defectCode: item.defectCode,
+          photoIndex: item.photoIndex,
         });
       }
     });
@@ -389,21 +466,22 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
   const strictViolations = useMemo(() => violations.filter((v) => v.isStrict), [violations]);
   const advisoryViolations = useMemo(() => violations.filter((v) => !v.isStrict), [violations]);
 
-  // Tra cứu vi phạm nhanh theo key, photoCode hoặc domElementId
+  // Tra cứu vi phạm nhanh theo key, photoUrl, domElementId, hoặc photoCode
   const violationsMap = useMemo(() => {
     const map = new Map<string, PhotoOrientationViolation>();
     violations.forEach((v) => {
       map.set(v.key, v);
-      if (v.photoCode) map.set(v.photoCode, v);
+      if (v.photoUrl) map.set(v.photoUrl, v);
       if (v.domElementId) map.set(v.domElementId, v);
+      if (v.photoCode) map.set(v.photoCode, v);
     });
     return map;
   }, [violations]);
 
   // Helper tra cứu trạng thái xoay của từng ảnh cho các Card con
   const getPhotoOrientationStatus = useCallback(
-    (keyOrCode: string) => {
-      const violation = violationsMap.get(keyOrCode);
+    (keyOrCodeOrUrl: string) => {
+      const violation = violationsMap.get(keyOrCodeOrUrl);
       return {
         hasMismatch: Boolean(violation),
         violation,

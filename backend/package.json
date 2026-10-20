@@ -16,7 +16,8 @@
     "reset:clean-parcels": "ts-node src/scripts/clean_reset_production_preserving_parcels.ts",
     "deploy:5zones-cloud": "ts-node src/scripts/deploy_5zones_to_cloud.ts",
     "sync:from-cloud": "ts-node src/scripts/sync_from_cloud.ts",
-    "sync:snapshot-only": "ts-node src/scripts/sync_from_cloud.ts --file-only"
+    "sync:snapshot-only": "ts-node src/scripts/sync_from_cloud.ts --file-only",
+    "restore:snapshot": "ts-node src/scripts/restore_from_snapshot.ts"
   },
   "keywords": [
     "metro2",

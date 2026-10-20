@@ -3,7 +3,8 @@ import type { DefectItem } from '../../../../../../components/canvas/DefectPinni
 import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../components/canvas/FloorCadPinningCanvas';
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
-import React, { useState, useRef } from 'react';
+import type { PhotoOrientationViolation } from '../hooks/usePhotoOrientationAudit';
+import React, { useState, useRef, useEffect } from 'react';
 import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair, Undo2, RotateCw, RotateCcw } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
@@ -125,6 +126,7 @@ interface Props {
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export const AuditStep3FloorDefects: React.FC<Props> = ({
@@ -140,6 +142,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   onUndoPhotoAction,
   stagedPhotoRotations = {},
   onRotatePhoto,
+  violationsMap,
 }) => {
   // Helper tra cứu trạng thái can thiệp ảnh staged trong phiên thẩm định
   const getStagedAction = (filter: {
@@ -213,6 +216,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       ];
 
   const currentFloor: FloorSurveyData = (floorsList[activeFloorIndex] || floorsList[0] || {}) as FloorSurveyData;
+
+  // Lắng nghe sự kiện chuyển tab tầng khi bấm "Xem ảnh" ở Banner cảnh báo
+  useEffect(() => {
+    const handleSwitchFloor = (e: Event) => {
+      const ce = e as CustomEvent<{ floorIndex: number }>;
+      if (ce.detail && typeof ce.detail.floorIndex === 'number' && ce.detail.floorIndex >= 0 && ce.detail.floorIndex < floorsList.length) {
+        setActiveFloorIndex(ce.detail.floorIndex);
+      }
+    };
+    window.addEventListener('audit-switch-floor-tab', handleSwitchFloor);
+    return () => window.removeEventListener('audit-switch-floor-tab', handleSwitchFloor);
+  }, [floorsList.length]);
+
   const currentZones: DamageZoneData[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
   const currentElements: StructuralElementData[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
 
@@ -1703,13 +1719,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             photoIndex: ovIdx,
                             url: ovUrl,
                           });
-                          const rotKey = `zone_${z.id || zCode}_ctx`;
-                          const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`${zCode}-CTX`] ?? 0;
+                          const zId = z.id ? String(z.id) : '';
+                          const compositeRotKey = zId ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`) : `zone_f${activeFloorIndex}_z${zCode}_ctx`;
+                          const legacyRotKey = `zone_${z.id || zCode}_ctx`;
+                          const rot = stagedPhotoRotations[compositeRotKey] ?? stagedPhotoRotations[ovUrl] ?? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${zCode}-CTX`] ?? 0;
+                          const orientStatus = violationsMap?.get(compositeRotKey) || violationsMap?.get(ovUrl) || violationsMap?.get(legacyRotKey);
+                          const domId = `audit-photo-card-f${activeFloorIndex}-zone-${zCode}`;
                           return (
                             <AuditPhotoCard
                               key={ovIdx}
                               url={stagedOv?.newPhotoUrl || ovUrl}
                               photoCode={`#${ovIdx + 1}`}
+                              photoKey={compositeRotKey}
                               title={`Ảnh tổng quan ${zCode} #${ovIdx + 1}`}
                               category="ZONE_CTX"
                               targetPhotoType="CTX"
@@ -1721,9 +1742,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               aspectRatio="aspect-4/3"
                               badgeColor="slate"
                               rotation={rot}
-                              expectedOrientation="LANDSCAPE"
-                              onRotate={(newRot) => onRotatePhoto?.(rotKey, newRot)}
-                              domId={`audit-photo-card-zone-${zCode}`}
+                              isOrientationMismatch={Boolean(orientStatus)}
+                              isStrictOrientation={orientStatus?.isStrict ?? false}
+                              orientationRecommendation={orientStatus?.message}
+                              expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
+                              onRotate={(newRot) => onRotatePhoto?.(compositeRotKey, newRot)}
+                              domId={domId}
                               historyCount={(z as any)?.historyCount}
                               hasHistory={(z as any)?.hasHistory}
                               optimisticStatus={stagedOv ? (stagedOv.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
@@ -2461,13 +2485,21 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       photoIndex: cuIdx,
                                       url: cuUrl,
                                     });
-                                    const rotKey = `defect_${d.id || dCode}_cu`;
-                                    const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`${dCode}-CU`] ?? 0;
+                                    const hasMultiCu = cuPhotos.length > 1;
+                                    const dId = d.id ? String(d.id) : '';
+                                    const compositeRotKey = dId
+                                      ? (dId.startsWith('defect_') ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}` : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`)
+                                      : `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                                    const legacyRotKey = `defect_${d.id || dCode}_cu`;
+                                    const rot = stagedPhotoRotations[compositeRotKey] ?? stagedPhotoRotations[cuUrl] ?? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${dCode}-CU`] ?? 0;
+                                    const orientStatus = violationsMap?.get(compositeRotKey) || violationsMap?.get(cuUrl) || violationsMap?.get(legacyRotKey);
+                                    const domId = `audit-photo-card-f${activeFloorIndex}-z${zCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`;
                                     return (
                                       <AuditPhotoCard
                                         key={cuIdx}
                                         url={stagedCu?.newPhotoUrl || cuUrl}
                                         photoCode={`CU #${cuIdx + 1}`}
+                                        photoKey={compositeRotKey}
                                         title={`${dCode} - Ảnh Cận Cảnh #${cuIdx + 1}`}
                                         category="DEFECT_CU"
                                         targetPhotoType="CU"
@@ -2482,9 +2514,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         aspectRatio="h-24"
                                         badgeColor="slate"
                                         rotation={rot}
-                                        expectedOrientation="LANDSCAPE"
-                                        onRotate={(newRot) => onRotatePhoto?.(rotKey, newRot)}
-                                        domId={`audit-photo-card-defect-${dCode}`}
+                                        isOrientationMismatch={Boolean(orientStatus)}
+                                        isStrictOrientation={orientStatus?.isStrict ?? false}
+                                        orientationRecommendation={orientStatus?.message}
+                                        expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
+                                        onRotate={(newRot) => onRotatePhoto?.(compositeRotKey, newRot)}
+                                        domId={domId}
                                         historyCount={(d as any)?.historyCount}
                                         hasHistory={(d as any)?.hasHistory}
                                         optimisticStatus={stagedCu ? (stagedCu.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}

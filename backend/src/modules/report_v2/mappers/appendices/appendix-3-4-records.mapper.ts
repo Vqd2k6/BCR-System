@@ -165,21 +165,17 @@ export class Appendix3And4Mapper {
     const rawLimitation = json?.accessLimitation || {};
     const isAbsentee = Boolean(json?.isAbsenteeSurvey || rawReport?.is_absentee_survey);
 
-    // Mái / Sân thượng
-    const hasRoofScope = rawScope.roofTerrace ?? rawScope.roof;
+    // Mái / Sân thượng: Tôn trọng 100% khai báo tiếp cận của KSV
+    const isFullAccess = rawLimitation.type === 'FULL_100';
     let roofAccessed = true;
     let roofNotAccessed = false;
     let roofRemarkVi = 'Khảo sát đầy đủ hiện trạng';
     let roofRemarkEn = 'Full survey completed';
 
-    if (hasRoofScope === false) {
-      roofAccessed = false;
-      roofNotAccessed = true;
-      roofRemarkVi = 'Chưa khảo sát / không tiếp cận sân thượng';
-      roofRemarkEn = 'Not surveyed / inaccessible roof';
-    } else if (rawLimitation.restrictedAreas && Array.isArray(rawLimitation.restrictedAreas)) {
+    if (!isFullAccess && Array.isArray(rawLimitation.restrictedAreas)) {
       const isRoofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
-        a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof')
+        typeof a === 'string' &&
+        (a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof'))
       );
       if (isRoofRestricted) {
         roofAccessed = false;

@@ -78,8 +78,35 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
               .filter((p: string) => p && typeof p === 'string' && !p.startsWith('blob:')),
             cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : []),
             notes: d.notes || '',
-            cuPhotoRotation: json.photoRotations?.[`defect_${d.id || d.defectCode}_cu`] ?? json.photoRotations?.[d.defectCode] ?? json.photoRotations?.[d.cuPhotoCode] ?? 0,
-            ctxPhotoRotation: json.photoRotations?.[`defect_${d.id || d.defectCode}_ctx`] ?? json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ?? json.photoRotations?.[z.zoneCode] ?? 0,
+            cuPhotoRotation: (() => {
+              const rawCu = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : d.cuPhotoUrl;
+              const cuUrl = typeof rawCu === 'string' ? rawCu : '';
+              const dId = d.id ? String(d.id) : '';
+              const compositeKey = dId
+                ? (dId.startsWith('defect_') ? `${dId}_cu` : `defect_${dId}_cu`)
+                : `defect_f${fIdx}_z${z.zoneCode || 'Z-01'}_d${d.defectCode || 'D-01'}_cu`;
+              return json.photoRotations?.[compositeKey] ??
+                     (dId ? json.photoRotations?.[`defect_${dId}_cu`] : undefined) ??
+                     (dId ? json.photoRotations?.[`${dId}_cu`] : undefined) ??
+                     (cuUrl ? json.photoRotations?.[cuUrl] : undefined) ??
+                     json.photoRotations?.[`defect_${d.id || d.defectCode}_cu`] ??
+                     json.photoRotations?.[d.defectCode] ??
+                     json.photoRotations?.[d.cuPhotoCode] ?? 0;
+            })(),
+            ctxPhotoRotation: (() => {
+              const ctxUrl = typeof z.ctxPhotoUrl === 'string' ? z.ctxPhotoUrl : '';
+              const zId = z.id ? String(z.id) : '';
+              const compositeZoneKey = zId
+                ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`)
+                : `zone_f${fIdx}_z${z.zoneCode || 'Z-01'}_ctx`;
+              return json.photoRotations?.[`defect_${d.id || d.defectCode}_ctx`] ??
+                     json.photoRotations?.[compositeZoneKey] ??
+                     (zId ? json.photoRotations?.[`zone_${zId}_ctx`] : undefined) ??
+                     (zId ? json.photoRotations?.[`${zId}_ctx`] : undefined) ??
+                     (ctxUrl ? json.photoRotations?.[ctxUrl] : undefined) ??
+                     json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ??
+                     json.photoRotations?.[z.zoneCode] ?? 0;
+            })(),
           };
         });
 
@@ -96,7 +123,19 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           burlandLabel: burlandLabels[Number(z.burlandGrade || 0)] || 'Grade 0',
           notes: z.notes || '',
           ctxPhotoUrl: (z.ctxPhotoUrl && typeof z.ctxPhotoUrl === 'string' && !z.ctxPhotoUrl.startsWith('blob:')) ? z.ctxPhotoUrl : '',
-          ctxPhotoRotation: json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ?? json.photoRotations?.[z.zoneCode] ?? 0,
+          ctxPhotoRotation: (() => {
+            const ctxUrl = typeof z.ctxPhotoUrl === 'string' ? z.ctxPhotoUrl : '';
+            const zId = z.id ? String(z.id) : '';
+            const compositeZoneKey = zId
+              ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`)
+              : `zone_f${fIdx}_z${z.zoneCode || 'Z-01'}_ctx`;
+            return json.photoRotations?.[compositeZoneKey] ??
+                   (zId ? json.photoRotations?.[`zone_${zId}_ctx`] : undefined) ??
+                   (zId ? json.photoRotations?.[`${zId}_ctx`] : undefined) ??
+                   (ctxUrl ? json.photoRotations?.[ctxUrl] : undefined) ??
+                   json.photoRotations?.[`zone_${z.id || z.zoneCode}_ctx`] ??
+                   json.photoRotations?.[z.zoneCode] ?? 0;
+          })(),
           overviewPhotos: uniqueZonePhotos,
           hasDamage: Boolean(z.hasDamage || zDefects.length > 0),
           defects: zDefects,
@@ -146,9 +185,18 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
         floorName,
         floorOrder: fIdx + 1,
         notes: f.notes || '',
-        cadSketchPhotoUrl: f.cadSketchPhotoUrl || '',
-        cadStructuralSketchPhotoUrl: f.cadStructuralSketchPhotoUrl || '',
-        cadSketchRotation: json.photoRotations?.[`floor_${f.id || fIdx}_cad`] ?? json.photoRotations?.[`cad_${f.id || fIdx}`] ?? json.photoRotations?.[f.floorName] ?? 0,
+        cadSketchRotation: (() => {
+          const fId = f.id ? String(f.id) : '';
+          const floorCadKey = fId
+            ? (fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`)
+            : `floor_${fIdx}_cad`;
+          return json.photoRotations?.[floorCadKey] ??
+                 (fId ? json.photoRotations?.[`floor_${fId}_cad`] : undefined) ??
+                 (fId ? json.photoRotations?.[`${fId}_cad`] : undefined) ??
+                 (f.cadSketchPhotoUrl ? json.photoRotations?.[f.cadSketchPhotoUrl] : undefined) ??
+                 json.photoRotations?.[`cad_${f.id || fIdx}`] ??
+                 json.photoRotations?.[f.floorName] ?? 0;
+        })(),
         isDualPortrait,
         overviewPhotos,
         zones,

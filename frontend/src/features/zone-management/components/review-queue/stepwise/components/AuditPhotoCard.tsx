@@ -45,6 +45,7 @@ export interface AuditPhotoCardProps {
   expectedOrientation?: 'PORTRAIT' | 'LANDSCAPE' | 'ANY';
   onRotate?: (newRotation: number) => void;
   domId?: string;
+  photoKey?: string;
   onUndoDelete?: () => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
@@ -82,6 +83,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   expectedOrientation,
   onRotate,
   domId,
+  photoKey,
   onUndoDelete,
   onOpenPhotoZoom,
   onOpenPhotoAction,
@@ -93,7 +95,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   const handleZoom = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hasUrl && onOpenPhotoZoom) {
-      onOpenPhotoZoom(url!, title, photoCode, rotation);
+      onOpenPhotoZoom(url!, title, photoKey || photoCode, rotation);
     }
   };
 
