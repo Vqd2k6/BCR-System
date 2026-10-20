@@ -1,5 +1,29 @@
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { calculateVi } from './vi-calculator';
+
+/** Các trường của survey_data_json mà bộ chấm điểm VI cần đọc */
+interface ScoringSurveyJson {
+  usageFunction?: string;
+  surveyCaseType?: string;
+  isVacantLand?: boolean;
+  objectGroup?: string;
+  structureSystem?: string;
+  foundationCatScore?: number | null;
+  constructionYear?: number | null;
+  historyInterview?: {
+    renovationLoad?: number;
+    continuousOperation247?: boolean;
+    sensitiveEquipment?: { has?: boolean };
+  };
+}
+
+/** building_grade của building_specifications (GRADE_1/GRADE_2/...) → objectGroup chuẩn */
+function mapBuildingGradeToObjectGroup(grade?: string | null): string {
+  if (grade === 'CRITICAL' || grade === 'GRADE_1') return 'CRITICAL';
+  if (grade === 'IMPORTANT' || grade === 'GRADE_2') return 'IMPORTANT';
+  return 'GENERAL';
+}
 
 export class ScoringService {
   /**
@@ -63,7 +87,7 @@ export class ScoringService {
     const specRes = await Database.query<{
       building_grade?: string;
       land_use_function?: string;
-      survey_data_json?: any;
+      survey_data_json?: ScoringSurveyJson | string;
     }>(
       `SELECT bs.building_grade, bs.land_use_function, r.survey_data_json
        FROM base_survey_reports r
@@ -72,43 +96,42 @@ export class ScoringService {
       [reportId]
     );
     const specData = specRes.rows[0];
-    let surveyJson: any = null;
+    let surveyJson: ScoringSurveyJson | null = null;
     if (specData?.survey_data_json) {
       try {
         surveyJson = typeof specData.survey_data_json === 'string'
           ? JSON.parse(specData.survey_data_json)
           : specData.survey_data_json;
-      } catch (_) {}
+      } catch (err) {
+        console.error('[ScoringService] survey_data_json không phải JSON hợp lệ, bỏ qua dữ liệu khảo sát khi tính VI:', reportId, err);
+      }
     }
 
+    // Chuẩn D7: dùng chung calculator với frontend (viCalculator.ts) – không hardcode V2/V3/V4
     const usageFunction = surveyJson?.usageFunction || specData?.land_use_function || '';
-    const surveyCaseType = surveyJson?.surveyCaseType || '';
-    const isVacantLand = surveyCaseType === 'VACANT_LAND' || surveyJson?.isVacantLand === true || usageFunction === 'Đất trống';
-    const isAbandoned = usageFunction === 'Nhà bỏ trống';
-
-    // Bắt buộc xét Normal (0đ) trước các điều kiện 2, 3, 4đ
-    let v1 = 2.0;
-    if (isAbandoned || isVacantLand) {
-      v1 = 0.0;
-    } else {
-      const objGroup = surveyJson?.objectGroup || specData?.building_grade || 'GENERAL';
-      if (objGroup === 'CRITICAL' || objGroup === 'GRADE_1') v1 = 4.0;
-      else if (objGroup === 'IMPORTANT' || objGroup === 'GRADE_2') v1 = 3.0;
-      else v1 = 2.0;
-    }
-
-    const v2 = 1.5;
-    const v3 = 1.0;
-    const v4 = 1.0;
-    const v5 = totalEcs / 6.0;
-    const v6 = e5 > 0 ? 2.0 : 1.0;
-    const avgVi = Math.round(((v1 + v2 + v3 + v4 + v5 + v6) / 6.0) * 100) / 100;
-
-    let viClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' = 'LOW';
-    if (avgVi < 1.5) viClass = 'LOW';
-    else if (avgVi < 2.5) viClass = 'MEDIUM';
-    else if (avgVi < 3.5) viClass = 'HIGH';
-    else viClass = 'VERY_HIGH';
+    const catRaw = surveyJson?.foundationCatScore;
+    const yearRaw = surveyJson?.constructionYear;
+    const vi = calculateVi({
+      usageFunction,
+      surveyCaseType: surveyJson?.surveyCaseType || '',
+      isVacantLand: surveyJson?.isVacantLand === true,
+      objectGroup: surveyJson?.objectGroup || mapBuildingGradeToObjectGroup(specData?.building_grade),
+      structureSystem: surveyJson?.structureSystem || '',
+      foundationCatScore: typeof catRaw === 'number' ? catRaw : null,
+      constructionYear: typeof yearRaw === 'number' ? yearRaw : null,
+      renovationLoad: surveyJson?.historyInterview?.renovationLoad ?? 0,
+      continuousOperation247: surveyJson?.historyInterview?.continuousOperation247 === true,
+      hasSensitiveEquipment: surveyJson?.historyInterview?.sensitiveEquipment?.has === true,
+      ecsClass,
+    });
+    const v1 = vi.v1;
+    const v2 = vi.v2;
+    const v3 = vi.v3;
+    const v4 = vi.v4;
+    const v5 = vi.v5;
+    const v6 = vi.v6;
+    const avgVi = vi.viAvg;
+    const viClass = vi.viClass;
 
     // Lưu vào risk_score_cards
     await Database.query(
@@ -126,6 +149,12 @@ export class ScoringService {
          e4_material_score = EXCLUDED.e4_material_score,
          e5_history_score = EXCLUDED.e5_history_score,
          total_ecs_score = EXCLUDED.total_ecs_score,
+         v1_importance_score = EXCLUDED.v1_importance_score,
+         v2_structure_score = EXCLUDED.v2_structure_score,
+         v3_foundation_score = EXCLUDED.v3_foundation_score,
+         v4_age_score = EXCLUDED.v4_age_score,
+         v5_ecs_score = EXCLUDED.v5_ecs_score,
+         v6_sensitivity_score = EXCLUDED.v6_sensitivity_score,
          ecs_class = EXCLUDED.ecs_class,
          avg_vi_score = EXCLUDED.avg_vi_score,
          vi_class = EXCLUDED.vi_class;`,

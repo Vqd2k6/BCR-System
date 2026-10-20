@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool, Check } from 'lucide-react';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 import { resolvePhotoTimestamp } from '../../utils/photoTimestampHelper';
@@ -10,6 +10,8 @@ interface Props {
   title?: string;
   photoCode?: string;
   timestamp?: Date | string | number;
+  initialRotation?: number;
+  onSaveRotation?: (rotation: number) => void;
   onClose: () => void;
   onAnnotate?: () => void;
 }
@@ -20,12 +22,14 @@ export const ImageZoomModal: React.FC<Props> = ({
   title = 'Soi nét chi tiết ảnh hiện trường',
   photoCode,
   timestamp,
+  initialRotation = 0,
+  onSaveRotation,
   onClose,
   onAnnotate,
 }) => {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [rotation, setRotation] = useState(0);
+  const [rotation, setRotation] = useState(initialRotation);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const touchStartDistRef = useRef<number | null>(null);
@@ -58,9 +62,9 @@ export const ImageZoomModal: React.FC<Props> = ({
     if (isOpen) {
       setScale(1);
       setPosition({ x: 0, y: 0 });
-      setRotation(0);
+      setRotation(initialRotation || 0);
     }
-  }, [isOpen, imageUrl]);
+  }, [isOpen, imageUrl, initialRotation]);
 
   // Handle ESC key
   useEffect(() => {
@@ -81,13 +85,23 @@ export const ImageZoomModal: React.FC<Props> = ({
   };
   const handleRotate = () => setRotation((r) => (r + 90) % 360);
 
-  // Mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    setScale((s) => Math.min(Math.max(s + delta, 0.5), 6));
-  };
+  // Native non-passive wheel listener để zoom mượt mà và không bị lỗi Chromium passive event
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isOpen) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      setScale((s) => Math.min(Math.max(s + delta, 0.5), 6));
+    };
+
+    el.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, [isOpen]);
 
   // Mouse drag
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -230,15 +244,29 @@ export const ImageZoomModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleReset}
-            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
             title="Đặt lại góc nhìn"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
+          {onSaveRotation && (
+            <button
+              type="button"
+              onClick={() => {
+                onSaveRotation(rotation);
+                onClose();
+              }}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-colors cursor-pointer ml-1"
+              title="Lưu góc xoay này vào thẻ ảnh hồ sơ"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lưu góc ({rotation}°)</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg bg-red-600/80 text-white hover:bg-red-600 transition-colors ml-2"
+            className="p-2 rounded-lg bg-red-600/80 text-white hover:bg-red-600 transition-colors ml-2 cursor-pointer"
             title="Đóng (ESC)"
           >
             <X className="w-4 h-4" />
@@ -251,7 +279,6 @@ export const ImageZoomModal: React.FC<Props> = ({
         ref={containerRef}
         className="flex-1 relative overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing p-4"
         onClick={(e) => e.stopPropagation()}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

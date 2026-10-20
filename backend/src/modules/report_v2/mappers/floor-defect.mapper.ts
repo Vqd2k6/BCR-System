@@ -45,9 +45,12 @@ export class FloorDefectMapper {
     rawFloors: any[],
     photoCounter: { current: number } = { current: 5 },
     buildingId: string = '',
-    rawSurveyDate: any = null
+    rawSurveyDate: any = null,
+    photoRotations: Record<string, number> = {}
   ): FloorPlanDefectReport[] {
     const results: FloorPlanDefectReport[] = [];
+
+    const rotMap = photoRotations || {};
 
     let floorIndex = 0;
     for (const fl of rawFloors || []) {
@@ -64,11 +67,13 @@ export class FloorDefectMapper {
 
       // 1. Sơ đồ CAD hư hỏng & kết cấu
       const damageMapUrl = fl.damageMapUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || fl.cadArchUrl || fl.cadDrawingUrl || '';
-      const damageMapBase64 = damageMapUrl ? ReportImageResolver.resolveToBase64(damageMapUrl) : undefined;
+      const damageMapRot = fl.cadRotation ?? rotMap[`floor_${fl.id || floorIndex}_cad`] ?? rotMap[`cad_${fl.id || floorIndex}`] ?? rotMap[damageMapUrl] ?? rotMap[fl.floorName] ?? 0;
+      const damageMapBase64 = damageMapUrl ? ReportImageResolver.resolveToBase64(damageMapUrl, damageMapRot) : undefined;
       const explicitStructuralMapUrl = fl.structuralMapUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || fl.cadStructuralDrawingUrl || '';
       const hasStructuralCadMap = Boolean(explicitStructuralMapUrl && explicitStructuralMapUrl !== damageMapUrl);
       const structuralMapUrl = hasStructuralCadMap ? explicitStructuralMapUrl : '';
-      const structuralMapBase64 = hasStructuralCadMap && structuralMapUrl ? ReportImageResolver.resolveToBase64(structuralMapUrl) : undefined;
+      const structMapRot = fl.structuralCadRotation ?? rotMap[`floor_${fl.id || floorIndex}_structural_cad`] ?? rotMap[structuralMapUrl] ?? 0;
+      const structuralMapBase64 = hasStructuralCadMap && structuralMapUrl ? ReportImageResolver.resolveToBase64(structuralMapUrl, structMapRot) : undefined;
       const hasCadMap = Boolean(damageMapBase64 || damageMapUrl || structuralMapBase64 || structuralMapUrl);
 
       const hasStructuralElements = fl.hasStructuralElements !== false;
@@ -150,18 +155,19 @@ export class FloorDefectMapper {
         if (!cleanUrl || cleanUrl.startsWith('blob:') || seenPhotoUrls.has(cleanUrl)) return;
         seenPhotoUrls.add(cleanUrl);
 
-        const base64 = ReportImageResolver.resolveToBase64(cleanUrl);
+        const photoRot = (photoCode ? rotMap[photoCode] : undefined) ?? rotMap[cleanUrl] ?? 0;
+        const base64 = ReportImageResolver.resolveToBase64(cleanUrl, photoRot);
         photoCounter.current++;
         const photoId = photoCode || `P-${photoCounter.current.toString().padStart(2, '0')}`;
         const itemDt = extractPhotoDateTime(cleanUrl, capturedAt || null, rawSurveyDate);
         const mCode = photoCode || (buildingId ? `HCM_M2.[${buildingId}]_${zoneCode}_${photoId}` : photoId);
 
         const defaultBadgeVi = isNormal
-          ? (isStructural ? '✓ Tổng thể cấu kiện' : '✓ Toàn cảnh không gian')
-          : '⚠️ Ghi nhận khuyết tật';
+          ? (isStructural ? 'Tổng thể cấu kiện' : 'Toàn cảnh không gian')
+          : 'Ghi nhận khuyết tật';
         const defaultBadgeEn = isNormal
-          ? (isStructural ? '✓ Member overview' : '✓ Space overview')
-          : '⚠️ Defect observed';
+          ? (isStructural ? 'Member overview' : 'Space overview')
+          : 'Defect observed';
 
         const photoItem: RoomOverviewPhotoItem = {
           photoId,
@@ -215,6 +221,7 @@ export class FloorDefectMapper {
       const zoneAndElementConditions: FloorConditionZoneElementItem[] = [];
 
       let defectNo = 0;
+      const usedDefectCodes = new Set<string>();
 
       const rawZones = (fl.zones && fl.zones.length > 0)
         ? fl.zones
@@ -241,7 +248,11 @@ export class FloorDefectMapper {
         if (defects.length > 0) {
           for (const d of defects) {
             defectNo++;
-            const dCode = d.defectCode || `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode;
+            if (!dCode || usedDefectCodes.has(dCode)) {
+              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            }
+            usedDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
@@ -263,8 +274,10 @@ export class FloorDefectMapper {
               descPartsEn.push(d.notes.trim());
             }
             if (d.azimuth || d.crackDirection) {
-              descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
-              descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
+              const dir = d.azimuth || d.crackDirection;
+              const isAngle = !isNaN(Number(dir));
+              descPartsVi.push(`Hướng vết nứt: ${dir}${isAngle ? '°' : ''}`);
+              descPartsEn.push(`Crack direction: ${dir}${isAngle ? '°' : ''}`);
             }
             const actState = d.activityState || 'S';
             const actStateDisplay = actState === 'A'
@@ -274,7 +287,7 @@ export class FloorDefectMapper {
             descPartsEn.push(`Status: ${actStateDisplay.en}`);
 
             const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
-              ? `[Ghim CAD: ${dCode} tại ${zCode}]`
+              ? `Ghim CAD: ${dCode} tại ${zCode}`
               : undefined;
 
             defectSummaryRows.push({
@@ -309,9 +322,13 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Surface defect (spalling/dampness)';
 
-            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl) : '';
-            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl) : '';
-            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl) : '';
+            const ctxRot = d.ctxRotation ?? z.ctxRotation ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[zCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+
+            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
+            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
+            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl, extraCuRot) : '';
 
             const resolvedCtxBase64 = rawCtxBase64 && !rawCtxBase64.startsWith('blob:') ? rawCtxBase64 : undefined;
             const resolvedCuBase64 = rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined;
@@ -377,6 +394,7 @@ export class FloorDefectMapper {
         }
 
         const zPhotoUrl = z.photoUrl || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '';
+        const zPhotoRot = z.photoRotation ?? rotMap[`zone_${z.id || zCode}_photo`] ?? rotMap[zCode] ?? rotMap[zPhotoUrl] ?? 0;
         zoneAndElementConditions.push({
           code: zCode,
           location: { vi: roomVi, en: roomEn },
@@ -384,7 +402,7 @@ export class FloorDefectMapper {
           condition: { vi: zoneConditionVi, en: zoneConditionEn },
           photoRefLabel: pZoneLabel,
           photoUrl: zPhotoUrl,
-          photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl) : undefined,
+          photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl, zPhotoRot) : undefined,
         });
 
         // Thu thập ảnh tổng thể phòng (Vùng Z)
@@ -433,8 +451,8 @@ export class FloorDefectMapper {
               item?.photoCode,
               false,
               isDefectPhoto
-                ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Toàn cảnh không gian', en: '✓ Space overview' },
+                ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+                : { vi: 'Toàn cảnh không gian', en: 'Space overview' },
               item?.capturedAt || item?.shot_at
             );
           });
@@ -459,8 +477,8 @@ export class FloorDefectMapper {
             z.ctxPhotoCode,
             false,
             isDefectPhoto
-              ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Bề mặt ổn định', en: '✓ Intact surface' },
+              ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+              : { vi: 'Bề mặt ổn định', en: 'Intact surface' },
             (z as any).ctxCapturedAt || (z as any).capturedAt
           );
         }
@@ -486,7 +504,11 @@ export class FloorDefectMapper {
         if (eDefects.length > 0) {
           for (const d of eDefects) {
             defectNo++;
-            const dCode = d.defectCode || `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode;
+            if (!dCode || usedDefectCodes.has(dCode)) {
+              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            }
+            usedDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
@@ -508,8 +530,10 @@ export class FloorDefectMapper {
               descPartsEn.push(d.notes.trim());
             }
             if (d.azimuth || d.crackDirection) {
-              descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
-              descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
+              const dir = d.azimuth || d.crackDirection;
+              const isAngle = !isNaN(Number(dir));
+              descPartsVi.push(`Hướng vết nứt: ${dir}${isAngle ? '°' : ''}`);
+              descPartsEn.push(`Crack direction: ${dir}${isAngle ? '°' : ''}`);
             }
             const actState = d.activityState || 'S';
             const actStateDisplay = actState === 'A'
@@ -519,7 +543,7 @@ export class FloorDefectMapper {
             descPartsEn.push(`Status: ${actStateDisplay.en}`);
 
             const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
-              ? `[Ghim CAD: ${dCode} tại ${eCode}]`
+              ? `Ghim CAD: ${dCode} tại ${eCode}`
               : undefined;
 
             defectSummaryRows.push({
@@ -554,9 +578,13 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật cấu kiện kết cấu';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Structural element defect';
 
-            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl) : '';
-            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl) : '';
-            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl) : '';
+            const ctxRot = d.ctxRotation ?? e.ctxRotation ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[eCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+
+            const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
+            const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
+            const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl, extraCuRot) : '';
 
             const cuPhotoCode = d.cuPhotoCode || (Array.isArray(d.cuPhotoCodes) ? d.cuPhotoCodes[0] : undefined) || `${dCode}_CU_01`;
             const extraCuPhotoCode = (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 1 ? d.cuPhotoCodes[1] : undefined) || `${dCode}_CU_02`;
@@ -612,6 +640,7 @@ export class FloorDefectMapper {
           elemConditionEn = `Structural crack (B-${elemBurland}) - ${firstDefectCode} (w=${maxElemW}mm)`;
         }
 
+        const ePhotoRot = e.photoRotation ?? rotMap[`element_${e.id || eCode}_photo`] ?? rotMap[eCode] ?? rotMap[ePhotoUrl] ?? 0;
         zoneAndElementConditions.push({
           code: eCode,
           location: { vi: eRoomVi, en: eRoomEn },
@@ -619,7 +648,7 @@ export class FloorDefectMapper {
           condition: { vi: elemConditionVi, en: elemConditionEn },
           photoRefLabel: pElemLabel,
           photoUrl: ePhotoUrl,
-          photoBase64: ePhotoUrl ? ReportImageResolver.resolveToBase64(ePhotoUrl) : undefined,
+          photoBase64: ePhotoUrl ? ReportImageResolver.resolveToBase64(ePhotoUrl, ePhotoRot) : undefined,
         });
 
         // Thu thập ảnh cấu kiện kết cấu (Cấu kiện E - Ảnh dọc)
@@ -663,8 +692,8 @@ export class FloorDefectMapper {
               item?.photoCode,
               true,
               isDefectPhoto
-                ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Tổng thể cấu kiện', en: '✓ Member overview' },
+                ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+                : { vi: 'Tổng thể cấu kiện', en: 'Member overview' },
               item?.capturedAt || item?.shot_at
             );
           });
@@ -689,8 +718,8 @@ export class FloorDefectMapper {
             e.ctxPhotoCode,
             true,
             isDefectPhoto
-              ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Cấu kiện ổn định', en: '✓ Stable member' },
+              ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` }
+              : { vi: 'Cấu kiện ổn định', en: 'Stable member' },
             (e as any).ctxCapturedAt || (e as any).capturedAt
           );
         }
@@ -707,7 +736,10 @@ export class FloorDefectMapper {
 
       const PHOTOS_PER_OVERVIEW_PAGE = 4;
       const buildBalancedPages = (items: RoomOverviewPhotoItem[]): FloorOverviewPageViewModel[] => {
-        const sortedItems = sortLandscapeFirst(items);
+        // Ảnh bối cảnh khuyết tật đã nằm trong cặp ảnh của Phụ lục 1 -> Phụ lục 2 chỉ lưu ảnh không nứt
+        const archivalOnly = items.filter((it) => it.statusBadge?.isNormal !== false);
+        const sortedItems = sortLandscapeFirst(archivalOnly);
+
         const pageCount = Math.ceil(sortedItems.length / PHOTOS_PER_OVERVIEW_PAGE);
         if (pageCount === 0) return [];
         const perPage = Math.ceil(sortedItems.length / pageCount);
@@ -728,8 +760,8 @@ export class FloorDefectMapper {
       const beamDeflectionMm = fl.beamDeflectionMm || 0.0;
       const hasDefects = defectSummaryRows.length > 0;
 
-      // Phân trang danh mục khuyết tật: Nếu > 5 khuyết tật, tách sang các Sheet riêng biệt (12 dòng/trang) để chống tràn lề A4
-      const hasSeparateDefectTableSheets = defectSummaryRows.length > 5;
+      // Phân trang danh mục khuyết tật: Tách sang các Sheet riêng biệt (12 dòng/trang) ngay sau trang CAD Hero
+      const hasSeparateDefectTableSheets = defectSummaryRows.length > 0;
       const defectSummaryPages: Array<{ pageIndex: number; totalPages: number; rows: FloorDefectSummaryRow[] }> = [];
       if (hasSeparateDefectTableSheets) {
         const ROWS_PER_PAGE = 12;
@@ -743,17 +775,49 @@ export class FloorDefectMapper {
         }
       }
 
-      // Phân cụm các cặp ảnh khuyết tật: 2 cặp / trang A4 để tối ưu bố cục in ấn và chống ngắt trang đơn lẻ
+      // Phân trang ảnh khuyết tật:
+      // - Khuyết tật có 3 ảnh (hasExtraCloseUp): chiếm trọn 1 trang A4 riêng biệt (weight = 2)
+      // - Cặp 2 ảnh thông thường (hasExtraCloseUp === false): 2 cặp / trang A4 (weight = 1)
       const defectPairPages: Array<{ pageIndex: number; totalPages: number; pairs: DefectPairPhotoItem[] }> = [];
-      const PAIRS_PER_PAGE = 2;
-      const totalDefectPages = Math.ceil(defectPairPhotos.length / PAIRS_PER_PAGE) || 1;
-      for (let i = 0; i < defectPairPhotos.length; i += PAIRS_PER_PAGE) {
+      let currentPagePairs: DefectPairPhotoItem[] = [];
+      let currentWeight = 0;
+
+      for (const item of defectPairPhotos) {
+        const itemWeight = item.hasExtraCloseUp ? 2 : 1;
+        if (currentWeight + itemWeight > 2 && currentPagePairs.length > 0) {
+          defectPairPages.push({
+            pageIndex: 0,
+            totalPages: 0,
+            pairs: currentPagePairs,
+          });
+          currentPagePairs = [];
+          currentWeight = 0;
+        }
+        currentPagePairs.push(item);
+        currentWeight += itemWeight;
+        if (currentWeight >= 2) {
+          defectPairPages.push({
+            pageIndex: 0,
+            totalPages: 0,
+            pairs: currentPagePairs,
+          });
+          currentPagePairs = [];
+          currentWeight = 0;
+        }
+      }
+      if (currentPagePairs.length > 0) {
         defectPairPages.push({
-          pageIndex: Math.floor(i / PAIRS_PER_PAGE) + 1,
-          totalPages: totalDefectPages,
-          pairs: defectPairPhotos.slice(i, i + PAIRS_PER_PAGE),
+          pageIndex: 0,
+          totalPages: 0,
+          pairs: currentPagePairs,
         });
       }
+
+      const totalDefectPages = defectPairPages.length || 1;
+      defectPairPages.forEach((page, idx) => {
+        page.pageIndex = idx + 1;
+        page.totalPages = totalDefectPages;
+      });
 
       results.push({
         floorOrder: floorIndex,

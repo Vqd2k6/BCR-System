@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * REPORT V2 TYPES (METRO 2 BUILDING CONDITION SURVEY - PHASE 1)
- * Chuẩn song ngữ Việt - Anh theo tài liệu mẫu: report_0410/template_report.docx
+ * Chuẩn song ngữ Việt - Anh theo tài liệu mẫu: docs/04_modules/report_engine/templates/template_report.docx
  * Liên danh CRLG – CRSRI – TT
  * ============================================================================
  */
@@ -38,6 +38,7 @@ export interface ReportV2Metadata {
   coverPhotoBase64?: string;
   coverPhotoUrl?: string;
   coverAlreadyWatermarked?: boolean;
+  spatialVisualMapBase64?: string;
   headerLogoBase64?: string;
   surveyDateFormatted?: string;
   watermarkDateTime?: string;
@@ -63,6 +64,7 @@ export interface Section1GeneralInfo {
   address: BilingualText;
   cadastralCode: string;
   ownerOccupant: BilingualText;
+  ownerName?: string;
   contactPhone: string;
   surveyConsultant: BilingualText;
   epcContractor: string;
@@ -86,6 +88,7 @@ export interface Section2BasicBuildingInfo {
   totalFloorAreaM2: number | string;
   floorAreaDisplay: BilingualText;
   mainDimensions: BilingualText;
+  dimensionsDisplay?: BilingualText;
   maxHeightM: number | string;
   typicalStoreyHeightM: number | string;
   yearConstructed: number | string;
@@ -286,6 +289,17 @@ export interface BurlandDistributionItem {
   isPredominant: boolean;
 }
 
+export interface BurlandStructuralElementItem {
+  elementCode: string;
+  floorName: BilingualText;
+  location: BilingualText;
+  elementType: string;
+  materialType: string;
+  defectCount: number;
+  conditionVi: string;
+  conditionEn: string;
+}
+
 export interface Section7BurlandClassification {
   burlandTable: BurlandTableRow[];
   distribution: BurlandDistributionItem[];
@@ -307,17 +321,9 @@ export interface Section7BurlandClassification {
     count: number;
   }>;
   zones?: BurlandZoneSummaryItem[];
+  structuralElements?: BurlandStructuralElementItem[];
   structuralDefectFlag?: BilingualText;
   structuralEngineerReview?: BilingualText;
-}
-
-export interface RiskScoreCategoryItem {
-  code: string;                      // A, B, C, D, E
-  title: BilingualText;
-  basis: BilingualText;
-  maxScore: number;
-  scoreDisplay: string;              // "Chờ / Pending" or "8"
-  scoreNumeric?: number;
 }
 
 export interface EcsAssessmentItem {
@@ -333,7 +339,8 @@ export interface ViAssessmentItem {
   title: BilingualText;
   basis: BilingualText;
   scale: string;                     // 0–4 or 1–4
-  score: number;
+  score: number | null;              // null = chưa đủ dữ liệu
+  scoreDisplay: string;              // '--' khi null
 }
 
 export interface BraMatrixCell {
@@ -369,10 +376,13 @@ export interface Section8BuildingConditionAssessment {
   };
   vi: {
     items: ViAssessmentItem[];
-    totalScore: number;              // 6–24
-    averageScore: number;            // 1.00–4.00
+    totalScore: number | null;       // 6–24; null = chưa đủ dữ liệu
+    averageScore: number | null;     // 1.00–4.00; null = chưa đủ dữ liệu
+    totalScoreDisplay: string;       // '--' khi thiếu dữ liệu
+    averageScoreDisplay: string;
+    foundationCatDisplay: string;    // 'Cat 3 / 5' hoặc '--'
     classGrade: BilingualText;       // Thấp / Low, etc.
-    vCode: 'V1' | 'V2' | 'V3' | 'V4';
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
     foundationCatScore?: number;
     engineeringJudgement?: {
       isApplied: boolean;
@@ -389,7 +399,7 @@ export interface Section8BuildingConditionAssessment {
     basis: BilingualText;
   };
   braMatrix: {
-    vCode: 'V1' | 'V2' | 'V3' | 'V4';
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
     iCode: 'I1' | 'I2' | 'I3' | 'I4';
     rows: BraMatrixRow[];
     finalRiskLevel: BilingualText;
@@ -406,11 +416,6 @@ export interface Section8BuildingConditionAssessment {
     baselineRisk: BilingualText;
     narrative: BilingualText;
   };
-  scoring?: {
-    items: RiskScoreCategoryItem[];
-    totalBraScoreDisplay: string;
-    narrative: BilingualText;
-  };
   supplementaryPhase1?: any;
 }
 
@@ -419,6 +424,13 @@ export interface Section9ConclusionRecommendation {
   overallRisk: BilingualText;
   witnessNarrative: BilingualText;
   limitations: BilingualText[];
+  accessAreas?: Array<{
+    area: BilingualText;
+    accessed: boolean;
+    notAccessed: boolean;
+    remark: BilingualText;
+  }>;
+  accessClassification?: BilingualText;
   recommendations: BilingualText[];
   phase1Notice: BilingualText;
   pendingFieldDesignItems: BilingualText[];
@@ -431,6 +443,7 @@ export interface Appendix1PhotoItem {
   name: BilingualText;
   url: string;
   base64?: string;
+  rotation?: number;
   capturedAt: string;
   gpsCoords: string;
   originalTag?: string;
@@ -458,11 +471,13 @@ export interface DefectPairPhotoItem {
   contextCaption: BilingualText;
   contextAlreadyWatermarked?: boolean;
   contextPhotoCode?: string;
+  contextPhotoRotation?: number;
   closeUpPhotoUrl?: string;
   closeUpPhotoBase64?: string;
   closeUpCaption: BilingualText;
   closeUpAlreadyWatermarked?: boolean;
   closeUpPhotoCode?: string;
+  closeUpPhotoRotation?: number;
   contextDateTime?: string;
   closeUpDateTime?: string;
   extraCloseUpDateTime?: string;
@@ -475,6 +490,7 @@ export interface DefectPairPhotoItem {
   extraCloseUpCaption?: BilingualText;
   extraCloseUpAlreadyWatermarked?: boolean;
   extraCloseUpPhotoCode?: string;
+  extraCloseUpPhotoRotation?: number;
   hasExtraCloseUp?: boolean;
   activityState?: string;            // S hoặc A
   activityStateDisplay?: BilingualText;
@@ -538,8 +554,10 @@ export interface FloorPlanDefectReport {
   floorName: BilingualText;
   damageMapUrl?: string;
   damageMapBase64?: string;
+  damageMapRotation?: number;
   structuralMapUrl?: string;
   structuralMapBase64?: string;
+  structuralMapRotation?: number;
   hasStructuralCadMap: boolean;      // True nếu có bản vẽ kết cấu riêng biệt với bản vẽ kiến trúc
   hasCadMap?: boolean;               // True nếu tầng có ít nhất 1 bản vẽ CAD (kiến trúc hoặc kết cấu)
   hasDefects: boolean;               // True nếu tầng có ít nhất 1 khuyết tật
@@ -599,14 +617,39 @@ export interface Appendix3SignedRecord {
   }>;
 }
 
+export interface AsBuiltDrawingItem {
+  index: number;
+  title: BilingualText;
+  url: string;
+  base64?: string;
+  photoCode?: string;
+  rotation?: number;
+}
+
+export interface AsBuiltDrawingSheet {
+  sheetIndex: number;
+  totalSheets: number;
+  drawings: AsBuiltDrawingItem[]; // Tối đa 2 bản vẽ / trang A4
+}
+
+export interface Section12AsBuiltReport {
+  hasDrawings: boolean;
+  totalDrawings: number;
+  sheets: AsBuiltDrawingSheet[];
+}
+
+export interface Appendix4EquipmentItem {
+  no: number;
+  equipment: BilingualText;
+  modelSerial?: BilingualText;
+  specs: BilingualText;
+  purpose: BilingualText;
+  calibration?: BilingualText;
+}
+
 export interface Appendix4EquipmentAndAccess {
-  equipmentList: Array<{
-    no: number;
-    equipment: BilingualText;
-    specs: BilingualText;
-    purpose: BilingualText;
-  }>;
-  calibrationNotes: BilingualText;
+  equipmentList: Appendix4EquipmentItem[];
+  calibrationNotes?: BilingualText | null;
   accessAreas: Array<{
     area: BilingualText;
     accessed: boolean;
@@ -646,10 +689,19 @@ export interface TocPageNumbers {
   section7: number;
   section8: number;
   section9: number;
+  sectionX?: number;
+  sectionXI?: number;
+  sectionXII?: number;
   appendix1: number;
   appendix2: number;
   appendix3: number;
-  appendix4: number;
+  appendix4?: number;
+  appendix1New?: number;
+  appendix2New?: number;
+  appendix3New?: number;
+  pagePl1?: number;
+  pagePl2?: number;
+  pagePl3?: number;
 }
 
 export interface ReportV2ViewModel {
@@ -670,5 +722,8 @@ export interface ReportV2ViewModel {
   appendix1Pages?: Appendix1PhotoPage[];
   appendix2: FloorPlanDefectReport[];
   appendix3: Appendix3SignedRecord;
+  section12AsBuilt?: Section12AsBuiltReport;
   appendix4: Appendix4EquipmentAndAccess;
+  asteriskFootnote?: BilingualText | null;
+  standardTextVersionNumber?: number | null;
 }

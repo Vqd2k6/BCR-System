@@ -73,11 +73,11 @@ export const Phase1EditFormTab: React.FC<Phase1EditFormTabProps> = ({
             <button
               type="button"
               onClick={handleDirectPrint}
-              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-              title="In trực tiếp bản báo cáo ra máy in (Ctrl+P / Cmd+P)"
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              title="Mở PDF chuẩn máy chủ trong tab mới để in (Ctrl+P / Cmd+P) hoặc tải về"
             >
               <Printer size={13} />
-              <span>🖨️ In Ngay</span>
+              <span>🖨️ In / Tải PDF</span>
             </button>
           </div>
         </div>

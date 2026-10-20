@@ -17,10 +17,12 @@ import { SurveyController } from './modules/survey/survey.controller';
 import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
+import { ReportV3Controller } from './modules/report_v3/report-v3.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
 import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
 import { DevController } from './modules/dev/dev.controller';
+import { ReportConfigController } from './modules/report_config/report-config.controller';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -213,9 +215,15 @@ export function createApp(): express.Application {
   api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);
   api.get('/admin/mutations/history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZoneMutationHistory);
 
-  // Xuất Báo Cáo Phân khu & Toàn tuyến
-  api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);
-  api.get('/reports/batch-export/:batchId/status', authenticateJwt, ExportController.getBatchStatus);
+  // ==========================================
+  // 2b. PHÂN HỆ QUẢN TRỊ 22 ZONE & NẠP DỮ LIỆU ĐỊA CHÍNH (SUPER ADMIN)
+  // ==========================================
+  api.get('/admin/zones/overview', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZonesOverview);
+  api.post('/admin/zones/:zoneCode/audit-data', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.auditZoneData);
+  api.post('/admin/zones/:zoneCode/import-data', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.importZoneData);
+  api.put('/admin/zones/:zoneCode/activation', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.setZoneActive);
+  api.put('/admin/zones/:zoneCode/assign-admin', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.assignZoneAdmin);
+  api.post('/admin/zones/:zoneCode/sync-cloud', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.syncZoneToCloud);
 
   // ==========================================
   // 3. SUPER ADMIN USER LIFECYCLE & GLOBAL HUB
@@ -228,9 +236,14 @@ export function createApp(): express.Application {
   api.post('/admin/users/:id/reset-password', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.resetPassword);
   api.delete('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.deleteUser);
 
-  api.post('/admin/reports/batch-export', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.createBatchExport);
-  api.get('/admin/reports/exports', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.listAllExportBatches);
-  api.delete('/admin/reports/exports/:batchId', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.revokeExport);
+  // Nội dung chuẩn báo cáo (văn bản Mục IX/PL3 theo phiên bản) & danh mục thiết bị dự án
+  api.get('/admin/report-config/standard-text', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.listStandardText);
+  api.post('/admin/report-config/standard-text', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.createStandardText);
+  api.get('/admin/report-config/equipment', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.listEquipment);
+  api.post('/admin/report-config/equipment', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.createEquipment);
+  api.put('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.updateEquipment);
+  api.delete('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.deleteEquipment);
+
 
   // ==========================================
   // 4. CONTRACTOR & GUEST VIEW ENDPOINTS
@@ -258,6 +271,14 @@ export function createApp(): express.Application {
   api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
   api.get('/v2/reports/:id/preview/html', optionalAuthenticateJwt, ReportV2Controller.previewResidentialHtml);
   api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
+
+  // 5.2. TECHNICAL BCS REPORT V3 (snapshot APPROVED + Rev + SHA-256)
+  api.get('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf);
+  api.post('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf); // Hỗ trợ xuất PDF có overrides (không sửa DB)
+  api.get('/v3/reports/:id/preview/html', optionalAuthenticateJwt, ReportV3Controller.previewHtml);
+  api.post('/v3/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.previewHtml);
+  api.get('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.listReleases);
+  api.post('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.issueRelease);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

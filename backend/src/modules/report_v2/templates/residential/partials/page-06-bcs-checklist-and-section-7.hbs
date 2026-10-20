@@ -9,15 +9,15 @@
   </div>
 
     <!-- CHƯƠNG VII: PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND -->
-    <h2 class="chapter-header" style="margin-top: 4px;">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</h2>
-    <div style="margin-bottom: 5px; font-size: 7.5pt; color: #334155; line-height: 1.3;">
+    <h2 class="chapter-header" data-section="sec-7" style="margin-top: 4px;">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</h2>
+    <div style="margin-bottom: 5px; font-size: var(--fs-e1); color: var(--c-sub); line-height: 1.3;">
       Phân loại mức độ hư hỏng dựa theo tiêu chuẩn Burland et al. (1977) và BRE Digest 251 căn cứ trên bề rộng vết nứt lớn nhất ghi nhận được trên kết cấu công trình.
     </div>
 
     <!-- BỐ CỤC 2 CỘT SONG SONG CHO BẢNG VII.1 VÀ BẢNG VII.2 -->
     <div class="burland-duo-container">
       <div class="burland-col-left">
-        <div style="font-size: 7.8pt; font-weight: bold; margin-bottom: 2px; color: #0f172a;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; margin-bottom: 2px; color: var(--c-black);">
           Bảng VII.1: Bảng 6 cấp chuẩn Burland (1977)
         </div>
         <table class="tech-table compact-table" style="margin-bottom: 0;">
@@ -32,16 +32,16 @@
           </thead>
           <tbody>
             {{#each section7.burlandTable}}
-              <tr style="{{#if this.isCurrentLevel}}background-color: #f8fafc; font-weight: bold;{{/if}}">
+              <tr style="{{#if this.isCurrentLevel}}background-color: #f9f9f9; font-weight: bold;{{/if}}">
                 <td class="text-center font-bold">{{this.grade}}</td>
                 <td class="font-bold">{{this.categoryVi}}<br><span class="text-muted">{{this.categoryEn}}</span></td>
                 <td>{{this.crackWidthLimit}}</td>
                 <td>{{this.descriptionVi}}</td>
                 <td class="text-center">
                   {{#if this.isCurrentLevel}}
-                    <span style="color: #0f172a; font-weight: bold; font-size: 7pt;">☒ Có</span>
+                    <span style="color: var(--c-black); font-weight: bold; font-size: var(--fs-c1);">☒ Có</span>
                   {{else}}
-                    <span style="color: #64748b; font-size: 7pt;">☐ Không</span>
+                    <span style="color: var(--c-sub); font-size: var(--fs-c1);">☐ Không</span>
                   {{/if}}
                 </td>
               </tr>
@@ -51,7 +51,7 @@
       </div>
 
       <div class="burland-col-right">
-        <div style="font-size: 7.8pt; font-weight: bold; margin-bottom: 2px; color: #0f172a;">
+        <div style="font-size: var(--fs-c1); font-weight: bold; margin-bottom: 2px; color: var(--c-black);">
           Bảng VII.2: Phân bổ cấp Burland toàn công trình
         </div>
         <table class="tech-table compact-table" style="margin-bottom: 0;">
@@ -70,8 +70,8 @@
                 <td class="text-center">{{this.percentage}}</td>
               </tr>
             {{/each}}
-            <tr style="background-color: #f1f5f9; font-weight: bold;">
-              <td>Tổng (Z + E):</td>
+            <tr style="background-color: #f9f9f9; font-weight: bold;">
+              <td>Tổng số vùng kiến trúc (Z):</td>
               <td class="text-center">{{section7.totalSurveyedObjects}}</td>
               <td class="text-center">100.0%</td>
             </tr>
@@ -79,20 +79,29 @@
         </table>
       </div>
     </div>
+    <div class="page-number-footer">{{tocPageNumbers.section7}}</div>
+  </div>
+
+  <!-- TRANG TIẾP THEO CỦA CHƯƠNG VII: BẢNG MINH CHỨNG VÙNG Z & CẤU KIỆN E -->
+  <div class="a4-page-sheet">
+    <div class="report-subpage-topbar">
+      <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+      <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+    </div>
 
     <!-- BẢNG VII.3: BẢNG MINH CHỨNG PHÂN LOẠI BURLAND THEO TỪNG VÙNG KHẢO SÁT -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 6px 0 3px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 4px 0 2px 0; color: var(--c-black);">
       Bảng VII.3: Bảng minh chứng phân loại Burland theo từng vùng khảo sát - Burland Classification Evidence by Surveyed Zone
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 4px;">
       <thead>
         <tr>
           <th style="width: 10%;">Vùng<br><span class="text-muted">Zone</span></th>
-          <th style="width: 32%;">Vị trí<br><span class="text-muted">Location</span></th>
-          <th style="width: 26%;">Vật liệu tường<br><span class="text-muted">Wall material</span></th>
-          <th style="width: 10%; text-align: center;">wmax (mm)</th>
+          <th style="width: 31%;">Vị trí<br><span class="text-muted">Location</span></th>
+          <th style="width: 25%;">Vật liệu tường<br><span class="text-muted">Wall material</span></th>
+          <th style="width: 11%; text-align: center;">wmax (mm)</th>
           <th style="width: 11%; text-align: center;">Số vết nứt<br><span class="text-muted">No. of cracks</span></th>
-          <th style="width: 11%; text-align: center;">Cấp Burland<br><span class="text-muted">Burland grade</span></th>
+          <th style="width: 12%; text-align: center; white-space: nowrap;">Cấp Burland<br><span class="text-muted">Burland grade</span></th>
         </tr>
       </thead>
       <tbody>
@@ -125,10 +134,43 @@
       </tbody>
     </table>
 
-    <!-- KHUNG VII.4: KẾT LUẬN PHÂN LOẠI BURLAND -->
+    <!-- BẢNG VII.4: BẢNG KIỂM TRA TÌNH TRẠNG CÁC CẤU KIỆN KẾT CẤU CHỊU LỰC (E) -->
+    {{#if section7.structuralElements.length}}
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 6px 0 3px 0; color: var(--c-black);">
+      Bảng VII.4: Bảng kiểm tra tình trạng các cấu kiện kết cấu chịu lực (E) - Structural Elements Integrity Check
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 4px;">
+      <thead>
+        <tr>
+          <th style="width: 12%;">Mã cấu kiện<br><span class="text-muted">Element ID</span></th>
+          <th style="width: 26%;">Tầng / Vị trí<br><span class="text-muted">Floor / Location</span></th>
+          <th style="width: 20%;">Loại cấu kiện<br><span class="text-muted">Element Type</span></th>
+          <th style="width: 18%;">Vật liệu<br><span class="text-muted">Material</span></th>
+          <th style="width: 24%;">Tình trạng chịu lực / Khuyết tật<br><span class="text-muted">Structural Condition</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section7.structuralElements}}
+          <tr>
+            <td class="font-bold">{{this.elementCode}}</td>
+            <td>{{this.floorName.vi}} – {{this.location.vi}}</td>
+            <td>{{this.elementType}}</td>
+            <td>{{this.materialType}}</td>
+            <td>
+              <span class="{{#if (gt this.defectCount 0)}}font-bold{{/if}}" style="color: #000000;">
+                {{this.conditionVi}}
+              </span>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+
+    <!-- KẾT LUẬN PHÂN LOẠI BURLAND VÀ KẾT CẤU -->
     <div class="loss-adjuster-card">
-      <div style="font-weight: bold; color: #0f172a; font-size: 8pt; margin-bottom: 4px; text-transform: uppercase;">
-        Kết luận phân loại Burland (Burland Damage Classification Conclusion)
+      <div style="font-weight: bold; color: var(--c-black); font-size: var(--fs-c1); margin-bottom: 4px; text-transform: uppercase;">
+        Kết luận phân loại Burland & Khảo sát kết cấu (Damage Classification Conclusion)
       </div>
       <div class="loss-adjuster-grid">
         <div class="loss-adjuster-item">

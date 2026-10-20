@@ -50,6 +50,7 @@ export class CadastralService {
       throw new BadRequestError(`Thửa đất [${parcel.project_parcel_code}] đã được nộp hoặc phê duyệt, không thể khảo sát lại`);
     }
 
+
     return Database.transaction(async (client) => {
       await client.query(
         `UPDATE parcels SET survey_status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $1;`,

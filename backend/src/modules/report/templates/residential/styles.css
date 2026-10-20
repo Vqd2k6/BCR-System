@@ -113,7 +113,7 @@ h1.doc-title {
   font-weight: bold;
   text-align: center;
   text-transform: uppercase;
-  color: #0f3b6c;
+  color: #000000;
   margin: 8px 0 4px 0;
 }
 
@@ -131,8 +131,8 @@ h2.section-header {
   font-size: 11pt;
   font-weight: bold;
   text-transform: uppercase;
-  color: #0f3b6c;
-  border-bottom: 1.5pt solid #0f3b6c;
+  color: #000000;
+  border-bottom: 1.5pt solid #000000;
   padding-bottom: 3px;
   margin: 16px 0 8px 0;
   break-after: avoid;
@@ -223,10 +223,10 @@ table.doc-control-table td.col-val {
   text-transform: uppercase;
 }
 
-.badge-good { background-color: #dcfce7; color: #15803d; border: 0.5pt solid #86efac; }
-.badge-medium { background-color: #fef9c3; color: #a16207; border: 0.5pt solid #fde047; }
-.badge-deficient { background-color: #ffedd5; color: #c2410c; border: 0.5pt solid #fdba74; }
-.badge-critical { background-color: #fee2e2; color: #b91c1c; border: 0.5pt solid #fca5a5; }
+.badge-good { background-color: #ffffff; color: #000000; border: 0.5pt solid #000000; }
+.badge-medium { background-color: #ffffff; color: #000000; border: 0.5pt solid #000000; }
+.badge-deficient { background-color: #ffffff; color: #000000; border: 0.5pt solid #000000; }
+.badge-critical { background-color: #ffffff; color: #000000; border: 0.5pt solid #000000; }
 
 /* --- EXECUTIVE DASHBOARD METRICS --- */
 .dashboard-grid {
@@ -268,7 +268,7 @@ table.doc-control-table td.col-val {
 /* --- HỘP GHI CHÚ / NOTE CALLOUT (NƠI HIỂN THỊ NOTE PHÁT SINH) --- */
 .note-box {
   background-color: #f8fafc;
-  border-left: 3pt solid #0284c7;
+  border-left: 3pt solid #000000;
   border-top: 0.5pt solid #e2e8f0;
   border-right: 0.5pt solid #e2e8f0;
   border-bottom: 0.5pt solid #e2e8f0;
@@ -286,7 +286,7 @@ table.doc-control-table td.col-val {
 
 .note-box-danger {
   background-color: #fef2f2;
-  border-left-color: #dc2626;
+  border-left-color: #000000;
 }
 
 .note-title {
@@ -387,7 +387,7 @@ table.doc-control-table td.col-val {
 }
 
 .photo-card .photo-header {
-  background-color: #0f3b6c;
+  background-color: #000000;
   color: #ffffff;
   padding: 4px 8px;
   font-size: 8pt;
@@ -502,7 +502,7 @@ table.doc-control-table td.col-val {
 }
 
 .photo-placeholder .placeholder-na {
-  color: #c2410c;
+  color: #000000;
   font-weight: bold;
   font-size: 8.5pt;
   margin-bottom: 4px;
@@ -603,7 +603,7 @@ table.doc-control-table td.col-val {
 }
 
 .defect-header {
-  background-color: #0f3b6c;
+  background-color: #000000;
   color: #ffffff;
   padding: 4px 8px;
   font-size: 8.5pt;
@@ -775,7 +775,7 @@ table.doc-control-table td.col-val {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border: 2pt solid #0f3b6c;
+  border: 2pt solid #000000;
   padding: 24px 20px;
   margin: 0;
   background-color: #ffffff;
@@ -789,7 +789,7 @@ table.doc-control-table td.col-val {
   font-size: 14pt;
   font-weight: bold;
   letter-spacing: 1px;
-  color: #0f3b6c;
+  color: #000000;
 }
 
 .cover-header .project-name {
@@ -999,7 +999,7 @@ table.doc-control-table td.col-val {
 
 .element-card .element-title {
   font-weight: bold;
-  color: #0f3b6c;
+  color: #000000;
 }
 
 /* --- KHỐI VÙNG KIẾN TRÚC Z & THƯ VIỆN ẢNH KHÔNG GIAN --- */

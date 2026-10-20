@@ -23,6 +23,12 @@ import {
   getBraBadge,
 } from './residential.constants';
 import { buildFloorSurveys } from './residential.floor-builder';
+import {
+  evaluateAddressStandard,
+  standardizeHouseNumber,
+  standardizeStreet,
+  standardizeWard,
+} from '../../../audit/utils/residential-address.standards';
 
 /**
  * Xây dựng toàn bộ ResidentialReportViewModel từ dữ liệu báo cáo thô của CSDL
@@ -45,6 +51,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     const url = typeof jsonObj === 'string' ? jsonObj : jsonObj.url;
     // Tuyệt đối không nạp URL blob: tạm thời của client vào Chromium server
     if (!url || typeof url !== 'string' || url.startsWith('blob:')) return null;
+    const rot = jsonObj.rotation ?? json.photoRotations?.[photoType] ?? json.photoRotations?.[jsonObj.photoCode] ?? 0;
     return {
       photoId: photoType.substring(0, 8),
       photoType: photoType as any,
@@ -55,6 +62,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
       gpsLat: defaultLat,
       gpsLng: defaultLng,
       tag: jsonObj.tag || '',
+      rotation: rot,
     };
   };
 
@@ -69,8 +77,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
         capturedAt: reportData.survey_date,
         gpsLat: defaultLat,
         gpsLng: defaultLng,
+        rotation: 0,
       };
     }
+    const rot = json.photoRotations?.[type] ?? json.photoRotations?.[p.photo_code] ?? (p.metadata?.rotation || 0);
     return {
       photoId: p.id ? p.id.substring(0, 8).toUpperCase() : 'PHOTO-ID',
       photoType: p.photo_type,
@@ -80,14 +90,26 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
       capturedAt: p.watermark_timestamp ? new Date(p.watermark_timestamp).toLocaleString('vi-VN') : reportData.survey_date,
       gpsLat: p.watermark_lat ? Number(p.watermark_lat) : defaultLat,
       gpsLng: p.watermark_lng ? Number(p.watermark_lng) : defaultLng,
+      rotation: rot,
     };
   };
 
   const p01 = getPhotoFromSurveyJson(json.photoP01, 'P01_HOUSE_NUMBER') || findPhotoInRelational('P01_HOUSE_NUMBER');
+  if (json.photoRotations?.['P-01'] !== undefined) p01.rotation = json.photoRotations['P-01'];
+  if (json.photoRotations?.['photoP01'] !== undefined) p01.rotation = json.photoRotations['photoP01'];
+
   const p02 = getPhotoFromSurveyJson(json.photoP02, 'P02_MAIN_FACADE') || findPhotoInRelational('P02_MAIN_FACADE');
+  if (json.photoRotations?.['P-02'] !== undefined) p02.rotation = json.photoRotations['P-02'];
+  if (json.photoRotations?.['photoP02'] !== undefined) p02.rotation = json.photoRotations['photoP02'];
+
   const p03 = getPhotoFromSurveyJson(json.photoP03, 'P03_SIDE_OR_REAR') || findPhotoInRelational('P03_SIDE_OR_REAR');
   if (json.photoP03?.tag && !p03.tag) p03.tag = json.photoP03.tag;
+  if (json.photoRotations?.['P-03'] !== undefined) p03.rotation = json.photoRotations['P-03'];
+  if (json.photoRotations?.['photoP03'] !== undefined) p03.rotation = json.photoRotations['photoP03'];
+
   const p04 = getPhotoFromSurveyJson(json.photoP04, 'P04_CONTEXT_STREET') || findPhotoInRelational('P04_CONTEXT_STREET');
+  if (json.photoRotations?.['P-04'] !== undefined) p04.rotation = json.photoRotations['P-04'];
+  if (json.photoRotations?.['photoP04'] !== undefined) p04.rotation = json.photoRotations['photoP04'];
 
   // Gom khuyết tật, vùng và cấu kiện theo Tầng thông qua floor-builder
   const {
@@ -167,22 +189,26 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   const cleanPhone = surveyorPhone.replace(/\D/g, '');
   const surveyId = cleanPhone.length >= 4 ? `P-${cleanPhone.slice(-4)}` : (reportData.surveyor_code || 'P-0000');
 
-  // Địa chỉ thực tế
-  const formatWard = (w?: string) => {
-    if (!w) return '';
-    return w.toLowerCase().startsWith('phường') || w.toLowerCase().startsWith('xã') ? w : `Phường ${w}`;
-  };
-  const formatDistrict = (d?: string) => {
-    if (!d) return '';
-    return d.toLowerCase().startsWith('quận') || d.toLowerCase().startsWith('huyện') || d.toLowerCase().startsWith('thành phố') || d.toLowerCase().startsWith('tp') ? d : `Quận ${d}`;
-  };
+  // Địa chỉ thực tế - Chuẩn hóa theo NQ 1685/NQ-UBTVQH15
+  const rawHn = json.houseNumber || reportData.house_number || '';
+  const rawStreet = json.street || reportData.street || '';
+  const rawWard = json.ward || reportData.ward || '';
+  const rawDistrict = json.district || reportData.district || '';
+  const zoneId = reportData.zone_id || json.zoneId;
+
+  const addressEval = evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+  const standardizedHn = addressEval.suggested.houseNumber || rawHn;
+  const standardizedStreet = addressEval.suggested.street || rawStreet;
+  const standardizedWard = addressEval.suggested.ward || rawWard;
+  const standardizedDistrict = addressEval.suggested.district || rawDistrict;
+
   const addressParts = [
-    json.houseNumber || reportData.house_number,
-    json.street || reportData.street,
-    formatWard(reportData.ward),
-    formatDistrict(reportData.district),
+    standardizedHn ? (standardizedHn.toLowerCase().startsWith('số') ? standardizedHn : `Số ${standardizedHn}`) : '',
+    standardizedStreet,
+    standardizedWard,
+    standardizedDistrict,
   ].filter(Boolean);
-  const address = addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || '');
+  const address = json.standardizedAddress || (addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || ''));
 
   // Revision
   const revision = reportData.export_revision !== undefined && reportData.export_revision !== null
@@ -401,10 +427,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     officialCadastralCode: json.officialCadastralCode || reportData.official_cadastral_code || '',
     surveyId,
     address,
-    houseNumber: json.houseNumber || reportData.house_number || '',
-    street: json.street || reportData.street || '',
-    ward: reportData.ward || '',
-    district: reportData.district || '',
+    houseNumber: standardizedHn,
+    street: standardizedStreet,
+    ward: standardizedWard,
+    district: standardizedDistrict,
     zoneId: reportData.zone_id || 'ZONE_01',
     zoneName: `Khu vực Ga ${reportData.zone_id || 'ZONE_01'}`,
     chainage: json.chainage || reportData.chainage || 'Km 0+000',

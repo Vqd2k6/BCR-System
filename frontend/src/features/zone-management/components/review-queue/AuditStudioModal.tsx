@@ -16,7 +16,10 @@ import {
   Undo2,
   GitBranch,
   ChevronDown,
+  MapPin,
+  Loader2,
 } from 'lucide-react';
+import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
 import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
 import { RejectReportModal } from './RejectReportModal';
@@ -111,11 +114,13 @@ export const AuditStudioModal: React.FC<Props> = ({
     diffItems: DiffItem[];
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
+    discardDiffItem?: (fieldKey: string) => void;
   }>({
     dirtyCount: 0,
     diffItems: [],
     updates: {},
     discardAll: () => { },
+    discardDiffItem: () => { },
   });
 
   // Tổng số thay đổi chuẩn hóa (Diffs Form + Thao tác Ảnh)
@@ -123,6 +128,62 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   // Modal cảnh báo khi bấm Phê duyệt mà còn thay đổi chưa lưu
   const [showUnsavedChangesWarning, setShowUnsavedChangesWarning] = useState(false);
+
+  // Kiểm toán hướng ảnh Nhà Dân Thường (Photo Orientation Audit)
+  const [orientationAudit, setOrientationAudit] = useState<{
+    hasMismatched: boolean;
+    hasStrictViolations: boolean;
+    mismatchedCount: number;
+    violations: Array<{
+      key: string;
+      photoCode?: string;
+      title: string;
+      photoUrl: string;
+      stepId: string;
+      domElementId: string;
+      currentOrientation: string;
+      expectedOrientation: string;
+      effectiveRotation: number;
+      suggestedRotation?: number;
+      isStrict: boolean;
+      message: string;
+    }>;
+    stagedPhotoRotations: Record<string, number>;
+  }>({
+    hasMismatched: false,
+    hasStrictViolations: false,
+    mismatchedCount: 0,
+    violations: [],
+    stagedPhotoRotations: {},
+  });
+  const [showOrientationWarning, setShowOrientationWarning] = useState(false);
+  const [showAddressWarning, setShowAddressWarning] = useState(false);
+  const [showJudgementNotesModal, setShowJudgementNotesModal] = useState(false);
+  const [judgementNotesInput, setJudgementNotesInput] = useState('');
+  const [judgementNotesError, setJudgementNotesError] = useState('');
+  const [selectedPhotoRotation, setSelectedPhotoRotation] = useState<number>(0);
+  const [selectedPhotoCode, setSelectedPhotoCode] = useState<string>('');
+
+  // Đánh giá chuẩn hóa thông tin địa chỉ thửa đất theo NQ 1685
+  const currentAddressEval = React.useMemo(() => {
+    if (!data) return null;
+    const sJson = data.surveyJson || data.survey_data_json || {};
+    const rawHn = pendingDirtyData.updates.houseNumber !== undefined
+      ? String(pendingDirtyData.updates.houseNumber)
+      : (typeof sJson.houseNumber === 'string' ? sJson.houseNumber : typeof data.houseNumber === 'string' ? data.houseNumber : undefined);
+    const rawStreet = pendingDirtyData.updates.street !== undefined
+      ? String(pendingDirtyData.updates.street)
+      : (typeof sJson.street === 'string' ? sJson.street : typeof data.street === 'string' ? data.street : undefined);
+    const rawWard = pendingDirtyData.updates.ward !== undefined
+      ? String(pendingDirtyData.updates.ward)
+      : (typeof sJson.ward === 'string' ? sJson.ward : typeof data.ward === 'string' ? data.ward : undefined);
+    const rawDistrict = pendingDirtyData.updates.district !== undefined
+      ? String(pendingDirtyData.updates.district)
+      : (typeof sJson.district === 'string' ? sJson.district : typeof data.district === 'string' ? data.district : undefined);
+    const zoneId = data.zoneId || data.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined);
+
+    return evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+  }, [data, pendingDirtyData.updates]);
 
   const fetchAuditData = async () => {
     setLoading(true);
@@ -162,12 +223,13 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  // Thực thi phê duyệt hồ sơ trực tiếp
-  const executeApprove = async () => {
+  // Thực thi phê duyệt hồ sơ trực tiếp (hỗ trợ truyền giải trình chuyên môn judgementNotes)
+  const executeApprove = async (notes?: string) => {
     if (!data) return;
     setIsApproving(true);
     try {
-      const res = await api.post(`/admin/reports/${reportId}/approve`);
+      const payload = notes ? { judgementNotes: notes } : {};
+      const res = await api.post(`/admin/reports/${reportId}/approve`, payload);
       if (res.data?.success || res.status === 200) {
         alert('Đã phê duyệt hồ sơ thành công!');
         onRefreshList();
@@ -177,7 +239,14 @@ export const AuditStudioModal: React.FC<Props> = ({
       }
     } catch (err: unknown) {
       console.error('[AuditStudioModal] Error approving:', err);
-      alert(getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.'));
+      const errMsg = getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.');
+      // Nếu gặp lỗi chốt chặn ECS >= 11 & BRA Thấp bắt buộc giải trình chuyên môn
+      if (errMsg.includes('ECS ≥ 11') || errMsg.includes('giải trình chuyên môn') || errMsg.includes('judgementNotes')) {
+        setJudgementNotesError(errMsg);
+        setShowJudgementNotesModal(true);
+      } else {
+        alert(errMsg);
+      }
     } finally {
       setIsApproving(false);
     }
@@ -263,6 +332,19 @@ export const AuditStudioModal: React.FC<Props> = ({
       return;
     }
 
+    // Ràng buộc hướng ảnh Nhà Dân Thường: CHỈ CHẶN PHÊ DUYỆT khi có ảnh BẮT BUỘC (isStrict = true) bị ngược hướng
+    const strictViolations = orientationAudit.violations.filter((v) => v.isStrict);
+    if (orientationAudit.hasStrictViolations && strictViolations.length > 0) {
+      setShowOrientationWarning(true);
+      return;
+    }
+
+    // Ràng buộc chuẩn hóa địa chỉ (NQ 1685): Cảnh báo mềm nếu địa chỉ chưa chuẩn hóa hoặc ô đường bị nhiễm bẩn
+    if (currentAddressEval && !currentAddressEval.isCompliant && (currentAddressEval.hasAnomalies || currentAddressEval.isContaminated)) {
+      setShowAddressWarning(true);
+      return;
+    }
+
     const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
     if (!window.confirm(confirmMsg)) return;
 
@@ -279,10 +361,23 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   const handleSaveDiffFirst = () => {
     setShowUnsavedChangesWarning(false);
+    const hasRotations = Object.keys(orientationAudit.stagedPhotoRotations).length > 0;
+    const surveyJsonObj = ((data?.survey_data_json || data || {}) as Record<string, unknown>);
+    const existingPhotoRotations = (surveyJsonObj.photoRotations || {}) as Record<string, number>;
     setDiffModalData({
       isOpen: true,
       diffItems: [...pendingDirtyData.diffItems, ...stagedPhotoDiffs],
-      updates: pendingDirtyData.updates,
+      updates: {
+        ...pendingDirtyData.updates,
+        ...(hasRotations
+          ? {
+              photoRotations: {
+                ...existingPhotoRotations,
+                ...orientationAudit.stagedPhotoRotations,
+              },
+            }
+          : {}),
+      },
     });
   };
 
@@ -702,11 +797,14 @@ export const AuditStudioModal: React.FC<Props> = ({
                   data={data || {}}
                   reportId={reportId}
                   onRefresh={fetchAuditData}
-                  onOpenPhotoZoom={(url, title) => {
+                  onOpenPhotoZoom={(url, title, photoCode, rotation) => {
                     setSelectedPhotoUrl(url);
                     setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
+                    setSelectedPhotoCode(photoCode || '');
+                    setSelectedPhotoRotation(rotation || 0);
                     setShowImageZoom(true);
                   }}
+                  onOrientationAuditChange={setOrientationAudit}
                   onOpenPhotoReplace={(params) => {
                     setPhotoActionData({
                       isOpen: true,
@@ -872,9 +970,237 @@ export const AuditStudioModal: React.FC<Props> = ({
           isOpen={showImageZoom}
           imageUrl={selectedPhotoUrl}
           title={selectedPhotoTitle}
+          initialRotation={selectedPhotoRotation}
+          onSaveRotation={(deg) => {
+            if (selectedPhotoCode || selectedPhotoUrl) {
+              setOrientationAudit((prev) => ({
+                ...prev,
+                stagedPhotoRotations: {
+                  ...prev.stagedPhotoRotations,
+                  ...(selectedPhotoCode ? { [selectedPhotoCode]: deg } : {}),
+                  ...(selectedPhotoUrl ? { [selectedPhotoUrl]: deg } : {}),
+                },
+              }));
+            }
+            setSelectedPhotoRotation(deg);
+          }}
           onClose={() => setShowImageZoom(false)}
         />
       )}
+
+      {/* Modal xác nhận phê duyệt khi có ảnh lệch chuẩn kỹ thuật (Approval Gatekeeper) */}
+      {showOrientationWarning && (() => {
+        const strictViolations = orientationAudit.violations.filter((v) => v.isStrict);
+        return (
+          <div className="fixed inset-0 z-[100] isolate flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="relative z-[101] bg-white rounded-2xl shadow-2xl border-2 border-amber-500 max-w-lg w-full p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-300">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 animate-bounce" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-black text-slate-900">
+                    Cảnh Báo: {strictViolations.length} Ảnh BẮT BUỘC Chưa Khớp Khổ In A4
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Các ảnh bắt buộc (mặt đứng P-02, mặt bên P-03, thước đo nứt D-CU, bản vẽ CAD...) cần xoay đúng chiều để không làm nổ vỡ khung hình trang A4 nghiệm thu.
+                  </p>
+                </div>
+              </div>
+
+              {/* Danh sách ảnh vi phạm bắt buộc */}
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50/40 p-2.5 space-y-1.5">
+                {strictViolations.map((v, vIdx) => (
+                  <div
+                    key={`${v.key}_${vIdx}`}
+                    className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-white border border-amber-200 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-mono font-black text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 border border-amber-600">
+                        {v.photoCode || 'Bắt buộc'}
+                      </span>
+                      <span className="truncate text-slate-800 font-bold">{v.title}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-600 shrink-0 font-mono">
+                      Đang là <strong className="text-rose-600">{v.currentOrientation}</strong> ➔ Cần <strong className="text-emerald-700">{v.expectedOrientation}</strong>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-[11px] text-slate-700 leading-normal">
+                <strong>Khuyến nghị:</strong> Bạn nên bấm <em>Quay lại điều chỉnh</em> để xoay ảnh ngay ngắn. Nếu đây là trường hợp đặc thù ngoài hiện trường, bạn có thể chọn <em>Bỏ qua & Phê duyệt</em> (hệ thống sẽ lưu vết log kiểm toán ngoại lệ kỹ thuật).
+              </div>
+
+              {/* 2 nút quyết định */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowOrientationWarning(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Quay Lại Điều Chỉnh Ảnh
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    console.warn('[AuditStudioModal] Admin bypassed orientation violation for strict photos:', strictViolations.map(v => v.photoCode || v.key));
+                    setShowOrientationWarning(false);
+                    // Chaining Gatekeeper: Tiếp tục kiểm tra chốt chặn Địa chỉ NQ 1685 nếu có
+                    if (currentAddressEval && !currentAddressEval.isCompliant && (currentAddressEval.hasAnomalies || currentAddressEval.isContaminated)) {
+                      setShowAddressWarning(true);
+                      return;
+                    }
+                    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode || ''}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
+                    if (!window.confirm(confirmMsg)) return;
+                    await executeApprove();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+                >
+                  Bỏ Qua & Phê Duyệt
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal xác nhận phê duyệt khi địa chỉ chưa chuẩn hóa (Soft Approval Gatekeeper - NQ 1685) */}
+      {showAddressWarning && (
+        <div className="fixed inset-0 z-[100] isolate flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="relative z-[101] bg-white rounded-2xl shadow-2xl border border-amber-300 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 border border-amber-300">
+                <MapPin className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-slate-900">
+                  Cảnh Báo Thông Tin Địa Chỉ Chưa Chuẩn Hóa
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Hồ sơ hiện còn thông tin địa chỉ chưa chuẩn hóa theo quy chuẩn hành chính sau sáp nhập (NQ 1685/NQ-UBTVQH15) hoặc chứa lỗi chính tả, viết tắt.
+                </p>
+              </div>
+            </div>
+
+            {/* Chi tiết cảnh báo */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2 text-xs">
+              <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Các điểm cần lưu ý:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-700 font-medium">
+                {currentAddressEval?.anomalyReasons.map((reason, idx) => (
+                  <li key={idx}>{reason}</li>
+                ))}
+              </ul>
+              {currentAddressEval?.isContaminated && (
+                <div className="mt-2 text-rose-800 font-bold bg-rose-100/80 p-2 rounded-lg border border-rose-300">
+                  ⚠️ Ô Tên đường đang bị điền nhầm tên Phường. Báo cáo in ấn sẽ bị sai lệch nếu chưa điều chỉnh!
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-700 font-medium">
+              Bạn có muốn quay lại để chuẩn hóa tự động hay bỏ qua và tiếp tục phê duyệt?
+            </p>
+
+            {/* 2 nút quyết định */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowAddressWarning(false)}
+                className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Quay Lại Chuẩn Hóa Địa Chỉ
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowAddressWarning(false);
+                  const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
+                  if (!window.confirm(confirmMsg)) return;
+                  await executeApprove();
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+              >
+                Bỏ Qua & Tiếp Tục Phê Duyệt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Yêu Cầu Giải Trình Chuyên Môn Kỹ Sư Trưởng (Chốt chặn ECS ≥ 11 & BRA Thấp) */}
+      {showJudgementNotesModal && (
+        <div className="fixed inset-0 z-[110] isolate flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="relative z-[111] bg-white rounded-2xl shadow-2xl border border-rose-300 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-300">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-slate-900">
+                  Yêu Cầu Giải Trình Chuyên Môn Kỹ Sư Trưởng
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Hồ sơ công trình có mức độ suy giảm hiện trạng cao (ECS ≥ 11) nhưng mức đánh giá rủi ro cơ sở BRA là Thấp. Quy chuẩn bắt buộc Zone Admin / Kỹ sư trưởng phải nhập lý do giải trình chuyên môn trước khi phê duyệt.
+                </p>
+              </div>
+            </div>
+
+            {judgementNotesError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium">
+                {judgementNotesError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Lý do giải trình kỹ thuật chuyên môn:</span>
+                <span className={`text-[11px] font-mono ${judgementNotesInput.trim().length >= 10 ? 'text-emerald-600 font-bold' : 'text-rose-500 font-bold'}`}>
+                  {judgementNotesInput.trim().length} / 10 ký tự tối thiểu
+                </span>
+              </label>
+              <textarea
+                rows={4}
+                value={judgementNotesInput}
+                onChange={(e) => setJudgementNotesInput(e.target.value)}
+                placeholder="Nhập chi tiết giải trình chuyên môn (ví dụ: Nứt bề mặt do co ngót vữa trát, kết cấu dầm cột chịu lực không biến dạng lún nghiêng...)"
+                className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJudgementNotesModal(false);
+                  setJudgementNotesError('');
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                disabled={judgementNotesInput.trim().length < 10 || isApproving}
+                onClick={async () => {
+                  const notes = judgementNotesInput.trim();
+                  if (notes.length < 10) return;
+                  setShowJudgementNotesModal(false);
+                  await executeApprove(notes);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                {isApproving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span>Xác Nhận & Phê Duyệt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {diffModalData.isOpen && (
         <AuditDiffConfirmModal
@@ -885,6 +1211,13 @@ export const AuditStudioModal: React.FC<Props> = ({
           updatesPayload={diffModalData.updates}
           formState={data?.surveyJson || data?.survey_data_json || {}}
           photoActions={stagedPhotoActions}
+          onDiscardDiffItem={(fieldKey: string) => {
+            pendingDirtyData.discardDiffItem?.(fieldKey);
+            setDiffModalData((prev) => ({
+              ...prev,
+              diffItems: prev.diffItems.filter((i) => i.field !== fieldKey),
+            }));
+          }}
           onJumpToStep={(stepId: number) => {
             setDiffModalData({ isOpen: false, diffItems: [], updates: {} });
             const el = document.getElementById(`step-${stepId}`);
@@ -987,8 +1320,8 @@ export const AuditStudioModal: React.FC<Props> = ({
 
       {/* Modal Cảnh Báo 3 Lựa Chọn Khi Có Diff Chưa Lưu & Bấm Phê Duyệt */}
       {showUnsavedChangesWarning && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-amber-300 overflow-hidden">
+        <div className="fixed inset-0 z-[100] isolate flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="relative z-[101] w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-amber-300 overflow-hidden">
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center gap-3">
               <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-xs">
                 <AlertTriangle className="w-6 h-6 text-white" />

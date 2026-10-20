@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Layers, Search, Menu, Map, Compass, X, MapPin } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
@@ -30,6 +30,7 @@ interface SweepMapHeaderProps {
   handleSelectSearchResult: (parcel: GisParcel) => void;
   isCustomFilterActive: boolean;
   setShowFilterModal: (show: boolean) => void;
+  parcels?: GisParcel[];
 }
 
 export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
@@ -58,7 +59,28 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   handleSelectSearchResult,
   isCustomFilterActive,
   setShowFilterModal,
+  parcels,
 }) => {
+  const parcelsCountByZone = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (parcels && parcels.length > 0) {
+      for (const p of parcels) {
+        const z = (p.zoneId || p.zone_id || '').toUpperCase();
+        if (z) {
+          map[z] = (map[z] || 0) + 1;
+        }
+      }
+    }
+    return map;
+  }, [parcels]);
+
+  const totalKnownParcels = useMemo(() => {
+    if (parcels && parcels.length > 0 && selectedZone === 'ALL') {
+      return parcels.length;
+    }
+    return METRO_22_ZONES.reduce((sum, z) => sum + (z.isDataReady ? (z.rawParcelCount || 0) : 0), 0);
+  }, [parcels, selectedZone]);
+
   return (
     <>
       {/* Top Bar with 3-Bar Menu Icon & Search */}
@@ -107,22 +129,18 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             fontWeight: 600,
           }}
         >
-          <optgroup label="⭐ Xem toàn tuyến hoặc 5 Phân đoạn">
-            <option value="ALL">
-              ⭐ Toàn Tuyến Metro 2 (Hiện tất cả 1.227 thửa đất)
-            </option>
-            {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
-              <option key={z.code} value={z.code}>
-                {z.name} ({z.rawParcelCount} thửa)
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Toàn Tuyến Metro 2 (22 Zone)">
-            {METRO_22_ZONES.map((z) => (
-              <option key={z.code} value={z.code}>
-                {z.name} [{z.startKm} &rarr; {z.endKm}]
-              </option>
-            ))}
+          <option value="ALL">
+            ⭐ Toàn Tuyến Metro 2 {totalKnownParcels > 0 ? `(Hiện tất cả ${totalKnownParcels.toLocaleString('vi-VN')} thửa đất)` : ''}
+          </option>
+          <optgroup label="22 Zone Tuyến Metro 2 (Bến Thành ➔ Tham Lương)">
+            {METRO_22_ZONES.map((z) => {
+              const count = parcelsCountByZone[z.code] ?? (z.isDataReady ? z.rawParcelCount : 0);
+              return (
+                <option key={z.code} value={z.code}>
+                  {z.name} {count && count > 0 ? `(${count.toLocaleString('vi-VN')} thửa)` : `(Chưa có dữ liệu)`}
+                </option>
+              );
+            })}
           </optgroup>
         </select>
 

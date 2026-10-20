@@ -84,147 +84,151 @@ export class ReportWatermarkCanvasService {
       }
     }
 
-    if (itemsToProcess.length === 0) {
-      return results;
-    }
+    const CHUNK_SIZE = 6;
+    for (let i = 0; i < itemsToProcess.length; i += CHUNK_SIZE) {
+      const chunk = itemsToProcess.slice(i, i + CHUNK_SIZE);
+      try {
+        const page = await this.getWorkerPage();
 
-    try {
-      const page = await this.getWorkerPage();
+        // Thực thi đóng dấu Canvas trong context của trình duyệt Chromium
+        const processed: Array<{ id: string; watermarkedBase64: string }> =
+          await page.evaluate(
+            async (queue, logoBase64) => {
+              // Nạp Logo THACO - CREC trong suốt
+              const logoImg = new Image();
+              await new Promise<void>((resolve, reject) => {
+                logoImg.onload = () => resolve();
+                logoImg.onerror = () => reject(new Error('Lỗi nạp logo THACO-CREC'));
+                logoImg.src = logoBase64;
+              });
 
-      // Thực thi đóng dấu Canvas trong context của trình duyệt Chromium
-      const processed: Array<{ id: string; watermarkedBase64: string }> =
-        await page.evaluate(
-          async (queue, logoBase64) => {
-            // Nạp Logo THACO - CREC trong suốt
-            const logoImg = new Image();
-            await new Promise<void>((resolve, reject) => {
-              logoImg.onload = () => resolve();
-              logoImg.onerror = () => reject(new Error('Lỗi nạp logo THACO-CREC'));
-              logoImg.src = logoBase64;
-            });
+              const out: Array<{ id: string; watermarkedBase64: string }> = [];
 
-            const out: Array<{ id: string; watermarkedBase64: string }> = [];
+              for (const item of queue) {
+                try {
+                  // 1. Nạp ảnh gốc từ Base64
+                  const srcImg = new Image();
+                  await new Promise<void>((res, rej) => {
+                    srcImg.onload = () => res();
+                    srcImg.onerror = () => rej(new Error(`Lỗi nạp ảnh ID: ${item.id}`));
+                    srcImg.src = item.base64;
+                  });
 
-            for (const item of queue) {
-              try {
-                // 1. Nạp ảnh gốc từ Base64
-                const srcImg = new Image();
-                await new Promise<void>((res, rej) => {
-                  srcImg.onload = () => res();
-                  srcImg.onerror = () => rej(new Error(`Lỗi nạp ảnh ID: ${item.id}`));
-                  srcImg.src = item.base64;
-                });
+                  const width = srcImg.naturalWidth;
+                  const height = srcImg.naturalHeight;
+                  if (!width || !height) {
+                    out.push({ id: item.id, watermarkedBase64: item.base64 });
+                    continue;
+                  }
 
-                const width = srcImg.naturalWidth;
-                const height = srcImg.naturalHeight;
-                if (!width || !height) {
-                  out.push({ id: item.id, watermarkedBase64: item.base64 });
-                  continue;
-                }
+                  // 2. Khởi tạo Canvas và vẽ ảnh gốc
+                  const canvas = document.createElement('canvas');
+                  canvas.width = width;
+                  canvas.height = height;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                    out.push({ id: item.id, watermarkedBase64: item.base64 });
+                    continue;
+                  }
 
-                // 2. Khởi tạo Canvas và vẽ ảnh gốc
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                  out.push({ id: item.id, watermarkedBase64: item.base64 });
-                  continue;
-                }
+                  ctx.imageSmoothingEnabled = true;
+                  ctx.imageSmoothingQuality = 'high';
+                  ctx.drawImage(srcImg, 0, 0, width, height);
 
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(srcImg, 0, 0, width, height);
+                  // Lấy kích thước ảnh dọc làm quy chuẩn cơ sở theo Commit 3ff0fab:
+                  // Cạnh ngắn nhất luôn tương đương với bề rộng của ảnh dọc khi chụp cùng độ phân giải
+                  const basePortraitWidth = Math.min(width, height);
 
-                // Lấy kích thước ảnh dọc làm quy chuẩn cơ sở theo Commit 3ff0fab:
-                // Cạnh ngắn nhất luôn tương đương với bề rộng của ảnh dọc khi chụp cùng độ phân giải
-                const basePortraitWidth = Math.min(width, height);
+                  // 3. Vẽ Logo THACO-CREC ở góc trên bên phải (chiếm 43.75% chiều rộng cạnh chuẩn)
+                  if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
+                    const logoWidth = Math.round(basePortraitWidth * 0.4375);
+                    const logoHeight = Math.round(
+                      logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth)
+                    );
+                    const paddingRight = Math.round(basePortraitWidth * 0.025);
+                    const paddingTop = Math.round(basePortraitWidth * 0.025);
+                    const logoX = width - logoWidth - paddingRight;
+                    const logoY = paddingTop;
 
-                // 3. Vẽ Logo THACO-CREC ở góc trên bên phải (chiếm 43.75% chiều rộng cạnh chuẩn)
-                if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
-                  const logoWidth = Math.round(basePortraitWidth * 0.4375);
-                  const logoHeight = Math.round(
-                    logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth)
-                  );
-                  const paddingRight = Math.round(basePortraitWidth * 0.025);
-                  const paddingTop = Math.round(basePortraitWidth * 0.025);
-                  const logoX = width - logoWidth - paddingRight;
-                  const logoY = paddingTop;
+                    ctx.save();
+                    // Đổ bóng mờ trắng nhẹ phía sau để logo nổi trên ảnh tối
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
+                    ctx.shadowBlur = Math.max(3, Math.round(basePortraitWidth * 0.007));
+                    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+                    ctx.restore();
+                  }
+
+                  // 4. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
+                  const fontSize = Math.max(22, Math.round(basePortraitWidth * 0.031));
+                  const lineHeight = Math.round(fontSize * 1.35);
+                  const paddingRightText = Math.round(basePortraitWidth * 0.03);
+                  const paddingBottomText = Math.round(basePortraitWidth * 0.035);
+
+                  const textX = width - paddingRightText;
+                  const line2Y = height - paddingBottomText;
+                  const line1Y = line2Y - lineHeight;
 
                   ctx.save();
-                  // Đổ bóng mờ trắng nhẹ phía sau để logo nổi trên ảnh tối
-                  ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-                  ctx.shadowBlur = Math.max(3, Math.round(basePortraitWidth * 0.007));
-                  ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+                  ctx.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
+                  ctx.textAlign = 'right';
+                  ctx.textBaseline = 'alphabetic';
+
+                  // Đổ bóng mờ đen
+                  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+                  ctx.shadowBlur = Math.round(fontSize * 0.28);
+                  ctx.shadowOffsetX = Math.max(1.5, Math.round(fontSize * 0.05));
+                  ctx.shadowOffsetY = Math.max(2, Math.round(fontSize * 0.08));
+
+                  // Viền nét mảnh đen (Stroke) chống chìm chữ trên nền giấy trắng/vỉa hè
+                  ctx.lineWidth = Math.max(2, fontSize * 0.07);
+                  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+                  ctx.strokeText(item.timestamp, textX, line1Y);
+                  ctx.strokeText(item.photoCode, textX, line2Y);
+
+                  // Chữ trắng tinh
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.fillText(item.timestamp, textX, line1Y);
+                  ctx.fillText(item.photoCode, textX, line2Y);
                   ctx.restore();
+
+                  // 5. Xuất Base64 Data URL chất lượng cao 85%
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+                  // Dọn dẹp canvas
+                  ctx.clearRect(0, 0, width, height);
+                  canvas.width = 0;
+                  canvas.height = 0;
+
+                  out.push({ id: item.id, watermarkedBase64: dataUrl });
+                } catch (_err) {
+                  out.push({ id: item.id, watermarkedBase64: item.base64 });
                 }
-
-                // 4. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
-                const fontSize = Math.max(22, Math.round(basePortraitWidth * 0.031));
-                const lineHeight = Math.round(fontSize * 1.35);
-                const paddingRightText = Math.round(basePortraitWidth * 0.03);
-                const paddingBottomText = Math.round(basePortraitWidth * 0.035);
-
-                const textX = width - paddingRightText;
-                const line2Y = height - paddingBottomText;
-                const line1Y = line2Y - lineHeight;
-
-                ctx.save();
-                ctx.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'alphabetic';
-
-                // Đổ bóng mờ đen
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-                ctx.shadowBlur = Math.round(fontSize * 0.28);
-                ctx.shadowOffsetX = Math.max(1.5, Math.round(fontSize * 0.05));
-                ctx.shadowOffsetY = Math.max(2, Math.round(fontSize * 0.08));
-
-                // Viền nét mảnh đen (Stroke) chống chìm chữ trên nền giấy trắng/vỉa hè
-                ctx.lineWidth = Math.max(2, fontSize * 0.07);
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-                ctx.strokeText(item.timestamp, textX, line1Y);
-                ctx.strokeText(item.photoCode, textX, line2Y);
-
-                // Chữ trắng tinh
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillText(item.timestamp, textX, line1Y);
-                ctx.fillText(item.photoCode, textX, line2Y);
-                ctx.restore();
-
-                // 5. Xuất Base64 Data URL chất lượng cao 85%
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-                // Dọn dẹp canvas
-                ctx.clearRect(0, 0, width, height);
-                canvas.width = 0;
-                canvas.height = 0;
-
-                out.push({ id: item.id, watermarkedBase64: dataUrl });
-              } catch (_err) {
-                out.push({ id: item.id, watermarkedBase64: item.base64 });
               }
-            }
 
-            return out;
-          },
-          itemsToProcess,
-          LOGO_THACO_REC_BASE64
-        );
+              return out;
+            },
+            chunk,
+            LOGO_THACO_REC_BASE64
+          );
 
-      // Lưu vào cache và map kết quả
-      for (const res of processed) {
-        results.set(res.id, res.watermarkedBase64);
-        const originalItem = itemsToProcess.find((it) => it.id === res.id);
-        if (originalItem) {
-          const key = this.getCacheKey(originalItem);
-          this.cache.set(key, res.watermarkedBase64);
+        // Lưu vào cache và map kết quả
+        for (const res of processed) {
+          results.set(res.id, res.watermarkedBase64);
+          const originalItem = chunk.find((it) => it.id === res.id);
+          if (originalItem && res.watermarkedBase64 !== originalItem.base64) {
+            const key = this.getCacheKey(originalItem);
+            this.cache.set(key, res.watermarkedBase64);
+          }
         }
-      }
-    } catch (err) {
-      console.warn('[ReportWatermarkCanvasService] Lỗi khi dập watermark bằng Chromium, fallback ảnh gốc:', err);
-      for (const item of itemsToProcess) {
-        results.set(item.id, item.base64);
+      } catch (err) {
+        console.warn(`[ReportWatermarkCanvasService] Lỗi khi dập chunk ${i / CHUNK_SIZE + 1}, fallback ảnh gốc:`, err);
+        if (this.workerPage) {
+          try { await this.workerPage.close(); } catch (_) {}
+          this.workerPage = null;
+        }
+        for (const item of chunk) {
+          results.set(item.id, item.base64);
+        }
       }
     }
 
@@ -355,16 +359,22 @@ export class ReportWatermarkCanvasService {
 
     // Gán lại kết quả Base64 vào ViewModel
     if (results.has('cover_p02')) {
-      viewModel.metadata.coverPhotoBase64 = results.get('cover_p02')!;
-      viewModel.metadata.coverAlreadyWatermarked = true;
+      const resVal = results.get('cover_p02')!;
+      if (resVal && resVal !== viewModel.metadata.coverPhotoBase64 && resVal.startsWith('data:image/')) {
+        viewModel.metadata.coverPhotoBase64 = resVal;
+        viewModel.metadata.coverAlreadyWatermarked = true;
+      }
     }
 
     if (Array.isArray(viewModel.appendix1)) {
       viewModel.appendix1.forEach((photo, pIdx) => {
         const key = `app1_${pIdx}`;
         if (results.has(key)) {
-          photo.base64 = results.get(key)!;
-          photo.alreadyWatermarked = true;
+          const resVal = results.get(key)!;
+          if (resVal && resVal !== photo.base64 && resVal.startsWith('data:image/')) {
+            photo.base64 = resVal;
+            photo.alreadyWatermarked = true;
+          }
         }
       });
       // Đồng bộ vào appendix1Pages nếu có
@@ -387,8 +397,11 @@ export class ReportWatermarkCanvasService {
           ovPage.photos?.forEach((p, pIdx) => {
             const key = `floor_${fIdx}_op_${opIdx}_z_${pIdx}`;
             if (results.has(key)) {
-              p.base64 = results.get(key)!;
-              p.alreadyWatermarked = true;
+              const resVal = results.get(key)!;
+              if (resVal && resVal !== p.base64 && resVal.startsWith('data:image/')) {
+                p.base64 = resVal;
+                p.alreadyWatermarked = true;
+              }
             }
           });
         });
@@ -397,8 +410,11 @@ export class ReportWatermarkCanvasService {
           elPage.photos?.forEach((p, pIdx) => {
             const key = `floor_${fIdx}_ep_${epIdx}_e_${pIdx}`;
             if (results.has(key)) {
-              p.base64 = results.get(key)!;
-              p.alreadyWatermarked = true;
+              const resVal = results.get(key)!;
+              if (resVal && resVal !== p.base64 && resVal.startsWith('data:image/')) {
+                p.base64 = resVal;
+                p.alreadyWatermarked = true;
+              }
             }
           });
         });
@@ -406,18 +422,27 @@ export class ReportWatermarkCanvasService {
         floor.defectPairPhotos?.forEach((d, dIdx) => {
           const ctxKey = `floor_${fIdx}_d_${dIdx}_ctx`;
           if (results.has(ctxKey)) {
-            d.contextPhotoBase64 = results.get(ctxKey)!;
-            d.contextAlreadyWatermarked = true;
+            const resVal = results.get(ctxKey)!;
+            if (resVal && resVal !== d.contextPhotoBase64 && resVal.startsWith('data:image/')) {
+              d.contextPhotoBase64 = resVal;
+              d.contextAlreadyWatermarked = true;
+            }
           }
           const cuKey = `floor_${fIdx}_d_${dIdx}_cu`;
           if (results.has(cuKey)) {
-            d.closeUpPhotoBase64 = results.get(cuKey)!;
-            d.closeUpAlreadyWatermarked = true;
+            const resVal = results.get(cuKey)!;
+            if (resVal && resVal !== d.closeUpPhotoBase64 && resVal.startsWith('data:image/')) {
+              d.closeUpPhotoBase64 = resVal;
+              d.closeUpAlreadyWatermarked = true;
+            }
           }
           const extraKey = `floor_${fIdx}_d_${dIdx}_extra`;
           if (results.has(extraKey)) {
-            d.extraCloseUpPhotoBase64 = results.get(extraKey)!;
-            d.extraCloseUpAlreadyWatermarked = true;
+            const resVal = results.get(extraKey)!;
+            if (resVal && resVal !== d.extraCloseUpPhotoBase64 && resVal.startsWith('data:image/')) {
+              d.extraCloseUpPhotoBase64 = resVal;
+              d.extraCloseUpAlreadyWatermarked = true;
+            }
           }
         });
 
@@ -439,8 +464,11 @@ export class ReportWatermarkCanvasService {
       viewModel.appendix3.signedRecordPages.forEach((page, pIdx) => {
         const key = `app3_signed_${pIdx}`;
         if (results.has(key)) {
-          page.base64 = results.get(key)!;
-          page.alreadyWatermarked = true;
+          const resVal = results.get(key)!;
+          if (resVal && resVal !== page.base64 && resVal.startsWith('data:image/')) {
+            page.base64 = resVal;
+            page.alreadyWatermarked = true;
+          }
         }
       });
     }

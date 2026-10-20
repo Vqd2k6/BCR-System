@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   FileCheck2,
   History,
+  RotateCw,
 } from 'lucide-react';
 
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
@@ -22,12 +23,14 @@ interface Props {
   data?: AuditStepwiseData;
   handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onConfirmAbsenteeSurvey?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoRotations?: Record<string, number>;
+  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
 }
 
 export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
@@ -41,6 +44,8 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   onOpenPhotoAction,
   onOpenPhotoHistory,
   isFieldDirty,
+  stagedPhotoRotations = {},
+  onRotatePhoto,
 }) => {
   const sigs: StepwiseSignatures = formState.signatures || {};
   const absenceLogs = formState.absenceLogs || data?.leftPane?.absenceLogs || [];
@@ -316,9 +321,13 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 const caption = getPhotoCaption(photoItem, idx);
                 if (!url) return null;
 
+                const rotKey = `minutes_${idx}`;
+                const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`MINUTES-${idx + 1}`] ?? 0;
+
                 return (
                   <div
                     key={idx}
+                    id={`audit-photo-card-minutes-${idx}`}
                     className="group relative rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs hover:border-sky-400 hover:shadow-md transition-all flex flex-col"
                   >
                     {/* Image preview area */}
@@ -328,14 +337,16 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                         onOpenPhotoZoom(
                           url,
                           caption,
-                          typeof photoItem === 'object' ? photoItem.photoCode : undefined
+                          typeof photoItem === 'object' ? photoItem.photoCode : undefined,
+                          rot
                         )
                       }
                     >
                       <img
                         src={url}
                         alt={caption}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        style={{ transform: `rotate(${rot}deg)` }}
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
                       />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="p-1.5 rounded-full bg-white/90 text-slate-800 shadow">
@@ -345,6 +356,12 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 text-white font-mono text-[10px] font-bold">
                         Trang {idx + 1}
                       </span>
+                      {rot !== 0 && (
+                        <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 shadow-xs flex items-center gap-0.5">
+                          <RotateCw className="w-2.5 h-2.5" />
+                          <span>{rot}°</span>
+                        </span>
+                      )}
                     </div>
 
                     {/* Bottom caption & edit actions */}
@@ -354,6 +371,20 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       </span>
 
                       <div className="flex items-center gap-1 shrink-0">
+                        {onRotatePhoto && (
+                          <button
+                            type="button"
+                            title={`Xoay ảnh 90° (Hiện tại: ${rot}°)`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextRot = (rot + 90) % 360;
+                              onRotatePhoto(rotKey, nextRot);
+                            }}
+                            className="p-1 rounded text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {onOpenPhotoHistory && (
                           <button
                             type="button"

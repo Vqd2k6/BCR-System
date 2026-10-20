@@ -88,7 +88,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             <span className="font-bold text-slate-800">
               {formData.surveyCaseType === 'APARTMENT' || formData.unitId
                 ? 'Kế thừa từ toà mẹ'
-                : `${formData.foundationCatScore || 5}/5`}
+                : `${formData.foundationCatScore ? formData.foundationCatScore + "/5" : "--"}`}
             </span>
           </div>
 

@@ -29,7 +29,7 @@
     <!-- ẢNH ĐỊNH DANH NGOẠI THẤT P-02 TRÊN TRANG BÌA (TĂNG 150% CHIỀU CAO: 375PX) -->
     <div class="cover-photo">
       {{#if p02.url}}
-        <img src="{{p02.url}}" alt="Mặt đứng chính công trình">
+        <img src="{{p02.url}}" alt="Mặt đứng chính công trình" {{#if p02.rotation}}style="transform: rotate({{p02.rotation}}deg);"{{/if}}>
       {{else}}
         <div style="height: 375px; width: 100%; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #64748b;">
           [ Chưa có ảnh mặt đứng chính P-02 ]
@@ -44,7 +44,7 @@
     <table class="cover-meta-table">
       <tr>
         <td class="label">Mã công trình (Building ID)</td>
-        <td class="font-bold" style="color: #0f3b6c; font-size: 9.5pt;">{{buildingId}}</td>
+        <td class="font-bold" style="color: #000000; font-size: 9.5pt;">{{buildingId}}</td>
       </tr>
       <tr>
         <td class="label">Mã khảo sát (Survey ID)</td>
@@ -100,7 +100,7 @@
     </tr>
     <tr>
       <td class="col-label">Building ID</td>
-      <td class="col-val font-bold" style="color: #0f3b6c;">{{buildingId}}</td>
+      <td class="col-val font-bold" style="color: #000000;">{{buildingId}}</td>
     </tr>
     <tr>
       <td class="col-label">Survey ID</td>
@@ -211,10 +211,10 @@
     Ghi chú: Báo cáo Phase 1 là hồ sơ khảo sát và sàng lọc ban đầu. Hồ sơ pháp lý xác nhận hiện trạng trước thi công được thực hiện theo quy trình Phase 2 và các yêu cầu được dự án/Engineer phê duyệt.
   </div>
   
-  <div style="text-align: center; margin: 6px 0; color: #0284c7; font-size: 11pt;">✦</div>
+  <div style="text-align: center; margin: 6px 0; color: #000000; font-size: 11pt;">✦</div>
 
   <!-- 1.1. THÔNG TIN DỰ ÁN & TABLE 4 -->
-  <h3 style="font-size: 9.5pt; font-weight: bold; color: #0f3b6c; margin: 6px 0 3px 0;">1.1. Thông tin dự án</h3>
+  <h3 style="font-size: 9.5pt; font-weight: bold; color: #000000; margin: 6px 0 3px 0;">1.1. Thông tin dự án</h3>
   <p style="font-size: 8.5pt; line-height: 1.35; margin: 0 0 6px 0; text-align: justify; color: #1e293b;">
     Dự án Xây dựng Tuyến Đường sắt đô thị số 2 Thành phố Hồ Chí Minh (Bến Thành – Tham Lương) được triển khai trong khu vực đô thị hiện hữu. Công tác khảo sát hiện trạng công trình Phase 1 nhằm thu thập dữ liệu ban đầu đối với các công trình có khả năng chịu ảnh hưởng bởi các hạng mục xây dựng của dự án.
   </p>
@@ -420,7 +420,7 @@
     </div>
     <div class="photo-frame-full">
       {{#if p01.url}}
-        <img src="{{p01.url}}" alt="P-01 Biển số nhà">
+        <img src="{{p01.url}}" alt="P-01 Biển số nhà" {{#if p01.rotation}}style="transform: rotate({{p01.rotation}}deg);"{{/if}}>
         <div class="pdf-watermark-overlay">
           <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
           <div class="pdf-watermark-bottom-right">
@@ -459,7 +459,7 @@
       </div>
       <div class="photo-frame-vertical">
         {{#if p02.url}}
-          <img src="{{p02.url}}" alt="P-02 Mặt đứng chính">
+          <img src="{{p02.url}}" alt="P-02 Mặt đứng chính" {{#if p02.rotation}}style="transform: rotate({{p02.rotation}}deg);"{{/if}}>
           <div class="pdf-watermark-overlay">
             <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
             <div class="pdf-watermark-bottom-right">
@@ -494,7 +494,7 @@
       </div>
       <div class="photo-frame-vertical">
         {{#if p03.url}}
-          <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau">
+          <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau" {{#if p03.rotation}}style="transform: rotate({{p03.rotation}}deg);"{{/if}}>
           <div class="pdf-watermark-overlay">
             <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
             <div class="pdf-watermark-bottom-right">
@@ -537,7 +537,7 @@
     </div>
     <div class="photo-frame-full">
       {{#if p04.url}}
-        <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro">
+        <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro" {{#if p04.rotation}}style="transform: rotate({{p04.rotation}}deg);"{{/if}}>
         <div class="pdf-watermark-overlay">
           <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
           <div class="pdf-watermark-bottom-right">
@@ -666,7 +666,7 @@
   <!-- HỒ SƠ BẢN VẼ HOÀN CÔNG MÓNG / KẾT CẤU -->
   {{#if asBuiltDrawingPhotos.length}}
   <div style="margin-top: 8px; border: 0.5pt solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc;">
-    <div style="font-weight: bold; font-size: 8.5pt; color: #0f3b6c; margin-bottom: 6px;">
+    <div style="font-weight: bold; font-size: 8.5pt; color: #000000; margin-bottom: 6px;">
       📐 ẢNH BẢN VẼ HOÀN CÔNG / THIẾT KẾ KẾT CẤU MÓNG ĐƯỢC CHỦ NHÀ CUNG CẤP ({{asBuiltDrawingPhotos.length}} ảnh / trang):
     </div>
     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
@@ -682,7 +682,7 @@
   </div>
   {{else if asBuiltDrawingPhotoUrl}}
   <div style="margin-top: 8px; border: 0.5pt solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc;">
-    <div style="font-weight: bold; font-size: 8.5pt; color: #0f3b6c; margin-bottom: 4px;">
+    <div style="font-weight: bold; font-size: 8.5pt; color: #000000; margin-bottom: 4px;">
       📐 ẢNH BẢN VẼ HOÀN CÔNG / THIẾT KẾ KẾT CẤU MÓNG ĐƯỢC CHỦ NHÀ CUNG CẤP:
     </div>
     <div style="text-align: center;">
@@ -736,7 +736,7 @@
         <td class="font-bold">{{category}}</td>
         <td>{{indicator}}</td>
         <td class="text-center font-bold">
-          {{#if hasItem}}<span style="color: #c2410c;">CÓ</span>{{else}}<span style="color: #15803d;">KHÔNG</span>{{/if}}
+          {{#if hasItem}}<span style="color: #000000;">CÓ</span>{{else}}<span style="color: #000000;">KHÔNG</span>{{/if}}
         </td>
         <td>{{notes}}</td>
       </tr>
@@ -844,9 +844,9 @@
   </p>
 
   {{#each floors}}
-    <div style="border-top: 2pt solid #0f3b6c; padding-top: 8px; margin-top: 14px; break-before: auto;">
+    <div style="border-top: 2pt solid #000000; padding-top: 8px; margin-top: 14px; break-before: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <h3 style="font-size: 11pt; color: #0f3b6c; margin: 0; text-transform: uppercase;">
+        <h3 style="font-size: 11pt; color: #000000; margin: 0; text-transform: uppercase;">
           📍 KHẢO SÁT HIỆN TRẠNG: {{floorName}} (Tầng thứ {{floorOrder}})
         </h3>
         <span style="font-size: 8.5pt; color: #475569; font-weight: bold;">
@@ -866,14 +866,14 @@
       <div class="cad-dual-grid">
         {{#if cadSketchPhotoUrl}}
         <div class="cad-box">
-          <img src="{{cadSketchPhotoUrl}}" alt="Damage Map {{floorName}}">
+          <img src="{{cadSketchPhotoUrl}}" alt="Damage Map {{floorName}}" {{#if cadSketchRotation}}style="transform: rotate({{cadSketchRotation}}deg);"{{/if}}>
           <div class="cad-caption">SƠ ĐỒ BẢN ĐỒ HƯ HỎNG (DAMAGE MAP) - GHIM PIN VÙNG Z & KHUYẾT TẬT D</div>
         </div>
         {{/if}}
 
         {{#if cadStructuralSketchPhotoUrl}}
         <div class="cad-box">
-          <img src="{{cadStructuralSketchPhotoUrl}}" alt="Structural Map {{floorName}}">
+          <img src="{{cadStructuralSketchPhotoUrl}}" alt="Structural Map {{floorName}}" {{#if cadStructuralSketchRotation}}style="transform: rotate({{cadStructuralSketchRotation}}deg);"{{/if}}>
           <div class="cad-caption">SƠ ĐỒ BỐ TRÍ KẾT CẤU CHỊU LỰC - GHIM PIN CẤU KIỆN CỘT / DẦM E</div>
         </div>
         {{/if}}
@@ -917,7 +917,7 @@
 
       <!-- BẢNG TỔNG HỢP VÙNG KIẾN TRÚC Z CỦA TẦNG -->
       {{#if zones.length}}
-      <h4 style="font-size: 9pt; font-weight: bold; color: #0f3b6c; margin: 10px 0 4px 0;">
+      <h4 style="font-size: 9pt; font-weight: bold; color: #000000; margin: 10px 0 4px 0;">
         Danh mục các Vùng Kiến Trúc (Damage Zones - Z) thuộc {{floorName}}:
       </h4>
       <table class="tech-table">
@@ -934,7 +934,7 @@
         <tbody>
           {{#each zones}}
           <tr>
-            <td class="text-center font-bold" style="color: #0f3b6c;">{{zoneCode}}</td>
+            <td class="text-center font-bold" style="color: #000000;">{{zoneCode}}</td>
             <td class="font-bold">{{roomName}}</td>
             <td>{{componentType}} ({{wallMaterial}})</td>
             <td class="text-center">{{burlandLabel}}</td>
@@ -948,7 +948,7 @@
 
       <!-- BẢNG TỔNG HỢP CẤU KIỆN KẾT CẤU CHỊU LỰC E CỦA TẦNG -->
       {{#if structuralElements.length}}
-      <h4 style="font-size: 9pt; font-weight: bold; color: #0f3b6c; margin: 10px 0 4px 0;">
+      <h4 style="font-size: 9pt; font-weight: bold; color: #000000; margin: 10px 0 4px 0;">
         Danh mục Cấu kiện Kết cấu Chịu lực (Structural Elements - E) thuộc {{floorName}}:
       </h4>
       <table class="tech-table">
@@ -965,15 +965,15 @@
         <tbody>
           {{#each structuralElements}}
           <tr>
-            <td class="text-center font-bold" style="color: #c2410c;">{{elementCode}}</td>
+            <td class="text-center font-bold" style="color: #000000;">{{elementCode}}</td>
             <td class="font-bold">{{elementType}}</td>
             <td>{{materialType}}</td>
             <td>{{roomName}}</td>
             <td class="text-center">
               {{#if hasDamage}}
-                <span style="color: #c2410c; font-weight: bold;">Có khuyết tật</span>
+                <span style="color: #000000; font-weight: bold;">Có khuyết tật</span>
               {{else}}
-                <span style="color: #15803d; font-weight: bold;">Ổn định</span>
+                <span style="color: #000000; font-weight: bold;">Ổn định</span>
               {{/if}}
             </td>
             <td>{{#if notes}}{{notes}}{{else}}Nguyên vẹn{{/if}}</td>
@@ -984,7 +984,7 @@
       {{/if}}
 
       <!-- SỔ KHUYẾT TẬT CHI TIẾT (DEFECT REGISTER) CỦA TẦNG KÈM ẢNH ĐỨNG RIÊNG LẺ BỰ FULL -->
-      <h4 style="font-size: 9pt; font-weight: bold; color: #0f3b6c; margin: 12px 0 6px 0;">
+      <h4 style="font-size: 9pt; font-weight: bold; color: #000000; margin: 12px 0 6px 0;">
         Sổ khuyết tật chi tiết (Defect Register) & Ảnh đo đạc có thước đo thuộc {{floorName}}:
       </h4>
 
@@ -1011,9 +1011,9 @@
             <tbody>
               {{#each defects}}
               <tr>
-                <td class="text-center font-bold" style="color: #c2410c;">{{defectCode}}</td>
+                <td class="text-center font-bold" style="color: #000000;">{{defectCode}}</td>
                 <td>{{defectType}}</td>
-                <td class="text-center font-bold" style="color: #b91c1c;">{{widthMaxMm}} mm</td>
+                <td class="text-center font-bold" style="color: #000000;">{{widthMaxMm}} mm</td>
                 <td class="text-center">{{lengthMm}} mm</td>
                 <td class="text-center">{{crackDirection}}</td>
                 <td class="text-center">{{activityStateLabel}}</td>
@@ -1034,7 +1034,7 @@
                 <span class="photo-header-title">ẢNH BỐI CẢNH MẢNG TƯỜNG (CONTEXT) &bull; {{../roomName}} &bull; {{../componentType}}</span>
               </div>
               <div class="defect-evidence-full">
-                <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}">
+                <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}" {{#if ctxPhotoRotation}}style="transform: rotate({{ctxPhotoRotation}}deg);"{{/if}}>
                 <div class="pdf-watermark-overlay">
                   <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO 2</div>
                   <div class="pdf-watermark-bottom-right">
@@ -1064,7 +1064,7 @@
                   <span class="photo-header-title">ẢNH CẬN CẢNH CÓ THƯỚC ĐO NỨT (VỊ TRÍ #{{addOne @index}}) &bull; w<sub>max</sub> = {{../widthMaxMm}} mm</span>
                 </div>
                 <div class="defect-evidence-full">
-                  <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})">
+                  <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})" {{#if ../cuPhotoRotation}}style="transform: rotate({{../cuPhotoRotation}}deg);"{{/if}}>
                   <div class="pdf-watermark-overlay">
                     <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
                     <div class="pdf-watermark-bottom-right">
@@ -1077,7 +1077,7 @@
                   HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{../defectCode}} - ẢNH #{{addOne @index}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{../widthMaxMm}} mm, DÀI {{../lengthMm}} mm)
                 </div>
                 <div class="defect-meta-bar">
-                  <span><strong>Bề rộng w<sub>max</sub>:</strong> <span style="color: #b91c1c; font-weight: bold;">{{../widthMaxMm}} mm</span></span>
+                  <span><strong>Bề rộng w<sub>max</sub>:</strong> <span style="color: #000000; font-weight: bold;">{{../widthMaxMm}} mm</span></span>
                   <span><strong>Chiều dài:</strong> {{../lengthMm}} mm</span>
                   <span><strong>Trạng thái:</strong> {{../activityStateLabel}}</span>
                   <span><strong>Cờ kết cấu (E2):</strong> {{../structuralSignificanceLabel}}</span>
@@ -1091,7 +1091,7 @@
                 <span class="photo-header-title">ẢNH CẬN CẢNH CÓ THƯỚC ĐO NỨT (CRACK GAUGE) &bull; w<sub>max</sub> = {{widthMaxMm}} mm</span>
               </div>
               <div class="defect-evidence-full">
-                <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}">
+                <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}" {{#if cuPhotoRotation}}style="transform: rotate({{cuPhotoRotation}}deg);"{{/if}}>
                 <div class="pdf-watermark-overlay">
                   <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
                   <div class="pdf-watermark-bottom-right">
@@ -1104,7 +1104,7 @@
                 HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{defectCode}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{widthMaxMm}} mm, DÀI {{lengthMm}} mm)
               </div>
               <div class="defect-meta-bar">
-                <span><strong>Bề rộng w<sub>max</sub>:</strong> <span style="color: #b91c1c; font-weight: bold;">{{widthMaxMm}} mm</span></span>
+                <span><strong>Bề rộng w<sub>max</sub>:</strong> <span style="color: #000000; font-weight: bold;">{{widthMaxMm}} mm</span></span>
                 <span><strong>Chiều dài:</strong> {{lengthMm}} mm</span>
                 <span><strong>Trạng thái:</strong> {{activityStateLabel}}</span>
                 <span><strong>Cờ kết cấu (E2):</strong> {{structuralSignificanceLabel}}</span>
@@ -1136,9 +1136,9 @@
           <th style="width: 20%;">Yêu cầu quan trắc bổ sung</th>
           <td class="font-bold">
             {{#if requiresAdditionalMonitoring}}
-              <span style="color: #c2410c;">CẦN THIẾT LẬP MỐC QUAN TRẮC BỔ SUNG</span>
+              <span style="color: #000000;">CẦN THIẾT LẬP MỐC QUAN TRẮC BỔ SUNG</span>
             {{else}}
-              <span style="color: #15803d;">Không yêu cầu</span>
+              <span style="color: #000000;">Không yêu cầu</span>
             {{/if}}
           </td>
         </tr>
@@ -1186,7 +1186,7 @@
         <td class="font-bold">{{category}}</td>
         <td>{{indicator}}</td>
         <td class="text-center font-bold">
-          {{#if hasIndicator}}<span style="color: #c2410c;">CÓ</span>{{else}}<span style="color: #15803d;">KHÔNG</span>{{/if}}
+          {{#if hasIndicator}}<span style="color: #000000;">CÓ</span>{{else}}<span style="color: #000000;">KHÔNG</span>{{/if}}
         </td>
         <td>{{locationAndSeverity}}</td>
       </tr>
@@ -1270,15 +1270,15 @@
   <table class="tech-table">
     <tr>
       <th style="width: 28%;">Cờ khuyết tật kết cấu (Structural Flag)</th>
-      <td class="font-bold" style="color: #c2410c; width: 32%;">
+      <td class="font-bold" style="color: #000000; width: 32%;">
         {{burlandStructuralFlagLevelLabel}}
       </td>
       <th style="width: 22%;">Thẩm tra Kỹ sư kết cấu</th>
       <td class="font-bold">
         {{#if requiresStructuralReview}}
-          <span style="color: #b91c1c;">CẦN KỸ SƯ KẾT CẤU THẨM TRA</span>
+          <span style="color: #000000;">CẦN KỸ SƯ KẾT CẤU THẨM TRA</span>
         {{else}}
-          <span style="color: #15803d;">Không yêu cầu</span>
+          <span style="color: #000000;">Không yêu cầu</span>
         {{/if}}
       </td>
     </tr>
@@ -1306,9 +1306,9 @@
         <td class="font-bold">{{areaName}}</td>
         <td class="text-center font-bold">
           {{#if isAccessed}}
-            <span style="color: #15803d;">ĐÃ TIẾP CẬN</span>
+            <span style="color: #000000;">ĐÃ TIẾP CẬN</span>
           {{else}}
-            <span style="color: #c2410c;">CHƯA TIẾP CẬN</span>
+            <span style="color: #000000;">CHƯA TIẾP CẬN</span>
           {{/if}}
         </td>
         <td>{{notes}}</td>
@@ -1376,7 +1376,7 @@
       </tbody>
     </table>
     {{else}}
-    <div style="font-size: 8.5pt; color: #15803d; font-weight: bold;">
+    <div style="font-size: 8.5pt; color: #000000; font-weight: bold;">
       ✓ Ranh đất thực tế hoàn toàn trùng khớp với ranh địa chính số của Dự án Metro 2, không phát sinh tách thửa hay tranh chấp ranh mốc.
     </div>
     {{/if}}
@@ -1445,7 +1445,7 @@
       </tr>
       <tr style="background-color: #f1f5f9;">
         <td colspan="3" class="font-bold text-right">TỔNG ĐIỂM ECS TÍCH LŨY:</td>
-        <td class="text-center font-bold" style="font-size: 11pt; color: #0f3b6c;">{{totalEcsScore}} / 24</td>
+        <td class="text-center font-bold" style="font-size: 11pt; color: #000000;">{{totalEcsScore}} / 24</td>
         <td class="font-bold"><span class="badge {{ecsBadgeClass}}">HẠNG: {{ecsClass}}</span></td>
       </tr>
     </tbody>
@@ -1520,7 +1520,7 @@
       </tr>
       <tr style="background-color: #f1f5f9;">
         <td colspan="3" class="font-bold text-right">ĐIỂM TRUNG BÌNH VI (VI_AVG):</td>
-        <td class="text-center font-bold" style="font-size: 11pt; color: #0f3b6c;">{{avgViScore}}</td>
+        <td class="text-center font-bold" style="font-size: 11pt; color: #000000;">{{avgViScore}}</td>
         <td class="font-bold"><span class="badge {{viBadgeClass}}">CẤP ĐỘ: {{viClass}}</span></td>
       </tr>
     </tbody>
@@ -1682,7 +1682,7 @@
   <table class="tech-table" style="margin-top: 8px;">
     <tr>
       <th style="width: 25%;">Kết quả giao điểm rủi ro:</th>
-      <td class="font-bold" style="font-size: 11pt; color: #b91c1c; width: 35%;">
+      <td class="font-bold" style="font-size: 11pt; color: #000000; width: 35%;">
         BRA = {{buildingRiskAssessmentBra}}
       </td>
       <th style="width: 15%;">Giao điểm:</th>
@@ -1721,7 +1721,7 @@
 
   <!-- 8.1. Ý KIẾN CHỦ NHÀ -->
   <h3 class="subsection-header">8.1. Ý kiến phản hồi và nguyện vọng của Chủ sở hữu / Người sử dụng công trình</h3>
-  <div class="note-box" style="background-color: #f0fdf4; border-left-color: #16a34a; margin-bottom: 14px;">
+  <div class="note-box" style="background-color: #f0fdf4; border-left-color: #000000; margin-bottom: 14px;">
     <div class="note-title">🗣️ Ý kiến, yêu cầu và ghi chú bảo lưu của Chủ hộ / Người sử dụng:</div>
     <div style="font-style: italic; color: #166534; font-size: 9.5pt; margin-top: 3px;">
       {{ownerRemarks}}
@@ -1802,8 +1802,8 @@
   </p>
 
   {{#each floors}}
-    <div style="border-top: 1.5pt solid #0f3b6c; padding-top: 8px; margin-top: 14px; break-inside: avoid;">
-      <h4 style="font-size: 10pt; color: #0f3b6c; margin: 0 0 8px 0; text-transform: uppercase;">
+    <div style="border-top: 1.5pt solid #000000; padding-top: 8px; margin-top: 14px; break-inside: avoid;">
+      <h4 style="font-size: 10pt; color: #000000; margin: 0 0 8px 0; text-transform: uppercase;">
         📍 ẢNH HIỆN TRẠNG TẦNG: {{floorName}} (TẦNG THỨ {{floorOrder}})
       </h4>
 
@@ -1853,7 +1853,7 @@
       </div>
 
       <!-- 2. BỘ ẢNH CẤU KIỆN KẾT CẤU CHỊU LỰC (E) CỦA TẦNG - MỖI ẢNH ĐỨNG RIÊNG LẺ FULL A4 -->
-      <div style="font-size: 8.5pt; font-weight: bold; color: #c2410c; margin: 12px 0 4px 0;">
+      <div style="font-size: 8.5pt; font-weight: bold; color: #000000; margin: 12px 0 4px 0;">
         B. Ảnh hiện trạng các Cấu Kiện Kết Cấu Chịu Lực (Structural Elements - E) (Full khổ A4):
       </div>
       <div class="appendix-photo-list-full">
@@ -1870,7 +1870,7 @@
             <div class="photo-meta">
               <div class="meta-row">
                 <span><strong>Vật liệu chế tạo:</strong> {{materialType}}</span>
-                <span><strong>Tình trạng:</strong> {{#if hasDamage}}<span style="color: #c2410c; font-weight: bold;">Có khuyết tật</span>{{else}}<span style="color: #15803d; font-weight: bold;">Ổn định</span>{{/if}}</span>
+                <span><strong>Tình trạng:</strong> {{#if hasDamage}}<span style="color: #000000; font-weight: bold;">Có khuyết tật</span>{{else}}<span style="color: #000000; font-weight: bold;">Ổn định</span>{{/if}}</span>
                 {{#if notes}}<span><strong>Ghi chú:</strong> {{notes}}</span>{{/if}}
               </div>
             </div>

@@ -62,7 +62,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   asBuiltDrawingPhotoUrl: '',
   asBuiltDrawingPhotos: [],
   asBuiltDrawingFiles: [],
-  foundationCatScore: 3,
+  foundationCatScore: 0, // 0 = chưa chọn (không mặc định – phải do KSV chọn, D-V3)
 
   historyInterview: {
     renovationLoad: 0,

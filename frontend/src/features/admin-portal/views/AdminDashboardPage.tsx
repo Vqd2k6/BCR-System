@@ -3,19 +3,26 @@ import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
-import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split, Layers } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
+import { ReportContentConfigTab } from '../components/ReportContentConfigTab';
+import { ZoneIngestionTab } from '../components/ZoneIngestionTab';
+import type { ImportPreviewState } from '../../../components/gis/shared/types';
 import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
 import { useAuth } from '../../../context/AuthContext';
 
-export const AdminDashboardPage: React.FC = () => {
+interface AdminDashboardPageProps {
+  onOpenMapPreview?: (previewState: ImportPreviewState) => void;
+}
+
+export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onOpenMapPreview }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const nav = getNavigationFromUrl();
     if (nav.adminTab) return nav.adminTab;
-    return 'export';
+    return 'zone-ingestion';
   });
 
   const handleTabChange = (newTab: AdminTab) => {
@@ -72,10 +79,12 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
         {([
+          { key: 'zone-ingestion', label: 'Quản Lý & Nạp Data Zone (22 Phân Đoạn)', icon: <Layers className="w-4 h-4" /> },
           { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
+          { key: 'report-content', label: 'Nội Dung Chuẩn & Thiết Bị Báo Cáo', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
         ] as const).map((tab) => (
           <button
@@ -94,6 +103,11 @@ export const AdminDashboardPage: React.FC = () => {
         ))}
       </div>
 
+      {/* Tab Zone Ingestion & Cloud Sync Studio */}
+      {activeTab === 'zone-ingestion' && (
+        <ZoneIngestionTab onOpenMapPreview={onOpenMapPreview} />
+      )}
+
       {/* Tab Export: Phase1ExportModuleBox */}
       {activeTab === 'export' && (
         <Phase1ExportModuleBox initialZoneId="ALL" />
@@ -107,6 +121,11 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Tab Users: Dynamic UserManagementTab */}
       {activeTab === 'users' && (
         <UserManagementTab />
+      )}
+
+      {/* Tab Report Content & Equipment Config */}
+      {activeTab === 'report-content' && (
+        <ReportContentConfigTab />
       )}
 
       {/* Tab Audit */}

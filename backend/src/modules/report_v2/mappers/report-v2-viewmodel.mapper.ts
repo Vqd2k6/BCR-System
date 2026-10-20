@@ -20,12 +20,13 @@ import { Appendix1PhotoMapper } from './appendices/appendix-1-photos.mapper';
 import { FloorDefectMapper } from './floor-defect.mapper';
 import { Appendix3And4Mapper } from './appendices/appendix-3-4-records.mapper';
 import { ScenarioFlagsAndTocMapper } from './sections/scenario-flags-and-toc.mapper';
+import type { ReportContentConfig } from '../../report_config/report-config.types';
 
 // Re-export helper functions để tương thích ngược 100% với các file import cũ
 export { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime };
 
 export class ReportV2ViewModelMapper {
-  public static buildViewModel(rawReport: any, overrides?: any): ReportV2ViewModel {
+  public static buildViewModel(rawReport: any, overrides?: any, config?: ReportContentConfig): ReportV2ViewModel {
     const json = rawReport.survey_data_json || {};
     const specs = rawReport.buildingSpecs || json || {};
     const deform = rawReport.deformation || json.settlementTilt || {};
@@ -86,12 +87,16 @@ export class ReportV2ViewModelMapper {
     );
 
     // 3. Phụ lục 2: Map tầng & Gom khuyết tật (Tính toán sớm để phục vụ các chương sau)
-    const rawFloors = (rawReport.floors && Array.isArray(rawReport.floors) && rawReport.floors.length > 0)
-      ? rawReport.floors
-      : (json.floors && Array.isArray(json.floors) && json.floors.length > 0)
-        ? json.floors
-        : [];
-    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate);
+    const rawFloors = (json.floors && Array.isArray(json.floors) && json.floors.length > 0)
+      ? json.floors
+      : (rawReport.floors && Array.isArray(rawReport.floors) && rawReport.floors.length > 0)
+        ? rawReport.floors
+        : (rawReport.floorSurveys && Array.isArray(rawReport.floorSurveys) && rawReport.floorSurveys.length > 0)
+          ? rawReport.floorSurveys
+          : [];
+
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
+    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate, rotMap);
 
     // 4. Chương VI: Tóm tắt khuyết tật & Danh mục 8 nhóm BCS checklist
     const {
@@ -148,17 +153,23 @@ export class ReportV2ViewModelMapper {
             : typeof section7.predominantGrade.vi === 'string' && section7.predominantGrade.vi.includes('Cấp 1')
               ? 1
               : 0;
+    const isZeroDefects = allDefectRows.length === 0;
+    const section8 = RiskScoringCalculator.computeRiskAssessment(
+      rawReport,
+      burlandMaxNum,
+      burlandPredominantNum,
+      isZeroDefects
+    );
 
-    const section8 = RiskScoringCalculator.computeRiskAssessment(rawReport, burlandMaxNum, burlandPredominantNum);
-
-    // 9. Chương IX: Kết luận & Kiến nghị kỹ thuật
+    // 9. Chương IX: Kết luận & Kiến nghị kỹ thuật (Đọc từ cấu hình chuẩn Q1)
     const section9 = Section9ConclusionMapper.map(
       rawReport,
       json,
       allDefectRows,
       section7,
       section8,
-      specs
+      specs,
+      config?.standardText
     );
 
     // 10. Phụ lục 1: Bộ ảnh định danh ngoại thất (P-01 đến P-07)
@@ -181,7 +192,7 @@ export class ReportV2ViewModelMapper {
       rawSurveyDate
     );
 
-    // 11. Phụ lục 3 & 4: Biên bản hiện trường scan & Thiết bị tiếp cận
+    // 11. Phụ lục 3 & 4: Biên bản hiện trường scan & Thiết bị tiếp cận (Đọc từ cấu hình chuẩn Q5)
     const appendix3 = Appendix3And4Mapper.mapAppendix3(
       rawReport,
       json,
@@ -194,7 +205,13 @@ export class ReportV2ViewModelMapper {
       buildingId,
       rawSurveyDate
     );
-    const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2, rawReport, json);
+    // Mục XII (Mới): Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (nếu có)
+    const section12AsBuilt = Appendix3And4Mapper.mapSection12AsBuilt(rawReport, json);
+    const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2, rawReport, json, config);
+
+    // Gắn thông tin phạm vi tiếp cận khảo sát vào Mục IX theo quy chuẩn nghiệp vụ
+    section9.accessAreas = appendix4.accessAreas;
+    section9.accessClassification = appendix4.accessClassification;
 
     // 12. Bộ cờ kịch bản thích ứng & Mục lục động
     const scenarioFlags = ScenarioFlagsAndTocMapper.mapScenarioFlags(
@@ -211,7 +228,8 @@ export class ReportV2ViewModelMapper {
       metadata,
       appendix1Pages,
       appendix2,
-      appendix3
+      appendix3,
+      section12AsBuilt
     );
 
     return {
@@ -232,7 +250,10 @@ export class ReportV2ViewModelMapper {
       appendix1Pages,
       appendix2,
       appendix3,
+      section12AsBuilt,
       appendix4,
+      asteriskFootnote: config?.standardText?.asteriskFootnote || null,
+      standardTextVersionNumber: config?.standardTextVersionNumber || null,
     };
   }
 }

@@ -246,7 +246,7 @@ export interface ComprehensiveMetroSpatialMetrics {
   closestOuterVertex: [number, number];
   closestOuterPoint: [number, number];
   distanceToOuterBoundaryMeters: number;
-  outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY';
+  outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY' | 'NO_STATION';
   closestStationName: string;
   closestStationFootprint?: [number, number][];
   isStationIntersectsParcel?: boolean;
@@ -369,31 +369,27 @@ export const calculateComprehensiveMetroSpatialMetrics = (
     }
   }
 
-  // Quyết định đường bao ngoài phù hợp nhất:
-  // Nếu sát khu vực ga (< 180m), ưu tiên mép công trình nhà ga màu trắng
-  // Nếu ở đoạn hầm thông thường, lấy mép hố đào
-  const isNearStation = minStationDist < 180 && minStationDist < minCorridorDist * 1.5;
+  // Quyết định đường bao ngoài:
+  // LUÔN LUÔN lấy theo đường bao ngoài màu trắng của công trình ga nếu có nhà ga trong phạm vi ảnh hưởng (< 300m)
+  // Tuyệt đối không lấy theo đường mép hố đào nét đứt màu xanh.
+  // Nếu ở đoạn hầm thuần túy (không có ga nào trong bán kính 300m), đánh dấu NO_STATION (Không có ga trong khu vực)
+  const hasStationFootprint = minStationDist < 300 && minStationDist < Infinity;
 
   let distanceToOuterBoundaryMeters: number;
   let closestOuterVertex: [number, number];
   let closestOuterPoint: [number, number];
-  let outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY';
+  let outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY' | 'NO_STATION';
 
-  if (isNearStation && minStationDist < Infinity) {
+  if (hasStationFootprint) {
     distanceToOuterBoundaryMeters = minStationDist;
     closestOuterVertex = bestStationVertex;
     closestOuterPoint = bestStationPoint;
     outerBoundaryType = 'STATION_OUTLINE';
-  } else if (minCorridorDist < Infinity) {
-    distanceToOuterBoundaryMeters = minCorridorDist;
-    closestOuterVertex = bestCorridorVertex;
-    closestOuterPoint = bestCorridorPoint;
-    outerBoundaryType = 'CORRIDOR_BOUNDARY';
   } else {
-    distanceToOuterBoundaryMeters = Math.max(1.0, Math.abs(minCenterlineDist - 10.0));
+    distanceToOuterBoundaryMeters = 0;
     closestOuterVertex = bestCenterVertex;
     closestOuterPoint = bestCenterPoint;
-    outerBoundaryType = 'CORRIDOR_BOUNDARY';
+    outerBoundaryType = 'NO_STATION';
   }
 
   return {
@@ -478,7 +474,10 @@ export const calculateParcelMetroSpatialMetrics = (
       lng: Number(analysis.closestCenterVertex[1].toFixed(6)),
     },
     metroOffsetDistance: `${analysis.distanceToCenterlineMeters.toFixed(1)}m`,
-    clearanceOffsetDistance: `${analysis.distanceToOuterBoundaryMeters.toFixed(1)}m`,
+    clearanceOffsetDistance:
+      analysis.outerBoundaryType === 'STATION_OUTLINE'
+        ? `${analysis.distanceToOuterBoundaryMeters.toFixed(1)}m`
+        : 'Không có ga trong khu vực',
     chainage: '',
     closestStation: analysis.closestStationName || 'Tuyến Metro Số 2',
   };

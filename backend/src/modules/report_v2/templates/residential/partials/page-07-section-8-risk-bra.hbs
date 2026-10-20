@@ -9,20 +9,19 @@
   </div>
 
 
-    <h2 class="chapter-header">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT</h2>
+    <h2 class="chapter-header" data-section="sec-8">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT</h2>
 
     <!-- BẢNG VIII.1: BẢNG ĐIỂM HIỆN TRẠNG ECS -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f172a;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 4px 0 2px 0; color: var(--c-black);">
       Bảng VIII.1: Đánh giá điểm hiện trạng công trình (ECS - Existing Condition Score)
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 4px;">
       <thead>
         <tr>
           <th style="width: 8%; text-align: center;">Mã</th>
-          <th style="width: 36%;">Tiêu chí đánh giá / Criteria</th>
+          <th style="width: 40%;">Tiêu chí đánh giá / Criteria</th>
           <th style="width: 38%;">Căn cứ tính điểm hiện trường / Basis</th>
-          <th style="width: 8%; text-align: center;">Thang</th>
-          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+          <th style="width: 14%; text-align: center;">Điểm / Score<br><span class="text-muted">(Thang 0-4)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -31,7 +30,6 @@
             <td class="font-bold text-center">{{this.code}}</td>
             <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
             <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
-            <td class="text-center text-muted">{{this.scale}}</td>
             <td class="text-center font-bold">{{this.score}}</td>
           </tr>
         {{/each}}
@@ -56,7 +54,7 @@
         </tr>
         <tr>
           <td>
-            <span class="summary-label">Quy đổi đề xuất:</span> 0–5 Good | 6–10 Medium | 11–16 Deficient | 17–24 Critical
+            <span class="summary-label">Quy đổi đề xuất:</span> 0-5 Good | 6-10 Medium | 11-16 Deficient | 17-24 Critical
           </td>
           <td>
             <span class="summary-label">Structural flag:</span>
@@ -88,7 +86,7 @@
           </td>
           <td style="width: 55%;">
             <span class="summary-label">Lý do (Reason):</span>
-            <span style="font-weight: 500; color: #1e293b;">
+            <span style="font-weight: 500;">
               {{#if section8.ecs.engineeringJudgement.reason}}
                 {{section8.ecs.engineeringJudgement.reason}}
               {{else}}
@@ -101,17 +99,16 @@
     </table>
 
     <!-- BẢNG VIII.2: CHỈ SỐ TÍNH DỄ BỊ TỔN THƯƠNG VI -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f3b6c;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 4px 0 2px 0; color: var(--c-black);">
       Bảng VIII.2: Chỉ số tính dễ bị tổn thương (VI - Vulnerability Index)
     </div>
     <table class="tech-table compact-table" style="margin-bottom: 0;">
       <thead>
         <tr>
           <th style="width: 8%; text-align: center;">Mã</th>
-          <th style="width: 36%;">Yếu tố đánh giá / Vulnerability Factor</th>
+          <th style="width: 40%;">Yếu tố đánh giá / Vulnerability Factor</th>
           <th style="width: 38%;">Thông số công trình / Building Parameter</th>
-          <th style="width: 8%; text-align: center;">Thang</th>
-          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+          <th style="width: 14%; text-align: center;">Điểm / Score<br><span class="text-muted">(Thang 1-4)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -120,8 +117,7 @@
             <td class="font-bold text-center">{{this.code}}</td>
             <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
             <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
-            <td class="text-center text-muted">{{this.scale}}</td>
-            <td class="text-center font-bold">{{this.score}}</td>
+            <td class="text-center font-bold">{{this.scoreDisplay}}</td>
           </tr>
         {{/each}}
       </tbody>
@@ -131,10 +127,10 @@
       <tbody>
         <tr>
           <td style="width: 50%;">
-            <span class="summary-label">Tổng điểm VI:</span> <strong>ΣV = {{section8.vi.totalScore}} / 24</strong>
+            <span class="summary-label">Tổng điểm VI:</span> <strong>ΣV = {{section8.vi.totalScoreDisplay}} / 24</strong>
           </td>
           <td style="width: 50%;">
-            <span class="summary-label">Điểm TB:</span> <strong>VIavg = {{section8.vi.averageScore}}</strong>
+            <span class="summary-label">Điểm TB:</span> <strong>VIavg = {{section8.vi.averageScoreDisplay}}</strong>
           </td>
         </tr>
         <tr>
@@ -148,13 +144,13 @@
             </span>
           </td>
           <td>
-            <span class="summary-label">Phân loại đề xuất:</span> Low ≤ 1.5 | Medium > 1.5–2.5 | High > 2.5–3.25 | Very High > 3.25
+            <span class="summary-label">Phân loại đề xuất:</span> Low ≤ 1.5 | Medium > 1.5-2.5 | High > 2.5-3.25 | Very High > 3.25
           </td>
         </tr>
         <tr>
           <td colspan="2">
-            <span class="summary-label">CAT móng:</span> Cat {{section8.vi.foundationCatScore}} / 5
-            <span class="text-muted" style="margin-left: 10px; font-size: 6.8pt;">(Căn cứ tài liệu khảo sát &amp; hoàn công móng)</span>
+            <span class="summary-label">CAT móng:</span> {{section8.vi.foundationCatDisplay}}
+            <span class="text-muted" style="margin-left: 10px; font-size: var(--fs-e1);">(Căn cứ tài liệu khảo sát &amp; hoàn công móng)</span>
           </td>
         </tr>
         <tr>
@@ -168,7 +164,7 @@
           </td>
           <td style="width: 55%;">
             <span class="summary-label">Lý do (Reason):</span>
-            <span style="font-weight: 500; color: #1e293b;">
+            <span style="font-weight: 500;">
               {{#if section8.vi.engineeringJudgement.reason}}
                 {{section8.vi.engineeringJudgement.reason}}
               {{else}}
@@ -179,9 +175,23 @@
         </tr>
       </tbody>
     </table>
+    <div class="page-number-footer">{{tocPageNumbers.section8}}</div>
+  </div>
+
+  <!-- TRANG 2 CỦA CHƯƠNG VIII: MA TRẬN BRA & KẾT LUẬN ĐÁNH GIÁ RỦI RO -->
+  <div class="a4-page-sheet">
+    <div class="report-subpage-topbar">
+      <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+      <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+    </div>
+
+    <h2 class="chapter-header" style="margin-top: 4px;">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH (TIẾP THEO)</h2>
+    <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 6px;">
+      SECTION VIII: BUILDING CONDITION ASSESSMENT (CONT.) - RISK MATRIX &amp; CONCLUSION
+    </div>
 
     <!-- BẢNG VIII.3: MA TRẬN PHÂN CẤP RỦI RO BRA = V x I (CÓ HIGHLIGHT Ô HIỆN TẠI) -->
-    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f3b6c;">
+    <div style="font-size: var(--fs-c1); font-weight: bold; margin: 4px 0 2px 0; color: var(--c-black);">
       Bảng VIII.3: Ma trận phân cấp rủi ro công trình trước thi công (BRA = V × I Matrix)
     </div>
     <table class="tech-table compact-table bra-matrix-table" style="margin-bottom: 4px;">
@@ -202,13 +212,13 @@
               <span class="text-muted">{{this.vLabel.en}}</span>
             </td>
             {{#each this.cells}}
-              <td class="text-center {{#if this.isCurrent}}highlight-cell {{#if (eq this.riskLevel 'Low')}}risk-low{{else if (eq this.riskLevel 'Medium')}}risk-medium{{else if (eq this.riskLevel 'High')}}risk-high{{else}}risk-very-high{{/if}}{{else}}matrix-cell{{/if}}">
+              <td class="text-center {{#if this.isCurrent}}highlight-cell{{else}}matrix-cell{{/if}}">
                 {{#if this.isCurrent}}
-                  <span style="font-weight: bold; font-size: 7.2pt;">☒ {{this.riskLevelVi}}</span><br>
-                  <span style="font-size: 6.2pt; font-weight: bold; opacity: 0.9;">({{this.riskLevelEn}})</span>
+                  <span style="font-weight: bold; font-size: var(--fs-c1);">☒ {{this.riskLevelVi}}</span><br>
+                  <span style="font-size: var(--fs-e1); font-style: italic;">({{this.riskLevelEn}})</span>
                 {{else}}
-                  <span style="font-size: 6.8pt; color: #475569;">{{this.riskLevelVi}}</span><br>
-                  <span class="text-muted" style="font-size: 6pt;">({{this.riskLevelEn}})</span>
+                  <span style="font-size: var(--fs-c1); color: var(--c-sub);">☐ {{this.riskLevelVi}}</span><br>
+                  <span class="text-muted" style="font-size: var(--fs-e1); font-style: italic;">({{this.riskLevelEn}})</span>
                 {{/if}}
               </td>
             {{/each}}
@@ -219,12 +229,12 @@
 
     <!-- KHUNG KẾT LUẬN ĐÁNH GIÁ RỦI RO TRƯỚC THI CÔNG (BRA) -->
     <div class="bra-summary-card">
-      <div style="font-weight: bold; font-size: 8pt; margin-bottom: 3px; text-transform: uppercase; color: #0f3b6c;">
+      <div style="font-weight: bold; font-size: var(--fs-c1); margin-bottom: 3px; text-transform: uppercase; color: var(--c-black);">
         Kết luận đánh giá rủi ro trước thi công (Pre-construction Building Risk Assessment)
       </div>
-      <div style="font-size: 7.5pt; line-height: 1.35; color: #1e293b;">
+      <div style="font-size: var(--fs-b1); line-height: 1.35; color: var(--c-black);">
         - <strong>Cấp độ rủi ro tổng thể (BRA Grade):</strong> 
-          <span class="risk-badge {{#if (eq section8.overallRisk.grade.en 'Low Risk')}}risk-low{{else if (eq section8.overallRisk.grade.en 'Medium Risk')}}risk-medium{{else if (eq section8.overallRisk.grade.en 'High Risk')}}risk-high{{else}}risk-very-high{{/if}}" style="margin: 0 4px;">
+          <span style="font-weight: bold; border: 1pt solid #000000; padding: 1pt 4pt; margin: 0 4px;">
             {{section8.overallRisk.grade.vi}} ({{section8.overallRisk.grade.en}})
           </span> — Xác định tại giao điểm [{{section8.braMatrix.vCode}} × {{section8.braMatrix.iCode}}].<br>
         - <strong>Tác động thi công Metro:</strong> Cấp {{section8.impact.code}} ({{section8.impact.levelText.vi}} / {{section8.impact.levelText.en}}), {{#if section8.impact.distanceLabel.vi}}{{section8.impact.distanceLabel.vi}}{{else}}khoảng cách đến tim tuyến hầm Metro{{/if}} là <strong>{{section8.impact.distanceM}} m</strong>.

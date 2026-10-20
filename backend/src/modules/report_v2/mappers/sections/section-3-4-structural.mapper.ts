@@ -5,6 +5,7 @@
  * ============================================================================
  */
 
+import { classifyStructureSystem, STRUCTURE_LABELS } from '../structure-system.classifier';
 import {
   Section3HistoryOccupancy,
   Section4StructuralFoundation,
@@ -55,7 +56,7 @@ export class Section3And4Mapper {
 
     const section3: Section3HistoryOccupancy = {
       changeOfUse: renovationLoad === 0
-        ? { vi: 'Chưa ghi nhận', en: 'Not recorded' }
+        ? { vi: 'Không ghi nhận', en: 'Not recorded' }
         : renovationLoad === 1
           ? { vi: 'Nhẹ – Đã xử lý ổn định', en: 'Minor – Stabilised' }
           : renovationLoad === 2
@@ -69,7 +70,7 @@ export class Section3And4Mapper {
           : { vi: 'Có cơi nới / mở rộng quy mô lớn', en: 'Substantial extension reported' },
 
       structuralAlteration: majorRepair === 0
-        ? { vi: 'Chưa ghi nhận', en: 'Not recorded' }
+        ? { vi: 'Không ghi nhận', en: 'Not recorded' }
         : majorRepair === 1
           ? { vi: 'Có cải tạo nhẹ kết cấu', en: 'Minor structural alteration' }
           : { vi: 'Có cải tạo lớn ảnh hưởng chịu lực', en: 'Major structural alteration' },
@@ -135,37 +136,36 @@ export class Section3And4Mapper {
             ? { vi: 'Có – Ảnh hưởng đáng kể', en: 'Yes – Substantial damage' }
             : { vi: 'Có – Tranh chấp / Ảnh hưởng nghiêm trọng', en: 'Yes – Severe damage / Disputed' },
 
-      informationSource: (json.isAbsenteeSurvey || rawReport.is_absentee_survey)
+      informationSource: (json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE' || json.foundationCatScore === 4 || String(json.foundationSource || '').includes('suy luận'))
         ? {
-            vi: 'Quan sát hiện trường bên ngoài (Khảo sát vắng chủ)',
-            en: 'Exterior site observation (Absentee survey)',
+            vi: 'Quan sát hiện trường',
+            en: 'Site observation',
           }
-        : {
-            vi: 'Phỏng vấn chủ hộ, Quan sát hiện trường',
-            en: 'Property owner interview, Site observation',
-          },
+        : (json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND')
+          ? {
+              vi: 'Khảo sát thực địa',
+              en: 'Field inspection',
+            }
+          : {
+              vi: 'Phỏng vấn chủ hộ',
+              en: 'Property owner interview',
+            },
     };
 
     // CHƯƠNG IV: ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG
     const isVacantLand = Boolean(json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND');
     const isUnderConstruction = Boolean(json.surveyCaseType === 'UNDER_CONSTRUCTION');
 
-    // 1. Tách biệt Loại hình kết cấu (Vật liệu / Hệ chịu lực)
-    const rawStructSys = json.structureSystem || specs.structural_system || specs.structuralSystem || 'RC - BTCT';
-    let structTypeVi = 'Khung bê tông cốt thép toàn khối (RC) (cột, dầm, sàn BTCT)';
-    let structTypeEn = 'Reinforced Concrete (RC) Frame (columns, beams, slabs)';
+    // 1. Tách biệt Loại hình kết cấu (Vật liệu / Hệ chịu lực) – dùng chung bộ phân loại với chỉ số V2
+    const rawStructSys = json.structureSystem || specs.structural_system || specs.structuralSystem || '';
+    const structClass = classifyStructureSystem(rawStructSys);
+    let structTypeVi = STRUCTURE_LABELS[structClass].vi;
+    let structTypeEn = STRUCTURE_LABELS[structClass].en;
     if (isVacantLand) {
       structTypeVi = 'Khu đất trống – Không có công trình xây dựng';
       structTypeEn = 'Vacant land – No building structure';
-    } else if (rawStructSys.includes('Steel') || rawStructSys.toLowerCase().includes('thép')) {
-      structTypeVi = 'Khung kết cấu thép tiền chế';
-      structTypeEn = 'Pre-engineered Steel Structure';
-    } else if (rawStructSys.includes('Masonry') || rawStructSys.toLowerCase().includes('gạch')) {
-      structTypeVi = 'Tường gạch chịu lực kết hợp sàn BTCT';
-      structTypeEn = 'Load-bearing Brick Masonry with RC Slabs';
-    } else if (rawStructSys.includes('Mixed') || rawStructSys.toLowerCase().includes('hỗn hợp')) {
-      structTypeVi = 'Kết cấu hỗn hợp (BTCT kết hợp gạch/thép)';
-      structTypeEn = 'Composite / Mixed Structural System';
+    } else if (structClass === 'OTHER') {
+      structTypeVi = String(rawStructSys).replace(/^Khác:\s*/i, '').trim() || structTypeVi;
     }
 
     // 2. Tách biệt Hình thức kết cấu (Hình thái kiến trúc không gian đô thị)

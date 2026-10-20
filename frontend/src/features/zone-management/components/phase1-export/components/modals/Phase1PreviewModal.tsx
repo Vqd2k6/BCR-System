@@ -17,6 +17,7 @@ import {
 import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage } from '../../types';
 import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
+import { ReleaseRevisionPanel } from './ReleaseRevisionPanel';
 import { Phase1EditFormTab } from './Phase1EditFormTab';
 import { Phase1JsonTab } from './Phase1JsonTab';
 
@@ -252,6 +253,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               previewReportData={previewReportData}
               reportVersion={reportVersion}
               handleDirectPrint={handleDirectPrint}
+              hasUnsavedChanges={hasUnsavedChanges}
               enableWatermark={enableWatermark}
               handleToggleWatermark={handleToggleWatermark}
             />
@@ -297,6 +299,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               Đóng
             </button>
 
+            <ReleaseRevisionPanel
+              reportId={previewParcel.activePhase1ReportId || previewParcel.id || previewParcel.projectParcelCode}
+              onFeedback={(type, text) => setModalFeedback({ type, text, timestamp: new Date().toLocaleTimeString('vi-VN') })}
+            />
+
             {previewTab === 'edit' && (
               <button
                 type="button"
@@ -314,18 +321,18 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               type="button"
               onClick={handleDirectPrint}
               disabled={isSavingEdits}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-              title="In trực tiếp bản báo cáo ra máy in giấy hoặc PDF trình duyệt"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+              title="Mở tệp PDF chuẩn máy chủ trong tab mới để in hoặc lưu trữ"
             >
               <Printer size={14} />
-              <span>🖨️ In Ngay</span>
+              <span>🖨️ In / Tải PDF</span>
             </button>
 
             <button
               type="button"
               onClick={() => {
                 if (previewParcel) {
-                  const payload = editFormData ? buildReportPayload(editFormData, previewReportData) : undefined;
+                  const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
                   handleExportSinglePdf(previewParcel, payload);
                 }
               }}

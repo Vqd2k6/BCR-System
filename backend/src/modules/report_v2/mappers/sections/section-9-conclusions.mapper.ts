@@ -9,6 +9,7 @@ import {
   Section9ConclusionRecommendation,
   BilingualText,
 } from '../../report-v2.types';
+import type { StandardTextContent } from '../../../report_config/report-config.types';
 
 export class Section9ConclusionMapper {
   public static map(
@@ -17,7 +18,8 @@ export class Section9ConclusionMapper {
     allDefectRows: any[],
     section7: any,
     section8: any,
-    specs: any
+    specs: any,
+    standardText?: StandardTextContent
   ): Section9ConclusionRecommendation {
     // CHƯƠNG IX: KẾT LUẬN & KIẾN NGHỊ (ĐỌC TRỰC TIẾP TỪ DB CỦA THỬA ĐẤT)
     const ownerFeedbackText = rawReport.owner_remarks || json.signatures?.ownerFeedback || json.ownerRemarks || '';
@@ -29,34 +31,8 @@ export class Section9ConclusionMapper {
         vi: `Kết luận của Khảo sát viên hiện trường: ${surveyorConclusionText}`,
         en: `Surveyor field conclusion: ${surveyorConclusionText}`,
       });
-    } else {
-      const crackCount = allDefectRows.filter((d) => d.widthMm !== '–').length;
-      const otherCount = allDefectRows.length - crackCount;
-      const deformInit = json.settlementTilt || rawReport.deformation || {};
-      const hasDeform = (deformInit.buildingTilt?.level ?? 0) > 0 ||
-                        (deformInit.diffSettlement?.level ?? 0) > 0 ||
-                        Boolean(deformInit.diffSettlement?.notes?.trim()) ||
-                        (deformInit.beamSagging?.level ?? 0) > 0;
-
-      const defectSummaryStrVi = allDefectRows.length > 0
-        ? `Ghi nhận tổng cộng ${allDefectRows.length} khuyết tật (${crackCount} vết nứt${otherCount > 0 ? `, ${otherCount} vị trí thấm ẩm/bong rộp` : ''}; chi tiết tại Phụ lục 2).`
-        : 'Không ghi nhận khuyết tật nứt hoặc thấm ẩm rõ rệt.';
-      const defectSummaryStrEn = allDefectRows.length > 0
-        ? `A total of ${allDefectRows.length} defect(s) were recorded (${crackCount} crack(s)${otherCount > 0 ? `, ${otherCount} dampness/spalling spot(s)` : ''}; detailed in Appendix 2).`
-        : 'No noticeable cracks or dampness defects recorded.';
-
-      const deformSummaryStrVi = hasDeform
-        ? 'Ghi nhận biến dạng đo đạc tại hiện trường (chi tiết Mục V).'
-        : 'Không phát hiện lún, nghiêng, võng bất thường bằng trực quan.';
-      const deformSummaryStrEn = hasDeform
-        ? 'Measured deformation was recorded on-site (detailed in Section V).'
-        : 'No abnormal visual settlement, tilt, or deflection was observed.';
-
-      conclusionsList.push({
-        vi: `Sau khi hoàn thành công tác khảo sát hiện trường và đánh giá hiện trạng, công trình đang sử dụng ổn định. ${defectSummaryStrVi} ${deformSummaryStrVi}`,
-        en: `Following on-site survey and condition assessment, the building is in stable use. ${defectSummaryStrEn} ${deformSummaryStrEn}`,
-      });
     }
+    // D6: Không tự sinh kết luận. Nếu KSV/Admin không nhập, mục kết luận để trống (template in '--').
 
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey);
     const ownerName = rawReport.owner_name || json.ownerName || 'Chủ hộ';
@@ -79,32 +55,39 @@ export class Section9ConclusionMapper {
         en: 'The survey was witnessed by the property owner, who agreed with the survey results and signed the field record.',
       };
     } else {
-      witnessNarrative = {
-        vi: `Khảo sát được thực hiện với sự chứng kiến của đại diện chủ hộ (${ownerName}); biên bản hiện trường được lập theo quy trình khảo sát.`,
-        en: 'The survey was conducted in the presence of the property owner; the field record was prepared according to survey procedures.',
-      };
+      // D6: không tự khẳng định có người chứng kiến khi không có dữ liệu
+      witnessNarrative = { vi: '', en: '' };
     }
-
-    const conclusionFullText = (rawReport.summary_conclusions || json.summaryConclusions || '').toLowerCase();
-    const hasWarningConclusion =
-      conclusionFullText.includes('nguy hiểm') ||
-      conclusionFullText.includes('sụt lún') ||
-      conclusionFullText.includes('nứt nặng') ||
-      conclusionFullText.includes('phát triển') ||
-      conclusionFullText.includes('cần gia cố') ||
-      Boolean(section7.localMaxGrade?.vi?.includes('Cấp 3')) ||
-      Boolean(section7.localMaxGrade?.vi?.includes('Cấp 4')) ||
-      Boolean(section7.localMaxGrade?.vi?.includes('Cấp 5'));
-
-    const warningBadge: BilingualText | undefined = hasWarningConclusion
-      ? {
-          vi: 'CẢNH BÁO HIỆN TRƯỜNG: Vết nứt hoặc khuyết tật có dấu hiệu phát triển hoặc cần kỹ sư kết cấu theo dõi sát',
-          en: 'FIELD WARNING: Observed cracks or defects exhibit potential progression risk or require close engineering monitoring',
-        }
-      : undefined;
 
     // Hạn chế khảo sát / Limitations: Liệt kê các trường thông tin bị thiếu từ khảo sát Phase 1
     const limitationsList: BilingualText[] = [];
+
+    // Mái / Sân thượng không tiếp cận: Tôn trọng 100% khai báo của KSV
+    const rawScope = json?.surveyScope || {};
+    const rawLimitation = json?.accessLimitation || {};
+    const isFullAccess = rawLimitation.type === 'FULL_100';
+    let roofRestricted = false;
+
+    if (!isFullAccess && Array.isArray(rawLimitation.restrictedAreas)) {
+      roofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
+        typeof a === 'string' && (a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof'))
+      );
+    }
+    if (roofRestricted) {
+      limitationsList.push({
+        vi: 'Khu vực mái / sân thượng: Chưa tiếp cận khảo sát',
+        en: 'Roof / terrace area: Inaccessible / not surveyed',
+      });
+    }
+
+    // Tầng hầm chưa khảo sát
+    const basementCount = Number(rawReport?.basement_count ?? json?.undergroundFloors ?? 0);
+    if (basementCount > 0 && !rawScope.basement) {
+      limitationsList.push({
+        vi: 'Khu vực tầng hầm: Chưa tiếp cận khảo sát',
+        en: 'Basement area: Inaccessible / not surveyed',
+      });
+    }
 
     // 1. Kiểm tra khu vực/phạm vi không thể tiếp cận (Inaccessible areas)
     const inaccessible = rawReport.inaccessible_areas || json.accessLimitation?.restrictedAreas || json.inaccessibleAreas;
@@ -204,44 +187,29 @@ export class Section9ConclusionMapper {
       });
     }
 
-    const finalLimitations: BilingualText[] = limitationsList.length > 0
-      ? limitationsList
-      : [{ vi: 'Không', en: 'None' }];
+    // D6: không có hạn chế được ghi nhận -> mảng rỗng, template in '--' (không khẳng định 'Không')
+    const finalLimitations: BilingualText[] = limitationsList;
+
+    // Kiến nghị kỹ thuật & nội dung cần bổ sung lấy 100% từ cấu hình chuẩn dự án (Q1)
+    const recommendations: BilingualText[] = standardText?.recommendations || [];
+    const pendingFieldDesignItems: BilingualText[] = standardText?.pendingItems || [];
 
     const section9: Section9ConclusionRecommendation = {
       conclusions: conclusionsList,
       overallRisk: {
-        vi: `Cấp độ rủi ro tổng thể: ${section8.overallRisk.grade.vi} (Ma trận Rủi ro Cơ sở BRA = V × I); xác lập ranh giới hiện trạng cơ sở trước khi thi công ngầm.`,
-        en: `Overall risk grade: ${section8.overallRisk.grade.en} (Baseline BRA Matrix = V × I); establishing pre-construction baseline condition.`,
+        vi: `Cấp độ rủi ro tổng thể: ${section8?.overallRisk?.grade?.vi || '--'} (Ma trận Rủi ro Cơ sở BRA = V × I); xác lập ranh giới hiện trạng cơ sở trước khi thi công ngầm.`,
+        en: `Overall risk grade: ${section8?.overallRisk?.grade?.en || '--'} (Baseline BRA Matrix = V × I); establishing pre-construction baseline condition.`,
       },
       witnessNarrative,
       limitations: finalLimitations,
-      recommendations: [
-        {
-          vi: 'Kiến nghị thiết lập hồ sơ hiện trạng ban đầu làm căn cứ pháp lý; lắp đặt mốc quan trắc biến dạng định kỳ trong suốt quá trình đào hầm TBM; theo dõi các vết nứt đã ghi nhận bằng thước đo nứt.',
-          en: 'It is recommended to establish the baseline record as legal evidence, install periodic deformation monitoring points during TBM tunnelling, and follow up recorded cracks with crack gauges.',
-        },
-        {
-          vi: 'Báo cáo Giai đoạn 1 là hồ sơ khảo sát và sàng lọc ban đầu; hồ sơ pháp lý xác nhận hiện trạng trước thi công được thực hiện theo quy trình Giai đoạn 2 và các yêu cầu được dự án/Tư vấn phê duyệt.',
-          en: 'This Phase 1 report is a preliminary survey and screening record; the legal pre-construction condition record is established under the Phase 2 procedure and the requirements approved by the Project/Engineer.',
-        },
-      ],
+      recommendations,
       phase1Notice: {
         vi: 'Báo cáo Giai đoạn 1 là hồ sơ khảo sát và sàng lọc ban đầu.',
         en: 'This Phase 1 report is a preliminary survey and screening record.',
       },
-      pendingFieldDesignItems: [
-        {
-          vi: 'Dự báo lún Smax, PPV, biến dạng góc và điểm A – lấy từ thiết kế / đánh giá tác động được phê duyệt.',
-          en: 'Predicted Smax, PPV, angular distortion and score A – from the approved design / impact assessment.',
-        },
-        {
-          vi: 'Hồ sơ pháp lý xác nhận hiện trạng trước thi công hoàn thiện theo Giai đoạn 2 trước khi máy TBM đào qua.',
-          en: 'Pre-construction condition legal dossier to be finalized under Phase 2 prior to TBM passage.',
-        },
-      ],
-      hasWarningConclusion,
-      warningBadge,
+      pendingFieldDesignItems,
+      hasWarningConclusion: false,
+      warningBadge: undefined,
     };
 
     return section9;

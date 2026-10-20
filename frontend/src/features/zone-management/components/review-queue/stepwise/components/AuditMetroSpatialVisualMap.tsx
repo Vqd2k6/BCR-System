@@ -197,10 +197,38 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
     });
   }, [distCenterNumber]);
 
-  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc nhỏ gọn hoặc Đỏ Cam khi cán qua)
+  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc nhỏ gọn hoặc Đỏ Cam khi cán qua, hoặc Slate khi không có ga)
   const outerDistanceLabelIcon = useMemo(() => {
+    if (outerBoundaryType === 'NO_STATION') {
+      return L.divIcon({
+        className: 'custom-dist-outer-label',
+        html: `
+          <div style="
+            background-color: rgba(51, 65, 85, 0.95);
+            color: #cbd5e1;
+            border: 1px solid #64748b;
+            border-radius: 9999px;
+            padding: 1px 6px;
+            font-family: sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transform: translate(-50%, -50%);
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+          ">
+            <span style="display:inline-block; width:5px; height:5px; border-radius:9999px; background-color:#94a3b8;"></span>
+            Không có ga
+          </div>
+        `,
+        iconSize: [0, 0],
+      });
+    }
+
     const isZeroOrIntersects = distOuterNumber === 0 || spatialMetrics.isStationIntersectsParcel;
-    const badgeText = isZeroOrIntersects ? '0.0 m (Ga)' : `${distOuterNumber.toFixed(1)} m`;
+    const badgeText = isZeroOrIntersects ? '0.0 m (Ga)' : `${distOuterNumber.toFixed(1)} m (Mép ga)`;
     const bgColor = isZeroOrIntersects ? '#7f1d1d' : 'rgba(12, 74, 110, 0.95)';
     const textColor = isZeroOrIntersects ? '#fecaca' : '#bae6fd';
     const borderColor = isZeroOrIntersects ? '#ef4444' : '#38bdf8';
@@ -231,7 +259,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
       `,
       iconSize: [0, 0],
     });
-  }, [distOuterNumber, spatialMetrics.isStationIntersectsParcel]);
+  }, [distOuterNumber, spatialMetrics.isStationIntersectsParcel, outerBoundaryType]);
 
   // Custom DivIcon cho điểm đo GPS
   const gpsMarkerIcon = useMemo(() => {
@@ -450,7 +478,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           <Marker position={centerMidpoint} icon={centerDistanceLabelIcon} />
 
           {/* 6. ĐƯỜNG DÓNG 2: CỰ LY TỚI ĐƯỜNG BAO NGOÀI / CÔNG TRÌNH GA TRẮNG (Nét đứt màu xanh ngọc) */}
-          {distOuterNumber > 0 && (
+          {outerBoundaryType === 'STATION_OUTLINE' && distOuterNumber > 0 && (
             <Polyline
               positions={[closestOuterVertex, closestOuterPoint]}
               pathOptions={{
@@ -461,11 +489,13 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
               }}
             />
           )}
-          {/* Nhãn khoảng cách đường bao ngoài */}
-          <Marker
-            position={distOuterNumber > 0 ? outerMidpoint : [closestCenterVertex[0] + 0.00008, closestCenterVertex[1]]}
-            icon={outerDistanceLabelIcon}
-          />
+          {/* Nhãn khoảng cách đường bao ngoài ga (chỉ hiển thị khi có công trình ga) */}
+          {outerBoundaryType === 'STATION_OUTLINE' && (
+            <Marker
+              position={distOuterNumber > 0 ? outerMidpoint : [closestCenterVertex[0] + 0.00008, closestCenterVertex[1]]}
+              icon={outerDistanceLabelIcon}
+            />
+          )}
 
           {/* 7. ĐIỂM ĐO GPS THỰC ĐỊA */}
           {gpsLocation?.lat && gpsLocation?.lng && (
@@ -526,9 +556,9 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           </span>
           <span
             className="px-2 py-0.5 rounded bg-sky-50 text-sky-900 font-black text-xs border border-sky-300"
-            title={`Khoảng cách tới đường bao ngoài (${outerBoundaryType === 'STATION_OUTLINE' ? (distOuterNumber === 0 ? 'Ga cán qua thửa đất' : 'Mép công trình ga trắng') : 'Mép hố đào'})`}
+            title={`Khoảng cách tới đường bao ngoài (${outerBoundaryType === 'STATION_OUTLINE' ? (distOuterNumber === 0 ? 'Ga cán qua thửa đất' : 'Mép công trình ga trắng') : 'Đoạn hầm không có ga'})`}
           >
-            Bao ngoài: {distOuterNumber === 0 ? '0.0m (Ga cán qua)' : `${distOuterNumber.toFixed(1)}m`}
+            Bao ngoài: {outerBoundaryType === 'NO_STATION' ? 'Không có ga trong khu vực' : (distOuterNumber === 0 ? '0.0m (Ga cán qua)' : `${distOuterNumber.toFixed(1)}m (Mép ga trắng)`)}
           </span>
         </div>
       </div>

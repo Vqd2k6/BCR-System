@@ -19,6 +19,16 @@ export interface PdfRenderOptions {
   footerTitle?: string;
 }
 
+/** Escape ký tự HTML để an toàn khi chèn vào header/footer template của Chromium */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export class PdfRenderV2Engine {
   private static browserInstance: Browser | null = null;
   private static isLaunching = false;
@@ -105,31 +115,31 @@ export class PdfRenderV2Engine {
       // Chờ script dựng khung ảnh (photo-stage), xoay Z/E/D, đánh số trang xong trước khi in
       try {
         await page.waitForFunction('window.__reportReady === true', { timeout: 60000 });
-      } catch {
-        // Không chặn xuất PDF nếu script báo cáo không phản hồi kịp
+      } catch (err) {
+        // Không chặn xuất PDF nhưng phải ghi log để biết layout có thể chưa hoàn tất
+        console.error('[PdfRenderV2Engine] __reportReady không phản hồi kịp, PDF có thể chưa hoàn chỉnh layout:', err);
       }
 
-      const headerTitle = options?.headerTitle || 'LIÊN DANH CRLG–CRSRI–TT | METRO 2 (BẾN THÀNH - THAM LƯƠNG)';
-      const buildingId = options?.buildingId || '';
-      const reportNo = options?.reportNo || '';
+      const headerTitle = escapeHtml(options?.headerTitle || 'LIÊN DANH CRLG–CRSRI–TT | METRO 2 (BẾN THÀNH - THAM LƯƠNG)');
+      const buildingId = escapeHtml(options?.buildingId || '');
+      const reportNo = escapeHtml(options?.reportNo || '');
 
       const headerTemplate = `
-        <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 12mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #94a3b8; color: #475569; padding-bottom: 1.5mm;">
+        <div style="font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; font-size: 10pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #000000; color: #000000; padding-bottom: 1.5mm;">
           <span style="font-weight: bold; text-transform: uppercase;">${headerTitle}</span>
-          <span style="font-weight: bold; color: #0f3b6c;">${buildingId} ${reportNo ? ' | ' + reportNo : ''}</span>
+          <span style="font-weight: bold; color: #000000;">${buildingId} ${reportNo ? ' | ' + reportNo : ''}</span>
         </div>
       `;
 
       const footerTemplate = `
-        <div style="font-family: Arial, sans-serif; font-size: 7.5pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #cbd5e1; color: #64748b; padding-top: 1.5mm;">
+        <div style="font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; font-size: 10pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #000000; color: #000000; padding-top: 1.5mm;">
           <span>${reportNo || buildingId}</span>
-          <span style="font-weight: 600; color: #334155;">Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
-          <span style="font-weight: 700; letter-spacing: 0.5px; color: #b91c1c;">TÀI LIỆU KIỂM SOÁT</span>
+          <span style="font-weight: 600; color: #000000;">Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
         </div>
       `;
 
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
+      const pdfOptions = {
+        format: 'A4' as const,
         printBackground: true,
         displayHeaderFooter: true,
         headerTemplate,
@@ -140,7 +150,19 @@ export class PdfRenderV2Engine {
           left: '15mm',
           right: '15mm',
         },
-      });
+      };
+
+      // Pass 1: in thử để đo số trang THẬT (một .a4-page-sheet có thể tràn nhiều trang in)
+      let pdfBuffer = await page.pdf(pdfOptions);
+      try {
+        const applied = await this.applyRealPageNumbers(page, Buffer.from(pdfBuffer));
+        if (applied) {
+          // Pass 2: in lại với Mục lục và tổng số trang chính xác
+          pdfBuffer = await page.pdf(pdfOptions);
+        }
+      } catch (err) {
+        console.error('[PdfRenderV2Engine] Không dò được số trang thực, giữ Mục lục ước lượng:', err);
+      }
 
       return Buffer.from(pdfBuffer);
     } finally {
@@ -148,10 +170,93 @@ export class PdfRenderV2Engine {
         if (fs.existsSync(tempHtmlPath)) {
           fs.unlinkSync(tempHtmlPath);
         }
-      } catch {
-        // ignore unlink error
+      } catch (err) {
+        console.error('[PdfRenderV2Engine] Không xóa được file HTML tạm:', tempHtmlPath, err);
       }
       await page.close();
     }
+  }
+
+  /** Trích văn bản từng trang PDF bằng pdfjs-dist (bản legacy cho Node). */
+  private static async extractPageTexts(pdf: Buffer): Promise<string[]> {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+    const doc = await pdfjs.getDocument({
+      data: new Uint8Array(pdf),
+      useSystemFonts: true,
+      disableFontFace: true,
+      verbosity: 0,
+    }).promise;
+    const texts: string[] = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const pg = await doc.getPage(i);
+      const content = await pg.getTextContent();
+      texts.push(
+        content.items
+          .map((it: any) => it.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .normalize('NFC')
+      );
+    }
+    await doc.destroy();
+    return texts;
+  }
+
+  /** Ghi số trang thật vào Mục lục và tổng số trang; trả về true nếu đã cập nhật. */
+  private static async applyRealPageNumbers(page: any, pdf: Buffer): Promise<boolean> {
+    const headings: { key: string; text: string }[] = await page.evaluate(
+      'window.__sectionHeadings || []'
+    );
+    if (!headings.length) return false;
+
+    const pages = await this.extractPageTexts(pdf);
+    // pdfjs tách ký tự tiếng Việt thành nhiều mảnh có khoảng trắng ("TH Ô NG"): so khớp theo chuỗi đã bỏ khoảng trắng + dấu
+    const norm = (s: string) =>
+      s
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/gi, 'd')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase();
+    const pageTexts = pages.map(norm);
+
+    // Bỏ qua các trang chứa Mục lục (chính nó cũng liệt kê tiêu đề các chương)
+    let tocLast = -1;
+    pageTexts.forEach((t, i) => {
+      if (t.includes('tableofcontents')) tocLast = i;
+    });
+
+    const map: Record<string, number> = {};
+    let cursor = tocLast + 1;
+    for (const h of headings) {
+      const needle = norm(h.text).slice(0, 28);
+      let found = -1;
+      for (let i = cursor; i < pageTexts.length; i++) {
+        if (pageTexts[i].includes(needle)) {
+          found = i;
+          break;
+        }
+      }
+      if (found >= 0) {
+        map[h.key] = found + 1;
+        cursor = found;
+      }
+    }
+
+    const total = pages.length;
+    await page.evaluate(
+      (m: Record<string, number>, t: number) => {
+        document.querySelectorAll('[data-toc-target]').forEach((el) => {
+          const k = el.getAttribute('data-toc-target');
+          if (k && m[k]) el.textContent = String(m[k]);
+        });
+        const totalEl = document.getElementById('report-total-pages');
+        if (totalEl) totalEl.textContent = String(t);
+      },
+      map,
+      total
+    );
+    return Object.keys(map).length > 0;
   }
 }

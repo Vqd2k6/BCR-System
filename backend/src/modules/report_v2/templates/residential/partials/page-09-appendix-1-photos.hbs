@@ -1,5 +1,5 @@
   <!-- =====================================================================
-       PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH (P-01 ĐẾN P-07)
+       MỤC X: BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH (P-01 ĐẾN P-07)
        ===================================================================== -->
   {{#if appendix1Pages.length}}
     {{#each appendix1Pages}}
@@ -9,15 +9,15 @@
           <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
         </div>
 
-        <h2 class="chapter-header">PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH {{#if (gt this.totalPages 1)}}(Trang {{this.pageIndex}}/{{this.totalPages}}){{/if}}</h2>
-        <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
-          APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS & IDENTIFICATION PHOTOS
+        <h2 class="chapter-header" data-section="sec-x">X. BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH CÔNG TRÌNH {{#if (gt this.totalPages 1)}}(Trang {{this.pageIndex}}/{{this.totalPages}}){{/if}}</h2>
+        <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 8px;">
+          SECTION X: EXTERIOR ELEVATION DRAWINGS & IDENTIFICATION PHOTOS
         </div>
 
         {{#if (eq this.pageIndex 1)}}
           {{#if (eq ../scenarioFlags.exteriorPhotoLayout 'party_wall_3')}}
             <div class="party-wall-notice">
-              <strong>📌 Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
+              <strong>Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
               <em><strong>Exterior access characteristics:</strong> Attached shophouse / rowhouse flanked by adjacent party walls on both sides and rear. Side and rear facades are inaccessible.</em>
             </div>
           {{/if}}
@@ -47,7 +47,7 @@
               <div class="photo-caption">
                 <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
                 <span class="text-muted">{{this.name.en}}</span><br>
-                <span style="font-size: 7.5pt; color: #475569;">Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
+                <span style="font-size: var(--fs-e1); color: var(--c-sub);">Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
               </div>
             </div>
           {{/each}}
@@ -61,14 +61,14 @@
         <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
       </div>
 
-      <h2 class="chapter-header">PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI CÔNG TRÌNH</h2>
-      <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
-        APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS
+      <h2 class="chapter-header" data-section="sec-x">X. BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH CÔNG TRÌNH</h2>
+      <div style="font-size: var(--fs-c1); font-weight: bold; color: var(--c-sub); margin-bottom: 8px;">
+        SECTION X: EXTERIOR ELEVATION DRAWINGS & IDENTIFICATION PHOTOS
       </div>
 
       {{#if (eq scenarioFlags.exteriorPhotoLayout 'party_wall_3')}}
         <div class="party-wall-notice">
-          <strong>📌 Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
+          <strong>Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
           <em><strong>Exterior access characteristics:</strong> Attached shophouse / rowhouse flanked by adjacent party walls on both sides and rear. Side and rear facades are inaccessible.</em>
         </div>
       {{/if}}
@@ -97,7 +97,7 @@
             <div class="photo-caption">
               <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
               <span class="text-muted">{{this.name.en}}</span><br>
-              <span style="font-size: 7pt; color: #64748b;">Ngày chụp: {{this.capturedAt}}</span>
+              <span style="font-size: var(--fs-e1); color: var(--c-sub);">Ngày chụp: {{this.capturedAt}}</span>
             </div>
           </div>
         {{/each}}

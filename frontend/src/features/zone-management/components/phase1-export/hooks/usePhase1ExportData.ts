@@ -6,7 +6,7 @@ import {
   getZoneByCode,
   type MetroZoneConfig,
 } from '../../../../survey-phase1/constants/metroGisConstants';
-import type { ExportParcelItem, BatchResultData, ActionFeedbackMessage } from '../types';
+import type { ExportParcelItem, ActionFeedbackMessage } from '../types';
 
 export interface UsePhase1ExportDataProps {
   initialZoneId?: string;
@@ -50,10 +50,6 @@ export const usePhase1ExportData = ({
   const [parcels, setParcels] = useState<ExportParcelItem[]>([]);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [actionMessage, setActionMessage] = useState<ActionFeedbackMessage | null>(null);
-
-  // Batch Export Execution State
-  const [isBatchExporting, setIsBatchExporting] = useState<boolean>(false);
-  const [batchResult, setBatchResult] = useState<BatchResultData | null>(null);
 
   // Load real list of parcels & report statuses from backend API
   const fetchExportableParcels = useCallback(async () => {
@@ -139,52 +135,6 @@ export const usePhase1ExportData = ({
     );
   };
 
-  const handleCreateBatchExport = async () => {
-    setIsBatchExporting(true);
-    setActionMessage({ type: 'info', text: 'Đang gửi lệnh đóng gói hồ sơ Phase 1 lên máy chủ...' });
-
-    try {
-      const payload = {
-        zoneId: selectedZone,
-        exportScope: selectedParcelIds.length > 0 ? 'SELECTED_LIST' : 'FILTER_CRITERIA',
-        selectedReportIds: selectedParcelIds,
-        exportFormat: 'PDF_BOOK_COMPILATION',
-        includeGisOverviewMap: true,
-        includeEcsSummaryTable: true,
-        filterCriteria: {
-          status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        },
-      };
-
-      const res = await api.post('/reports/batch-export', payload);
-      if (res.data?.success && res.data?.data) {
-        const d = res.data.data;
-        setBatchResult({
-          batchCode: d.batchCode || d.batch_code || `BATCH-${selectedZone}-${Date.now()}`,
-          downloadUrl: d.downloadUrl || d.download_url || '#',
-          checksumSha256: d.checksumSha256 || d.checksum_sha256 || '',
-          totalReportsCompiled: d.totalReportsCompiled || d.total_reports_compiled || (selectedParcelIds.length || filteredParcels.length),
-          expiresAt: d.expiresAt ? new Date(d.expiresAt).toLocaleDateString('vi-VN') : new Date(Date.now() + 7 * 86400000).toLocaleDateString('vi-VN'),
-        });
-        setActionMessage({
-          type: 'success',
-          text: `Đóng gói mẻ xuất thành công! Tổng cộng ${d.totalReportsCompiled || d.total_reports_compiled || selectedParcelIds.length} hồ sơ đã được tích hợp.`,
-        });
-      } else {
-        throw new Error(res.data?.message || 'Máy chủ không phản hồi kết quả mẻ xuất.');
-      }
-    } catch (err: unknown) {
-      console.error('[BatchExport] Error executing batch export:', err);
-      setBatchResult(null);
-      setActionMessage({
-        type: 'error',
-        text: getErrorMessage(err, 'Không thể tạo mẻ xuất hồ sơ. Vui lòng kiểm tra quyền Zone Admin hoặc thử lại.'),
-      });
-    } finally {
-      setIsBatchExporting(false);
-    }
-  };
-
   return {
     selectedZone,
     setSelectedZone,
@@ -198,12 +148,8 @@ export const usePhase1ExportData = ({
     selectedParcelIds,
     actionMessage,
     setActionMessage,
-    isBatchExporting,
-    batchResult,
-    setBatchResult,
     fetchExportableParcels,
     toggleSelectAll,
     toggleSelectParcel,
-    handleCreateBatchExport,
   };
 };

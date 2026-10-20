@@ -349,6 +349,46 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     }
   };
 
+  // Discard a single diff item (revert field to original KSV state)
+  const discardDiffItem = (fieldKey: string) => {
+    if (fieldKey.includes('.')) {
+      const parts = fieldKey.split('.');
+      const parentKey = parts[0];
+      const childPath = parts.slice(1);
+      const origParent = (originalState[parentKey] as Record<string, unknown>) || {};
+      const origVal = getDeepVal(origParent, childPath);
+
+      setFormState((prev) => {
+        const parentObj = (prev[parentKey] as Record<string, unknown>) || {};
+        const copy = JSON.parse(JSON.stringify(parentObj));
+        let cur = copy;
+        for (let i = 0; i < childPath.length - 1; i++) {
+          if (!cur[childPath[i]] || typeof cur[childPath[i]] !== 'object') {
+            cur[childPath[i]] = {};
+          }
+          cur = cur[childPath[i]];
+        }
+        if (origVal === undefined) {
+          delete cur[childPath[childPath.length - 1]];
+        } else {
+          cur[childPath[childPath.length - 1]] = origVal;
+        }
+        return { ...prev, [parentKey]: copy };
+      });
+    } else {
+      setFormState((prev) => ({
+        ...prev,
+        [fieldKey]: originalState[fieldKey],
+      }));
+    }
+
+    setDirtyFields((prev) => {
+      const copy = { ...prev };
+      delete copy[fieldKey];
+      return copy;
+    });
+  };
+
   const getDiffPayload = () => {
     const diffItems: DiffItem[] = Object.entries(dirtyFields).map(([k, v]) => ({
       field: k,
@@ -447,6 +487,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     handleFieldChange,
     handleNestedFieldChange,
     handleDiscard,
+    discardDiffItem,
     handleReviewSave,
     getDiffPayload,
   };

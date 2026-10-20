@@ -18,16 +18,22 @@ export class ReportV2Controller {
     try {
       const identifier = req.params.id;
       const overrides = req.body?.overrides || (req.method === 'POST' ? req.body : undefined);
-      const enableWatermark = req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false;
+      const enableWatermark =
+        req.query.watermark !== 'false' &&
+        req.query.watermark !== '0' &&
+        req.body?.enableWatermark !== false &&
+        req.body?.watermark !== false;
 
       const { pdfBuffer, reportNo, buildingId } = await ReportV2Service.generateResidentialPdf(identifier, overrides, enableWatermark);
 
-      const safeFilename = `${reportNo.replace(/[/\\?%*:|"<>]/g, '_')}.pdf`;
+      const suffix = enableWatermark ? '' : '_NO_WM';
+      const safeFilename = `${reportNo.replace(/[/\\?%*:|"<>]/g, '_')}${suffix}.pdf`;
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeFilename)}"`);
       res.setHeader('X-Report-No', reportNo);
       res.setHeader('X-Building-ID', encodeURIComponent(buildingId));
+      res.setHeader('X-Watermark-Enabled', String(enableWatermark));
 
       res.status(200).send(pdfBuffer);
     } catch (err) {
@@ -45,7 +51,12 @@ export class ReportV2Controller {
       const identifier = req.params.id;
       const overrides = req.body?.overrides || (req.method === 'POST' ? req.body : undefined);
       const isGuest = req.user?.role === 'GUEST' || req.query.isGuest === 'true' || req.query.maskPii === 'true';
-      const enableWatermark = isGuest || (req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false);
+      const enableWatermark =
+        isGuest ||
+        (req.query.watermark !== 'false' &&
+          req.query.watermark !== '0' &&
+          req.body?.enableWatermark !== false &&
+          req.body?.watermark !== false);
 
       const { html, viewModel } = await ReportV2Service.generateResidentialHtml(identifier, overrides, isGuest, enableWatermark);
 
@@ -53,6 +64,7 @@ export class ReportV2Controller {
       res.setHeader('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob: https:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline' https:;");
       res.setHeader('X-Report-No', viewModel.metadata.reportNo);
       res.setHeader('X-Building-ID', encodeURIComponent(viewModel.metadata.buildingId));
+      res.setHeader('X-Watermark-Enabled', String(enableWatermark));
 
       res.status(200).send(html);
     } catch (err) {

@@ -11,6 +11,7 @@ export interface ReportPhotoItem {
   label?: string;
   notes?: string;
   tag?: string;
+  rotation?: number;
 }
 
 export interface DefectItemReport {
@@ -40,6 +41,8 @@ export interface DefectItemReport {
   cuPhotoCodes?: string[];
   extraPhotoUrl?: string;
   notes?: string;
+  cuPhotoRotation?: number;
+  ctxPhotoRotation?: number;
 }
 
 export interface StructuralElementReport {
@@ -52,6 +55,7 @@ export interface StructuralElementReport {
   notes?: string;
   ctxPhotoUrl?: string;
   ctxPhotoCode?: string;
+  ctxPhotoRotation?: number;
   overviewPhotos?: string[];
 }
 
@@ -67,6 +71,7 @@ export interface DamageZoneReport {
   notes?: string;
   ctxPhotoUrl?: string;
   ctxPhotoCode?: string;
+  ctxPhotoRotation?: number;
   overviewPhotos?: string[];
   hasDamage: boolean;
   slabCondition?: string;
@@ -86,6 +91,8 @@ export interface FloorSurveyReport {
   damageMapUrl?: string;
   cadSketchPhotoUrl?: string;
   cadStructuralSketchPhotoUrl?: string;
+  cadSketchRotation?: number;
+  damageMapRotation?: number;
   isDualPortrait?: boolean;
   overviewPhotos?: Array<{ id?: string; url: string; caption?: string }>;
   zones: DamageZoneReport[];

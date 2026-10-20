@@ -12,6 +12,7 @@ import {
   FloorPlanDefectReport,
   Appendix1PhotoPage,
   Appendix3SignedRecord,
+  Section12AsBuiltReport,
 } from '../../report-v2.types';
 
 import { ScenarioResolver } from '../scenario-resolver';
@@ -50,25 +51,47 @@ export class ScenarioFlagsAndTocMapper {
     metadata: ReportV2Metadata,
     appendix1Pages: Appendix1PhotoPage[],
     appendix2: FloorPlanDefectReport[],
-    appendix3: Appendix3SignedRecord
+    appendix3: Appendix3SignedRecord,
+    section12AsBuilt?: Section12AsBuiltReport
   ): TocPageNumbers {
     const appendix1PageCount = appendix1Pages?.length || 1;
-    const pageAppendix1 = 9;
-    const pageAppendix2 = pageAppendix1 + appendix1PageCount;
+    const pageSectionX = 9;
+    const sectionXIPageCount = 1 + (appendix3.signedRecordPages?.length || 0);
+    const pageSectionXI = pageSectionX + appendix1PageCount;
 
-    let appendix2PageCount = 0;
+    // SECTION XII: Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (nếu có)
+    const section12PageCount = section12AsBuilt?.hasDrawings ? (section12AsBuilt.sheets?.length || 0) : 0;
+    const pageSectionXII = section12PageCount > 0 ? (pageSectionXI + sectionXIPageCount) : undefined;
+
+    let pl1PageCount = 0;
     for (const fl of appendix2) {
-      appendix2PageCount += 1; // 1 trang sơ đồ CAD + tổng hợp / xác nhận an toàn
-      appendix2PageCount += fl.overviewPages ? fl.overviewPages.length : 0; // Các trang ảnh tổng thể không gian các phòng (Z)
-      appendix2PageCount += fl.elementOverviewPages ? fl.elementOverviewPages.length : 0; // Các trang ảnh cấu kiện kết cấu (E)
-      appendix2PageCount += fl.defectPairPages ? fl.defectPairPages.length : 0; // Các trang cặp ảnh khuyết tật
+      if (fl.hasDefects) {
+        pl1PageCount += 1; // Sơ đồ CAD tầng có nứt + bảng tổng hợp
+        pl1PageCount += fl.hasSeparateDefectTableSheets && fl.defectSummaryPages ? fl.defectSummaryPages.length : 0;
+        pl1PageCount += fl.defectPairPages ? fl.defectPairPages.length : 0;
+      }
+    }
+    if (pl1PageCount === 0) {
+      pl1PageCount = 1; // Trang thông báo kết cấu nguyên vẹn của Phụ lục 1
     }
 
-    const pageAppendix3 = pageAppendix2 + appendix2PageCount;
-    const appendix3PageCount = 1 + (appendix3.signedRecordPages?.length || 0);
+    const pagePl1 = pageSectionXI + sectionXIPageCount + section12PageCount;
 
-    const pageAppendix4 = pageAppendix3 + appendix3PageCount;
-    const totalExpectedPages = pageAppendix4; // Phụ lục 4 là 1 trang cuối cùng
+    let pl2PageCount = 0;
+    for (const fl of appendix2) {
+      if (!fl.hasDefects) {
+        pl2PageCount += 1; // Sơ đồ CAD cho tầng không nứt
+      }
+      pl2PageCount += fl.overviewPages ? fl.overviewPages.length : 0;
+      pl2PageCount += fl.elementOverviewPages ? fl.elementOverviewPages.length : 0;
+    }
+    if (pl2PageCount === 0) {
+      pl2PageCount = 1;
+    }
+
+    const pagePl2 = pagePl1 + pl1PageCount;
+    const pagePl3 = pagePl2 + pl2PageCount;
+    const totalExpectedPages = pagePl3;
 
     const tocPageNumbers: TocPageNumbers = {
       section1: 3,
@@ -80,10 +103,19 @@ export class ScenarioFlagsAndTocMapper {
       section7: 6,
       section8: 7,
       section9: 8,
-      appendix1: pageAppendix1,
-      appendix2: pageAppendix2,
-      appendix3: pageAppendix3,
-      appendix4: pageAppendix4,
+      sectionX: pageSectionX,
+      sectionXI: pageSectionXI,
+      sectionXII: pageSectionXII,
+      appendix1: pageSectionX,
+      appendix2: pagePl1,
+      appendix3: pagePl3,
+      appendix4: pagePl3,
+      appendix1New: pagePl1,
+      appendix2New: pagePl2,
+      appendix3New: pagePl3,
+      pagePl1,
+      pagePl2,
+      pagePl3,
     };
 
     metadata.totalExpectedPages = totalExpectedPages;

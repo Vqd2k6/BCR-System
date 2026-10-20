@@ -6,8 +6,9 @@ import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType } from '../../survey/survey.dto';
 
 export interface PhotoActionItem {
-  action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE';
+  action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';
   category: string; // 'IDENTIFICATION' | 'OVERVIEW' | 'AS_BUILT' | 'SETTLEMENT_TILT' | 'CAD_FLOOR' | 'ZONE_CTX' | 'DEFECT_CU' | 'SCOPE_GIS' | 'MINUTES' | 'ABSENCE_NOTICE' | 'SIGNATURE'
+  rotation?: number; // 0 | 90 | 180 | 270
   targetPhotoType?: string;
   targetPhotoId?: string;
   photoIndex?: number;
@@ -205,6 +206,10 @@ export class AuditModificationService {
     const mergedJson = {
       ...existingJson,
       ...payload.updates,
+      photoRotations: {
+        ...(existingJson.photoRotations || {}),
+        ...(payload.updates?.photoRotations || {}),
+      },
       _lastAdminEdit: {
         adminId,
         adminName: userRes.rows[0].full_name,
@@ -1314,6 +1319,50 @@ export class AuditModificationService {
     const photoCode = pa.photoCode || `HCM_M2.${reportId.slice(0, 8)}_${type}`;
     const stdName = pa.standardizedFilename || `M2__${Date.now()}.jpg`;
     const hash = pa.sha256Hash || computeSha256(pa.newPhotoUrl || pa.oldPhotoUrl || Date.now().toString());
+
+    if (action === 'ROTATE') {
+      const rawAngle = Number(pa.rotation ?? pa.metadata?.rotation ?? 0);
+      const normalizedAngle = ((rawAngle % 360) + 360) % 360;
+
+      // 1. Cập nhật survey_data_json.photoRotations
+      if (!surveyJson.photoRotations || typeof surveyJson.photoRotations !== 'object') {
+        surveyJson.photoRotations = {};
+      }
+      if (pa.photoCode) {
+        surveyJson.photoRotations[pa.photoCode] = normalizedAngle;
+      }
+      if (pa.targetPhotoId) {
+        surveyJson.photoRotations[pa.targetPhotoId] = normalizedAngle;
+      }
+      if (pa.targetPhotoType) {
+        surveyJson.photoRotations[pa.targetPhotoType] = normalizedAngle;
+      }
+
+      // 2. Ghi trực tiếp thuộc tính rotation vào đối tượng ảnh trong survey_data_json nếu khớp
+      if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
+        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
+        if (surveyJson[camelKey] && typeof surveyJson[camelKey] === 'object') {
+          surveyJson[camelKey].rotation = normalizedAngle;
+        }
+        if (surveyJson.identificationPhotos?.[camelKey] && typeof surveyJson.identificationPhotos[camelKey] === 'object') {
+          surveyJson.identificationPhotos[camelKey].rotation = normalizedAngle;
+        }
+      }
+
+      // 3. Cập nhật metadata trong survey_photo_registry nếu tồn tại
+      try {
+        await client.query(
+          `UPDATE survey_photo_registry 
+           SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{rotation}', $1::jsonb)
+           WHERE report_id = $2 AND (photo_code = $3 OR photo_type = $4 OR photo_url = $5);`,
+          [JSON.stringify(normalizedAngle), reportId, pa.photoCode || null, type, pa.oldPhotoUrl || pa.newPhotoUrl || null]
+        );
+      } catch (regErr) {
+        // Fallback an toàn nếu bảng hoặc bản ghi chưa tồn tại
+      }
+
+      return;
+    }
 
     if (action === 'REPLACE' || action === 'RESTORE') {
       const newUrl = pa.newPhotoUrl || '';

@@ -43,7 +43,7 @@
     <table class="data-table">
       <tr>
         <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Biển số căn hộ (Thực tế)</td>
-        <td style="width: 25%; font-weight: bold; color: #0d9488; font-size: 14px;">{{displayCode}}</td>
+        <td style="width: 25%; font-weight: bold; color: #000000; font-size: 14px;">{{displayCode}}</td>
         <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Vị trí quy hoạch CAD / Tầng</td>
         <td style="width: 25%;">{{unitCode}} ({{floorDisplay}})</td>
       </tr>
@@ -88,14 +88,14 @@
           <div>• <strong>Ảnh hưởng từ công trình lân cận:</strong> {{historyInterviewSummary.neighborDamageText}}</div>
           <div>• <strong>Sự cố hỏa hoạn / ngập lụt:</strong> {{historyInterviewSummary.fireFloodText}}</div>
           {{#if historyInterviewSummary.continuousOperation247}}
-            <div style="color: #b91c1c; font-weight: bold;">• Căn hộ hoạt động / vận hành liên tục 24/7</div>
+            <div style="color: #000000; font-weight: bold;">• Căn hộ hoạt động / vận hành liên tục 24/7</div>
           {{/if}}
         </td>
       </tr>
       {{#if hasSensitiveEquipment}}
       <tr>
-        <td style="font-weight: bold; background-color: #f8fafc; color: #b91c1c;">Thiết bị nhạy cảm rung chấn</td>
-        <td colspan="3" style="color: #b91c1c; font-weight: bold;">
+        <td style="font-weight: bold; background-color: #f8fafc; color: #000000;">Thiết bị nhạy cảm rung chấn</td>
+        <td colspan="3" style="color: #000000; font-weight: bold;">
           {{sensitiveEquipmentDesc}}
         </td>
       </tr>
@@ -179,7 +179,7 @@
             {{#if hasBeamSagging}}
               Vị trí: <strong>{{beamSagLocation}}</strong> • Độ võng: <strong>{{beamSagMm}} mm</strong> / Nhịp <strong>{{beamSpanM}} m</strong> (Tỉ số f/L = <strong>{{beamSagRatioText}}</strong>).
               {{#if isBeamSagCritical}}
-                <br><span style="color: #b91c1c; font-weight: bold;">⚠️ Tỉ số f/L > 1/500: Cần quan trắc kết cấu thường xuyên.</span>
+                <br><span style="color: #000000; font-weight: bold;">⚠️ Tỉ số f/L > 1/500: Cần quan trắc kết cấu thường xuyên.</span>
               {{/if}}
             {{else}}
               Kết cấu dầm bê tông cốt thép và sàn phẳng, không quan sát thấy độ võng mắt thường.
@@ -191,7 +191,7 @@
 
     {{#if hasUpperFloorWaterLeakage}}
       <!-- Bảng kê các điểm thấm dột trần -->
-      <div style="font-size: 10pt; font-weight: bold; margin: 6px 0 4px 0; color: #0284c7;">
+      <div style="font-size: 10pt; font-weight: bold; margin: 6px 0 4px 0; color: #000000;">
         DANH MỤC VỊ TRÍ THẤM DỘT TRẦN LẦU TRÊN DỘI XUỐNG:
       </div>
       <table class="data-table">
@@ -206,7 +206,7 @@
         <tbody>
           {{#each waterLeakageItems}}
           <tr>
-            <td class="center font-mono" style="font-weight: bold; color: #0284c7;">{{this.leakageCode}}</td>
+            <td class="center font-mono" style="font-weight: bold; color: #000000;">{{this.leakageCode}}</td>
             <td><strong>{{this.location}}</strong></td>
             <td>{{this.description}}</td>
             <td class="center">
@@ -260,11 +260,11 @@
         {{#if (isNotEmpty localDefects)}}
           {{#each localDefects}}
           <tr>
-            <td class="center font-mono" style="font-weight: bold; color: #b91c1c;">{{this.defectCode}}</td>
+            <td class="center font-mono" style="font-weight: bold; color: #000000;">{{this.defectCode}}</td>
             <td>
               <strong>{{this.roomName}}</strong>
               {{#if this.pinX}}
-                <br><span style="font-size: 7.5pt; color: #0d9488; font-family: monospace;">Ghim CAD: ({{this.pinX}}%, {{this.pinY}}%)</span>
+                <br><span style="font-size: 7.5pt; color: #000000; font-family: monospace;">Ghim CAD: ({{this.pinX}}%, {{this.pinY}}%)</span>
               {{/if}}
             </td>
             <td class="center"><strong>{{this.widthMaxMm}} mm</strong></td>
@@ -345,7 +345,7 @@
       <strong>2. Kiến nghị kỹ thuật trong quá trình đào ngầm Metro 2:</strong><br>
       {{engineeringRecommendations}}
     </div>
-    <div style="font-size: 10pt; line-height: 1.5; margin-bottom: 12px; background-color: #f8fafc; border-left: 3px solid #0d9488; padding: 6px 10px;">
+    <div style="font-size: 10pt; line-height: 1.5; margin-bottom: 12px; background-color: #f8fafc; border-left: 3px solid #000000; padding: 6px 10px;">
       <strong>3. Ý kiến của Chủ sở hữu / Người đại diện căn hộ:</strong><br>
       <em>"{{ownerFeedback}}"</em>
     </div>

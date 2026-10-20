@@ -66,6 +66,8 @@ export interface DefectItem {
   syncedFromDefectCode?: string;
   pinColor?: string;
   pin_color?: string;
+  is_deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 interface Props {

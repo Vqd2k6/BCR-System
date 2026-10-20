@@ -88,6 +88,14 @@ export function applyOverridesToReportV2(rawReport: any, overrides?: any): any {
   if (overrides.foundationType) {
     cloned.survey_data_json.foundationType = overrides.foundationType;
   }
+  if (overrides.frontageWidth !== undefined && overrides.frontageWidth !== '') {
+    cloned.frontage_width = Number(overrides.frontageWidth);
+    cloned.survey_data_json.frontageWidth = Number(overrides.frontageWidth);
+  }
+  if (overrides.lotDepth !== undefined && overrides.lotDepth !== '') {
+    cloned.lot_depth = Number(overrides.lotDepth);
+    cloned.survey_data_json.lotDepth = Number(overrides.lotDepth);
+  }
 
   // 5. Cập nhật mảng floors và defects nếu có
   if (overrides.floors && Array.isArray(overrides.floors)) {

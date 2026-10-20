@@ -10,6 +10,8 @@ import {
   Undo2,
   Edit3,
   History,
+  RotateCw,
+  RotateCcw,
 } from 'lucide-react';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 
@@ -35,8 +37,17 @@ export interface AuditPhotoCardProps {
   optimisticStatus?: 'REPLACED' | 'ADDED' | 'DELETED';
   historyCount?: number;
   hasHistory?: boolean;
+  rotation?: number;
+  isAutoRotated?: boolean;
+  isOrientationMismatch?: boolean;
+  isStrictOrientation?: boolean;
+  orientationRecommendation?: string;
+  expectedOrientation?: 'PORTRAIT' | 'LANDSCAPE' | 'ANY';
+  onRotate?: (newRotation: number) => void;
+  domId?: string;
+  photoKey?: string;
   onUndoDelete?: () => void;
-  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   className?: string;
@@ -64,6 +75,15 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   optimisticStatus,
   historyCount,
   hasHistory,
+  rotation = 0,
+  isAutoRotated = false,
+  isOrientationMismatch = false,
+  isStrictOrientation = false,
+  orientationRecommendation,
+  expectedOrientation,
+  onRotate,
+  domId,
+  photoKey,
   onUndoDelete,
   onOpenPhotoZoom,
   onOpenPhotoAction,
@@ -75,7 +95,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   const handleZoom = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hasUrl && onOpenPhotoZoom) {
-      onOpenPhotoZoom(url!, title, photoCode);
+      onOpenPhotoZoom(url!, title, photoKey || photoCode, rotation);
     }
   };
 
@@ -258,32 +278,44 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     );
   }
 
-  // Border & Glow styling theo trạng thái Optimistic
-  const statusBorderClass =
-    optimisticStatus === 'DELETED'
-      ? 'border-2 border-rose-500 opacity-60'
-      : optimisticStatus === 'REPLACED'
-      ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
-      : optimisticStatus === 'ADDED'
-      ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
-      : 'border border-slate-200';
+  // Border & Glow styling theo trạng thái Optimistic hoặc Orientation Mismatch (Line vàng hổ phách)
+  const statusBorderClass = optimisticStatus === 'DELETED'
+    ? 'border-2 border-rose-500 opacity-60'
+    : optimisticStatus === 'REPLACED'
+    ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+    : optimisticStatus === 'ADDED'
+    ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
+    : isOrientationMismatch || isAutoRotated
+    ? isStrictOrientation
+      ? 'border-2 border-amber-500 ring-4 ring-amber-500/30 shadow-md shadow-amber-500/10' // Bắt buộc: Line vàng hổ phách đậm
+      : 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'                      // Khuyến nghị: Line vàng hổ phách nhẹ
+    : 'border border-slate-200';
 
   // Trường hợp Có Ảnh
+  const finalDomId = domId || (photoCode ? `audit-photo-card-${photoCode}` : undefined);
+
   return (
     <div
+      id={finalDomId}
       onClick={handleZoom}
       className={`group relative rounded-xl bg-slate-900 overflow-hidden cursor-pointer shadow-2xs hover:shadow-md transition-all select-none ${aspectRatio} ${statusBorderClass} ${className}`}
     >
       <img
         src={url}
         alt={title}
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        style={{
+          transform: rotation ? `rotate(${rotation}deg)` : undefined,
+          transition: 'transform 0.3s ease',
+        }}
+        className={`w-full h-full ${
+          rotation && rotation % 180 !== 0 ? 'object-contain' : 'object-cover'
+        } group-hover:scale-105 transition-transform duration-300`}
         loading="lazy"
       />
 
       {/* Top Bar: Mã ảnh bên trái & Cụm Icon tinh gọn bên phải */}
       <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 z-10">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {photoCode && (
             <span
               className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] shadow-sm tracking-wide ${badgeColorClasses}`}
@@ -299,6 +331,30 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               v{historyCount || 1}
             </span>
           )}
+          {rotation > 0 && (
+            <span
+              className="px-1.5 py-0.5 rounded font-mono font-black text-[9px] bg-amber-500 text-slate-950 shadow-xs"
+              title={`Ảnh đã xoay ${rotation}°`}
+            >
+              {rotation}°
+            </span>
+          )}
+          {(isOrientationMismatch || isAutoRotated) && (
+            <span
+              className={`px-1.5 py-0.5 rounded font-bold text-[9px] shadow-xs flex items-center gap-1 border ${
+                isStrictOrientation
+                  ? 'bg-amber-500 text-slate-950 border-amber-600'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+              title={
+                isStrictOrientation
+                  ? `Quy chuẩn A4 bắt buộc: Ảnh cần xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}. Hãy bấm nút xoay để chỉnh.`
+                  : `Khuyến nghị thẩm mỹ: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'} để báo cáo A4 đẹp mắt hơn.`
+              }
+            >
+              <span>{isStrictOrientation ? '⚠️ Cần xoay A4' : '💡 Khuyến nghị xoay'}</span>
+            </span>
+          )}
           {extraBadges}
         </div>
 
@@ -307,6 +363,35 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all"
         >
+          {onRotate && isEditMode && optimisticStatus !== 'DELETED' && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const nextRot = ((rotation || 0) + 90) % 360;
+                  onRotate(nextRot);
+                }}
+                className="p-1 rounded text-amber-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                title="Xoay 90° cùng chiều kim đồng hồ"
+              >
+                <RotateCw className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const nextRot = ((rotation || 0) + 270) % 360;
+                  onRotate(nextRot);
+                }}
+                className="p-1 rounded text-amber-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                title="Xoay 90° ngược chiều kim đồng hồ"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={handleZoom}

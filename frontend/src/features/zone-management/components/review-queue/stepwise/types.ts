@@ -3,8 +3,9 @@ import type { PhotoActionMode, PhotoActionPayload } from '../AuditPhotoActionMod
 import type { FloorSurveyData, DamageZoneData, DefectItem, CadZonePin, PolygonPoint } from '../../../../survey-phase1/types/phase1.types';
 import type { AuditHistoryLogItem } from '../AuditHistoryModal';
 import type { RiskCardData } from '../EngineeringJudgementModal';
+import type { PhotoOrientationViolation } from './hooks/usePhotoOrientationAudit';
 
-export type { PhotoReplaceParams, RiskCardData, PhotoActionMode, PhotoActionPayload };
+export type { PhotoReplaceParams, RiskCardData, PhotoActionMode, PhotoActionPayload, PhotoOrientationViolation };
 
 export interface AuditPhotoActionParams {
   initialMode?: PhotoActionMode;
@@ -46,7 +47,7 @@ export interface StepwiseIdentificationPhotoItem {
   additionalPhotos?: Array<{ url: string; caption?: string; photoCode?: string; notes?: string; historyCount?: number; hasHistory?: boolean }>;
   historyCount?: number;
   hasHistory?: boolean;
-  history?: any[];
+  history?: unknown[];
   [key: string]: unknown;
 }
 
@@ -353,12 +354,17 @@ export interface AuditStepBaseProps {
   reportId?: string;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onRefresh?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  stagedPhotoRotations?: Record<string, number>;
+  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export interface AuditStep3FloorDefectsProps extends AuditStepBaseProps {
