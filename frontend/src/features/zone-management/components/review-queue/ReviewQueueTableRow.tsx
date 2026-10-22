@@ -41,7 +41,9 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
     item.burland_damage_category || ''
   );
   const hasAlerts = Number(item.alert_count) > 0;
+  const isCondoUnit = Boolean(item.unit_id) || item.report_type === 'CONDO_UNIT' || Boolean(item.unit_code?.startsWith('U-'));
   const canBatchApprove =
+    isCondoUnit &&
     item.status === 'SUBMITTED' &&
     !item.has_admin_diff &&
     (item.version_count ?? 0) <= 1 &&

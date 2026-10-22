@@ -8,6 +8,9 @@ import {
   ApproveAbsenteeReportDto,
   ExecuteFinalSealDto,
   RollbackVersionDto,
+  AdminSurveyEditDto,
+  AcquireLockDto,
+  ReleaseLockDto,
 } from './audit.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
@@ -120,6 +123,21 @@ export class AuditController {
     }
   }
 
+  static async unlockApprovedReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+
+      const result = await AuditService.unlockApprovedReport(id, adminId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async rejectReport(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
@@ -163,10 +181,51 @@ export class AuditController {
   static async applyAdminSurveyEdit(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
+      const parsed = AdminSurveyEditDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu điều chỉnh kỹ thuật không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
       const adminId = req.user!.userId;
       const clientIp = req.ip || req.socket.remoteAddress;
-      const result = await AuditService.applyAdminSurveyEdit(id, adminId, req.body, clientIp);
+      const result = await AuditService.applyAdminSurveyEdit(id, adminId, parsed.data as any, clientIp);
       res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async acquireAuditLock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const result = await AuditService.acquireAuditLock(id, adminId);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async releaseAuditLock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const force = req.body?.force === true && req.user?.role === 'SUPER_ADMIN';
+      const result = await AuditService.releaseAuditLock(id, force ? 'FORCE' : adminId);
+      res.status(200).json({ success: true, data: { released: result } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async checkAuditLock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user?.userId;
+      const result = await AuditService.checkAuditLock(id, adminId);
+      res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

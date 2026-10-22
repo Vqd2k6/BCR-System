@@ -360,9 +360,9 @@ export function standardizeWard(rawWard?: string | null, districtHint?: string |
   }
 
   let w = rawWard.trim();
-  w = w.replace(/^(?:p\.?|phường)\s*/i, '').trim();
+  w = w.replace(/^(?:phường\s+|p\.\s*|p(?=\s|\d)|phường)/i, '').trim();
   w = w.replace(/\s+/g, ' ');
-  const finalWard = w ? `Phường ${w}` : '';
+  const finalWard = w ? (/^\d+$/.test(w) ? `Phường ${w}` : (w.toLowerCase().startsWith('phường') ? w : `Phường ${w}`)) : '';
 
   return {
     ward: finalWard,

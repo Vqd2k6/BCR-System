@@ -208,11 +208,18 @@ export const VersionComparisonModal: React.FC<Props> = ({
     }
   };
 
-  // Extract comparable data from snapshot & currentData
+  // Extract comparable data from snapshot & currentData (Universal Adapter for V2 and V3 snapshots)
   const snapData = selectedSnapshot?.snapshotData || {};
-  const snapLeft = snapData.leftPane || {};
-  const snapRight = snapData.rightPane || {};
-  const snapJson = snapData.surveyJson || {};
+  const snapLeft = snapData.leftPane || {
+    parcel: snapData.frozenParcel || snapData.parcel || {},
+    specs: snapData.frozenSurveyDataJson?.specs || snapData.specs || {},
+    identificationPhotos: snapData.frozenSurveyDataJson?.identificationPhotos || snapData.identificationPhotos || {},
+  };
+  const snapRight = snapData.rightPane || {
+    riskCard: snapData.frozenSurveyDataJson?.riskCard || snapData.riskCard || {},
+    damageZones: snapData.damageZones || snapData.frozenSurveyDataJson?.damageZones || [],
+  };
+  const snapJson = snapData.surveyJson || snapData.frozenSurveyDataJson || {};
 
   const curLeft = currentData?.leftPane || {};
   const curRight = currentData?.rightPane || {};

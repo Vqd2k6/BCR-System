@@ -1,9 +1,10 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
-import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType } from '../../survey/survey.dto';
+import { calculateDistancesFromPolygon } from '../../report_v2/utils/metro-spatial.utils';
 
 export interface PhotoActionItem {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';
@@ -196,8 +197,15 @@ export class AuditModificationService {
     if (report.status === 'APPROVED') {
       throw new ForbiddenError('Hồ sơ khảo sát này đã được phê duyệt chính thức và bị khóa bất biến, không thể chỉnh sửa.');
     }
-
     const actualReportId = report.id;
+
+    // 2.1. Kiểm tra khóa chiếm quyền (Pessimistic Session Lock - 15 phút)
+    const lockCheck = await this.checkAuditLock(actualReportId, adminId);
+    if (lockCheck.lockedByOther) {
+      throw new ConflictError(
+        `Hồ sơ đang được thẩm định bởi ${lockCheck.lockedByName || 'quản trị viên khác'} (còn hiệu lực đến ${lockCheck.expiresAt}). Bạn chỉ có quyền xem, không được chỉnh sửa.`
+      );
+    }
     const existingJson = typeof report.survey_data_json === 'string'
       ? JSON.parse(report.survey_data_json)
       : (report.survey_data_json || {});
@@ -218,6 +226,56 @@ export class AuditModificationService {
         diffCount: payload.diffPayload?.length || 0,
       },
     };
+
+    // 3.0. Bảo toàn chữ ký chủ hộ theo quyết định Q1 (không làm mất chữ ký khi admin chỉnh sửa thân báo cáo)
+    if (existingJson.signatures?.ownerSignatureUrl && !mergedJson.signatures?.ownerSignatureUrl) {
+      mergedJson.signatures = {
+        ...(mergedJson.signatures || {}),
+        ownerSignatureUrl: existingJson.signatures.ownerSignatureUrl,
+      };
+    }
+    if (existingJson.ownerSignatureUrl && !mergedJson.ownerSignatureUrl) {
+      mergedJson.ownerSignatureUrl = existingJson.ownerSignatureUrl;
+    }
+
+    // 3.0.1. Kiểm tra và tự động tính toán lại cự ly trắc địa nếu có toạ độ đa giác mới (Q2)
+    const uUpdates = payload.updates || {};
+    const candidateCoords = Array.isArray(uUpdates.parcelCoordinates) && uUpdates.parcelCoordinates.length >= 3
+      ? uUpdates.parcelCoordinates
+      : (Array.isArray(uUpdates.polygonCoords) && uUpdates.polygonCoords.length >= 3 ? uUpdates.polygonCoords : null);
+
+    let recalculatedCenterlineM: number | null = null;
+    let recalculatedOuterM: number | null = null;
+    let newCadastralGeoJsonStr: string | null = null;
+
+    if (candidateCoords) {
+      const metroRes = calculateDistancesFromPolygon(candidateCoords);
+      recalculatedCenterlineM = metroRes.centerlineDist;
+      recalculatedOuterM = metroRes.outerBoundaryDist;
+
+      if (recalculatedCenterlineM !== null) {
+        mergedJson.metroOffsetDistance = `${recalculatedCenterlineM.toFixed(1)}m`;
+      }
+      if (recalculatedOuterM !== null) {
+        mergedJson.clearanceOffsetDistance = `${recalculatedOuterM.toFixed(1)}m`;
+        mergedJson.stationEdgeDistance = `${recalculatedOuterM.toFixed(1)}m`;
+      } else {
+        mergedJson.clearanceOffsetDistance = 'Không có ga trong khu vực';
+      }
+      mergedJson.parcelCoordinates = candidateCoords;
+      mergedJson.polygonCoords = candidateCoords;
+
+      const ringCoords: [number, number][] = candidateCoords.map((pt: [number, number]) => [pt[1], pt[0]]);
+      const firstPt = ringCoords[0];
+      const lastPt = ringCoords[ringCoords.length - 1];
+      if (firstPt[0] !== lastPt[0] || firstPt[1] !== lastPt[1]) {
+        ringCoords.push([firstPt[0], firstPt[1]]);
+      }
+      newCadastralGeoJsonStr = JSON.stringify({
+        type: 'Polygon',
+        coordinates: [ringCoords],
+      });
+    }
 
     // 3.1. Gatekeeper CAT 1/2: Bắt buộc phải có ít nhất 1 bản vẽ hoàn công
     const targetCatScore = payload.updates?.foundationCatScore ??
@@ -262,9 +320,24 @@ export class AuditModificationService {
 
       const u = payload.updates;
 
-      // 4.1. Cập nhật parcels đầy đủ các trường
-      const latVal = u.gpsCoords?.lat ?? u.gpsCoords?.latitude ?? u.coordinates?.[0];
-      const lngVal = u.gpsCoords?.lng ?? u.gpsCoords?.longitude ?? u.coordinates?.[1];
+      // 4.1. Cập nhật parcels đầy đủ các trường (Bảo vệ toạ độ WGS84 và cập nhật đa giác/cự ly Metro nếu có)
+      let latVal: number | null = null;
+      let lngVal: number | null = null;
+      if (u.gpsCoords?.lat !== undefined && u.gpsCoords?.lng !== undefined) {
+        latVal = Number(u.gpsCoords.lat);
+        lngVal = Number(u.gpsCoords.lng);
+      } else if (u.gpsCoords?.latitude !== undefined && u.gpsCoords?.longitude !== undefined) {
+        latVal = Number(u.gpsCoords.latitude);
+        lngVal = Number(u.gpsCoords.longitude);
+      } else if (Array.isArray(u.coordinates) && u.coordinates.length >= 2) {
+        const c0 = Number(u.coordinates[0]);
+        const c1 = Number(u.coordinates[1]);
+        if (c0 > 50 && c1 < 50) { // [lng, lat] GeoJSON standard
+          lngVal = c0; latVal = c1;
+        } else { // [lat, lng]
+          latVal = c0; lngVal = c1;
+        }
+      }
 
       await client.query(
         `UPDATE parcels SET
@@ -285,6 +358,11 @@ export class AuditModificationService {
              THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326) 
              ELSE location_geom 
            END,
+           distance_to_centerline_m = COALESCE($16, distance_to_centerline_m),
+           cadastral_polygon_geom = CASE 
+             WHEN $17::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($17), 4326) 
+             ELSE cadastral_polygon_geom 
+           END,
            updated_at = NOW()
          WHERE id = $15;`,
         [
@@ -300,9 +378,11 @@ export class AuditModificationService {
           u.landAreaM2 !== undefined && u.landAreaM2 !== '' ? Number(u.landAreaM2) : null,
           u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
           u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
-          latVal !== undefined && latVal !== '' ? Number(latVal) : null,
-          lngVal !== undefined && lngVal !== '' ? Number(lngVal) : null,
+          latVal !== null && latVal !== undefined && !isNaN(latVal) ? Number(latVal) : null,
+          lngVal !== null && lngVal !== undefined && !isNaN(lngVal) ? Number(lngVal) : null,
           report.parcel_id,
+          recalculatedCenterlineM,
+          newCadastralGeoJsonStr,
         ]
       );
 
@@ -399,9 +479,9 @@ export class AuditModificationService {
       }
 
       // 4.5. Cập nhật deformation_assessments
-      const st = u.settlementTilt;
+      const st = u.settlementTilt || u.deformation;
       if (st) {
-        const tilt = st.buildingTilt || {};
+        const tilt = st.buildingTilt || st.tiltAssessment || {};
         const beam = st.beamSagging || {};
         const diff = st.diffSettlement || {};
         const lDiff = Number(diff.level) || 0;
@@ -409,65 +489,123 @@ export class AuditModificationService {
         const lSag = Number(beam.level) || 0;
         const e3Score = Math.min(4, Math.max(lDiff, lTilt, lSag));
 
+        const tiltX = tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) / 10 : (tilt.tilt_x_permille !== undefined ? Number(tilt.tilt_x_permille) / 10 : null);
+        const tiltY = tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) / 10 : (tilt.tilt_y_permille !== undefined ? Number(tilt.tilt_y_permille) / 10 : null);
+        const tiltDir = tilt.direction || tilt.tilt_direction || null;
+        const beamSag = beam.sagMm !== undefined && beam.sagMm !== '' ? Number(beam.sagMm) : null;
+
         await client.query(
-          `UPDATE deformation_assessments SET
-             tilt_angle_x = COALESCE($1, tilt_angle_x),
-             tilt_angle_y = COALESCE($2, tilt_angle_y),
-             tilt_direction = COALESCE($3, tilt_direction),
-             beam_deflection_mm = COALESCE($4, beam_deflection_mm),
-             measurement_reliability = COALESCE($5, measurement_reliability),
-             e3_deformation_score = COALESCE($6, e3_deformation_score)
-           WHERE report_id = $7;`,
+          `INSERT INTO deformation_assessments (
+             report_id, tilt_angle_x, tilt_angle_y, tilt_direction, beam_deflection_mm,
+             measurement_reliability, e3_deformation_score
+           ) VALUES ($1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0), COALESCE($6::reliability_enum, 'HIGH'), COALESCE($7, 0))
+           ON CONFLICT (report_id) DO UPDATE SET
+             tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x),
+             tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y),
+             tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
+             beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm),
+             measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
+             e3_deformation_score = COALESCE($7, deformation_assessments.e3_deformation_score);`,
           [
-            tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) / 10 : null,
-            tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) / 10 : null,
-            tilt.direction || null,
-            beam.sagMm !== undefined && beam.sagMm !== '' ? Number(beam.sagMm) : null,
+            actualReportId,
+            tiltX,
+            tiltY,
+            tiltDir,
+            beamSag,
             st.reliability || null,
             e3Score,
-            actualReportId,
           ]
         );
       }
 
-      // 4.6. Đồng bộ damage_zones & defect_items nếu floors hoặc damageZones thay đổi
+      // 4.6. Đồng bộ damage_zones & defect_items nếu floors hoặc damageZones thay đổi (Reconciliation & Soft-Delete)
       if (u.floors || u.damageZones) {
         const floorsToSync = Array.isArray(u.floors) && u.floors.length > 0
           ? u.floors
           : (Array.isArray(u.damageZones) && u.damageZones.length > 0 ? [{ floorName: 'Tầng trệt', zones: u.damageZones }] : []);
 
         if (floorsToSync.length > 0) {
-          await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [actualReportId]);
+          const existingZonesRes = await client.query<{ id: string; zone_code: string; is_deleted: boolean }>(
+            `SELECT id, zone_code, is_deleted FROM damage_zones WHERE report_id = $1;`,
+            [actualReportId]
+          );
+          const existingZoneMap = new Map<string, { id: string; is_deleted: boolean }>();
+          existingZonesRes.rows.forEach((r) => existingZoneMap.set(r.zone_code, r));
+
+          const existingDefectsRes = await client.query<{ id: string; defect_code: string; zone_id: string; is_deleted: boolean }>(
+            `SELECT d.id, d.defect_code, d.zone_id, d.is_deleted
+             FROM defect_items d
+             JOIN damage_zones z ON d.zone_id = z.id
+             WHERE z.report_id = $1;`,
+            [actualReportId]
+          );
+          const existingDefectMap = new Map<string, { id: string; zone_id: string; is_deleted: boolean }>();
+          existingDefectsRes.rows.forEach((d) => {
+            existingDefectMap.set(`${d.zone_id}:${d.defect_code}`, d);
+          });
+
+          const activeZoneIds = new Set<string>();
+          const activeDefectIds = new Set<string>();
 
           for (const f of floorsToSync) {
             const zones = Array.isArray(f.zones) ? f.zones : [];
             for (const z of zones) {
               const compType = normalizeComponentType(z.componentType || z.customComponentType);
-              const zRes = await client.query<{ id: string }>(
-                `INSERT INTO damage_zones (
-                   report_id, zone_code, floor_name, room_name, component_type,
-                   wall_material, functional_impact_repair_needed, burland_grade,
-                   ctx_photo_url, notes
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                 RETURNING id;`,
-                [
-                  actualReportId,
-                  z.zoneCode || z.zone_code || 'Z-01',
-                  z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
-                  z.roomName || z.room_name || 'Không gian chính',
-                  compType,
-                  z.wallMaterial || z.wall_material || null,
-                  Boolean(z.functionalImpactRepairNeeded),
-                  Number(z.burlandGrade ?? z.burland_grade) || 0,
-                  z.ctxPhotoUrl || z.ctx_photo_url || '',
-                  z.notes || null,
-                ]
-              );
+              const zCode = z.zoneCode || z.zone_code || 'Z-01';
+              let zoneId: string;
 
-              const zoneId = zRes.rows[0]?.id;
+              if (existingZoneMap.has(zCode)) {
+                zoneId = existingZoneMap.get(zCode)!.id;
+                await client.query(
+                  `UPDATE damage_zones SET
+                     floor_name = $1, room_name = $2, component_type = $3,
+                     wall_material = $4, functional_impact_repair_needed = $5, burland_grade = $6,
+                     ctx_photo_url = COALESCE(NULLIF($7, ''), ctx_photo_url), notes = $8,
+                     is_deleted = false
+                   WHERE id = $9;`,
+                  [
+                    z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
+                    z.roomName || z.room_name || 'Không gian chính',
+                    compType,
+                    z.wallMaterial || z.wall_material || null,
+                    Boolean(z.functionalImpactRepairNeeded),
+                    Number(z.burlandGrade ?? z.burland_grade) || 0,
+                    z.ctxPhotoUrl || z.ctx_photo_url || '',
+                    z.notes || null,
+                    zoneId,
+                  ]
+                );
+              } else {
+                const zRes = await client.query<{ id: string }>(
+                  `INSERT INTO damage_zones (
+                     report_id, zone_code, floor_name, room_name, component_type,
+                     wall_material, functional_impact_repair_needed, burland_grade,
+                     ctx_photo_url, notes, is_deleted
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+                   RETURNING id;`,
+                  [
+                    actualReportId,
+                    zCode,
+                    z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
+                    z.roomName || z.room_name || 'Không gian chính',
+                    compType,
+                    z.wallMaterial || z.wall_material || null,
+                    Boolean(z.functionalImpactRepairNeeded),
+                    Number(z.burlandGrade ?? z.burland_grade) || 0,
+                    z.ctxPhotoUrl || z.ctx_photo_url || '',
+                    z.notes || null,
+                  ]
+                );
+                zoneId = zRes.rows[0].id;
+                existingZoneMap.set(zCode, { id: zoneId, is_deleted: false });
+              }
+              activeZoneIds.add(zoneId);
+
               const defects = Array.isArray(z.defects) ? z.defects : [];
               if (zoneId && defects.length > 0) {
                 for (const d of defects) {
+                  const dCode = d.defectCode || d.defect_code || 'D-01';
+                  const dKey = `${zoneId}:${dCode}`;
                   const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
                   const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
                   const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
@@ -476,37 +614,77 @@ export class AuditModificationService {
                     : (primaryCuUrl ? [primaryCuUrl] : []);
                   const cuPhotosJson = JSON.stringify(cuPhotosList);
                   const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+                  let defectId: string;
 
-                  await client.query(
-                    `INSERT INTO defect_items (
-                       zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
-                       crack_direction, width_max_mm, length_mm, activity_state,
-                       material_degradation_e4, structural_significance_e2, has_scale_card,
-                       is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
-                       cu_photo_code, cu_photos_json
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
-                    [
-                      zoneId,
-                      d.defectCode || d.defect_code || 'D-01',
-                      Number(d.pinX ?? d.pin_x) || 0,
-                      Number(d.pinY ?? d.pin_y) || 0,
-                      d.screeningCategory || d.defectType || 'CRACK',
-                      d.defectType || 'HAIRLINE',
-                      d.crackDirection || null,
-                      Number(d.widthMaxMm ?? d.width_max_mm) || 0,
-                      Number(d.lengthMm ?? d.length_mm) || 0,
-                      actState,
-                      Number(d.materialDegradationE4) || 0,
-                      Number(d.structuralSignificanceE2) || 0,
-                      d.hasScaleCard ?? d.has_scale_card ?? true,
-                      d.isStructuralCritical ?? false,
-                      primaryCuUrl,
-                      extraCuUrl,
-                      d.pinColor || '#ef4444',
-                      primaryCuCode,
-                      cuPhotosJson,
-                    ]
-                  );
+                  if (existingDefectMap.has(dKey)) {
+                    defectId = existingDefectMap.get(dKey)!.id;
+                    await client.query(
+                      `UPDATE defect_items SET
+                         pin_x = $1, pin_y = $2, screening_category = $3, defect_type = $4,
+                         crack_direction = $5, width_max_mm = $6, length_mm = $7, activity_state = $8,
+                         material_degradation_e4 = $9, structural_significance_e2 = $10, has_scale_card = $11,
+                         is_structural_critical = $12, cu_photo_url = COALESCE(NULLIF($13, ''), cu_photo_url),
+                         extra_photo_url = COALESCE($14, extra_photo_url), pin_color = $15,
+                         cu_photo_code = COALESCE($16, cu_photo_code), cu_photos_json = $17,
+                         is_deleted = false
+                       WHERE id = $18;`,
+                      [
+                        Number(d.pinX ?? d.pin_x) || 0,
+                        Number(d.pinY ?? d.pin_y) || 0,
+                        d.screeningCategory || d.defectType || 'CRACK',
+                        d.defectType || 'HAIRLINE',
+                        d.crackDirection || null,
+                        Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                        Number(d.lengthMm ?? d.length_mm) || 0,
+                        actState,
+                        Number(d.materialDegradationE4) || 0,
+                        Number(d.structuralSignificanceE2) || 0,
+                        d.hasScaleCard ?? d.has_scale_card ?? true,
+                        d.isStructuralCritical ?? false,
+                        primaryCuUrl,
+                        extraCuUrl,
+                        d.pinColor || '#ef4444',
+                        primaryCuCode,
+                        cuPhotosJson,
+                        defectId,
+                      ]
+                    );
+                  } else {
+                    const dRes = await client.query<{ id: string }>(
+                      `INSERT INTO defect_items (
+                         zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                         crack_direction, width_max_mm, length_mm, activity_state,
+                         material_degradation_e4, structural_significance_e2, has_scale_card,
+                         is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                         cu_photo_code, cu_photos_json, is_deleted
+                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, false)
+                       RETURNING id;`,
+                      [
+                        zoneId,
+                        dCode,
+                        Number(d.pinX ?? d.pin_x) || 0,
+                        Number(d.pinY ?? d.pin_y) || 0,
+                        d.screeningCategory || d.defectType || 'CRACK',
+                        d.defectType || 'HAIRLINE',
+                        d.crackDirection || null,
+                        Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                        Number(d.lengthMm ?? d.length_mm) || 0,
+                        actState,
+                        Number(d.materialDegradationE4) || 0,
+                        Number(d.structuralSignificanceE2) || 0,
+                        d.hasScaleCard ?? d.has_scale_card ?? true,
+                        d.isStructuralCritical ?? false,
+                        primaryCuUrl,
+                        extraCuUrl,
+                        d.pinColor || '#ef4444',
+                        primaryCuCode,
+                        cuPhotosJson,
+                      ]
+                    );
+                    defectId = dRes.rows[0].id;
+                    existingDefectMap.set(dKey, { id: defectId, zone_id: zoneId, is_deleted: false });
+                  }
+                  activeDefectIds.add(defectId);
                 }
               }
             }
@@ -515,31 +693,60 @@ export class AuditModificationService {
             const elements = Array.isArray(f.structuralElements) ? f.structuralElements : [];
             for (const el of elements) {
               const compType = normalizeComponentType(el.elementType || el.componentType || 'COLUMN');
-              const elRes = await client.query<{ id: string }>(
-                `INSERT INTO damage_zones (
-                   report_id, zone_code, floor_name, room_name, component_type,
-                   wall_material, functional_impact_repair_needed, burland_grade,
-                   ctx_photo_url, notes
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                 RETURNING id;`,
-                [
-                  actualReportId,
-                  el.elementCode || el.zone_code || el.zoneCode || 'E-01',
-                  el.floorName || f.floorName || 'Tầng trệt',
-                  el.roomName || 'Cấu kiện kết cấu',
-                  compType,
-                  el.materialType || el.wallMaterial || 'BTCT',
-                  Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
-                  0,
-                  el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
-                  el.notes || null,
-                ]
-              );
+              const elCode = el.elementCode || el.zone_code || el.zoneCode || 'E-01';
+              let elZoneId: string;
 
-              const elZoneId = elRes.rows[0]?.id;
+              if (existingZoneMap.has(elCode)) {
+                elZoneId = existingZoneMap.get(elCode)!.id;
+                await client.query(
+                  `UPDATE damage_zones SET
+                     floor_name = $1, room_name = $2, component_type = $3,
+                     wall_material = $4, functional_impact_repair_needed = $5,
+                     ctx_photo_url = COALESCE(NULLIF($6, ''), ctx_photo_url), notes = $7,
+                     is_deleted = false
+                   WHERE id = $8;`,
+                  [
+                    el.floorName || f.floorName || 'Tầng trệt',
+                    el.roomName || 'Cấu kiện kết cấu',
+                    compType,
+                    el.materialType || el.wallMaterial || 'BTCT',
+                    Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
+                    el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
+                    el.notes || null,
+                    elZoneId,
+                  ]
+                );
+              } else {
+                const elRes = await client.query<{ id: string }>(
+                  `INSERT INTO damage_zones (
+                     report_id, zone_code, floor_name, room_name, component_type,
+                     wall_material, functional_impact_repair_needed, burland_grade,
+                     ctx_photo_url, notes, is_deleted
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+                   RETURNING id;`,
+                  [
+                    actualReportId,
+                    elCode,
+                    el.floorName || f.floorName || 'Tầng trệt',
+                    el.roomName || 'Cấu kiện kết cấu',
+                    compType,
+                    el.materialType || el.wallMaterial || 'BTCT',
+                    Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
+                    0,
+                    el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
+                    el.notes || null,
+                  ]
+                );
+                elZoneId = elRes.rows[0].id;
+                existingZoneMap.set(elCode, { id: elZoneId, is_deleted: false });
+              }
+              activeZoneIds.add(elZoneId);
+
               const defects = Array.isArray(el.defects) ? el.defects : [];
               if (elZoneId && defects.length > 0) {
                 for (const d of defects) {
+                  const dCode = d.defectCode || d.defect_code || 'D-01';
+                  const dKey = `${elZoneId}:${dCode}`;
                   const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
                   const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
                   const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
@@ -548,41 +755,118 @@ export class AuditModificationService {
                     : (primaryCuUrl ? [primaryCuUrl] : []);
                   const cuPhotosJson = JSON.stringify(cuPhotosList);
                   const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+                  let defectId: string;
 
-                  await client.query(
-                    `INSERT INTO defect_items (
-                       zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
-                       crack_direction, width_max_mm, length_mm, activity_state,
-                       material_degradation_e4, structural_significance_e2, has_scale_card,
-                       is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
-                       cu_photo_code, cu_photos_json
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
-                    [
-                      elZoneId,
-                      d.defectCode || d.defect_code || 'D-01',
-                      Number(d.pinX ?? d.pin_x) || 0,
-                      Number(d.pinY ?? d.pin_y) || 0,
-                      d.screeningCategory || d.defectType || 'CRACK',
-                      d.defectType || 'HAIRLINE',
-                      d.crackDirection || null,
-                      Number(d.widthMaxMm ?? d.width_max_mm) || 0,
-                      Number(d.lengthMm ?? d.length_mm) || 0,
-                      actState,
-                      Number(d.materialDegradationE4) || 0,
-                      Number(d.structuralSignificanceE2) || 0,
-                      d.hasScaleCard ?? d.has_scale_card ?? true,
-                      d.isStructuralCritical ?? false,
-                      primaryCuUrl,
-                      extraCuUrl,
-                      d.pinColor || '#ef4444',
-                      primaryCuCode,
-                      cuPhotosJson,
-                    ]
-                  );
+                  if (existingDefectMap.has(dKey)) {
+                    defectId = existingDefectMap.get(dKey)!.id;
+                    await client.query(
+                      `UPDATE defect_items SET
+                         pin_x = $1, pin_y = $2, screening_category = $3, defect_type = $4,
+                         crack_direction = $5, width_max_mm = $6, length_mm = $7, activity_state = $8,
+                         material_degradation_e4 = $9, structural_significance_e2 = $10, has_scale_card = $11,
+                         is_structural_critical = $12, cu_photo_url = COALESCE(NULLIF($13, ''), cu_photo_url),
+                         extra_photo_url = COALESCE($14, extra_photo_url), pin_color = $15,
+                         cu_photo_code = COALESCE($16, cu_photo_code), cu_photos_json = $17,
+                         is_deleted = false
+                       WHERE id = $18;`,
+                      [
+                        Number(d.pinX ?? d.pin_x) || 0,
+                        Number(d.pinY ?? d.pin_y) || 0,
+                        d.screeningCategory || d.defectType || 'CRACK',
+                        d.defectType || 'HAIRLINE',
+                        d.crackDirection || null,
+                        Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                        Number(d.lengthMm ?? d.length_mm) || 0,
+                        actState,
+                        Number(d.materialDegradationE4) || 0,
+                        Number(d.structuralSignificanceE2) || 0,
+                        d.hasScaleCard ?? d.has_scale_card ?? true,
+                        d.isStructuralCritical ?? false,
+                        primaryCuUrl,
+                        extraCuUrl,
+                        d.pinColor || '#ef4444',
+                        primaryCuCode,
+                        cuPhotosJson,
+                        defectId,
+                      ]
+                    );
+                  } else {
+                    const dRes = await client.query<{ id: string }>(
+                      `INSERT INTO defect_items (
+                         zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                         crack_direction, width_max_mm, length_mm, activity_state,
+                         material_degradation_e4, structural_significance_e2, has_scale_card,
+                         is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                         cu_photo_code, cu_photos_json, is_deleted
+                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, false)
+                       RETURNING id;`,
+                      [
+                        elZoneId,
+                        dCode,
+                        Number(d.pinX ?? d.pin_x) || 0,
+                        Number(d.pinY ?? d.pin_y) || 0,
+                        d.screeningCategory || d.defectType || 'CRACK',
+                        d.defectType || 'HAIRLINE',
+                        d.crackDirection || null,
+                        Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                        Number(d.lengthMm ?? d.length_mm) || 0,
+                        actState,
+                        Number(d.materialDegradationE4) || 0,
+                        Number(d.structuralSignificanceE2) || 0,
+                        d.hasScaleCard ?? d.has_scale_card ?? true,
+                        d.isStructuralCritical ?? false,
+                        primaryCuUrl,
+                        extraCuUrl,
+                        d.pinColor || '#ef4444',
+                        primaryCuCode,
+                        cuPhotosJson,
+                      ]
+                    );
+                    defectId = dRes.rows[0].id;
+                    existingDefectMap.set(dKey, { id: defectId, zone_id: elZoneId, is_deleted: false });
+                  }
+                  activeDefectIds.add(defectId);
                 }
               }
             }
           }
+
+          // Xóa mềm các zone và defect không còn xuất hiện trong payload
+          if (activeZoneIds.size > 0) {
+            await client.query(
+              `UPDATE damage_zones SET is_deleted = true
+               WHERE report_id = $1 AND NOT (id = ANY($2::uuid[]));`,
+              [actualReportId, Array.from(activeZoneIds)]
+            );
+          } else {
+            await client.query(
+              `UPDATE damage_zones SET is_deleted = true
+               WHERE report_id = $1;`,
+              [actualReportId]
+            );
+          }
+
+          if (activeDefectIds.size > 0) {
+            await client.query(
+              `UPDATE defect_items SET is_deleted = true
+               WHERE zone_id IN (SELECT id FROM damage_zones WHERE report_id = $1)
+                 AND NOT (id = ANY($2::uuid[]));`,
+              [actualReportId, Array.from(activeDefectIds)]
+            );
+          } else {
+            await client.query(
+              `UPDATE defect_items SET is_deleted = true
+               WHERE zone_id IN (SELECT id FROM damage_zones WHERE report_id = $1);`,
+              [actualReportId]
+            );
+          }
+
+          // Đảm bảo mọi defect thuộc zone bị xóa mềm cũng được đánh dấu is_deleted = true
+          await client.query(
+            `UPDATE defect_items SET is_deleted = true
+             WHERE zone_id IN (SELECT id FROM damage_zones WHERE report_id = $1 AND is_deleted = true);`,
+            [actualReportId]
+          );
         }
       }
 
@@ -631,6 +915,41 @@ export class AuditModificationService {
         message: 'Đã lưu chỉnh sửa và ghi nhận vào Nhật ký kiểm toán thành công',
       };
     });
+
+    // 4.7. Tự động kích hoạt tính lại toàn bộ điểm rủi ro (Raw Scores) theo Ground Truth mới SAU KHI commit
+    try {
+      const { ScoringService } = await import('../../scoring/scoring.service');
+      await ScoringService.calculatePhase1Scores(actualReportId);
+
+      // Kiểm tra nếu hồ sơ đã có phán quyết kỹ sư trưởng (Engineering Judgement)
+      const judgementCheck = await Database.query<{
+        is_engineering_judgement_applied: boolean;
+        engineering_judgement_action: string;
+      }>(
+        `SELECT is_engineering_judgement_applied, engineering_judgement_action FROM risk_score_cards WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      if (judgementCheck.rows[0]?.is_engineering_judgement_applied) {
+        await Database.query(
+          `INSERT INTO system_audit_logs (
+             entity_type, entity_id, action, performed_by_user_id, diff_payload
+           ) VALUES ($1, $2, $3, $4, $5);`,
+          [
+            'BASE_SURVEY_REPORT',
+            actualReportId,
+            'RAW_SCORES_CHANGED_AFTER_JUDGEMENT',
+            adminId,
+            JSON.stringify({
+              reportId: actualReportId,
+              message: 'Dữ liệu đo đạc hiện trường đã thay đổi sau khi Kỹ sư trưởng đưa ra phán quyết can thiệp điểm. Cần xem xét lại nếu cần thiết.',
+              timestamp: new Date().toISOString(),
+            }),
+          ]
+        );
+      }
+    } catch (scoreErr) {
+      console.error('[applyAdminSurveyEdit] Lỗi khi tự động tính lại điểm số:', scoreErr);
+    }
 
     // Tự động tạo bản chụp Snapshot bất biến cho phiên bản chỉnh sửa Diff
     try {
@@ -926,40 +1245,45 @@ export class AuditModificationService {
     let oldPhotoUrl = '';
 
     const txResult = await Database.transaction(async (client) => {
-      if (payload.targetPhotoType === 'DEFECT_CU' && (payload.defectId || payload.targetPhotoId)) {
+      if ((payload.targetPhotoType === 'DEFECT_CU' || payload.targetPhotoType === 'DEFECT_CLOSEUP') && (payload.defectId || payload.targetPhotoId)) {
         const dRes = await client.query(
-          `SELECT id, cu_photo_url, cu_photos_json FROM defect_items WHERE id = $1 OR defect_code = $2;`,
-          [payload.defectId || null, payload.targetPhotoId || null]
+          `SELECT d.id, d.cu_photo_url, d.cu_photos_json 
+           FROM defect_items d
+           JOIN damage_zones z ON d.zone_id = z.id
+           WHERE z.report_id = $3 AND (d.id::text = $1 OR d.defect_code = $2);`,
+          [payload.defectId || null, payload.targetPhotoId || null, actualReportId]
         );
-        if (dRes.rows[0]) {
-          const dItem = dRes.rows[0];
-          oldPhotoUrl = dItem.cu_photo_url;
-          const photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
-          const idx = Number(payload.photoIndex) || 0;
-          if (photos.length > idx) {
-            photos[idx] = payload.newPhotoUrl;
-          } else {
-            photos.push(payload.newPhotoUrl);
-          }
-          await client.query(
-            `UPDATE defect_items 
-             SET cu_photo_url = $1, cu_photos_json = $2 
-             WHERE id = $3;`,
-            [payload.photoIndex === 0 || !dItem.cu_photo_url ? payload.newPhotoUrl : dItem.cu_photo_url, JSON.stringify(photos), dItem.id]
-          );
+        if (!dRes.rows[0]) {
+          throw new NotFoundError('Không tìm thấy khuyết tật tương ứng trong hồ sơ này');
         }
+        const dItem = dRes.rows[0];
+        oldPhotoUrl = dItem.cu_photo_url;
+        const photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
+        const idx = Number(payload.photoIndex) || 0;
+        if (photos.length > idx) {
+          photos[idx] = payload.newPhotoUrl;
+        } else {
+          photos.push(payload.newPhotoUrl);
+        }
+        await client.query(
+          `UPDATE defect_items 
+           SET cu_photo_url = $1, cu_photos_json = $2 
+           WHERE id = $3;`,
+          [payload.photoIndex === 0 || !dItem.cu_photo_url ? payload.newPhotoUrl : dItem.cu_photo_url, JSON.stringify(photos), dItem.id]
+        );
       } else if (payload.targetPhotoType === 'ZONE_CTX' && (payload.zoneId || payload.targetPhotoId)) {
         const zRes = await client.query(
-          `SELECT id, ctx_photo_url FROM damage_zones WHERE id = $1 OR zone_code = $2;`,
-          [payload.zoneId || null, payload.targetPhotoId || null]
+          `SELECT id, ctx_photo_url FROM damage_zones WHERE report_id = $3 AND (id::text = $1 OR zone_code = $2);`,
+          [payload.zoneId || null, payload.targetPhotoId || null, actualReportId]
         );
-        if (zRes.rows[0]) {
-          oldPhotoUrl = zRes.rows[0].ctx_photo_url;
-          await client.query(
-            `UPDATE damage_zones SET ctx_photo_url = $1 WHERE id = $2;`,
-            [payload.newPhotoUrl, zRes.rows[0].id]
-          );
+        if (!zRes.rows[0]) {
+          throw new NotFoundError('Không tìm thấy vùng hư hại tương ứng trong hồ sơ này');
         }
+        oldPhotoUrl = zRes.rows[0].ctx_photo_url;
+        await client.query(
+          `UPDATE damage_zones SET ctx_photo_url = $1 WHERE id = $2;`,
+          [payload.newPhotoUrl, zRes.rows[0].id]
+        );
       } else if (payload.targetPhotoType === 'FLOOR_CAD' || payload.targetPhotoType === 'FLOOR_PLAN') {
         const fRes = await client.query(
           `SELECT id, cad_photo_url FROM building_floor_plans WHERE id::text = $1 OR (parcel_id = $2 AND floor_number = $3::numeric) LIMIT 1;`,
@@ -1371,8 +1695,11 @@ export class AuditModificationService {
       // 1. Cập nhật bảng quan hệ
       if (cat === 'DEFECT_CU' || type === 'DEFECT_CU' || type === 'CU') {
         const dRes = await client.query(
-          `SELECT id, cu_photo_url, cu_photos_json FROM defect_items WHERE id::text = $1 OR defect_code = $2;`,
-          [pa.targetPhotoId || null, pa.targetPhotoId || null]
+          `SELECT d.id, d.cu_photo_url, d.cu_photos_json 
+           FROM defect_items d
+           JOIN damage_zones z ON d.zone_id = z.id
+           WHERE z.report_id = $3 AND (d.id::text = $1 OR d.defect_code = $2);`,
+          [pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
         );
         if (dRes.rows[0]) {
           const dItem = dRes.rows[0];
@@ -1390,8 +1717,8 @@ export class AuditModificationService {
         }
       } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
         await client.query(
-          `UPDATE damage_zones SET ctx_photo_url = $1 WHERE id::text = $2 OR zone_code = $3;`,
-          [newUrl, pa.targetPhotoId || null, pa.targetPhotoId || null]
+          `UPDATE damage_zones SET ctx_photo_url = $1 WHERE report_id = $4 AND (id::text = $2 OR zone_code = $3);`,
+          [newUrl, pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
         );
       } else if (cat === 'CAD_FLOOR' || type === 'FLOOR_CAD' || type === 'CAD') {
         const floorNum = Number(pa.photoIndex) || 1;
@@ -1766,13 +2093,18 @@ export class AuditModificationService {
       if (cat === 'DEFECT_CU' || type === 'DEFECT_CU' || type === 'CU') {
         if (pa.deleteDefectItem) {
           await client.query(
-            `UPDATE defect_items SET is_deleted = true WHERE id::text = $1 OR defect_code = $2;`,
-            [pa.targetPhotoId || null, pa.targetPhotoId || null]
+            `UPDATE defect_items SET is_deleted = true 
+             WHERE zone_id IN (SELECT id FROM damage_zones WHERE report_id = $3)
+               AND (id::text = $1 OR defect_code = $2);`,
+            [pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
           );
         } else {
           const dRes = await client.query(
-            `SELECT id, cu_photo_url, cu_photos_json FROM defect_items WHERE id::text = $1 OR defect_code = $2;`,
-            [pa.targetPhotoId || null, pa.targetPhotoId || null]
+            `SELECT d.id, d.cu_photo_url, d.cu_photos_json 
+             FROM defect_items d
+             JOIN damage_zones z ON d.zone_id = z.id
+             WHERE z.report_id = $3 AND (d.id::text = $1 OR d.defect_code = $2);`,
+            [pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
           );
           if (dRes.rows[0]) {
             const dItem = dRes.rows[0];
@@ -1815,8 +2147,9 @@ export class AuditModificationService {
         }
       } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
         await client.query(
-          `UPDATE damage_zones SET ctx_photo_url = '' WHERE id::text = $1 OR zone_code = $2;`,
-          [pa.targetPhotoId || null, pa.targetPhotoId || null]
+          `UPDATE damage_zones SET ctx_photo_url = '' 
+           WHERE report_id = $3 AND (id::text = $1 OR zone_code = $2);`,
+          [pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
         );
         if (Array.isArray(surveyJson.floors)) {
           for (const fl of surveyJson.floors) {

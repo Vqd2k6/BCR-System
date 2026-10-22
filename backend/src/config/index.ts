@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
+dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const resolveUploadDir = (): string => {

@@ -268,10 +268,29 @@ export class AuditVersionService {
 
     // 4. Thực thi khôi phục trong Transaction
     return Database.transaction(async (client) => {
-      // 4.1. Khôi phục base_survey_reports
-      const sJson = snap.surveyJson || snap.survey_data_json || {};
+      // 4.1. Khôi phục base_survey_reports với Universal Snapshot Reader (hỗ trợ cả V2 Audit View và V3 Release)
+      const sJson = snap.surveyJson || snap.survey_data_json || snap.frozenSurveyDataJson || {};
       const rightPane = snap.rightPane || {};
       const leftPane = snap.leftPane || {};
+      const pInfo = snap.frozenParcel || snap.parcel || snap.parcelInfo || leftPane.parcel || {};
+
+      const hasSurveyData = sJson && Object.keys(sJson).length > 0;
+      const hasParcelData = pInfo && Object.keys(pInfo).length > 0;
+      if (!hasSurveyData && !hasParcelData) {
+        throw new BadRequestError('Dữ liệu khảo sát trong bản chụp lịch sử này không hợp lệ hoặc bị rỗng. Từ chối hoàn nguyên để bảo vệ an toàn dữ liệu.');
+      }
+      let finalSurveyJson = sJson;
+      if (!hasSurveyData && hasParcelData) {
+        finalSurveyJson = {
+          houseNumber: pInfo.houseNumber || pInfo.house_number,
+          street: pInfo.street,
+          ward: pInfo.ward,
+          district: pInfo.district,
+          ownerName: pInfo.ownerName || pInfo.owner_name,
+          damageZones: leftPane.damageZones || [],
+          specs: leftPane.buildingSpecs || {},
+        };
+      }
 
       await client.query(
         `UPDATE base_survey_reports SET
@@ -284,7 +303,7 @@ export class AuditVersionService {
            updated_at = NOW()
          WHERE id = $6;`,
         [
-          JSON.stringify(sJson),
+          JSON.stringify(finalSurveyJson),
           snap.surveyorSignatureUrl || sJson.surveyorSignatureUrl || null,
           snap.ownerSignatureUrl || sJson.ownerSignatureUrl || null,
           snap.summaryConclusions || leftPane.conclusions?.summary || null,
@@ -294,7 +313,7 @@ export class AuditVersionService {
       );
 
       // 4.2. Khôi phục building_specifications
-      const specs = leftPane.buildingSpecs || leftPane.specs || snap.buildingSpecs || {};
+      const specs = sJson.specs || snap.specs || leftPane.buildingSpecs || leftPane.specs || snap.buildingSpecs || {};
       const bFloorCount = specs.floor_count ?? specs.floorCount ?? specs.aboveFloors;
       const bBasementCount = specs.basement_count ?? specs.basementCount ?? specs.undergroundFloors;
       const bBuildingName = specs.building_name ?? specs.buildingName;
@@ -305,6 +324,13 @@ export class AuditVersionService {
       const bFoundationDensity = specs.foundation_density ?? specs.foundationDensity;
       const bFoundationSpacing = specs.foundation_spacing_m ?? specs.foundationSpacingM;
       const bFoundationNotes = specs.foundation_notes ?? specs.foundationNotes;
+
+      let bStructuralSystem = specs.structural_system || specs.structuralSystem || specs.structure_type || specs.structureType || null;
+      if (bStructuralSystem === 'FRAME_CONCRETE') bStructuralSystem = 'KHUNG_BTCT_CHIU_LUC';
+      else if (bStructuralSystem === 'MASONRY_LOADBEARING') bStructuralSystem = 'TUONG_GACH_CHIU_LUC';
+      else if (bStructuralSystem === 'STEEL_STRUCTURE') bStructuralSystem = 'KET_CAU_THEP';
+      else if (bStructuralSystem === 'WOOD_HOUSE') bStructuralSystem = 'NHA_GO';
+      else if (bStructuralSystem === 'MIXED') bStructuralSystem = 'KET_CAU_HON_HOP';
 
       await client.query(
         `UPDATE building_specifications SET
@@ -317,8 +343,9 @@ export class AuditVersionService {
            foundation_depth_m = COALESCE($7, foundation_depth_m),
            foundation_density = COALESCE($8, foundation_density),
            foundation_spacing_m = COALESCE($9, foundation_spacing_m),
-           foundation_notes = COALESCE($10, foundation_notes)
-         WHERE report_id = $11;`,
+           foundation_notes = COALESCE($10, foundation_notes),
+           structural_system = COALESCE($11::structural_system_enum, structural_system)
+         WHERE report_id = $12;`,
         [
           bBuildingName || null,
           bFloorCount !== undefined && bFloorCount !== null ? Number(bFloorCount) : null,
@@ -330,6 +357,7 @@ export class AuditVersionService {
           bFoundationDensity !== undefined && bFoundationDensity !== null ? Number(bFoundationDensity) : null,
           bFoundationSpacing !== undefined && bFoundationSpacing !== null ? Number(bFoundationSpacing) : null,
           bFoundationNotes || null,
+          bStructuralSystem || null,
           actualReportId,
         ]
       );
@@ -353,8 +381,8 @@ export class AuditVersionService {
       );
 
       // 4.4. Khôi phục deformation_assessments
-      const def = leftPane.deformation || snap.deformation || leftPane.settlementTilt || snap.settlementTilt || {};
-      const tilt = def.buildingTilt || def.settlementTilt || {};
+      const def = sJson.deformation || sJson.settlementTilt || leftPane.deformation || snap.deformation || leftPane.settlementTilt || snap.settlementTilt || {};
+      const tilt = def.buildingTilt || def.settlementTilt || def.tiltAssessment || {};
       const beam = def.beamSagging || {};
 
       const tiltX = def.tilt_angle_x ?? def.tiltAngleX ?? (tilt.xPermille !== undefined ? Number(tilt.xPermille) / 10 : (tilt.tilt_x_permille !== undefined ? Number(tilt.tilt_x_permille) / 10 : null));
@@ -362,21 +390,25 @@ export class AuditVersionService {
       const tiltDir = def.tilt_direction ?? def.tiltDirection ?? tilt.direction ?? tilt.tilt_direction ?? null;
       const beamSag = def.beam_deflection_mm ?? def.beamDeflectionMm ?? beam.sagMm ?? beam.beam_deflection_mm ?? null;
 
-      await client.query(
-        `UPDATE deformation_assessments SET
-           tilt_angle_x = COALESCE($1, tilt_angle_x),
-           tilt_angle_y = COALESCE($2, tilt_angle_y),
-           tilt_direction = COALESCE($3, tilt_direction),
-           beam_deflection_mm = COALESCE($4, beam_deflection_mm)
-         WHERE report_id = $5;`,
-        [
-          tiltX !== null && tiltX !== undefined ? Number(tiltX) : null,
-          tiltY !== null && tiltY !== undefined ? Number(tiltY) : null,
-          tiltDir || null,
-          beamSag !== null && beamSag !== undefined ? Number(beamSag) : null,
-          actualReportId,
-        ]
-      );
+      if (tiltX !== null || tiltY !== null || tiltDir !== null || beamSag !== null) {
+        await client.query(
+          `INSERT INTO deformation_assessments (
+             report_id, tilt_angle_x, tilt_angle_y, tilt_direction, beam_deflection_mm
+           ) VALUES ($1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0))
+           ON CONFLICT (report_id) DO UPDATE SET
+             tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x),
+             tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y),
+             tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
+             beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm);`,
+          [
+            actualReportId,
+            tiltX !== null && tiltX !== undefined ? Number(tiltX) : null,
+            tiltY !== null && tiltY !== undefined ? Number(tiltY) : null,
+            tiltDir || null,
+            beamSag !== null && beamSag !== undefined ? Number(beamSag) : null,
+          ]
+        );
+      }
 
       // 4.5. Khôi phục risk_score_cards phòng thủ động (Defensive Dynamic Update)
       const rc = rightPane.riskCard || snap.riskCard || leftPane.riskScoreCard || snap.riskScoreCard || {};
@@ -442,7 +474,7 @@ export class AuditVersionService {
       }
 
       // 4.6. Khôi phục bảng parcels
-      const pInfo = snap.parcel || leftPane.parcel || snap.parcelInfo || {
+      const parcelRestoreData = snap.frozenParcel || snap.parcel || leftPane.parcel || snap.parcelInfo || {
         houseNumber: snap.houseNumber || sJson.houseNumber,
         street: snap.street || sJson.street,
         ward: snap.ward || sJson.ward,
@@ -457,7 +489,7 @@ export class AuditVersionService {
         floorCount: snap.floorCount ?? sJson.floorCount ?? sJson.aboveFloors,
       };
 
-      if (pInfo && (pInfo.houseNumber || pInfo.house_number || pInfo.ownerName || pInfo.owner_name)) {
+      if (parcelRestoreData && (parcelRestoreData.houseNumber || parcelRestoreData.house_number || parcelRestoreData.ownerName || parcelRestoreData.owner_name)) {
         await client.query(
           `UPDATE parcels SET
              house_number = COALESCE($1, house_number),
@@ -476,25 +508,25 @@ export class AuditVersionService {
              updated_at = NOW()
            WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $13);`,
           [
-            pInfo.houseNumber || pInfo.house_number || null,
-            pInfo.street || null,
-            pInfo.ward || null,
-            pInfo.district || null,
-            pInfo.ownerName || pInfo.owner_name || null,
-            pInfo.ownerPhone || pInfo.owner_phone || null,
-            pInfo.officialCadastralCode || pInfo.official_cadastral_code || null,
-            pInfo.frontageWidth !== undefined && pInfo.frontageWidth !== '' ? Number(pInfo.frontageWidth) : null,
-            pInfo.lotDepth !== undefined && pInfo.lotDepth !== '' ? Number(pInfo.lotDepth) : null,
-            pInfo.landAreaM2 !== undefined && pInfo.landAreaM2 !== '' ? Number(pInfo.landAreaM2) : null,
-            pInfo.constructionAreaM2 !== undefined && pInfo.constructionAreaM2 !== '' ? Number(pInfo.constructionAreaM2) : null,
-            (pInfo.floorCount !== undefined && pInfo.floorCount !== '') ? Number(pInfo.floorCount) : ((pInfo.aboveFloors !== undefined && pInfo.aboveFloors !== '') ? Number(pInfo.aboveFloors) : null),
+            parcelRestoreData.houseNumber || parcelRestoreData.house_number || null,
+            parcelRestoreData.street || null,
+            parcelRestoreData.ward || null,
+            parcelRestoreData.district || null,
+            parcelRestoreData.ownerName || parcelRestoreData.owner_name || null,
+            parcelRestoreData.ownerPhone || parcelRestoreData.owner_phone || null,
+            parcelRestoreData.officialCadastralCode || parcelRestoreData.official_cadastral_code || null,
+            parcelRestoreData.frontageWidth !== undefined && parcelRestoreData.frontageWidth !== '' ? Number(parcelRestoreData.frontageWidth) : null,
+            parcelRestoreData.lotDepth !== undefined && parcelRestoreData.lotDepth !== '' ? Number(parcelRestoreData.lotDepth) : null,
+            parcelRestoreData.landAreaM2 !== undefined && parcelRestoreData.landAreaM2 !== '' ? Number(parcelRestoreData.landAreaM2) : null,
+            parcelRestoreData.constructionAreaM2 !== undefined && parcelRestoreData.constructionAreaM2 !== '' ? Number(parcelRestoreData.constructionAreaM2) : null,
+            (parcelRestoreData.floorCount !== undefined && parcelRestoreData.floorCount !== '') ? Number(parcelRestoreData.floorCount) : ((parcelRestoreData.aboveFloors !== undefined && parcelRestoreData.aboveFloors !== '') ? Number(parcelRestoreData.aboveFloors) : null),
             actualReportId,
           ]
         );
       }
 
       // 4.7. Khôi phục survey_identification_photos (P01..P04)
-      const rawIdPhotos = leftPane.identPhotos || rightPane.identificationPhotos || snap.identificationPhotos || [];
+      const rawIdPhotos = leftPane.identPhotos || rightPane.identificationPhotos || snap.identificationPhotos || sJson.identificationPhotos || [];
       const idPhotosList: any[] = [];
       if (Array.isArray(rawIdPhotos)) {
         idPhotosList.push(...rawIdPhotos);
@@ -584,55 +616,121 @@ export class AuditVersionService {
       if (Array.isArray(snapZones) && snapZones.length > 0) {
         for (const z of snapZones) {
           const zId = z.id ? String(z.id) : null;
-          const zCode = z.zone_code || z.zoneCode || null;
-          if (zId) snapZoneIdsOrCodes.add(zId);
-          if (zCode) snapZoneIdsOrCodes.add(zCode);
-
+          const zCode = z.zone_code || z.zoneCode || 'Z-01';
           const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '').trim() || null;
-          await client.query(
-            `UPDATE damage_zones SET
-               ctx_photo_url = $1,
-               ctx_photo_code = $2,
-               notes = $3,
-               burland_grade = $4,
-               is_deleted = false
-             WHERE report_id = $5 AND (id::text = $6 OR zone_code = $7);`,
-            [
-              ctxUrl,
-              z.ctx_photo_code || z.ctxPhotoCode || null,
-              z.notes || null,
-              z.burland_grade !== undefined ? Number(z.burland_grade) : null,
-              actualReportId,
-              zId,
-              zCode,
-            ]
+          const bGrade = z.burland_grade !== undefined ? Number(z.burland_grade) : (z.burlandGrade !== undefined ? Number(z.burlandGrade) : 0);
+
+          let targetZoneId: string;
+          const zCheck = await client.query<{ id: string }>(
+            `SELECT id FROM damage_zones WHERE report_id = $1 AND (id::text = $2 OR zone_code = $3) LIMIT 1;`,
+            [actualReportId, zId, zCode]
           );
+
+          if (zCheck.rows[0]) {
+            targetZoneId = zCheck.rows[0].id;
+            await client.query(
+              `UPDATE damage_zones SET
+                 ctx_photo_url = COALESCE($1, ctx_photo_url),
+                 ctx_photo_code = COALESCE($2, ctx_photo_code),
+                 notes = COALESCE($3, notes),
+                 burland_grade = $4,
+                 room_name = COALESCE($5, room_name),
+                 component_type = COALESCE($6, component_type),
+                 is_deleted = false
+               WHERE id = $7;`,
+              [
+                ctxUrl,
+                z.ctx_photo_code || z.ctxPhotoCode || null,
+                z.notes || null,
+                bGrade,
+                z.room_name || z.roomName || null,
+                z.component_type || z.componentType || null,
+                targetZoneId,
+              ]
+            );
+          } else {
+            const zIns = await client.query<{ id: string }>(
+              `INSERT INTO damage_zones (
+                 report_id, zone_code, floor_name, room_name, component_type,
+                 ctx_photo_url, ctx_photo_code, notes, burland_grade, is_deleted
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)
+               RETURNING id;`,
+              [
+                actualReportId,
+                zCode,
+                z.floor_name || z.floorName || 'Tầng 1',
+                z.room_name || z.roomName || 'Không gian chính',
+                z.component_type || z.componentType || 'WALL',
+                ctxUrl || '',
+                z.ctx_photo_code || z.ctxPhotoCode || null,
+                z.notes || null,
+                bGrade,
+              ]
+            );
+            targetZoneId = zIns.rows[0].id;
+          }
+
+          snapZoneIdsOrCodes.add(targetZoneId);
+          snapZoneIdsOrCodes.add(zCode);
 
           const defects = Array.isArray(z.defects) ? z.defects : [];
           for (const d of defects) {
             const dId = d.id ? String(d.id) : null;
-            const dCode = d.defect_code || d.defectCode || null;
-            if (dId) snapDefectIdsOrCodes.add(dId);
-            if (dCode) snapDefectIdsOrCodes.add(dCode);
-
+            const dCode = d.defect_code || d.defectCode || 'D-01';
             const cuUrl = (d.cu_photo_url || d.cuPhotoUrl || '').trim() || null;
-            await client.query(
-              `UPDATE defect_items SET
-                 cu_photo_url = $1,
-                 cu_photos_json = $2,
-                 width_max_mm = COALESCE($3, width_max_mm),
-                 length_mm = COALESCE($4, length_mm),
-                 is_deleted = false
-               WHERE id::text = $5 OR defect_code = $6;`,
-              [
-                cuUrl,
-                d.cu_photos_json ? JSON.stringify(d.cu_photos_json) : (cuUrl ? JSON.stringify([cuUrl]) : '[]'),
-                d.width_max_mm !== undefined ? Number(d.width_max_mm) : null,
-                d.length_mm !== undefined ? Number(d.length_mm) : null,
-                dId,
-                dCode,
-              ]
+            const cuPhotosJson = d.cu_photos_json ? JSON.stringify(d.cu_photos_json) : (cuUrl ? JSON.stringify([cuUrl]) : '[]');
+            const wMax = d.width_max_mm !== undefined ? Number(d.width_max_mm) : (d.widthMaxMm !== undefined ? Number(d.widthMaxMm) : 0);
+            const lMm = d.length_mm !== undefined ? Number(d.length_mm) : (d.lengthMm !== undefined ? Number(d.lengthMm) : 0);
+
+            let targetDefectId: string;
+            const dCheck = await client.query<{ id: string }>(
+              `SELECT id FROM defect_items WHERE zone_id = $1 AND (id::text = $2 OR defect_code = $3) LIMIT 1;`,
+              [targetZoneId, dId, dCode]
             );
+
+            if (dCheck.rows[0]) {
+              targetDefectId = dCheck.rows[0].id;
+              await client.query(
+                `UPDATE defect_items SET
+                   cu_photo_url = COALESCE($1, cu_photo_url),
+                   cu_photos_json = $2,
+                   width_max_mm = $3,
+                   length_mm = $4,
+                   is_deleted = false
+                 WHERE id = $5;`,
+                [
+                  cuUrl,
+                  cuPhotosJson,
+                  wMax,
+                  lMm,
+                  targetDefectId,
+                ]
+              );
+            } else {
+              const dIns = await client.query<{ id: string }>(
+                `INSERT INTO defect_items (
+                   zone_id, defect_code, pin_x, pin_y, width_max_mm, length_mm,
+                   screening_category, defect_type, cu_photo_url, cu_photos_json, is_deleted
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+                 RETURNING id;`,
+                [
+                  targetZoneId,
+                  dCode,
+                  Number(d.pin_x ?? d.pinX ?? 0) || 0,
+                  Number(d.pin_y ?? d.pinY ?? 0) || 0,
+                  wMax,
+                  lMm,
+                  d.screening_category || d.screeningCategory || 'CRACK',
+                  d.defect_type || d.defectType || 'HAIRLINE',
+                  cuUrl || '',
+                  cuPhotosJson,
+                ]
+              );
+              targetDefectId = dIns.rows[0].id;
+            }
+
+            snapDefectIdsOrCodes.add(targetDefectId);
+            snapDefectIdsOrCodes.add(dCode);
           }
         }
       }
@@ -684,6 +782,16 @@ export class AuditVersionService {
               collectUrl(p.annotated_photo_url || p.annotatedPhotoUrl || p.annotatedUrl || p.url);
             }
           });
+        }
+        const idObj = sJson.identificationPhotos || snap.identificationPhotos;
+        if (idObj && typeof idObj === 'object' && !Array.isArray(idObj)) {
+          for (const key of Object.keys(idObj)) {
+            const p = idObj[key];
+            if (p && !p.is_not_applicable && !p.notApplicable) {
+              collectUrl(p.raw_photo_url || p.rawPhotoUrl || p.rawUrl || p.url);
+              collectUrl(p.annotated_photo_url || p.annotatedPhotoUrl || p.annotatedUrl || p.url);
+            }
+          }
         }
 
         // Ảnh vùng hư hại và khuyết tật

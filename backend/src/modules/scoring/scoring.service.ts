@@ -30,12 +30,18 @@ export class ScoringService {
    * Tự động tính điểm ECS (0-24) và Chỉ số Tổn thương VI cho Báo cáo Phase 1
    */
   static async calculatePhase1Scores(reportId: string) {
-    // 1. Lấy E1 (Max Burland Grade từ các Vùng Z-xx)
+    // 1. Lấy E1 (Max Burland Grade từ các Vùng Z-xx theo chuẩn bậc thang FE)
     const e1Res = await Database.query<{ max_burland: number }>(
-      `SELECT COALESCE(MAX(burland_grade), 0) AS max_burland FROM damage_zones WHERE report_id = $1;`,
+      `SELECT COALESCE(MAX(burland_grade), 0) AS max_burland FROM damage_zones WHERE report_id = $1 AND is_deleted = FALSE;`,
       [reportId]
     );
-    const e1 = Math.min(Number(e1Res.rows[0]?.max_burland || 0), 4);
+    const burlandMax = Number(e1Res.rows[0]?.max_burland || 0);
+    let e1 = 0;
+    if (burlandMax <= 1) e1 = 0;
+    else if (burlandMax === 2) e1 = 1;
+    else if (burlandMax === 3) e1 = 2;
+    else if (burlandMax === 4) e1 = 3;
+    else if (burlandMax >= 5) e1 = 4;
 
     // 2. Lấy E2 & E4 (Max từ các ghim khuyết tật D-xx)
     const e2e4Res = await Database.query<{
@@ -49,7 +55,7 @@ export class ScoringService {
          BOOL_OR(d.is_structural_critical) AS has_critical
        FROM defect_items d
        JOIN damage_zones z ON d.zone_id = z.id
-       WHERE z.report_id = $1;`,
+       WHERE z.report_id = $1 AND d.is_deleted = FALSE AND z.is_deleted = FALSE;`,
       [reportId]
     );
     const e2 = Math.min(Number(e2e4Res.rows[0]?.max_e2 || 0), 4);
@@ -70,8 +76,47 @@ export class ScoringService {
     );
     const e5 = Math.min(Number(e5Res.rows[0]?.e5_history_score || 0), 4);
 
-    // 5. E6 (Mặc định 0 nếu không có tác động)
-    const e6 = 0;
+    // 5. Lấy E6 (Hiện trạng chức năng / tổng thể theo chuẩn FE ecsCalculator.ts)
+    const e6ZoneRes = await Database.query<{ damaged_count: string }>(
+      `SELECT COUNT(*) AS damaged_count FROM damage_zones 
+       WHERE report_id = $1 AND is_deleted = FALSE AND (functional_impact_repair_needed = TRUE OR burland_grade >= 3);`,
+      [reportId]
+    );
+    const damagedZoneCount = Number(e6ZoneRes.rows[0]?.damaged_count || 0);
+    let zoneScore = 0;
+    if (damagedZoneCount === 0) zoneScore = 0;
+    else if (damagedZoneCount <= 2) zoneScore = 1;
+    else if (damagedZoneCount <= 4) zoneScore = 2;
+    else zoneScore = 3;
+
+    const e6DefectRes = await Database.query<{ max_functional: number }>(
+      `SELECT COALESCE(MAX(
+         CASE 
+           WHEN d.screening_category = 'DOOR_JAMMED' OR d.defect_type = 'DOOR_JAMMED' THEN 2
+           ELSE 0 
+         END
+       ), 0) AS max_functional
+       FROM defect_items d
+       JOIN damage_zones z ON d.zone_id = z.id
+       WHERE z.report_id = $1 AND d.is_deleted = FALSE AND z.is_deleted = FALSE;`,
+      [reportId]
+    );
+    let maxDefectE6 = Number(e6DefectRes.rows[0]?.max_functional || 0);
+
+    // Kiểm tra thêm operationalDefects từ survey_data_json nếu có
+    const repRes = await Database.query<{ survey_data_json: any }>(
+      `SELECT survey_data_json FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    );
+    let opDefects: string[] = [];
+    if (repRes.rows[0]?.survey_data_json) {
+      const sJson = typeof repRes.rows[0].survey_data_json === 'string'
+        ? JSON.parse(repRes.rows[0].survey_data_json)
+        : repRes.rows[0].survey_data_json;
+      if (Array.isArray(sJson.operationalDefects)) opDefects = sJson.operationalDefects;
+    }
+    const hasDoorJammed = opDefects.includes('DOOR_JAMMED') || maxDefectE6 > 0;
+    const e6 = Math.min(4, zoneScore + (hasDoorJammed ? 2 : 0));
 
     // Tổng điểm ECS
     const totalEcs = e1 + e2 + e3 + e4 + e5 + e6;
@@ -148,6 +193,7 @@ export class ScoringService {
          e3_deformation_score = EXCLUDED.e3_deformation_score,
          e4_material_score = EXCLUDED.e4_material_score,
          e5_history_score = EXCLUDED.e5_history_score,
+         e6_overall_function_score = EXCLUDED.e6_overall_function_score,
          total_ecs_score = EXCLUDED.total_ecs_score,
          v1_importance_score = EXCLUDED.v1_importance_score,
          v2_structure_score = EXCLUDED.v2_structure_score,
@@ -223,6 +269,7 @@ export class ScoringService {
     let cardRes = await Database.query<{
       e1_burland_score: number;
       e2_structure_score: number;
+      e3_deformation_score: number;
       total_ecs_score: number;
       ecs_class: string;
       v1_importance_score: number;
@@ -236,6 +283,7 @@ export class ScoringService {
       cardRes = await Database.query<{
         e1_burland_score: number;
         e2_structure_score: number;
+        e3_deformation_score: number;
         total_ecs_score: number;
         ecs_class: string;
         v1_importance_score: number;
@@ -250,15 +298,17 @@ export class ScoringService {
 
     const card = cardRes.rows[0];
 
-    // SAFETY LOCK: Khóa không cho phép hạ hạng ECS nếu có khuyết tật kết cấu nguy cấp E2 >= 3
+    // SAFETY LOCK: Khóa không cho phép hạ hạng ECS nếu có khuyết tật kết cấu nguy cấp E2 >= 3 hoặc Biến dạng lún nghiêng E3 >= 3
+    const hasCriticalStructure = Number(card.e2_structure_score) >= 3;
+    const hasCriticalDeformation = Number(card.e3_deformation_score) >= 3;
     if (
       (action === 'DOWNGRADE' ||
         overrides?.ecsClass === 'GOOD' ||
         (overrides?.totalEcs !== undefined && overrides.totalEcs <= 5)) &&
-      Number(card.e2_structure_score) >= 3
+      (hasCriticalStructure || hasCriticalDeformation)
     ) {
       throw new BadRequestError(
-        'KHÓA AN TOÀN KỸ THUẬT: Công trình có khuyết tật kết cấu mức độ Nguy cấp (E2 >= 3), không được phép hạ hạng rủi ro ECS'
+        'KHÓA AN TOÀN KỸ THUẬT: Công trình có khuyết tật kết cấu mức độ Nguy cấp (E2 >= 3) hoặc Biến dạng lún nghiêng nghiêm trọng (E3 >= 3), không được phép hạ hạng rủi ro ECS'
       );
     }
 
@@ -313,10 +363,10 @@ export class ScoringService {
 
     let viClass = overrides?.viClass;
     if (!viClass && overrides?.avgVi !== undefined) {
-      if (overrides.avgVi < 1.5) viClass = 'LOW';
-      else if (overrides.avgVi < 2.5) viClass = 'MEDIUM';
-      else if (overrides.avgVi < 3.5) viClass = 'HIGH';
-      else viClass = 'VERY_HIGH';
+      if (overrides.avgVi > 3.25) viClass = 'VERY_HIGH';
+      else if (overrides.avgVi > 2.50) viClass = 'HIGH';
+      else if (overrides.avgVi > 1.50) viClass = 'MEDIUM';
+      else viClass = 'LOW';
     }
 
     await Database.query(

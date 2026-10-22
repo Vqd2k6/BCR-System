@@ -3,6 +3,7 @@ import { config } from './config';
 import { Database } from './database/db';
 import { MigrationRunner } from './database/migration-runner';
 import { StorageService } from './common/services/storage.service';
+import { ReportSnapshotService } from './modules/report_v3/report-snapshot.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -13,6 +14,9 @@ async function bootstrap() {
 
   // Tự động kiểm tra và áp dụng migrations với bảng tracking schema_migrations
   await MigrationRunner.run();
+
+  // Tự động rà soát và nâng cấp Full Snapshot v2 cho các hồ sơ APPROVED cũ nếu phát hiện thiếu (Self-Healing)
+  await ReportSnapshotService.autoBackfillApprovedSnapshots();
 
   // Tự động kiểm tra và cấu hình CORS cho Cloudflare R2 bucket nếu đang chạy R2 storage
   await StorageService.autoConfigureR2Cors();

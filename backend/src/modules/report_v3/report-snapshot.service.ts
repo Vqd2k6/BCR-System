@@ -184,19 +184,61 @@ export class ReportSnapshotService {
     return { ecs, vi, burlandMaxGrade };
   }
 
-  public static computeContentHash(scores: ReportSnapshotScores): string {
+  public static computeDeepLegalHash(
+    scores: ReportSnapshotScores,
+    surveyJson?: any,
+    frozenParcel?: any
+  ): string {
+    const sJson = surveyJson || {};
+    const legalPayload = {
+      scores,
+      parcelInfo: frozenParcel || {},
+      structuralSpecs: sJson.buildingSpecs || sJson.specs || {},
+      defectsSummary: (sJson.floors || []).map((fl: any) => ({
+        floor: fl.floorName,
+        defects: (fl.zones || []).flatMap((z: any) =>
+          (z.defects || [])
+            .filter((d: any) => !d.isDeleted && !d.is_deleted)
+            .map((d: any) => ({
+              code: d.defectCode || d.defect_code,
+              widthMm: d.widthMaxMm ?? d.width_max_mm,
+              lengthMm: d.lengthMm ?? d.length_mm,
+              cuPhotoUrl: d.cuPhotoUrl || d.cu_photo_url,
+            }))
+        ),
+      })),
+      deformationMeasurements: sJson.settlementTilt || sJson.deformation || {},
+      signatures: {
+        surveyor: sJson.signatures?.surveyorSignatureUrl || sJson.surveyorSignatureUrl || null,
+        owner: sJson.signatures?.ownerSignatureUrl || sJson.ownerSignatureUrl || null,
+      },
+    };
+    return sha256Hex(stableStringify(legalPayload));
+  }
+
+  public static computeContentHash(scores: ReportSnapshotScores, surveyJson?: any, frozenParcel?: any): string {
+    if (surveyJson || frozenParcel) {
+      return this.computeDeepLegalHash(scores, surveyJson, frozenParcel);
+    }
     return sha256Hex(stableStringify(scores));
   }
 
-  /** Đọc dữ liệu cần thiết rồi dựng snapshot (dùng trong transaction APPROVE) */
+  /** Đọc dữ liệu cần thiết rồi dựng snapshot Full v2 (dùng trong transaction APPROVE) */
   public static async buildSnapshot(
     client: PoolClient,
     reportId: string,
     approvedByUserId: string,
-    approvedAt: Date
+    approvedAt: Date,
+    exportRevision?: number
   ): Promise<ReportSnapshot> {
-    const repRes = await client.query<{ survey_data_json: unknown }>(
-      `SELECT survey_data_json FROM base_survey_reports WHERE id = $1;`,
+    const repRes = await client.query<{
+      id: string;
+      parcel_id: string;
+      export_revision: number;
+      report_code: string;
+      survey_data_json: unknown;
+    }>(
+      `SELECT id, parcel_id, export_revision, report_code, survey_data_json FROM base_survey_reports WHERE id = $1;`,
       [reportId]
     );
     const cardRes = await client.query<RiskCardRow>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
@@ -208,15 +250,90 @@ export class ReportSnapshotService {
     const burland = rawBurland === null || rawBurland === undefined ? null : Math.min(5, Math.max(0, Number(rawBurland)));
 
     const scores = this.resolveScores(repRes.rows[0]?.survey_data_json, cardRes.rows[0] ?? null, burland);
-    const snapshot: ReportSnapshot = {
-      schemaVersion: 1,
+
+    // Thu thập toàn bộ dữ liệu lô đất tại thời điểm phê duyệt để đóng băng vĩnh viễn
+    const parcelId = repRes.rows[0]?.parcel_id;
+    let frozenParcel: any = undefined;
+    if (parcelId) {
+      const pRes = await client.query<{
+        house_number: string | null;
+        street: string | null;
+        ward: string | null;
+        district: string | null;
+        owner_name: string | null;
+        owner_phone: string | null;
+        land_area_m2: number | string | null;
+        construction_area_m2: number | string | null;
+        floor_count: number | null;
+        building_type: string | null;
+        official_cadastral_code: string | null;
+        project_parcel_code: string | null;
+        distance_to_centerline_m: number | null;
+        parcel_side_a_m: number | null;
+        parcel_side_b_m: number | null;
+        polygon_geojson: string | null;
+      }>(
+        `SELECT p.house_number, p.street, p.ward, p.district, p.owner_name, p.owner_phone,
+                p.land_area_m2, p.construction_area_m2, p.floor_count, p.building_type,
+                p.official_cadastral_code, p.project_parcel_code,
+                ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, ms.centerline_geom::geography)::numeric, 1) AS distance_to_centerline_m,
+                ROUND((ST_Distance(
+                  ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 1)::geography,
+                  ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography
+                ))::numeric, 1) AS parcel_side_a_m,
+                ROUND((ST_Distance(
+                  ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography,
+                  ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 3)::geography
+                ))::numeric, 1) AS parcel_side_b_m,
+                ST_AsGeoJSON(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)) AS polygon_geojson
+         FROM parcels p
+         LEFT JOIN metro_segments ms ON ms.segment_code = p.zone_id
+         WHERE p.id = $1 LIMIT 1;`,
+        [parcelId]
+      );
+      if (pRes.rows[0]) {
+        const pr = pRes.rows[0];
+        let polyJson: any = null;
+        if (pr.polygon_geojson) {
+          try { polyJson = JSON.parse(pr.polygon_geojson); } catch (e) {}
+        }
+        frozenParcel = {
+          houseNumber: pr.house_number,
+          street: pr.street,
+          ward: pr.ward,
+          district: pr.district,
+          ownerName: pr.owner_name,
+          ownerPhone: pr.owner_phone,
+          landAreaM2: pr.land_area_m2,
+          constructionAreaM2: pr.construction_area_m2,
+          floorCount: pr.floor_count,
+          buildingType: pr.building_type,
+          cadastralCode: pr.official_cadastral_code,
+          projectParcelCode: pr.project_parcel_code,
+          distanceToCenterlineM: pr.distance_to_centerline_m !== null ? Number(pr.distance_to_centerline_m) : null,
+          parcelSideAm: pr.parcel_side_a_m !== null ? Number(pr.parcel_side_a_m) : null,
+          parcelSideBm: pr.parcel_side_b_m !== null ? Number(pr.parcel_side_b_m) : null,
+          polygonGeojson: polyJson,
+        };
+      }
+    }
+
+    const rev = exportRevision ?? repRes.rows[0]?.export_revision ?? 0;
+    const rawSurveyJson = repRes.rows[0]?.survey_data_json;
+    const frozenSurveyDataJson = asObject(rawSurveyJson);
+
+    const snapshotPayload = {
+      schemaVersion: 2 as const,
       reportId,
       approvedAt: approvedAt.toISOString(),
       approvedByUserId,
       ...scores,
-      contentSha256: this.computeContentHash(scores),
+      contentSha256: this.computeContentHash(scores, frozenSurveyDataJson, frozenParcel),
+      exportRevision: Number.isFinite(rev) ? Math.max(0, Math.floor(rev)) : 0,
+      frozenParcel,
+      frozenSurveyDataJson,
     };
-    return ReportSnapshotSchema.parse(snapshot);
+    return ReportSnapshotSchema.parse(snapshotPayload);
   }
 
   /** Ghi snapshot APPROVED_RELEASE vào survey_report_versions trong CÙNG transaction với APPROVE */
@@ -225,9 +342,10 @@ export class ReportSnapshotService {
     reportId: string,
     adminId: string,
     approvedAt: Date,
-    title: string
+    title: string,
+    exportRevision?: number
   ): Promise<{ versionId: string; versionNumber: number; snapshot: ReportSnapshot }> {
-    const snapshot = await this.buildSnapshot(client, reportId, adminId, approvedAt);
+    const snapshot = await this.buildSnapshot(client, reportId, adminId, approvedAt, exportRevision);
     const maxRes = await client.query<{ max_ver: number | null }>(
       `SELECT MAX(version_number) AS max_ver FROM survey_report_versions WHERE report_id = $1;`,
       [reportId]
@@ -239,7 +357,7 @@ export class ReportSnapshotService {
          report_id, version_number, version_tag, title, edit_reason, snapshot_data, created_by_user_id
        ) VALUES ($1, $2, 'APPROVED_RELEASE', $3, $4, $5, $6)
        RETURNING id;`,
-      [reportId, nextVer, title, 'Chốt điểm tại thời điểm APPROVE', JSON.stringify(snapshot), adminId]
+      [reportId, nextVer, title, 'Chốt snapshot bất biến tại thời điểm APPROVE', JSON.stringify(snapshot), adminId]
     );
     return { versionId: ins.rows[0].id, versionNumber: nextVer, snapshot };
   }
@@ -265,12 +383,43 @@ export class ReportSnapshotService {
   }
 
   /**
-   * Gắn điểm snapshot vào bản ghi báo cáo (clone) để pipeline V2 render đúng số đã chốt.
-   * Giá trị null được bỏ khỏi survey_data_json.vi để calculator render '--' thay vì đoán.
+   * Gắn dữ liệu snapshot vào bản ghi báo cáo (clone) để render độc lập 100% với bảng parcels live
    */
   public static applySnapshotToReport<T extends JsonObject>(rawReport: T, snapshot: ReportSnapshot): T {
-    const cloned = JSON.parse(JSON.stringify(rawReport)) as T;
-    const json = asObject(cloned.survey_data_json);
+    const rec = JSON.parse(JSON.stringify(rawReport)) as Record<string, unknown>;
+
+    // 1. Nạp lại survey_data_json đã đóng băng tại thời điểm duyệt
+    if (snapshot.frozenSurveyDataJson && typeof snapshot.frozenSurveyDataJson === 'object') {
+      rec.survey_data_json = JSON.parse(JSON.stringify(snapshot.frozenSurveyDataJson));
+    }
+
+    // 2. Nạp lại thông tin lô đất đã đóng băng tại thời điểm duyệt
+    if (snapshot.frozenParcel) {
+      const fp = snapshot.frozenParcel;
+      if (fp.houseNumber !== undefined) rec.house_number = fp.houseNumber;
+      if (fp.street !== undefined) rec.street = fp.street;
+      if (fp.ward !== undefined) rec.ward = fp.ward;
+      if (fp.district !== undefined) rec.district = fp.district;
+      if (fp.ownerName !== undefined) rec.owner_name = fp.ownerName;
+      if (fp.ownerPhone !== undefined) rec.owner_phone = fp.ownerPhone;
+      if (fp.landAreaM2 !== undefined) rec.land_area_m2 = fp.landAreaM2;
+      if (fp.constructionAreaM2 !== undefined) rec.parcel_construction_area_m2 = fp.constructionAreaM2;
+      if (fp.floorCount !== undefined) rec.parcel_floor_count = fp.floorCount;
+      if (fp.buildingType !== undefined) rec.building_type = fp.buildingType;
+      if (fp.distanceToCenterlineM !== undefined) rec.distance_to_centerline_m = fp.distanceToCenterlineM;
+      if (fp.parcelSideAm !== undefined) rec.parcel_side_a_m = fp.parcelSideAm;
+      if (fp.parcelSideBm !== undefined) rec.parcel_side_b_m = fp.parcelSideBm;
+      if (fp.polygonGeojson !== undefined) rec.parcel_polygon_geojson = fp.polygonGeojson;
+      if (fp.cadastralCode !== undefined) rec.official_cadastral_code = fp.cadastralCode;
+      if (fp.projectParcelCode !== undefined) rec.project_parcel_code = fp.projectParcelCode;
+    }
+
+    if (snapshot.exportRevision !== undefined) {
+      rec.export_revision = snapshot.exportRevision;
+    }
+
+    // 3. Áp dụng điểm số ECS/VI từ snapshot
+    const json = asObject(rec.survey_data_json);
     const ecs: JsonObject = {};
     const vi: JsonObject = {};
     for (const k of ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'] as const) {
@@ -289,7 +438,106 @@ export class ReportSnapshotService {
     json.vi = { engineeringJudgement: prevVi.engineeringJudgement, ...vi };
     if (snapshot.vi.foundationCat !== null) json.foundationCatScore = snapshot.vi.foundationCat;
     else delete json.foundationCatScore;
-    (cloned as JsonObject).survey_data_json = json;
-    return cloned;
+    rec.survey_data_json = json;
+    return rec as T;
+  }
+
+  /**
+   * Tự động rà soát và nâng cấp Full Snapshot v2 cho các hồ sơ APPROVED cũ nếu phát hiện thiếu (Self-Healing).
+   * Chạy tự động khi server bootstrap. Nếu 100% hồ sơ đã có snapshot v2, chỉ tốn ~2ms và thoát ngay.
+   */
+  public static async autoBackfillApprovedSnapshots(): Promise<void> {
+    try {
+      const checkRes = await Database.query<{ count: string }>(
+        `SELECT COUNT(*) AS count
+         FROM base_survey_reports r
+         WHERE r.status = 'APPROVED' AND r.deleted_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM survey_report_versions v
+             WHERE v.report_id = r.id
+               AND v.version_tag = 'APPROVED_RELEASE'
+               AND (v.snapshot_data->>'schemaVersion')::int = 2
+               AND v.snapshot_data->'frozenParcel' IS NOT NULL
+           );`
+      );
+      const neededCount = Number(checkRes.rows[0]?.count || 0);
+      if (neededCount === 0) {
+        return;
+      }
+
+      console.log(`🔄 [SNAPSHOT AUTO-HEAL] Phát hiện ${neededCount} hồ sơ APPROVED chưa có Full Snapshot v2. Đang tự động nâng cấp...`);
+
+      const approvedReports = await Database.query<{
+        id: string;
+        report_code: string;
+        approved_at: Date;
+        zone_admin_id: string | null;
+        export_revision: number;
+      }>(
+        `SELECT id, report_code, approved_at, zone_admin_id, export_revision
+         FROM base_survey_reports
+         WHERE status = 'APPROVED' AND deleted_at IS NULL
+         ORDER BY approved_at ASC;`
+      );
+
+      await Database.transaction(async (client) => {
+        for (const report of approvedReports.rows) {
+          const existingSnap = await client.query<{
+            id: string;
+            version_number: number;
+            snapshot_data: any;
+          }>(
+            `SELECT id, version_number, snapshot_data
+             FROM survey_report_versions
+             WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE'
+             ORDER BY version_number DESC
+             LIMIT 1;`,
+            [report.id]
+          );
+
+          const row = existingSnap.rows[0];
+          if (row && row.snapshot_data?.schemaVersion === 2 && row.snapshot_data?.frozenParcel) {
+            continue;
+          }
+
+          const adminUserRes = await client.query<{ id: string }>(
+            `SELECT id FROM users WHERE id = $1 UNION SELECT id FROM users WHERE role IN ('ZONE_ADMIN', 'SUPER_ADMIN') LIMIT 1;`,
+            [report.zone_admin_id]
+          );
+          const adminId = adminUserRes.rows[0]?.id;
+          if (!adminId) continue;
+          const approvedAt = report.approved_at || new Date();
+
+          if (row) {
+            const fullSnapshot = await this.buildSnapshot(
+              client,
+              report.id,
+              adminId,
+              approvedAt,
+              report.export_revision
+            );
+            await client.query(
+              `UPDATE survey_report_versions
+               SET snapshot_data = $1,
+                   edit_reason = 'Auto-Heal nâng cấp Full Snapshot v2 (bất biến dữ liệu khảo sát và thửa đất)'
+               WHERE id = $2;`,
+              [JSON.stringify(fullSnapshot), row.id]
+            );
+          } else {
+            await this.writeApprovedRelease(
+              client,
+              report.id,
+              adminId,
+              approvedAt,
+              `Khởi tạo snapshot APPROVED_RELEASE (Rev ${String(report.export_revision).padStart(2, '0')})`,
+              report.export_revision
+            );
+          }
+        }
+      });
+      console.log(`✅ [SNAPSHOT AUTO-HEAL] Đã tự động nâng cấp hoàn tất ${neededCount} hồ sơ lên Full Snapshot v2.`);
+    } catch (err: unknown) {
+      console.error('[SNAPSHOT AUTO-HEAL ERROR] Cảnh báo lỗi khi tự động nâng cấp snapshot:', err);
+    }
   }
 }

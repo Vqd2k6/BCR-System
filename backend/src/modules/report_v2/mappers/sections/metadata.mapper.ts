@@ -36,8 +36,8 @@ export class MetadataMapper {
     watermarkDateTime: string,
     rawSurveyDate: any
   ): MetadataMappingResult {
-    // 1. Chuẩn hóa 7 chỉ số định danh
-    const rawParcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
+    // 1. Chuẩn hóa 7 chỉ số định danh (Ưu tiên json thực địa trước, fallback về rawReport)
+    const rawParcelCode = json.projectParcelCode || rawReport.project_parcel_code || '';
     const buildingId = overrides?.buildingId || (rawParcelCode ? CadastralInfoMapper.formatBuildingId(
       rawParcelCode,
       rawReport.zone_id || 'ZONE_09',
@@ -61,7 +61,7 @@ export class MetadataMapper {
       revision
     ) : 'BC-CHƯA_SỐ');
     const filingNo = overrides?.filingNo || CadastralInfoMapper.formatFilingNo(buildingId);
-    const cadastralCode = rawReport.official_cadastral_code || json.officialCadastralCode || '';
+    const cadastralCode = json.officialCadastralCode || rawReport.official_cadastral_code || '';
 
     // Ảnh mặt tiền chính cho trang bìa (P-02) có cơ chế fallback thông minh:
     const p02Item = identPhotos.find((p: any) =>

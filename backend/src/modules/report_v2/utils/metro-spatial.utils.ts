@@ -79,6 +79,147 @@ function pointToSegmentDistance(
   return { distance: dist, projection: [projLat, projLng] };
 }
 
+/**
+ * Thuật toán Ray-Casting: Kiểm tra tọa độ [lat, lng] có nằm trong đa giác hay không
+ */
+export function isPointInPolygon(
+  point: [number, number],
+  polygon: [number, number][]
+): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  const [lat, lng] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+
+    const intersect =
+      yi > lng !== yj > lng && lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Kiểm tra hướng quay 3 điểm (Counter-Clockwise)
+ */
+function ccw(a: [number, number], b: [number, number], c: [number, number]): number {
+  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
+}
+
+/**
+ * Kiểm tra 2 đoạn thẳng (p1-p2) và (p3-p4) có giao cắt nhau hay không
+ */
+export function doSegmentsIntersect(
+  p1: [number, number],
+  p2: [number, number],
+  p3: [number, number],
+  p4: [number, number]
+): boolean {
+  const ccw1 = ccw(p1, p2, p3);
+  const ccw2 = ccw(p1, p2, p4);
+  const ccw3 = ccw(p3, p4, p1);
+  const ccw4 = ccw(p3, p4, p2);
+
+  if (
+    ((ccw1 > 0 && ccw2 < 0) || (ccw1 < 0 && ccw2 > 0)) &&
+    ((ccw3 > 0 && ccw4 < 0) || (ccw3 < 0 && ccw4 > 0))
+  ) {
+    return true;
+  }
+
+  const onSegment = (p: [number, number], a: [number, number], b: [number, number]): boolean => {
+    return (
+      p[0] >= Math.min(a[0], b[0]) - 1e-9 &&
+      p[0] <= Math.max(a[0], b[0]) + 1e-9 &&
+      p[1] >= Math.min(a[1], b[1]) - 1e-9 &&
+      p[1] <= Math.max(a[1], b[1]) + 1e-9
+    );
+  };
+
+  if (Math.abs(ccw1) < 1e-12 && onSegment(p3, p1, p2)) return true;
+  if (Math.abs(ccw2) < 1e-12 && onSegment(p4, p1, p2)) return true;
+  if (Math.abs(ccw3) < 1e-12 && onSegment(p1, p3, p4)) return true;
+  if (Math.abs(ccw4) < 1e-12 && onSegment(p2, p3, p4)) return true;
+
+  return false;
+}
+
+/**
+ * Kiểm tra xem Polyline và Polygon có giao cắt không gian hay không
+ */
+export function checkPolylinePolygonIntersection(
+  polylineCoords: [number, number][],
+  polygonCoords: [number, number][]
+): boolean {
+  if (!polylineCoords || polylineCoords.length < 2 || !polygonCoords || polygonCoords.length < 3) {
+    return false;
+  }
+
+  for (const pt of polylineCoords) {
+    if (isPointInPolygon(pt, polygonCoords)) {
+      return true;
+    }
+  }
+
+  const polyLen = polygonCoords.length;
+  for (let i = 0; i < polylineCoords.length - 1; i++) {
+    const p1 = polylineCoords[i];
+    const p2 = polylineCoords[i + 1];
+
+    for (let j = 0; j < polyLen; j++) {
+      const q1 = polygonCoords[j];
+      const q2 = polygonCoords[(j + 1) % polyLen];
+
+      if (doSegmentsIntersect(p1, p2, q1, q2)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Kiểm tra xem 2 Đa giác có giao cắt nhau hay không
+ */
+export function checkParcelPolygonIntersection(
+  parcelCoords: [number, number][],
+  stationCoords: [number, number][]
+): boolean {
+  if (!parcelCoords || parcelCoords.length < 3 || !stationCoords || stationCoords.length < 3) {
+    return false;
+  }
+
+  for (const vertex of parcelCoords) {
+    if (isPointInPolygon(vertex, stationCoords)) {
+      return true;
+    }
+  }
+
+  for (const vertex of stationCoords) {
+    if (isPointInPolygon(vertex, parcelCoords)) {
+      return true;
+    }
+  }
+
+  for (let i = 0; i < parcelCoords.length; i++) {
+    const p1 = parcelCoords[i];
+    const p2 = parcelCoords[(i + 1) % parcelCoords.length];
+    for (let j = 0; j < stationCoords.length; j++) {
+      const p3 = stationCoords[j];
+      const p4 = stationCoords[(j + 1) % stationCoords.length];
+      if (doSegmentsIntersect(p1, p2, p3, p4)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // Bộ nhớ đệm dữ liệu bản đồ ranh giới Metro 2
 let cachedBoundaryData: {
   centerline?: [number, number][];
@@ -480,34 +621,77 @@ export function generateMetroSpatialVisualSvg(
 /**
  * Tính khoảng cách thủ công từ điểm polygon thửa đất gần nhất đến tim hầm và biên kết cấu Metro,
  * đồng bộ 100% với Động cơ Thẩm định của Zone Admin.
+ * Hỗ trợ:
+ * - Kiểm tra giao cắt không gian toàn diện (Intersecting Gate): Nếu tim tuyến hoặc ga cắt xuyên qua thửa đất -> cự ly = 0.0m.
+ * - Phép chiếu 2 chiều đối xứng (Đỉnh Thửa -> Cạnh Tuyến/Ga & Đỉnh Tuyến/Ga -> Cạnh Thửa) đạt chuẩn PostGIS.
  */
 export function calculateDistancesFromPolygon(
   polygonCoords: [number, number][]
-): { centerlineDist: number | null; outerBoundaryDist: number | null } {
+): {
+  centerlineDist: number | null;
+  outerBoundaryDist: number | null;
+  isCenterlineIntersects?: boolean;
+  isStationIntersects?: boolean;
+} {
   const boundaryData = getMetroBoundaryData();
   if (!boundaryData || !polygonCoords || polygonCoords.length < 3) {
-    return { centerlineDist: null, outerBoundaryDist: null };
+    return { centerlineDist: null, outerBoundaryDist: null, isCenterlineIntersects: false, isStationIntersects: false };
   }
+
+  const polyLen = polygonCoords.length;
 
   // 1. Cự ly tới Tim Hầm (Centerline)
   let minCenterlineDist = Infinity;
+  let isCenterlineIntersects = false;
   const centerline = boundaryData.centerline || [];
+
   if (centerline.length > 1) {
-    for (const vertex of polygonCoords) {
-      for (let i = 0; i < centerline.length - 1; i++) {
-        const res = pointToSegmentDistance(vertex, centerline[i], centerline[i + 1]);
-        if (res.distance < minCenterlineDist) {
-          minCenterlineDist = res.distance;
+    // 1.1 Kiểm tra giao cắt không gian tim tuyến
+    if (checkPolylinePolygonIntersection(centerline, polygonCoords)) {
+      minCenterlineDist = 0.0;
+      isCenterlineIntersects = true;
+    } else {
+      // 1.2 Chiều 1: Đỉnh thửa đất -> Các đoạn thẳng của Tim Tuyến
+      for (const vertex of polygonCoords) {
+        for (let i = 0; i < centerline.length - 1; i++) {
+          const res = pointToSegmentDistance(vertex, centerline[i], centerline[i + 1]);
+          if (res.distance < minCenterlineDist) {
+            minCenterlineDist = res.distance;
+          }
+        }
+      }
+
+      // 1.3 Chiều 2: Đỉnh Tim Tuyến -> Các cạnh của Thửa Đất
+      for (let i = 0; i < centerline.length; i++) {
+        const pt = centerline[i];
+        for (let j = 0; j < polyLen; j++) {
+          const edgeA = polygonCoords[j];
+          const edgeB = polygonCoords[(j + 1) % polyLen];
+          const res = pointToSegmentDistance(pt, edgeA, edgeB);
+          if (res.distance < minCenterlineDist) {
+            minCenterlineDist = res.distance;
+          }
         }
       }
     }
   }
 
-  // 2. Cự ly tới Nhà Ga / Biên Hố Đào (Mép công trình ga màu trắng hoặc ranh hành lang)
+  // 2. Cự ly tới Nhà Ga (Station Detailed Footprints)
   let minStationDist = Infinity;
+  let isStationIntersects = false;
   const stationOutlines = boundaryData.stationDetailedFootprints || [];
+
   for (const station of stationOutlines) {
-    if (!station.coords || station.coords.length < 2) continue;
+    if (!station.coords || station.coords.length < 3) continue;
+
+    // 2.1 Kiểm tra giao cắt không gian nhà ga
+    if (checkParcelPolygonIntersection(polygonCoords, station.coords)) {
+      minStationDist = 0.0;
+      isStationIntersects = true;
+      break;
+    }
+
+    // 2.2 Chiều 1: Đỉnh thửa đất -> Cạnh của Nhà Ga
     for (const vertex of polygonCoords) {
       for (let j = 0; j < station.coords.length; j++) {
         const p1 = station.coords[j];
@@ -518,15 +702,42 @@ export function calculateDistancesFromPolygon(
         }
       }
     }
+
+    // 2.3 Chiều 2: Đỉnh Nhà Ga -> Cạnh của Thửa Đất
+    for (const stVertex of station.coords) {
+      for (let j = 0; j < polyLen; j++) {
+        const edgeA = polygonCoords[j];
+        const edgeB = polygonCoords[(j + 1) % polyLen];
+        const res = pointToSegmentDistance(stVertex, edgeA, edgeB);
+        if (res.distance < minStationDist) {
+          minStationDist = res.distance;
+        }
+      }
+    }
   }
 
+  // 3. Cự ly tới Mép Hố Đào (Corridor Boundaries)
   let minCorridorDist = Infinity;
   const corridorBoundaries = boundaryData.corridorBoundaries || [];
   for (const corridor of corridorBoundaries) {
     if (!corridor.coords || corridor.coords.length < 2) continue;
+
+    // Chiều 1: Đỉnh thửa đất -> Các đoạn Mép Hố Đào
     for (const vertex of polygonCoords) {
       for (let k = 0; k < corridor.coords.length - 1; k++) {
         const res = pointToSegmentDistance(vertex, corridor.coords[k], corridor.coords[k + 1]);
+        if (res.distance < minCorridorDist) {
+          minCorridorDist = res.distance;
+        }
+      }
+    }
+
+    // Chiều 2: Đỉnh Mép Hố Đào -> Cạnh của Thửa Đất
+    for (const cPt of corridor.coords) {
+      for (let j = 0; j < polyLen; j++) {
+        const edgeA = polygonCoords[j];
+        const edgeB = polygonCoords[(j + 1) % polyLen];
+        const res = pointToSegmentDistance(cPt, edgeA, edgeB);
         if (res.distance < minCorridorDist) {
           minCorridorDist = res.distance;
         }
@@ -548,6 +759,8 @@ export function calculateDistancesFromPolygon(
   return {
     centerlineDist: minCenterlineDist < Infinity ? minCenterlineDist : null,
     outerBoundaryDist,
+    isCenterlineIntersects,
+    isStationIntersects,
   };
 }
 

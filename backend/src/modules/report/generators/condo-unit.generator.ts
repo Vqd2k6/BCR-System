@@ -81,14 +81,17 @@ export class CondoUnitReportGenerator {
     };
     const residentStatusLabel = statusLabels[resStatus] || resStatus;
 
-    // Thông tin kế thừa từ Tòa nhà Mẹ
+    // Thông tin kế thừa từ Tòa nhà Mẹ (Q4: Kế thừa động số liệu mới nhất từ Tòa mẹ)
     const parentInfo = json.parentInfo || {};
-    const buildingName = parentInfo.buildingName || parcel.buildingName || parcel.building_name || 'Tòa nhà Chung Cư';
-    const address = parentInfo.address || `${parcel.houseNumber ? `${parcel.houseNumber}, ` : ''}${parcel.street || ''}`.trim() || 'Dự án Metro Tuyến số 2';
-    const projectParcelCode = parentInfo.projectParcelCode || parcel.projectParcelCode || parcel.project_parcel_code || 'B-000';
-    const officialCadastralCode = parentInfo.officialCadastralCode || parcel.officialCadastralCode || parcel.official_cadastral_code || 'DC-000';
+    const buildingName = parcel.buildingName || parcel.building_name || parentInfo.buildingName || 'Tòa nhà Chung Cư';
+    const address = `${parcel.houseNumber ? `${parcel.houseNumber}, ` : ''}${parcel.street || ''}`.trim() || parentInfo.address || 'Dự án Metro Tuyến số 2';
+    const projectParcelCode = parcel.projectParcelCode || parcel.project_parcel_code || parentInfo.projectParcelCode || 'B-000';
+    const officialCadastralCode = parcel.officialCadastralCode || parcel.official_cadastral_code || parentInfo.officialCadastralCode || 'DC-000';
     const chainage = parentInfo.chainage || 'Km 3+450';
-    const metroOffsetDistance = parentInfo.metroOffsetDistance || `${parcel.distanceMeters || 12.5}m`;
+    const parentCenterlineDist = parcel.distance_to_centerline_m ?? parcel.distanceMeters;
+    const metroOffsetDistance = parentCenterlineDist !== undefined && parentCenterlineDist !== null
+      ? `${Number(parentCenterlineDist).toFixed(1)}m`
+      : (parentInfo.metroOffsetDistance || '12.5m');
 
     const parentMasterReportCode = parentReport.report_code || 'REPORT-MASTER';
     const parentMasterReportId = parentReport.id || '';

@@ -31,3 +31,28 @@ export const RollbackVersionDto = z.object({
   rollbackReason: z.string().min(5, 'Lý do hoàn nguyên kỹ thuật phải từ 5 ký tự trở lên'),
 });
 
+export const AdminSurveyEditDto = z.object({
+  adminPassword: z.string().min(1, 'Mật khẩu xác thực Zone Admin là bắt buộc'),
+  editReason: z.string().min(5, 'Lý do điều chỉnh kỹ thuật phải từ 5 ký tự trở lên'),
+  diffPayload: z
+    .array(
+      z.object({
+        field: z.string(),
+        label: z.string(),
+        oldValue: z.unknown(),
+        newValue: z.unknown(),
+      })
+    )
+    .optional(),
+  updates: z.record(z.unknown()),
+  photoActions: z.array(z.unknown()).optional(),
+});
+
+export const AcquireLockDto = z.object({
+  reportId: z.string().uuid().optional(),
+});
+
+export const ReleaseLockDto = z.object({
+  force: z.boolean().optional(),
+});
+

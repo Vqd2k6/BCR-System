@@ -185,6 +185,7 @@ export function createApp(): express.Application {
   api.get('/admin/reports/:id/audit-flags', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportAuditFlags);
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
   api.post('/admin/reports/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveReport);
+  api.post('/admin/reports/:id/unlock-approved', authenticateJwt, requireRoles('SUPER_ADMIN'), AuditController.unlockApprovedReport);
   api.post('/admin/reports/:id/approve-absentee', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveAbsenteeReport);
   api.post('/admin/reports/:id/reject', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rejectReport);
   api.post('/admin/reports/:id/revert-to-draft', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);
@@ -194,6 +195,9 @@ export function createApp(): express.Application {
   api.post('/admin/mutations/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.approveMutation);
   api.post('/admin/reports/:id/engineering-judgement', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.applyJudgement);
   api.put('/admin/reports/:id/audit-edit', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.applyAdminSurveyEdit);
+  api.post('/admin/reports/:id/lock', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.acquireAuditLock);
+  api.delete('/admin/reports/:id/lock', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.releaseAuditLock);
+  api.get('/admin/reports/:id/lock', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.checkAuditLock);
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
   api.post('/admin/reports/:id/audit-photo-action', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.executePhotoAction);
   api.get('/admin/reports/:id/photo-registry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getPhotoAuditRegistry);

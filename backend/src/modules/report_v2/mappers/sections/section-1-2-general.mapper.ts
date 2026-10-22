@@ -46,8 +46,8 @@ export class Section1And2Mapper {
     const isUnderConstruction = Boolean(json.surveyCaseType === 'UNDER_CONSTRUCTION');
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
 
-    // Tên công trình song ngữ chuẩn hóa
-    const bldgType = (rawReport.building_type || json.buildingType || specs.buildingType || '').toUpperCase();
+    // Tên công trình song ngữ chuẩn hóa (Ưu tiên khảo sát thực địa trước)
+    const bldgType = (json.buildingType || specs.buildingType || rawReport.building_type || '').toUpperCase();
     const rawBldgName = isVacantLand
       ? 'Khu đất trống'
       : (rawReport.building_name || json.buildingName || specs.buildingNameVi || (bldgType === 'WAREHOUSE' ? 'Kho hàng' : 'Nhà ở gia đình'));
@@ -126,10 +126,11 @@ export class Section1And2Mapper {
       address: {
         vi: (() => {
           // Chuẩn hóa 168 ĐVHC cấp xã TP.HCM (không còn cấp quận): Số [Số nhà] [Tên đường], [Phường mới], TP. Hồ Chí Minh
-          const rawHouse = rawReport.house_number || json.houseNumber;
-          const rawStreet = rawReport.street || json.street;
-          const rawWard = rawReport.ward || json.ward;
-          const rawDistrict = rawReport.district || json.district;
+          // Ưu tiên dữ liệu KSV ghi nhận thực địa (json) trước, fallback về bảng parcels
+          const rawHouse = json.houseNumber || rawReport.house_number;
+          const rawStreet = json.street || rawReport.street;
+          const rawWard = json.ward || rawReport.ward;
+          const rawDistrict = json.district || rawReport.district;
 
           const evalRes = evaluateAddressStandard(rawHouse, rawStreet, rawWard, rawDistrict);
           const finalHn = evalRes.suggested.houseNumber || rawHouse;
@@ -140,10 +141,11 @@ export class Section1And2Mapper {
           return formatted && formatted !== 'TP. Hồ Chí Minh' ? formatted : (rawReport.address_combined || 'Chưa ghi nhận địa chỉ chi tiết');
         })(),
         en: (() => {
-          const rawHouse = rawReport.house_number || json.houseNumber;
-          const rawStreet = rawReport.street || json.street;
-          const rawWard = rawReport.ward || json.ward;
-          const rawDistrict = rawReport.district || json.district;
+          // Ưu tiên dữ liệu KSV ghi nhận thực địa (json) trước, fallback về bảng parcels
+          const rawHouse = json.houseNumber || rawReport.house_number;
+          const rawStreet = json.street || rawReport.street;
+          const rawWard = json.ward || rawReport.ward;
+          const rawDistrict = json.district || rawReport.district;
 
           const evalRes = evaluateAddressStandard(rawHouse, rawStreet, rawWard, rawDistrict);
           const finalHn = (evalRes.suggested.houseNumber || rawHouse || '').trim();
@@ -177,7 +179,7 @@ export class Section1And2Mapper {
         en: ownerEn,
       },
       ownerName: ownerVi,
-      contactPhone: rawReport.owner_phone || json.ownerPhone || 'Chưa ghi nhận trong hồ sơ phần mềm',
+      contactPhone: json.ownerPhone || rawReport.owner_phone || 'Chưa ghi nhận trong hồ sơ phần mềm',
       surveyConsultant: {
         vi: 'Liên danh CRLG – CRSRI – TT',
         en: 'CRLG – CRSRI – TT Joint Venture',

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
-import { NotFoundError, BadRequestError, ConflictError } from '../../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../../common/errors/problem-details';
 import { ReportSnapshotService } from '../../report_v3/report-snapshot.service';
 import { RiskScoringCalculator } from '../../report_v2/mappers/risk-scoring-calculator';
 import { ReportConsistencyGate } from './report-consistency-gate';
@@ -370,8 +370,8 @@ export class AuditReviewService {
                 '[]'
               ) AS defects
        FROM damage_zones z
-       LEFT JOIN defect_items d ON z.id = d.zone_id
-       WHERE z.report_id = $1 AND (z.zone_code NOT LIKE 'E%' OR z.zone_code IS NULL)
+       LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
+       WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND (z.zone_code NOT LIKE 'E%' OR z.zone_code IS NULL)
        GROUP BY z.id;`,
       [actualReportId]
     );
@@ -404,8 +404,8 @@ export class AuditReviewService {
                 '[]'
               ) AS defects
        FROM damage_zones z
-       LEFT JOIN defect_items d ON z.id = d.zone_id
-       WHERE z.report_id = $1 AND z.zone_code LIKE 'E%'
+       LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
+       WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND z.zone_code LIKE 'E%'
        GROUP BY z.id;`,
       [actualReportId]
     );
@@ -885,18 +885,18 @@ export class AuditReviewService {
         parcel: {
           id: report.parcel_id,
           projectParcelCode: report.project_parcel_code,
-          houseNumber: report.house_number || surveyJson.houseNumber,
-          street: report.street || surveyJson.street,
-          ward: report.ward || surveyJson.ward,
-          district: report.district || surveyJson.district,
-          ownerName: report.owner_name || surveyJson.ownerName,
-          ownerPhone: report.owner_phone || surveyJson.ownerPhone,
-          officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
-          frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : surveyJson.frontageWidth,
-          lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : surveyJson.lotDepth,
-          landAreaM2: report.land_area_m2 !== null && report.land_area_m2 !== undefined ? Number(report.land_area_m2) : surveyJson.landAreaM2,
-          constructionAreaM2: report.construction_area_m2 !== null && report.construction_area_m2 !== undefined ? Number(report.construction_area_m2) : surveyJson.constructionAreaM2,
-          floorCount: report.floor_count !== null && report.floor_count !== undefined ? Number(report.floor_count) : surveyJson.floorCount,
+          houseNumber: surveyJson.houseNumber || report.house_number,
+          street: surveyJson.street || report.street,
+          ward: surveyJson.ward || report.ward,
+          district: surveyJson.district || report.district,
+          ownerName: surveyJson.ownerName || report.owner_name,
+          ownerPhone: surveyJson.ownerPhone || report.owner_phone,
+          officialCadastralCode: surveyJson.officialCadastralCode || report.official_cadastral_code,
+          frontageWidth: surveyJson.frontageWidth !== undefined && surveyJson.frontageWidth !== null && surveyJson.frontageWidth !== '' ? Number(surveyJson.frontageWidth) : (report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : null),
+          lotDepth: surveyJson.lotDepth !== undefined && surveyJson.lotDepth !== null && surveyJson.lotDepth !== '' ? Number(surveyJson.lotDepth) : (report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : null),
+          landAreaM2: surveyJson.landAreaM2 !== undefined && surveyJson.landAreaM2 !== null && surveyJson.landAreaM2 !== '' ? Number(surveyJson.landAreaM2) : (report.land_area_m2 !== null && report.land_area_m2 !== undefined ? Number(report.land_area_m2) : null),
+          constructionAreaM2: surveyJson.constructionAreaM2 !== undefined && surveyJson.constructionAreaM2 !== null && surveyJson.constructionAreaM2 !== '' ? Number(surveyJson.constructionAreaM2) : (report.construction_area_m2 !== null && report.construction_area_m2 !== undefined ? Number(report.construction_area_m2) : null),
+          floorCount: surveyJson.aboveFloors !== undefined && surveyJson.aboveFloors !== null && surveyJson.aboveFloors !== '' ? Number(surveyJson.aboveFloors) : (surveyJson.floorCount !== undefined && surveyJson.floorCount !== null && surveyJson.floorCount !== '' ? Number(surveyJson.floorCount) : (report.floor_count !== null && report.floor_count !== undefined ? Number(report.floor_count) : null)),
         },
         damageZones: enrichedDamageZones,
         structuralElements: enrichedElements,
@@ -1039,6 +1039,31 @@ export class AuditReviewService {
           return [];
         }
       })(),
+      lockInfo: await (async () => {
+        try {
+          const lRes = await Database.query<{
+            locked_by_user_id: string;
+            full_name: string;
+            expires_at: string;
+          }>(
+            `SELECT l.locked_by_user_id, u.full_name, l.expires_at
+             FROM survey_audit_locks l
+             JOIN users u ON l.locked_by_user_id = u.id
+             WHERE l.report_id = $1 AND l.expires_at > NOW();`,
+            [actualReportId]
+          );
+          const l = lRes.rows[0];
+          if (!l) return { isLocked: false };
+          return {
+            isLocked: true,
+            lockedByUserId: l.locked_by_user_id,
+            lockedByName: l.full_name,
+            expiresAt: l.expires_at,
+          };
+        } catch {
+          return { isLocked: false };
+        }
+      })(),
     };
   }
 
@@ -1054,9 +1079,10 @@ export class AuditReviewService {
         unit_id: string | null;
         report_type: string | null;
         status: string;
+        export_revision: number;
         survey_data_json: any;
       }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.survey_data_json
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.export_revision, r.survey_data_json
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)
@@ -1084,6 +1110,16 @@ export class AuditReviewService {
       // =======================================================================
       const gateResult = ReportConsistencyGate.assertConsistency(reportRow, surveyJson, judgementNotes);
 
+      // Kiểm tra xem báo cáo đã từng có bản APPROVED_RELEASE trước đó chưa (quy trình Mở khóa Approved -> Chỉnh sửa -> Duyệt lại)
+      const prevApprovedCountRes = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE';`,
+        [actualReportId]
+      );
+      const prevApprovedCount = Number(prevApprovedCountRes.rows[0]?.count || 0);
+      const isReApproval = prevApprovedCount > 0;
+      const currentRev = repRes.rows[0].export_revision ?? 0;
+      const nextRevision = isReApproval ? Math.max(currentRev + 1, prevApprovedCount) : 0;
+
       // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả
       const approveRes = await client.query<{ approved_at: Date }>(
         `UPDATE base_survey_reports
@@ -1091,10 +1127,11 @@ export class AuditReviewService {
              zone_admin_id = $2,
              approved_at = NOW(),
              engineering_recommendations = COALESCE($3, engineering_recommendations),
+             export_revision = $4,
              updated_at = NOW()
          WHERE id = $1
          RETURNING approved_at;`,
-        [actualReportId, adminId, judgementNotes || null]
+        [actualReportId, adminId, judgementNotes || null, nextRevision]
       );
 
       // D1/D3: chụp snapshot điểm bất biến (APPROVED_RELEASE + SHA-256) trong CÙNG transaction với APPROVE
@@ -1103,7 +1140,8 @@ export class AuditReviewService {
         actualReportId,
         adminId,
         approveRes.rows[0].approved_at,
-        'Chốt điểm tại thời điểm APPROVE'
+        nextRevision === 0 ? 'Chốt điểm tại thời điểm APPROVE' : `Phê duyệt lại (Rev ${String(nextRevision).padStart(2, '0')})`,
+        nextRevision
       );
 
       let parcelApprovedStatus = 'APPROVED';
@@ -1138,6 +1176,9 @@ export class AuditReviewService {
         [actualReportId, adminId]
       );
 
+      // Giải phóng khóa phiên thẩm định
+      await client.query(`DELETE FROM survey_audit_locks WHERE report_id = $1;`, [actualReportId]);
+
       // Ghi nhận nhật ký kiểm toán hệ thống phê duyệt
       await client.query(
         `INSERT INTO system_audit_logs (
@@ -1152,6 +1193,7 @@ export class AuditReviewService {
             reportId: actualReportId,
             parcelId: actualParcelId,
             status: 'APPROVED',
+            exportRevision: nextRevision,
             judgementNotes: judgementNotes || null,
             gateWarnings: gateResult.warnings,
             gateDetails: gateResult.details,
@@ -1166,9 +1208,110 @@ export class AuditReviewService {
         reportId: actualReportId,
         parcelId: actualParcelId,
         status: 'APPROVED',
+        exportRevision: nextRevision,
         snapshotVersionId: approvedSnapshot.versionId,
         snapshotSha256: approvedSnapshot.snapshot.contentSha256,
         message: 'Đã phê duyệt báo cáo và chốt snapshot điểm (APPROVED_RELEASE). File Final được phát hành khi xuất lần đầu.',
+      };
+    });
+  }
+
+  /**
+   * Mở khóa hồ sơ đã APPROVED để cho phép hiệu chỉnh thông tin thửa đất hoặc khảo sát.
+   * Chuyển trạng thái về UNDER_REVIEW và giải phóng khóa bảo vệ DB Trigger trên parcels.
+   */
+  static async unlockApprovedReport(reportId: string, adminId: string) {
+    return Database.transaction(async (client) => {
+      // 0. KIỂM TRA PHÂN QUYỀN TUYỆT ĐỐI: Chỉ duy nhất SUPER_ADMIN mới có quyền mở khóa hồ sơ đã duyệt (APPROVED)
+      const userRes = await client.query<{ id: string; role: string }>(
+        `SELECT id, role FROM users WHERE id = $1;`,
+        [adminId]
+      );
+      if (!userRes.rows[0] || userRes.rows[0].role !== 'SUPER_ADMIN') {
+        throw new ForbiddenError('Chỉ có Super Admin mới có quyền mở khóa hồ sơ đã được duyệt (APPROVED).');
+      }
+
+      const repRes = await client.query<{
+        id: string;
+        parcel_id: string;
+        unit_id: string | null;
+        report_type: string | null;
+        status: string;
+        export_revision: number;
+        project_parcel_code: string;
+      }>(
+        `SELECT r.id, r.parcel_id, r.unit_id, r.report_type, r.status, r.export_revision, p.project_parcel_code
+         FROM base_survey_reports r
+         JOIN parcels p ON r.parcel_id = p.id
+         WHERE (r.id = $1 OR r.parcel_id = $1)
+         ORDER BY (CASE WHEN r.id = $1 THEN 0 ELSE 1 END), r.created_at DESC
+         LIMIT 1 FOR UPDATE;`,
+        [reportId]
+      );
+      if (!repRes.rows[0]) {
+        throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
+      }
+
+      const reportRow = repRes.rows[0];
+      if (reportRow.status !== 'APPROVED') {
+        throw new ConflictError(`Chỉ hồ sơ ở trạng thái APPROVED mới có thể mở khóa (trạng thái hiện tại: ${reportRow.status}).`);
+      }
+
+      const actualReportId = reportRow.id;
+      const actualParcelId = reportRow.parcel_id;
+
+      // 1. Chuyển trạng thái báo cáo về UNDER_REVIEW để cho phép chỉnh sửa
+      await client.query(
+        `UPDATE base_survey_reports
+         SET status = 'UNDER_REVIEW',
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [actualReportId]
+      );
+
+      // 2. Chuyển trạng thái lô đất/căn hộ con về IN_PROGRESS (giải phóng khóa DB trigger trên parcels)
+      const isChildUnit = Boolean(reportRow.unit_id) || reportRow.report_type === 'CONDO_UNIT' || reportRow.report_type === 'UNIT_CHILD';
+      if (isChildUnit && reportRow.unit_id) {
+        await client.query(
+          `UPDATE building_units SET status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $1;`,
+          [reportRow.unit_id]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels SET survey_status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $1;`,
+          [actualParcelId]
+        );
+      }
+
+      // 3. Ghi audit log
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'SUPER_ADMIN_UNLOCK_APPROVED',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            projectParcelCode: reportRow.project_parcel_code,
+            previousStatus: 'APPROVED',
+            newStatus: 'UNDER_REVIEW',
+            currentRevision: reportRow.export_revision,
+            unlockedByRole: 'SUPER_ADMIN',
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
+      return {
+        reportId: actualReportId,
+        parcelId: actualParcelId,
+        status: 'UNDER_REVIEW',
+        projectParcelCode: reportRow.project_parcel_code,
+        message: 'Đã mở khóa hồ sơ thành công. Trạng thái hiện tại: UNDER_REVIEW. Bạn có thể cập nhật thông tin thửa đất hoặc khảo sát.',
       };
     });
   }
@@ -1219,6 +1362,9 @@ export class AuditReviewService {
           [actualParcelId]
         );
       }
+
+      // Giải phóng khóa phiên thẩm định
+      await client.query(`DELETE FROM survey_audit_locks WHERE report_id = $1;`, [actualReportId]);
 
       // Ghi nhận nhật ký kiểm toán hệ thống trả về
       await client.query(
@@ -1502,22 +1648,38 @@ export class AuditReviewService {
     let approvedCount = 0;
     let failedCount = 0;
 
+    // CHỐT CHẶN BẢO VỆ PHÁP LÝ NHÀ DÂN: CẤM TUYỆT ĐỐI DUYỆT HÀNG LOẠT CHO NHÀ DÂN ĐỘC LẬP
+    if (reportIds && reportIds.length > 0) {
+      const resCheck = await Database.query<{ id: string }>(
+        `SELECT id FROM base_survey_reports
+         WHERE id = ANY($1::uuid[]) AND (unit_id IS NULL AND (report_type IS NULL OR report_type != 'CONDO_UNIT'));`,
+        [reportIds]
+      );
+      if (resCheck.rows.length > 0) {
+        throw new BadRequestError(
+          'Không thể duyệt hàng loạt đối với nhà dân độc lập. Mỗi nhà dân là một tài sản pháp lý riêng biệt, KSV và Thẩm định viên bắt buộc phải thẩm định chi tiết từng căn.'
+        );
+      }
+    }
+
     for (const reportId of reportIds) {
       try {
         // Kiểm tra điều kiện an toàn: Grade 0 hoặc 0 vết nứt
         const checkRes = await Database.query<{
           id: string;
           status: string;
+          unit_id: string | null;
+          report_type: string | null;
           burland_score: number | null;
           defect_count: number;
         }>(
-          `SELECT r.id, r.status,
+          `SELECT r.id, r.status, r.unit_id, r.report_type,
                   COALESCE(sc.e1_burland_score, 0) AS burland_score,
                   (
                     SELECT COUNT(*)
                     FROM defect_items d
                     JOIN damage_zones z ON d.zone_id = z.id
-                    WHERE z.report_id = r.id
+                    WHERE z.report_id = r.id AND d.is_deleted = FALSE AND z.is_deleted = FALSE
                   )::int AS defect_count
            FROM base_survey_reports r
            LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
@@ -1532,6 +1694,17 @@ export class AuditReviewService {
         }
 
         const rep = checkRes.rows[0];
+
+        // CHỐT CHẶN BẢO VỆ PHÁP LÝ NHÀ DÂN: CẤM TUYỆT ĐỐI DUYỆT HÀNG LOẠT CHO NHÀ DÂN ĐỘC LẬP
+        if (!rep.unit_id && rep.report_type !== 'CONDO_UNIT') {
+          failedCount++;
+          results.push({
+            reportId,
+            success: false,
+            message: 'CẤM DUYỆT HÀNG LOẠT: Hồ sơ nhà dân là căn cứ pháp lý bồi thường bắt buộc phải mở màn hình Audit Studio để thẩm định chi tiết từng căn.',
+          });
+          continue;
+        }
         if (rep.status !== 'SUBMITTED') {
           failedCount++;
           results.push({
@@ -1649,6 +1822,39 @@ export class AuditReviewService {
          WHERE report_id = $1;`,
         [actualReportId, adminId]
       );
+
+      // Xóa bảng điểm rủi ro giả định nếu có (hồ sơ vắng mặt không tính điểm rủi ro)
+      await client.query(`DELETE FROM risk_score_cards WHERE report_id = $1;`, [actualReportId]);
+
+      // Chụp snapshot ABSENTEE_VERIFIED chứng cứ vắng mặt
+      const maxVerRes = await client.query<{ max_ver: number | null }>(
+        `SELECT MAX(version_number) AS max_ver FROM survey_report_versions WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      const nextVer = (maxVerRes.rows[0]?.max_ver ?? -1) + 1;
+      await client.query(
+        `INSERT INTO survey_report_versions (
+           report_id, version_number, version_tag, title, edit_reason, snapshot_data, created_by_user_id
+         ) VALUES ($1, $2, 'ABSENTEE_VERIFIED', $3, $4, $5, $6);`,
+        [
+          actualReportId,
+          nextVer,
+          'Biên bản Xác nhận Vắng mặt / Từ chối Khảo sát',
+          judgementNotes || 'Xác nhận hồ sơ vắng mặt hợp lệ - cơ sở phát hành công văn mời lần 2',
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            status: 'POSTPONED_ABSENT_VERIFIED',
+            reason: judgementNotes || null,
+            isRefusedOrAbsent: true,
+            absenteeVerifiedAt: new Date().toISOString(),
+          }),
+          adminId,
+        ]
+      );
+
+      // Giải phóng khóa audit session
+      await client.query(`DELETE FROM survey_audit_locks WHERE report_id = $1;`, [actualReportId]);
 
       // Ghi nhật ký hệ thống
       await client.query(

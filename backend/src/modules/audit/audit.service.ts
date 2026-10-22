@@ -46,6 +46,10 @@ export class AuditService {
     return AuditReviewService.approveReport(reportId, adminId, judgementNotes);
   }
 
+  static unlockApprovedReport(reportId: string, adminId: string) {
+    return AuditReviewService.unlockApprovedReport(reportId, adminId);
+  }
+
   static rejectReport(reportId: string, adminId: string, rejectionReason: string) {
     return AuditReviewService.rejectReport(reportId, adminId, rejectionReason);
   }
@@ -192,6 +196,18 @@ export class AuditService {
     clientIp?: string
   ) {
     return AuditModificationService.restoreReportPhoto(reportId, adminId, payload, clientIp);
+  }
+
+  static acquireAuditLock(reportId: string, userId: string) {
+    return AuditModificationService.acquireAuditLock(reportId, userId);
+  }
+
+  static releaseAuditLock(reportId: string, userId: string) {
+    return AuditModificationService.releaseAuditLock(reportId, userId);
+  }
+
+  static checkAuditLock(reportId: string, currentUserId?: string) {
+    return AuditModificationService.checkAuditLock(reportId, currentUserId);
   }
 }
 
