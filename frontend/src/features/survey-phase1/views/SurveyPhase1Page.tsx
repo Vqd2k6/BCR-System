@@ -31,7 +31,7 @@ import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../..
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
-import { AlertOctagon, AlertTriangle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
@@ -153,9 +153,22 @@ interface Phase1ServerReportResponse {
       is_year_estimated?: boolean;
       structural_system?: string;
       foundation_category?: string;
+      foundation_source?: string;
+      foundation_depth_m?: number;
+      foundation_density?: number;
+      foundation_spacing_m?: number;
+      foundation_notes?: string;
+      as_built_drawing_photo_url?: string;
+      as_built_drawing_photos?: Array<{ id?: string; url: string; caption?: string }>;
     };
     identificationPhotos?: IdentificationPhotoBackend[];
     historicalSensitivity?: {
+      extended_or_renovated?: boolean;
+      previous_settlement_or_tilt?: boolean;
+      fire_or_accident?: boolean;
+      sensitive_equipment_present?: boolean;
+      details?: string | null;
+      e5_history_score?: number;
       renovation_load?: number;
       major_repair?: number;
       past_settlement?: number;
@@ -191,6 +204,32 @@ interface Phase1ServerReportResponse {
     [key: string]: unknown;
   };
 }
+
+const isCadastralPlaceholder = (name?: string | null): boolean => {
+  if (!name || typeof name !== 'string') return false;
+  return /^chủ\s+hộ\s+thửa/i.test(name.trim());
+};
+
+const reverseMapStructuralSystem = (dbVal?: string | null): string => {
+  if (!dbVal) return '';
+  const upper = dbVal.toUpperCase();
+  if (upper.includes('KHUNG_BTCT') || upper.includes('RC')) return 'RC - BTCT (Khung bê tông cốt thép toàn khối)';
+  if (upper.includes('THEP') || upper.includes('STEEL')) return 'Steel - Khung kết cấu thép';
+  if (upper.includes('GACH') || upper.includes('MASONRY')) return 'Masonry - Tường gạch chịu lực';
+  if (upper.includes('HON_HOP') || upper.includes('MIXED')) return 'Mixed - Kết cấu hỗn hợp';
+  return dbVal;
+};
+
+const reverseMapFoundationCategory = (dbVal?: string | null): string => {
+  if (!dbVal) return '';
+  const upper = dbVal.toUpperCase();
+  if (upper.includes('CAT_1') || upper.includes('WOOD') || upper.includes('TRAM')) return 'Wood - Móng cừ tràm / Nền gia cố';
+  if (upper.includes('CAT_2') || upper.includes('CAT_3') || upper.includes('SHALLOW') || upper.includes('NONG') || upper.includes('DON') || upper.includes('BANG')) return 'Shallow - Móng nông (Móng băng / Móng đơn / Móng bè)';
+  if (upper.includes('CAT_4') || upper.includes('PC')) return 'PC - Móng cọc ép BTCT';
+  if (upper.includes('CIP')) return 'CIP - Móng cọc khoan nhồi';
+  if (upper.includes('CAT_5') || upper.includes('UNKNOWN') || upper.includes('KHONG_XAC_DINH')) return 'Unknown - Không rõ thông tin móng';
+  return dbVal;
+};
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -240,6 +279,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   const [reportData, setReportData] = useState<Phase1ServerReportResponse | null>(null);
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [isPhotoSyncFromSubmit, setIsPhotoSyncFromSubmit] = useState(false);
+  const [isExitingWithSync, setIsExitingWithSync] = useState(false);
 
   // Tính toán trạng thái chỉ đọc (Triple-lock read-only protection)
   const effectiveStatus = parcel ? getEffectiveParcelStatus(parcel) : null;
@@ -392,23 +432,50 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             }
 
             if (rep) {
-              if (rep.owner_name) updates.ownerName = rep.owner_name;
-              if (rep.owner_phone) updates.ownerPhone = rep.owner_phone;
-              if (rep.house_number) updates.houseNumber = rep.house_number;
-              if (rep.street) updates.street = rep.street;
+              // Chỉ điền từ rep.owner_name nếu updates chưa có tên hoặc updates đang là placeholder mà rep có tên thật
+              if (!updates.ownerName || isCadastralPlaceholder(updates.ownerName)) {
+                if (rep.owner_name && !isCadastralPlaceholder(rep.owner_name)) {
+                  updates.ownerName = rep.owner_name;
+                } else if (!updates.ownerName && rep.owner_name) {
+                  updates.ownerName = rep.owner_name;
+                }
+              }
+              if (!updates.ownerPhone && rep.owner_phone) {
+                updates.ownerPhone = rep.owner_phone;
+              }
+              if (!updates.houseNumber && rep.house_number) updates.houseNumber = rep.house_number;
+              if (!updates.street && rep.street) updates.street = rep.street;
 
               if (rep.buildingSpecs) {
                 const s = rep.buildingSpecs;
-                if (s.building_name) updates.buildingName = s.building_name;
-                if (s.land_use_function) updates.usageFunction = s.land_use_function;
-                if (s.floor_count !== undefined && s.floor_count !== null) updates.aboveFloors = s.floor_count;
-                if (s.basement_count !== undefined && s.basement_count !== null) updates.undergroundFloors = s.basement_count;
-                if (s.construction_area_m2) updates.constructionAreaM2 = s.construction_area_m2;
-                if (s.building_height_m) updates.buildingHeightM = s.building_height_m;
-                if (s.year_of_construction) updates.constructionYear = s.year_of_construction;
-                if (s.is_year_estimated !== undefined) updates.isEstimatedYear = s.is_year_estimated;
-                if (s.structural_system) updates.structureSystem = s.structural_system;
-                if (s.foundation_category) updates.foundationType = s.foundation_category;
+                if (!updates.buildingName && s.building_name) updates.buildingName = s.building_name;
+                if (!updates.usageFunction && s.land_use_function) updates.usageFunction = s.land_use_function;
+                if (updates.aboveFloors === undefined || updates.aboveFloors === null || updates.aboveFloors === '') {
+                  if (s.floor_count !== undefined && s.floor_count !== null) updates.aboveFloors = s.floor_count;
+                }
+                if (updates.undergroundFloors === undefined || updates.undergroundFloors === null || updates.undergroundFloors === '') {
+                  if (s.basement_count !== undefined && s.basement_count !== null) updates.undergroundFloors = s.basement_count;
+                }
+                if (!updates.constructionAreaM2 && s.construction_area_m2) updates.constructionAreaM2 = s.construction_area_m2;
+                if (!updates.buildingHeightM && s.building_height_m) updates.buildingHeightM = s.building_height_m;
+                if (!updates.constructionYear && s.year_of_construction) updates.constructionYear = s.year_of_construction;
+                if (updates.isEstimatedYear === undefined && s.is_year_estimated !== undefined) updates.isEstimatedYear = s.is_year_estimated;
+
+                // Chỉ map từ DB nếu updates chưa có, và phải ánh xạ sang UI display string chuẩn
+                if (!updates.structureSystem && s.structural_system) {
+                  updates.structureSystem = reverseMapStructuralSystem(s.structural_system);
+                }
+                if (!updates.foundationType && s.foundation_category) {
+                  updates.foundationType = reverseMapFoundationCategory(s.foundation_category);
+                }
+                if (!updates.foundationSource && s.foundation_source) updates.foundationSource = s.foundation_source;
+                if (updates.foundationDepthM === undefined && s.foundation_depth_m !== undefined) updates.foundationDepthM = s.foundation_depth_m;
+                if (updates.foundationDensity === undefined && s.foundation_density !== undefined) updates.foundationDensity = s.foundation_density;
+                if (updates.foundationSpacingM === undefined && s.foundation_spacing_m !== undefined) updates.foundationSpacingM = s.foundation_spacing_m;
+                if (!updates.foundationNotes && s.foundation_notes) updates.foundationNotes = s.foundation_notes;
+                if ((!updates.asBuiltDrawingPhotos || updates.asBuiltDrawingPhotos.length === 0) && s.as_built_drawing_photos) {
+                  updates.asBuiltDrawingPhotos = Array.isArray(s.as_built_drawing_photos) ? s.as_built_drawing_photos : [];
+                }
               }
               if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
                 rep.identificationPhotos.forEach((p) => {
@@ -433,19 +500,28 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
               if (rep.historicalSensitivity) {
                 const h = rep.historicalSensitivity;
+                let parsedDetails: Record<string, unknown> | null = null;
+                if (h.details && typeof h.details === 'string') {
+                  try {
+                    parsedDetails = JSON.parse(h.details);
+                  } catch {
+                    // details có thể là chuỗi văn bản ghi chú
+                  }
+                }
+
+                const existingHi = updates.historyInterview;
                 updates.historyInterview = {
-                  ...(updates.historyInterview || {}),
-                  renovationLoad: h.renovation_load ?? 0,
-                  majorRepair: h.major_repair ?? 0,
-                  pastSettlement: h.past_settlement ?? 0,
-                  neighborDamage: h.neighbor_damage ?? 0,
-                  fireFloodIncident: h.fire_flood_incident ?? 0,
-                  sensitiveEquipment: {
-                    has: Boolean(h.has_sensitive_equipment),
-                    description: h.sensitive_equipment_desc || '',
+                  renovationLoad: existingHi?.renovationLoad ?? (typeof parsedDetails?.renovationLoad === 'number' ? parsedDetails.renovationLoad : (h.extended_or_renovated ? 1 : 0)),
+                  majorRepair: existingHi?.majorRepair ?? (typeof parsedDetails?.majorRepair === 'number' ? parsedDetails.majorRepair : 0),
+                  pastSettlement: existingHi?.pastSettlement ?? (typeof parsedDetails?.pastSettlement === 'number' ? parsedDetails.pastSettlement : (h.previous_settlement_or_tilt ? 1 : 0)),
+                  neighborDamage: existingHi?.neighborDamage ?? (typeof parsedDetails?.neighborDamage === 'number' ? parsedDetails.neighborDamage : 0),
+                  fireFloodIncident: existingHi?.fireFloodIncident ?? (typeof parsedDetails?.fireFloodIncident === 'number' ? parsedDetails.fireFloodIncident : (h.fire_or_accident ? 1 : 0)),
+                  sensitiveEquipment: existingHi?.sensitiveEquipment || (parsedDetails?.sensitiveEquipment as { has: boolean; description: string }) || {
+                    has: Boolean(h.sensitive_equipment_present),
+                    description: '',
                   },
-                  usageStatus: h.usage_status || 'Đầy đủ 100%',
-                  continuousOperation247: Boolean(h.continuous_operation_247),
+                  usageStatus: existingHi?.usageStatus || (typeof parsedDetails?.usageStatus === 'string' ? parsedDetails.usageStatus : 'Đầy đủ 100%'),
+                  continuousOperation247: existingHi?.continuousOperation247 ?? (typeof parsedDetails?.continuousOperation247 === 'boolean' ? parsedDetails.continuousOperation247 : false),
                 };
               }
               if (updates.floors && Array.isArray(updates.floors) && updates.floors.length > 0) {
@@ -553,7 +629,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               if (rep.owner_remarks) {
                 updates.ownerRemarks = rep.owner_remarks;
               }
-              if (rep.surveyor_name || rep.owner_name || rep.surveyor_signature_url) {
+              if (rep.surveyor_name || rep.surveyor_signature_url || rep.owner_signature_url || updates.signatures) {
                 updates.signatures = {
                   ...(updates.signatures || {}),
                   ownerFeedback: rep.owner_remarks || updates.signatures?.ownerFeedback || '',
@@ -564,8 +640,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     photoUrl: rep.surveyor_signature_url || rep.surveyor_signature_img || updates.signatures?.preparedBy?.photoUrl || '',
                   },
                   ownerRepresentative: {
-                    fullName: rep.owner_name || updates.signatures?.ownerRepresentative?.fullName || '',
-                    role: 'Chủ hộ / Đại diện',
+                    fullName: updates.signatures?.ownerRepresentative?.fullName || '',
+                    role: updates.signatures?.ownerRepresentative?.role || 'Chủ hộ / Đại diện',
                     date: rep.submitted_at ? rep.submitted_at.split('T')[0] : (updates.signatures?.ownerRepresentative?.date || ''),
                     photoUrl: rep.owner_signature_url || updates.signatures?.ownerRepresentative?.photoUrl || '',
                   },
@@ -617,7 +693,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   useEffect(() => {
     window.history.pushState({ surveySessionActive: true }, '');
 
-    const handlePopState = () => {
+    const handlePopState = async () => {
       const store = usePhase1SurveyStore.getState();
       if (store.isSubmitted || effectiveReadOnly) {
         onBackToHome();
@@ -628,7 +704,18 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       );
       if (confirmLeave) {
         saveDraftToStorage();
-        onBackToHome();
+        setIsExitingWithSync(true);
+        try {
+          await Promise.race([
+            syncDraftToServer(),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ]);
+        } catch (err) {
+          console.warn('[handlePopState] Sync before exit failed/timed out:', err);
+        } finally {
+          setIsExitingWithSync(false);
+          onBackToHome();
+        }
       } else {
         window.history.pushState({ surveySessionActive: true }, '');
       }
@@ -636,10 +723,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [onBackToHome, effectiveReadOnly, saveDraftToStorage]);
+  }, [onBackToHome, effectiveReadOnly, saveDraftToStorage, syncDraftToServer]);
 
   // Quay về an toàn có xác nhận và lưu nháp
-  const handleSafeBackToHome = () => {
+  const handleSafeBackToHome = async () => {
     const store = usePhase1SurveyStore.getState();
     if (store.isSubmitted || effectiveReadOnly) {
       onBackToHome();
@@ -650,7 +737,18 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     );
     if (confirmLeave) {
       saveDraftToStorage();
-      onBackToHome();
+      setIsExitingWithSync(true);
+      try {
+        await Promise.race([
+          syncDraftToServer(),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
+      } catch (err) {
+        console.warn('[handleSafeBackToHome] Sync before exit failed/timed out:', err);
+      } finally {
+        setIsExitingWithSync(false);
+        onBackToHome();
+      }
     }
   };
 
@@ -964,7 +1062,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         {currentStep === 1 && (
           <Step1_BuildingIdentification
             onFinished={onFinished}
-            onBackToHome={onBackToHome}
+            onBackToHome={handleSafeBackToHome}
           />
         )}
         {currentStep === 2 && <Step2_OwnerInterview />}
@@ -1034,6 +1132,21 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           executeFinalSubmit();
         }}
       />
+
+      {/* Overlay Đồng bộ trước khi thoát */}
+      {isExitingWithSync && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 text-center text-white"
+        >
+          <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 shadow-2xl flex flex-col items-center max-w-sm w-full mx-auto animate-in fade-in zoom-in-95 duration-200">
+            <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin mb-4" />
+            <p className="text-base font-semibold text-white">Đang upload đồng bộ trước khi thoát</p>
+            <p className="text-xs text-slate-400 mt-2">Dữ liệu khảo sát đang được đồng bộ an toàn lên hệ thống...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
