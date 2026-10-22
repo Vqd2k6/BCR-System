@@ -86,8 +86,8 @@ export class SurveyBaseRepository {
     const res = await Database.query(
       `SELECT r.*,
               p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street, p.ward, p.district,
-              COALESCE(bu.owner_name, p.owner_name) AS owner_name,
-              COALESCE(bu.owner_phone, p.owner_phone) AS owner_phone,
+              COALESCE(NULLIF(r.survey_data_json->>'ownerName', ''), bu.owner_name, p.owner_name) AS owner_name,
+              COALESCE(NULLIF(r.survey_data_json->>'ownerPhone', ''), bu.owner_phone, p.owner_phone) AS owner_phone,
               bu.unit_code, bu.floor_number AS unit_floor_number,
               p.zone_id, p.building_type, p.segment_type,
               p.land_area_m2, p.construction_area_m2 AS parcel_construction_area_m2, p.floor_count AS parcel_floor_count,
@@ -245,8 +245,8 @@ export class SurveyBaseRepository {
           `UPDATE parcels
            SET house_number = COALESCE($1, house_number),
                street = COALESCE($2, street),
-               owner_name = COALESCE($3, owner_name),
-               owner_phone = COALESCE($4, owner_phone),
+               owner_name = COALESCE(NULLIF(owner_name, ''), $3),
+               owner_phone = COALESCE(NULLIF(owner_phone, ''), $4),
                construction_area_m2 = COALESCE($5, construction_area_m2),
                survey_status = 'SUBMITTED', 
                updated_at = NOW()
