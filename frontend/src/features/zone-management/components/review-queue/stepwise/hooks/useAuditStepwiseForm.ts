@@ -516,6 +516,10 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         workingMinutesPhotos: sigState.workingMinutesPhotos || [],
       },
       absenceLogs: data.leftPane?.absenceLogs || [],
+      photoRotations:
+        sJson.photoRotations && typeof sJson.photoRotations === 'object'
+          ? { ...(sJson.photoRotations as Record<string, number>) }
+          : {},
     };
 
     setFormState(initial);

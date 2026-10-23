@@ -293,8 +293,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     ? (currentFloor.cadSketchPhotoUrl || currentFloor.cad_drawing_url || '')
     : (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url || '');
 
-  const cadKey = `floor_${currentFloor.id || activeFloorIndex}_cad`;
-  const cadRotation = stagedPhotoRotations[cadKey] ?? ((currentFloor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
+  const baseCadKey = `floor_${currentFloor.id || activeFloorIndex}_cad`;
+  const cadKey =
+    cadViewMode === 'STRUCT' && (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url)
+      ? `${baseCadKey}_struct`
+      : baseCadKey;
+  const cadRotation =
+    stagedPhotoRotations[cadKey] ??
+    stagedPhotoRotations[baseCadKey] ??
+    ((currentFloor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
+  const cadViolation =
+    violationsMap?.get(cadKey) ||
+    violationsMap?.get(baseCadKey) ||
+    (cadPhotoUrl ? violationsMap?.get(cadPhotoUrl) : undefined);
 
   // Khởi tạo và ghi nhớ toạ độ gốc KSV của từng ghim
   React.useEffect(() => {
@@ -431,6 +442,49 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         };
       });
       handleFieldChange('floors', `Xoay CAD tầng ${currentFloor.floorName || activeFloorIndex + 1} 90°`, updatedFloors);
+    }
+  };
+
+  // Xoay ảnh ngữ cảnh Z_CTX 90° cùng chiều kim đồng hồ kèm tự động chuyển vị toạ độ ghim D: (x, y) -> (100 - y, x)
+  const handleRotateZoneCtx = (zone: DamageZoneData, currentRot: number, rotKey: string) => {
+    const nextRotation = (currentRot + 90) % 360;
+    onRotatePhoto?.(rotKey, nextRotation);
+
+    const zCode = zone.zoneCode || zone.zone_code || 'Z-01';
+    const transformDefectCoords = (x: number, y: number) => {
+      const newX = Math.round(Math.max(1, Math.min(99, 100 - y)) * 10) / 10;
+      const newY = Math.round(Math.max(1, Math.min(99, x)) * 10) / 10;
+      return { x: newX, y: newY };
+    };
+
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
+          if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
+          const defects = (z.defects || []).map((d: DefectItem) => {
+            const pX = Number(d.pinX ?? d.pin_x ?? 50);
+            const pY = Number(d.pinY ?? d.pin_y ?? 50);
+            const { x: newX, y: newY } = transformDefectCoords(pX, pY);
+            return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+          });
+          return { ...z, defects };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Xoay ảnh CTX ${zCode} 90° & chuyển vị ghim D`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
+        if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
+        const defects = (z.defects || []).map((d: DefectItem) => {
+          const pX = Number(d.pinX ?? d.pin_x ?? 50);
+          const pY = Number(d.pinY ?? d.pin_y ?? 50);
+          const { x: newX, y: newY } = transformDefectCoords(pX, pY);
+          return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+        });
+        return { ...z, defects };
+      });
+      handleFieldChange('damageZones', `Xoay ảnh CTX ${zCode} 90° & chuyển vị ghim D`, updatedZones);
     }
   };
 
@@ -1281,7 +1335,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </button>
                     )}
 
-                    {isEditMode && effectiveCad && (
+                    {effectiveCad && (isEditMode || onRotatePhoto) && (
                       <button
                         type="button"
                         onClick={handleRotateCad}
@@ -1414,7 +1468,26 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             }
 
             return (
-              <div className="relative w-full max-h-[480px] min-h-[220px] bg-slate-900 rounded-xl overflow-hidden border border-slate-300 flex items-center justify-center p-2 select-none">
+              <div
+                id={
+                  cadViewMode === 'STRUCT' && (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url)
+                    ? `audit-photo-card-f${activeFloorIndex}-cad-struct`
+                    : `audit-photo-card-f${activeFloorIndex}-cad`
+                }
+                className={`relative w-full max-h-[480px] min-h-[220px] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-2 select-none transition-all ${
+                  cadViolation
+                    ? 'border-2 border-red-500 ring-2 ring-red-400/50'
+                    : 'border border-slate-300'
+                }`}
+              >
+                {cadViolation && (
+                  <div
+                    className="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/95 text-white font-bold text-[10px] shadow-md"
+                    title={cadViolation.message}
+                  >
+                    <span>⚠️ Bắt buộc xoay Dọc (Portrait) — Bấm &quot;Xoay CAD 90°&quot; để sửa</span>
+                  </div>
+                )}
                 <div
                   ref={cadImageWrapperRef}
                   onClick={handleCadImageClick}
@@ -1687,6 +1760,25 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               const ctxUrl = stagedCtx ? (isCtxDeleted ? '' : stagedCtx.newPhotoUrl || stagedCtx.oldPhotoUrl) : (z.ctxPhotoUrl || z.ctx_photo_url || '');
               const ctxCode = z.ctxPhotoCode || z.ctx_photo_code || `${zCode}_CTX`;
 
+              const zIdStr = z.id ? String(z.id) : '';
+              const baseZoneKey = zIdStr
+                ? zIdStr.startsWith('zone_')
+                  ? zIdStr
+                  : `zone_${zIdStr}`
+                : `zone_f${activeFloorIndex}_z${zCode}`;
+              const ctxRotKey = `${baseZoneKey}_ctx`;
+              const legacyCtxRotKey = `zone_${z.id || zCode}_ctx`;
+              const ctxRot =
+                stagedPhotoRotations[ctxRotKey] ??
+                (ctxUrl ? stagedPhotoRotations[ctxUrl] : undefined) ??
+                stagedPhotoRotations[legacyCtxRotKey] ??
+                stagedPhotoRotations[`${zCode}-CTX`] ??
+                0;
+              const ctxViolation =
+                violationsMap?.get(ctxRotKey) ||
+                (ctxUrl ? violationsMap?.get(ctxUrl) : undefined) ||
+                violationsMap?.get(legacyCtxRotKey);
+
               return (
                 <div
                   key={z.id || zCode}
@@ -1879,18 +1971,23 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             photoIndex: ovIdx,
                             url: ovUrl,
                           });
-                          const zId = z.id ? String(z.id) : '';
-                          const compositeRotKey = zId ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`) : `zone_f${activeFloorIndex}_z${zCode}_ctx`;
-                          const legacyRotKey = `zone_${z.id || zCode}_ctx`;
-                          const rot = stagedPhotoRotations[compositeRotKey] ?? stagedPhotoRotations[ovUrl] ?? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${zCode}-CTX`] ?? 0;
-                          const orientStatus = violationsMap?.get(compositeRotKey) || violationsMap?.get(ovUrl) || violationsMap?.get(legacyRotKey);
-                          const domId = `audit-photo-card-f${activeFloorIndex}-zone-${zCode}`;
+                          const ovRotKey = `${baseZoneKey}_ov_${ovIdx}`;
+                          const rot =
+                            stagedPhotoRotations[ovRotKey] ??
+                            stagedPhotoRotations[ovUrl] ??
+                            stagedPhotoRotations[ctxRotKey] ??
+                            stagedPhotoRotations[legacyCtxRotKey] ??
+                            0;
+                          const orientStatus =
+                            violationsMap?.get(ovRotKey) ||
+                            violationsMap?.get(ovUrl);
+                          const domId = `audit-photo-card-f${activeFloorIndex}-zone-${zCode}-ov-${ovIdx}`;
                           return (
                             <AuditPhotoCard
                               key={ovIdx}
                               url={stagedOv?.newPhotoUrl || ovUrl}
                               photoCode={`#${ovIdx + 1}`}
-                              photoKey={compositeRotKey}
+                              photoKey={ovRotKey}
                               title={`Ảnh tổng quan ${zCode} #${ovIdx + 1}`}
                               category="ZONE_CTX"
                               targetPhotoType="CTX"
@@ -1906,7 +2003,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               isStrictOrientation={orientStatus?.isStrict ?? false}
                               orientationRecommendation={orientStatus?.message}
                               expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
-                              onRotate={(newRot) => onRotatePhoto?.(compositeRotKey, newRot)}
+                              onRotate={(newRot) => onRotatePhoto?.(ovRotKey, newRot)}
                               domId={domId}
                               historyCount={getItemHistoryMeta(z).historyCount}
                               hasHistory={getItemHistoryMeta(z).hasHistory}
@@ -1950,12 +2047,31 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   {/* Ảnh Ngữ Cảnh CTX (với Ghim Vết Nứt D) & Danh sách Khuyết Tật D */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Cột 1: Ảnh Ngữ Cảnh CTX kèm điểm chấm D-xx */}
-                    <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col">
+                    <div
+                      id={`audit-photo-card-f${activeFloorIndex}-zone-${zCode}`}
+                      className={`rounded-xl p-3 bg-white flex flex-col transition-all ${
+                        ctxViolation
+                          ? 'border-2 border-red-500 ring-2 ring-red-400/50'
+                          : 'border border-slate-200'
+                      }`}
+                    >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] font-bold text-slate-700">
                           Ảnh Bối Cảnh ({ctxCode})
                         </span>
                         <div className="flex items-center gap-1.5">
+                          {ctxUrl && onRotatePhoto && (
+                            <button
+                              type="button"
+                              onClick={() => handleRotateZoneCtx(z, ctxRot, ctxRotKey)}
+                              className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                              title={`Xoay ảnh CTX 90° & tự động chuyển vị toạ độ các điểm ghim D (Hiện tại: ${ctxRot}°)`}
+                            >
+                              <RotateCw className="w-3 h-3" />
+                              <span>Xoay 90°</span>
+                              {ctxRot > 0 && <span className="font-mono">({ctxRot}°)</span>}
+                            </button>
+                          )}
                           {isEditMode && ctxUrl && (
                             <button
                               type="button"
@@ -1985,6 +2101,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             ? 'border-2 border-rose-500 opacity-60'
                             : isCtxReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-md'
+                            : ctxViolation
+                            ? 'border border-red-400'
                             : 'border border-slate-200'
                         }`}
                         onClick={(e) => {
@@ -1998,10 +2116,24 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             const zoomTitle = isCtxReplaced
                               ? `${zCode} - Ảnh Bối Cảnh Mảng Tường (Chờ lưu Diff)`
                               : `${zCode} - Ảnh Bối Cảnh Mảng Tường`;
-                            onOpenPhotoZoom(ctxUrl, zoomTitle, ctxCode);
+                            onOpenPhotoZoom(ctxUrl, zoomTitle, ctxCode, ctxRot);
                           }
                         }}
                       >
+                        {ctxViolation && (
+                          <div
+                            className="absolute bottom-2 left-2 z-30 px-2 py-0.5 rounded bg-red-600/95 text-white font-bold text-[9px] shadow-sm"
+                            title={ctxViolation.message}
+                          >
+                            ⚠️ Bắt buộc xoay Ngang
+                          </div>
+                        )}
+                        {ctxRot !== 0 && (
+                          <div className="absolute bottom-2 right-2 z-30 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] shadow-xs flex items-center gap-0.5">
+                            <RotateCw className="w-2.5 h-2.5" />
+                            <span>{ctxRot}°</span>
+                          </div>
+                        )}
                         {/* Optimistic Pending Badge for CTX */}
                         {stagedCtx && isCtxReplaced && (
                           <div className="absolute top-2 left-2 z-30 flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10px] shadow-sm animate-pulse">
@@ -2069,6 +2201,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             <img
                               src={ctxUrl}
                               alt="CTX"
+                              style={{
+                                transform: ctxRot ? `rotate(${ctxRot}deg)` : undefined,
+                                transition: 'transform 0.3s ease',
+                              }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
                             {/* Overlay điểm ghim khuyết tật D dạng mũi kim trắc địa trên ảnh CTX - Cho phép kéo đổi vị trí */}
@@ -2768,6 +2904,21 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 const rawEDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
                 const eDefects = showDeletedItems ? rawEDefects : rawEDefects.filter((d: DefectItem) => !isItemSoftDeleted(d));
                 const overviewPhotos = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
+                const elemIdStr = elem.id ? String(elem.id) : '';
+                const baseElemKey = elemIdStr
+                  ? elemIdStr.startsWith('elem_')
+                    ? elemIdStr
+                    : `elem_${elemIdStr}`
+                  : `elem_f${activeFloorIndex}_e${eCode}`;
+                const eTypeUpper = String(elem.elementType || '').toUpperCase();
+                const elemExpectedOrientation: 'PORTRAIT' | 'LANDSCAPE' =
+                  eTypeUpper.includes('DẦM') ||
+                  eTypeUpper.includes('BEAM') ||
+                  eTypeUpper.includes('SÀN') ||
+                  eTypeUpper.includes('SLAB') ||
+                  eTypeUpper.includes('TRẦN')
+                    ? 'LANDSCAPE'
+                    : 'PORTRAIT';
 
                 return (
                   <div
@@ -2916,11 +3067,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             targetPhotoId: elem.id,
                             url: elem.ctxPhotoUrl,
                           });
+                          const effectiveElemCtxUrl = stagedCtx?.newPhotoUrl || elem.ctxPhotoUrl;
+                          const elemCtxKey = `${baseElemKey}_ctx`;
+                          const elemCtxRot = stagedPhotoRotations[elemCtxKey] ?? stagedPhotoRotations[effectiveElemCtxUrl] ?? 0;
+                          const elemCtxViolation = violationsMap?.get(elemCtxKey) || violationsMap?.get(effectiveElemCtxUrl);
+                          const elemCtxDomId = `audit-photo-card-f${activeFloorIndex}-elem-${eCode}-ctx`;
                           return (
                             <div className="w-32 shrink-0">
                               <AuditPhotoCard
-                                url={stagedCtx?.newPhotoUrl || elem.ctxPhotoUrl}
+                                url={effectiveElemCtxUrl}
                                 photoCode={`${eCode} - Bối Cảnh`}
+                                photoKey={elemCtxKey}
                                 title={`Ảnh bối cảnh cấu kiện ${eCode}`}
                                 category="ELEMENT_CTX"
                                 targetPhotoType="CTX"
@@ -2929,6 +3086,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 isEditMode={isEditMode}
                                 aspectRatio="h-24"
                                 badgeColor="amber"
+                                rotation={elemCtxRot}
+                                isOrientationMismatch={Boolean(elemCtxViolation)}
+                                isStrictOrientation={elemCtxViolation?.isStrict ?? false}
+                                orientationRecommendation={elemCtxViolation?.message}
+                                expectedOrientation={elemCtxViolation?.expectedOrientation || elemExpectedOrientation}
+                                onRotate={(newRot) => onRotatePhoto?.(elemCtxKey, newRot)}
+                                domId={elemCtxDomId}
                                 historyCount={getItemHistoryMeta(elem).historyCount}
                                 hasHistory={getItemHistoryMeta(elem).hasHistory}
                                 optimisticStatus={stagedCtx ? (stagedCtx.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
@@ -2949,11 +3113,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             photoIndex: pIdx,
                             url: photoUrl,
                           });
+                          const effectiveElemOvUrl = stagedOv?.newPhotoUrl || photoUrl;
+                          const elemOvKey = `${baseElemKey}_ov_${pIdx}`;
+                          const elemOvRot = stagedPhotoRotations[elemOvKey] ?? stagedPhotoRotations[effectiveElemOvUrl] ?? 0;
+                          const elemOvViolation = violationsMap?.get(elemOvKey) || violationsMap?.get(effectiveElemOvUrl);
+                          const elemOvDomId = `audit-photo-card-f${activeFloorIndex}-elem-${eCode}-ov-${pIdx}`;
                           return (
                             <div key={pIdx} className="w-32 shrink-0">
                               <AuditPhotoCard
-                                url={stagedOv?.newPhotoUrl || photoUrl}
+                                url={effectiveElemOvUrl}
                                 photoCode={`#${pIdx + 1}`}
+                                photoKey={elemOvKey}
                                 title={`Ảnh tổng quan ${eCode} (#${pIdx + 1})`}
                                 category="ELEMENT_OVERVIEW"
                                 targetPhotoType="OVERVIEW"
@@ -2963,6 +3133,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 isEditMode={isEditMode}
                                 aspectRatio="h-24"
                                 badgeColor="slate"
+                                rotation={elemOvRot}
+                                isOrientationMismatch={Boolean(elemOvViolation)}
+                                isStrictOrientation={elemOvViolation?.isStrict ?? false}
+                                orientationRecommendation={elemOvViolation?.message}
+                                expectedOrientation={elemOvViolation?.expectedOrientation || elemExpectedOrientation}
+                                onRotate={(newRot) => onRotatePhoto?.(elemOvKey, newRot)}
+                                domId={elemOvDomId}
                                 historyCount={getItemHistoryMeta(elem).historyCount}
                                 hasHistory={getItemHistoryMeta(elem).hasHistory}
                                 optimisticStatus={stagedOv ? (stagedOv.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
@@ -3181,11 +3358,28 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         photoIndex: cuIdx,
                                         url: cuUrl,
                                       });
+                                      const effectiveCuUrl = stagedCu?.newPhotoUrl || cuUrl;
+                                      const hasMultiCu = cuPhotos.length > 1;
+                                      const defId = def.id ? String(def.id) : '';
+                                      const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(defId);
+                                      const cuRotKey =
+                                        defId && isDefectUuid
+                                          ? defId.startsWith('defect_')
+                                            ? `${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                            : `defect_${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                          : defId
+                                            ? `defect_f${activeFloorIndex}_e${eCode}_${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                            : `defect_f${activeFloorIndex}_e${eCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                                      const altCuRotKey = `defect_f${activeFloorIndex}_e${eCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                                      const cuRot = stagedPhotoRotations[cuRotKey] ?? stagedPhotoRotations[altCuRotKey] ?? stagedPhotoRotations[effectiveCuUrl] ?? 0;
+                                      const cuViolation = violationsMap?.get(cuRotKey) || violationsMap?.get(altCuRotKey) || violationsMap?.get(effectiveCuUrl);
+                                      const cuDomId = `audit-photo-card-f${activeFloorIndex}-e${eCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`;
                                       return (
                                         <div key={cuIdx} className="w-24 shrink-0">
                                           <AuditPhotoCard
-                                            url={stagedCu?.newPhotoUrl || cuUrl}
+                                            url={effectiveCuUrl}
                                             photoCode={`CU #${cuIdx + 1}`}
+                                            photoKey={cuRotKey}
                                             title={`Ảnh cận cảnh ${dCode} (#${cuIdx + 1})`}
                                             category="DEFECT_CU"
                                             targetPhotoType="CU"
@@ -3198,6 +3392,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                             isEditMode={isEditMode}
                                             aspectRatio="h-16"
                                             badgeColor="rose"
+                                            rotation={cuRot}
+                                            isOrientationMismatch={Boolean(cuViolation)}
+                                            isStrictOrientation={cuViolation?.isStrict ?? true}
+                                            orientationRecommendation={cuViolation?.message}
+                                            expectedOrientation={cuViolation?.expectedOrientation || 'LANDSCAPE'}
+                                            onRotate={(newRot) => onRotatePhoto?.(cuRotKey, newRot)}
+                                            domId={cuDomId}
                                             historyCount={getItemHistoryMeta(def).historyCount}
                                             hasHistory={getItemHistoryMeta(def).hasHistory}
                                             optimisticStatus={stagedCu ? (stagedCu.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}

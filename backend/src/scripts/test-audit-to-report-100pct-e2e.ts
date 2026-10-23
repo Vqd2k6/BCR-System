@@ -1,12 +1,35 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as ts from 'typescript';
+import sharp from 'sharp';
 import { Database, pool } from '../database/db';
 import { AuditModificationService } from '../modules/audit/services/audit-modification.service';
 import { AuditReviewService } from '../modules/audit/services/audit-review.service';
 import { AuditVersionService } from '../modules/audit/services/audit-version.service';
 import { SurveyBaseRepository } from '../modules/survey/repositories/survey-base.repository';
 import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportV2Service } from '../modules/report_v2/report-v2.service';
 import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
 import { CondoUnitReportGenerator } from '../modules/report/generators/condo-unit.generator';
 import { CryptoUtils } from '../common/utils/crypto.utils';
+
+function loadFrontendOrientationStandards(): {
+  RESIDENTIAL_PHOTO_RULES: Record<string, any>;
+  evaluateResidentialOrientation: (w: number, h: number, rot?: number, ruleKey?: string) => any;
+} {
+  const filePath = path.resolve(
+    __dirname,
+    '../../../frontend/src/features/zone-management/components/review-queue/stepwise/utils/residentialPhotoOrientationStandards.ts'
+  );
+  const src = fs.readFileSync(filePath, 'utf8');
+  const transpiled = ts.transpileModule(src, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  });
+  const modExports: any = {};
+  const fn = new Function('exports', transpiled.outputText);
+  fn(modExports);
+  return modExports;
+}
 
 interface TestResult {
   id: string;
@@ -2399,6 +2422,316 @@ async function main() {
       assertEqual(pairE02D01.pinX, 82.0, 'Final Approved VM E-02/D-01 pinX matches v1');
       assertEqual(pairE02D01.pinY, 87.0, 'Final Approved VM E-02/D-01 pinY matches v1');
     });
+
+    // =========================================================================
+    // TEST SUITE 7: CHUẨN HÓA CHIỀU ẢNH (ORIENTATION STANDARDS), BỎ RÀNG BUỘC ẢNH VUÔNG,
+    // XOAY ẢNH 90° KÈM CHUYỂN VỊ GHIM Z_CTX/CAD & BÀN GIAO XOAY VẬT LÝ SANG REPORT V3
+    // =========================================================================
+    await runTest(
+      'TC-PHOTO-ORIENTATION-AND-ROTATION-V3',
+      'Chuẩn hóa chiều ảnh 24 vị trí, bỏ ràng buộc ảnh vuông (w===h luôn hợp lệ), xoay ảnh 90° kèm chuyển vị ghim Z_CTX/CAD (100-y, x) & xoay vật lý Base64 sang Report V3 (kể cả Mục XII 2 cột dọc)',
+      async () => {
+        const { RESIDENTIAL_PHOTO_RULES, evaluateResidentialOrientation } = loadFrontendOrientationStandards();
+        // 1. Kiểm chứng bộ quy chuẩn chiều ảnh (residentialPhotoOrientationStandards.ts)
+        assertEqual(RESIDENTIAL_PHOTO_RULES.CAD_SKETCH.expected, 'PORTRAIT', 'CAD_SKETCH expected = PORTRAIT');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.CAD_SKETCH.isStrict, true, 'CAD_SKETCH isStrict = true');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.AS_BUILT_DRAWING.expected, 'PORTRAIT', 'AS_BUILT_DRAWING expected = PORTRAIT');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.AS_BUILT_DRAWING.isStrict, false, 'AS_BUILT_DRAWING isStrict = false');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.ABSENCE_NOTICE.expected, 'PORTRAIT', 'ABSENCE_NOTICE expected = PORTRAIT');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.ABSENCE_NOTICE.isStrict, false, 'ABSENCE_NOTICE isStrict = false');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.Z_CTX.expected, 'LANDSCAPE', 'Z_CTX expected = LANDSCAPE');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.Z_CTX.isStrict, true, 'Z_CTX isStrict = true');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.D_CU.expected, 'LANDSCAPE', 'D_CU expected = LANDSCAPE');
+        assertEqual(RESIDENTIAL_PHOTO_RULES.D_CU.isStrict, true, 'D_CU isStrict = true');
+
+        // Kiểm chứng bỏ ràng buộc ảnh vuông (SQUARE w === h luôn hợp lệ cho cả loại ảnh Ngang và Dọc, kể cả isStrict = true)
+        const sqZCtx = evaluateResidentialOrientation(700, 700, 0, 'Z_CTX');
+        assertEqual(sqZCtx.currentOrientation, 'SQUARE', '700x700 currentOrientation = SQUARE');
+        assertEqual(sqZCtx.isValid, true, 'Square image 700x700 is valid for strict LANDSCAPE Z_CTX');
+        const sqCad = evaluateResidentialOrientation(700, 700, 90, 'CAD_SKETCH');
+        assertEqual(sqCad.isValid, true, 'Square image 700x700 rotated 90° is valid for strict PORTRAIT CAD_SKETCH');
+
+        // Kiểm chứng không còn buffer 1.08 (801x800 là LANDSCAPE, 800x801 là PORTRAIT)
+        const nearSqLand = evaluateResidentialOrientation(801, 800, 0, 'Z_CTX');
+        assertEqual(nearSqLand.currentOrientation, 'LANDSCAPE', '801x800 is LANDSCAPE without 1.08 buffer');
+        assertEqual(nearSqLand.isValid, true, '801x800 is valid for Z_CTX');
+        const nearSqPort = evaluateResidentialOrientation(800, 801, 0, 'CAD_SKETCH');
+        assertEqual(nearSqPort.currentOrientation, 'PORTRAIT', '800x801 is PORTRAIT without 1.08 buffer');
+        assertEqual(nearSqPort.isValid, true, '800x801 is valid for CAD_SKETCH');
+
+        // Kiểm chứng phát hiện ngược chiều và tự hết lỗi sau khi xoay +90°
+        const wrongCad = evaluateResidentialOrientation(800, 600, 0, 'CAD_SKETCH');
+        assertEqual(wrongCad.isValid, false, 'Landscape 800x600 CAD_SKETCH at 0° is invalid');
+        const fixedCad = evaluateResidentialOrientation(800, 600, 90, 'CAD_SKETCH');
+        assertEqual(fixedCad.isValid, true, 'Landscape 800x600 CAD_SKETCH rotated 90° becomes valid PORTRAIT (600x800)');
+
+        const wrongZCtx = evaluateResidentialOrientation(600, 800, 0, 'Z_CTX');
+        assertEqual(wrongZCtx.isValid, false, 'Portrait 600x800 Z_CTX at 0° is invalid');
+        const fixedZCtx = evaluateResidentialOrientation(600, 800, 90, 'Z_CTX');
+        assertEqual(fixedZCtx.isValid, true, 'Portrait 600x800 Z_CTX rotated 90° becomes valid LANDSCAPE (800x600)');
+
+        // 2. Tạo file ảnh vật lý thực tế (800x600 Landscape và 600x800 Portrait) trong thư mục uploads/test_orient_v3
+        const testUploadDir = path.resolve(process.cwd(), 'uploads/test_orient_v3');
+        fs.mkdirSync(testUploadDir, { recursive: true });
+        const landFile = path.join(testUploadDir, 'raw_landscape_800x600.jpg');
+        const portFile = path.join(testUploadDir, 'raw_portrait_600x800.jpg');
+
+        await sharp({
+          create: { width: 800, height: 600, channels: 3, background: { r: 40, g: 120, b: 200 } },
+        })
+          .jpeg({ quality: 85 })
+          .toFile(landFile);
+
+        await sharp({
+          create: { width: 600, height: 800, channels: 3, background: { r: 200, g: 80, b: 60 } },
+        })
+          .jpeg({ quality: 85 })
+          .toFile(portFile);
+
+        const landUrl = '/uploads/test_orient_v3/raw_landscape_800x600.jpg';
+        const portUrl = '/uploads/test_orient_v3/raw_portrait_600x800.jpg';
+
+        const getBase64Dims = async (b64DataUri: string | undefined): Promise<{ width: number; height: number }> => {
+          assert(Boolean(b64DataUri && b64DataUri.startsWith('data:image/')), 'Expected valid data:image/... base64 string');
+          const rawB64 = b64DataUri!.split(',')[1];
+          const meta = await sharp(Buffer.from(rawB64, 'base64')).metadata();
+          return { width: meta.width || 0, height: meta.height || 0 };
+        };
+
+        try {
+          const { reportId } = await createIsolatedResidentialReport('ORIENT-V3');
+
+          // Giả lập công thức chuyển vị tọa độ ghim +90° clockwise: (x, y) -> (100 - y, x)
+          const rotatePin90CW = (x: number, y: number) => ({
+            pinX: Math.round(Math.max(1, Math.min(99, 100 - y)) * 10) / 10,
+            pinY: Math.round(Math.max(1, Math.min(99, x)) * 10) / 10,
+          });
+
+          // Ban đầu: CAD Z-01 ở (20, 30) -> sau xoay CAD 90° thành (70, 20)
+          // Ban đầu: Z_CTX D-01 ở (25, 40) -> sau xoay Z_CTX 90° thành (60, 25)
+          const rotatedCadPinZ01 = rotatePin90CW(20, 30);
+          const rotatedCtxPinD01 = rotatePin90CW(25, 40);
+          assertEqual(rotatedCadPinZ01.pinX, 70, 'Rotated CAD pinX (100 - 30 = 70)');
+          assertEqual(rotatedCadPinZ01.pinY, 20, 'Rotated CAD pinY (x = 20)');
+          assertEqual(rotatedCtxPinD01.pinX, 60, 'Rotated Z_CTX D-01 pinX (100 - 40 = 60)');
+          assertEqual(rotatedCtxPinD01.pinY, 25, 'Rotated Z_CTX D-01 pinY (x = 25)');
+
+          const photoRotations: Record<string, number> = {
+            photoP01: 90, // landUrl (800x600) -> 600x800 (PORTRAIT)
+            photoP03_extra_0: 90, // landUrl (800x600) -> 600x800 (PORTRAIT)
+            buildingTilt: 90, // landUrl (800x600) -> 600x800 (PORTRAIT P-05)
+            diffSettlement: 90, // portUrl (600x800) -> 800x600 (LANDSCAPE P-06)
+            abnormalCase: 90, // landUrl (800x600) -> 600x800 (PORTRAIT P-07)
+            asBuiltDrawing_0: 90, // landUrl (800x600) -> 600x800 (PORTRAIT Section XII #1)
+            asBuiltDrawing_1: 90, // landUrl (800x600) -> 600x800 (PORTRAIT Section XII #2)
+            floor_0_cad: 90, // landUrl (800x600) -> 600x800 (PORTRAIT CAD_01)
+            'zone_f0_zZ-01_ctx': 90, // portUrl (600x800) -> 800x600 (LANDSCAPE Z_CTX)
+            'defect_f0_zZ-01_dD-01_cu_0': 90, // portUrl (600x800) -> 800x600 (LANDSCAPE D_CU #1)
+            'defect_f0_zZ-01_dD-01_cu_1': 90, // portUrl (600x800) -> 800x600 (LANDSCAPE D_CU #2 extra)
+            'elem_f0_eE-01_ctx': 90, // landUrl (800x600) -> 600x800 (PORTRAIT E_COL)
+            'defect_f0_eE-01_dD-01_cu': 90, // portUrl (600x800) -> 800x600 (LANDSCAPE E_COL/D_CU)
+            minutes_0: 90, // landUrl (800x600) -> 600x800 (PORTRAIT Appendix 3)
+          };
+
+          const updatesPayload = {
+            photoP01: { url: landUrl, caption: 'P-01 xoay 90° sang Dọc' },
+            photoP02: { url: portUrl, caption: 'P-02 Dọc nguyên bản' },
+            photoP03: {
+              url: portUrl,
+              tag: 'P03_TRI',
+              additionalPhotos: [{ url: landUrl, tag: 'P03_PHI' }],
+            },
+            photoP04: { url: landUrl, caption: 'P-04 Ngang nguyên bản' },
+            settlementTilt: {
+              buildingTilt: {
+                level: 1,
+                xPermille: 1.8,
+                yPermille: -0.9,
+                direction: 'Đông',
+                photos: [{ url: landUrl, photoCode: 'P05_TILT_ROT' }],
+              },
+              diffSettlement: {
+                level: 1,
+                position: 'Góc móng trục A',
+                photos: [{ url: portUrl, photoCode: 'P06_SETTLE_ROT' }],
+              },
+              abnormalCase: {
+                hasAbnormal: true,
+                description: 'Nứt bậc tam cấp',
+                photos: [{ url: landUrl, photoCode: 'P07_ABN_ROT' }],
+              },
+            },
+            asBuiltDrawingPhotos: [
+              { url: landUrl, photoCode: 'CAT-DWG-01', title: 'Bản vẽ hoàn công móng #1 (xoay Dọc)' },
+              { url: landUrl, photoCode: 'CAT-DWG-02', title: 'Bản vẽ hoàn công móng #2 (xoay Dọc)' },
+            ],
+            floors: [
+              {
+                floorName: 'Tầng 1',
+                floorLevel: 1,
+                cadSketchPhotoUrl: landUrl,
+                cadSketchRotation: 90,
+                cadZonePins: [{ zoneCode: 'Z-01', pinX: rotatedCadPinZ01.pinX, pinY: rotatedCadPinZ01.pinY }],
+                cadElementPins: [{ zoneCode: 'E-01', elementCode: 'E-01', pinX: 75, pinY: 25 }],
+                zones: [
+                  {
+                    zoneCode: 'Z-01',
+                    floorName: 'Tầng 1',
+                    roomName: 'Phòng khách',
+                    componentType: 'WALL',
+                    wallMaterial: 'Tường gạch',
+                    pinX: rotatedCadPinZ01.pinX,
+                    pinY: rotatedCadPinZ01.pinY,
+                    ctxPhotoUrl: portUrl,
+                    defects: [
+                      {
+                        defectCode: 'D-01',
+                        defectType: 'Vết nứt tường',
+                        widthMaxMm: 1.2,
+                        lengthMm: 800,
+                        activityState: 'S',
+                        hasScaleCard: true,
+                        pinX: rotatedCtxPinD01.pinX,
+                        pinY: rotatedCtxPinD01.pinY,
+                        cuPhotoUrl: portUrl,
+                        cuPhotos: [portUrl, portUrl],
+                        notes: 'Nứt tường đã xoay CTX 90° & chuyển vị ghim D',
+                      },
+                    ],
+                  },
+                ],
+                structuralElements: [
+                  {
+                    elementCode: 'E-01',
+                    floorName: 'Tầng 1',
+                    roomName: 'Trục cột C1',
+                    elementType: 'Cột BTCT',
+                    materialType: 'BTCT',
+                    pinX: 75,
+                    pinY: 25,
+                    ctxPhotoUrl: landUrl,
+                    defects: [
+                      {
+                        defectCode: 'D-01',
+                        defectType: 'Nứt cột BTCT',
+                        widthMaxMm: 0.4,
+                        lengthMm: 500,
+                        activityState: 'S',
+                        hasScaleCard: true,
+                        pinX: 50,
+                        pinY: 50,
+                        cuPhotoUrl: portUrl,
+                        cuPhotos: [portUrl],
+                        notes: 'Nứt cột E-01/D-01',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            signatures: {
+              workingMinutesPhotos: [{ url: landUrl, photoCode: 'BB_01', caption: 'Trang biên bản 1 (xoay Dọc)' }],
+            },
+            photoRotations,
+          };
+
+          await AuditModificationService.applyAdminSurveyEdit(reportId, adminId, {
+            adminPassword: testPassword,
+            editReason: 'TC-PHOTO-ORIENTATION-AND-ROTATION-V3: Xoay chuẩn hóa chiều ảnh & chuyển vị ghim',
+            updates: updatesPayload,
+            diffPayload: [{ field: 'photoRotations', label: 'Xoay ảnh chuẩn hóa chiều', oldValue: {}, newValue: photoRotations }],
+          });
+
+          // Kiểm chứng computeDeepLegalHash thay đổi khi photoRotations thay đổi
+          const dummyScores = ReportSnapshotService.resolveScores(updatesPayload, null, 2);
+          const hashWithRot = ReportSnapshotService.computeDeepLegalHash(dummyScores, updatesPayload, {});
+          const hashWithoutRot = ReportSnapshotService.computeDeepLegalHash(dummyScores, { ...updatesPayload, photoRotations: {} }, {});
+          assert(hashWithRot !== hashWithoutRot, 'ReportSnapshotService.computeDeepLegalHash must change when photoRotations changes');
+
+          await AuditReviewService.approveReport(reportId, adminId);
+
+          // 3. Render qua ReportV2Service.generateResidentialHtmlFromReport (đường ống của Report V3)
+          const reportForRender = await loadApprovedReportForRender(reportId);
+          const { html, viewModel: vm } = await ReportV2Service.generateResidentialHtmlFromReport(reportForRender, undefined, false, false);
+
+          // Kiểm tra Phụ lục 1 (P-01..P-07) đã được xoay vật lý bằng Sharp đúng chiều chuẩn
+          const p01Item = vm.appendix1.find((p) => p.photoCode === 'P-01')!;
+          const p01Dims = await getBase64Dims(p01Item.base64);
+          assertEqual(p01Dims.width, 600, 'P-01 physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(p01Dims.height, 800, 'P-01 physical base64 height after 90° rotation = 800 (PORTRAIT)');
+
+          const p03Items = vm.appendix1.filter((p) => p.photoCode === 'P-03');
+          assertEqual(p03Items.length, 2, 'Appendix 1 has 2 P-03 items (main + extra_0)');
+          const p03ExtraDims = await getBase64Dims(p03Items[1].base64);
+          assertEqual(p03ExtraDims.width, 600, 'P-03 extra_0 physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(p03ExtraDims.height, 800, 'P-03 extra_0 physical base64 height after 90° rotation = 800 (PORTRAIT)');
+
+          const p05Item = vm.appendix1.find((p) => p.photoCode === 'P-05')!;
+          const p05Dims = await getBase64Dims(p05Item.base64);
+          assertEqual(p05Dims.width, 600, 'P-05 (buildingTilt) physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(p05Dims.height, 800, 'P-05 (buildingTilt) physical base64 height after 90° rotation = 800 (PORTRAIT)');
+
+          const p06Item = vm.appendix1.find((p) => p.photoCode === 'P-06')!;
+          const p06Dims = await getBase64Dims(p06Item.base64);
+          assertEqual(p06Dims.width, 800, 'P-06 (diffSettlement) physical base64 width after 90° rotation = 800 (LANDSCAPE)');
+          assertEqual(p06Dims.height, 600, 'P-06 (diffSettlement) physical base64 height after 90° rotation = 600 (LANDSCAPE)');
+
+          const p07Item = vm.appendix1.find((p) => p.photoCode === 'P-07')!;
+          const p07Dims = await getBase64Dims(p07Item.base64);
+          assertEqual(p07Dims.width, 600, 'P-07 (abnormalCase) physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(p07Dims.height, 800, 'P-07 (abnormalCase) physical base64 height after 90° rotation = 800 (PORTRAIT)');
+
+          // Kiểm tra Section 5 (tiltPhoto & settlementPhoto)
+          const sec5TiltDims = await getBase64Dims(vm.section5.tiltPhoto?.base64);
+          assertEqual(sec5TiltDims.width, 600, 'Section 5 tiltPhoto base64 width = 600 (PORTRAIT)');
+          const sec5SettleDims = await getBase64Dims(vm.section5.settlementPhoto?.base64);
+          assertEqual(sec5SettleDims.width, 800, 'Section 5 settlementPhoto base64 width = 800 (LANDSCAPE)');
+
+          // Kiểm tra Section XII (As-Built Drawings: xoay Dọc 600x800 + dàn trang 2 cột trái-phải 185mm)
+          assertEqual(vm.section12AsBuilt?.hasDrawings, true, 'Section XII hasDrawings = true');
+          assertEqual(vm.section12AsBuilt?.sheets[0].drawings.length, 2, 'Section XII sheet 1 has 2 drawings');
+          const asBuiltDims = await getBase64Dims(vm.section12AsBuilt?.sheets[0].drawings[0].base64);
+          assertEqual(asBuiltDims.width, 600, 'Section XII drawing #1 physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(asBuiltDims.height, 800, 'Section XII drawing #1 physical base64 height after 90° rotation = 800 (PORTRAIT)');
+          assertIncludes(html, 'grid-template-columns: repeat(2, 1fr)', 'Section XII HTML uses 2-column side-by-side grid');
+          assertIncludes(html, 'height: 185mm', 'Section XII HTML uses 185mm portrait drawing container height');
+
+          // Kiểm tra Phụ lục 2: CAD_SKETCH (xoay Dọc 600x800), tọa độ ghim CAD (70, 20), Z_CTX & D_CU (xoay Ngang 800x600), tọa độ ghim D (60, 25), E_COL (xoay Dọc 600x800)
+          const flVm = vm.appendix2[0];
+          const cadDims = await getBase64Dims(flVm.damageMapBase64);
+          assertEqual(cadDims.width, 600, 'Appendix 2 CAD_SKETCH physical base64 width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(cadDims.height, 800, 'Appendix 2 CAD_SKETCH physical base64 height after 90° rotation = 800 (PORTRAIT)');
+          assertEqual(flVm.cadPins?.find((p) => p.code === 'Z-01')?.pinX, 70, 'Appendix 2 CAD pin Z-01 pinX = 70 after 90° rotation');
+          assertEqual(flVm.cadPins?.find((p) => p.code === 'Z-01')?.pinY, 20, 'Appendix 2 CAD pin Z-01 pinY = 20 after 90° rotation');
+
+          const pairZ = flVm.defectPairPhotos.find((p) => p.cadPinRef?.includes('Z-01') && p.defectId === 'D-01')!;
+          const zCtxDims = await getBase64Dims(pairZ.contextPhotoBase64);
+          assertEqual(zCtxDims.width, 800, 'Z-01/D-01 contextPhotoBase64 (Z_CTX) physical width after 90° rotation = 800 (LANDSCAPE)');
+          assertEqual(zCtxDims.height, 600, 'Z-01/D-01 contextPhotoBase64 (Z_CTX) physical height after 90° rotation = 600 (LANDSCAPE)');
+          const zCu0Dims = await getBase64Dims(pairZ.closeUpPhotoBase64);
+          assertEqual(zCu0Dims.width, 800, 'Z-01/D-01 closeUpPhotoBase64 (D_CU #1) physical width after 90° rotation = 800 (LANDSCAPE)');
+          const zCu1Dims = await getBase64Dims(pairZ.extraCloseUpPhotoBase64);
+          assertEqual(zCu1Dims.width, 800, 'Z-01/D-01 extraCloseUpPhotoBase64 (D_CU #2) physical width after 90° rotation = 800 (LANDSCAPE)');
+          assertEqual(pairZ.pinX, 60, 'Z-01/D-01 pinX on Z_CTX = 60 after 90° rotation');
+          assertEqual(pairZ.pinY, 25, 'Z-01/D-01 pinY on Z_CTX = 25 after 90° rotation');
+
+          const pairE = flVm.defectPairPhotos.find((p) => p.cadPinRef?.includes('E-01') && p.defectId === 'D-01')!;
+          const eCtxDims = await getBase64Dims(pairE.contextPhotoBase64);
+          assertEqual(eCtxDims.width, 600, 'E-01/D-01 contextPhotoBase64 (E_COL) physical width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(eCtxDims.height, 800, 'E-01/D-01 contextPhotoBase64 (E_COL) physical height after 90° rotation = 800 (PORTRAIT)');
+          const eCuDims = await getBase64Dims(pairE.closeUpPhotoBase64);
+          assertEqual(eCuDims.width, 800, 'E-01/D-01 closeUpPhotoBase64 (D_CU) physical width after 90° rotation = 800 (LANDSCAPE)');
+
+          // Kiểm tra Phụ lục 3 (Biên bản hiện trường xoay Dọc 600x800)
+          assertEqual(vm.appendix3.signedRecordPages?.length, 1, 'Appendix 3 has 1 signedRecordPage');
+          const minDims = await getBase64Dims(vm.appendix3.signedRecordPages?.[0].base64);
+          assertEqual(minDims.width, 600, 'Appendix 3 signedRecordPage[0] physical width after 90° rotation = 600 (PORTRAIT)');
+          assertEqual(minDims.height, 800, 'Appendix 3 signedRecordPage[0] physical height after 90° rotation = 800 (PORTRAIT)');
+        } finally {
+          fs.rmSync(testUploadDir, { recursive: true, force: true });
+        }
+      }
+    );
 
   } finally {
     // Cleanup all temporary test records and restore admin password hash

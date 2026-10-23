@@ -2415,11 +2415,11 @@ export class AuditModificationService {
         }
       }
 
-      // 3. Cập nhật metadata trong survey_photo_registry nếu tồn tại
+      // 3. Cập nhật metadata_json trong survey_photo_registry nếu tồn tại
       try {
         await client.query(
           `UPDATE survey_photo_registry 
-           SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{rotation}', $1::jsonb)
+           SET metadata_json = jsonb_set(COALESCE(metadata_json, '{}'::jsonb), '{rotation}', $1::jsonb)
            WHERE report_id = $2 AND (photo_code = $3 OR photo_type = $4 OR photo_url = $5);`,
           [JSON.stringify(normalizedAngle), reportId, pa.photoCode || null, type, pa.oldPhotoUrl || pa.newPhotoUrl || null]
         );

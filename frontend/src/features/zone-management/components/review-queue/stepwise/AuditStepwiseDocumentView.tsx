@@ -90,7 +90,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
 
-  // Kiểm toán hướng ảnh Nhà Dân Thường theo khuyến nghị chuẩn FE
+  // Kiểm toán hướng ảnh Nhà Dân Thường theo quy chuẩn thời gian thực (formState + stagedPhotoActions)
   const {
     violations,
     strictViolations,
@@ -102,7 +102,24 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     stagedPhotoRotations,
     setPhotoRotation,
     getPhotoRotation,
-  } = usePhotoOrientationAudit(data as Record<string, unknown>);
+  } = usePhotoOrientationAudit(data as Record<string, unknown>, formState, stagedPhotoActions);
+
+  // Đồng bộ góc xoay vào formState.photoRotations để làm tăng dirtyCount và lưu đầy đủ qua mọi nút Lưu Diff
+  const handleRotatePhoto = React.useCallback(
+    (photoKey: string, rotationDeg: number, photoUrl?: string) => {
+      const norm = ((rotationDeg % 360) + 360) % 360;
+      setPhotoRotation(photoKey, norm, photoUrl);
+      const prevRots = ((formState.photoRotations as Record<string, number>) || {}) as Record<string, number>;
+      const nextRots: Record<string, number> = {
+        ...prevRots,
+        ...stagedPhotoRotations,
+        [photoKey]: norm,
+        ...(photoUrl ? { [photoUrl]: norm } : {}),
+      };
+      handleFieldChange('photoRotations', 'Góc xoay hướng ảnh chuẩn hóa báo cáo', nextRots);
+    },
+    [setPhotoRotation, formState.photoRotations, stagedPhotoRotations, handleFieldChange]
+  );
 
   // Đồng bộ trạng thái kiểm toán hướng ảnh lên modal cấp cha
   React.useEffect(() => {
@@ -135,7 +152,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   };
 
   const handleQuickRotate = (photoKey: string, currentRot: number) => {
-    setPhotoRotation(photoKey, (currentRot + 90) % 360);
+    handleRotatePhoto(photoKey, (currentRot + 90) % 360);
   };
 
   // Đồng bộ dirty state lên AuditStudioModal cấp cha
@@ -289,7 +306,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
-          onRotatePhoto={setPhotoRotation}
+          onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
         />
 
@@ -306,7 +323,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
-          onRotatePhoto={setPhotoRotation}
+          onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
         />
 
@@ -321,6 +338,9 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          stagedPhotoRotations={stagedPhotoRotations}
+          onRotatePhoto={handleRotatePhoto}
+          violationsMap={violationsMap}
         />
 
         {/* Bước 04: Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E */}
@@ -336,7 +356,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           stagedPhotoActions={stagedPhotoActions}
           onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
-          onRotatePhoto={setPhotoRotation}
+          onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
         />
 
@@ -403,7 +423,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onConfirmAbsenteeSurvey={onRefresh}
           isFieldDirty={isFieldDirty}
           stagedPhotoRotations={stagedPhotoRotations}
-          onRotatePhoto={setPhotoRotation}
+          onRotatePhoto={handleRotatePhoto}
+          violationsMap={violationsMap}
         />
       </div>
     </div>

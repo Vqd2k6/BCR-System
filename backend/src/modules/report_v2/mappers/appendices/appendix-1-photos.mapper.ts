@@ -176,7 +176,16 @@ export class Appendix1PhotoMapper {
                       rawTag.includes('SAU') || rawTag.toLowerCase().includes('sau') ? 'Rear facade' : `Side facade #${idx + 1}`;
         const origTag = rawTag || `P03_0${idx + 1}`;
         const mCode = origTag.startsWith('HCM_M2.') ? origTag : `HCM_M2.[${buildingId}]_${origTag}`;
-        const rotP03 = rotMap[origTag] ?? rotMap['P-03'] ?? rotMap['photoP03'] ?? rotMap[u] ?? 0;
+        const rotP03 =
+          idx > 0
+            ? rotMap[`photoP03_extra_${idx - 1}`] ??
+              rotMap[`P-03-EXTRA-${idx}`] ??
+              rotMap[origTag] ??
+              rotMap[u] ??
+              rotMap['P-03'] ??
+              rotMap['photoP03'] ??
+              0
+            : rotMap[origTag] ?? rotMap['P-03'] ?? rotMap['photoP03'] ?? rotMap[u] ?? 0;
         appendix1.push({
           photoCode: 'P-03',
           name: { vi: `Mặt bên (${tag})`, en: tagEn },
@@ -310,7 +319,13 @@ export class Appendix1PhotoMapper {
       (!hasExplicitAbnPhotos ? (deform.abnormalCase?.photoUrl || findPhoto(['EXT_ANOMALY', 'ANOMALY', 'P07', 'P-07'])) : '');
     if (p07Url) {
       const anomalyTag = (typeof anomalyPhotoObj === 'object' ? anomalyPhotoObj?.photoCode : undefined) || 'EXT_ANOMALY_01';
-      const rotP07 = rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[p07Url] ?? 0;
+      const rotP07 =
+        rotMap['P-07'] ??
+        rotMap['photoP07'] ??
+        rotMap['abnormalCase'] ??
+        rotMap['abnormalCase_0'] ??
+        rotMap[p07Url] ??
+        0;
       appendix1.push({
         photoCode: 'P-07',
         name: { vi: 'Dấu hiệu bất thường ngoại quan', en: 'Exterior visual anomaly check' },

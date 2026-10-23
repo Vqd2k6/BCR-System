@@ -369,7 +369,7 @@ export interface AuditStepBaseProps {
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
-  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 

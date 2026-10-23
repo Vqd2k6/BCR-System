@@ -228,6 +228,8 @@ export class ReportSnapshotService {
       structuralSpecs: sJson.buildingSpecs || sJson.specs || {},
       defectsSummary: (sJson.floors || []).map((fl: any) => ({
         floor: fl.floorName,
+        cadZonePins: fl.cadZonePins || [],
+        cadElementPins: fl.cadElementPins || [],
         defects: [...(fl.zones || []), ...(fl.structuralElements || [])]
           .filter((item: any) => !item.isDeleted && !item.is_deleted)
           .flatMap((z: any) =>
@@ -237,11 +239,14 @@ export class ReportSnapshotService {
                 code: d.defectCode || d.defect_code,
                 widthMm: d.widthMaxMm ?? d.width_max_mm,
                 lengthMm: d.lengthMm ?? d.length_mm,
+                pinX: d.pinX ?? d.pin_x,
+                pinY: d.pinY ?? d.pin_y,
                 cuPhotoUrl: d.cuPhotoUrl || d.cu_photo_url,
               }))
           ),
       })),
       deformationMeasurements: sJson.settlementTilt || sJson.deformation || {},
+      photoRotations: sJson.photoRotations || {},
       signatures: {
         surveyor: sJson.signatures?.surveyorSignatureUrl || sJson.surveyorSignatureUrl || null,
         owner: sJson.signatures?.ownerSignatureUrl || sJson.ownerSignatureUrl || null,
@@ -318,7 +323,10 @@ export class ReportSnapshotService {
                 ms.construction_type AS metro_construction_type,
                 ms.start_chainage_km AS metro_start_chainage,
                 ms.end_chainage_km AS metro_end_chainage,
-                ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, ms.centerline_geom::geography)::numeric, 1) AS distance_to_centerline_m,
+                COALESCE(
+                  p.distance_to_centerline_m,
+                  ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom, p.location_geom)::geography, ms.centerline_geom::geography)::numeric, 1)
+                ) AS distance_to_centerline_m,
                 ROUND((ST_Distance(
                   ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 1)::geography,
                   ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography

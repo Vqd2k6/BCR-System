@@ -15,7 +15,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation } from '../types';
 
 interface Props {
   isEditMode?: boolean;
@@ -31,6 +31,7 @@ interface Props {
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
@@ -46,6 +47,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   isFieldDirty,
   stagedPhotoRotations = {},
   onRotatePhoto,
+  violationsMap,
 }) => {
   const sigs: StepwiseSignatures = formState.signatures || {};
   const absenceLogs = formState.absenceLogs || data?.leftPane?.absenceLogs || [];
@@ -322,13 +324,18 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 if (!url) return null;
 
                 const rotKey = `minutes_${idx}`;
-                const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[`MINUTES-${idx + 1}`] ?? 0;
+                const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[url] ?? stagedPhotoRotations[`MINUTES-${idx + 1}`] ?? 0;
+                const orientViolation = violationsMap?.get(rotKey) || violationsMap?.get(url);
 
                 return (
                   <div
                     key={idx}
                     id={`audit-photo-card-minutes-${idx}`}
-                    className="group relative rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs hover:border-sky-400 hover:shadow-md transition-all flex flex-col"
+                    className={`group relative rounded-xl border overflow-hidden bg-white shadow-xs transition-all flex flex-col ${
+                      orientViolation
+                        ? 'border-amber-400 ring-1 ring-amber-300'
+                        : 'border-slate-200 hover:border-sky-400 hover:shadow-md'
+                    }`}
                   >
                     {/* Image preview area */}
                     <div
@@ -356,6 +363,14 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 text-white font-mono text-[10px] font-bold">
                         Trang {idx + 1}
                       </span>
+                      {orientViolation && (
+                        <span
+                          className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
+                          title={orientViolation.message}
+                        >
+                          💡 Khuyến nghị xoay Dọc
+                        </span>
+                      )}
                       {rot !== 0 && (
                         <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 shadow-xs flex items-center gap-0.5">
                           <RotateCw className="w-2.5 h-2.5" />
@@ -963,101 +978,138 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             {/* Danh sách lần liên hệ / dán giấy hẹn */}
             {absenceLogs && absenceLogs.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                {absenceLogs.map((log, lIdx) => (
-                  <div
-                    key={log.id || lIdx}
-                    className="p-3 bg-white rounded-xl border border-purple-200 space-y-2 shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-purple-900">
-                      <span>Lần liên hệ #{log.attemptNumber || log.attempt_number || (lIdx + 1)}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        {log.attemptDate || log.created_at ? new Date(log.attemptDate || log.created_at || '').toLocaleDateString('vi-VN') : ''}
-                      </span>
-                    </div>
-                    {log.reason && (
-                      <p className="text-[11px] text-slate-600">
-                        <span className="font-semibold text-slate-700">Lý do:</span> {log.reason}
-                      </p>
-                    )}
-                    {log.photoUrl && (
-                      <div className="relative aspect-4/3 rounded-lg overflow-hidden bg-slate-100 group border border-slate-200">
-                        <img
-                          src={log.photoUrl}
-                          alt={`Giấy báo lần ${lIdx + 1}`}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <div
-                          className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"
-                          onClick={() => onOpenPhotoZoom(log.photoUrl!, `Giấy báo lần #${lIdx + 1}`, `ABSENCE_${lIdx + 1}`)}
-                        >
-                          <ZoomIn className="w-5 h-5 drop-shadow" />
-                        </div>
-                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
-                          {onOpenPhotoHistory && log.photoUrl && (
-                            <button
-                              type="button"
-                              title="Lịch sử ảnh giấy báo"
-                              onClick={() =>
-                                onOpenPhotoHistory({
-                                  photoType: 'ABSENCE_NOTICE',
-                                  photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                  currentPhotoUrl: log.photoUrl,
-                                })
-                              }
-                              className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
+                {absenceLogs.map((log, lIdx) => {
+                  const absRotKey = `absenceNotice_${lIdx}`;
+                  const absRot = stagedPhotoRotations[absRotKey] ?? (log.photoUrl ? stagedPhotoRotations[log.photoUrl] : undefined) ?? 0;
+                  const absViolation = violationsMap?.get(absRotKey) || (log.photoUrl ? violationsMap?.get(log.photoUrl) : undefined);
+
+                  return (
+                    <div
+                      key={log.id || lIdx}
+                      id={`audit-photo-card-absence-${lIdx}`}
+                      className={`p-3 bg-white rounded-xl border space-y-2 shadow-2xs transition-all ${
+                        absViolation ? 'border-amber-400 ring-1 ring-amber-300' : 'border-purple-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                        <span>Lần liên hệ #{log.attemptNumber || log.attempt_number || (lIdx + 1)}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {log.attemptDate || log.created_at ? new Date(log.attemptDate || log.created_at || '').toLocaleDateString('vi-VN') : ''}
+                        </span>
+                      </div>
+                      {log.reason && (
+                        <p className="text-[11px] text-slate-600">
+                          <span className="font-semibold text-slate-700">Lý do:</span> {log.reason}
+                        </p>
+                      )}
+                      {log.photoUrl && (
+                        <div className="relative aspect-4/3 rounded-lg overflow-hidden bg-slate-100 group border border-slate-200">
+                          <img
+                            src={log.photoUrl}
+                            alt={`Giấy báo lần ${lIdx + 1}`}
+                            style={{ transform: absRot ? `rotate(${absRot}deg)` : undefined }}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                          />
+                          <div
+                            className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"
+                            onClick={() => onOpenPhotoZoom(log.photoUrl!, `Giấy báo lần #${lIdx + 1}`, `ABSENCE_${lIdx + 1}`, absRot)}
+                          >
+                            <ZoomIn className="w-5 h-5 drop-shadow" />
+                          </div>
+                          {absViolation && (
+                            <span
+                              className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
+                              title={absViolation.message}
                             >
-                              <History className="w-3 h-3" />
-                            </button>
+                              💡 Khuyến nghị xoay Dọc
+                            </span>
                           )}
-                          {isEditMode && (
-                            <>
+                          {absRot !== 0 && (
+                            <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 shadow-xs flex items-center gap-0.5">
+                              <RotateCw className="w-2.5 h-2.5" />
+                              <span>{absRot}°</span>
+                            </span>
+                          )}
+                          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                            {onRotatePhoto && (
                               <button
                                 type="button"
-                                title="Thay ảnh giấy báo"
-                                onClick={() => {
-                                  if (onOpenPhotoAction && log.photoUrl) {
-                                    onOpenPhotoAction({
-                                      category: 'ABSENCE_NOTICE',
-                                      targetPhotoType: 'ABSENCE_NOTICE',
-                                      targetPhotoId: log.id || `absence_log_${lIdx}`,
-                                      photoIndex: lIdx,
-                                      currentPhotoUrl: log.photoUrl,
-                                      photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                      initialMode: 'REPLACE',
-                                    });
-                                  }
+                                title={`Xoay ảnh giấy báo 90° (Hiện tại: ${absRot}°)`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRotatePhoto(absRotKey, (absRot + 90) % 360);
                                 }}
+                                className="p-1 text-white hover:text-amber-300 rounded cursor-pointer"
+                              >
+                                <RotateCw className="w-3 h-3" />
+                              </button>
+                            )}
+                            {onOpenPhotoHistory && log.photoUrl && (
+                              <button
+                                type="button"
+                                title="Lịch sử ảnh giấy báo"
+                                onClick={() =>
+                                  onOpenPhotoHistory({
+                                    photoType: 'ABSENCE_NOTICE',
+                                    photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                    currentPhotoUrl: log.photoUrl,
+                                  })
+                                }
                                 className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
                               >
-                                <RefreshCw className="w-3 h-3" />
+                                <History className="w-3 h-3" />
                               </button>
-                              <button
-                                type="button"
-                                title="Xóa ảnh giấy báo"
-                                onClick={() => {
-                                  if (onOpenPhotoAction && log.photoUrl) {
-                                    onOpenPhotoAction({
-                                      category: 'ABSENCE_NOTICE',
-                                      targetPhotoType: 'ABSENCE_NOTICE',
-                                      targetPhotoId: log.id || `absence_log_${lIdx}`,
-                                      photoIndex: lIdx,
-                                      currentPhotoUrl: log.photoUrl,
-                                      photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                      initialMode: 'DELETE',
-                                    });
-                                  }
-                                }}
-                                className="p-1 text-white hover:text-rose-400 rounded cursor-pointer"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
+                            )}
+                            {isEditMode && (
+                              <>
+                                <button
+                                  type="button"
+                                  title="Thay ảnh giấy báo"
+                                  onClick={() => {
+                                    if (onOpenPhotoAction && log.photoUrl) {
+                                      onOpenPhotoAction({
+                                        category: 'ABSENCE_NOTICE',
+                                        targetPhotoType: 'ABSENCE_NOTICE',
+                                        targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                        photoIndex: lIdx,
+                                        currentPhotoUrl: log.photoUrl,
+                                        photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                        initialMode: 'REPLACE',
+                                      });
+                                    }
+                                  }}
+                                  className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Xóa ảnh giấy báo"
+                                  onClick={() => {
+                                    if (onOpenPhotoAction && log.photoUrl) {
+                                      onOpenPhotoAction({
+                                        category: 'ABSENCE_NOTICE',
+                                        targetPhotoType: 'ABSENCE_NOTICE',
+                                        targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                        photoIndex: lIdx,
+                                        currentPhotoUrl: log.photoUrl,
+                                        photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                        initialMode: 'DELETE',
+                                      });
+                                    }
+                                  }}
+                                  className="p-1 text-white hover:text-rose-400 rounded cursor-pointer"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-6 text-center bg-white rounded-xl border border-dashed border-purple-300 space-y-2">

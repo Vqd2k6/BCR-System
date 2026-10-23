@@ -172,11 +172,18 @@ export const RESIDENTIAL_PHOTO_RULES: Record<string, OrientationRuleDefinition> 
     aspectRatioHint: '4:3',
   },
   CAD_SKETCH: {
-    expected: 'LANDSCAPE',
+    expected: 'PORTRAIT',
     label: 'Bản vẽ CAD mặt bằng tầng',
-    feHint: 'Quy chuẩn: Bản vẽ kỹ thuật luôn nằm NGANG (4:3 / 16:10) để đọc chữ số và mã phòng',
+    feHint: 'Quy chuẩn bắt buộc: Bản vẽ mặt bằng tầng luôn đặt DỌC (3:4 / A4) đồng bộ khung sơ đồ báo cáo',
     isStrict: true,
-    aspectRatioHint: '4:3',
+    aspectRatioHint: '3:4',
+  },
+  AS_BUILT_DRAWING: {
+    expected: 'PORTRAIT',
+    label: 'Bản vẽ hoàn công / thiết kế móng',
+    feHint: 'Khuyến nghị: Chụp ảnh DỌC (3:4 / A4) để hiển thị song song 2 cột rõ nét trên trang báo cáo',
+    isStrict: false,
+    aspectRatioHint: 'A4',
   },
 
   // Nhóm Biên Bản & Pháp Lý (Bước 9)
@@ -185,6 +192,13 @@ export const RESIDENTIAL_PHOTO_RULES: Record<string, OrientationRuleDefinition> 
     label: 'Biên bản khảo sát hiện trường A4',
     feHint: 'Khuyến nghị: Chụp ảnh DỌC (A4) để khi xuất PDF đọc rõ chữ và chữ ký',
     isStrict: true,
+    aspectRatioHint: 'A4',
+  },
+  ABSENCE_NOTICE: {
+    expected: 'PORTRAIT',
+    label: 'Thông báo / biên bản vắng mặt',
+    feHint: 'Khuyến nghị: Chụp ảnh DỌC (A4) tài liệu niêm yết tại hiện trường',
+    isStrict: false,
     aspectRatioHint: 'A4',
   },
   SIGNATURE: {
@@ -223,9 +237,9 @@ export function evaluateResidentialOrientation(
   const effectiveHeight = isSwapped ? naturalWidth : naturalHeight;
 
   let currentOrientation: PhotoOrientationType = 'SQUARE';
-  if (effectiveWidth > effectiveHeight * 1.08) {
+  if (effectiveWidth > effectiveHeight) {
     currentOrientation = 'LANDSCAPE';
-  } else if (effectiveHeight > effectiveWidth * 1.08) {
+  } else if (effectiveHeight > effectiveWidth) {
     currentOrientation = 'PORTRAIT';
   }
 
@@ -233,8 +247,8 @@ export function evaluateResidentialOrientation(
   const rule = RESIDENTIAL_PHOTO_RULES[ruleKey];
   const expected: ExpectedOrientation = rule ? rule.expected : 'ANY';
 
-  // Nếu quy tắc là ANY -> luôn hợp lệ
-  if (expected === 'ANY') {
+  // Nếu quy tắc là ANY hoặc ảnh vuông 1:1 (bỏ ràng buộc ảnh vuông) -> luôn hợp lệ
+  if (expected === 'ANY' || currentOrientation === 'SQUARE') {
     return {
       isValid: true,
       currentOrientation,

@@ -956,19 +956,49 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     const isDeleted = optResult.status === 'DELETED';
                     const isReplaced = optResult.status === 'REPLACED';
 
+                    const vKey = `vacantLand_${idx}`;
+                    const vRot = stagedPhotoRotations[vKey] ?? stagedPhotoRotations[vUrl] ?? 0;
+                    const vViolation = violationsMap?.get(vKey);
+
                     return (
                       <div
                         key={idx}
-                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all ${
+                        id={`audit-photo-card-vacant-land-${idx}`}
+                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
                           isDeleted
                             ? 'border-2 border-rose-500 opacity-60'
                             : isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
+                            : vViolation
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-amber-200 hover:shadow-md'
                         }`}
-                        onClick={() => onOpenPhotoZoom(vUrl, isReplaced ? `Ảnh đất trống ${idx + 1} (Chờ lưu Diff)` : `Ảnh đất trống ${idx + 1}`)}
+                        onClick={() => onOpenPhotoZoom(vUrl, isReplaced ? `Ảnh đất trống ${idx + 1} (Chờ lưu Diff)` : `Ảnh đất trống ${idx + 1}`, `VACANT_${idx + 1}`, vRot)}
                       >
-                        <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={vUrl}
+                          alt={`Đất trống ${idx + 1}`}
+                          style={{ transform: `rotate(${vRot}deg)` }}
+                          className="w-full h-full object-contain transition-transform duration-200"
+                        />
+                        {vViolation && !isReplaced && (
+                          <div className="absolute bottom-1 left-1 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
+                            💡 Khuyến nghị xoay Ngang
+                          </div>
+                        )}
+                        {onRotatePhoto && !isDeleted && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRotatePhoto(vKey, (vRot + 90) % 360, vUrl);
+                            }}
+                            className="absolute bottom-1 right-1 z-20 p-1 rounded bg-black/65 hover:bg-amber-600 text-amber-300 hover:text-white shadow-sm cursor-pointer"
+                            title={`Xoay ảnh 90° (Hiện tại: ${vRot}°)`}
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                        )}
 
                         {/* Optimistic Pending Badge */}
                         {isStaged && isReplaced && (
@@ -1237,19 +1267,49 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     const isDeleted = optResult.status === 'DELETED';
                     const isReplaced = optResult.status === 'REPLACED';
 
+                    const uKey = `underConstruction_${idx}`;
+                    const uRot = stagedPhotoRotations[uKey] ?? stagedPhotoRotations[uUrl] ?? 0;
+                    const uViolation = violationsMap?.get(uKey);
+
                     return (
                       <div
                         key={idx}
-                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all ${
+                        id={`audit-photo-card-under-construction-${idx}`}
+                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
                           isDeleted
                             ? 'border-2 border-rose-500 opacity-60'
                             : isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
+                            : uViolation
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-blue-200 hover:shadow-md'
                         }`}
-                        onClick={() => onOpenPhotoZoom(uUrl, isReplaced ? `Ảnh xây dựng dở dang ${idx + 1} (Chờ lưu Diff)` : `Ảnh xây dựng dở dang ${idx + 1}`)}
+                        onClick={() => onOpenPhotoZoom(uUrl, isReplaced ? `Ảnh xây dựng dở dang ${idx + 1} (Chờ lưu Diff)` : `Ảnh xây dựng dở dang ${idx + 1}`, `UC_${idx + 1}`, uRot)}
                       >
-                        <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={uUrl}
+                          alt={`Xây dựng dở dang ${idx + 1}`}
+                          style={{ transform: `rotate(${uRot}deg)` }}
+                          className="w-full h-full object-contain transition-transform duration-200"
+                        />
+                        {uViolation && !isReplaced && (
+                          <div className="absolute bottom-1 left-1 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
+                            💡 Khuyến nghị xoay Dọc
+                          </div>
+                        )}
+                        {onRotatePhoto && !isDeleted && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRotatePhoto(uKey, (uRot + 90) % 360, uUrl);
+                            }}
+                            className="absolute bottom-1 right-1 z-20 p-1 rounded bg-black/65 hover:bg-amber-600 text-amber-300 hover:text-white shadow-sm cursor-pointer"
+                            title={`Xoay ảnh 90° (Hiện tại: ${uRot}°)`}
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                        )}
 
                         {/* Optimistic Pending Badge */}
                         {isStaged && isReplaced && (

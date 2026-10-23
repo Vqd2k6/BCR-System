@@ -32,7 +32,7 @@ interface Props {
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
-  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
@@ -276,8 +276,20 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const rot = stagedPhotoRotations[p.photoCode || `SETTLE_${pIdx + 1}`] ?? stagedPhotoRotations['diffSettlement'] ?? 0;
-                    const orientStatus = violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`) || violationsMap?.get('diffSettlement');
+                    const itemKey = diffPhotos.length > 1 ? `diffSettlement_${pIdx}` : 'diffSettlement';
+                    const rot =
+                      stagedPhotoRotations[itemKey] ??
+                      stagedPhotoRotations[`diffSettlement_${pIdx}`] ??
+                      stagedPhotoRotations[p.photoCode || `SETTLE_${pIdx + 1}`] ??
+                      stagedPhotoRotations['diffSettlement'] ??
+                      stagedPhotoRotations['P-06'] ??
+                      stagedPhotoRotations[p.url] ??
+                      0;
+                    const orientStatus =
+                      violationsMap?.get(itemKey) ||
+                      violationsMap?.get(`diffSettlement_${pIdx}`) ||
+                      violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`) ||
+                      violationsMap?.get('diffSettlement');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -295,8 +307,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         isOrientationMismatch={Boolean(orientStatus)}
                         isStrictOrientation={orientStatus?.isStrict ?? false}
                         expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'diffSettlement', newRot)}
-                        domId={`audit-photo-card-${p.photoCode || 'diff-settlement'}`}
+                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                        domId={`audit-photo-card-diff-settlement-${pIdx}`}
                         optimisticStatus={stagedDiff ? (stagedDiff.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                         onUndoDelete={stagedDiff ? () => onUndoPhotoAction?.(stagedDiff) : undefined}
                         onOpenPhotoZoom={onOpenPhotoZoom}
@@ -501,8 +513,20 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const rot = stagedPhotoRotations[p.photoCode || `TILT_${pIdx + 1}`] ?? stagedPhotoRotations['buildingTilt'] ?? 0;
-                    const orientStatus = violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`) || violationsMap?.get('buildingTilt');
+                    const itemKey = tiltPhotos.length > 1 ? `buildingTilt_${pIdx}` : 'buildingTilt';
+                    const rot =
+                      stagedPhotoRotations[itemKey] ??
+                      stagedPhotoRotations[`buildingTilt_${pIdx}`] ??
+                      stagedPhotoRotations[p.photoCode || `TILT_${pIdx + 1}`] ??
+                      stagedPhotoRotations['buildingTilt'] ??
+                      stagedPhotoRotations['P-05'] ??
+                      stagedPhotoRotations[p.url] ??
+                      0;
+                    const orientStatus =
+                      violationsMap?.get(itemKey) ||
+                      violationsMap?.get(`buildingTilt_${pIdx}`) ||
+                      violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`) ||
+                      violationsMap?.get('buildingTilt');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -520,8 +544,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         isOrientationMismatch={Boolean(orientStatus)}
                         isStrictOrientation={orientStatus?.isStrict ?? true}
                         expectedOrientation="PORTRAIT"
-                        onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'buildingTilt', newRot)}
-                        domId="audit-photo-card-building-tilt"
+                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                        domId={`audit-photo-card-building-tilt-${pIdx}`}
                         optimisticStatus={stagedTilt ? (stagedTilt.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                         onUndoDelete={stagedTilt ? () => onUndoPhotoAction?.(stagedTilt) : undefined}
                         onOpenPhotoZoom={onOpenPhotoZoom}
@@ -700,8 +724,19 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const rot = stagedPhotoRotations[p.photoCode || `SAG_${pIdx + 1}`] ?? stagedPhotoRotations['beamSagging'] ?? 0;
-                    const orientStatus = violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`) || violationsMap?.get('beamSagging');
+                    const itemKey = beamPhotos.length > 1 ? `beamSagging_${pIdx}` : 'beamSagging';
+                    const rot =
+                      stagedPhotoRotations[itemKey] ??
+                      stagedPhotoRotations[`beamSagging_${pIdx}`] ??
+                      stagedPhotoRotations[p.photoCode || `SAG_${pIdx + 1}`] ??
+                      stagedPhotoRotations['beamSagging'] ??
+                      stagedPhotoRotations[p.url] ??
+                      0;
+                    const orientStatus =
+                      violationsMap?.get(itemKey) ||
+                      violationsMap?.get(`beamSagging_${pIdx}`) ||
+                      violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`) ||
+                      violationsMap?.get('beamSagging');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -719,8 +754,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         isOrientationMismatch={Boolean(orientStatus)}
                         isStrictOrientation={orientStatus?.isStrict ?? true}
                         expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'beamSagging', newRot)}
-                        domId="audit-photo-card-beam-sagging"
+                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                        domId={`audit-photo-card-beam-sagging-${pIdx}`}
                         optimisticStatus={stagedBeam ? (stagedBeam.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                         onUndoDelete={stagedBeam ? () => onUndoPhotoAction?.(stagedBeam) : undefined}
                         onOpenPhotoZoom={onOpenPhotoZoom}
@@ -830,7 +865,20 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const rot = stagedPhotoRotations[p.photoCode || `ANOMALY_${pIdx + 1}`] ?? stagedPhotoRotations['abnormalCase'] ?? 0;
+                    const itemKey = abnormalPhotos.length > 1 ? `abnormalCase_${pIdx}` : 'abnormalCase';
+                    const rot =
+                      stagedPhotoRotations[itemKey] ??
+                      stagedPhotoRotations[`abnormalCase_${pIdx}`] ??
+                      stagedPhotoRotations[p.photoCode || `ANOMALY_${pIdx + 1}`] ??
+                      stagedPhotoRotations['abnormalCase'] ??
+                      stagedPhotoRotations['P-07'] ??
+                      stagedPhotoRotations[p.url] ??
+                      0;
+                    const orientStatus =
+                      violationsMap?.get(itemKey) ||
+                      violationsMap?.get(`abnormalCase_${pIdx}`) ||
+                      violationsMap?.get(p.photoCode || `ANOMALY_${pIdx + 1}`) ||
+                      violationsMap?.get('abnormalCase');
                     return (
                       <AuditPhotoCard
                         key={pIdx}
@@ -845,9 +893,11 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         aspectRatio="aspect-video"
                         badgeColor="amber"
                         rotation={rot}
+                        isOrientationMismatch={Boolean(orientStatus)}
+                        isStrictOrientation={orientStatus?.isStrict ?? false}
                         expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(p.photoCode || 'abnormalCase', newRot)}
-                        domId="audit-photo-card-abnormal-case"
+                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                        domId={`audit-photo-card-abnormal-${pIdx}`}
                         optimisticStatus={stagedAb ? (stagedAb.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                         onUndoDelete={stagedAb ? () => onUndoPhotoAction?.(stagedAb) : undefined}
                         onOpenPhotoZoom={onOpenPhotoZoom}

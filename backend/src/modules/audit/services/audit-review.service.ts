@@ -292,7 +292,16 @@ export class AuditReviewService {
               p.frontage_width, p.lot_depth, p.official_cadastral_code,
               p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
               p.building_type, p.is_locked, p.seal_hash, p.locked_at,
-              p.distance_to_centerline_m, p.mutation_type,
+              COALESCE(
+                p.distance_to_centerline_m,
+                (
+                  SELECT ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom, p.location_geom)::geography, ms.centerline_geom::geography)::numeric, 2)
+                  FROM metro_segments ms
+                  WHERE ms.segment_code = p.zone_id AND ms.centerline_geom IS NOT NULL
+                  LIMIT 1
+                )
+              ) AS distance_to_centerline_m,
+              p.mutation_type,
               ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
               ST_AsGeoJSON(p.location_geom) AS location_geojson,
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
@@ -1143,7 +1152,17 @@ export class AuditReviewService {
         mutation_type: string | null;
       }>(
         `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.export_revision, r.survey_data_json,
-                ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson, p.distance_to_centerline_m, p.mutation_type
+                ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
+                COALESCE(
+                  p.distance_to_centerline_m,
+                  (
+                    SELECT ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom, p.location_geom)::geography, ms.centerline_geom::geography)::numeric, 2)
+                    FROM metro_segments ms
+                    WHERE ms.segment_code = p.zone_id AND ms.centerline_geom IS NOT NULL
+                    LIMIT 1
+                  )
+                ) AS distance_to_centerline_m,
+                p.mutation_type
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)

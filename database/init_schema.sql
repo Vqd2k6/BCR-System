@@ -382,6 +382,9 @@ CREATE TABLE parcels (
     owner_phone VARCHAR(32),
     land_area_m2 NUMERIC(10,2),
     construction_area_m2 NUMERIC(10,2),
+    frontage_width NUMERIC(10,2),
+    lot_depth NUMERIC(10,2),
+    distance_to_centerline_m NUMERIC(10,2),
     floor_count INT NOT NULL DEFAULT 1,
     importance_group importance_group_enum NOT NULL DEFAULT 'GENERAL',
     adjacent_type adjacent_structure_enum NOT NULL DEFAULT 'TOWNHOUSE',
@@ -402,6 +405,13 @@ CREATE TABLE parcels (
     assigned_surveyor_id UUID REFERENCES users(id) ON DELETE SET NULL,
     assigned_at TIMESTAMPTZ,
     assignment_notes TEXT,
+    is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+    locked_at TIMESTAMPTZ,
+    locked_by_id UUID REFERENCES users(id),
+    seal_hash VARCHAR(128),
+    seal_notes TEXT,
+    deleted_floors JSONB DEFAULT '[]'::jsonb,
+    code_slug VARCHAR(32),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

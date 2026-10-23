@@ -119,6 +119,9 @@ export class MigrationRunner {
             if (file.startsWith('20261011_')) {
               return canBaselineCondo;
             }
+            if (file.startsWith('20261024_')) {
+              return false;
+            }
             return true;
           });
 
@@ -161,6 +164,26 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261011_cad_condo_integrity_and_soft_delete.sql';`
           );
           appliedSet.delete('20261011_cad_condo_integrity_and_soft_delete.sql');
+        }
+      }
+
+      // 6.2 CƠ CHẾ SELF-HEALING CHO 20261024: Đảm bảo cột distance_to_centerline_m trên parcels luôn được khởi tạo thực tế
+      if (appliedSet.has('20261024_add_distance_to_centerline_and_schema_reconcile.sql')) {
+        const checkDistanceCol = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'parcels' AND column_name = 'distance_to_centerline_m'
+          ) AS exists;
+        `);
+
+        if (!checkDistanceCol.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261024_add_distance_to_centerline_and_schema_reconcile.sql được đánh dấu nhưng schema thực tế chưa có parcels.distance_to_centerline_m. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261024_add_distance_to_centerline_and_schema_reconcile.sql';`
+          );
+          appliedSet.delete('20261024_add_distance_to_centerline_and_schema_reconcile.sql');
         }
       }
 

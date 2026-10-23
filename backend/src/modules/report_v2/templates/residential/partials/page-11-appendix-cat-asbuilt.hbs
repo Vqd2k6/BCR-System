@@ -11,10 +11,10 @@
     SECTION XII: AS-BUILT STRUCTURAL &amp; FOUNDATION DRAWINGS PROVIDED BY OWNER (Sheet {{this.sheetIndex}}/{{this.totalSheets}})
   </div>
 
-  <div class="asbuilt-drawings-grid" style="display: flex; flex-direction: column; gap: 8px; margin-top: 2px;">
+  <div class="asbuilt-drawings-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px;">
     {{#each this.drawings}}
-    <div class="asbuilt-drawing-card" style="border: 1px solid #1e293b; background: #ffffff; padding: 3px; border-radius: 2px; break-inside: avoid; page-break-inside: avoid;">
-      <div style="text-align: center; height: 86mm; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff;">
+    <div class="asbuilt-drawing-card" style="border: 1px solid #1e293b; background: #ffffff; padding: 4px; border-radius: 2px; break-inside: avoid; page-break-inside: avoid; display: flex; flex-direction: column;">
+      <div style="text-align: center; height: 185mm; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff;">
         {{#if this.base64}}
         <img src="{{this.base64}}" alt="{{this.title.vi}}"
           style="max-height: 100%; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;">

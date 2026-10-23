@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw } from 'lucide-react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw, RotateCw } from 'lucide-react';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -12,18 +12,21 @@ import {
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
 
-import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
+import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation } from '../types';
 
 interface Props {
   isEditMode: boolean;
   formState: AuditStepwiseFormState;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoRotations?: Record<string, number>;
+  onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
+  violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
 export const AuditStep2OwnerInterview: React.FC<Props> = ({
@@ -36,6 +39,9 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
   onOpenPhotoAction,
   onOpenPhotoHistory,
   isFieldDirty,
+  stagedPhotoRotations = {},
+  onRotatePhoto,
+  violationsMap,
 }) => {
   const hi: StepwiseHistoryInterview = formState.historyInterview || {};
 
@@ -588,39 +594,77 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
 
             {asBuiltPhotos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                {asBuiltPhotos.map((photo, idx) => (
-                  <div
-                    key={idx}
-                    className="group relative rounded-xl border border-emerald-200 bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col"
-                  >
+                {asBuiltPhotos.map((photo, idx) => {
+                  const dwgKey = `asBuiltDrawing_${idx}`;
+                  const dwgCode = photo.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
+                  const rot =
+                    stagedPhotoRotations[dwgKey] ??
+                    stagedPhotoRotations[dwgCode] ??
+                    stagedPhotoRotations[photo.url] ??
+                    0;
+                  const violation = violationsMap?.get(dwgKey) || violationsMap?.get(dwgCode);
+                  return (
                     <div
-                      className="aspect-4/3 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
-                      onClick={() => {
-                        if (onOpenPhotoZoom && photo.url) {
-                          onOpenPhotoZoom(photo.url, `Bản vẽ hoàn công trang #${idx + 1}`, photo.photoCode || `AS_BUILT_${idx + 1}`);
-                        }
-                      }}
+                      key={idx}
+                      id={`audit-photo-card-asbuilt-${idx}`}
+                      className={`group relative rounded-xl bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col ${
+                        violation
+                          ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+                          : 'border border-emerald-200'
+                      }`}
                     >
-                      <img
-                        src={photo.url}
-                        alt={`Bản vẽ ${idx + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-5 h-5 drop-shadow-md" />
-                      </div>
-                    </div>
-                    <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[11px] font-bold text-slate-800 truncate">
-                          {photo.photoCode || `Bản vẽ #${idx + 1}`}
-                        </div>
-                        {photo.notes && (
-                          <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
+                      <div
+                        className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                        onClick={() => {
+                          if (onOpenPhotoZoom && photo.url) {
+                            onOpenPhotoZoom(photo.url, `Bản vẽ hoàn công trang #${idx + 1}`, dwgCode, rot);
+                          }
+                        }}
+                      >
+                        <img
+                          src={photo.url}
+                          alt={`Bản vẽ ${idx + 1}`}
+                          style={{ transform: `rotate(${rot}deg)` }}
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                        />
+                        {violation && (
+                          <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
+                            💡 Khuyến nghị xoay Dọc
+                          </div>
                         )}
+                        {rot !== 0 && (
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs">
+                            {rot}°
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Maximize2 className="w-5 h-5 drop-shadow-md" />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {onOpenPhotoHistory && (
+                      <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-bold text-slate-800 truncate">
+                            {photo.photoCode || `Bản vẽ #${idx + 1}`}
+                          </div>
+                          {photo.notes && (
+                            <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onRotatePhoto && (
+                            <button
+                              type="button"
+                              title={`Xoay bản vẽ 90° (Hiện tại: ${rot}°)`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRotatePhoto(dwgKey, (rot + 90) % 360, photo.url);
+                              }}
+                              className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded cursor-pointer"
+                            >
+                              <RotateCw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onOpenPhotoHistory && (
                           <button
                             type="button"
                             title="Lịch sử phiên bản bản vẽ"
@@ -700,7 +744,8 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             ) : (
               !isEditMode && (

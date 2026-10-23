@@ -145,7 +145,12 @@ export class Appendix3And4Mapper {
       })(),
       signedRecordPages: allDocPhotos.map((url: string, idx: number) => {
         const rotMap = json.photoRotations || rawReport.photoRotations || {};
-        const docRot = rotMap[`minutes_${idx}`] ?? rotMap[url] ?? 0;
+        const docRot =
+          rotMap[`minutes_${idx}`] ??
+          rotMap[`MINUTES-${idx + 1}`] ??
+          rotMap[`absenceNotice_${idx}`] ??
+          rotMap[url] ??
+          0;
         const docTitleVi = isAbsentee
           ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
           : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
@@ -351,18 +356,24 @@ export class Appendix3And4Mapper {
       return Boolean(u && typeof u === 'string' && u.trim() !== '' && !u.startsWith('blob:'));
     });
 
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
     const drawings: AsBuiltDrawingItem[] = validItems.map((item: any, idx: number) => {
       const url = typeof item === 'string' ? item : (item?.url || item?.photoUrl);
       const photoCode = item?.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
       const customTitle = item?.title || item?.caption || item?.pageNote;
       const titleVi = customTitle || `Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (Bản vẽ ${idx + 1})`;
       const titleEn = customTitle || `As-built / structural foundation drawing provided by owner (Drawing ${idx + 1})`;
-      const rotation = item?.rotation ?? json.photoRotations?.[photoCode] ?? json.photoRotations?.[url] ?? 0;
+      const rotation =
+        item?.rotation ??
+        rotMap[`asBuiltDrawing_${idx}`] ??
+        rotMap[photoCode] ??
+        rotMap[url] ??
+        0;
       return {
         index: idx + 1,
         title: { vi: titleVi, en: titleEn },
         url,
-        base64: ReportImageResolver.resolveToBase64(url),
+        base64: ReportImageResolver.resolveToBase64(url, rotation),
         photoCode,
         rotation,
       };
