@@ -1,10 +1,10 @@
 /**
- * NGHIỆM THU PDF THẬT (Bước 0): render qua ReportV3Service.renderDraftPdf (có header/footer, TOC 2-pass)
+ * NGHIỆM THU PDF THẬT (Bước 0): render qua ReportService.renderDraftPdf (có header/footer, TOC 2-pass)
  * rồi kiểm tra nội dung từng trang bằng pdfjs.
  * Dùng: npx ts-node src/scripts/test_report_pdf_acceptance.ts <reportId|parcelCode> [...]
  */
 import { pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
+import { ReportService } from '../modules/report/report-v3.service';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
@@ -43,8 +43,8 @@ async function main() {
   };
 
   for (const id of process.argv.slice(2)) {
-    const resolved = await ReportV3Service.resolve(id);
-    const { pdfBuffer, buildingId } = await ReportV3Service.renderDraftPdf(resolved, undefined, true);
+    const resolved = await ReportService.resolve(id);
+    const { pdfBuffer, buildingId } = await ReportService.renderDraftPdf(resolved, undefined, true);
     const texts = await pageTexts(pdfBuffer);
     const sq = texts.map(squeeze);
     console.log(`\n=== ${buildingId}: ${texts.length} trang ===`);

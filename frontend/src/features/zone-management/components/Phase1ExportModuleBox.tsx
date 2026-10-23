@@ -68,8 +68,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     setDefectFilterQuery,
     modalFeedback,
     setModalFeedback,
-    reportVersion,
-    handleSwitchVersion,
     handleOpenPreview,
     handleUpdateFormField,
     handleUpdateDefectField,
@@ -79,7 +77,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     handleSwitchTab,
     handleOpenPreviewInNewTab,
     handleDirectPrint,
-    handleExportSingleDocx,
     handleExportSinglePdf,
     enableWatermark,
     handleToggleWatermark,
@@ -130,7 +127,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         onToggleSelectParcel={toggleSelectParcel}
         onOpenPreview={handleOpenPreview}
         onExportSinglePdf={handleExportSinglePdf}
-        onExportSingleDocx={handleExportSingleDocx}
       />
 
       {/* 5. Modal xem trước bản in PDF, chỉnh sửa trực tiếp & JSON payload */}
@@ -153,8 +149,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         setDefectFilterQuery={setDefectFilterQuery}
         modalFeedback={modalFeedback}
         setModalFeedback={setModalFeedback}
-        reportVersion={reportVersion}
-        handleSwitchVersion={handleSwitchVersion}
         handleOpenPreview={handleOpenPreview}
         handleUpdateFormField={handleUpdateFormField}
         handleUpdateDefectField={handleUpdateDefectField}
@@ -164,7 +158,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleSwitchTab={handleSwitchTab}
         handleOpenPreviewInNewTab={handleOpenPreviewInNewTab}
         handleDirectPrint={handleDirectPrint}
-        handleExportSingleDocx={handleExportSingleDocx}
         handleExportSinglePdf={handleExportSinglePdf}
         enableWatermark={enableWatermark}
         handleToggleWatermark={handleToggleWatermark}

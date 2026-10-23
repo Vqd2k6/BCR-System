@@ -1,0 +1,276 @@
+/**
+ * ============================================================================
+ * APPENDIX 3 & 4 MAPPER: SIGNED FIELD RECORDS & EQUIPMENT ACCESSIBILITY
+ * Phụ lục 3: Biên bản hiện trường 3 bên & Phụ lục 4: Thiết bị và phạm vi tiếp cận
+ * ============================================================================
+ */
+
+import {
+  Appendix3SignedRecord,
+  Appendix4EquipmentAndAccess,
+  FloorPlanDefectReport,
+  Appendix1PhotoItem,
+  Section12AsBuiltReport,
+  AsBuiltDrawingSheet,
+  AsBuiltDrawingItem,
+} from '../../report.types';
+import { ReportImageResolver } from '../../services/report-image-resolver.service';
+import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
+import { extractPhotoDateTime } from '../formatters.mapper';
+import type { ReportContentConfig } from '../../../report_config/report-config.types';
+
+export class Appendix3And4Mapper {
+  public static mapAppendix3(
+    rawReport: any,
+    json: any,
+    identPhotos: any[] = [],
+    surveyDateWithTime: string = '',
+    surveyDateFormatted: string = '',
+    surveyorName: string = '',
+    zoneAdminName: string = '',
+    reportNo: string = '',
+    buildingId?: string,
+    rawSurveyDate?: any
+  ): Appendix3SignedRecord {
+    const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
+    let minutesPhotos: string[] = [];
+    if (isAbsentee && Array.isArray(json.absenteeMinutesPhotos) && json.absenteeMinutesPhotos.length > 0) {
+      minutesPhotos = json.absenteeMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean);
+    } else if (json.signatures?.workingMinutesPhotos && json.signatures.workingMinutesPhotos.length > 0) {
+      minutesPhotos = json.signatures.workingMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean);
+    } else {
+      minutesPhotos = identPhotos
+        .filter((p: any) => p.photo_type?.includes('DOC') || p.raw_photo_url?.includes('/DOC/'))
+        .map((p: any) => p.raw_photo_url || p.annotated_photo_url)
+        .filter(Boolean);
+    }
+
+    const extraDocs: string[] = [];
+    if (!isAbsentee && Array.isArray(json.absenteeMinutesPhotos) && json.absenteeMinutesPhotos.length > 0) {
+      extraDocs.push(...json.absenteeMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean));
+    }
+    const allDocPhotos = [...minutesPhotos, ...extraDocs].filter(Boolean);
+
+    const ownerFeedbackText = json.signatures?.ownerFeedback ?? json.ownerFeedback ?? json.ownerRemarks ?? rawReport.owner_remarks ?? '';
+    const rawRepName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name || '';
+    const isRepCadastral = !rawRepName || /chủ\s*hộ\s*thửa/i.test(rawRepName) || /tờ\s*bản\s*đồ/i.test(rawRepName);
+    const actualSignerName = isRepCadastral ? '' : rawRepName.trim();
+    const ownerName = (json.ownerName || rawReport.owner_name || '').trim();
+    const finalOwnerName = actualSignerName || ownerName || 'Chủ hộ';
+    const isOwnerItself = !actualSignerName || actualSignerName === ownerName;
+    const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
+    const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative / Occupant';
+
+    const witnessName = json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '';
+    const witnessRole = json.signatures?.localAuthority?.title || json.signatures?.witnessRole || json.witnessInfo?.role || json.witnessRole || '';
+    const supName = json.signatures?.supervisionConsultant?.fullName;
+    const supTitle = json.signatures?.supervisionConsultant?.title;
+
+    return {
+      surveyTime: surveyDateWithTime,
+      ownerRepresentative: {
+        vi: isAbsentee ? `${finalOwnerName} (Vắng mặt tại thời điểm khảo sát)` : `${finalOwnerName} - ${roleSuffixVi}`,
+        en: isAbsentee ? `${finalOwnerName} (Absent during survey)` : `${finalOwnerName} - ${roleSuffixEn}`,
+      },
+      localAuthority: {
+        vi: witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--',
+        en: witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--',
+      },
+      supervisionConsultant: {
+        vi: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : '--',
+        en: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : '--',
+      },
+      surveyUnit: {
+        vi: surveyorName ? `${surveyorName} - Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT` : 'Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT',
+        en: surveyorName ? `${surveyorName} - Field survey engineer, CRLG – CRSRI – TT JV` : 'Field survey engineer, CRLG – CRSRI – TT JV',
+      },
+      fieldComments: {
+        vi: isAbsentee ? 'Khảo sát vắng chủ – Lập biên bản niêm yết theo quy định' : (ownerFeedbackText || 'Không có ý kiến bổ sung'),
+        en: isAbsentee ? 'Absentee survey – Official notice posted per procedure' : (ownerFeedbackText || 'No additional comments'),
+      },
+      electronicSignOff: {
+        vi: isAbsentee
+          ? `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Tình trạng: Vắng mặt (Lập biên bản niêm yết theo quy định); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`
+          : `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Chủ sở hữu: ${json.ownerName || rawReport.owner_name || 'Chủ hộ'} (đã ký); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`,
+        en: isAbsentee
+          ? `Surveyor: ${surveyorName || 'Unrecorded'}; Status: Absent (Official notice posted per field procedure); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`
+          : `Surveyor: ${surveyorName || 'Unrecorded'}; Owner: ${json.ownerName || rawReport.owner_name || 'Property owner'} (signed); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`,
+      },
+      dataSource: (() => {
+        const isApproved = String(rawReport.status || '').toUpperCase() === 'APPROVED';
+        const refIso = (isApproved && rawReport.approved_at)
+          ? new Date(rawReport.approved_at).toISOString()
+          : (rawSurveyDate ? new Date(rawSurveyDate).toISOString() : '');
+        return {
+          vi: `Bản xuất phần mềm ${reportNo}, ngày khảo sát ${surveyDateFormatted || '–'}`,
+          en: `Software export ${reportNo}${refIso ? `, approved/recorded at ${refIso}` : ''}`,
+        };
+      })(),
+      signedRecordPages: allDocPhotos.map((url: string, idx: number) => {
+        const rotMap = json.photoRotations || rawReport.photoRotations || {};
+        const docRot = rotMap[`minutes_${idx}`] ?? rotMap[`MINUTES-${idx + 1}`] ?? rotMap[`absenceNotice_${idx}`] ?? rotMap[url] ?? 0;
+        const docTitleVi = isAbsentee
+          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
+          : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
+        const docTitleEn = isAbsentee
+          ? `Absentee survey notice / record - page ${idx + 1}/${allDocPhotos.length || 1}`
+          : `Signed site-survey record - page ${idx + 1}/${allDocPhotos.length || 1}`;
+
+        return {
+          pageIndex: idx + 1,
+          title: { vi: docTitleVi, en: docTitleEn },
+          url,
+          base64: ReportImageResolver.resolveToBase64(url, docRot),
+          alreadyWatermarked: isPhotoAlreadyWatermarked(url),
+          watermarkDateTime: extractPhotoDateTime(url, null, rawSurveyDate),
+          metroPhotoCode: isAbsentee
+            ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_ABSENTEE_${String(idx + 1).padStart(2, '0')}`
+            : `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`,
+        };
+      }),
+    };
+  }
+
+  public static mapAppendix4(
+    appendix1: Appendix1PhotoItem[],
+    appendix2: FloorPlanDefectReport[],
+    rawReport?: any,
+    json?: any,
+    config?: ReportContentConfig
+  ): Appendix4EquipmentAndAccess {
+    const rawScope = json?.surveyScope || {};
+    const rawLimitation = json?.accessLimitation || {};
+    const isAbsentee = Boolean(json?.isAbsenteeSurvey || rawReport?.is_absentee_survey);
+
+    const isFullAccess = rawLimitation.type === 'FULL_100';
+    let roofAccessed = true;
+    let roofNotAccessed = false;
+    let roofRemarkVi = 'Khảo sát đầy đủ hiện trạng';
+    let roofRemarkEn = 'Full survey completed';
+
+    if (!isFullAccess && Array.isArray(rawLimitation.restrictedAreas)) {
+      const isRoofRestricted = rawLimitation.restrictedAreas.some((a: string) =>
+        typeof a === 'string' && (a.toLowerCase().includes('mái') || a.toLowerCase().includes('sân thượng') || a.toLowerCase().includes('roof'))
+      );
+      if (isRoofRestricted) {
+        roofAccessed = false;
+        roofNotAccessed = true;
+        roofRemarkVi = 'Hạn chế tiếp cận theo ghi nhận hiện trường';
+        roofRemarkEn = 'Restricted access per field notes';
+      }
+    }
+
+    const basementCount = Number(json?.undergroundFloors ?? json?.basementCount ?? json?.buildingSpecs?.basementCount ?? rawReport?.basement_count ?? rawReport?.buildingSpecs?.basementCount ?? 0);
+    const hasBaseScope = Boolean(rawScope.basement);
+    const basementAccessed = basementCount > 0 && hasBaseScope;
+    const basementNotAccessed = basementCount > 0 && !hasBaseScope;
+
+    const hasLimitations = Boolean(
+      rawLimitation.type === 'PARTIAL' ||
+      rawLimitation.type === 'REFUSED' ||
+      roofNotAccessed ||
+      basementNotAccessed ||
+      (Array.isArray(rawLimitation.restrictedAreas) && rawLimitation.restrictedAreas.length > 0)
+    );
+
+    let accessClassVi = 'Không hạn chế (100%).';
+    let accessClassEn = 'No restriction (100%).';
+    if (isAbsentee) {
+      accessClassVi = 'Khảo sát vắng chủ (chỉ tiếp cận mặt ngoài).';
+      accessClassEn = 'Absentee survey (exterior only).';
+    } else if (rawLimitation.type === 'REFUSED') {
+      accessClassVi = 'Chủ hộ từ chối tiếp cận một số khu vực.';
+      accessClassEn = 'Owner refused access to certain areas.';
+    } else if (hasLimitations) {
+      accessClassVi = 'Hạn chế một phần (xem chi tiết Mục IX – Hạn chế khảo sát).';
+      accessClassEn = 'Partially restricted (see Section IX – Survey Limitations).';
+    }
+
+    let equipmentList: any[] = [];
+    if (config?.equipment && config.equipment.length > 0) {
+      equipmentList = config.equipment.map((item, idx) => ({
+        no: item.sortOrder || idx + 1,
+        equipment: { vi: item.nameVi, en: item.nameEn || item.nameVi },
+        modelSerial: {
+          vi: item.model || item.serialNo ? `${item.model || '--'} (S/N: ${item.serialNo || '--'})` : '--',
+          en: item.model || item.serialNo ? `${item.model || '--'} (S/N: ${item.serialNo || '--'})` : '--',
+        },
+        specs: { vi: item.specificationVi || '--', en: item.specificationEn || item.specificationVi || '--' },
+        purpose: { vi: item.purposeVi || '--', en: item.purposeEn || item.purposeVi || '--' },
+        calibration: {
+          vi: item.calibrationCertNo || item.calibrationValidTo ? `Số: ${item.calibrationCertNo || '--'} · Hạn: ${item.calibrationValidTo || '--'}` : '--',
+          en: item.calibrationCertNo || item.calibrationValidTo ? `Cert: ${item.calibrationCertNo || '--'} · Exp: ${item.calibrationValidTo || '--'}` : '--',
+        },
+      }));
+    } else {
+      equipmentList = [
+        { no: 1, equipment: { vi: 'Máy ảnh số có GPS', en: 'Digital camera with GPS' }, modelSerial: { vi: '--', en: '--' }, specs: { vi: '≥ 12MP, tọa độ EXIF WGS-84', en: '≥ 12 MP, EXIF WGS-84' }, purpose: { vi: 'Ảnh định danh P-01 – P-07, bối cảnh vết nứt', en: 'Identification photos, crack context' }, calibration: { vi: '--', en: '--' } },
+        { no: 2, equipment: { vi: 'Thước đo bề rộng nứt', en: 'Crack width gauge' }, modelSerial: { vi: '--', en: '--' }, specs: { vi: 'Vạch chia 0,1 – 10,0 mm', en: '0.1 – 10.0 mm' }, purpose: { vi: 'Đo bề rộng lớn nhất wmax', en: 'Measure wmax' }, calibration: { vi: '--', en: '--' } },
+        { no: 3, equipment: { vi: 'Thước laser / thước thép', en: 'Laser / steel tape' }, modelSerial: { vi: '--', en: '--' }, specs: { vi: '± 1,5 mm, tầm đo 40 m', en: '± 1.5 mm, 40 m range' }, purpose: { vi: 'Chiều dài nứt, kích thước phòng', en: 'Crack length, room size' }, calibration: { vi: '--', en: '--' } },
+        { no: 4, equipment: { vi: 'Máy đo nghiêng / thước bọt nước', en: 'Inclinometer / spirit level' }, modelSerial: { vi: '--', en: '--' }, specs: { vi: '--', en: '--' }, purpose: { vi: 'Nghiêng thân nhà X/Y, võng dầm sàn', en: 'Building tilt X/Y, deflection' }, calibration: { vi: '--', en: '--' } },
+      ];
+    }
+
+    const accessAreas = [
+      { area: { vi: 'Mặt ngoài', en: 'Exterior' }, accessed: appendix1.length > 0, notAccessed: appendix1.length === 0, remark: { vi: `P-01 – P-0${Math.min(7, appendix1.length)}`, en: `P-01 – P-0${Math.min(7, appendix1.length)}` } },
+      { area: { vi: 'Tầng trệt & các lầu', en: 'Ground floor & upper floors' }, accessed: appendix2.length > 0, notAccessed: appendix2.length === 0, remark: { vi: `${appendix2.length} tầng khảo sát đầy đủ`, en: `${appendix2.length} floors surveyed` } },
+      { area: { vi: 'Mái / Sân thượng', en: 'Roof / Terrace' }, accessed: roofAccessed, notAccessed: roofNotAccessed, remark: { vi: roofRemarkVi, en: roofRemarkEn } },
+    ];
+    if (basementCount > 0) {
+      accessAreas.push({
+        area: { vi: 'Tầng hầm', en: 'Basement' },
+        accessed: basementAccessed,
+        notAccessed: basementNotAccessed,
+        remark: { vi: hasBaseScope ? 'Đã khảo sát tầng hầm' : 'Chưa khảo sát tầng hầm', en: hasBaseScope ? 'Basement surveyed' : 'Basement not surveyed' },
+      });
+    }
+
+    return {
+      equipmentList,
+      calibrationNotes: config?.standardText?.calibrationNote ?? null,
+      accessAreas,
+      accessClassification: { vi: accessClassVi, en: accessClassEn },
+    };
+  }
+
+  public static mapSection12AsBuilt(rawReport: any, json: any): Section12AsBuiltReport {
+    const rawList = json.asBuiltDrawingPhotos || json.asBuiltDrawingFiles || json.asBuiltDrawings || rawReport.as_built_drawings || rawReport.as_built_drawing_photos_json || [];
+    const list = Array.isArray(rawList) ? rawList : [];
+    const validItems = list.filter((item: any) => {
+      const u = typeof item === 'string' ? item : (item?.url || item?.photoUrl);
+      return Boolean(u && typeof u === 'string' && u.trim() !== '' && !u.startsWith('blob:'));
+    });
+
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
+    const drawings: AsBuiltDrawingItem[] = validItems.map((item: any, idx: number) => {
+      const url = typeof item === 'string' ? item : (item?.url || item?.photoUrl);
+      const photoCode = item?.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
+      const customTitle = item?.title || item?.caption || item?.pageNote;
+      const rotation = item?.rotation ?? rotMap[`asBuiltDrawing_${idx}`] ?? rotMap[photoCode] ?? rotMap[url] ?? 0;
+      return {
+        index: idx + 1,
+        title: {
+          vi: customTitle || `Bản vẽ thiết kế / hoàn công móng do chủ hộ cung cấp (Bản vẽ ${idx + 1})`,
+          en: customTitle || `As-built / structural foundation drawing provided by owner (Drawing ${idx + 1})`,
+        },
+        url,
+        base64: ReportImageResolver.resolveToBase64(url, rotation),
+        photoCode,
+        rotation,
+      };
+    });
+
+    const sheets: AsBuiltDrawingSheet[] = [];
+    const chunkSize = 2;
+    for (let i = 0; i < drawings.length; i += chunkSize) {
+      sheets.push({
+        sheetIndex: Math.floor(i / chunkSize) + 1,
+        totalSheets: Math.ceil(drawings.length / chunkSize),
+        drawings: drawings.slice(i, i + chunkSize),
+      });
+    }
+
+    return { hasDrawings: drawings.length > 0, totalDrawings: drawings.length, sheets };
+  }
+}
+

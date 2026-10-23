@@ -17,14 +17,14 @@ import {
   ReportSnapshotService,
   stableStringify,
   sha256Hex,
-} from '../modules/report_v3/report-snapshot.service';
-import { ReportSnapshotSchema } from '../modules/report_v3/report-snapshot.schema';
-import { RenderQueue, RenderTimeoutError } from '../modules/report_v3/render-queue';
-import { ReportReleaseService, getReleaseStorageDir } from '../modules/report_v3/report-release.service';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { escapeHtml, PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
-import { MetadataMapper } from '../modules/report_v2/mappers/sections/metadata.mapper';
-import { Section9ConclusionMapper } from '../modules/report_v2/mappers/sections/section-9-conclusions.mapper';
+} from '../modules/report/report-snapshot.service';
+import { ReportSnapshotSchema } from '../modules/report/report-snapshot.schema';
+import { RenderQueue, RenderTimeoutError } from '../modules/report/render-queue';
+import { ReportReleaseService, getReleaseStorageDir } from '../modules/report/report-release.service';
+import { ReportService } from '../modules/report/report-v3.service';
+import { escapeHtml, PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
+import { MetadataMapper } from '../modules/report/mappers/sections/metadata.mapper';
+import { Section9ConclusionMapper } from '../modules/report/mappers/sections/section-9-conclusions.mapper';
 import { AuditReviewService } from '../modules/audit/services/audit-review.service';
 import { SurveyRepository } from '../modules/survey/survey.repository';
 import type { JwtPayload } from '../common/guards/auth.guard';
@@ -350,9 +350,9 @@ async function partB(): Promise<void> {
 
   for (const r of VERIFICATION_SET) {
     await tc(`B1-${r.code}`, `DRAFT HTML (${r.note}) – không auto text/A/nhãn kiểm soát, 2 ô ký, watermark`, async () => {
-      const resolved = await ReportV3Service.resolve(r.id);
+      const resolved = await ReportService.resolve(r.id);
       const wasApproved = resolved.status === 'APPROVED';
-      const { html } = await ReportV3Service.renderDraftHtml(resolved, undefined, false, true);
+      const { html } = await ReportService.renderDraftHtml(resolved, undefined, false, true);
       const textOnly = html.replace(/data:[a-z]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+\/=]+/gi, '');
       flagsById.set(r.id, {
         hasNaN: /\bNaN\b/.test(textOnly),
@@ -442,7 +442,7 @@ async function partB(): Promise<void> {
   let rev0Sha = '';
 
   await tc('B7', 'Xuất FINAL lần đầu → Rev 00, file thật trên đĩa, SHA-256 khớp, PDF hợp lệ', async () => {
-    const resolved = await ReportV3Service.resolve(target.id);
+    const resolved = await ReportService.resolve(target.id);
     const out = await ReportReleaseService.getOrCreateFinalFile(resolved, ZONE_ADMIN_ZONE09);
     eq(out.release.revision, 0, 'revision');
     truthy(out.buffer.subarray(0, 4).toString() === '%PDF', 'không phải PDF');
@@ -453,7 +453,7 @@ async function partB(): Promise<void> {
   });
 
   await tc('B8', 'Xuất lại Final: trả đúng file cũ (cùng SHA), KHÔNG tự tăng Rev', async () => {
-    const resolved = await ReportV3Service.resolve(target.id);
+    const resolved = await ReportService.resolve(target.id);
     const again = await ReportReleaseService.getOrCreateFinalFile(resolved, ZONE_ADMIN_ZONE09);
     eq(again.created, false, 'không tạo mới');
     eq(again.release.sha256, rev0Sha, 'sha');
@@ -463,7 +463,7 @@ async function partB(): Promise<void> {
 
   await tc('B9', 'Xuất song song 3 lần khi chưa có Rev → chỉ tạo 1 Rev (advisory lock)', async () => {
     const second = VERIFICATION_SET[1];
-    const resolved = await ReportV3Service.resolve(second.id);
+    const resolved = await ReportService.resolve(second.id);
     const outs = await Promise.all([1, 2, 3].map(() => ReportReleaseService.getOrCreateFinalFile(resolved, ZONE_ADMIN_ZONE09)));
     const shas = new Set(outs.map((o) => o.release.sha256));
     eq(shas.size, 1, 'cùng một file');
@@ -492,7 +492,7 @@ async function partB(): Promise<void> {
     eq(audit.rows[0].payload.oldRevision, 0, 'audit old');
     eq(audit.rows[0].payload.newRevision, 1, 'audit new');
     truthy(audit.rows[0].payload.reason.includes('nhà thầu'), 'audit reason');
-    const resolved = await ReportV3Service.resolve(target.id);
+    const resolved = await ReportService.resolve(target.id);
     const old = await ReportReleaseService.getOrCreateFinalFile(resolved, ZONE_ADMIN_ZONE09, 0);
     eq(old.release.sha256, rev0Sha, 'Rev 00 phải giữ nguyên file cũ');
     const latest = await ReportReleaseService.getOrCreateFinalFile(resolved, ZONE_ADMIN_ZONE09);
@@ -530,12 +530,12 @@ async function partB(): Promise<void> {
   });
 
   await tc('B15', 'HTML Final: không watermark DRAFT, chữ ký Kiểm tra/Duyệt có ngày APPROVE, Rev hiển thị đúng', async () => {
-    const resolved = await ReportV3Service.resolve(target.id);
+    const resolved = await ReportService.resolve(target.id);
     const snap = await ReportSnapshotService.getLatestApprovedSnapshot(target.id);
     if (!snap) throw new Error('thiếu snapshot');
-    const finalReport = ReportV3Service.buildFinalReport(resolved, snap.snapshot, 2);
-    const { ReportV2Service } = await import('../modules/report_v2/report-v2.service');
-    const { html } = await ReportV2Service.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
+    const finalReport = ReportService.buildFinalReport(resolved, snap.snapshot, 2);
+    const { ReportService } = await import('../modules/report/report-v2.service');
+    const { html } = await ReportService.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
     truthy(!html.includes('DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ'), 'Final không được có watermark DRAFT');
     truthy(/Rev\s*0?2|-02\b|_R02|REV02|Rev02/i.test(html) || html.includes('02'), 'không thấy Rev 02');
     const d = await Database.query<{ approved_at: Date }>(`SELECT approved_at FROM base_survey_reports WHERE id = $1;`, [target.id]);
@@ -562,7 +562,7 @@ async function partB(): Promise<void> {
   });
 
   await tc('B17', 'Header/Footer PDF an toàn với ký tự đặc biệt trong mã công trình', async () => {
-    const buf = await PdfRenderV2Engine.renderHtmlToPdf('<html><body><p>x</p></body></html>', {
+    const buf = await PdfRenderEngine.renderHtmlToPdf('<html><body><p>x</p></body></html>', {
       buildingId: 'C&C-05-B-0063 <img src=x onerror=alert(1)>',
       reportNo: 'BC-"x"&y',
     });
@@ -575,15 +575,15 @@ async function partB(): Promise<void> {
        WHERE r.status = 'SUBMITTED' AND r.unit_id IS NULL AND r.deleted_at IS NULL AND r.report_type <> 'CONDO_UNIT' LIMIT 1;`
     );
     if (!other.rows[0]) return 'bỏ qua: không còn hồ sơ SUBMITTED';
-    const resolved = await ReportV3Service.resolve(other.rows[0].id);
-    const { pdfBuffer } = await ReportV3Service.renderDraftPdf(resolved, undefined, true);
+    const resolved = await ReportService.resolve(other.rows[0].id);
+    const { pdfBuffer } = await ReportService.renderDraftPdf(resolved, undefined, true);
     truthy(pdfBuffer.subarray(0, 4).toString() === '%PDF', 'không phải PDF');
     return `${Math.round(pdfBuffer.length / 1024)}KB`;
   });
 
   await tc('B19', 'Hồ sơ đã APPROVED: overrides từ client bị bỏ qua (D4 – chỉ dùng dữ liệu đã duyệt)', async () => {
-    const resolved = await ReportV3Service.resolve(target.id);
-    const { html } = await ReportV3Service.renderDraftHtml(resolved, { ownerName: 'HACKER NAME 123' }, false, true);
+    const resolved = await ReportService.resolve(target.id);
+    const { html } = await ReportService.renderDraftHtml(resolved, { ownerName: 'HACKER NAME 123' }, false, true);
     truthy(!html.includes('HACKER NAME 123'), 'override lọt vào hồ sơ APPROVED');
   });
 }
@@ -606,7 +606,7 @@ async function main(): Promise<void> {
 
   await pool.end().catch((err: unknown) => console.error('[TEST] pool.end lỗi:', err));
   try {
-    const browser = await PdfRenderV2Engine.getBrowser();
+    const browser = await PdfRenderEngine.getBrowser();
     await browser.close();
   } catch (err) {
     console.error('[TEST] Đóng browser lỗi:', err);

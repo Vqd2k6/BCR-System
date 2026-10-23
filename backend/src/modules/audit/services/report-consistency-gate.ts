@@ -7,11 +7,10 @@
  */
 
 import { BadRequestError } from '../../../common/errors/problem-details';
-import { RiskScoringCalculator } from '../../report_v2/mappers/risk-scoring-calculator';
 import {
   classifyStructureSystem,
   v2ScoreForStructure,
-} from '../../report_v2/mappers/structure-system.classifier';
+} from '../../scoring/structure-system.classifier';
 
 export interface ConsistencyGateResult {
   passed: boolean;
@@ -168,25 +167,26 @@ export class ReportConsistencyGate {
     let requiresEcsJudgement = false;
 
     try {
-      const riskAssessment = RiskScoringCalculator.computeRiskAssessment(
-        reportRow,
-        surveyJson?.burlandSummary?.localMaxGrade ?? 0,
-        surveyJson?.burlandSummary?.predominantGrade
+      const rawEcsTotal =
+        surveyJson?.ecs?.totalScore ??
+        reportRow?.riskScores?.total_ecs_score;
+      ecsScore =
+        rawEcsTotal !== undefined && rawEcsTotal !== null && !isNaN(Number(rawEcsTotal))
+          ? Number(rawEcsTotal)
+          : undefined;
+      const riskLevelStr = String(
+        surveyJson?.braMatrix?.finalRiskLevel ||
+          surveyJson?.braMatrix?.riskGrade ||
+          reportRow?.riskScores?.bra_risk_level ||
+          ''
       );
-      ecsScore = riskAssessment.ecs?.totalScore ?? 0;
-      const riskLevelVi =
-        riskAssessment.braMatrix?.finalRiskLevel?.vi ||
-        riskAssessment.overallRisk?.grade?.vi ||
-        '';
-      const riskLevelEn =
-        riskAssessment.braMatrix?.finalRiskLevel?.en ||
-        riskAssessment.overallRisk?.grade?.en ||
-        '';
-      braRiskLevel = riskLevelVi || riskLevelEn;
+      braRiskLevel = riskLevelStr || undefined;
       const isLowRisk =
-        riskLevelVi.includes('Thấp') || riskLevelEn.toLowerCase().includes('low');
+        riskLevelStr.includes('Thấp') ||
+        riskLevelStr.toLowerCase().includes('low') ||
+        riskLevelStr.toUpperCase() === 'LOW';
 
-      if (ecsScore >= 11 && isLowRisk) {
+      if (ecsScore !== undefined && ecsScore >= 11 && isLowRisk) {
         requiresEcsJudgement = true;
         const trimmedNotes = (judgementNotes || '').trim();
         if (trimmedNotes.length < 10) {
@@ -200,7 +200,7 @@ export class ReportConsistencyGate {
         }
       }
     } catch (err) {
-      console.error('[ReportConsistencyGate] Lỗi tính toán rủi ro phụ trợ khi thẩm định:', err);
+      console.error('[ReportConsistencyGate] Lỗi kiểm tra rủi ro phụ trợ khi thẩm định:', err);
     }
 
     // -------------------------------------------------------------------------

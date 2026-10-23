@@ -4,7 +4,7 @@ import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, Conf
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
-import { calculateDistancesFromPolygon } from '../../report_v2/utils/metro-spatial.utils';
+import { calculateDistancesFromPolygon } from '../utils/metro-spatial.utils';
 
 export interface PhotoActionItem {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';

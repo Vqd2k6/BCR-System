@@ -15,7 +15,8 @@ import {
   RotateCw,
 } from 'lucide-react';
 
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation } from '../types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
+import type { PhotoOrientationViolation } from '../utils/residentialPhotoOrientationStandards';
 
 interface Props {
   isEditMode?: boolean;

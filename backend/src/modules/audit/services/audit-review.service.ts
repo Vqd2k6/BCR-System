@@ -1,8 +1,7 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../../common/errors/problem-details';
-import { ReportSnapshotService } from '../../report_v3/report-snapshot.service';
-import { RiskScoringCalculator } from '../../report_v2/mappers/risk-scoring-calculator';
+import { ReportSnapshotService } from '../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from './report-consistency-gate';
 
 export class AuditReviewService {

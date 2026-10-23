@@ -7,10 +7,9 @@ import { AuditModificationService } from '../modules/audit/services/audit-modifi
 import { AuditReviewService } from '../modules/audit/services/audit-review.service';
 import { AuditVersionService } from '../modules/audit/services/audit-version.service';
 import { SurveyBaseRepository } from '../modules/survey/repositories/survey-base.repository';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
-import { CondoUnitReportGenerator } from '../modules/report/generators/condo-unit.generator';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-viewmodel.mapper';
+import { ReportService } from '../modules/report/services/report.service';
+import { ReportSnapshotService } from '../modules/report/snapshot/report-snapshot.service';
 import { CryptoUtils } from '../common/utils/crypto.utils';
 
 function loadFrontendOrientationStandards(): {
@@ -249,7 +248,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertIncludes(vm.metadata.buildingId, '00999', 'metadata.buildingId');
       assertEqual(vm.metadata.cadastralCode, 'THUA-88-TO-12', 'metadata.cadastralCode');
@@ -302,6 +301,7 @@ async function main() {
         manualMetroDistanceM: 16.4,
         clearanceOffsetDistance: 8.2,
         tunnelCrownDepthM: 22.0,
+        clearanceVerticalM: 7.5,
         adjacentBuildings: {
           left: { type: 'Nhà phố', floors: 4, contact: 'Chung tường', notes: 'Ổn định' },
           right: { type: 'Hẻm nội bộ', floors: 0, contact: 'Độc lập', notes: 'Hẻm 3m' },
@@ -333,7 +333,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       // Kiểm tra khoảng cách Metro & Tĩnh không đứng (Chương II)
       assertEqual(vm.section2.distanceToMetroAlignmentM, '16.4', 'section2.distanceToMetroAlignmentM');
@@ -488,7 +488,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.appendix2.length, 2, 'appendix2 floor count');
       assertEqual(vm.appendix2[0].floorName.vi, 'Tầng 1 (Trệt)', 'appendix2[0] title');
@@ -546,7 +546,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertIncludes(vm.section7.localMaxGrade.vi, 'Cấp 3', 'section7.localMaxGrade.vi');
       assertIncludes(vm.section7.predominantGrade.vi, 'Cấp 2', 'section7.predominantGrade.vi');
@@ -614,7 +614,7 @@ async function main() {
       assertEqual(Number(defDbRes.rows[0].beam_deflection_mm), 14.5, 'SQL deformation_assessments.beam_deflection_mm');
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.section5.differentialSettlement.observed, true, 'section5.differentialSettlement.observed');
       assertIncludes(vm.section5.differentialSettlement.location.vi, 'Chân tường biên trục A', 'diffSettlement position');
@@ -688,7 +688,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.section2.landAreaM2, '132.6', 'section2.landAreaM2');
       assertIncludes(vm.section2.mainDimensions.vi, 'Mặt tiền 6.8 m × Chiều sâu 19.5 m', 'section2.mainDimensions.vi');
@@ -732,6 +732,7 @@ async function main() {
           totalVi: 15,
           viAvg: 2.5,
           viClass: 'MEDIUM',
+          vCode: 'V2',
           engineeringJudgement: {
             action: 'CUSTOM_OVERRIDE',
             reason: 'Chốt điểm VI = 2.50 (Cấp V2) sau khi rà soát kết cấu',
@@ -753,7 +754,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.section8.ecs.totalScore, 9, 'section8.ecs.totalScore');
       assertIncludes(vm.section8.ecs.classGrade.en, 'Medium', 'section8.ecs.classGrade');
@@ -793,7 +794,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.section8.impact.code, 'I3', 'section8.impact.code');
       assertEqual(vm.section8.braMatrix.iCode, 'I3', 'section8.braMatrix.iCode');
@@ -849,7 +850,7 @@ async function main() {
       await AuditReviewService.approveReport(reportId, adminId);
 
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       assertEqual(vm.metadata.surveyId, 'P-6655', 'metadata.surveyId from edited surveyorPhone');
       assertIncludes(vm.metadata.surveyDateFormatted, '20/03/2026', 'metadata.surveyDateFormatted');
@@ -920,6 +921,7 @@ async function main() {
         manualMetroDistanceM: 14.0,
         clearanceOffsetDistance: 7.5,
         tunnelCrownDepthM: 24.0,
+        clearanceVerticalM: 8.0,
         adjacentBuildings: {
           left: { type: 'Nhà phố', floors: 5, contact: 'Khe lún 3cm', notes: 'Tốt' },
           right: { type: 'Nhà phố', floors: 4, contact: 'Chung tường', notes: 'Ổn định' },
@@ -1156,7 +1158,7 @@ async function main() {
 
       // 4. Nạp báo cáo từ APPROVED_RELEASE Snapshot và xuất ViewModel cho Report
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
 
       // 5. Kiểm tra 1:1 toàn bộ 9 bước từ ViewModel
       assertEqual(vm.metadata.surveyId, 'P-2233', 'FullForm metadata.surveyId');
@@ -1344,38 +1346,6 @@ async function main() {
       assertEqual(unitDbRes.rows[0].owner_name, 'Trần Hoàng Phúc (Căn Hộ Đã Thẩm Định)', 'SQL building_units.owner_name');
       assertEqual(unitDbRes.rows[0].owner_phone, '0933445566', 'SQL building_units.owner_phone');
       assertEqual(unitDbRes.rows[0].owner_id_card, '079199887766', 'SQL building_units.owner_id_card');
-
-      const condoForRender = await loadApprovedReportForRender(condoReportId);
-      const condoVm = CondoUnitReportGenerator.buildViewModel(condoForRender);
-
-      assertEqual(condoVm.unitCode, 'A-08.05', 'condoVm.unitCode');
-      assertEqual(condoVm.displayCode, 'A-805-VIP', 'condoVm.displayCode');
-      assertEqual(condoVm.isDifferentCode, true, 'condoVm.isDifferentCode');
-      assertEqual(Number(condoVm.unitAreaM2), 78.5, 'condoVm.unitAreaM2');
-      assertEqual(condoVm.ownerName, 'Trần Hoàng Phúc (Căn Hộ Đã Thẩm Định)', 'condoVm.ownerName');
-      assertEqual(condoVm.ownerPhone, '0933445566', 'condoVm.ownerPhone');
-      assertEqual(condoVm.ownerIdCard, '079199887766', 'condoVm.ownerIdCard');
-      assertEqual(condoVm.residentStatus, 'CHO_THUÊ', 'condoVm.residentStatus');
-      assertEqual(condoVm.doorJammingStatus, 'JAMMED', 'condoVm.doorJammingStatus');
-      assertEqual(condoVm.hasSensitiveEquipment, true, 'condoVm.hasSensitiveEquipment');
-      assertEqual(condoVm.sensitiveEquipmentDesc, 'Đàn Piano cơ & Tủ rượu âm tường chống rung', 'condoVm.sensitiveEquipmentDesc');
-      assertEqual(condoVm.hasUpperFloorWaterLeakage, true, 'condoVm.hasUpperFloorWaterLeakage');
-      assertEqual(condoVm.waterLeakageItems.length, 1, 'condoVm.waterLeakageItems.length');
-      assertIncludes(condoVm.waterLeakageItems[0].description, 'Thấm nước nhỏ giọt từ cổ ống', 'condoVm.waterLeakageItems[0].description');
-      assertEqual(condoVm.hasBeamSagging, true, 'condoVm.hasBeamSagging');
-      assertEqual(condoVm.beamSagMm, 9.5, 'condoVm.beamSagMm');
-      assertEqual(condoVm.beamSpanM, 4.2, 'condoVm.beamSpanM');
-      assertEqual(condoVm.isBeamSagCritical, true, 'condoVm.isBeamSagCritical (9.5 / 4200 > 1/500)');
-      assertEqual(condoVm.p01.url, '/uploads/test/condo_p01.jpg', 'condoVm.p01.url');
-      assertEqual(condoVm.p04.url, '/uploads/test/condo_p04.jpg', 'condoVm.p04.url');
-      assertEqual(condoVm.localDefects.length, 1, 'condoVm.localDefects.length (from damageZones)');
-      assertEqual(condoVm.localDefects[0].widthMaxMm, 2.4, 'condoVm.localDefects[0].widthMaxMm');
-      assertEqual(condoVm.burlandMaxGrade, 2, 'condoVm.burlandMaxGrade');
-      assertEqual(condoVm.summaryConclusions, 'Căn hộ A-805-VIP có 01 vết nứt tường 2.4mm (Cấp 2) và hiện tượng thấm trần WC.', 'condoVm.summaryConclusions');
-      assertEqual(condoVm.engineeringRecommendations, 'Theo dõi vết nứt D-01 và xử lý chống thấm cổ ống tầng 9 trước khi TBM đi qua.', 'condoVm.engineeringRecommendations');
-      assertEqual(condoVm.ownerFeedback, 'Chủ căn hộ đồng ý với toàn bộ nội dung biên bản sau chỉnh sửa.', 'condoVm.ownerFeedback');
-      assertEqual(condoVm.surveyorName, 'KS. Nguyễn Thành Nam', 'condoVm.surveyorName');
-      assertEqual(condoVm.workingMinutesPhotos.length, 1, 'condoVm.workingMinutesPhotos.length');
     });
 
     // =========================================================================
@@ -1657,9 +1627,9 @@ async function main() {
       assertEqual(Number(defSqlRes.rows.find((r) => r.zone_code === 'Z-01' && r.defect_code === 'D-01')?.pin_x), 55.5, 'SQL defect_items Z-01/D-01 pin_x');
       assertEqual(Number(defSqlRes.rows.find((r) => r.zone_code === 'E-01' && r.defect_code === 'D-01')?.pin_x), 77.2, 'SQL defect_items E-01/D-01 pin_x');
 
-      // 4. Kiểm tra ReportV2ViewModel sau khi nạp từ APPROVED_RELEASE Snapshot
+      // 4. Kiểm tra ReportViewModel sau khi nạp từ APPROVED_RELEASE Snapshot
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
       const flVm = vm.appendix2[0];
 
       assertEqual(flVm.cadPins?.filter((p) => p.type === 'ZONE').length, 2, 'ViewModel cadPins ZONE count');
@@ -1886,9 +1856,9 @@ async function main() {
       assertEqual(dzSeqRes.rows.find((r) => r.zone_code === 'Z-04')?.is_deleted, false, 'SQL Z-04 is_deleted = false');
       assertEqual(dzSeqRes.rows.find((r) => r.zone_code === 'E-04')?.is_deleted, false, 'SQL E-04 is_deleted = false');
 
-      // 4. Kiểm tra ReportV2ViewModel:
+      // 4. Kiểm tra ReportViewModel:
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
       const flVm = vm.appendix2[0];
 
       // - Ghim CAD chỉ giữ lại các mã active: Z-01, Z-03, Z-04 và E-01, E-03, E-04 (không có Z-02, E-02)
@@ -2389,9 +2359,9 @@ async function main() {
         'Exact versionTag sequence across edits, multi-rollbacks, and approval'
       );
 
-      // 8. Kiểm tra ReportV2ViewModel sau khi Approve ở v6 khớp 100% với dữ liệu của v1
+      // 8. Kiểm tra ReportViewModel sau khi Approve ở v6 khớp 100% với dữ liệu của v1
       const reportForRender = await loadApprovedReportForRender(reportId);
-      const vm = ReportV2ViewModelMapper.buildViewModel(reportForRender);
+      const vm = ReportViewModelMapper.buildViewModel(reportForRender);
       assertEqual(vm.section1.ownerName, 'Chủ Hộ Phiên Bản V1', 'Final Approved VM ownerName matches v1');
       assertEqual(vm.section2.storeysAbove, 4, 'Final Approved VM storeysAbove matches v1');
       assertEqual(vm.section2.storeysBasement, 1, 'Final Approved VM storeysBasement matches v1');
@@ -2650,9 +2620,9 @@ async function main() {
 
           await AuditReviewService.approveReport(reportId, adminId);
 
-          // 3. Render qua ReportV2Service.generateResidentialHtmlFromReport (đường ống của Report V3)
+          // 3. Render qua ReportService.generateHtmlFromReport (đường ống của Report V3)
           const reportForRender = await loadApprovedReportForRender(reportId);
-          const { html, viewModel: vm } = await ReportV2Service.generateResidentialHtmlFromReport(reportForRender, undefined, false, false);
+          const { html, viewModel: vm } = await ReportService.generateHtmlFromReport(reportForRender, undefined, false, false);
 
           // Kiểm tra Phụ lục 1 (P-01..P-07) đã được xoay vật lý bằng Sharp đúng chiều chuẩn
           const p01Item = vm.appendix1.find((p) => p.photoCode === 'P-01')!;

@@ -4,9 +4,9 @@
 import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -19,7 +19,7 @@ function assert(condition: boolean, message: string) {
 
 async function testPdfRender() {
   console.log('--- 1. Chuẩn bị ViewModel & HTML ---');
-  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
+  const { template: compiled, styles: stylesSource } = ReportService.getCompiledTemplate();
 
   const mockReport = {
     project_parcel_code: 'C&C-01-B-01064',
@@ -34,7 +34,7 @@ async function testPdfRender() {
     },
   };
 
-  const viewModel = ReportV2ViewModelMapper.buildViewModel(mockReport);
+  const viewModel = ReportViewModelMapper.buildViewModel(mockReport);
   const htmlOutput = compiled({
     ...viewModel,
     styles: stylesSource,
@@ -42,7 +42,7 @@ async function testPdfRender() {
 
   console.log('\n--- 2. Khởi tạo Chromium và Render PDF A4 ---');
   const startTime = Date.now();
-  const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(htmlOutput, {
+  const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(htmlOutput, {
     buildingId: viewModel.metadata.buildingId,
     reportNo: viewModel.metadata.reportNo,
     headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',
@@ -57,7 +57,7 @@ async function testPdfRender() {
   const magic = pdfBuffer.slice(0, 5).toString('ascii');
   assert(magic === '%PDF-', `Định dạng chuẩn PDF (%PDF-), thực tế: ${magic}`);
 
-  const outputPath = path.join(__dirname, '../modules/report_v2/test_output_report_v2.pdf');
+  const outputPath = path.join(__dirname, '../modules/report/test_output_report_v2.pdf');
   fs.writeFileSync(outputPath, pdfBuffer);
   console.log(`\n💾 Đã lưu file PDF thực nghiệm tại: ${outputPath}`);
 

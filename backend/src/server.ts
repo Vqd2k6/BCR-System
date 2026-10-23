@@ -3,7 +3,7 @@ import { config } from './config';
 import { Database } from './database/db';
 import { MigrationRunner } from './database/migration-runner';
 import { StorageService } from './common/services/storage.service';
-import { ReportSnapshotService } from './modules/report_v3/report-snapshot.service';
+import { ReportSnapshotService } from './modules/report/snapshot/report-snapshot.service';
 
 async function bootstrap() {
   const app = createApp();

@@ -4,8 +4,8 @@
 import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -18,14 +18,14 @@ function assert(condition: boolean, message: string) {
 
 async function runTemplateTest() {
   console.log('--- 1. Kiểm tra sự tồn tại của Template & Styles ---');
-  const templatePath = path.join(__dirname, '../modules/report_v2/templates/residential/index.hbs');
-  const stylesPath = path.join(__dirname, '../modules/report_v2/templates/residential/styles.css');
+  const templatePath = path.join(__dirname, '../modules/report/templates/residential/index.hbs');
+  const stylesPath = path.join(__dirname, '../modules/report/templates/residential/styles.css');
 
   assert(fs.existsSync(templatePath), `index.hbs tồn tại tại ${templatePath}`);
   assert(fs.existsSync(stylesPath), `styles.css tồn tại tại ${stylesPath}`);
 
-  console.log('\n--- 2. Đọc và chuẩn bị Helpers & Partials từ ReportV2Service ---');
-  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
+  console.log('\n--- 2. Đọc và chuẩn bị Helpers & Partials từ ReportService ---');
+  const { template: compiled, styles: stylesSource } = ReportService.getCompiledTemplate();
 
   console.log('\n--- 3. Chuẩn bị Mock Data từ ViewModelMapper ---');
   const mockReport = {
@@ -41,7 +41,7 @@ async function runTemplateTest() {
     },
   };
 
-  const viewModel = ReportV2ViewModelMapper.buildViewModel(mockReport);
+  const viewModel = ReportViewModelMapper.buildViewModel(mockReport);
 
   console.log('\n--- 4. Biên dịch Handlebars Template sang HTML ---');
   const htmlOutput = compiled({
@@ -59,7 +59,7 @@ async function runTemplateTest() {
   assert(htmlOutput.includes('PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN'), 'HTML chứa Phụ lục 4');
 
   // Lưu file HTML preview để kiểm tra
-  const previewPath = path.join(__dirname, '../modules/report_v2/templates/residential/preview_output.html');
+  const previewPath = path.join(__dirname, '../modules/report/templates/residential/preview_output.html');
   fs.writeFileSync(previewPath, htmlOutput, 'utf8');
   console.log(`\n💾 Đã lưu bản HTML xem trước tại: ${previewPath}`);
 

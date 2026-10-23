@@ -4,7 +4,7 @@
   "description": "Backend API Service for Metro 2 Building Condition Assessment & Survey Platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && mkdir -p dist/modules/report dist/modules/report_v2 && cp -r src/modules/report/templates dist/modules/report/ && cp -r src/modules/report_v2/templates dist/modules/report_v2/",
+    "build": "tsc && mkdir -p dist/modules/report && cp -r src/modules/report/templates src/modules/report/assets dist/modules/report/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "db:migrate": "ts-node src/database/migration-runner.ts",
@@ -48,7 +48,6 @@
     "@types/uuid": "^9.0.8",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "docx": "^8.5.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "handlebars": "^4.7.9",

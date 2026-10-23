@@ -77,7 +77,7 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
   const fetchReleaseStatus = useCallback(async (): Promise<void> => {
     if (!reportId || !isApproved) return;
     try {
-      const res = await api.get<ReleaseSummaryResponse>(`/v3/reports/${encodeURIComponent(reportId)}/releases`);
+      const res = await api.get<ReleaseSummaryResponse>(`/reports/${encodeURIComponent(reportId)}/releases`);
       setReleases(Array.isArray(res.data?.data) ? res.data.data : []);
       setHasPendingRelease(Boolean(res.data?.hasPendingRelease));
       if (typeof res.data?.currentExportRevision === 'number') {
@@ -100,7 +100,7 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
   const submitNewRelease = async (): Promise<void> => {
     setBusy(true);
     try {
-      const res = await api.post<{ data: ReleaseRecordItem }>(`/v3/reports/${encodeURIComponent(reportId)}/releases`, {
+      const res = await api.post<{ data: ReleaseRecordItem }>(`/reports/${encodeURIComponent(reportId)}/releases`, {
         reason: reason.trim(),
       });
       const rel = res.data.data;

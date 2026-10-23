@@ -1,7 +1,7 @@
 import { CadastralRepository } from '../cadastral.repository';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../../common/errors/problem-details';
-import { calculateDistancesFromPolygon } from '../../report_v2/utils/metro-spatial.utils';
+import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
 
 export class CadastralGeometryService {
   static async findNearbyParcels(lat: number, lng: number, radius: number = 150) {

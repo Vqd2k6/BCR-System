@@ -14,9 +14,9 @@ import * as path from 'path';
 import assert from 'assert';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf';
 import { pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { generateMetroSpatialVisualSvg } from '../modules/report_v2/utils/metro-spatial.utils';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportService } from '../modules/report/report-v2.service';
+import { generateMetroSpatialVisualSvg } from '../modules/report/utils/metro-spatial.utils';
 
 async function runDesignFormatTests() {
   console.log('================================================================');
@@ -31,7 +31,7 @@ async function runDesignFormatTests() {
   // --------------------------------------------------------------------------
   console.log('▶ TC1: Kiểm tra quy chuẩn Hero CAD Sheet 175mm (gỡ bỏ hoàn toàn giới hạn 105px)');
   try {
-    const cssPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/styles.css');
+    const cssPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
     const cssContent = fs.readFileSync(cssPath, 'utf8');
 
     assert(!cssContent.includes('max-height: 105px !important;'), 'styles.css KHÔNG ĐƯỢC chứa max-height: 105px !important');
@@ -49,7 +49,7 @@ async function runDesignFormatTests() {
   // --------------------------------------------------------------------------
   console.log('▶ TC2: Kiểm tra Bảng thống kê khuyết tật tách trang sau CAD, xóa "Ghi chú KSV" dưới ảnh');
   try {
-    const hbsPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/partials/page-10-appendix-1-defects.hbs');
+    const hbsPath = path.resolve(__dirname, '../modules/report/templates/residential/partials/page-10-appendix-1-defects.hbs');
     const hbsContent = fs.readFileSync(hbsPath, 'utf8');
 
     // Kiểm tra không còn thẻ meta-strip-notes hiển thị "Ghi chú KSV"
@@ -70,7 +70,7 @@ async function runDesignFormatTests() {
   // --------------------------------------------------------------------------
   console.log('▶ TC3: Kiểm tra Khung ảnh khuyết tật & không còn placeholder 90mm/95mm');
   try {
-    const hbsPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/partials/page-10-appendix-1-defects.hbs');
+    const hbsPath = path.resolve(__dirname, '../modules/report/templates/residential/partials/page-10-appendix-1-defects.hbs');
     const hbsContent = fs.readFileSync(hbsPath, 'utf8');
 
     assert(!hbsContent.includes('height: 90mm;'), 'Không được hardcode placeholder height: 90mm');
@@ -88,7 +88,7 @@ async function runDesignFormatTests() {
   // --------------------------------------------------------------------------
   console.log('▶ TC4: Kiểm tra Typography chống tràn ô bảng (table-layout fixed, word-break, SVG XML escaping)');
   try {
-    const cssPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/styles.css');
+    const cssPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
     const cssContent = fs.readFileSync(cssPath, 'utf8');
 
     assert(cssContent.includes('table-layout: fixed;'), 'styles.css phải có table-layout: fixed cho bảng');
@@ -116,8 +116,8 @@ async function runDesignFormatTests() {
   console.log('▶ TC5: Kiểm tra đồng bộ số tầng storeysAbove với số lượng tầng thực tế');
   try {
     const testReportId = 'd730fc32-3c55-4d4f-94d2-14d4bdcf5060'; // B-00026
-    const resolved = await ReportV3Service.resolve(testReportId);
-    const { viewModel } = await ReportV2Service.generateResidentialHtmlFromReport(resolved.raw, undefined, false, true);
+    const resolved = await ReportService.resolve(testReportId);
+    const { viewModel } = await ReportService.generateResidentialHtmlFromReport(resolved.raw, undefined, false, true);
 
     const storeysText = viewModel.section2.storeysDisplay.vi;
     console.log(`  ℹ️ B-00026 storeysDisplay.vi: "${storeysText}"`);
@@ -150,8 +150,8 @@ async function runDesignFormatTests() {
 
     for (const tc of testCases) {
       console.log(`  Rendering ${tc.filename}...`);
-      const res = await ReportV3Service.resolve(tc.id);
-      const { pdfBuffer, buildingId } = await ReportV3Service.renderDraftPdf(res, undefined, true);
+      const res = await ReportService.resolve(tc.id);
+      const { pdfBuffer, buildingId } = await ReportService.renderDraftPdf(res, undefined, true);
 
       const filePath = path.join(outDir, tc.filename);
       fs.writeFileSync(filePath, pdfBuffer);

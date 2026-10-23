@@ -7,14 +7,14 @@ import { AuditReviewService } from '../modules/audit/services/audit-review.servi
 import { AuditModificationService } from '../modules/audit/services/audit-modification.service';
 import { AuditVersionService } from '../modules/audit/services/audit-version.service';
 import { ReportConsistencyGate } from '../modules/audit/services/report-consistency-gate';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportReleaseService, getReleaseStorageDir } from '../modules/report_v3/report-release.service';
-import { ReportSnapshotService, sha256Hex } from '../modules/report_v3/report-snapshot.service';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportReleaseService, getReleaseStorageDir } from '../modules/report/report-release.service';
+import { ReportSnapshotService, sha256Hex } from '../modules/report/report-snapshot.service';
 import {
   extractParcelPolygonCoords,
   calculateMetroDistances,
   calculateDistancesFromPolygon,
-} from '../modules/report_v2/utils/metro-spatial.utils';
+} from '../modules/report/utils/metro-spatial.utils';
 import type { JwtPayload } from '../common/guards/auth.guard';
 
 interface TestCaseResult {
@@ -1257,8 +1257,8 @@ export async function runResidentialAppraisal40Cases(): Promise<void> {
       'TC-NV4-01 (TC-PDF-01)',
       'Xuất Báo cáo HTML/PDF sau khi Đồng bộ Ranh PostGIS (Trường hợp 1): hiển thị ranh mới, cự ly mới và giữ nguyên diện tích 61.6m²',
       async () => {
-        const resolved = await ReportV3Service.resolve(reportId1);
-        const { html } = await ReportV3Service.renderDraftHtml(resolved, undefined, false, true);
+        const resolved = await ReportService.resolve(reportId1);
+        const { html } = await ReportService.renderDraftHtml(resolved, undefined, false, true);
         const textOnly = html.replace(/data:[a-z]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, '');
         if (!textOnly.includes('61.6')) {
           throw new Error('Báo cáo HTML không hiển thị diện tích đất 61.6 m² đã bảo toàn!');
@@ -1289,8 +1289,8 @@ export async function runResidentialAppraisal40Cases(): Promise<void> {
         });
         await AuditReviewService.approveReport(reportId1, zoneAdminId, 'Phê duyệt theo phương án giữ ranh KSV thực địa');
 
-        const resolved = await ReportV3Service.resolve(reportId1);
-        const { html } = await ReportV3Service.renderDraftHtml(resolved, undefined, false, true);
+        const resolved = await ReportService.resolve(reportId1);
+        const { html } = await ReportService.renderDraftHtml(resolved, undefined, false, true);
         const expectedKsvDist = calculateDistancesFromPolygon(ksvPolygon4Pts).centerlineDist?.toFixed(1) || '16.2';
         if (!html.includes(expectedKsvDist) && !html.includes('61.6')) {
           throw new Error(`Báo cáo HTML không phản ánh cự ly KSV (${expectedKsvDist}m) khi keepKsvBoundaryConfirmed=true`);
@@ -1304,8 +1304,8 @@ export async function runResidentialAppraisal40Cases(): Promise<void> {
       'TC-NV4-03',
       'Đối chiếu bản xuất DRAFT (khi UNDER_REVIEW - có watermark DRAFT) và bản FINAL (khi APPROVED - không watermark, chống client override)',
       async () => {
-        const resolvedApproved = await ReportV3Service.resolve(reportId1);
-        const { html: finalHtml } = await ReportV3Service.renderDraftHtml(
+        const resolvedApproved = await ReportService.resolve(reportId1);
+        const { html: finalHtml } = await ReportService.renderDraftHtml(
           resolvedApproved,
           { ownerName: 'HACKER_OVERRIDE_NAME_999' },
           false,
@@ -1319,8 +1319,8 @@ export async function runResidentialAppraisal40Cases(): Promise<void> {
         }
 
         await AuditReviewService.unlockApprovedReport(reportId1, superAdminId);
-        const resolvedDraft = await ReportV3Service.resolve(reportId1);
-        const { html: draftHtml } = await ReportV3Service.renderDraftHtml(resolvedDraft, undefined, false, true);
+        const resolvedDraft = await ReportService.resolve(reportId1);
+        const { html: draftHtml } = await ReportService.renderDraftHtml(resolvedDraft, undefined, false, true);
         if (!draftHtml.includes('DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ')) {
           throw new Error('Hồ sơ UNDER_REVIEW thiếu watermark DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ!');
         }

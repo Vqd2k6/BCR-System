@@ -106,7 +106,7 @@ async function verify() {
   );
 
   // Điểm 6: Monochrome đen chuẩn công sở (#000000)
-  const templatePath = path.resolve(__dirname, '../modules/report_v2/templates/residential/partials/page-08-section-9-conclusions.hbs');
+  const templatePath = path.resolve(__dirname, '../modules/report/templates/residential/partials/page-08-section-9-conclusions.hbs');
   const templateContent = fs.readFileSync(templatePath, 'utf8');
   const hasColorText = templateContent.includes('#15803d') || templateContent.includes('#b91c1c');
   assertPoint(
@@ -117,7 +117,7 @@ async function verify() {
   );
 
   // Điểm 7: Ghim D không bị bẹp dí background
-  const stylesPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/styles.css');
+  const stylesPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
   const stylesContent = fs.readFileSync(stylesPath, 'utf8');
   const pinFixed = stylesContent.includes('.photo-defect-pin-badge') &&
                    stylesContent.includes('line-height: 1.25 !important;') &&
@@ -130,7 +130,7 @@ async function verify() {
   );
 
   // Điểm 8: Sơ đồ vị trí không gian Metro ở bìa (SVG vector)
-  const coverTemplate = fs.readFileSync(path.resolve(__dirname, '../modules/report_v2/templates/residential/partials/page-01-cover.hbs'), 'utf8');
+  const coverTemplate = fs.readFileSync(path.resolve(__dirname, '../modules/report/templates/residential/partials/page-01-cover.hbs'), 'utf8');
   const hasSpatialCover = coverTemplate.includes('cover-spatial-wrapper') &&
                           coverTemplate.includes('SƠ ĐỒ VỊ TRÍ THỬA ĐẤT &amp; TUYẾN METRO 2');
   assertPoint(

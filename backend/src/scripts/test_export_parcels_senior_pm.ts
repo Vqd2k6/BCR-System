@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Database, pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportService } from '../modules/report/report-v3.service';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 async function main() {
   console.log('══════════════════════════════════════════════════════════════════');
@@ -17,14 +17,14 @@ async function main() {
   const outDir = path.resolve(__dirname, '../../test_output/result');
   fs.mkdirSync(outDir, { recursive: true });
 
-  const browser = await PdfRenderV2Engine.getBrowser();
+  const browser = await PdfRenderEngine.getBrowser();
 
   for (const p of parcels) {
     console.log(`\n🔍 Đang xử lý hồ sơ ${p.code} (${p.note})...`);
-    const resolved = await ReportV3Service.resolve(p.id);
+    const resolved = await ReportService.resolve(p.id);
 
     // 1. Render HTML
-    const { html } = await ReportV3Service.renderDraftHtml(resolved, undefined, false, true);
+    const { html } = await ReportService.renderDraftHtml(resolved, undefined, false, true);
     console.log(`   - Độ dài HTML: ${Math.round(html.length / 1024)} KB`);
 
     // 2. Kiểm tra HTML checks

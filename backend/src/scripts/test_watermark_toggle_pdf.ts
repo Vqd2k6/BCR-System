@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pool, Database } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportReleaseService } from '../modules/report_v3/report-release.service';
-import { ReportSnapshotService, sha256Hex } from '../modules/report_v3/report-snapshot.service';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportReleaseService } from '../modules/report/report-release.service';
+import { ReportSnapshotService, sha256Hex } from '../modules/report/report-snapshot.service';
 import { ReportConfigService } from '../modules/report_config/report-config.service';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -31,7 +31,7 @@ async function run() {
   console.log('================================================================\n');
 
   const reportId = '73ce904b-8c9b-45c6-a07e-091aaa55354a'; // C&C-05-B-0050
-  const resolved = await ReportV3Service.resolve(reportId);
+  const resolved = await ReportService.resolve(reportId);
   console.log(`Resolved report: ${resolved.id}, status: ${resolved.status}`);
 
   let passCount = 0;
@@ -51,7 +51,7 @@ async function run() {
   // TEST 1: HTML Render with enableWatermark = false
   // -------------------------------------------------------------
   console.log('\n--- Test 1: HTML Render with enableWatermark = false ---');
-  const { html: htmlNoWm, viewModel: vmNoWm } = await ReportV3Service.renderDraftHtml(
+  const { html: htmlNoWm, viewModel: vmNoWm } = await ReportService.renderDraftHtml(
     resolved,
     undefined,
     false,
@@ -81,7 +81,7 @@ async function run() {
   // TEST 2: HTML Render with enableWatermark = true
   // -------------------------------------------------------------
   console.log('\n--- Test 2: HTML Render with enableWatermark = true ---');
-  const { html: htmlWithWm, viewModel: vmWithWm } = await ReportV3Service.renderDraftHtml(
+  const { html: htmlWithWm, viewModel: vmWithWm } = await ReportService.renderDraftHtml(
     resolved,
     undefined,
     false,
@@ -101,7 +101,7 @@ async function run() {
   // TEST 3: PDF Render with enableWatermark = false
   // -------------------------------------------------------------
   console.log('\n--- Test 3: PDF Render with enableWatermark = false ---');
-  const { pdfBuffer: pdfNoWm } = await ReportV3Service.renderDraftPdf(
+  const { pdfBuffer: pdfNoWm } = await ReportService.renderDraftPdf(
     resolved,
     undefined,
     false
@@ -121,7 +121,7 @@ async function run() {
   // TEST 4: PDF Render with enableWatermark = true
   // -------------------------------------------------------------
   console.log('\n--- Test 4: PDF Render with enableWatermark = true ---');
-  const { pdfBuffer: pdfWithWm } = await ReportV3Service.renderDraftPdf(
+  const { pdfBuffer: pdfWithWm } = await ReportService.renderDraftPdf(
     resolved,
     undefined,
     true
@@ -138,7 +138,7 @@ async function run() {
   const snapRes = await ReportSnapshotService.getLatestApprovedSnapshot(resolved.id);
   if (snapRes && snapRes.snapshot) {
     const activeConfig = await ReportConfigService.getActiveConfig();
-    const { pdfBuffer: finalPdf } = await ReportV3Service.renderFinalPdf(
+    const { pdfBuffer: finalPdf } = await ReportService.renderFinalPdf(
       resolved,
       snapRes.snapshot,
       0,

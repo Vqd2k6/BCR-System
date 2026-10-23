@@ -1,137 +1,124 @@
-import puppeteer, { Browser } from 'puppeteer-core';
+/**
+ * ============================================================================
+ * PDF RENDER ENGINE (PUPPETEER-CORE SINGLETON POOL - A4 300 DPI)
+ * Quản lý kết xuất PDF chất lượng in ấn cao cấp (printBackground: true)
+ * ============================================================================
+ */
+
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { v4 as uuidv4 } from 'uuid';
+import puppeteer, { Browser } from 'puppeteer-core';
+
+export interface PdfRenderOptions {
+  buildingId: string;
+  reportNo: string;
+  headerTitle?: string;
+}
+
+function resolveChromeExecutablePath(): string | undefined {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return undefined;
+}
 
 export class PdfRenderEngine {
   private static browserInstance: Browser | null = null;
+  private static isInitializing = false;
 
-  /**
-   * Tìm đường dẫn khả dụng của Google Chrome trên hệ điều hành
-   */
-  private static getChromeExecutablePath(): string {
-    const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
-    if (envPath && fs.existsSync(envPath)) return envPath;
+  public static async getBrowser(): Promise<Browser> {
+    if (this.browserInstance && this.browserInstance.connected) {
+      return this.browserInstance;
+    }
 
-    // Các vị trí mặc định phổ biến
-    const candidatePaths = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',          // macOS Chromium
-      '/usr/bin/google-chrome',                                      // Linux
-      '/usr/bin/google-chrome-stable',                               // Linux
-      '/usr/bin/chromium',                                           // Linux Chromium
-      '/usr/bin/chromium-browser',                                   // Linux Chromium
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',  // Windows
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ];
-
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        return p;
+    if (this.isInitializing) {
+      while (this.isInitializing) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      if (this.browserInstance && this.browserInstance.connected) {
+        return this.browserInstance;
       }
     }
 
-    throw new Error(
-      'Không tìm thấy Google Chrome hoặc Chromium trên máy chủ để render PDF. Vui lòng cài đặt Chrome hoặc gán biến môi trường PUPPETEER_EXECUTABLE_PATH.'
-    );
-  }
-
-  /**
-   * Khởi tạo hoặc tái sử dụng Browser Singleton
-   */
-  private static async getBrowser(): Promise<Browser> {
-    if (!this.browserInstance || !this.browserInstance.isConnected()) {
-      const executablePath = this.getChromeExecutablePath();
+    this.isInitializing = true;
+    try {
       this.browserInstance = await puppeteer.launch({
-        executablePath,
         headless: true,
+        executablePath: resolveChromeExecutablePath(),
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--font-render-hinting=medium',
+          '--font-render-hinting=none',
         ],
       });
-    }
-    return this.browserInstance;
-  }
 
-  /**
-   * Render HTML string thành file PDF Buffer chuẩn A4
-   */
-  static async renderHtmlToPdf(
-    htmlContent: string,
-    options?: {
-      buildingId?: string;
-      reportCode?: string;
-      headerTitle?: string;
-      footerNote?: string;
-    }
-  ): Promise<Buffer> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-    const tempHtmlPath = path.join(os.tmpdir(), `metro2_report_${uuidv4()}.html`);
-
-    try {
-      // 1. Ghi HTML ra file tạm để Chromium nạp trực tiếp qua File Descriptor OS (tránh nghẽn WebSocket CDP với Base64 lớn)
-      fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
-
-      // 2. Đặt kích thước viewport mô phỏng trang A4
-      await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
-
-      // 3. Nạp file qua URL file:// cực nhanh (< 500ms thay vì setContent nghẽn)
-      await page.goto(`file://${tempHtmlPath}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000,
+      this.browserInstance.on('disconnected', () => {
+        this.browserInstance = null;
       });
 
-      const headerTitle = options?.headerTitle || 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 (BẾN THÀNH – THAM LƯƠNG)';
-      const buildingCode = options?.buildingId ? `Mã: ${options.buildingId}` : '';
-      const docCode = options?.reportCode ? `Số: ${options.reportCode}` : '';
+      return this.browserInstance;
+    } finally {
+      this.isInitializing = false;
+    }
+  }
 
-      // Header template pháp lý theo chuẩn tài liệu xây dựng
-      const headerTemplate = `
-        <div style="font-family: 'Times New Roman', Times, serif; font-size: 8pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-bottom: 0.5pt solid #94a3b8; color: #475569; padding-bottom: 2mm;">
-          <span style="font-weight: bold; text-transform: uppercase;">${headerTitle}</span>
-          <span>${buildingCode} ${docCode ? ' | ' + docCode : ''}</span>
-        </div>
-      `;
+  public static async renderHtmlToPdf(html: string, _options: PdfRenderOptions): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
 
-      // Footer template với số trang động Trang X / Y
-      const footerTemplate = `
-        <div style="font-family: 'Times New Roman', Times, serif; font-size: 8pt; width: 100%; padding: 0 15mm; display: flex; justify-content: space-between; border-top: 0.5pt solid #cbd5e1; color: #64748b; padding-top: 2mm;">
-          <span>BÁO CÁO KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH - PHASE 1 (BCS)</span>
-          <span>Trang <span class="pageNumber"></span> / <span class="totalPages"></span></span>
-        </div>
-      `;
+    try {
+      await page.setViewport({
+        width: 1240,
+        height: 1754,
+        deviceScaleFactor: 2,
+      });
 
-      // Xuất PDF A4 có căn lề bảo đảm in ấn và đóng tập
-      const pdfBuffer = await page.pdf({
+      await page.setContent(html, {
+        waitUntil: ['domcontentloaded', 'networkidle2'],
+        timeout: 45000,
+      });
+
+      await page.evaluate(async () => {
+        if ((document as any).fonts && (document as any).fonts.ready) {
+          await (document as any).fonts.ready;
+        }
+      });
+
+      const pdfUint8Array = await page.pdf({
         format: 'A4',
         printBackground: true,
-        displayHeaderFooter: true,
-        headerTemplate,
-        footerTemplate,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
         margin: {
-          top: '20mm',
-          bottom: '20mm',
-          left: '18mm',
-          right: '15mm',
+          top: '0mm',
+          right: '0mm',
+          bottom: '0mm',
+          left: '0mm',
         },
       });
 
-      return Buffer.from(pdfBuffer);
+      return Buffer.from(pdfUint8Array);
     } finally {
-      try {
-        if (fs.existsSync(tempHtmlPath)) {
-          fs.unlinkSync(tempHtmlPath);
-        }
-      } catch (err) {
-        // bỏ qua lỗi dọn file tạm
-      }
       await page.close();
+    }
+  }
+
+  public static async closeBrowser(): Promise<void> {
+    if (this.browserInstance) {
+      await this.browserInstance.close();
+      this.browserInstance = null;
     }
   }
 }

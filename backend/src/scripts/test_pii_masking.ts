@@ -2,8 +2,8 @@
  * Test Suite: Xác thực cơ chế che mờ PII (Nghị định 13/2023/NĐ-CP) cho vai trò GUEST
  */
 import { maskReportPii, maskName, maskPii } from '../common/utils/pii.utils';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -79,8 +79,8 @@ async function runPiiTests() {
   assert(maskedReport.survey_data_json.signatures.ownerRepresentative.fullName === 'Nguyễn V*** Hùng', 'signatures ownerRepresentative fullName đã che');
 
   // 3. Test HTML Rendering: Chế độ ADMIN (maskPii = false)
-  const vmAdmin = ReportV2ViewModelMapper.buildViewModel(mockReportWithPii);
-  const { template, styles } = ReportV2Service.getCompiledTemplate();
+  const vmAdmin = ReportViewModelMapper.buildViewModel(mockReportWithPii);
+  const { template, styles } = ReportService.getCompiledTemplate();
   const htmlAdmin = template({
     ...vmAdmin,
     styles,
@@ -93,7 +93,7 @@ async function runPiiTests() {
   assert(!htmlAdmin.includes('<body class="guest-watermark-mode">'), 'Bản in Admin KHÔNG ĐƯỢC có class guest-watermark-mode trên thẻ body');
 
   // 4. Test HTML Rendering: Chế độ GUEST (maskPii = true, isGuestWatermark = true)
-  const vmGuest = ReportV2ViewModelMapper.buildViewModel(maskedReport);
+  const vmGuest = ReportViewModelMapper.buildViewModel(maskedReport);
   const htmlGuest = template({
     ...vmGuest,
     styles,

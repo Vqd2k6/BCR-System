@@ -8,7 +8,7 @@ import {
   classifyStructureSystem,
   v2ScoreForStructure,
   STRUCTURE_LABELS,
-} from '../modules/report_v2/mappers/structure-system.classifier';
+} from '../modules/report/mappers/structure-system.classifier';
 import { ReportConsistencyGate } from '../modules/audit/services/report-consistency-gate';
 import { ReportConfigService } from '../modules/report_config/report-config.service';
 

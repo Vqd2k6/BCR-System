@@ -9,8 +9,8 @@
  * 6. Tầng không cấu kiện chịu lực riêng biệt (Roof/Floor without structural elements) - Ghi chú kỹ thuật.
  */
 
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -23,7 +23,7 @@ function assert(condition: boolean, message: string) {
 
 async function runEnhancedScenarioTests() {
   console.log('🚀 Bắt đầu Kiểm thử Kịch bản Mở rộng Thực địa (Enhanced Field Scenarios)...');
-  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
+  const { template: compiled, styles: stylesSource } = ReportService.getCompiledTemplate();
 
   // =========================================================================
   // SCENARIO 1: ĐẤT TRỐNG (VACANT LAND)
@@ -47,7 +47,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmVacant = ReportV2ViewModelMapper.buildViewModel(vacantLandData);
+  const vmVacant = ReportViewModelMapper.buildViewModel(vacantLandData);
   assert(vmVacant.scenarioFlags.isVacantLand === true, 'ScenarioFlags.isVacantLand = true');
   assert(vmVacant.section2.storeysAbove === 0, 'Section 2: storeysAbove = 0');
   assert(vmVacant.section2.storeysBasement === 0, 'Section 2: storeysBasement = 0');
@@ -82,7 +82,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmAbsentee = ReportV2ViewModelMapper.buildViewModel(absenteeData);
+  const vmAbsentee = ReportViewModelMapper.buildViewModel(absenteeData);
   assert(vmAbsentee.scenarioFlags.isAbsenteeSurvey === true, 'ScenarioFlags.isAbsenteeSurvey = true');
   assert(vmAbsentee.appendix3.signedRecordPages.length === 2, 'Appendix 3 có đúng 2 trang biên bản niêm yết vắng chủ');
   assert(vmAbsentee.appendix3.ownerRepresentative.vi.includes('Vắng mặt'), 'Chủ sở hữu ghi nhận vắng mặt');
@@ -110,7 +110,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmConst = ReportV2ViewModelMapper.buildViewModel(underConstructionData);
+  const vmConst = ReportViewModelMapper.buildViewModel(underConstructionData);
   assert(vmConst.scenarioFlags.isUnderConstruction === true, 'ScenarioFlags.isUnderConstruction = true');
   assert(Boolean(vmConst.section2.constructionStageNotes), 'Section 2 có constructionStageNotes');
   assert(vmConst.section4.visibleStructuralCondition.vi.includes('thi công'), 'Section 4 ghi nhận công trình đang thi công dở dang');
@@ -140,7 +140,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmMerged = ReportV2ViewModelMapper.buildViewModel(gisMergedData);
+  const vmMerged = ReportViewModelMapper.buildViewModel(gisMergedData);
   assert(vmMerged.scenarioFlags.isGisMerged === true, 'ScenarioFlags.isGisMerged = true');
   assert(Boolean(vmMerged.section2.gisMergedInfo), 'Section 2 có gisMergedInfo');
   assert(Boolean(vmMerged.section2.gisMergedInfo?.vi.includes('75')), 'gisMergedInfo ghi nhận diện tích thửa khảo sát');
@@ -189,7 +189,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmDefect = ReportV2ViewModelMapper.buildViewModel(multiPhotoDefectData);
+  const vmDefect = ReportViewModelMapper.buildViewModel(multiPhotoDefectData);
   const fl0 = vmDefect.appendix2[0];
   assert(fl0.defectPairPhotos.length === 1, 'Floor có 1 cặp/bộ ảnh khuyết tật');
   const pair0 = fl0.defectPairPhotos[0];
@@ -224,7 +224,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmRoof = ReportV2ViewModelMapper.buildViewModel(roofWithoutStructData);
+  const vmRoof = ReportViewModelMapper.buildViewModel(roofWithoutStructData);
   const roofFl = vmRoof.appendix2[0];
   assert(roofFl.hasStructuralElements === false, 'roofFl.hasStructuralElements = false');
   assert(Boolean(roofFl.noStructuralElementsReason), 'roofFl có noStructuralElementsReason');
@@ -273,7 +273,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmHeavy = ReportV2ViewModelMapper.buildViewModel(heavyDefectsData);
+  const vmHeavy = ReportViewModelMapper.buildViewModel(heavyDefectsData);
   const flHeavy = vmHeavy.appendix2[0];
   assert(flHeavy.defectSummaryRows.length === 15, 'Tầng có đúng 15 khuyết tật');
   assert(flHeavy.hasSeparateDefectTableSheets === true, 'hasSeparateDefectTableSheets = true khi > 5 khuyết tật');
@@ -315,7 +315,7 @@ async function runEnhancedScenarioTests() {
     },
   };
 
-  const vmVisual = ReportV2ViewModelMapper.buildViewModel(visualOnlyData);
+  const vmVisual = ReportViewModelMapper.buildViewModel(visualOnlyData);
   assert(
     vmVisual.section5.buildingInclination.measured.includes('Không đo Laser'),
     'Độ nghiêng ghi nhận rõ Quan sát hiện trường (Không đo Laser), không in số giả 0.000‰'

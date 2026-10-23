@@ -2,14 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 async function generateSampleAndScreenshots() {
   console.log('🚀 Đang khởi chạy quy trình xuất mẫu báo cáo và chụp ảnh kiểm thử...');
 
-  const templatePath = path.join(__dirname, '../modules/report_v2/templates/residential/index.hbs');
-  const stylesPath = path.join(__dirname, '../modules/report_v2/templates/residential/styles.css');
+  const templatePath = path.join(__dirname, '../modules/report/templates/residential/index.hbs');
+  const stylesPath = path.join(__dirname, '../modules/report/templates/residential/styles.css');
 
   const templateSource = fs.readFileSync(templatePath, 'utf8');
   const stylesSource = fs.readFileSync(stylesPath, 'utf8');
@@ -63,7 +63,7 @@ async function generateSampleAndScreenshots() {
     },
   };
 
-  const viewModel = ReportV2ViewModelMapper.buildViewModel(fullMockData);
+  const viewModel = ReportViewModelMapper.buildViewModel(fullMockData);
   const compiled = Handlebars.compile(templateSource);
   const htmlOutput = compiled({
     ...viewModel,
@@ -71,7 +71,7 @@ async function generateSampleAndScreenshots() {
   });
 
   // 1. Xuất file PDF thực tế
-  const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(htmlOutput, {
+  const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(htmlOutput, {
     buildingId: viewModel.metadata.buildingId,
     reportNo: viewModel.metadata.reportNo,
     headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',

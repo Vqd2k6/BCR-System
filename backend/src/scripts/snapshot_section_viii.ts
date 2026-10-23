@@ -1,12 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportService } from '../modules/report/report-v2.service';
 
 async function snapshotSectionVIII() {
   const reportId = '2ba54dae-0af2-4a40-9896-acdc71e3a914'; // C&C-05-B-0054
   console.log(`Generating HTML for ${reportId}...`);
-  const { html, viewModel } = await ReportV2Service.generateResidentialHtml(reportId);
+  const { html, viewModel } = await ReportService.generateResidentialHtml(reportId);
 
   const tempHtmlPath = path.join(__dirname, 'temp_p7.html');
   fs.writeFileSync(tempHtmlPath, html, 'utf-8');

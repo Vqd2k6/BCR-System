@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportService } from '../modules/report/report-v2.service';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 async function runTest() {
   console.log('================================================================');
@@ -11,7 +11,7 @@ async function runTest() {
   const reportId = '2ba54dae-0af2-4a40-9896-acdc71e3a914';
 
   console.log(`\n1. Đang nạp và phân giải ViewModel cho Báo cáo ID: ${reportId}...`);
-  const { html, viewModel } = await ReportV2Service.generateResidentialHtml(reportId);
+  const { html, viewModel } = await ReportService.generateResidentialHtml(reportId);
 
   console.log('✅ Đã nạp thành công ViewModel!');
 
@@ -104,7 +104,7 @@ async function runTest() {
 
   // 4. Biên dịch ra PDF A4
   console.log('\n3. Đang xuất Báo cáo PDF A4 chuẩn kỹ thuật (Chromium Headless)...');
-  const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(html, {
+  const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {
     buildingId: viewModel.metadata.buildingId,
     reportNo: viewModel.metadata.reportNo,
     headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',

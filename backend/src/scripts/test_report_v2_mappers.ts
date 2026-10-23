@@ -1,10 +1,10 @@
 /**
  * Test Suite: Kiểm thử Đơn vị cho Module Report V2 Mappers & Calculators
  */
-import { CadastralInfoMapper } from '../modules/report_v2/mappers/cadastral-info.mapper';
-import { BurlandCalculator } from '../modules/report_v2/mappers/burland-calculator';
-import { RiskScoringCalculator } from '../modules/report_v2/mappers/risk-scoring-calculator';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { CadastralInfoMapper } from '../modules/report/mappers/cadastral-info.mapper';
+import { BurlandCalculator } from '../modules/report/mappers/burland-calculator';
+import { RiskScoringCalculator } from '../modules/report/mappers/risk-scoring-calculator';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -66,8 +66,8 @@ async function runTests() {
   assert(scoreA?.scoreDisplay === 'Chờ / Pending', 'Điểm A tự động ở trạng thái Chờ / Pending');
   assert(riskRes.overallRisk.grade.vi === 'Rủi ro thấp', 'Cấp độ rủi ro tổng thể là Rủi ro thấp');
 
-  console.log('\n--- 4. Kiểm thử ReportV2ViewModelMapper Toàn Diện ---');
-  const fullViewModel = ReportV2ViewModelMapper.buildViewModel(mockReport);
+  console.log('\n--- 4. Kiểm thử ReportViewModelMapper Toàn Diện ---');
+  const fullViewModel = ReportViewModelMapper.buildViewModel(mockReport);
   assert(fullViewModel.metadata.buildingId.startsWith('B-01064'), 'Building ID hợp lệ trong ViewModel');
   assert(fullViewModel.signatures3Party.length === 3, 'Đầy đủ 3 cấp duyệt chữ ký');
   assert(fullViewModel.section1.buildingId === fullViewModel.metadata.buildingId, 'Mã công trình đồng bộ Chương I');

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportService } from '../modules/report/report-v2.service';
 
 async function main() {
   const exportDir = '/Users/vqd2k6/.gemini/antigravity-ide/brain/e9fcce39-3111-4607-9a38-b82066dbf9d1/sample_export';
@@ -11,7 +11,7 @@ async function main() {
 
   const testReportId = '06286cda-6111-4880-aab3-081834e75233';
   console.log(`Generating HTML for report ${testReportId}...`);
-  const { html, viewModel } = await ReportV2Service.generateResidentialHtml(testReportId);
+  const { html, viewModel } = await ReportService.generateResidentialHtml(testReportId);
 
   const htmlPath = path.join(exportDir, 'user_report_0154.html');
   fs.writeFileSync(htmlPath, html, 'utf8');

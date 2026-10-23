@@ -17,10 +17,8 @@ import { SurveyController } from './modules/survey/survey.controller';
 import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
-import { ReportV3Controller } from './modules/report_v3/report-v3.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
-import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { ReportConfigController } from './modules/report_config/report-config.controller';
 import { Database } from './database/db';
@@ -256,33 +254,20 @@ export function createApp(): express.Application {
   api.get('/guest/parcels/:id/summary', ExportController.getGuestParcelSummary);
 
   // ==========================================
-  // 5. TECHNICAL BCS REPORT EXPORT (PDF, DOCX & PREVIEW)
+  // 5. TECHNICAL BCS REPORT (RESIDENTIAL ONLY — SNAPSHOT + REV + SHA-256)
   // ==========================================
-  api.get('/reports/:id',              authenticateJwt, ReportController.getReportDetail);
-  api.get('/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf);
-  api.post('/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
-  api.get('/reports/:id/export/docx',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx);
-  api.post('/reports/:id/export/docx', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
-  api.get('/reports/:id/preview/html', optionalAuthenticateJwt, ReportController.previewResidentialHtml);
-  api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
-  api.put('/reports/:id/survey-data',  authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
-  api.patch('/reports/:id/survey-data', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
-
-  // ==========================================
-  // 5.1. TECHNICAL BCS REPORT V2 (PHASE 1 - 0410 TEMPLATE)
-  // ==========================================
-  api.get('/v2/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
-  api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
-  api.get('/v2/reports/:id/preview/html', optionalAuthenticateJwt, ReportV2Controller.previewResidentialHtml);
-  api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
-
-  // 5.2. TECHNICAL BCS REPORT V3 (snapshot APPROVED + Rev + SHA-256)
-  api.get('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf);
-  api.post('/v3/reports/:id/export/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.exportPdf); // Hỗ trợ xuất PDF có overrides (không sửa DB)
-  api.get('/v3/reports/:id/preview/html', optionalAuthenticateJwt, ReportV3Controller.previewHtml);
-  api.post('/v3/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.previewHtml);
-  api.get('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.listReleases);
-  api.post('/v3/reports/:id/releases', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV3Controller.issueRelease);
+  api.get('/reports/:id',                   authenticateJwt, ReportController.getReportDetail);
+  api.get('/reports/:id/export/pdf',        authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+  api.post('/reports/:id/export/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+  api.get('/reports/:id/preview/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+  api.post('/reports/:id/preview/pdf',      authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+  api.get('/reports/:id/preview/html',      optionalAuthenticateJwt, ReportController.previewHtml);
+  api.post('/reports/:id/preview/html',     authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewHtml);
+  api.get('/reports/:id/releases',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listReleases);
+  api.post('/reports/:id/releases',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
+  api.get('/reports/:id/revisions',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listReleases);
+  api.post('/reports/:id/release',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
+  api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

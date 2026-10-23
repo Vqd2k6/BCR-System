@@ -20,15 +20,15 @@ import * as path from 'path';
 import assert from 'assert';
 import sharp from 'sharp';
 import { pool } from '../database/db';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { Section5DeformationMapper } from '../modules/report_v2/mappers/sections/section-5-deformation.mapper';
-import { Appendix3And4Mapper } from '../modules/report_v2/mappers/appendices/appendix-3-4-records.mapper';
-import { ScenarioFlagsAndTocMapper } from '../modules/report_v2/mappers/sections/scenario-flags-and-toc.mapper';
-import { ReportImageResolver } from '../modules/report_v2/services/report-image-resolver.service';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
-import { applyOverridesToReportV2 } from '../modules/report_v2/utils/report-override-v2.utils';
-import { generateMetroSpatialVisualSvg } from '../modules/report_v2/utils/metro-spatial.utils';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { Section5DeformationMapper } from '../modules/report/mappers/sections/section-5-deformation.mapper';
+import { Appendix3And4Mapper } from '../modules/report/mappers/appendices/appendix-3-4-records.mapper';
+import { ScenarioFlagsAndTocMapper } from '../modules/report/mappers/sections/scenario-flags-and-toc.mapper';
+import { ReportImageResolver } from '../modules/report/services/report-image-resolver.service';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportSnapshotService } from '../modules/report/report-snapshot.service';
+import { applyOverridesToReportV2 } from '../modules/report/utils/report-override-v2.utils';
+import { generateMetroSpatialVisualSvg } from '../modules/report/utils/metro-spatial.utils';
 
 interface TestCaseLog {
   domain: string;
@@ -82,7 +82,7 @@ async function runComprehensiveAudit() {
         signatures: { ownerRepresentative: { fullName: 'Nguyễn Văn Thực Địa' } },
       },
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert.strictEqual(vm.section1.ownerName, 'Nguyễn Văn Thực Địa', 'Phải lấy Nguyễn Văn Thực Địa từ survey_data_json');
     assert(!vm.section1.ownerName.includes('Chủ hộ thửa'), 'Tuyệt đối không lấy placeholder địa chính');
     recordResult('NV1_OwnerName', 1, 'Ưu tiên tên KSV thu thập, loại bỏ placeholder "Chủ hộ thửa..."', true);
@@ -105,7 +105,7 @@ async function runComprehensiveAudit() {
         },
       },
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     const app3 = vm.appendix3;
 
     assert.strictEqual(vm.section1.ownerName, 'Trần Văn Chủ Nhà', 'Tên chủ sở hữu ở Chương I phải là Trần Văn Chủ Nhà');
@@ -130,7 +130,7 @@ async function runComprehensiveAudit() {
     const overridden = applyOverridesToReportV2(rawReport, overrides);
     assert.strictEqual(overridden.survey_data_json.ownerName, 'Phạm Thị Mới Được Duyệt');
     assert.strictEqual(overridden.survey_data_json.signatures.ownerRepresentative.fullName, 'Phạm Thị Mới Được Duyệt');
-    const vm = ReportV2ViewModelMapper.buildViewModel(overridden);
+    const vm = ReportViewModelMapper.buildViewModel(overridden);
     assert.strictEqual(vm.section1.ownerName, 'Phạm Thị Mới Được Duyệt');
     recordResult('NV1_OwnerName', 3, 'Admin hiệu chỉnh ownerName đồng bộ cả survey_data_json và signatures', true);
   } catch (err) {
@@ -148,7 +148,7 @@ async function runComprehensiveAudit() {
         absenteeReason: 'Chủ nhà đi công tác nước ngoài',
       },
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert.strictEqual(vm.section1.ownerName, 'Bà Vắng Mặt');
     assert(vm.appendix3.ownerRepresentative.vi.includes('Vắng mặt') || vm.appendix3.ownerRepresentative.vi.includes('niêm yết'), 'Phụ lục 3 phải ghi nhận vắng chủ');
     recordResult('NV1_OwnerName', 4, 'Hồ sơ vắng chủ ghi nhận đúng chủ sở hữu và trạng thái vắng chủ ở Phụ lục 3', true);
@@ -163,7 +163,7 @@ async function runComprehensiveAudit() {
       owner_name: '   Trần Thị Trim   ',
       survey_data_json: { ownerName: '   Trần Thị Trim   ' },
     };
-    const vm1 = ReportV2ViewModelMapper.buildViewModel(rawReport1);
+    const vm1 = ReportViewModelMapper.buildViewModel(rawReport1);
     assert.strictEqual(vm1.section1.ownerName, 'Trần Thị Trim');
 
     const rawReport2 = {
@@ -171,7 +171,7 @@ async function runComprehensiveAudit() {
       owner_name: '',
       survey_data_json: { ownerName: '' },
     };
-    const vm2 = ReportV2ViewModelMapper.buildViewModel(rawReport2);
+    const vm2 = ReportViewModelMapper.buildViewModel(rawReport2);
     assert(vm2.section1.ownerName === 'Chủ hộ' || vm2.section1.ownerName === 'Chưa xác định', 'Fallback an toàn về Chủ hộ hoặc Chưa xác định');
     recordResult('NV1_OwnerName', 5, 'Chuẩn hóa khoảng trắng trim và fallback "Chủ hộ" an toàn', true);
   } catch (err) {
@@ -192,7 +192,7 @@ async function runComprehensiveAudit() {
       buildingSpecs: { frontage_width: 4.5, lot_depth: 18.2 },
       survey_data_json: {},
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert(vm.section2.dimensionsDisplay.vi.includes('Mặt tiền 4.5 m'), 'Phải có Mặt tiền 4.5 m');
     assert(vm.section2.dimensionsDisplay.vi.includes('Chiều sâu 18.2 m'), 'Phải có Chiều sâu 18.2 m');
     recordResult('NV2_Dimensions', 1, 'Đầy đủ kích thước đo đạc: hiển thị chuẩn "Mặt tiền 4.5 m × Chiều sâu 18.2 m"', true);
@@ -209,7 +209,7 @@ async function runComprehensiveAudit() {
       buildingSpecs: { frontage_width: 4.5, lot_depth: null },
       survey_data_json: {},
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert(vm.section2.dimensionsDisplay.vi.includes('Mặt tiền 4.5 m'), 'Phải có Mặt tiền 4.5 m');
     assert(vm.section2.dimensionsDisplay.vi.includes('Chiều sâu -- m'), 'Chiều sâu thiếu phải in "-- m"');
     recordResult('NV2_Dimensions', 2, 'Chỉ đo mặt tiền: hiển thị "Mặt tiền 4.5 m × Chiều sâu -- m"', true);
@@ -226,7 +226,7 @@ async function runComprehensiveAudit() {
       buildingSpecs: { frontage_width: null, lot_depth: 20.0 },
       survey_data_json: {},
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert(vm.section2.dimensionsDisplay.vi.includes('Mặt tiền -- m'), 'Mặt tiền thiếu phải in "-- m"');
     assert(vm.section2.dimensionsDisplay.vi.includes('Chiều sâu 20.0 m') || vm.section2.dimensionsDisplay.vi.includes('Chiều sâu 20 m'), 'Phải có Chiều sâu 20 m');
     recordResult('NV2_Dimensions', 3, 'Chỉ đo chiều sâu: hiển thị "Mặt tiền -- m × Chiều sâu 20.0 m"', true);
@@ -244,7 +244,7 @@ async function runComprehensiveAudit() {
       buildingSpecs: { frontage_width: null, lot_depth: null, land_area: 85.5 },
       survey_data_json: {},
     };
-    const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+    const vm = ReportViewModelMapper.buildViewModel(rawReport);
     assert(vm.section2.dimensionsDisplay.vi.includes('Mặt tiền -- m × Chiều sâu -- m'), 'Cả hai thiếu phải in Mặt tiền -- m × Chiều sâu -- m');
     assert(vm.section2.floorAreaDisplay.vi.includes('85.5 m²') || String(vm.section2.landAreaM2) === '85.5', 'Phải ghi nhận diện tích khuôn viên đất');
     recordResult('NV2_Dimensions', 4, 'Không đo kích thước: in "-- m" rõ ràng, tuyệt đối không suy diễn từ GIS', true);
@@ -268,7 +268,7 @@ async function runComprehensiveAudit() {
     const overridden = applyOverridesToReportV2(rawReport, overrides);
     assert.strictEqual(overridden.frontage_width, 5.2);
     assert.strictEqual(overridden.lot_depth, 16.8);
-    const vm = ReportV2ViewModelMapper.buildViewModel(overridden);
+    const vm = ReportViewModelMapper.buildViewModel(overridden);
     assert(vm.section2.dimensionsDisplay.vi.includes('Mặt tiền 5.2 m × Chiều sâu 16.8 m'));
     recordResult('NV2_Dimensions', 5, 'Admin overrides frontageWidth/lotDepth cập nhật chính xác vào báo cáo', true);
   } catch (err) {
@@ -530,7 +530,7 @@ async function runComprehensiveAudit() {
         survey_data_json: { ecs: { totalEcs: 999 } }, // Điểm giả định khác snapshot
       },
     };
-    const { viewModel } = await ReportV3Service.renderDraftHtml(resolvedApproved as any, undefined, false, false);
+    const { viewModel } = await ReportService.renderDraftHtml(resolvedApproved as any, undefined, false, false);
     assert.notStrictEqual(viewModel.section7.totalScore, 999, 'Điểm ECS phải lấy từ Snapshot đã duyệt, không lấy điểm giả 999');
     recordResult('NV5_SnapshotSync', 1, 'Hồ sơ APPROVED tự động nạp snapshot APPROVED_RELEASE khi xem trước HTML', true);
   } catch (err) {
@@ -586,7 +586,7 @@ async function runComprehensiveAudit() {
       },
     };
     const maliciousOverrides = { ownerName: 'Kẻ Giả Mạo' };
-    const { viewModel } = await ReportV3Service.renderDraftHtml(resolvedApproved as any, maliciousOverrides, false, false);
+    const { viewModel } = await ReportService.renderDraftHtml(resolvedApproved as any, maliciousOverrides, false, false);
     assert.notStrictEqual(viewModel.section1.ownerName, 'Kẻ Giả Mạo', 'Hồ sơ APPROVED tuyệt đối không nhận overrides tùy tiện');
     recordResult('NV5_SnapshotSync', 3, 'Hồ sơ APPROVED khóa chặt overrides tùy tiện từ phía client', true);
   } catch (err) {
@@ -606,7 +606,7 @@ async function runComprehensiveAudit() {
       },
     };
     const draftOverrides = { ownerName: 'Tên Sửa Đổi Trong Nháp' };
-    const { viewModel } = await ReportV3Service.renderDraftHtml(resolvedDraft as any, draftOverrides, false, false);
+    const { viewModel } = await ReportService.renderDraftHtml(resolvedDraft as any, draftOverrides, false, false);
     assert.strictEqual(viewModel.section1.ownerName, 'Tên Sửa Đổi Trong Nháp');
     recordResult('NV5_SnapshotSync', 4, 'Hồ sơ DRAFT cho phép overrides để xem trước trước khi duyệt', true);
   } catch (err) {
@@ -654,7 +654,7 @@ async function runComprehensiveAudit() {
 
   // TC 6.2: CSS wrapper kiểm soát chiều cao 175px chống tràn trang bìa
   try {
-    const cssPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/styles.css');
+    const cssPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
     const css = fs.readFileSync(cssPath, 'utf8');
     assert(css.includes('height: 175px;'), 'styles.css phải định nghĩa height: 175px cho cover wrapper');
     assert(css.includes('.cover-spatial-wrapper'), 'Phải định nghĩa cho .cover-spatial-wrapper');

@@ -3,7 +3,7 @@ import path from 'path';
 import puppeteer from 'puppeteer';
 
 async function snapshotSection8() {
-  const htmlPath = path.join(__dirname, '../modules/report_v2/templates/residential/preview_output.html');
+  const htmlPath = path.join(__dirname, '../modules/report/templates/residential/preview_output.html');
   if (!fs.existsSync(htmlPath)) {
     console.error('Không tìm thấy file preview_output.html');
     process.exit(1);

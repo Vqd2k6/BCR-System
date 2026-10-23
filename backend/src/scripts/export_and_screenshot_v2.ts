@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportService } from '../modules/report/report-v2.service';
 import Handlebars from 'handlebars';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
 
 async function exportAndCaptureScreenshots() {
   console.log('🚀 Khởi chạy quá trình xuất báo cáo V2 hiệu chỉnh và chụp ảnh kiểm thử trực quan...');
@@ -16,8 +16,8 @@ async function exportAndCaptureScreenshots() {
   // 1. Tạo HTML và PDF từ dữ liệu thật trong DB (ID: 39fed16a-d786-4370-9277-9d8e2c6bd49c)
   console.log('📦 Đang truy vấn và biên dịch dữ liệu hồ sơ thực tế từ CSDL...');
   const testReportId = '39fed16a-d786-4370-9277-9d8e2c6bd49c';
-  const { html, viewModel } = await ReportV2Service.generateResidentialHtml(testReportId);
-  const { pdfBuffer } = await ReportV2Service.generateResidentialPdf(testReportId);
+  const { html, viewModel } = await ReportService.generateResidentialHtml(testReportId);
+  const { pdfBuffer } = await ReportService.generateResidentialPdf(testReportId);
 
   const htmlOutputPath = path.join(exportDir, 'preview_calibrated.html');
   const pdfOutputPath = path.join(exportDir, 'preview_calibrated.pdf');
@@ -102,13 +102,13 @@ async function exportAndCaptureScreenshots() {
       },
     };
 
-    const templatePath = path.join(__dirname, '../modules/report_v2/templates/residential/index.hbs');
-    const stylesPath = path.join(__dirname, '../modules/report_v2/templates/residential/styles.css');
+    const templatePath = path.join(__dirname, '../modules/report/templates/residential/index.hbs');
+    const stylesPath = path.join(__dirname, '../modules/report/templates/residential/styles.css');
     const templateSource = fs.readFileSync(templatePath, 'utf8');
     const stylesSource = fs.readFileSync(stylesPath, 'utf8');
     Handlebars.registerHelper('eq', (a, b) => a === b);
 
-    const partyWallVm = ReportV2ViewModelMapper.buildViewModel(partyWallMock);
+    const partyWallVm = ReportViewModelMapper.buildViewModel(partyWallMock);
     const compiled = Handlebars.compile(templateSource);
     const partyWallHtml = compiled({ ...partyWallVm, styles: stylesSource });
 
@@ -148,7 +148,7 @@ async function exportAndCaptureScreenshots() {
       },
     };
 
-    const zeroDefectsVm = ReportV2ViewModelMapper.buildViewModel(zeroDefectsMock);
+    const zeroDefectsVm = ReportViewModelMapper.buildViewModel(zeroDefectsMock);
     const zeroDefectsHtml = compiled({ ...zeroDefectsVm, styles: stylesSource });
     const zeroDefectsTmpPath = path.join(exportDir, 'tmp_zero_defects.html');
     fs.writeFileSync(zeroDefectsTmpPath, zeroDefectsHtml, 'utf8');

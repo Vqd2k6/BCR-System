@@ -1,170 +1,212 @@
 /**
- * Áp dụng các trường ghi đè tạm thời vào rawReport in-memory (KHÔNG lưu vào database)
- * Giúp xuất file hoặc xem trước theo ý người dùng mà bảo toàn 100% dữ liệu gốc
+ * ============================================================================
+ * REPORT OVERRIDE UTILITIES
+ * Hỗ trợ ghi đè in-memory khi xem trước (Preview) cho hồ sơ chưa APPROVED.
+ * Hồ sơ đã APPROVED luôn đọc từ Snapshot bất biến (bỏ qua overrides).
+ * ============================================================================
  */
+
+export function normalizePhotoKey(val?: string | null): string {
+  if (!val || typeof val !== 'string') return '';
+  let s = val.trim();
+  const qIdx = s.indexOf('?');
+  if (qIdx >= 0) s = s.slice(0, qIdx);
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    try {
+      s = new URL(s).pathname;
+    } catch {
+      // ignore
+    }
+  }
+  return s.replace(/^\/+/, '').toLowerCase();
+}
+
+export function applyPhotoOverrideList(list: any[], photoOverrides: Record<string, any>): any[] {
+  if (!Array.isArray(list)) return list;
+  const out: any[] = [];
+  for (const item of list) {
+    const rawUrl = typeof item === 'string' ? item : item?.url || item?.raw_photo_url || item?.photoUrl;
+    const code = typeof item === 'object' ? item?.photoCode || item?.photo_code || item?.id : undefined;
+    const normUrl = normalizePhotoKey(rawUrl);
+    const normCode = normalizePhotoKey(code);
+
+    const matchEntry = Object.entries(photoOverrides).find(([k]) => {
+      const nk = normalizePhotoKey(k);
+      return nk && (nk === normUrl || (normCode && nk === normCode) || (normUrl && normUrl.endsWith(nk)));
+    });
+    const ov = matchEntry ? matchEntry[1] : undefined;
+
+    if (ov?.deleted) {
+      continue;
+    }
+    if (ov && typeof item === 'object' && item !== null) {
+      const cloned = { ...item };
+      if (ov.replacedUrl) {
+        if ('url' in cloned) cloned.url = ov.replacedUrl;
+        if ('raw_photo_url' in cloned) cloned.raw_photo_url = ov.replacedUrl;
+        if ('annotated_photo_url' in cloned) cloned.annotated_photo_url = ov.replacedUrl;
+        if ('photoUrl' in cloned) cloned.photoUrl = ov.replacedUrl;
+      }
+      if (typeof ov.rotation === 'number') {
+        cloned.rotation = ov.rotation;
+      }
+      out.push(cloned);
+    } else if (ov && typeof item === 'string') {
+      out.push(ov.replacedUrl || item);
+    } else {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+export function deepMergeOverride(target: any, source: any): any {
+  if (!source || typeof source !== 'object') return target;
+  const output = Array.isArray(target) ? [...target] : { ...(target || {}) };
+  for (const key of Object.keys(source)) {
+    const val = source[key];
+    if (val === undefined) continue;
+    if (Array.isArray(val)) {
+      output[key] = val;
+    } else if (val !== null && typeof val === 'object') {
+      output[key] = deepMergeOverride(output[key], val);
+    } else {
+      output[key] = val;
+    }
+  }
+  return output;
+}
+
 export function applyOverridesToReport(rawReport: any, overrides?: any): any {
   if (!overrides || typeof overrides !== 'object' || Object.keys(overrides).length === 0) {
     return rawReport;
   }
+
   const cloned = JSON.parse(JSON.stringify(rawReport));
-  if (!cloned.survey_data_json) {
-    cloned.survey_data_json = {};
-  }
-  const json = cloned.survey_data_json;
+  const baseJson =
+    typeof cloned.survey_data_json === 'string'
+      ? JSON.parse(cloned.survey_data_json || '{}')
+      : { ...(cloned.survey_data_json || {}) };
 
-  // 0. Nạp surveyDataJson thô nếu có LÀM NỀN TẢNG (để các trường overrides cụ thể bên dưới ghi đè có độ ưu tiên cao nhất)
-  if (overrides.surveyDataJson && typeof overrides.surveyDataJson === 'object') {
-    Object.assign(json, overrides.surveyDataJson);
-  }
+  const mergedJson = deepMergeOverride(baseJson, overrides.surveyDataJson || overrides);
 
-  // 1. Định danh & Pháp lý
-  if (overrides.reportCode !== undefined) { cloned.report_code = overrides.reportCode; json.reportCode = overrides.reportCode; }
-  if (overrides.officialCadastralCode !== undefined) { cloned.official_cadastral_code = overrides.officialCadastralCode; json.officialCadastralCode = overrides.officialCadastralCode; }
-  if (overrides.projectParcelCode !== undefined) { cloned.project_parcel_code = overrides.projectParcelCode; json.projectParcelCode = overrides.projectParcelCode; }
-  if (overrides.surveyDate !== undefined) { cloned.survey_date = overrides.surveyDate; json.surveyDate = overrides.surveyDate; }
-  if (overrides.surveyorName !== undefined) { cloned.surveyor_name = overrides.surveyorName; json.surveyorName = overrides.surveyorName; }
-  if (overrides.surveyorCode !== undefined) { cloned.surveyor_code = overrides.surveyorCode; json.surveyorCode = overrides.surveyorCode; }
-  if (overrides.zoneAdminName !== undefined) { cloned.zone_admin_name = overrides.zoneAdminName; json.zoneAdminName = overrides.zoneAdminName; }
-  if (overrides.buildingName !== undefined) { cloned.building_name = overrides.buildingName; json.buildingName = overrides.buildingName; }
-  if (overrides.ownerName !== undefined) { cloned.owner_name = overrides.ownerName; json.ownerName = overrides.ownerName; }
-  if (overrides.ownerPhone !== undefined) { cloned.owner_phone = overrides.ownerPhone; json.ownerPhone = overrides.ownerPhone; }
-  if (overrides.houseNumber !== undefined) { cloned.house_number = overrides.houseNumber; json.houseNumber = overrides.houseNumber; }
-  if (overrides.street !== undefined) { cloned.street = overrides.street; json.street = overrides.street; }
-  if (overrides.usageFunction !== undefined) json.usageFunction = overrides.usageFunction;
-  if (overrides.aboveFloors !== undefined) json.aboveFloors = Number(overrides.aboveFloors);
-  if (overrides.undergroundFloors !== undefined) json.undergroundFloors = Number(overrides.undergroundFloors);
-  if (overrides.constructionYear !== undefined) json.constructionYear = overrides.constructionYear;
-  if (overrides.isEstimatedYear !== undefined) json.isEstimatedYear = Boolean(overrides.isEstimatedYear);
-  if (overrides.constructionAreaM2 !== undefined) json.constructionAreaM2 = overrides.constructionAreaM2;
-  if (overrides.buildingHeightM !== undefined) json.buildingHeightM = overrides.buildingHeightM;
-  if (overrides.structureSystem !== undefined) json.structureSystem = overrides.structureSystem;
-
-  // 2. Metro & Tọa độ
-  if (overrides.chainage !== undefined) json.chainage = overrides.chainage;
-  if (overrides.metroOffsetDistance !== undefined) json.metroOffsetDistance = overrides.metroOffsetDistance;
-  if (overrides.surveyCaseType !== undefined) json.surveyCaseType = overrides.surveyCaseType;
-  if (overrides.objectGroup !== undefined) json.objectGroup = overrides.objectGroup;
-
-  // 3. Nền móng
-  if (overrides.foundationType !== undefined) json.foundationType = overrides.foundationType;
-  if (overrides.foundationSource !== undefined) json.foundationSource = overrides.foundationSource;
-  if (overrides.foundationDepthM !== undefined) json.foundationDepthM = overrides.foundationDepthM;
-  if (overrides.pileDimensionMm !== undefined) json.pileDimensionMm = overrides.pileDimensionMm;
-  if (overrides.pileLengthMm !== undefined) json.pileLengthMm = overrides.pileLengthMm;
-  if (overrides.foundationCatScore !== undefined) json.foundationCatScore = Number(overrides.foundationCatScore);
-  if (overrides.foundationNotes !== undefined) json.foundationNotes = overrides.foundationNotes;
-
-  // 4. Công trình liền kề & Hạn chế tiếp cận
-  if (overrides.adjacentBuildings !== undefined) json.adjacentBuildings = { ...json.adjacentBuildings, ...overrides.adjacentBuildings };
-  if (overrides.accessLimitation !== undefined) json.accessLimitation = { ...json.accessLimitation, ...overrides.accessLimitation };
-  if (overrides.historyInterview !== undefined) json.historyInterview = { ...json.historyInterview, ...overrides.historyInterview };
-
-  // 5. Biến dạng & Lún nghiêng
-  if (overrides.settlementTilt !== undefined) json.settlementTilt = { ...json.settlementTilt, ...overrides.settlementTilt };
-
-  // 6. Burland & Cờ kết cấu
-  if (overrides.burlandSummary !== undefined) json.burlandSummary = { ...json.burlandSummary, ...overrides.burlandSummary };
-  if (overrides.structuralDefectFlag !== undefined) json.structuralDefectFlag = overrides.structuralDefectFlag;
-  if (overrides.requiresStructuralReview !== undefined) json.requiresStructuralReview = Boolean(overrides.requiresStructuralReview);
-
-  // 7. ECS & VI (Ưu tiên tuyệt đối ghi đè lên json.ecs và json.riskScores)
-  if (overrides.ecs !== undefined) {
-    json.ecs = { ...(json.ecs || {}), ...overrides.ecs };
-    if (!json.riskScores) json.riskScores = {};
-    if (overrides.ecs.totalEcs !== undefined) json.riskScores.totalEcsScore = Number(overrides.ecs.totalEcs);
-    if (overrides.ecs.ecsClass !== undefined) json.riskScores.ecsClass = overrides.ecs.ecsClass;
-    if (overrides.ecs.e1 !== undefined) json.riskScores.ecsE1 = Number(overrides.ecs.e1);
-    if (overrides.ecs.e2 !== undefined) json.riskScores.ecsE2 = Number(overrides.ecs.e2);
-    if (overrides.ecs.e3 !== undefined) json.riskScores.ecsE3 = Number(overrides.ecs.e3);
-    if (overrides.ecs.e4 !== undefined) json.riskScores.ecsE4 = Number(overrides.ecs.e4);
-    if (overrides.ecs.e5 !== undefined) json.riskScores.ecsE5 = Number(overrides.ecs.e5);
-    if (overrides.ecs.e6 !== undefined) json.riskScores.ecsE6 = Number(overrides.ecs.e6);
-  }
-  if (overrides.vi !== undefined) {
-    json.vi = { ...(json.vi || {}), ...overrides.vi };
-    if (!json.riskScores) json.riskScores = {};
-    if (overrides.vi.viAvg !== undefined) json.riskScores.avgViScore = Number(overrides.vi.viAvg);
-    if (overrides.vi.viClass !== undefined) json.riskScores.viClass = overrides.vi.viClass;
+  if (overrides.photoRotations && typeof overrides.photoRotations === 'object') {
+    mergedJson.photoRotations = {
+      ...(mergedJson.photoRotations || {}),
+      ...overrides.photoRotations,
+    };
   }
 
-  // 8. Floors & Sổ khuyết tật
-  if (overrides.floors && Array.isArray(overrides.floors)) json.floors = overrides.floors;
-
-  // 9. BRA & Dự báo
-  if (overrides.bra !== undefined) {
-    json.bra = { ...(json.bra || {}), ...overrides.bra };
-    if (!json.riskScores) json.riskScores = {};
-    if (overrides.bra.buildingRiskBra !== undefined) json.riskScores.buildingRiskAssessmentBra = overrides.bra.buildingRiskBra;
-    if (overrides.bra.constructionImpactLevel !== undefined) json.riskScores.constructionImpactLevelI = Number(overrides.bra.constructionImpactLevel);
-    if (!json.executiveSummary) json.executiveSummary = {};
-    if (overrides.bra.buildingRiskBra !== undefined) json.executiveSummary.braStatus = overrides.bra.buildingRiskBra;
-    if (overrides.bra.constructionImpactLevel !== undefined) json.executiveSummary.constructionImpactStatus = `I${overrides.bra.constructionImpactLevel}`;
+  if (overrides.photoOverrides && typeof overrides.photoOverrides === 'object') {
+    const pOv = overrides.photoOverrides;
+    if (Array.isArray(cloned.identificationPhotos)) {
+      cloned.identificationPhotos = applyPhotoOverrideList(cloned.identificationPhotos, pOv);
+    }
+    if (Array.isArray(mergedJson.asBuiltDrawings)) {
+      mergedJson.asBuiltDrawings = applyPhotoOverrideList(mergedJson.asBuiltDrawings, pOv);
+    }
+    if (Array.isArray(mergedJson.asBuiltDrawingPhotos)) {
+      mergedJson.asBuiltDrawingPhotos = applyPhotoOverrideList(mergedJson.asBuiltDrawingPhotos, pOv);
+    }
   }
 
-  // 10. Kết luận, Kiến nghị, Ý kiến chủ hộ & Gate
-  if (!json.executiveSummary) json.executiveSummary = {};
-  if (overrides.summaryConclusions !== undefined) {
-    cloned.summary_conclusions = overrides.summaryConclusions;
-    json.executiveSummary.keyRisksDefectsText = overrides.summaryConclusions;
-    json.executiveSummary.summaryConclusionsText = overrides.summaryConclusions;
-  }
-  if (overrides.engineeringRecommendations !== undefined) {
-    cloned.engineering_recommendations = overrides.engineeringRecommendations;
-    json.executiveSummary.specificRecommendationsText = overrides.engineeringRecommendations;
-  }
-  if (overrides.ownerRemarks !== undefined) {
-    cloned.owner_remarks = overrides.ownerRemarks;
-    json.ownerRemarks = overrides.ownerRemarks;
-    if (!json.signatures) json.signatures = {};
-    json.signatures.ownerFeedback = overrides.ownerRemarks;
-  }
-  if (overrides.gateDecision !== undefined) json.gateDecision = { ...json.gateDecision, ...overrides.gateDecision };
+  cloned.survey_data_json = mergedJson;
 
-  // 11. Đồng bộ sang buildingSpecs (nếu generator đọc từ buildingSpecs)
-  if (!cloned.buildingSpecs) cloned.buildingSpecs = {};
-  const specs = cloned.buildingSpecs;
-  if (overrides.structureSystem !== undefined) specs.structural_system = overrides.structureSystem;
-  if (overrides.foundationType !== undefined) specs.foundation_category = overrides.foundationType;
-  if (overrides.foundationDepthM !== undefined) specs.foundation_depth_m = overrides.foundationDepthM;
-  if (overrides.foundationNotes !== undefined) specs.foundation_notes = overrides.foundationNotes;
-  if (overrides.foundationSource !== undefined) specs.foundation_source = overrides.foundationSource;
-  if (overrides.constructionYear !== undefined) specs.year_of_construction = overrides.constructionYear;
-  if (overrides.isEstimatedYear !== undefined) specs.is_year_estimated = Boolean(overrides.isEstimatedYear);
-  if (overrides.constructionAreaM2 !== undefined) specs.construction_area_m2 = overrides.constructionAreaM2;
-  if (overrides.buildingHeightM !== undefined) specs.building_height_m = overrides.buildingHeightM;
-  if (overrides.aboveFloors !== undefined) specs.floor_count = Number(overrides.aboveFloors);
-  if (overrides.undergroundFloors !== undefined) specs.basement_count = Number(overrides.undergroundFloors);
-  if (overrides.usageFunction !== undefined) specs.land_use_function = overrides.usageFunction;
-  if (overrides.buildingName !== undefined) specs.building_name = overrides.buildingName;
-
-  // 12. Đồng bộ sang riskScores (Ưu tiên tuyệt đối các chỉ số đã chỉnh sửa)
-  if (!cloned.riskScores) cloned.riskScores = {};
-  const rs = cloned.riskScores;
-  if (overrides.ecs?.totalEcs !== undefined) rs.total_ecs_score = Number(overrides.ecs.totalEcs);
-  if (overrides.ecs?.ecsClass !== undefined) rs.ecs_class = overrides.ecs.ecsClass;
-  if (overrides.ecs?.e1 !== undefined) rs.e1_burland_score = Number(overrides.ecs.e1);
-  if (overrides.ecs?.e2 !== undefined) rs.e2_structure_score = Number(overrides.ecs.e2);
-  if (overrides.ecs?.e3 !== undefined) rs.e3_non_structure_score = Number(overrides.ecs.e3);
-  if (overrides.ecs?.e4 !== undefined) rs.e4_material_score = Number(overrides.ecs.e4);
-  if (overrides.ecs?.e5 !== undefined) rs.e5_renovation_score = Number(overrides.ecs.e5);
-  if (overrides.ecs?.e6 !== undefined) rs.e6_foundation_score = Number(overrides.ecs.e6);
-  if (overrides.ecs?.engineeringJudgement?.action !== undefined) {
-    rs.is_engineering_judgement_applied = overrides.ecs.engineeringJudgement.action !== 'KEEP';
-    rs.engineering_judgement_action = overrides.ecs.engineeringJudgement.action;
-    rs.engineering_judgement_reason = overrides.ecs.engineeringJudgement.reason || '';
+  // 1. Định danh & Cán bộ khảo sát
+  if (overrides.buildingId || overrides.projectParcelCode) {
+    cloned.project_parcel_code = overrides.buildingId || overrides.projectParcelCode;
   }
-  if (overrides.vi?.viAvg !== undefined) rs.avg_vi_score = Number(overrides.vi.viAvg);
-  if (overrides.vi?.viClass !== undefined) rs.vi_class = overrides.vi.viClass;
-  if (overrides.burlandSummary?.predominantGrade !== undefined) rs.e1_burland_score = Number(overrides.burlandSummary.predominantGrade);
-  if (overrides.bra?.buildingRiskBra !== undefined) rs.building_risk_assessment_bra = overrides.bra.buildingRiskBra;
-  if (overrides.bra?.constructionImpactLevel !== undefined) rs.construction_impact_level_i = Number(overrides.bra.constructionImpactLevel);
+  if (overrides.surveyDate) {
+    cloned.survey_date = overrides.surveyDate;
+  }
+  if (overrides.revision) {
+    cloned.revision = overrides.revision;
+  }
+  if (overrides.officialCadastralCode) {
+    cloned.official_cadastral_code = overrides.officialCadastralCode;
+    cloned.survey_data_json.officialCadastralCode = overrides.officialCadastralCode;
+  }
 
-  // 13. Đồng bộ sang deformation
-  if (!cloned.deformation) cloned.deformation = {};
-  const df = cloned.deformation;
-  if (overrides.settlementTilt?.buildingTilt?.xPermille !== undefined) df.tilt_angle_x = Number(overrides.settlementTilt.buildingTilt.xPermille);
-  if (overrides.settlementTilt?.buildingTilt?.yPermille !== undefined) df.tilt_angle_y = Number(overrides.settlementTilt.buildingTilt.yPermille);
-  if (overrides.settlementTilt?.beamSagging?.sagMm !== undefined) df.beam_deflection_mm = Number(overrides.settlementTilt.beamSagging.sagMm);
+  // 2. Chủ hộ & Số điện thoại
+  const p = overrides.parcel && typeof overrides.parcel === 'object' ? overrides.parcel : overrides;
+  if (p.ownerName !== undefined) {
+    cloned.owner_name = p.ownerName;
+    cloned.survey_data_json.ownerName = p.ownerName;
+  }
+  if (p.ownerPhone !== undefined) {
+    cloned.owner_phone = p.ownerPhone;
+    cloned.survey_data_json.ownerPhone = p.ownerPhone;
+  }
+
+  // 3. Địa chỉ hành chính chi tiết
+  if (p.houseNumber !== undefined) {
+    cloned.house_number = p.houseNumber;
+    cloned.survey_data_json.houseNumber = p.houseNumber;
+  }
+  if (p.street !== undefined) {
+    cloned.street = p.street;
+    cloned.survey_data_json.street = p.street;
+  }
+  if (p.ward !== undefined) {
+    cloned.ward = p.ward;
+    cloned.survey_data_json.ward = p.ward;
+  }
+  if (p.district !== undefined) {
+    cloned.district = p.district;
+    cloned.survey_data_json.district = p.district;
+  }
+
+  // 4. Quy mô công trình & Công năng
+  if (overrides.buildingName) {
+    cloned.building_name = overrides.buildingName;
+    cloned.survey_data_json.buildingName = overrides.buildingName;
+  }
+  if (overrides.usageFunction) {
+    cloned.survey_data_json.usageFunction = overrides.usageFunction;
+  }
+  if (overrides.aboveFloors !== undefined) {
+    cloned.parcel_floor_count = Number(overrides.aboveFloors);
+    cloned.survey_data_json.aboveFloors = Number(overrides.aboveFloors);
+  }
+  if (p.floorCount !== undefined && p.floorCount !== '') {
+    cloned.floor_count = Number(p.floorCount);
+    cloned.parcel_floor_count = Number(p.floorCount);
+  }
+  if (overrides.undergroundFloors !== undefined) {
+    cloned.survey_data_json.undergroundFloors = Number(overrides.undergroundFloors);
+  }
+  if (p.constructionAreaM2 !== undefined && p.constructionAreaM2 !== '') {
+    cloned.construction_area_m2 = Number(p.constructionAreaM2);
+    cloned.parcel_construction_area_m2 = Number(p.constructionAreaM2);
+    cloned.survey_data_json.constructionAreaM2 = Number(p.constructionAreaM2);
+  }
+  if (p.landAreaM2 !== undefined && p.landAreaM2 !== '') {
+    cloned.land_area_m2 = Number(p.landAreaM2);
+    cloned.survey_data_json.landAreaM2 = Number(p.landAreaM2);
+  }
+  if (overrides.buildingHeightM !== undefined && overrides.buildingHeightM !== '') {
+    cloned.survey_data_json.buildingHeightM = Number(overrides.buildingHeightM);
+  }
+  if (overrides.structureSystem) {
+    cloned.survey_data_json.structureSystem = overrides.structureSystem;
+  }
+  if (overrides.foundationType) {
+    cloned.survey_data_json.foundationType = overrides.foundationType;
+  }
+  if (p.frontageWidth !== undefined && p.frontageWidth !== '') {
+    cloned.frontage_width = Number(p.frontageWidth);
+    cloned.survey_data_json.frontageWidth = Number(p.frontageWidth);
+  }
+  if (p.lotDepth !== undefined && p.lotDepth !== '') {
+    cloned.lot_depth = Number(p.lotDepth);
+    cloned.survey_data_json.lotDepth = Number(p.lotDepth);
+  }
+
+  // 5. Cập nhật mảng floors và defects nếu có
+  if (overrides.floors && Array.isArray(overrides.floors)) {
+    cloned.floors = overrides.floors;
+    cloned.survey_data_json.floors = overrides.floors;
+  }
 
   return cloned;
 }

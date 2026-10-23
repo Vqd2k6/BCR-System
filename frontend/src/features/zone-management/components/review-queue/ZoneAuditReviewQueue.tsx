@@ -287,7 +287,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
   const handlePreviewReport = async (reportId: string | null) => {
     if (!reportId) return;
     try {
-      const res = await api.get(`/v3/reports/${encodeURIComponent(reportId)}/preview/html`, {
+      const res = await api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
         responseType: 'text',
       });
       const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
@@ -295,7 +295,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank', 'noopener,noreferrer');
     } catch (err: unknown) {
-      console.error('[ZoneAuditReviewQueue] Lỗi mở xem trước báo cáo V3:', err);
+      console.error('[ZoneAuditReviewQueue] Lỗi mở xem trước báo cáo:', err);
       alert('Không thể mở bản xem trước báo cáo.');
     }
   };

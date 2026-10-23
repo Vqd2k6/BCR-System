@@ -5,9 +5,9 @@
 import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -21,7 +21,7 @@ function assert(condition: boolean, message: string) {
 async function runScenarioMatrixTests() {
   console.log('🚀 Bắt đầu Kiểm thử Ma trận Kịch bản Bố cục (Adaptive Scenarios Matrix)...');
 
-  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
+  const { template: compiled, styles: stylesSource } = ReportService.getCompiledTemplate();
 
   // =========================================================================
   // KỊCH BẢN 1: BÁO CÁO TOÀN DIỆN (FULL DATA SCENARIO)
@@ -67,7 +67,7 @@ async function runScenarioMatrixTests() {
     },
   };
 
-  const vm1 = ReportV2ViewModelMapper.buildViewModel(fullMockData);
+  const vm1 = ReportViewModelMapper.buildViewModel(fullMockData);
   assert(vm1.scenarioFlags.exteriorPhotoLayout === 'grid_6', 'Kịch bản 1: exteriorPhotoLayout là grid_6');
   assert(vm1.scenarioFlags.hasSideOrRearPhotos === true, 'Kịch bản 1: hasSideOrRearPhotos = true');
   assert(vm1.scenarioFlags.hasTiltPhoto === true, 'Kịch bản 1: hasTiltPhoto = true');
@@ -110,7 +110,7 @@ async function runScenarioMatrixTests() {
     },
   };
 
-  const vm2 = ReportV2ViewModelMapper.buildViewModel(partyWallMockData);
+  const vm2 = ReportViewModelMapper.buildViewModel(partyWallMockData);
   assert(vm2.scenarioFlags.exteriorPhotoLayout === 'party_wall_3', 'Kịch bản 2: exteriorPhotoLayout tự động chuyển thành party_wall_3');
   assert(vm2.scenarioFlags.hasSideOrRearPhotos === false, 'Kịch bản 2: hasSideOrRearPhotos = false');
   assert(vm2.scenarioFlags.hasTiltPhoto === false, 'Kịch bản 2: hasTiltPhoto = false');
@@ -145,7 +145,7 @@ async function runScenarioMatrixTests() {
     },
   };
 
-  const vm3 = ReportV2ViewModelMapper.buildViewModel(singleCadMockData);
+  const vm3 = ReportViewModelMapper.buildViewModel(singleCadMockData);
   assert(vm3.appendix2[0].hasStructuralCadMap === false, 'Kịch bản 3: Tầng trệt hasStructuralCadMap = false');
 
   const html3 = compiled({ ...vm3, styles: stylesSource });
@@ -176,7 +176,7 @@ async function runScenarioMatrixTests() {
     },
   };
 
-  const vm4 = ReportV2ViewModelMapper.buildViewModel(zeroDefectsMockData);
+  const vm4 = ReportViewModelMapper.buildViewModel(zeroDefectsMockData);
   assert(vm4.scenarioFlags.hasAnyDefects === false, 'Kịch bản 4: hasAnyDefects = false');
   assert(vm4.appendix2[0].hasDefects === false, 'Kịch bản 4: Tầng 1 hasDefects = false');
 

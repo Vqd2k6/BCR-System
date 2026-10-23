@@ -1,5 +1,5 @@
 import { Database, pool } from '../database/db';
-import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
+import { ReportSnapshotService } from '../modules/report/report-snapshot.service';
 
 /**
  * Script backfill: Rà soát tất cả các báo cáo APPROVED trong DB,

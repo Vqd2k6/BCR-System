@@ -1,512 +1,725 @@
-export interface ReportPhotoItem {
-  photoId: string;
-  photoType: 'P01_HOUSE_NUMBER' | 'P02_MAIN_FACADE' | 'P03_SIDE_OR_REAR' | 'P04_CONTEXT_STREET' | 'DEFECT_CTX' | 'DEFECT_CU' | 'EXTRA';
+/**
+ * ============================================================================
+ * REPORT TYPES (METRO 2 BUILDING CONDITION SURVEY - PHASE 1)
+ * Chuẩn song ngữ Việt - Anh theo tài liệu mẫu: docs/04_modules/report_engine/templates/template_report.docx
+ * Liên danh CRLG – CRSRI – TT
+ * ============================================================================
+ */
+
+export interface BilingualText {
+  vi: string;
+  en: string;
+}
+
+export interface ApprovalSignatureItem {
+  roleVi: string;
+  roleEn: string;
+  fullName: string;
+  titleVi: string;
+  titleEn: string;
+  signatureUrl?: string;
+  signatureBase64?: string;
+  date: string;
+}
+
+export interface ReportMetadata {
+  buildingId: string;                // e.g. "B-01064-C&C (ST5)"
+  surveyId: string;                  // e.g. "P-6789"
+  reportNo: string;                  // e.g. "REPORT-B-01064-C&C-PHASE1-1790480320866 (Rev. 00)"
+  filingNo?: string;                 // e.g. "Số: 01064/BCS-P1/CRLG-2026"
+  revision: string;                  // e.g. "00"
+  cadastralCode: string;             // e.g. "271330130431"
+  projectTitleVi: string;
+  projectTitleEn: string;
+  reportTitleVi: string;
+  reportTitleEn: string;
+  generatedAt: string;
+  checksumSha256?: string;
+  coverPhotoBase64?: string;
+  coverPhotoUrl?: string;
+  coverAlreadyWatermarked?: boolean;
+  spatialVisualMapBase64?: string;
+  headerLogoBase64?: string;
+  surveyDateFormatted?: string;
+  watermarkDateTime?: string;
+  coverWatermarkDateTime?: string;
+  totalExpectedPages?: number;
+}
+
+export interface RelatedMetroWorks {
+  type: 'C&C' | 'POR' | 'ELV' | 'DEP';
+  isCutCover: boolean;
+  isBoredTunnel: boolean;
+  isElevated: boolean;
+  isDepot: boolean;
+}
+
+export interface Section1GeneralInfo {
+  projectTitleVi: string;
+  projectTitleEn: string;
+  buildingId: string;
+  surveyId: string;
+  reportNo: string;
+  buildingName: BilingualText;
+  address: BilingualText;
+  cadastralCode: string;
+  ownerOccupant: BilingualText;
+  ownerName?: string;
+  contactPhone: string;
+  surveyConsultant: BilingualText;
+  epcContractor: string;
+  sectionZone: BilingualText;
+  relatedMetroWorks: RelatedMetroWorks;
+  gpsCoords: {
+    lat: number;
+    lng: number;
+    formatted: string;
+  };
+  surveyDate: string;
+}
+
+export interface Section2BasicBuildingInfo {
+  use: BilingualText;
+  storeysAbove: number | string;
+  storeysBasement: number | string;
+  storeysDisplay: BilingualText;
+  landAreaM2: number | string;
+  footprintM2: number | string;
+  totalFloorAreaM2: number | string;
+  floorAreaDisplay: BilingualText;
+  mainDimensions: BilingualText;
+  dimensionsDisplay?: BilingualText;
+  maxHeightM: number | string;
+  typicalStoreyHeightM: number | string;
+  yearConstructed: number | string;
+  isEstimatedYear: boolean;
+  distanceToMetroAlignmentM: number | string;
+  distanceToMetroEdgeM: number | string;
+  distanceToMetroDisplay: BilingualText;
+  clearanceVerticalM: number | string;
+  clearance3DM: number | string;
+  clearanceDisplay: BilingualText;
+  surveyCategory: BilingualText;
+  vacantLandStatus?: BilingualText;
+  vacantLandNotes?: BilingualText;
+  constructionStageNotes?: BilingualText;
+  gisMergedInfo?: BilingualText;
+}
+
+export interface Section3HistoryOccupancy {
+  changeOfUse: BilingualText;
+  extension: BilingualText;
+  structuralAlteration: BilingualText;
+  majorRepair: BilingualText;
+  fireHistory: BilingualText;
+  flooding: BilingualText;
+  fireAndFlooding?: BilingualText;
+  previousSettlementTilt: BilingualText;
+  occupancyStatus: BilingualText;
+  sensitiveEquipment: BilingualText;
+  continuousOperation?: BilingualText;
+  damageByAdjacentWorks: BilingualText;
+  informationSource: BilingualText;
+}
+
+export interface Section4StructuralFoundation {
+  structuralType: BilingualText;
+  structuralForm: BilingualText;
+  foundationType: BilingualText;
+  pileSize: BilingualText;
+  footingDensitySpacing: BilingualText;
+  foundationDepth: BilingualText;
+  visibleStructuralCondition: BilingualText;
+  adjacentBuildings: BilingualText;
+  surroundingGround?: BilingualText;
+  foundationEvidence: BilingualText;
+  remarks: BilingualText;
+}
+
+export interface Section5TiltSettlement {
+  differentialSettlement: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    location: BilingualText;
+  };
+  componentDeterioration: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    location: BilingualText;
+  };
+  evidenceOfRepairs: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    location: BilingualText;
+  };
+  collapse: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    location: BilingualText;
+  };
+  buildingInclination: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    measured: string;
+    details: BilingualText;
+    location: BilingualText;
+  };
+  beamDeflection: {
+    observed: boolean;
+    observedDisplay: BilingualText;
+    measured: string;
+    location: BilingualText;
+  };
+  floorSlabInclination: {
+    observed: boolean;
+    measured: string;
+  };
+  beamSlabDeflection: {
+    observed: boolean;
+    measured: string;
+  };
+  basisOfDetermination: BilingualText;
+  reliability: BilingualText;
+  remarks: BilingualText;
+  tiltPhoto?: {
+    url: string;
+    base64?: string;
+    caption: BilingualText;
+    alreadyWatermarked?: boolean;
+  };
+  settlementPhoto?: {
+    url: string;
+    base64?: string;
+    caption: BilingualText;
+    alreadyWatermarked?: boolean;
+  };
+}
+
+export interface DefectFloorDistributionItem {
+  floorName: BilingualText;
+  surveyedObjectsCount: number;
+  structuralCracksCount: number;
+  masonryPlasterCracksCount: number;
+  moistureCount: number;
+  spallingCount: number;
+  maxCrackWidthMm: string;
+  conditionStatus: BilingualText;
+}
+
+export interface Section6DefectSummary {
+  totalDefects: number;
+  totalFloors: number;
+  floorsWithDefectsCount: number;
+  structuralCracksCount: number;
+  masonryPlasterCracksCount: number;
+  moistureDefectsCount: number;
+  spallingDefectsCount: number;
+  otherDefectsCount: number;
+  totalSurveyedObjects?: number;
+  maxCrackWidthMm: string;
+  totalMaxCrackWidthDisplay?: string;
+  maxCrackLengthM: string;
+  governingDefect?: {
+    code: string;
+    location: BilingualText;
+    type: BilingualText;
+    wmaxMm: string;
+    lengthM: string;
+    status: BilingualText;
+  };
+  floorDistribution: DefectFloorDistributionItem[];
+  checklist: Array<{
+    groupVi: string;
+    groupEn: string;
+    indicatorVi: string;
+    indicatorEn: string;
+    recorded: boolean;
+    recordedLabel: BilingualText;
+    locationSeverity: BilingualText;
+    riskLevel: BilingualText;
+  }>;
+  notes: BilingualText;
+  discrepancyNote?: BilingualText;
+  counts?: {
+    surfaceFinishCracks: number;
+    structuralCracks: number;
+    damage: number;
+    spallingOfFinish: number;
+    crackedTiles: number;
+    leakage: number;
+    ceilingDamage: number;
+    concreteSpallingRebar: number;
+    slopingFloor: number;
+  };
+  crackQuantities?: {
+    totalCracks: number;
+    maxCrackWidthMm: number | string;
+    maxCrackLengthM: number | string;
+  };
+}
+
+export interface BurlandZoneSummaryItem {
+  zoneCode: string;
+  floorName: BilingualText;
+  location: BilingualText;
+  wallMaterial: BilingualText;
+  wmaxMm: number | string;
+  crackCount: number;
+  burlandGrade: number;
+}
+
+export interface BurlandTableRow {
+  grade: number;
+  categoryVi: string;
+  categoryEn: string;
+  crackWidthLimit: string;
+  descriptionVi: string;
+  descriptionEn: string;
+  isCurrentLevel: boolean;
+}
+
+export interface BurlandDistributionItem {
+  grade: number;
+  nameVi: string;
+  nameEn: string;
+  crackWidthLimit: string;
+  count: number;
+  percentage: string;
+  isCurrentMax: boolean;
+  isPredominant: boolean;
+}
+
+export interface BurlandStructuralElementItem {
+  elementCode: string;
+  floorName: BilingualText;
+  location: BilingualText;
+  elementType: string;
+  materialType: string;
+  defectCount: number;
+  conditionVi: string;
+  conditionEn: string;
+}
+
+export interface Section7BurlandClassification {
+  burlandTable: BurlandTableRow[];
+  distribution: BurlandDistributionItem[];
+  totalSurveyedObjects: number;
+  predominantGrade: BilingualText;
+  predominantPercentage: string;
+  localMaxGrade: BilingualText;
+  governingZone: BilingualText;
+  governingZoneDescription?: BilingualText;
+  representativeness: BilingualText;
+  structuralFlagLevel: BilingualText;
+  needStructuralReview: BilingualText;
+  serviceabilityNarrative: BilingualText;
+  legalInsuranceBaselineNarrative: BilingualText;
+  gradeCounts?: Array<{
+    grade: number;
+    nameVi: string;
+    nameEn: string;
+    count: number;
+  }>;
+  zones?: BurlandZoneSummaryItem[];
+  structuralElements?: BurlandStructuralElementItem[];
+  structuralDefectFlag?: BilingualText;
+  structuralEngineerReview?: BilingualText;
+}
+
+export interface EcsAssessmentItem {
+  code: string;                      // E1..E6
+  title: BilingualText;
+  basis: BilingualText;
+  scale: string;                     // 0–4
+  score: number;
+}
+
+export interface ViAssessmentItem {
+  code: string;                      // V1..V6
+  title: BilingualText;
+  basis: BilingualText;
+  scale: string;                     // 0–4 or 1–4
+  score: number | null;              // null = chưa đủ dữ liệu
+  scoreDisplay: string;              // '--' khi null
+}
+
+export interface BraMatrixCell {
+  vCode: 'V1' | 'V2' | 'V3' | 'V4';
+  iCode: 'I1' | 'I2' | 'I3' | 'I4';
+  riskLevel: 'Low' | 'Medium' | 'High' | 'Very High';
+  riskLevelVi: string;
+  riskLevelEn: string;
+  badgeBg: string;
+  isCurrent: boolean;
+}
+
+export interface BraMatrixRow {
+  vCode: 'V1' | 'V2' | 'V3' | 'V4';
+  vLabel: BilingualText;
+  cells: BraMatrixCell[];
+}
+
+export interface Section8BuildingConditionAssessment {
+  ecs: {
+    items: EcsAssessmentItem[];
+    totalScore: number;              // 0–24
+    classGrade: BilingualText;       // Tốt / Good, etc.
+    burlandPredominantGrade?: number;
+    burlandLocalMaxGrade?: number;
+    structuralFlag?: string;
+    engineeringJudgement?: {
+      isApplied: boolean;
+      action?: string;
+      reason?: string;
+    };
+    isOverrideLocked?: boolean;
+  };
+  vi: {
+    items: ViAssessmentItem[];
+    totalScore: number | null;       // 6–24; null = chưa đủ dữ liệu
+    averageScore: number | null;     // 1.00–4.00; null = chưa đủ dữ liệu
+    totalScoreDisplay: string;       // '--' khi thiếu dữ liệu
+    averageScoreDisplay: string;
+    foundationCatDisplay: string;    // 'Cat 3 / 5' hoặc '--'
+    classGrade: BilingualText;       // Thấp / Low, etc.
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
+    foundationCatScore?: number;
+    engineeringJudgement?: {
+      isApplied: boolean;
+      action?: string;
+      reason?: string;
+    };
+  };
+  impact: {
+    code: 'I1' | 'I2' | 'I3' | 'I4' | '--';
+    levelText: BilingualText;
+    distanceM: number | string;
+    distanceType?: 'STATION_EDGE' | 'TUNNEL_CENTERLINE';
+    distanceLabel?: BilingualText;
+    basis: BilingualText;
+  };
+  braMatrix: {
+    vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
+    iCode: 'I1' | 'I2' | 'I3' | 'I4' | '--';
+    rows: BraMatrixRow[];
+    finalRiskLevel: BilingualText;
+    recommendation: BilingualText;
+    narrative: BilingualText;
+  };
+  overallRisk: {
+    grade: BilingualText;
+    narrative: BilingualText;
+  };
+  riskMatrix?: {
+    ecsGrade: BilingualText;
+    burlandGrade: number;
+    baselineRisk: BilingualText;
+    narrative: BilingualText;
+  };
+  supplementaryPhase1?: any;
+}
+
+export interface Section9ConclusionRecommendation {
+  conclusions: BilingualText[];
+  overallRisk: BilingualText;
+  witnessNarrative: BilingualText;
+  limitations: BilingualText[];
+  accessAreas?: Array<{
+    area: BilingualText;
+    accessed: boolean;
+    notAccessed: boolean;
+    remark: BilingualText;
+  }>;
+  accessClassification?: BilingualText;
+  recommendations: BilingualText[];
+  phase1Notice: BilingualText;
+  pendingFieldDesignItems: BilingualText[];
+  hasWarningConclusion?: boolean;
+  warningBadge?: BilingualText;
+}
+
+export interface Appendix1PhotoItem {
+  photoCode: string;                 // P-01..P-05
+  name: BilingualText;
   url: string;
-  base64Data?: string;
-  isNotApplicable?: boolean;
-  naReason?: string;
-  capturedAt?: string;
-  gpsLat?: number;
-  gpsLng?: number;
+  base64?: string;
+  rotation?: number;
+  capturedAt: string;
+  gpsCoords: string;
+  originalTag?: string;
+  metroPhotoCode?: string;
+  watermarkDateTime?: string;
+  alreadyWatermarked?: boolean;
+}
+
+export interface CadPinOverlayItem {
+  id?: string;
+  code: string;                      // Z-01, E-01, D-01
   label?: string;
-  notes?: string;
-  tag?: string;
+  pinX: number;                      // 0 - 100 (%)
+  pinY: number;                      // 0 - 100 (%)
+  type: 'ZONE' | 'STRUCTURAL' | 'DEFECT';
+  typeLower: 'zone' | 'element' | 'defect';
+  description?: string;
+}
+
+export interface DefectPairPhotoItem {
+  defectId: string;                  // D-01
+  defectType: BilingualText;
+  contextPhotoUrl?: string;
+  contextPhotoBase64?: string;
+  contextCaption: BilingualText;
+  contextAlreadyWatermarked?: boolean;
+  contextPhotoCode?: string;
+  contextPhotoRotation?: number;
+  closeUpPhotoUrl?: string;
+  closeUpPhotoBase64?: string;
+  closeUpCaption: BilingualText;
+  closeUpAlreadyWatermarked?: boolean;
+  closeUpPhotoCode?: string;
+  closeUpPhotoRotation?: number;
+  contextDateTime?: string;
+  closeUpDateTime?: string;
+  extraCloseUpDateTime?: string;
+  hasCrackGauge: boolean;
+  wmaxMm: number | string;
+  lengthM: number | string;
+  extraCloseUpPhotoUrl?: string;
+  extraCloseUpPhotoBase64?: string;
+  extraCloseUpCaption?: BilingualText;
+  extraCloseUpAlreadyWatermarked?: boolean;
+  extraCloseUpPhotoCode?: string;
+  extraCloseUpPhotoRotation?: number;
+  hasExtraCloseUp?: boolean;
+  activityState?: string;            // S hoặc A
+  activityStateDisplay?: BilingualText;
+  notes?: string;                    // Ghi chú hiện trường KSV
+  cadPinRef?: string;                // e.g. "D-01 trên CAD_01"
+  pinX?: number;
+  pinY?: number;
+  pinColor?: string;
+  hasPin?: boolean;
+}
+
+export interface RoomOverviewPhotoItem {
+  photoId: string;
+  roomName: BilingualText;
+  zoneCode: string;
+  url: string;
+  base64?: string;
+  caption: BilingualText;
+  statusBadge: {
+    isNormal: boolean;
+    text: BilingualText;
+  };
+  alreadyWatermarked?: boolean;
+  watermarkDateTime?: string;
+  metroPhotoCode?: string;
+  isStructuralElement?: boolean;
+}
+
+export interface FloorOverviewPageViewModel {
+  pageIndexInFloor: number;
+  totalOverviewPagesInFloor: number;
+  photos: RoomOverviewPhotoItem[];
+}
+
+export interface FloorConditionZoneElementItem {
+  code: string;                      // Z-01..Z-09 or E-01..E-09
+  location: BilingualText;
+  memberMaterial: BilingualText;
+  condition: BilingualText;
+  photoRefLabel: string;             // e.g. "P-11" or "P-12,13"
+  photoUrl?: string;
+  photoBase64?: string;
+}
+
+export interface FloorDefectSummaryRow {
+  no: number;
+  defectId: string;
+  location: BilingualText;
+  defectType: BilingualText;
+  widthMm: number | string;
+  lengthM: number | string;
+  burlandDamageCategory: BilingualText;
+  burlandGrade: number;
+  description: BilingualText;
+  cadPinRef?: string;
+}
+
+export interface FloorPlanDefectReport {
+  floorOrder: number;
+  floorName: BilingualText;
+  damageMapUrl?: string;
+  damageMapBase64?: string;
+  damageMapRotation?: number;
+  structuralMapUrl?: string;
+  structuralMapBase64?: string;
+  structuralMapRotation?: number;
+  hasStructuralCadMap: boolean;
+  hasCadMap?: boolean;
+  hasDefects: boolean;
+  hasStructuralElements?: boolean;
+  noStructuralElementsReason?: BilingualText;
+  zeroDefectsNotice?: BilingualText;
+  cadPins?: CadPinOverlayItem[];
+  cadStructuralPins?: CadPinOverlayItem[];
+  defectSummaryRows: FloorDefectSummaryRow[];
+  hasSeparateDefectTableSheets?: boolean;
+  defectSummaryPages?: Array<{
+    pageIndex: number;
+    totalPages: number;
+    rows: FloorDefectSummaryRow[];
+  }>;
+  defectPairPhotos: DefectPairPhotoItem[];
+  defectPairPages?: Array<{
+    pageIndex: number;
+    totalPages?: number;
+    pairs: DefectPairPhotoItem[];
+  }>;
+  overviewPages?: FloorOverviewPageViewModel[];
+  elementOverviewPages?: FloorOverviewPageViewModel[];
+  zoneAndElementConditions: FloorConditionZoneElementItem[];
+  beamDeflectionRow?: {
+    location: BilingualText;
+    measuredDeflectionMm: number | string;
+    extraMonitoringRequired: BilingualText;
+  };
+  overviewPhotos?: Array<{
+    photoLabel: string;
+    caption: BilingualText;
+    url: string;
+    base64?: string;
+  }>;
+}
+
+export interface Appendix3SignedRecord {
+  surveyTime: string;
+  ownerRepresentative: BilingualText;
+  localAuthority: BilingualText;
+  supervisionConsultant: BilingualText;
+  surveyUnit: BilingualText;
+  fieldComments: BilingualText;
+  electronicSignOff: BilingualText;
+  dataSource: BilingualText;
+  signedRecordPages: Array<{
+    pageIndex: number;
+    title: BilingualText;
+    url: string;
+    base64?: string;
+    metroPhotoCode?: string;
+    watermarkDateTime?: string;
+    alreadyWatermarked?: boolean;
+  }>;
+}
+
+export interface AsBuiltDrawingItem {
+  index: number;
+  title: BilingualText;
+  url: string;
+  base64?: string;
+  photoCode?: string;
   rotation?: number;
 }
 
-export interface DefectItemReport {
-  defectCode: string;
-  zoneCode: string;
-  roomName: string;
-  componentType: string;
-  defectType?: string;
-  screeningCategory?: string;
-  crackDirection?: string;
-  widthMaxMm: number;
-  lengthMm: number;
-  activityState: 'U' | 'S' | 'A';
-  activityStateLabel: string;
-  structuralSignificanceE2: number;
-  structuralSignificanceLabel: string;
-  materialDegradationE4: number;
-  materialDegradationLabel: string;
-  hasScaleCard: boolean;
-  isStructuralCritical: boolean;
-  pinX?: number;
-  pinY?: number;
-  ctxPhotoUrl?: string;
-  cuPhotoUrl?: string;
-  cuPhotoCode?: string;
-  cuPhotos?: string[];
-  cuPhotoCodes?: string[];
-  extraPhotoUrl?: string;
-  notes?: string;
-  cuPhotoRotation?: number;
-  ctxPhotoRotation?: number;
+export interface AsBuiltDrawingSheet {
+  sheetIndex: number;
+  totalSheets: number;
+  drawings: AsBuiltDrawingItem[];
 }
 
-export interface StructuralElementReport {
-  elementCode: string;
-  elementType: string;
-  materialType: string;
-  roomName: string;
-  floorName: string;
-  hasDamage: boolean;
-  notes?: string;
-  ctxPhotoUrl?: string;
-  ctxPhotoCode?: string;
-  ctxPhotoRotation?: number;
-  overviewPhotos?: string[];
+export interface Section12AsBuiltReport {
+  hasDrawings: boolean;
+  totalDrawings: number;
+  sheets: AsBuiltDrawingSheet[];
 }
 
-export interface DamageZoneReport {
-  zoneCode: string;
-  floorName: string;
-  roomName: string;
-  componentType: string;
-  wallMaterial?: string;
-  functionalImpactRepairNeeded: boolean;
-  burlandGrade: number;
-  burlandLabel: string;
-  notes?: string;
-  ctxPhotoUrl?: string;
-  ctxPhotoCode?: string;
-  ctxPhotoRotation?: number;
-  overviewPhotos?: string[];
-  hasDamage: boolean;
-  slabCondition?: string;
-  wallCondition?: string;
-  beamColumnCondition?: string;
-  seepageSpallingCondition?: string;
-  deformationCondition?: string;
-  defects: DefectItemReport[];
+export interface Appendix4EquipmentItem {
+  no: number;
+  equipment: BilingualText;
+  modelSerial?: BilingualText;
+  specs: BilingualText;
+  purpose: BilingualText;
+  calibration?: BilingualText;
 }
 
-export interface FloorSurveyReport {
-  floorId?: string;
-  floorName: string;
-  floorOrder: number;
-  notes?: string;
-  cadDrawingUrl?: string;
-  damageMapUrl?: string;
-  cadSketchPhotoUrl?: string;
-  cadStructuralSketchPhotoUrl?: string;
-  cadSketchRotation?: number;
-  damageMapRotation?: number;
-  isDualPortrait?: boolean;
-  overviewPhotos?: Array<{ id?: string; url: string; caption?: string }>;
-  zones: DamageZoneReport[];
-  structuralElements?: StructuralElementReport[];
-  totalDefectsInFloor?: number;
-  beamDeflectionMm?: number;
-  beamSaggingPosition?: string;
-  beamSaggingDesc?: string;
-  beamSaggingPhotoUrl?: string;
-  requiresAdditionalMonitoring?: boolean;
+export interface Appendix4EquipmentAndAccess {
+  equipmentList: Appendix4EquipmentItem[];
+  calibrationNotes?: BilingualText | null;
+  accessAreas: Array<{
+    area: BilingualText;
+    accessed: boolean;
+    notAccessed: boolean;
+    remark: BilingualText;
+  }>;
+  accessClassification: BilingualText;
 }
 
-export interface BcsChecklistItem {
-  category: string;
-  indicator: string;
-  hasIndicator: boolean;
-  locationAndSeverity: string;
-  notes?: string;
+export interface ReportScenarioFlags {
+  isAbsenteeSurvey: boolean;
+  isVacantLand: boolean;
+  isUnderConstruction?: boolean;
+  isGisMerged?: boolean;
+  isGisSplit?: boolean;
+  hasMainFacadePhoto: boolean;
+  hasSideOrRearPhotos: boolean;
+  hasTiltPhoto: boolean;
+  hasStructuralCadMap: boolean;
+  hasAnyDefects: boolean;
+  exteriorPhotoLayout: 'grid_6' | 'party_wall_3' | 'minimal_2' | 'vacant_land_grid';
 }
 
-export interface QualityGateItemReport {
-  code: string;
-  title: string;
-  status: 'PASSED' | 'FAILED' | 'NA';
-  notes?: string;
+export interface Appendix1PhotoPage {
+  pageIndex: number;
+  totalPages: number;
+  photos: Appendix1PhotoItem[];
 }
 
-export interface AdjacentBuildingSide {
-  side: 'left' | 'right' | 'back';
-  sideLabel: string;
-  details: string;
-  note?: string;
+export interface TocPageNumbers {
+  section1: number;
+  section2: number;
+  section3: number;
+  section4: number;
+  section5: number;
+  section6: number;
+  section7: number;
+  section8: number;
+  section9: number;
+  sectionX?: number;
+  sectionXI?: number;
+  sectionXII?: number;
+  appendix1: number;
+  appendix2: number;
+  appendix3: number;
+  appendix4?: number;
+  appendix1New?: number;
+  appendix2New?: number;
+  appendix3New?: number;
+  pagePl1?: number;
+  pagePl2?: number;
+  pagePl3?: number;
 }
 
-export interface GisMutationChildReport {
-  label: string;
-  areaM2: number;
-  ownerName: string;
-  houseNumber: string;
-  suggestedCode: string;
-  functionalType: string;
+export interface ReportViewModel {
+  metadata: ReportMetadata;
+  scenarioFlags: ReportScenarioFlags;
+  tocPageNumbers: TocPageNumbers;
+  signatures3Party: ApprovalSignatureItem[];
+  section1: Section1GeneralInfo;
+  section2: Section2BasicBuildingInfo;
+  section3: Section3HistoryOccupancy;
+  section4: Section4StructuralFoundation;
+  section5: Section5TiltSettlement;
+  section6: Section6DefectSummary;
+  section7: Section7BurlandClassification;
+  section8: Section8BuildingConditionAssessment;
+  section9: Section9ConclusionRecommendation;
+  appendix1: Appendix1PhotoItem[];
+  appendix1Pages?: Appendix1PhotoPage[];
+  appendix2: FloorPlanDefectReport[];
+  appendix3: Appendix3SignedRecord;
+  section12AsBuilt?: Section12AsBuiltReport;
+  appendix4: Appendix4EquipmentAndAccess;
+  asteriskFootnote?: BilingualText | null;
+  standardTextVersionNumber?: number | null;
 }
-
-export interface GisMutationReport {
-  isMutated: boolean;
-  type: string;
-  typeLabel: string;
-  splitReason?: string;
-  splitChildren?: GisMutationChildReport[];
-}
-
-export interface HistoryInterviewItemReport {
-  category: string;
-  indicator: string;
-  hasItem: boolean;
-  notes: string;
-}
-
-export interface ResidentialReportViewModel {
-  // 1. Cover & Document Control
-  projectName: string;
-  metroLineName: string;
-  reportCode: string;
-  buildingId: string;
-  officialCadastralCode?: string;
-  surveyId: string;
-  address: string;
-  houseNumber: string;
-  street: string;
-  ward: string;
-  district: string;
-  zoneId: string;
-  zoneName: string;
-  chainage: string;
-  distanceToTunnelMeters: number;
-  clearanceOffsetDistanceM?: string;
-  hasStationEdge?: boolean;
-  stationNote?: string;
-  metroItemType: string;
-  isTbm?: boolean;
-  isStation?: boolean;
-  isCutAndCover?: boolean;
-  isOtherMetro?: boolean;
-  surveyDate: string;
-  revision: string;
-  preparedByName: string;
-  preparedByTitle: string;
-  checkedByName: string;
-  checkedByTitle: string;
-  approvedByName: string;
-  approvedByTitle: string;
-  facadeCoverPhotoUrl?: string;
-
-  // 2. Executive Dashboard (Tổng quan chỉ số)
-  totalEcsScore: number;
-  ecsClass: string;
-  ecsBadgeClass: string;
-  avgViScore: number;
-  viClass: string;
-  viBadgeClass: string;
-  constructionImpactLevelI: number;
-  impactBadgeClass: string;
-  buildingRiskAssessmentBra: string;
-  braBadgeClass: string;
-  predictedSettlementSmax: number;
-  angularDistortion: string;
-  vibrationPpv: number;
-
-  // 3. Building Characteristics
-  buildingName: string;
-  ownerName: string;
-  ownerPhone: string;
-  landUseFunction: string;
-  floorCount: number;
-  basementCount: number;
-  structuralSystem: string;
-  structuralSystemLabel: string;
-  foundationCategory: string;
-  foundationCategoryLabel: string;
-  foundationInfoSource: string;
-  foundationDepthM?: number | string;
-  pileDimensionMm?: string;
-  foundationDensity?: string;
-  foundationSpacingM?: string;
-  foundationNotes?: string;
-  constructionAreaM2: number | string;
-  buildingHeightM: number | string;
-  estimatedHeightM: number | string;
-  yearOfConstruction: number | string;
-  isYearEstimated: boolean;
-  asBuiltDrawingPhotoUrl?: string;
-  asBuiltDrawingFiles?: string[];
-  asBuiltDrawingPhotos?: Array<{ url: string; pageNote?: string; photoCode?: string }>;
-  isAbsenteeSurvey?: boolean;
-  absenteeReason?: string;
-  vacantLandStatus?: string;
-  vacantLandNotes?: string;
-  p02WidthM?: string;
-  p02HeightM?: string;
-  adjacentBuildingsNote: string;
-  adjacentBuildingsList: AdjacentBuildingSide[];
-
-  // GIS Mutation
-  gisMutation: GisMutationReport;
-
-  // Historical Sensitivities & Notes
-  extendedOrRenovated: boolean;
-  extendedOrRenovatedNotes: string;
-  previousSettlementOrTilt: boolean;
-  previousSettlementNotes: string;
-  fireOrAccident: boolean;
-  fireOrAccidentNotes: string;
-  sensitiveEquipmentPresent: boolean;
-  sensitiveEquipmentNotes: string;
-  historyDetailsNote: string;
-  historyInterviewItems: HistoryInterviewItemReport[];
-
-  // Step 1: Identification, GPS & Survey Case Type
-  gpsLat?: number;
-  gpsLng?: number;
-  objectGroup?: string;
-  objectGroupLabel?: string;
-  surveyCaseType?: string;
-  surveyCaseLabel?: string;
-  absenteeMinutesPhotos?: string[];
-  vacantLandPhotos?: string[];
-  underConstructionPhotos?: string[];
-  constructionStageNotes?: string;
-  p03Tag?: string;
-  p03AdditionalPhotos?: Array<{ url: string; tag?: string; photoCode?: string } | string>;
-
-  // 4. Scope & Access Limitations (Step 5)
-  surveyScopeItems?: {
-    areaName: string;
-    isAccessed: boolean;
-    notes: string;
-  }[];
-  scopeAccess?: {
-    facadeStatus: string;
-    facadeNote: string;
-    groundFloorStatus: string;
-    groundFloorNote: string;
-    upperFloorsStatus: string;
-    upperFloorsNote: string;
-    roofStatus: string;
-    roofNote: string;
-    basementStatus: string;
-    basementNote: string;
-    auxiliaryStatus: string;
-    auxiliaryNote: string;
-    inaccessibleAreasReason: string;
-  };
-  surveyedFloorsList?: string[];
-  accessLimitationType?: string;
-  accessLimitationLabel?: string;
-  restrictedAreasList?: string[];
-  restrictedAreasDisplay?: string;
-  accessMainReason?: string;
-  accessMainReasonDisplay?: string;
-  accessNotes?: string;
-  accessNotesDisplay?: string;
-
-  // Identification Photos P-01 to P-04
-  p01: ReportPhotoItem;
-  p02: ReportPhotoItem;
-  p03: ReportPhotoItem;
-  p04: ReportPhotoItem;
-
-  // 5. BCS Checklist
-  bcsChecklist: BcsChecklistItem[];
-
-  // 6. Detailed Defect Register & Floor Damage Maps
-  floors: FloorSurveyReport[];
-  totalDefectsCount: number;
-  totalDamageZonesCount: number;
-  totalStructuralElementsCount: number;
-
-  // 7. Deformation & Tilt (Step 4)
-  tiltAngleX: number;
-  tiltAngleY: number;
-  tiltDirection: string;
-  floorSlopeRatio: number;
-  beamDeflectionMm: number;
-  measurementMethod: string;
-  measurementReliability: string;
-  requiresAdditionalMonitoring: boolean;
-  deformationEngineerComments: string;
-  buildingTiltPhotoUrl?: string;
-  diffSettlementPhotoUrl?: string;
-  beamSaggingPhotoUrl?: string;
-  diffSettlementPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
-  tiltPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
-  abnormalPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
-  diffSettlementLevel?: number;
-  diffSettlementPosition?: string;
-  diffSettlementNotes?: string;
-  buildingTiltLevel?: number;
-  buildingTiltNotes?: string;
-  beamSaggingLevel?: number;
-  beamSaggingPosition?: string;
-  beamSaggingDesc?: string;
-
-  // 8. Burland 1977 (Step 4)
-  burlandPredominantGrade: number;
-  burlandPredominantLabel: string;
-  burlandLocalMaxGrade: number;
-  burlandLocalMaxLabel: string;
-  burlandGoverningZoneCode?: string;
-  burlandGoverningZoneDesc?: string;
-  burlandStructuralFlagLevel?: string;
-  burlandStructuralFlagLevelLabel?: string;
-  burlandRepresentativeness?: string;
-  burlandRepresentativenessLabel?: string;
-  structuralDefectFlag: string;
-  requiresStructuralReview: boolean;
-
-  // 9. ECS Breakdown (Step 6)
-  ecsE1: number;
-  ecsE2: number;
-  ecsE3: number;
-  ecsE4: number;
-  ecsE5: number;
-  ecsE6: number;
-  ecsJudgementApplied: boolean;
-  ecsJudgementAction: string;
-  ecsJudgementReason: string;
-  judgementEngineerName?: string;
-  judgementAppliedAt?: string;
-  qualityGates: QualityGateItemReport[];
-  gateDecisionStatus?: string;
-  gateDecisionLabel?: string;
-  gateDecisionReason?: string;
-
-  // 10. VI Breakdown (Step 6)
-  viV1: number;
-  viV2: number;
-  viV3: number;
-  viV4: number;
-  viV5: number;
-  viV6: number;
-  viJudgementApplied?: boolean;
-  viJudgementAction?: string;
-  viJudgementReason: string;
-
-  // 11. Metro Alignment & Cross section
-  metroCrossSectionUrl?: string;
-
-  // 12. BRA Matrix & Actions
-  braMatrixCell: string;
-  braMandatoryAction: string;
-  braEngineeringReviewNotes: string;
-
-  // 13. Conclusions & Recommendations
-  summaryConclusions: string;
-  engineeringRecommendations: string;
-  ownerRemarks: string; // Ý kiến / ghi chú phản ánh của chủ nhà
-  requiresPhase2: boolean;
-  requiresMonitoring: boolean;
-
-  // Signatures & Working Minutes
-  surveyorSignatureUrl?: string;
-  surveyorSignatureImg?: string;
-  ownerSignatureUrl?: string;
-  ownerSignatureImg?: string;
-  zoneAdminSignatureUrl?: string;
-  zoneAdminSignatureImg?: string;
-  superAdminSignatureImg?: string;
-  fieldWorkMinutesPhotoUrl?: string;
-  workingMinutesPhotos: string[];
-  generatedAt: string;
-}
-
-export interface CondoUnitWaterLeakReportItem {
-  leakageCode: string;
-  location: string;
-  description: string;
-  ctxPhotoUrl?: string;
-  cuPhotoUrl?: string;
-}
-
-export interface CondoUnitReportViewModel {
-  // Document Metadata & Header
-  reportCode: string;
-  reportRevision: number;
-  reportDate: string;
-  surveyDate: string;
-  buildingId: string;
-  buildingName: string;
-  address: string;
-  projectParcelCode: string;
-  officialCadastralCode: string;
-
-  // Căn hộ con (Child Unit specific)
-  unitCode: string;
-  displayCode?: string;
-  isDifferentCode?: boolean;
-  floorNumber: number | string;
-  floorDisplay: string;
-  unitAreaM2?: number | string;
-  residentStatus: string;
-  residentStatusLabel: string;
-  ownerName: string;
-  ownerPhone?: string;
-  ownerIdCard?: string;
-  ownerFeedback?: string;
-
-  // Parent Building Inheritance (Thông tin kế thừa từ Tòa Mẹ)
-  parentMasterReportCode?: string;
-  parentMasterReportId?: string;
-  chainage: string;
-  metroOffsetDistance: string;
-  structuralSystem: string;
-  foundationCategory: string;
-  foundationSource: string;
-  buildingTiltDescription: string;
-  inheritanceLegalNotice: string;
-
-  // Căn hộ nội thất & Thiết bị nhạy cảm
-  hasSensitiveEquipment: boolean;
-  sensitiveEquipmentDesc?: string;
-  hasRenovated: boolean;
-  renovationHistoryDesc?: string;
-  historyInterviewSummary?: {
-    renovationText: string;
-    majorRepairText: string;
-    pastSettlementText: string;
-    neighborDamageText: string;
-    fireFloodText: string;
-    usageStatus: string;
-    continuousOperation247: boolean;
-    renovationDescription: string;
-  };
-
-  // Ảnh định danh căn hộ
-  p01: ReportPhotoItem; // Cửa chính & biển số căn
-  p04: ReportPhotoItem; // Không gian tổng quan nội thất phòng khách
-
-  // Thấm dột trần từ lầu trên (Upper Floor Leakage)
-  hasUpperFloorWaterLeakage: boolean;
-  waterLeakageItems: CondoUnitWaterLeakReportItem[];
-
-  // Độ võng dầm / sàn căn hộ
-  hasBeamSagging: boolean;
-  beamSagLocation?: string;
-  beamSagMm?: number;
-  beamSpanM?: number;
-  beamSagRatioText?: string;
-  beamSagPhotoUrl?: string;
-  isBeamSagCritical?: boolean;
-
-  // Biến dạng cửa
-  doorJammingStatus: string;
-  doorJammingLabel: string;
-
-  // Sổ khuyết tật nội thất & Sơ đồ Damage Map
-  localDefects: DefectItemReport[];
-  totalDefectsCount: number;
-  burlandMaxGrade: number;
-  burlandMaxLabel: string;
-  unitCadUrl?: string;
-
-  // Kết luận & Chữ ký
-  summaryConclusions: string;
-  engineeringRecommendations: string;
-  surveyorSignatureUrl?: string;
-  surveyorSignatureImg?: string;
-  surveyorName?: string;
-  ownerSignatureUrl?: string;
-  ownerSignatureImg?: string;
-  zoneAdminSignatureUrl?: string;
-  zoneAdminSignatureImg?: string;
-  superAdminSignatureImg?: string;
-  workingMinutesPhotos: any[];
-  generatedAt: string;
-  isPiiMasked?: boolean;
-}
-

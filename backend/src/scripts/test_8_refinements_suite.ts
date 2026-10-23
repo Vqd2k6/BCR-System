@@ -7,10 +7,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CadastralInfoMapper } from '../modules/report_v2/mappers/cadastral-info.mapper';
-import { Section3And4Mapper } from '../modules/report_v2/mappers/sections/section-3-4-structural.mapper';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
-import { generateMetroSpatialVisualSvg } from '../modules/report_v2/utils/metro-spatial.utils';
+import { CadastralInfoMapper } from '../modules/report/mappers/cadastral-info.mapper';
+import { Section3And4Mapper } from '../modules/report/mappers/sections/section-3-4-structural.mapper';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
+import { generateMetroSpatialVisualSvg } from '../modules/report/utils/metro-spatial.utils';
 
 interface TestResult {
   id: string;
@@ -87,7 +87,7 @@ async function run15BusinessCases() {
       },
     },
   };
-  const vmBldg = ReportV2ViewModelMapper.buildViewModel(sampleReportData);
+  const vmBldg = ReportViewModelMapper.buildViewModel(sampleReportData);
   const tc03Passed = vmBldg.metadata.buildingId === 'B-00026-C&C (ST05)' &&
                      vmBldg.metadata.reportNo.includes('(ST05)') &&
                      !vmBldg.metadata.buildingId.includes('(ST5)') &&
@@ -115,7 +115,7 @@ async function run15BusinessCases() {
     },
     survey_data_json: {},
   };
-  const vmWarehouse = ReportV2ViewModelMapper.buildViewModel(warehouseReport);
+  const vmWarehouse = ReportViewModelMapper.buildViewModel(warehouseReport);
   const tc04Passed = vmWarehouse.section2.surveyCategory.vi === 'Công trình Kho hàng' &&
                      vmWarehouse.section2.surveyCategory.en === 'Commercial Warehouse' &&
                      !vmWarehouse.section2.surveyCategory.vi.includes('– Khảo sát hiện trạng công trình');
@@ -137,7 +137,7 @@ async function run15BusinessCases() {
     },
     survey_data_json: {},
   };
-  const vmRes = ReportV2ViewModelMapper.buildViewModel(resReport);
+  const vmRes = ReportViewModelMapper.buildViewModel(resReport);
   const tc05Passed = vmRes.section2.surveyCategory.vi === 'Nhà dân / Nhà phố riêng lẻ' &&
                      vmRes.section2.surveyCategory.en === 'Private Residential Townhouse' &&
                      !vmRes.section2.surveyCategory.vi.includes('– Khảo sát');
@@ -265,7 +265,7 @@ async function run15BusinessCases() {
       },
     },
   };
-  const vmNoBasement = ReportV2ViewModelMapper.buildViewModel(noBasementPayload);
+  const vmNoBasement = ReportViewModelMapper.buildViewModel(noBasementPayload);
   const hasBasementRowNo = (vmNoBasement.section9.accessAreas || []).some(
     (a: any) => a.area?.vi?.includes('Tầng hầm') || a.area?.en?.toLowerCase()?.includes('basement')
   );
@@ -285,7 +285,7 @@ async function run15BusinessCases() {
       },
     },
   };
-  const vmWithBasement = ReportV2ViewModelMapper.buildViewModel(withBasementPayload);
+  const vmWithBasement = ReportViewModelMapper.buildViewModel(withBasementPayload);
   const hasBasementRowYes = (vmWithBasement.section9.accessAreas || []).some(
     (a: any) => a.area?.vi?.includes('Tầng hầm') || a.area?.en?.toLowerCase()?.includes('basement')
   );
@@ -302,7 +302,7 @@ async function run15BusinessCases() {
   console.log('\n--- NHÓM 6: MONOCHROME ĐEN CÔNG SỞ & CSS GHIM D ---');
 
   // TC13: Bảng tiếp cận Mục IX dùng thuần chữ đen #000000 (không xanh/đỏ)
-  const templatePath = path.resolve(__dirname, '../modules/report_v2/templates/residential/partials/page-08-section-9-conclusions.hbs');
+  const templatePath = path.resolve(__dirname, '../modules/report/templates/residential/partials/page-08-section-9-conclusions.hbs');
   const section9Content = fs.readFileSync(templatePath, 'utf8');
   const hasOldGreen = section9Content.includes('#15803d');
   const hasOldRed = section9Content.includes('#b91c1c');
@@ -316,7 +316,7 @@ async function run15BusinessCases() {
   );
 
   // TC14: Sửa lỗi ghim D bẹp dí (line-height normal & 1.25)
-  const stylesPath = path.resolve(__dirname, '../modules/report_v2/templates/residential/styles.css');
+  const stylesPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
   const stylesContent = fs.readFileSync(stylesPath, 'utf8');
   const hasPinLineHeight = stylesContent.includes('.photo-defect-pin') &&
                            stylesContent.includes('line-height: normal !important;');

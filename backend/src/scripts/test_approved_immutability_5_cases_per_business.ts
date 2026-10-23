@@ -1,9 +1,9 @@
 import { pool } from '../database/db';
 import { MigrationRunner } from '../database/migration-runner';
-import { Section1And2Mapper } from '../modules/report_v2/mappers/sections/section-1-2-general.mapper';
-import { ReportSnapshotService, sha256Hex } from '../modules/report_v3/report-snapshot.service';
+import { Section1And2Mapper } from '../modules/report/mappers/sections/section-1-2-general.mapper';
+import { ReportSnapshotService, sha256Hex } from '../modules/report/report-snapshot.service';
 import { AuditService } from '../modules/audit/audit.service';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
+import { ReportService } from '../modules/report/report-v3.service';
 import { ConflictError } from '../common/errors/problem-details';
 
 interface TestCaseResult {
@@ -302,7 +302,7 @@ async function runTestSuite() {
     });
 
     await assertTest('Unlock Workflow', 'Case 3.4', 'Xem trước nội bộ (Internal Preview) của hồ sơ UNDER_REVIEW phản ánh giá trị đang sửa', async () => {
-      const resolved = await ReportV3Service.resolve(testReportId);
+      const resolved = await ReportService.resolve(testReportId);
       if (resolved.status !== 'UNDER_REVIEW') {
         throw new Error(`Kỳ vọng resolved status là UNDER_REVIEW, nhận được: ${resolved.status}`);
       }

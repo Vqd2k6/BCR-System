@@ -1,14 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import puppeteer from 'puppeteer';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportService } from '../modules/report/report-v2.service';
 
 async function main() {
   const parcelCode = 'C&C-05-B-0154';
   const reportId = '06286cda-6111-4880-aab3-081834e75233';
 
   console.log(`Generating HTML for ${parcelCode}...`);
-  const { html, viewModel } = await ReportV2Service.generateResidentialHtml(reportId);
+  const { html, viewModel } = await ReportService.generateResidentialHtml(reportId);
 
   const previewPath = path.resolve(__dirname, '../../sample_export/preview_parcel_0154_full.html');
   fs.writeFileSync(previewPath, html, 'utf-8');

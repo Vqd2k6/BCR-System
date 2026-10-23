@@ -5,7 +5,7 @@ process.env.DB_NAME = 'metro2_gis_db';
 
 import { Client } from 'pg';
 import { Database } from '../database/db';
-import { calculateDistancesFromPolygon, isPointInPolygon, doSegmentsIntersect } from '../modules/report_v2/utils/metro-spatial.utils';
+import { calculateDistancesFromPolygon, isPointInPolygon, doSegmentsIntersect } from '../modules/report/utils/metro-spatial.utils';
 // @ts-ignore
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../frontend/src/features/survey-phase1/utils/metroSpatialCalculator';
 import { CadastralGeometryService } from '../modules/cadastral/services/cadastral-geometry.service';

@@ -1,0 +1,212 @@
+/**
+ * ============================================================================
+ * METADATA & 3-PARTY SIGNATURES MAPPER
+ * Chuẩn hóa 7 chỉ số định danh công trình, ảnh mặt tiền bìa và chữ ký 3 bên.
+ * Đọc trực tiếp 1:1 từ dữ liệu đã lưu/phê duyệt (Zero Calculate).
+ * ============================================================================
+ */
+
+import { ReportMetadata, ApprovalSignatureItem } from '../../report.types';
+import { CadastralInfoMapper } from '../cadastral-info.mapper';
+import { ReportImageResolver } from '../../services/report-image-resolver.service';
+import { LOGO_THACO_REC_BASE64 } from '../../assets/report-logos';
+import { isPhotoAlreadyWatermarked } from '../appendices/appendix-2/floor-defect.mapper';
+import { formatDateVi, extractPhotoDateTime } from '../formatters.mapper';
+import { extractParcelPolygonCoords, generateMetroSpatialVisualSvg } from '../../utils/spatial-svg.utils';
+
+export interface MetadataMappingResult {
+  metadata: ReportMetadata;
+  signatures3Party: ApprovalSignatureItem[];
+  buildingId: string;
+  surveyId: string;
+  reportNo: string;
+  filingNo: string;
+  cadastralCode: string;
+  surveyorName: string;
+  zoneAdminName: string;
+  superAdminName: string;
+}
+
+export class MetadataMapper {
+  public static map(
+    rawReport: any,
+    json: any,
+    identPhotos: any[],
+    overrides: any,
+    surveyDateFormatted: string,
+    watermarkDateTime: string,
+    rawSurveyDate: any
+  ): MetadataMappingResult {
+    const rawParcelCode = json.projectParcelCode || rawReport.project_parcel_code || '';
+    const buildingId = overrides?.buildingId || (rawParcelCode ? CadastralInfoMapper.formatBuildingId(
+      rawParcelCode,
+      rawReport.zone_id || 'ZONE_09',
+      rawReport.segment_type || 'C&C'
+    ) : 'CHƯA_ĐỊNH_DANH');
+
+    const rawSurveyorPhone = json.surveyorPhone || json.signatures?.surveyorPhone || rawReport.surveyor_phone || '';
+    const phoneDigits = String(rawSurveyorPhone).replace(/\D/g, '');
+    const surveyIdSuffix = phoneDigits.length >= 4
+      ? phoneDigits.slice(-4)
+      : String(rawReport.surveyor_code || '').trim();
+    const surveyId = overrides?.surveyId || (surveyIdSuffix ? `P-${surveyIdSuffix}` : '--');
+
+    const rawRev = Number(rawReport.export_revision);
+    const revFromDb = Number.isFinite(rawRev) && rawRev >= 0 ? String(Math.floor(rawRev)).padStart(2, '0') : '00';
+    const revision = overrides?.revision || revFromDb;
+    const reportNo = overrides?.reportNo || (rawParcelCode ? CadastralInfoMapper.formatReportNo(
+      buildingId,
+      rawParcelCode,
+      rawReport.segment_type,
+      rawReport.zone_id,
+      revision
+    ) : 'BC-CHƯA_SỐ');
+    const filingNo = overrides?.filingNo || CadastralInfoMapper.formatFilingNo(buildingId);
+    const cadastralCode = json.officialCadastralCode || rawReport.official_cadastral_code || '';
+
+    const p02Item = identPhotos.find((p: any) =>
+      p.photo_type === 'P02_MAIN_FACADE' ||
+      p.photo_code?.includes('P02') ||
+      p.photo_code?.includes('P-02') ||
+      p.photo_type === 'P02'
+    );
+    const p01Item = identPhotos.find((p: any) =>
+      p.photo_type === 'P01_HOUSE_NUMBER' ||
+      p.photo_code?.includes('P01') ||
+      p.photo_code?.includes('P-01')
+    );
+
+    let coverPhotoUrl =
+      json.photoP02?.url ||
+      (typeof json.photoP02 === 'string' ? json.photoP02 : undefined) ||
+      json.photos?.p02 ||
+      json.step1Photos?.p02MainFacadeUrl ||
+      p02Item?.raw_photo_url ||
+      p02Item?.annotated_photo_url ||
+      '';
+
+    if (!coverPhotoUrl) {
+      coverPhotoUrl =
+        json.photoP01?.url ||
+        (typeof json.photoP01 === 'string' ? json.photoP01 : undefined) ||
+        json.photos?.p01 ||
+        json.step1Photos?.p01HouseNumberUrl ||
+        p01Item?.raw_photo_url ||
+        p01Item?.annotated_photo_url ||
+        '';
+    }
+
+    if (!coverPhotoUrl && Array.isArray(json.vacantLandPhotos) && json.vacantLandPhotos.length > 0) {
+      coverPhotoUrl = typeof json.vacantLandPhotos[0] === 'string'
+        ? json.vacantLandPhotos[0]
+        : (json.vacantLandPhotos[0]?.url || json.vacantLandPhotos[0]?.photoUrl || '');
+    }
+
+    const rotMap = json.photoRotations || rawReport.photoRotations || {};
+    const coverPhotoRot = rotMap['P-02'] ?? rotMap['photoP02'] ?? rotMap['P-01'] ?? rotMap['photoP01'] ?? rotMap[coverPhotoUrl] ?? 0;
+    const coverPhotoBase64 = coverPhotoUrl ? ReportImageResolver.resolveToBase64(coverPhotoUrl, coverPhotoRot) : undefined;
+    const coverWatermarkDateTime = extractPhotoDateTime(coverPhotoUrl, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate);
+
+    const polygonCoords = extractParcelPolygonCoords(rawReport, json);
+    const spatialVisualMapBase64 = polygonCoords
+      ? generateMetroSpatialVisualSvg(polygonCoords, buildingId || rawParcelCode)
+      : undefined;
+
+    const isApprovedStatus = String(rawReport.status || '').toUpperCase() === 'APPROVED';
+    const deterministicGenDate = isApprovedStatus && rawReport.approved_at
+      ? formatDateVi(new Date(rawReport.approved_at))
+      : (surveyDateFormatted || formatDateVi(new Date()));
+
+    const metadata: ReportMetadata = {
+      buildingId,
+      surveyId,
+      reportNo,
+      filingNo,
+      revision,
+      cadastralCode,
+      projectTitleVi: 'Tuyến Metro Số 2 TPHCM (Bến Thành - Tham Lương)',
+      projectTitleEn: 'Ho Chi Minh City Mass Rapid Transit Line 2, Ben Thanh – Tham Luong Route',
+      reportTitleVi: 'Khảo sát và Đánh giá hiện trạng tòa nhà',
+      reportTitleEn: 'Building Condition Survey and Assessment',
+      generatedAt: deterministicGenDate,
+      coverPhotoUrl,
+      coverPhotoBase64,
+      coverAlreadyWatermarked: isPhotoAlreadyWatermarked(coverPhotoUrl),
+      spatialVisualMapBase64,
+      headerLogoBase64: LOGO_THACO_REC_BASE64,
+      surveyDateFormatted,
+      watermarkDateTime,
+      coverWatermarkDateTime,
+    };
+
+    const rawSurveyorName =
+      json.surveyorName ||
+      json.signatures?.surveyorName ||
+      json.signatures?.preparedBy?.fullName ||
+      rawReport.surveyor_name ||
+      '';
+    const rawZoneAdminName = rawReport.zone_admin_name || json.signatures?.checkedBy?.fullName || '';
+    const superAdminName = rawReport.super_admin_name || json.signatures?.approvedBy?.fullName || '';
+
+    const cleanSignerName = (name: string | undefined | null): string => {
+      if (!name || typeof name !== 'string') return '--';
+      const trimmed = name.trim();
+      if (!trimmed || trimmed === '--') return '--';
+      if (/^([a-z0-9_-]*test[a-z0-9_-]*|[a-z0-9_]+_\d+)$/i.test(trimmed)) {
+        return '--';
+      }
+      return trimmed;
+    };
+
+    const surveyorName = cleanSignerName(rawSurveyorName);
+    const zoneAdminName = cleanSignerName(rawZoneAdminName);
+
+    const surveyorSigUrl =
+      json.signatures?.surveyorSignatureUrl ||
+      json.signatures?.surveyorSignature ||
+      json.surveyorSignatureUrl ||
+      json.signatures?.preparedBy?.signatureImg ||
+      rawReport.surveyor_signature_url ||
+      rawReport.surveyor_signature_img;
+    const zoneAdminSigUrl = rawReport.zone_admin_signature_img || json.signatures?.checkedBy?.signatureImg;
+
+    const approvalDateFormatted = isApprovedStatus && rawReport.approved_at ? formatDateVi(new Date(rawReport.approved_at)) : '';
+
+    const signatures3Party: ApprovalSignatureItem[] = [
+      {
+        roleVi: 'NGƯỜI LẬP',
+        roleEn: 'PREPARED BY',
+        fullName: surveyorName,
+        titleVi: 'Trưởng nhóm khảo sát',
+        titleEn: 'Survey Team Leader',
+        signatureUrl: surveyorSigUrl,
+        signatureBase64: surveyorSigUrl ? ReportImageResolver.resolveToBase64(surveyorSigUrl) : undefined,
+        date: surveyDateFormatted,
+      },
+      {
+        roleVi: 'KIỂM TRA / DUYỆT',
+        roleEn: 'CHECKED / APPROVED BY',
+        fullName: zoneAdminName,
+        titleVi: 'Quản trị phân khu',
+        titleEn: 'Zone Administrator',
+        signatureUrl: zoneAdminSigUrl,
+        signatureBase64: zoneAdminSigUrl ? ReportImageResolver.resolveToBase64(zoneAdminSigUrl) : undefined,
+        date: approvalDateFormatted,
+      },
+    ];
+
+    return {
+      metadata,
+      signatures3Party,
+      buildingId,
+      surveyId,
+      reportNo,
+      filingNo,
+      cadastralCode,
+      surveyorName,
+      zoneAdminName,
+      superAdminName,
+    };
+  }
+}
+

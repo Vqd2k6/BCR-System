@@ -60,32 +60,12 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
 
     try {
-      // 1. Thử gọi endpoint V2 (Mẫu Song Ngữ Chuẩn 0410 CRLG-CRSRI-TT)
-      try {
-        const resV2 = await api.get(`/v2/reports/${encodeURIComponent(reportId)}/preview/html`, {
-          params: { isGuest: 'true', maskPii: 'true', watermark: 'true' },
-          responseType: 'text',
-        });
-        if (resV2.data && typeof resV2.data === 'string' && resV2.data.trim().length > 100) {
-          setHtmlContent(resV2.data);
-          setRenderKey((k) => k + 1);
-          setIsLoading(false);
-          return;
-        }
-      } catch (errV2: unknown) {
-        // Nếu là 404, thử fallback sang V1
-        if (!isNotFoundError(errV2)) {
-          console.warn('[GuestPreview] Lỗi khi nạp report V2, thử fallback V1:', errV2);
-        }
-      }
-
-      // 2. Fallback sang endpoint V1 nếu V2 không có
-      const resV1 = await api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
+      const res = await api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
         params: { isGuest: 'true', maskPii: 'true', watermark: 'true' },
         responseType: 'text',
       });
-      if (resV1.data && typeof resV1.data === 'string') {
-        setHtmlContent(resV1.data);
+      if (res.data && typeof res.data === 'string') {
+        setHtmlContent(res.data);
         setRenderKey((k) => k + 1);
       } else {
         throw new Error('Dữ liệu HTML rỗng từ máy chủ');

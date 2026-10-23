@@ -39,8 +39,6 @@ interface Phase1PreviewModalProps {
   setDefectFilterQuery: (query: string) => void;
   modalFeedback: ModalFeedbackMessage | null;
   setModalFeedback: (feedback: ModalFeedbackMessage | null) => void;
-  reportVersion?: 'v2' | 'v1';
-  handleSwitchVersion?: (ver: 'v2' | 'v1') => Promise<void>;
   handleOpenPreview: (parcel: ExportParcelItem) => void;
   handleUpdateFormField: <K extends keyof EditFormData>(field: K, value: EditFormData[K]) => void;
   handleUpdateDefectField: <K extends keyof EditFormDefectItem>(defectId: string, field: K, value: EditFormDefectItem[K]) => void;
@@ -50,7 +48,6 @@ interface Phase1PreviewModalProps {
   handleSwitchTab: (targetTab: 'html' | 'edit' | 'json') => Promise<void>;
   handleOpenPreviewInNewTab: () => void;
   handleDirectPrint: () => void;
-  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
@@ -79,8 +76,6 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   setDefectFilterQuery,
   modalFeedback,
   setModalFeedback,
-  reportVersion = 'v2',
-  handleSwitchVersion,
   handleOpenPreview,
   handleUpdateFormField,
   handleUpdateDefectField,
@@ -90,7 +85,6 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   handleSwitchTab,
   handleOpenPreviewInNewTab,
   handleDirectPrint,
-  handleExportSingleDocx,
   handleExportSinglePdf,
   enableWatermark = true,
   handleToggleWatermark,
@@ -149,10 +143,10 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
 
           {/* Tab Switcher & Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Version Badge (Mẫu Chuẩn 0410 V2 duy nhất) */}
+            {/* Version Badge (Mẫu Chuẩn 0410 Song Ngữ duy nhất) */}
             <div className="bg-sky-50 text-sky-700 border border-sky-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
               <Sparkles size={13} className="text-amber-500" />
-              <span>Mẫu Chuẩn 0410 Song Ngữ (V2)</span>
+              <span>Mẫu Chuẩn 0410 Song Ngữ</span>
             </div>
 
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
@@ -264,10 +258,8 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               handleOpenPreviewInNewTab={handleOpenPreviewInNewTab}
               handleOpenPreview={handleOpenPreview}
               handleExportSinglePdf={handleExportSinglePdf}
-              handleExportSingleDocx={handleExportSingleDocx}
               editFormData={editFormData}
               previewReportData={previewReportData}
-              reportVersion={reportVersion}
               handleDirectPrint={handleDirectPrint}
               hasUnsavedChanges={hasUnsavedChanges}
               enableWatermark={enableWatermark}
@@ -285,7 +277,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
         {/* Modal Footer */}
         <div className="px-5 py-3 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>Tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410 - V3)</span>
+            <span>Tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410)</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

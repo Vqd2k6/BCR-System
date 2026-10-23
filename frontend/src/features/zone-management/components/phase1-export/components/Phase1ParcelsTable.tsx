@@ -19,7 +19,6 @@ interface Phase1ParcelsTableProps {
   onToggleSelectParcel: (id: string) => void;
   onOpenPreview: (parcel: ExportParcelItem) => void;
   onExportSinglePdf: (parcel: ExportParcelItem) => void;
-  onExportSingleDocx: (parcel: ExportParcelItem) => void;
 }
 
 export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
@@ -30,7 +29,6 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
   onToggleSelectParcel,
   onOpenPreview,
   onExportSinglePdf,
-  onExportSingleDocx,
 }) => {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

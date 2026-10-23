@@ -13,7 +13,7 @@
 import {
   classifyStructureSystem,
   v2ScoreForStructure,
-} from '../report_v2/mappers/structure-system.classifier';
+} from './structure-system.classifier';
 
 export type EcsClass = 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
 export type ViClass = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';

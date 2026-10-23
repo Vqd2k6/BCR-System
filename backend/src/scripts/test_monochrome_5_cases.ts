@@ -8,8 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import Handlebars from 'handlebars';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
+import { ReportService } from '../modules/report/report-v2.service';
+import { ReportService } from '../modules/report/report-v3.service';
 import { pool } from '../database/db';
 
 interface TestResult {
@@ -37,7 +37,7 @@ async function runMonochrome5Cases() {
   console.log(' BẮT ĐẦU CHẠY 5 TEST CASES - CHUẨN HÓA ĐƠN SẮC ĐEN CÔNG SỞ #000000 ');
   console.log('================================================================\n');
 
-  const partialsDir = path.resolve(__dirname, '../modules/report_v2/templates/residential/partials');
+  const partialsDir = path.resolve(__dirname, '../modules/report/templates/residential/partials');
 
   // --------------------------------------------------------------------------
   // TC1: Bảng VII.4 Structural Integrity Check trong page-06
@@ -105,7 +105,7 @@ async function runMonochrome5Cases() {
   // TC4: Handlebars Compile & Render với Dữ liệu mẫu (Bình thường vs Khuyết tật)
   // --------------------------------------------------------------------------
   console.log('\n--- TEST CASE 4: HANDLEBARS COMPILE & RENDER THỰC TẾ ---');
-  ReportV2Service.registerHelpersAndPartials(partialsDir);
+  ReportService.registerHelpersAndPartials(partialsDir);
 
   const testTemplate = Handlebars.compile(`
     {{> page-06-bcs-checklist-and-section-7}}
@@ -164,8 +164,8 @@ async function runMonochrome5Cases() {
 
   try {
     const reportId = '013d8ec6-a9d8-4854-8536-ce9c8ccf0903';
-    const resolved = await ReportV3Service.resolve(reportId);
-    const { pdfBuffer, buildingId } = await ReportV3Service.renderDraftPdf(resolved, undefined, true);
+    const resolved = await ReportService.resolve(reportId);
+    const { pdfBuffer, buildingId } = await ReportService.renderDraftPdf(resolved, undefined, true);
 
     const pdfSizeOk = pdfBuffer && pdfBuffer.length > 50000; // > 50KB
     console.log(`     Đã render PDF thành công cho ${buildingId}, kích thước: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);

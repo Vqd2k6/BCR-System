@@ -161,17 +161,17 @@ export function usePhotoOrientationAudit(
 
       let currentUrl = rawUrl;
       for (const act of stagedPhotoActions) {
-        const matchesUrl = act.oldPhotoUrl && act.oldPhotoUrl === rawUrl;
+        const matchesUrl = act.currentPhotoUrl && act.currentPhotoUrl === rawUrl;
         const matchesTarget =
           targetPhotoId &&
           act.targetPhotoId === targetPhotoId &&
           (photoIndex === undefined || act.photoIndex === undefined || act.photoIndex === photoIndex);
 
         if (matchesUrl || matchesTarget) {
-          if (act.action === 'DELETE') {
+          if (act.mode === 'DELETE') {
             return '';
           }
-          if (act.action === 'REPLACE' && act.newPhotoUrl) {
+          if (act.mode === 'REPLACE' && act.newPhotoUrl) {
             currentUrl = act.newPhotoUrl;
           }
         }
@@ -1017,3 +1017,4 @@ export function usePhotoOrientationAudit(
     photoCandidatesCount: photoCandidates.length,
   };
 }
+

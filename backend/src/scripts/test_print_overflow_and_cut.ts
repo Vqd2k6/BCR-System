@@ -15,8 +15,8 @@ import { execSync } from 'child_process';
 import assert from 'assert';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf';
 import { pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { generateMetroSpatialVisualSvg } from '../modules/report_v2/utils/metro-spatial.utils';
+import { ReportService } from '../modules/report/report-v3.service';
+import { generateMetroSpatialVisualSvg } from '../modules/report/utils/metro-spatial.utils';
 
 async function runTests() {
   console.log('================================================================');
@@ -59,8 +59,8 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('▶ Đang render PDF thật qua pipeline 2-pass TOC...');
   const testReportId = 'd730fc32-3c55-4d4f-94d2-14d4bdcf5060';
-  const resolved = await ReportV3Service.resolve(testReportId);
-  const { pdfBuffer, buildingId } = await ReportV3Service.renderDraftPdf(resolved, undefined, true);
+  const resolved = await ReportService.resolve(testReportId);
+  const { pdfBuffer, buildingId } = await ReportService.renderDraftPdf(resolved, undefined, true);
   const doc = await pdfjs.getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
   const numPages = doc.numPages;
   console.log(`  ℹ️ PDF Render hoàn tất: ${numPages} trang, mã: ${buildingId}\n`);

@@ -26,10 +26,8 @@ interface Phase1HtmlTabProps {
   handleOpenPreviewInNewTab: () => void;
   handleOpenPreview: (parcel: ExportParcelItem) => void;
   handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
-  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   editFormData: EditFormData | null;
   previewReportData: ServerReportData | Record<string, unknown> | null;
-  reportVersion?: 'v2' | 'v1';
   handleDirectPrint?: () => void;
   hasUnsavedChanges?: boolean;
   enableWatermark?: boolean;

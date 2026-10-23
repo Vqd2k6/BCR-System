@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportSnapshotService } from '../modules/report/report-snapshot.service';
 import { AuditService } from '../modules/audit/audit.service';
 
 const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
@@ -75,8 +75,8 @@ async function main() {
     // -------------------------------------------------------------------------
     console.log('\n[2] Đang kết xuất PDF 1: Bản APPROVED gốc hiện tại...');
     const t0 = Date.now();
-    const resolvedBaseline = await ReportV3Service.resolve(reportId);
-    const { pdfBuffer: pdf1Buffer } = await ReportV3Service.renderDraftPdf(resolvedBaseline, undefined, false);
+    const resolvedBaseline = await ReportService.resolve(reportId);
+    const { pdfBuffer: pdf1Buffer } = await ReportService.renderDraftPdf(resolvedBaseline, undefined, false);
     const pdf1Path = path.join(outDir, '01_APPROVED_BASELINE.pdf');
     fs.writeFileSync(pdf1Path, pdf1Buffer);
     console.log(`    -> Đã xuất ${pdf1Path} (${(pdf1Buffer.length / 1e6).toFixed(2)} MB, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
@@ -157,8 +157,8 @@ async function main() {
     // -------------------------------------------------------------------------
     console.log('\n[5] Đang kết xuất PDF 2: Bản Xem trước (Draft Preview) trong khi UNDER_REVIEW...');
     const t1 = Date.now();
-    const resolvedUnderReview = await ReportV3Service.resolve(reportId);
-    const { pdfBuffer: pdf2Buffer } = await ReportV3Service.renderDraftPdf(resolvedUnderReview, undefined, true);
+    const resolvedUnderReview = await ReportService.resolve(reportId);
+    const { pdfBuffer: pdf2Buffer } = await ReportService.renderDraftPdf(resolvedUnderReview, undefined, true);
     const pdf2Path = path.join(outDir, '02_UNDER_REVIEW_WIP_PREVIEW.pdf');
     fs.writeFileSync(pdf2Path, pdf2Buffer);
     console.log(`    -> Đã xuất ${pdf2Path} (${(pdf2Buffer.length / 1e6).toFixed(2)} MB, ${((Date.now() - t1) / 1000).toFixed(1)}s)`);
@@ -193,7 +193,7 @@ async function main() {
     console.log(`    - Snapshot đã duyệt giữ SĐT ban đầu    : ${legalFrozenPhone === '0901000113' ? `${legalFrozenPhone} (BẤT BIẾN ✅)` : `${legalFrozenPhone} (BỊ LỖI ❌)`}`);
     console.log(`    - Snapshot đã duyệt giữ Diện tích đất  : ${Number(legalFrozenArea) === 65.8 ? `${legalFrozenArea} m² (BẤT BIẾN ✅)` : `${legalFrozenArea} m² (BỊ LỖI ❌)`}`);
 
-    const officialFinalData = ReportV3Service.buildFinalReport(
+    const officialFinalData = ReportService.buildFinalReport(
       resolvedUnderReview,
       latestLegalSnap.snapshot,
       latestLegalSnap.snapshot.exportRevision ?? 0
@@ -216,8 +216,8 @@ async function main() {
     // -------------------------------------------------------------------------
     console.log('\n[8] Đang kết xuất PDF 3: Bản Phê duyệt mới (New Approved Revision)...');
     const t2 = Date.now();
-    const resolvedReApproved = await ReportV3Service.resolve(reportId);
-    const { pdfBuffer: pdf3Buffer } = await ReportV3Service.renderDraftPdf(resolvedReApproved, undefined, false);
+    const resolvedReApproved = await ReportService.resolve(reportId);
+    const { pdfBuffer: pdf3Buffer } = await ReportService.renderDraftPdf(resolvedReApproved, undefined, false);
     const pdf3Path = path.join(outDir, '03_REAPPROVED_NEW_REVISION.pdf');
     fs.writeFileSync(pdf3Path, pdf3Buffer);
     console.log(`    -> Đã xuất ${pdf3Path} (${(pdf3Buffer.length / 1e6).toFixed(2)} MB, ${((Date.now() - t2) / 1000).toFixed(1)}s)`);

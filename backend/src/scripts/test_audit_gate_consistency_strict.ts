@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { ReportConsistencyGate } from '../modules/audit/services/report-consistency-gate';
-import { Appendix3And4Mapper } from '../modules/report_v2/mappers/appendices/appendix-3-4-records.mapper';
-import { Section9ConclusionMapper } from '../modules/report_v2/mappers/sections/section-9-conclusions.mapper';
+import { Appendix3And4Mapper } from '../modules/report/mappers/appendices/appendix-3-4-records.mapper';
+import { Section9ConclusionMapper } from '../modules/report/mappers/sections/section-9-conclusions.mapper';
 
 /**
  * ============================================================================

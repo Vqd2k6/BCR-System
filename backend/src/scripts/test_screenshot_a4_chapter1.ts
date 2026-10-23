@@ -3,7 +3,7 @@ import path from 'path';
 import puppeteer from 'puppeteer';
 
 async function testScreenA4Chapter1Screenshot() {
-  const htmlPath = path.join(__dirname, '../modules/report_v2/templates/residential/preview_output.html');
+  const htmlPath = path.join(__dirname, '../modules/report/templates/residential/preview_output.html');
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],

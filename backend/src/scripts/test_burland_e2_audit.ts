@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pool } from '../database/db';
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v3.service';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
@@ -51,7 +51,7 @@ async function runAudit() {
     console.log(`--------------------------------------------------------------`);
 
     try {
-      const resolved = await ReportV3Service.resolve(parcelCode);
+      const resolved = await ReportService.resolve(parcelCode);
       const rawReport = resolved.raw as any;
       const json = rawReport.survey_data_json || {};
       const bs = json.burlandSummary || {};
@@ -65,7 +65,7 @@ async function runAudit() {
       });
       console.log('DB ecs:', { e1: ecs.e1, e2: ecs.e2, totalEcs: ecs.totalEcs });
 
-      const vm = ReportV2ViewModelMapper.buildViewModel(rawReport);
+      const vm = ReportViewModelMapper.buildViewModel(rawReport);
       console.log('ViewModel Section 7:', {
         predominant: vm.section7.predominantGrade.vi,
         localMax: vm.section7.localMaxGrade.vi,
@@ -82,7 +82,7 @@ async function runAudit() {
 
       // Render actual PDF and extract Section 7 and 8 pages
       console.log('Rendering PDF to inspect actual printed text...');
-      const { pdfBuffer } = await ReportV3Service.renderDraftPdf(resolved, undefined, false);
+      const { pdfBuffer } = await ReportService.renderDraftPdf(resolved, undefined, false);
       const sectionPages = await extractSectionPages(pdfBuffer);
       for (const sp of sectionPages) {
         console.log(`\n[Page ${sp.pageNum}] Text snippet:`);

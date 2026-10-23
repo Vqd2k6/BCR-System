@@ -16,8 +16,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Database } from '../database/db';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportService } from '../modules/report/report-v2.service';
+import { ReportViewModelMapper } from '../modules/report/mappers/report-v2-viewmodel.mapper';
 import { ReportConfigService } from '../modules/report_config/report-config.service';
 
 interface ParcelBackup {
@@ -123,8 +123,8 @@ async function runAudit() {
 
   // 2. Xuất Bản 1: Baseline (Trước khi sửa parcels)
   console.log('--- BƯỚC 1: XUẤT BÁO CÁO BẢN 1 (BASELINE TRƯỚC BIẾN ĐỘNG) ---');
-  const rawReport1 = await ReportV2Service.resolveReport(targetReportId);
-  const viewModel1 = ReportV2ViewModelMapper.buildViewModel(rawReport1, undefined, config);
+  const rawReport1 = await ReportService.resolveReport(targetReportId);
+  const viewModel1 = ReportViewModelMapper.buildViewModel(rawReport1, undefined, config);
   const fields1 = extractFields(viewModel1);
 
   // Tạo thư mục scratch lưu trữ
@@ -164,8 +164,8 @@ async function runAudit() {
 
     // 4. Xuất Bản 2: Modified (Sau khi sửa parcels)
     console.log('\n--- BƯỚC 3: XUẤT BÁO CÁO BẢN 2 (KHI LÔ ĐẤT ĐÃ BỊ BIẾN ĐỘNG) ---');
-    const rawReport2 = await ReportV2Service.resolveReport(targetReportId);
-    viewModel2 = ReportV2ViewModelMapper.buildViewModel(rawReport2, undefined, config);
+    const rawReport2 = await ReportService.resolveReport(targetReportId);
+    viewModel2 = ReportViewModelMapper.buildViewModel(rawReport2, undefined, config);
     fields2 = extractFields(viewModel2);
 
     fs.writeFileSync(path.join(scratchDir, 'report_after_parcel_edit_v2.json'), JSON.stringify(viewModel2, null, 2), 'utf8');

@@ -1,8 +1,8 @@
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
+import { ReportService } from '../modules/report/report-v2.service';
 import { pool } from '../database/db';
 
 async function checkMismatch() {
-  const r = await ReportV2Service.resolveReport('06286cda-6111-4880-aab3-081834e75233');
+  const r = await ReportService.resolveReport('06286cda-6111-4880-aab3-081834e75233');
   const json = r.survey_data_json || {};
   const floors = json.floors || [];
   for (let fi = 0; fi < floors.length; fi++) {

@@ -23,7 +23,7 @@ import {
   evaluateResidentialOrientation,
   normalizeRotationAngle,
 } from '../modules/audit/utils/residential-photo-orientation.standards';
-import { calculateDistancesFromPolygon } from '../modules/report_v2/utils/metro-spatial.utils';
+import { calculateDistancesFromPolygon } from '../modules/report/utils/metro-spatial.utils';
 import { buildResidentialViewModel } from '../modules/report/generators/residential/residential-viewmodel.builder';
 
 interface TestCase {

@@ -1,6 +1,6 @@
-import { ReportV3Service } from '../modules/report_v3/report-v3.service';
-import { extractParcelPolygonCoords } from '../modules/report_v2/utils/metro-spatial.utils';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportService } from '../modules/report/report-v3.service';
+import { extractParcelPolygonCoords } from '../modules/report/utils/metro-spatial.utils';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -329,7 +329,7 @@ async function run() {
   const outDir = path.resolve(__dirname, '../../test_output/audit/spatial_test');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  const browser = await PdfRenderV2Engine.getBrowser();
+  const browser = await PdfRenderEngine.getBrowser();
   const page = await browser.newPage();
   await page.setViewport({ width: 840, height: 560, deviceScaleFactor: 2 });
 
@@ -340,7 +340,7 @@ async function run() {
   ];
 
   for (const tc of testCases) {
-    const res = await ReportV3Service.resolve(tc.id);
+    const res = await ReportService.resolve(tc.id);
     const raw = res.raw as any;
     const polygonCoords = extractParcelPolygonCoords(raw, raw.survey_data)!;
 

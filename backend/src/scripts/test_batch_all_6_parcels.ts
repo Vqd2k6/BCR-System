@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReportV2Service } from '../modules/report_v2/report-v2.service';
-import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
+import { ReportService } from '../modules/report/report-v2.service';
+import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 
 interface TestCase {
   code: string;
@@ -47,7 +47,7 @@ async function runBatchTests() {
 
     try {
       // 1. Sinh HTML & ViewModel
-      const { html, viewModel } = await ReportV2Service.generateResidentialHtml(tc.reportId);
+      const { html, viewModel } = await ReportService.generateResidentialHtml(tc.reportId);
 
       // Thống kê nhanh
       let totalDefects = 0;
@@ -67,7 +67,7 @@ async function runBatchTests() {
 
       // 3. Render PDF
       console.log(`  ⏳ Đang render PDF Chromium...`);
-      const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(html, {
+      const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {
         buildingId: viewModel.metadata.buildingId,
         reportNo: viewModel.metadata.reportNo,
         headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',

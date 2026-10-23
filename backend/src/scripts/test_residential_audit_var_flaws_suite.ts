@@ -3,7 +3,7 @@ import { AuditReviewService } from '../modules/audit/services/audit-review.servi
 import { AuditModificationService } from '../modules/audit/services/audit-modification.service';
 import { AuditVersionService } from '../modules/audit/services/audit-version.service';
 import { ScoringService } from '../modules/scoring/scoring.service';
-import { ReportSnapshotService } from '../modules/report_v3/report-snapshot.service';
+import { ReportSnapshotService } from '../modules/report/report-snapshot.service';
 import { ConflictError, BadRequestError, ForbiddenError, NotFoundError } from '../common/errors/problem-details';
 import { CryptoUtils } from '../common/utils/crypto.utils';
 
