@@ -603,9 +603,20 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       }
 
       // Xử lý các tầng khác trong dải tầng điển hình (nếu có)
+      const extractUnitSuffix = (codeStr?: string | null): string => {
+        if (!codeStr) return '';
+        const trimmed = codeStr.trim();
+        const dotParts = trimmed.split('.');
+        if (dotParts.length > 1) {
+          return dotParts[dotParts.length - 1].replace(/^M/i, '').toLowerCase();
+        }
+        return '';
+      };
+
       const otherFloors = targetApplicableFloors.filter((fl) => fl !== activeFloor).sort((a, b) => a - b);
       for (const fl of otherFloors) {
         const existingOnFl = allUnits.filter((u) => Number(u.floor_number ?? 1) === Number(fl));
+        const usedExistingIds = new Set<string>();
 
         const targetFloorItem = buildingFloors.find((b) => b.floorNumber === fl);
         const mm = targetFloorItem?.floorCode || getDefaultFloorCode(fl);
@@ -613,12 +624,53 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         for (let i = 0; i < targetPartitions.length; i++) {
           const p = targetPartitions[i];
           const uType: 'UNIT' | 'MASTER' = p.partitionType || 'UNIT';
+          const sourceSuffix = extractUnitSuffix(p.displayCode) || extractUnitSuffix(p.unitCode);
 
-          // Nếu tầng này đã có căn hộ thứ i tương ứng và đã được khảo sát -> giữ nguyên mã của căn đó
-          const matchedExisting = existingOnFl[i];
+          // Khớp căn hộ trên tầng kế thừa theo hậu tố mã căn (unitSuffix + unit_type) hoặc vị trí tương ứng
+          let matchedExisting = existingOnFl.find((u) => {
+            if (usedExistingIds.has(u.id)) return false;
+            if ((u.unit_type || 'UNIT') !== uType) return false;
+            const uSuffix = extractUnitSuffix(u.display_code) || extractUnitSuffix(u.unit_code);
+            return Boolean(sourceSuffix && uSuffix && sourceSuffix === uSuffix);
+          });
+
+          if (!matchedExisting) {
+            matchedExisting = existingOnFl.find((u) => {
+              if (usedExistingIds.has(u.id)) return false;
+              if ((u.unit_type || 'UNIT') !== uType) return false;
+              if (u.cad_bbox) {
+                const dx = Math.abs(Number(u.cad_bbox.x ?? 0) - p.x);
+                const dy = Math.abs(Number(u.cad_bbox.y ?? 0) - p.y);
+                return dx < 1.5 && dy < 1.5;
+              }
+              return false;
+            });
+          }
+
+          if (!matchedExisting) {
+            const candidateAtIdx = existingOnFl[i];
+            if (
+              candidateAtIdx &&
+              !usedExistingIds.has(candidateAtIdx.id) &&
+              (candidateAtIdx.unit_type || 'UNIT') === uType
+            ) {
+              matchedExisting = candidateAtIdx;
+            }
+          }
+
+          if (matchedExisting) {
+            usedExistingIds.add(matchedExisting.id);
+          }
+
+          const isMatchedSurveyed = Boolean(
+            matchedExisting &&
+              (Boolean(matchedExisting.phase1_report_id) ||
+                (Boolean(matchedExisting.status) && matchedExisting.status !== 'NOT_SURVEYED'))
+          );
+
           let assignedCode = '';
 
-          if (matchedExisting && matchedExisting.status && matchedExisting.status !== 'NOT_SURVEYED') {
+          if (matchedExisting && (isMatchedSurveyed || matchedExisting.unit_code)) {
             assignedCode = matchedExisting.unit_code;
           } else if (/^[UM][-_]\d+$/i.test(p.unitCode.trim())) {
             // Tịnh tiến mã tiếp theo theo chuẩn U-XXX hoặc M-XXX toàn tòa
@@ -634,18 +686,32 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             assignedCode = `${prefix}.${nn}`;
           }
 
-          const otherFloorDisplayCode = formatDefaultDisplayCode(mm, p.displayCode || p.unitCode, uType);
+          const otherFloorDisplayCode =
+            isMatchedSurveyed && matchedExisting?.display_code
+              ? matchedExisting.display_code
+              : formatDefaultDisplayCode(mm, p.displayCode || p.unitCode, uType);
+
+          const preservedBbox =
+            isMatchedSurveyed && matchedExisting?.cad_bbox
+              ? {
+                  x: Number(matchedExisting.cad_bbox.x ?? p.x),
+                  y: Number(matchedExisting.cad_bbox.y ?? p.y),
+                  width: Number(matchedExisting.cad_bbox.width ?? p.width),
+                  height: Number(matchedExisting.cad_bbox.height ?? p.height),
+                }
+              : {
+                  x: p.x,
+                  y: p.y,
+                  width: p.width,
+                  height: p.height,
+                };
+
           allFloorPartitions.push({
             unitCode: assignedCode,
             displayCode: otherFloorDisplayCode,
             floorNumber: fl,
-            bbox: {
-              x: p.x,
-              y: p.y,
-              width: p.width,
-              height: p.height,
-            },
-            unitCadUrl: p.unitCadUrl,
+            bbox: preservedBbox,
+            unitCadUrl: isMatchedSurveyed ? matchedExisting?.unit_cad_url || p.unitCadUrl : p.unitCadUrl,
             unitType: uType,
           });
 

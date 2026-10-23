@@ -142,7 +142,7 @@ export async function compressAndStandardizePhoto(
 export async function uploadStandardizedPhoto(
   file: File,
   folder: string = 'surveys/audit',
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<{ url: string; key: string; sha256: string }> {
   const formData = new FormData();
   formData.append('file', file);

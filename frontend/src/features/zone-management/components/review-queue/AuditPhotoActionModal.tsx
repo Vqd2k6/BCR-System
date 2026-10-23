@@ -75,7 +75,7 @@ export interface PhotoActionPayload {
   pinY?: number;
   widthMaxMm?: number;
   lengthMm?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AuditPhotoActionModalProps {
@@ -181,8 +181,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
         index: 1,
       });
       setReplaceProcessed(processed);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Lỗi khi xử lý hình ảnh');
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi xử lý hình ảnh');
     } finally {
       setIsProcessing(false);
     }
@@ -218,8 +218,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       }
 
       setBatchProcessed((prev) => [...prev, ...results]);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Lỗi khi xử lý danh sách ảnh');
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi xử lý danh sách ảnh');
     } finally {
       setIsProcessing(false);
     }
@@ -279,8 +279,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
         });
 
         onClose();
-      } catch (err: any) {
-        setErrorMessage(err.message || 'Không thể upload ảnh mới.');
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : 'Không thể upload ảnh mới.');
       } finally {
         setIsProcessing(false);
       }
@@ -339,8 +339,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
         });
 
         onClose();
-      } catch (err: any) {
-        setErrorMessage(err.message || 'Lỗi khi upload danh sách ảnh.');
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi upload danh sách ảnh.');
       } finally {
         setIsProcessing(false);
       }

@@ -39,6 +39,63 @@ function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] 
   return Array.from(urls);
 }
 
+function buildPreloadRotationItems(
+  activeReport: any,
+  allPhotoUrls: string[],
+  rotMap: Record<string, number>
+): Array<string | { url: string; rotation?: number }> {
+  const items: Array<string | { url: string; rotation?: number }> = [...allPhotoUrls];
+  if (!rotMap || Object.keys(rotMap).length === 0) return items;
+
+  const json = activeReport?.survey_data_json || {};
+  const addRot = (url: any, rot: any) => {
+    if (typeof url === 'string' && url.trim() && Number(rot)) {
+      items.push({ url: url.trim(), rotation: Number(rot) });
+    }
+  };
+
+  const p01Url = json.photoP01?.url || (typeof json.photoP01 === 'string' ? json.photoP01 : '') || json.photos?.p01 || json.step1Photos?.p01HouseNumberUrl;
+  addRot(p01Url, rotMap['P-01'] ?? rotMap['photoP01'] ?? rotMap[p01Url]);
+  const p02Url = json.photoP02?.url || (typeof json.photoP02 === 'string' ? json.photoP02 : '') || json.photos?.p02 || json.step1Photos?.p02MainFacadeUrl;
+  addRot(p02Url, rotMap['P-02'] ?? rotMap['photoP02'] ?? rotMap[p02Url]);
+  const p03Url = json.photoP03?.url || (typeof json.photoP03 === 'string' ? json.photoP03 : '') || json.photos?.p03 || json.step1Photos?.p03SideRearUrl;
+  addRot(p03Url, rotMap['P-03'] ?? rotMap['photoP03'] ?? rotMap[p03Url]);
+  const p04Url = json.photoP04?.url || (typeof json.photoP04 === 'string' ? json.photoP04 : '') || json.photos?.p04 || json.step1Photos?.p04ContextStreetUrl;
+  addRot(p04Url, rotMap['P-04'] ?? rotMap['photoP04'] ?? rotMap[p04Url]);
+
+  const rawFloors = json.floors || activeReport?.floors || [];
+  if (Array.isArray(rawFloors)) {
+    rawFloors.forEach((fl: any, fIdx: number) => {
+      const floorIndex = fIdx + 1;
+      const cadUrl = fl?.damageMapUrl || fl?.cadSketchPhotoUrl || fl?.cad_drawing_url || fl?.cadArchUrl || fl?.cadDrawingUrl;
+      addRot(cadUrl, fl?.cadRotation ?? rotMap[`floor_${fl?.id || floorIndex}_cad`] ?? rotMap[`floor_${fIdx}_cad`] ?? rotMap[`cad_${fl?.id || floorIndex}`] ?? rotMap[cadUrl]);
+
+      const zones = Array.isArray(fl?.zones) ? fl.zones : [];
+      zones.forEach((z: any) => {
+        const zCode = z?.zoneCode || 'Z-01';
+        const zCtx = z?.ctxPhotoUrl || z?.photoUrl;
+        addRot(zCtx, z?.ctxRotation ?? rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ?? rotMap[`zone_${z?.id || zCode}_ctx`] ?? rotMap[zCode] ?? rotMap[zCtx]);
+        const defects = Array.isArray(z?.defects) ? z.defects : [];
+        defects.forEach((d: any, dIdx: number) => {
+          const dCode = d?.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
+          const rawCu0 = Array.isArray(d?.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : '';
+          const cuUrl = d?.closeUpPhotoUrl || d?.cuPhotoUrl || (typeof rawCu0 === 'string' ? rawCu0 : rawCu0?.url) || '';
+          addRot(
+            cuUrl,
+            d?.cuRotation ??
+              rotMap[`defect_f${fIdx}_z${zCode}_${d?.id}_cu`] ??
+              rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_cu`] ??
+              rotMap[`defect_${d?.id || dCode}_cu`] ??
+              rotMap[dCode] ??
+              rotMap[cuUrl]
+          );
+        });
+      });
+    });
+  }
+  return items;
+}
+
 export class ReportV2Service {
   private static cachedTemplate: Handlebars.TemplateDelegate | null = null;
   private static cachedStyles: string | null = null;
@@ -194,7 +251,8 @@ export class ReportV2Service {
     const allPhotoUrls = extractAllImageUrls(activeReport);
     const photoRotationsMap = activeReport.survey_data_json?.photoRotations || activeReport.photoRotations || {};
     await preloadImageOrientations(allPhotoUrls);
-    await ReportImageResolver.preloadAndResolveAll(allPhotoUrls, photoRotationsMap);
+    const preloadItems = buildPreloadRotationItems(activeReport, allPhotoUrls, photoRotationsMap);
+    await ReportImageResolver.preloadAndResolveAll(preloadItems, photoRotationsMap);
 
     // 1.1. Tải trước ảnh vệ tinh Esri World Imagery cho sơ đồ không gian trang bìa
     try {

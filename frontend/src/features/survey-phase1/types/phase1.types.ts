@@ -115,6 +115,7 @@ export interface EvidencePhotoItem {
 }
 
 export interface P03PhotoItem {
+  id?: string;
   url: string;
   photoCode?: string;
   tag: string;

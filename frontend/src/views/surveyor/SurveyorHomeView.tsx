@@ -21,6 +21,7 @@ export interface SurveyorHomeViewProps {
   onStartCondoMaster?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartPhase2: (parcel: GisParcel) => void;
+  onOpenBuildingHub?: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
   onResumeSurveyPresent?: (parcel: GisParcel) => void;
   onRefresh?: () => void;
@@ -37,6 +38,7 @@ export const SurveyorHomeView: React.FC<SurveyorHomeViewProps> = ({
   onStartCondoMaster,
   onStartUnitSurvey,
   onStartPhase2,
+  onOpenBuildingHub,
   onRecordAbsence,
   onResumeSurveyPresent,
   onRefresh,
@@ -119,7 +121,13 @@ export const SurveyorHomeView: React.FC<SurveyorHomeViewProps> = ({
         canApproveOrReject={canApproveOrReject}
         onStartPhase1={onStartPhase1}
         onStartPhase2={onStartPhase2}
-        onOpenHub={(p) => setHubParcel(p)}
+        onOpenHub={(p) => {
+          if (onOpenBuildingHub) {
+            onOpenBuildingHub(p);
+          } else {
+            setHubParcel(p);
+          }
+        }}
         onOpenDirections={handleOpenDirections}
         onAdminApprove={handleAdminApprove}
         onAdminReject={handleAdminReject}

@@ -427,11 +427,29 @@ export function mergeCondoUnitDataSafely(
   merged.structuralElements = deduplicateElements(processedElements, mergedElementPins);
   merged.cadElementPins = mergedElementPins;
 
-  // 7.5. Bảo toàn cờ ghi đè/xóa CAD của người dùng
-  if (serverData.isCadOverriddenByUser !== undefined) {
+  // 7.5. Bảo toàn cờ ghi đè/xóa CAD của người dùng và cờ khóa cứng CAD (isCadLocked)
+  if (serverData.isCadLocked !== undefined || localData.isCadLocked !== undefined) {
+    merged.isCadLocked = Boolean(serverData.isCadLocked || localData.isCadLocked);
+  }
+  if (merged.isCadLocked) {
+    merged.isCadOverriddenByUser = true;
+    merged.unitCadUrl = serverData.unitCadUrl || localData.unitCadUrl || '';
+    merged.unitStructuralCadUrl = serverData.unitStructuralCadUrl || localData.unitStructuralCadUrl || '';
+  } else if (serverData.isCadOverriddenByUser !== undefined) {
     merged.isCadOverriddenByUser = Boolean(serverData.isCadOverriddenByUser);
   } else if (localData.isCadOverriddenByUser !== undefined) {
     merged.isCadOverriddenByUser = Boolean(localData.isCadOverriddenByUser);
+  }
+
+  // Luôn ưu tiên khung vị trí trên mặt bằng tầng (cadBbox, cadPolygon, floorNumber) mới nhất từ server nếu đã hoán đổi
+  if (serverData.cadBbox !== undefined && serverData.cadBbox !== null) {
+    merged.cadBbox = serverData.cadBbox;
+  }
+  if (serverData.cadPolygon !== undefined && serverData.cadPolygon !== null) {
+    merged.cadPolygon = serverData.cadPolygon;
+  }
+  if (serverData.floorNumber !== undefined && serverData.floorNumber !== null) {
+    merged.floorNumber = serverData.floorNumber;
   }
 
   // 8. Vá URL ảnh tạm (blob:local://) đã biết Cloud URL rồi khử trùng các danh sách ảnh
@@ -518,6 +536,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   cadBbox: null,
   cadPolygon: null,
   isCadOverriddenByUser: false,
+  isCadLocked: false,
 
   // 3. Phân cấp Vùng Z & Cấu kiện E (Phase 1 Standard)
   zones: [],
@@ -746,19 +765,22 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
 
           data = { ...data, ...parsed };
 
-          // Khôi phục dữ liệu CAD và Bounding Box từ CSDL nếu bản nháp cũ bị rỗng/thiếu
+          // Khôi phục dữ liệu CAD và Bounding Box từ CSDL nếu bản nháp cũ bị rỗng/thiếu hoặc đã được hoán đổi vị trí trên mặt bằng tầng
           if (!data.unitCadUrl && dbCadUrl) {
             data.unitCadUrl = dbCadUrl;
           }
-          if (!data.cadBbox && dbCadBbox) {
+          if (dbCadBbox) {
             data.cadBbox = dbCadBbox;
           }
-          if (!data.cadPolygon && dbCadPolygon) {
+          if (dbCadPolygon) {
             data.cadPolygon = dbCadPolygon;
           }
           // Luôn giữ số tầng chuẩn từ CSDL nếu unit có số tầng hợp lệ
           if (unit && !isNaN(dbFloorNumber)) {
             data.floorNumber = dbFloorNumber;
+          }
+          if (data.isCadLocked) {
+            data.isCadOverriddenByUser = true;
           }
 
           data.zones = deduplicateZones(data.zones || [], data.cadZonePins || []);

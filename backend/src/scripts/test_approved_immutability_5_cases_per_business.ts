@@ -1,4 +1,5 @@
 import { pool } from '../database/db';
+import { MigrationRunner } from '../database/migration-runner';
 import { Section1And2Mapper } from '../modules/report_v2/mappers/sections/section-1-2-general.mapper';
 import { ReportSnapshotService, sha256Hex } from '../modules/report_v3/report-snapshot.service';
 import { AuditService } from '../modules/audit/audit.service';
@@ -31,6 +32,7 @@ async function runTestSuite() {
   console.log('TEST SUITE: KIỂM TOÁN TÍNH BẤT BIẾN & CHÍNH XÁC CỦA BÁO CÁO APPROVED (25 CASES)');
   console.log('================================================================================\n');
 
+  await MigrationRunner.run();
   const client = await pool.connect();
 
   // Biến lưu ID tạo trong quá trình test để dọn dẹp triệt để
@@ -342,33 +344,33 @@ async function runTestSuite() {
       }
     });
 
-    await assertTest('Revision Lifecycle', 'Case 4.2', 'Duyệt lại (Re-approval) sau khi unlock tự động tăng exportRevision = 1 (Rev 01)', async () => {
+    await assertTest('Revision Lifecycle', 'Case 4.2', 'Duyệt lại (Re-approval) sau khi unlock KHÔNG tự động tăng exportRevision (giữ nguyên Rev 00)', async () => {
       const reApproveRes = await AuditService.approveReport(testReportId, adminId, 'Phê duyệt lại sau khi chỉnh sửa số nhà thành 1000');
-      if (reApproveRes.exportRevision !== 1) {
-        throw new Error(`Kỳ vọng exportRevision là 1, nhận được: ${reApproveRes.exportRevision}`);
+      if (reApproveRes.exportRevision !== 0) {
+        throw new Error(`Kỳ vọng exportRevision vẫn giữ nguyên là 0, nhận được: ${reApproveRes.exportRevision}`);
       }
       const repCheck = await client.query<{ export_revision: number }>(`SELECT export_revision FROM base_survey_reports WHERE id = $1;`, [testReportId]);
-      if (repCheck.rows[0].export_revision !== 1) {
-        throw new Error(`Database base_survey_reports chưa cập nhật export_revision = 1.`);
+      if (repCheck.rows[0].export_revision !== 0) {
+        throw new Error(`Database base_survey_reports không được tự động tăng export_revision, kỳ vọng 0 nhận được: ${repCheck.rows[0].export_revision}`);
       }
     });
 
-    await assertTest('Revision Lifecycle', 'Case 4.3', 'Tiêu đề version snapshot lưu thông tin Phê duyệt lại (Rev 01)', async () => {
+    await assertTest('Revision Lifecycle', 'Case 4.3', 'Tiêu đề version snapshot lưu thông tin Phê duyệt lại số liệu sau mở khóa', async () => {
       const v1 = await client.query<{ title: string; snapshot_data: any }>(
         `SELECT title, snapshot_data FROM survey_report_versions
          WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE'
          ORDER BY version_number DESC LIMIT 1;`,
         [testReportId]
       );
-      if (!v1.rows[0].title.includes('Rev 01') && !v1.rows[0].title.includes('1')) {
-        throw new Error(`Kỳ vọng title chứa Rev 01, nhận được: '${v1.rows[0].title}'`);
+      if (!v1.rows[0].title.includes('Phê duyệt lại số liệu sau mở khóa')) {
+        throw new Error(`Kỳ vọng title chứa 'Phê duyệt lại số liệu sau mở khóa', nhận được: '${v1.rows[0].title}'`);
       }
       if (v1.rows[0].snapshot_data.frozenParcel.houseNumber !== '1000') {
-        throw new Error(`Kỳ vọng snapshot Rev 01 đóng băng số nhà '1000', nhận được: '${v1.rows[0].snapshot_data.frozenParcel.houseNumber}'`);
+        throw new Error(`Kỳ vọng snapshot đóng băng số nhà '1000', nhận được: '${v1.rows[0].snapshot_data.frozenParcel.houseNumber}'`);
       }
     });
 
-    await assertTest('Revision Lifecycle', 'Case 4.4', 'Bảng survey_report_versions lưu cả 2 bản snapshot bất biến riêng biệt (Rev 00 & Rev 01)', async () => {
+    await assertTest('Revision Lifecycle', 'Case 4.4', 'Bảng survey_report_versions lưu cả 2 bản snapshot bất biến riêng biệt (Bản đầu & Bản duyệt lại)', async () => {
       const countRes = await client.query<{ count: string }>(
         `SELECT COUNT(*) AS count FROM survey_report_versions
          WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE';`,
@@ -459,6 +461,7 @@ async function runTestSuite() {
           testChildCode,
           JSON.stringify({
             accessLimitation: { type: 'FULL_100' },
+            hasPendingRelease: true,
             floors: [],
             ecs: { e1: 1, e2: 1, e3: 1, e4: 1, e5: 1, e6: 1, totalEcs: 6 },
             vi: { v1: 1, v2: 1, v3: 1, v4: 1, v5: 1, v6: 1, totalVi: 6, viAvg: 1 },
@@ -473,6 +476,40 @@ async function runTestSuite() {
       const unitCheck = await client.query<{ status: string }>(`SELECT status FROM building_units WHERE id = $1;`, [unitId]);
       if (unitCheck.rows[0].status !== 'APPROVED') {
         throw new Error(`Kỳ vọng building_unit chuyển sang APPROVED, nhận được: ${unitCheck.rows[0].status}`);
+      }
+
+      // Kiểm tra Trigger trg_protect_approved_survey chặn sửa trực tiếp survey_data_json khi đang APPROVED
+      let surveyTriggerBlocked = false;
+      try {
+        await client.query(
+          `UPDATE base_survey_reports SET survey_data_json = jsonb_set(survey_data_json, '{tampered}', 'true'::jsonb) WHERE id = $1;`,
+          [childReportId]
+        );
+      } catch (err: any) {
+        if (err.message.includes('SURVEY_REPORT_LOCKED_APPROVED')) {
+          surveyTriggerBlocked = true;
+        }
+      }
+      if (!surveyTriggerBlocked) {
+        throw new Error('Kỳ vọng Trigger trg_protect_approved_survey chặn UPDATE survey_data_json khi đang APPROVED!');
+      }
+
+      // Kiểm tra luồng Phát hành Revision (tăng export_revision + xóa cờ tạm hasPendingRelease) được phép chạy qua Trigger
+      await client.query(
+        `UPDATE base_survey_reports
+         SET export_revision = export_revision + 1,
+             official_pdf_url = '/releases/test-rev-01.pdf',
+             survey_data_json = survey_data_json - 'hasPendingRelease',
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [childReportId]
+      );
+      const afterChildRel = await client.query<{ export_revision: number; has_pending: boolean }>(
+        `SELECT export_revision, COALESCE((survey_data_json->>'hasPendingRelease')::boolean, false) AS has_pending FROM base_survey_reports WHERE id = $1;`,
+        [childReportId]
+      );
+      if (afterChildRel.rows[0].export_revision !== 1 || afterChildRel.rows[0].has_pending !== false) {
+        throw new Error('Phát hành Rev.01 trên hồ sơ APPROVED có hasPendingRelease = true thất bại!');
       }
 
       // Mở khóa report con: unit_id phải chuyển về IN_PROGRESS (chỉ SUPER_ADMIN)

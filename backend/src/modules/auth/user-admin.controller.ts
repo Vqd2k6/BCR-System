@@ -12,9 +12,12 @@ export class UserAdminController {
   static async listUsers(req: Request, res: Response, next: NextFunction) {
     try {
       let zoneId = req.query.zoneId as string;
-      // Nếu là ZONE_ADMIN, bắt buộc chỉ được xem nhân sự thuộc Ga/Zone của mình
+      // Nếu là ZONE_ADMIN thường (không có quyền ALL / ALL_ZONES), bắt buộc chỉ được xem nhân sự thuộc Ga/Zone của mình
       if ((req as any).user?.role === 'ZONE_ADMIN') {
-        zoneId = (req as any).user.assignedZoneId || 'NONE';
+        const assignedZone = String((req as any).user.assignedZoneId || '').trim().toUpperCase();
+        if (assignedZone && assignedZone !== 'ALL' && assignedZone !== 'ALL_ZONES') {
+          zoneId = (req as any).user.assignedZoneId;
+        }
       }
 
       const filters = {

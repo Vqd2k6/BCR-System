@@ -1,16 +1,22 @@
 -- Migration: 20261022_enforce_approved_parcel_guard.sql
--- Mục đích: Khóa cứng bảng parcels khi lô đất đã có hồ sơ khảo sát ở trạng thái APPROVED.
--- Ngăn chặn rò rỉ dữ liệu và bảo đảm tính bất biến pháp lý 100%.
+-- Mục đích: Khóa cứng bảng parcels khi lô đất đã có hồ sơ khảo sát cấp thửa/tổng thể (unit_id IS NULL) ở trạng thái APPROVED.
+-- Ngăn chặn rò rỉ dữ liệu và bảo đảm tính bất biến pháp lý 100%, đồng thời không khóa nhầm các căn hộ con khác của tòa chung cư.
 
 CREATE OR REPLACE FUNCTION check_parcel_approved_lock()
 RETURNS TRIGGER AS $$
 DECLARE
   v_has_approved BOOLEAN;
   v_report_code VARCHAR;
+  v_old_btype VARCHAR;
+  v_new_btype VARCHAR;
 BEGIN
+  -- Chuẩn hóa building_type ('CONDO' và 'CONDOMINIUM' là tương đương về mặt nghiệp vụ)
+  v_old_btype := CASE WHEN UPPER(COALESCE(OLD.building_type, '')) = 'CONDO' THEN 'CONDOMINIUM' ELSE UPPER(COALESCE(OLD.building_type, '')) END;
+  v_new_btype := CASE WHEN UPPER(COALESCE(NEW.building_type, '')) = 'CONDO' THEN 'CONDOMINIUM' ELSE UPPER(COALESCE(NEW.building_type, '')) END;
+
   -- Chỉ kiểm tra khi có sự thay đổi thực tế trên các trường cốt lõi
-  IF (OLD.house_number IS DISTINCT FROM NEW.house_number OR
-      OLD.street IS DISTINCT FROM NEW.street OR
+  IF (BTRIM(COALESCE(OLD.house_number, '')) IS DISTINCT FROM BTRIM(COALESCE(NEW.house_number, '')) OR
+      BTRIM(COALESCE(OLD.street, '')) IS DISTINCT FROM BTRIM(COALESCE(NEW.street, '')) OR
       OLD.ward IS DISTINCT FROM NEW.ward OR
       OLD.district IS DISTINCT FROM NEW.district OR
       OLD.owner_name IS DISTINCT FROM NEW.owner_name OR
@@ -18,13 +24,14 @@ BEGIN
       OLD.land_area_m2 IS DISTINCT FROM NEW.land_area_m2 OR
       OLD.construction_area_m2 IS DISTINCT FROM NEW.construction_area_m2 OR
       OLD.floor_count IS DISTINCT FROM NEW.floor_count OR
-      OLD.building_type IS DISTINCT FROM NEW.building_type OR
+      v_old_btype IS DISTINCT FROM v_new_btype OR
       OLD.cadastral_polygon_geom IS DISTINCT FROM NEW.cadastral_polygon_geom OR
       OLD.footprint_polygon_geom IS DISTINCT FROM NEW.footprint_polygon_geom) THEN
 
     SELECT TRUE, report_code INTO v_has_approved, v_report_code
     FROM base_survey_reports
     WHERE parcel_id = OLD.id
+      AND unit_id IS NULL
       AND status = 'APPROVED'
       AND deleted_at IS NULL
     LIMIT 1;

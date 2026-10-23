@@ -79,12 +79,14 @@ export class SurveyPackageMapper {
     const rawFoundation = surveyData?.specs?.foundationCategory || surveyData?.foundationType || surveyData?.specs?.foundationType;
 
     let foundationCategory = normalizeFoundationCategory(rawFoundation);
-    const score = surveyData?.foundationCatScore;
-    if (score === 1) foundationCategory = 'CAT_1_MONG_NONG_GIA_CO';
-    else if (score === 2) foundationCategory = 'CAT_2_MONG_DON_BTCT';
-    else if (score === 3) foundationCategory = 'CAT_3_MONG_BANG_BTCT';
-    else if (score === 4) foundationCategory = 'CAT_4_MONG_COC_BTCT';
-    else if (score === 5) foundationCategory = 'CAT_5_KHONG_XAC_DINH';
+    if (!rawFoundation && surveyData?.foundationCatScore !== undefined) {
+      const score = Number(surveyData.foundationCatScore);
+      if (score === 1) foundationCategory = 'CAT_4_MONG_COC_BTCT';
+      else if (score === 2) foundationCategory = 'CAT_3_MONG_BANG_BTCT';
+      else if (score === 3) foundationCategory = 'CAT_2_MONG_DON_BTCT';
+      else if (score === 4) foundationCategory = 'CAT_1_MONG_NONG_GIA_CO';
+      else if (score === 5) foundationCategory = 'CAT_5_KHONG_XAC_DINH';
+    }
 
     return {
       buildingName: surveyData?.specs?.buildingName || surveyData?.buildingName,
@@ -126,6 +128,10 @@ export class SurveyPackageMapper {
       const sag = surveyData.settlementTilt.beamSagging || {};
       const settle = surveyData.settlementTilt.diffSettlement || {};
       const anomaly = surveyData.settlementTilt.abnormalCase || {};
+      const computedE3 = Math.min(
+        4,
+        Math.max(Number(settle.level) || 0, Number(tilt.level) || 0, Number(sag.level) || 0)
+      );
 
       return {
         tiltAngleX: Number(tilt.xPermille) || 0,
@@ -133,6 +139,7 @@ export class SurveyPackageMapper {
         tiltDirection: tilt.direction ? String(tilt.direction) : null,
         floorSlopeRatio: Number(surveyData.settlementTilt.floorSlopeRatio) || 0,
         beamDeflectionMm: Number(sag.sagMm) || 0,
+        e3DeformationScore: surveyData?.ecs?.e3 !== undefined ? Number(surveyData.ecs.e3) : computedE3,
         measurementMethod: Array.isArray(surveyData.settlementTilt.dataSource)
           ? surveyData.settlementTilt.dataSource.join(', ')
           : (surveyData.settlementTilt.dataSource || 'LASER_LEVEL'),
@@ -154,6 +161,7 @@ export class SurveyPackageMapper {
         tiltDirection: surveyData.deformation.tiltDirection ? String(surveyData.deformation.tiltDirection) : null,
         floorSlopeRatio: Number(surveyData.deformation.floorSlopeRatio) || 0,
         beamDeflectionMm: Number(surveyData.deformation.beamDeflectionMm) || 0,
+        e3DeformationScore: Number(surveyData.deformation.e3DeformationScore ?? surveyData?.ecs?.e3 ?? 0),
         measurementMethod: surveyData.deformation.measurementMethod || 'LASER_LEVEL',
         measurementReliability: surveyData.deformation.measurementReliability || 'HIGH',
         diffSettlementPhotoCode: surveyData.deformation.diffSettlementPhotoCode || null,
@@ -224,9 +232,9 @@ export class SurveyPackageMapper {
     const cadElementPins = Array.isArray(surveyData?.cadElementPins) ? surveyData.cadElementPins : [];
     const hasStructuralElements = surveyData?.hasStructuralElements !== false;
 
-    // Helper tính Burland grade từ crack width
+    // Helper tính Burland grade từ crack width (theo chuẩn FE Phase 1: <= 0.1mm -> 0)
     const getBurlandGrade = (widthMm: number): number => {
-      if (widthMm < 0.1) return 0;
+      if (widthMm <= 0.1) return 0;
       if (widthMm <= 1.0) return 1;
       if (widthMm <= 5.0) return 2;
       if (widthMm <= 15.0) return 3;
@@ -275,13 +283,17 @@ export class SurveyPackageMapper {
             };
           });
 
-          const maxW = Math.max(...zDefects.map((d: any) => d.widthMaxMm), 0);
+          const crackDefects = zDefects.filter((d: any) => d.screeningCategory === 'CRACK');
+          const maxW = Math.max(...crackDefects.map((d: any) => d.widthMaxMm), 0);
+          const resolvedRoomName = (z.roomName === 'Khác' && z.customRoomName) ? z.customRoomName : (z.roomName || 'Không gian căn hộ');
+          const resolvedCompType = (z.componentType === 'Khác' && z.customComponentType) ? z.customComponentType : (z.componentType || 'WALL');
+          const resolvedWallMat = (z.wallMaterial === 'Khác' && z.customWallMaterial) ? z.customWallMaterial : (z.wallMaterial || 'Gạch trát vữa / Bê tông');
           return {
             zoneCode: zCode,
             floorName: z.floorName || floorName,
-            roomName: z.roomName || 'Không gian căn hộ',
-            componentType: z.componentType || 'WALL',
-            wallMaterial: z.wallMaterial || 'Gạch trát vữa / Bê tông',
+            roomName: resolvedRoomName,
+            componentType: resolvedCompType,
+            wallMaterial: resolvedWallMat,
             functionalImpactRepairNeeded: z.functionalImpactRepairNeeded ?? (maxW >= 1.0),
             burlandGrade: z.burlandGrade !== undefined ? Number(z.burlandGrade) : getBurlandGrade(maxW),
             ctxPhotoUrl: z.ctxPhotoUrl || '',
@@ -328,9 +340,9 @@ export class SurveyPackageMapper {
 
           return {
             elementCode: eCode,
-            roomName: e.roomName || 'Không gian căn hộ',
-            elementType: e.elementType || 'COLUMN',
-            materialType: e.materialType || 'Bê tông cốt thép (BTCT)',
+            roomName: (e.roomName === 'Khác' && e.customRoomName) ? e.customRoomName : (e.roomName || 'Không gian căn hộ'),
+            elementType: (e.elementType === 'Khác' && e.customElementType) ? e.customElementType : (e.elementType || 'COLUMN'),
+            materialType: (e.materialType === 'Khác' && e.customMaterialType) ? e.customMaterialType : (e.materialType || 'Bê tông cốt thép (BTCT)'),
             ctxPhotoUrl: e.ctxPhotoUrl || '',
             ctxPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
             overviewPhotos: Array.isArray(e.overviewPhotos) ? e.overviewPhotos : [],

@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   Move,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
@@ -31,6 +32,7 @@ interface ParcelDetailBottomSheetProps {
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
+  onOpenAuditReview?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   onSwapSuccess?: () => void;
   absenceRecordedToday: { [parcelId: string]: string };
@@ -44,6 +46,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   onStartSurvey,
   onStartPhase2,
   onOpenBuildingHub,
+  onOpenAuditReview,
   onProposeSplit,
   onSwapSuccess,
   absenceRecordedToday,
@@ -360,11 +363,11 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               </div>
             );
           }
-          if (activeEffectiveStatus === 'SUBMITTED') {
+          if (activeEffectiveStatus === 'SUBMITTED' || activeEffectiveStatus === 'UNDER_REVIEW') {
             return (
               <button
                 type="button"
-                className="btn btn-sm"
+                className="btn btn-sm cursor-pointer"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                 style={{
                   flex: 1.5,
@@ -537,6 +540,38 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             </button>
           );
         })()}
+
+        {/* Nút Thẩm Định Hồ Sơ (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN KHI ĐÃ NỘP / CHỜ DUYỆT) */}
+        {onOpenAuditReview &&
+          (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') &&
+          (activeEffectiveStatus === 'SUBMITTED' ||
+            activeEffectiveStatus === 'UNDER_REVIEW' ||
+            activeParcel.surveyStatus === 'SUBMITTED' ||
+            activeParcel.surveyStatus === 'UNDER_REVIEW') && (
+            <button
+              type="button"
+              className="btn btn-sm cursor-pointer"
+              onClick={() => onOpenAuditReview(activeParcel)}
+              style={{
+                fontSize: '0.775rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                backgroundColor: '#4f46e5',
+                color: '#ffffff',
+                border: '1px solid #4338ca',
+                padding: '0.5rem 0.85rem',
+                fontWeight: 700,
+                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                cursor: 'pointer',
+              }}
+              title="Chuyển đến Hàng Đợi Thẩm Định và tự động lọc theo mã thửa đất này (Admin Only)"
+            >
+              <ShieldCheck size={14} color="#ffffff" />
+              Thẩm định
+            </button>
+          )}
 
         {/* Nút Tách / Gộp Thửa Đất GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN - ẨN VỚI GUEST VÀ SURVEYOR) */}
         {onProposeSplit && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (

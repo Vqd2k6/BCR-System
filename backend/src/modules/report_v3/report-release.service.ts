@@ -40,7 +40,10 @@ export interface ReportReleaseRecord {
   filePath: string;
   fileSizeBytes: number;
   sha256: string;
+  snapshotVersionId?: string | null;
   releasedByUserId: string;
+  releasedByName?: string | null;
+  releasedByRole?: string | null;
   releasedAt: string;
   standardTextVersionId?: string | null;
   equipmentSnapshotJson?: unknown;
@@ -55,7 +58,10 @@ interface ReleaseRow {
   file_path: string;
   file_size_bytes: string | number;
   sha256: string;
+  snapshot_version_id?: string | null;
   released_by_user_id: string;
+  released_by_name?: string | null;
+  released_by_role?: string | null;
   released_at: Date;
   standard_text_version_id?: string | null;
   equipment_snapshot_json?: unknown;
@@ -71,8 +77,11 @@ function toRecord(row: ReleaseRow): ReportReleaseRecord {
     filePath: row.file_path,
     fileSizeBytes: Number(row.file_size_bytes),
     sha256: row.sha256,
+    snapshotVersionId: row.snapshot_version_id ?? null,
     releasedByUserId: row.released_by_user_id,
-    releasedAt: row.released_at.toISOString(),
+    releasedByName: row.released_by_name ?? null,
+    releasedByRole: row.released_by_role ?? null,
+    releasedAt: row.released_at instanceof Date ? row.released_at.toISOString() : String(row.released_at),
     standardTextVersionId: row.standard_text_version_id ?? null,
     equipmentSnapshotJson: row.equipment_snapshot_json ?? null,
   };
@@ -85,25 +94,104 @@ function releaseFilePath(reportId: string, revision: number): string {
 export class ReportReleaseService {
   public static async list(reportId: string): Promise<ReportReleaseRecord[]> {
     const res = await Database.query<ReleaseRow>(
-      `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-              released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
-       FROM report_releases
-       WHERE report_id = $1 AND deleted_at IS NULL
-       ORDER BY revision DESC;`,
+      `SELECT rr.id, rr.report_id, rr.revision, rr.reason, rr.is_final, rr.file_path,
+              rr.file_size_bytes, rr.sha256, rr.snapshot_version_id,
+              rr.released_by_user_id, u.full_name AS released_by_name, u.role::text AS released_by_role,
+              rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json
+       FROM report_releases rr
+       LEFT JOIN users u ON u.id = rr.released_by_user_id
+       WHERE rr.report_id = $1 AND rr.deleted_at IS NULL
+       ORDER BY rr.revision DESC;`,
       [reportId]
     );
     return res.rows.map(toRecord);
   }
 
+  /** Lấy tóm tắt tình trạng phát hành và kiểm tra xem có bản duyệt mới chờ phát hành Rev không */
+  public static async getReleaseSummary(reportId: string): Promise<{
+    releases: ReportReleaseRecord[];
+    latestRelease: ReportReleaseRecord | null;
+    hasPendingRelease: boolean;
+    currentExportRevision: number;
+  }> {
+    const releases = await this.list(reportId);
+    const latestRelease = releases[0] ?? null;
+
+    const repRes = await Database.query<{
+      export_revision: number;
+      status: string;
+      has_pending_flag: boolean;
+    }>(
+      `SELECT export_revision, status::text AS status,
+              COALESCE((survey_data_json->>'hasPendingRelease')::boolean, FALSE) AS has_pending_flag
+       FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    );
+    const currentExportRevision = repRes.rows[0]?.export_revision ?? 0;
+    const isApproved = repRes.rows[0]?.status === 'APPROVED';
+    const hasPendingFlag = Boolean(repRes.rows[0]?.has_pending_flag);
+
+    let hasPendingRelease = false;
+    if (isApproved) {
+      if (latestRelease) {
+        const pendingCheck = await Database.query<{ count: string }>(
+          `SELECT COUNT(*) AS count
+           FROM survey_report_versions v
+           WHERE v.report_id = $1
+             AND v.version_tag IN ('APPROVED_RELEASE', 'ADMIN_DIFF_SAVE', 'ROLLBACK_RESTORE')
+             AND v.created_at > (
+               SELECT MAX(rr.released_at)
+               FROM report_releases rr
+               WHERE rr.report_id = $1 AND rr.deleted_at IS NULL
+             )
+             AND v.id NOT IN (
+               SELECT rr.snapshot_version_id
+               FROM report_releases rr
+               WHERE rr.report_id = $1 AND rr.snapshot_version_id IS NOT NULL AND rr.deleted_at IS NULL
+             );`,
+          [reportId]
+        );
+        hasPendingRelease = Number(pendingCheck.rows[0]?.count || 0) > 0;
+      } else {
+        const multiApproveCheck = await Database.query<{ count: string }>(
+          `SELECT COUNT(*) AS count
+           FROM survey_report_versions
+           WHERE report_id = $1
+             AND version_tag = 'APPROVED_RELEASE';`,
+          [reportId]
+        );
+        hasPendingRelease =
+          (Number(multiApproveCheck.rows[0]?.count || 0) > 1 || hasPendingFlag) &&
+          currentExportRevision === 0;
+      }
+    }
+
+    return {
+      releases,
+      latestRelease,
+      hasPendingRelease,
+      currentExportRevision,
+    };
+  }
+
   public static async get(reportId: string, revision?: number): Promise<ReportReleaseRecord | null> {
     const res = await Database.query<ReleaseRow>(
       revision === undefined
-        ? `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-                  released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
-           FROM report_releases WHERE report_id = $1 AND deleted_at IS NULL ORDER BY revision DESC LIMIT 1;`
-        : `SELECT id, report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-                  released_by_user_id, released_at, standard_text_version_id, equipment_snapshot_json
-           FROM report_releases WHERE report_id = $1 AND revision = $2 AND deleted_at IS NULL LIMIT 1;`,
+        ? `SELECT rr.id, rr.report_id, rr.revision, rr.reason, rr.is_final, rr.file_path,
+                  rr.file_size_bytes, rr.sha256, rr.snapshot_version_id,
+                  rr.released_by_user_id, u.full_name AS released_by_name, u.role::text AS released_by_role,
+                  rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json
+           FROM report_releases rr
+           LEFT JOIN users u ON u.id = rr.released_by_user_id
+           WHERE rr.report_id = $1 AND rr.deleted_at IS NULL
+           ORDER BY rr.revision DESC LIMIT 1;`
+        : `SELECT rr.id, rr.report_id, rr.revision, rr.reason, rr.is_final, rr.file_path,
+                  rr.file_size_bytes, rr.sha256, rr.snapshot_version_id,
+                  rr.released_by_user_id, u.full_name AS released_by_name, u.role::text AS released_by_role,
+                  rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json
+           FROM report_releases rr
+           LEFT JOIN users u ON u.id = rr.released_by_user_id
+           WHERE rr.report_id = $1 AND rr.revision = $2 AND rr.deleted_at IS NULL LIMIT 1;`,
       revision === undefined ? [reportId] : [reportId, revision]
     );
     return res.rows[0] ? toRecord(res.rows[0]) : null;
@@ -159,10 +247,19 @@ export class ReportReleaseService {
     return this.issue(resolved.id, user, trimmed, false);
   }
 
-  /** D14: Zone Admin của đúng phân khu + Super Admin */
+  /** D14: Zone Admin của đúng phân khu (hoặc quyền ALL) + Super Admin */
   public static assertCanRelease(resolved: ResolvedReportV3, user: JwtPayload): void {
     if (user.role === 'SUPER_ADMIN') return;
-    if (user.role === 'ZONE_ADMIN' && user.assignedZoneId && user.assignedZoneId === resolved.zoneId) return;
+    if (user.role === 'ZONE_ADMIN' && user.assignedZoneId) {
+      const normalizedAssigned = user.assignedZoneId.trim().toUpperCase();
+      if (
+        normalizedAssigned === 'ALL' ||
+        normalizedAssigned === 'ALL_ZONES' ||
+        user.assignedZoneId === resolved.zoneId
+      ) {
+        return;
+      }
+    }
     throw new ForbiddenError('Chỉ Zone Admin của phân khu chứa hồ sơ này hoặc Super Admin mới được phát hành Rev mới');
   }
 
@@ -204,17 +301,56 @@ export class ReportReleaseService {
           );
           return toRecord(cur.rows[0]);
         }
-        const nextRev = hasAny ? Number(maxRev) + 1 : 0;
+        const nextRev = isFirstFinal
+          ? hasAny
+            ? Number(maxRev) + 1
+            : 0
+          : Math.max(hasAny ? Number(maxRev) + 1 : 1, (Number(rep.export_revision) || 0) + 1);
 
-        // Chụp lại điểm tại thời điểm phát hành Rev này
+        // Nếu đã có bản APPROVED_RELEASE mới nhất chưa được gắn với bản phát hành nào trong report_releases
+        // (ví dụ: vừa APPROVE lần đầu hoặc vừa APPROVE lại sau khi mở khóa), tái sử dụng bản chụp đó và cập nhật exportRevision = nextRev
         const approvedAt = rep.approved_at ?? new Date();
-        const snap = await ReportSnapshotService.writeApprovedRelease(
-          client,
-          reportId,
-          user.userId,
-          approvedAt,
-          `Phát hành Rev ${String(nextRev).padStart(2, '0')}`
-        );
+        const latestApprovedSnap = await ReportSnapshotService.getLatestApprovedSnapshot(reportId);
+        let canReuseLatestSnap = false;
+        if (
+          latestApprovedSnap &&
+          latestApprovedSnap.snapshot.frozenParcel &&
+          latestApprovedSnap.snapshot.frozenReportData
+        ) {
+          const linkCheck = await client.query<{ count: string }>(
+            `SELECT COUNT(*) AS count FROM report_releases WHERE report_id = $1 AND snapshot_version_id = $2 AND deleted_at IS NULL;`,
+            [reportId, latestApprovedSnap.versionId]
+          );
+          canReuseLatestSnap = Number(linkCheck.rows[0]?.count || 0) === 0;
+        }
+
+        let snap: { versionId: string; versionNumber: number; snapshot: typeof latestApprovedSnap extends null ? never : NonNullable<typeof latestApprovedSnap>['snapshot'] };
+        if (canReuseLatestSnap && latestApprovedSnap) {
+          const updatedSnapshot = {
+            ...latestApprovedSnap.snapshot,
+            exportRevision: nextRev,
+          };
+          await client.query(
+            `UPDATE survey_report_versions
+             SET snapshot_data = $1
+             WHERE id = $2;`,
+            [JSON.stringify(updatedSnapshot), latestApprovedSnap.versionId]
+          );
+          snap = {
+            versionId: latestApprovedSnap.versionId,
+            versionNumber: 0,
+            snapshot: updatedSnapshot,
+          };
+        } else {
+          snap = await ReportSnapshotService.writeApprovedRelease(
+            client,
+            reportId,
+            user.userId,
+            approvedAt,
+            `Phát hành Rev ${String(nextRev).padStart(2, '0')}`,
+            nextRev
+          );
+        }
 
         // Lấy cấu hình nội dung chuẩn & thiết bị hiện hành để ghim chặt vào bản Rev này
         const activeConfig = await ReportConfigService.getActiveConfig();
@@ -251,7 +387,14 @@ export class ReportReleaseService {
 
         await client.query(
           `UPDATE base_survey_reports
-           SET export_revision = $2, official_pdf_url = $3, updated_at = NOW()
+           SET export_revision = $2,
+               official_pdf_url = $3,
+               survey_data_json = CASE
+                 WHEN survey_data_json IS NOT NULL AND jsonb_typeof(survey_data_json) = 'object'
+                 THEN survey_data_json - 'hasPendingRelease'
+                 ELSE survey_data_json
+               END,
+               updated_at = NOW()
            WHERE id = $1;`,
           [reportId, nextRev, `/v3/reports/${reportId}/export/pdf?rev=${nextRev}`]
         );

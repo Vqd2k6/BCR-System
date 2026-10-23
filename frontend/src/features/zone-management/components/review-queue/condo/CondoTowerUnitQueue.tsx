@@ -49,9 +49,43 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
   onOpenAuditHistory,
   onStatsNeedRefresh,
 }) => {
-  const [activeTab, setActiveTab] = useState<TowerUnitTab>('ALL');
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const queueSessionKey = `ksqh_condo_tower_unit_queue_${towerParcelId}`;
+  const [activeTab, setActiveTab] = useState<TowerUnitTab>(() => {
+    try {
+      const saved = sessionStorage.getItem(queueSessionKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { activeTab?: TowerUnitTab };
+        if (parsed.activeTab) return parsed.activeTab;
+      }
+    } catch {
+      // ignore
+    }
+    return 'ALL';
+  });
+  const [searchInput, setSearchInput] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem(queueSessionKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { searchInput?: string };
+        if (typeof parsed.searchInput === 'string') return parsed.searchInput;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState(searchInput);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        queueSessionKey,
+        JSON.stringify({ activeTab, searchInput })
+      );
+    } catch {
+      // ignore
+    }
+  }, [queueSessionKey, activeTab, searchInput]);
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');

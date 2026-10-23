@@ -3,7 +3,7 @@ import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
-import { normalizeComponentType } from '../../survey/survey.dto';
+import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
 import { calculateDistancesFromPolygon } from '../../report_v2/utils/metro-spatial.utils';
 
 export interface PhotoActionItem {
@@ -166,6 +166,9 @@ export class AuditModificationService {
     if (!payload.adminPassword || !payload.adminPassword.trim()) {
       throw new UnauthorizedError('Bắt buộc nhập mật khẩu Zone Admin để xác thực quyền sửa đổi.');
     }
+    if (!payload.editReason || !payload.editReason.trim()) {
+      throw new BadRequestError('Bắt buộc phải chọn hoặc nhập lý do chỉnh sửa kiểm toán (editReason) trước khi lưu.');
+    }
 
     // 1. Kiểm tra mật khẩu tài khoản Admin
     const userRes = await Database.query<{ password_hash: string; role: string; full_name: string }>(
@@ -184,10 +187,12 @@ export class AuditModificationService {
     const reportRes = await Database.query<{
       id: string;
       parcel_id: string;
+      unit_id: string | null;
+      report_type: string | null;
       status: string;
       survey_data_json: any;
     }>(
-      `SELECT id, parcel_id, status, survey_data_json FROM base_survey_reports WHERE (id = $1 OR parcel_id = $1) LIMIT 1;`,
+      `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json FROM base_survey_reports WHERE (id = $1 OR parcel_id = $1) LIMIT 1;`,
       [reportId]
     );
     if (!reportRes.rows[0]) {
@@ -307,6 +312,29 @@ export class AuditModificationService {
       }
     }
 
+    // 3.2. Tự động khởi tạo phiên bản cơ sở v0 (ORIGINAL_SUBMISSION) TRƯỚC KHI ghi đè dữ liệu chỉnh sửa lần đầu
+    try {
+      const verCountRes = await Database.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      if (Number(verCountRes.rows[0]?.count || 0) === 0) {
+        const { AuditVersionService } = await import('./audit-version.service');
+        const repInfo = await Database.query<{ surveyor_id: string }>(
+          `SELECT surveyor_id FROM base_survey_reports WHERE id = $1;`,
+          [actualReportId]
+        );
+        await AuditVersionService.createSnapshot(actualReportId, {
+          versionTag: 'ORIGINAL_SUBMISSION',
+          title: 'Bản nộp thực địa ban đầu',
+          editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi chỉnh sửa thẩm định lần đầu (Auto-Seed Baseline v0)',
+          userId: repInfo.rows[0]?.surveyor_id,
+        });
+      }
+    } catch (seedV0Err: any) {
+      console.warn('[applyAdminSurveyEdit] Không thể tự động khởi tạo v0 trước chỉnh sửa:', seedV0Err?.message);
+    }
+
     // 4. Lưu CSDL trong Transaction
     const txResult = await Database.transaction(async (client) => {
       await client.query(
@@ -339,59 +367,120 @@ export class AuditModificationService {
         }
       }
 
-      await client.query(
-        `UPDATE parcels SET
-           house_number = COALESCE($1, house_number),
-           street = COALESCE($2, street),
-           ward = COALESCE($3, ward),
-           district = COALESCE($4, district),
-           owner_name = COALESCE($5, owner_name),
-           owner_phone = COALESCE($6, owner_phone),
-           official_cadastral_code = COALESCE($7, official_cadastral_code),
-           frontage_width = COALESCE($8, frontage_width),
-           lot_depth = COALESCE($9, lot_depth),
-           land_area_m2 = COALESCE($10, land_area_m2),
-           construction_area_m2 = COALESCE($11, construction_area_m2),
-           floor_count = COALESCE($12, floor_count),
-           location_geom = CASE 
-             WHEN $13::float IS NOT NULL AND $14::float IS NOT NULL 
-             THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326) 
-             ELSE location_geom 
-           END,
-           distance_to_centerline_m = COALESCE($16, distance_to_centerline_m),
-           cadastral_polygon_geom = CASE 
-             WHEN $17::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($17), 4326) 
-             ELSE cadastral_polygon_geom 
-           END,
-           updated_at = NOW()
-         WHERE id = $15;`,
-        [
-          u.houseNumber !== undefined && u.houseNumber !== '' ? u.houseNumber : null,
-          u.street !== undefined && u.street !== '' ? u.street : null,
-          u.ward !== undefined && u.ward !== '' ? u.ward : null,
-          u.district !== undefined && u.district !== '' ? u.district : null,
-          u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
-          u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
-          u.officialCadastralCode !== undefined && u.officialCadastralCode !== '' ? u.officialCadastralCode : null,
-          u.frontageWidth !== undefined && u.frontageWidth !== '' ? Number(u.frontageWidth) : null,
-          u.lotDepth !== undefined && u.lotDepth !== '' ? Number(u.lotDepth) : null,
-          u.landAreaM2 !== undefined && u.landAreaM2 !== '' ? Number(u.landAreaM2) : null,
-          u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
-          u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
-          latVal !== null && latVal !== undefined && !isNaN(latVal) ? Number(latVal) : null,
-          lngVal !== null && lngVal !== undefined && !isNaN(lngVal) ? Number(lngVal) : null,
-          report.parcel_id,
-          recalculatedCenterlineM,
-          newCadastralGeoJsonStr,
-        ]
-      );
+      const isChildUnit = Boolean(report.unit_id) || report.report_type === 'CONDO_UNIT' || report.report_type === 'UNIT_CHILD';
 
-      // 4.2. Cập nhật base_survey_reports metadata nếu có
+      if (!isChildUnit) {
+        await client.query(
+          `UPDATE parcels SET
+             house_number = COALESCE($1, house_number),
+             street = COALESCE($2, street),
+             ward = COALESCE($3, ward),
+             district = COALESCE($4, district),
+             owner_name = COALESCE($5, owner_name),
+             owner_phone = COALESCE($6, owner_phone),
+             official_cadastral_code = COALESCE($7, official_cadastral_code),
+             frontage_width = COALESCE($8, frontage_width),
+             lot_depth = COALESCE($9, lot_depth),
+             land_area_m2 = COALESCE($10, land_area_m2),
+             construction_area_m2 = COALESCE($11, construction_area_m2),
+             floor_count = COALESCE($12, floor_count),
+             location_geom = CASE 
+               WHEN $13::float IS NOT NULL AND $14::float IS NOT NULL 
+               THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326) 
+               ELSE location_geom 
+             END,
+             distance_to_centerline_m = COALESCE($16, distance_to_centerline_m),
+             cadastral_polygon_geom = CASE 
+               WHEN $17::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($17), 4326) 
+               ELSE cadastral_polygon_geom 
+             END,
+             updated_at = NOW()
+           WHERE id = $15;`,
+          [
+            u.houseNumber !== undefined && u.houseNumber !== '' ? u.houseNumber : null,
+            u.street !== undefined && u.street !== '' ? u.street : null,
+            u.ward !== undefined && u.ward !== '' ? u.ward : null,
+            u.district !== undefined && u.district !== '' ? u.district : null,
+            u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
+            u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
+            u.officialCadastralCode !== undefined && u.officialCadastralCode !== '' ? u.officialCadastralCode : null,
+            u.frontageWidth !== undefined && u.frontageWidth !== '' ? Number(u.frontageWidth) : null,
+            u.lotDepth !== undefined && u.lotDepth !== '' ? Number(u.lotDepth) : null,
+            u.landAreaM2 !== undefined && u.landAreaM2 !== '' ? Number(u.landAreaM2) : null,
+            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
+            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+            latVal !== null && latVal !== undefined && !isNaN(latVal) ? Number(latVal) : null,
+            lngVal !== null && lngVal !== undefined && !isNaN(lngVal) ? Number(lngVal) : null,
+            report.parcel_id,
+            recalculatedCenterlineM,
+            newCadastralGeoJsonStr,
+          ]
+        );
+      } else if (report.unit_id) {
+        await client.query('SAVEPOINT audit_unit_update_sp;');
+        try {
+          await client.query(
+            `UPDATE building_units SET
+               owner_name = COALESCE($1, owner_name),
+               owner_phone = COALESCE($2, owner_phone),
+               owner_id_card = COALESCE($3, owner_id_card),
+               resident_status = COALESCE($4, resident_status),
+               display_code = COALESCE($5, display_code),
+               updated_at = NOW()
+             WHERE id = $6;`,
+            [
+              u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
+              u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
+              u.ownerIdCard !== undefined && u.ownerIdCard !== '' ? u.ownerIdCard : null,
+              u.residentStatus !== undefined && u.residentStatus !== '' ? u.residentStatus : null,
+              u.displayCode !== undefined && u.displayCode !== '' ? u.displayCode : null,
+              report.unit_id,
+            ]
+          );
+          await client.query('RELEASE SAVEPOINT audit_unit_update_sp;');
+        } catch {
+          await client.query('ROLLBACK TO SAVEPOINT audit_unit_update_sp;');
+          const fallbackStatus = u.residentStatus === 'CHO_THUÊ'
+            ? 'CHO_THUÊ'
+            : (u.residentStatus === 'BỎ_TRỐNG_CHƯA_VỀ_Ở' || u.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' || u.residentStatus === 'ĐỂ_TRỐNG')
+              ? 'ĐỂ_TRỐNG'
+              : 'CHỦ_HỘ_Ở';
+          await client.query(
+            `UPDATE building_units SET
+               owner_name = COALESCE($1, owner_name),
+               owner_phone = COALESCE($2, owner_phone),
+               owner_id_card = COALESCE($3, owner_id_card),
+               resident_status = COALESCE($4, resident_status),
+               display_code = COALESCE($5, display_code),
+               updated_at = NOW()
+             WHERE id = $6;`,
+            [
+              u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
+              u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
+              u.ownerIdCard !== undefined && u.ownerIdCard !== '' ? u.ownerIdCard : null,
+              u.residentStatus ? fallbackStatus : null,
+              u.displayCode !== undefined && u.displayCode !== '' ? u.displayCode : null,
+              report.unit_id,
+            ]
+          );
+        }
+      }
+
+      // 4.2. Cập nhật base_survey_reports metadata & survey_scopes nếu có
       const sigs = u.signatures || {};
       const exec = u.executiveSummary || {};
       const cleanSurveyDate = (u.surveyDate && typeof u.surveyDate === 'string' && u.surveyDate.trim() !== '') 
         ? u.surveyDate.trim() 
         : null;
+      const summaryConclusionsVal = u.summaryConclusions !== undefined
+        ? u.summaryConclusions
+        : (exec.summaryConclusions !== undefined ? exec.summaryConclusions : null);
+      const engRecsVal = exec.specificRecommendationsText !== undefined
+        ? exec.specificRecommendationsText
+        : (u.engineeringRecommendations !== undefined ? u.engineeringRecommendations : null);
+      const ownerRemarksVal = sigs.ownerFeedback !== undefined
+        ? sigs.ownerFeedback
+        : (u.ownerFeedback !== undefined ? u.ownerFeedback : (u.ownerRemarks !== undefined ? u.ownerRemarks : null));
 
       await client.query(
         `UPDATE base_survey_reports SET
@@ -400,33 +489,88 @@ export class AuditModificationService {
            owner_signature_url = COALESCE($3, owner_signature_url),
            owner_remarks = COALESCE($4, owner_remarks),
            engineering_recommendations = COALESCE($5, engineering_recommendations),
+           summary_conclusions = COALESCE($6, summary_conclusions),
            updated_at = NOW()
-         WHERE id = $6;`,
+         WHERE id = $7;`,
         [
           cleanSurveyDate,
           sigs.surveyorSignature || sigs.surveyorSignatureUrl || u.surveyorSignatureUrl || null,
           sigs.ownerSignature || sigs.ownerSignatureUrl || u.ownerSignatureUrl || null,
-          sigs.ownerFeedback || u.ownerRemarks || null,
-          exec.specificRecommendationsText || u.engineeringRecommendations || null,
+          ownerRemarksVal,
+          engRecsVal,
+          summaryConclusionsVal,
           actualReportId,
         ]
       );
 
-      // 4.3. Cập nhật building_specifications
+      if (u.accessLimitation || u.surveyScope || u.inaccessibleAreas !== undefined || u.accessibilityLimitations !== undefined) {
+        const accLim = mergedJson.accessLimitation || {};
+        const accType = accLim.type || u.accessLimitation?.type;
+        let coverage: 'TOAN_BO' | 'MOT_PHAN' | 'KHONG_THE_TIEP_CAN' = 'TOAN_BO';
+        if (accType === 'LIMITED' || accType === 'PARTIAL') coverage = 'MOT_PHAN';
+        else if (accType === 'ABSENT_REFUSED' || accType === 'REFUSED' || accType === 'ABSENTEE' || mergedJson.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
+
+        const inaccessibleStr = Array.isArray(accLim.restrictedAreas) && accLim.restrictedAreas.length > 0
+          ? accLim.restrictedAreas.join(', ')
+          : (u.inaccessibleAreas !== undefined ? u.inaccessibleAreas : null);
+        const limitationNotes = accLim.notes !== undefined
+          ? accLim.notes
+          : (accLim.mainReason !== undefined ? accLim.mainReason : (u.accessibilityLimitations !== undefined ? u.accessibilityLimitations : null));
+
+        await client.query(
+          `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (report_id) DO UPDATE SET
+             survey_coverage = EXCLUDED.survey_coverage,
+             inaccessible_areas = COALESCE($3, survey_scopes.inaccessible_areas),
+             accessibility_limitations = COALESCE($4, survey_scopes.accessibility_limitations);`,
+          [actualReportId, coverage, inaccessibleStr, limitationNotes]
+        );
+      }
+
+      // 4.3. Cập nhật building_specifications (UPSERT đầy đủ mọi cột kỹ thuật)
+      const normStructSys = u.structureSystem !== undefined && u.structureSystem !== ''
+        ? normalizeStructuralSystem(u.structureSystem)
+        : null;
+      const normFoundCat = u.foundationType !== undefined && u.foundationType !== ''
+        ? normalizeFoundationCategory(u.foundationType)
+        : null;
+      const normBuildingGrade = u.objectGroup !== undefined && u.objectGroup !== ''
+        ? (['GENERAL', 'IMPORTANT', 'CRITICAL'].includes(String(u.objectGroup).toUpperCase()) ? String(u.objectGroup).toUpperCase() : 'GENERAL')
+        : null;
+
       await client.query(
-        `UPDATE building_specifications SET
-           building_name = COALESCE($1, building_name),
-           floor_count = COALESCE($2, floor_count),
-           basement_count = COALESCE($3, basement_count),
-           land_use_function = COALESCE($4, land_use_function),
-           year_of_construction = COALESCE($5, year_of_construction),
-           is_year_estimated = COALESCE($6, is_year_estimated),
-           foundation_depth_m = COALESCE($7, foundation_depth_m),
-           foundation_density = COALESCE($8, foundation_density),
-           foundation_spacing_m = COALESCE($9, foundation_spacing_m),
-           foundation_notes = COALESCE($10, foundation_notes),
-           adjacent_buildings = COALESCE($11, adjacent_buildings)
-         WHERE report_id = $12;`,
+        `INSERT INTO building_specifications (
+           report_id, building_name, building_grade, adjacent_buildings, structural_system,
+           floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+           construction_area_m2, building_height_m, foundation_source,
+           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+           land_use_function
+         ) VALUES (
+           $12, $1, COALESCE($13::building_grade_enum, 'GENERAL'::building_grade_enum), $11, COALESCE($14::structural_system_enum, 'KHUNG_BTCT_CHIU_LUC'::structural_system_enum),
+           COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
+           $16, $17, $18,
+           $7, $8, $9, $10,
+           $4
+         )
+         ON CONFLICT (report_id) DO UPDATE SET
+           building_name = COALESCE($1, building_specifications.building_name),
+           floor_count = COALESCE($2, building_specifications.floor_count),
+           basement_count = COALESCE($3, building_specifications.basement_count),
+           land_use_function = COALESCE($4, building_specifications.land_use_function),
+           year_of_construction = COALESCE($5, building_specifications.year_of_construction),
+           is_year_estimated = COALESCE($6, building_specifications.is_year_estimated),
+           foundation_depth_m = COALESCE($7, building_specifications.foundation_depth_m),
+           foundation_density = COALESCE($8, building_specifications.foundation_density),
+           foundation_spacing_m = COALESCE($9, building_specifications.foundation_spacing_m),
+           foundation_notes = COALESCE($10, building_specifications.foundation_notes),
+           adjacent_buildings = COALESCE($11, building_specifications.adjacent_buildings),
+           building_grade = COALESCE($13::building_grade_enum, building_specifications.building_grade),
+           structural_system = COALESCE($14::structural_system_enum, building_specifications.structural_system),
+           foundation_category = COALESCE($15::foundation_category_enum, building_specifications.foundation_category),
+           construction_area_m2 = COALESCE($16, building_specifications.construction_area_m2),
+           building_height_m = COALESCE($17, building_specifications.building_height_m),
+           foundation_source = COALESCE($18, building_specifications.foundation_source);`,
         [
           u.buildingName !== undefined ? u.buildingName : null,
           u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
@@ -435,15 +579,21 @@ export class AuditModificationService {
           u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
           u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
           u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
-          u.foundationDensity !== undefined && u.foundationDensity !== '' ? Number(u.foundationDensity) : null,
-          u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' ? Number(u.foundationSpacingM) : null,
+          u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
+          u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
           u.foundationNotes !== undefined ? u.foundationNotes : null,
           u.adjacentBuildings ? (typeof u.adjacentBuildings === 'object' ? JSON.stringify(u.adjacentBuildings) : u.adjacentBuildings) : null,
           actualReportId,
+          normBuildingGrade,
+          normStructSys,
+          normFoundCat,
+          u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
+          u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
+          u.foundationSource !== undefined ? String(u.foundationSource) : null,
         ]
       );
 
-      // 4.4. Cập nhật historical_sensitivities
+      // 4.4. Cập nhật historical_sensitivities (UPSERT)
       const hi = u.historyInterview;
       if (hi) {
         const qScores = [
@@ -458,79 +608,188 @@ export class AuditModificationService {
         const e5Score = countHigh >= 2 ? 4 : maxQ;
 
         await client.query(
-          `UPDATE historical_sensitivities SET
-             extended_or_renovated = COALESCE($1, extended_or_renovated),
-             previous_settlement_or_tilt = COALESCE($2, previous_settlement_or_tilt),
-             fire_or_accident = COALESCE($3, fire_or_accident),
-             sensitive_equipment_present = COALESCE($4, sensitive_equipment_present),
-             details = COALESCE($5, details),
-             e5_history_score = COALESCE($6, e5_history_score)
-           WHERE report_id = $7;`,
+          `INSERT INTO historical_sensitivities (
+             report_id, extended_or_renovated, previous_settlement_or_tilt, fire_or_accident,
+             sensitive_equipment_present, details, e5_history_score
+           ) VALUES ($7, COALESCE($1, false), COALESCE($2, false), COALESCE($3, false), COALESCE($4, false), $5, COALESCE($6, 0))
+           ON CONFLICT (report_id) DO UPDATE SET
+             extended_or_renovated = COALESCE($1, historical_sensitivities.extended_or_renovated),
+             previous_settlement_or_tilt = COALESCE($2, historical_sensitivities.previous_settlement_or_tilt),
+             fire_or_accident = COALESCE($3, historical_sensitivities.fire_or_accident),
+             sensitive_equipment_present = COALESCE($4, historical_sensitivities.sensitive_equipment_present),
+             details = COALESCE($5, historical_sensitivities.details),
+             e5_history_score = COALESCE($6, historical_sensitivities.e5_history_score);`,
           [
             hi.renovationLoad !== undefined ? Number(hi.renovationLoad) > 0 : null,
             hi.pastSettlement !== undefined ? Number(hi.pastSettlement) > 0 : null,
             hi.fireFloodIncident !== undefined ? Number(hi.fireFloodIncident) > 0 : null,
             hi.sensitiveEquipment?.has !== undefined ? Boolean(hi.sensitiveEquipment.has) : null,
-            hi.renovationNotes || hi.majorRepairNotes || hi.pastSettlementNotes || null,
+            hi.renovationNotes || hi.majorRepairNotes || hi.pastSettlementNotes || JSON.stringify(hi),
             e5Score,
             actualReportId,
           ]
         );
       }
 
-      // 4.5. Cập nhật deformation_assessments
+      // 4.5. Cập nhật deformation_assessments (UPSERT kèm đồng bộ JSON ảnh P-05, P-06, P-07)
       const st = u.settlementTilt || u.deformation;
       if (st) {
         const tilt = st.buildingTilt || st.tiltAssessment || {};
         const beam = st.beamSagging || {};
         const diff = st.diffSettlement || {};
+        const abn = st.abnormalCase || {};
         const lDiff = Number(diff.level) || 0;
         const lTilt = Number(tilt.level) || 0;
         const lSag = Number(beam.level) || 0;
         const e3Score = Math.min(4, Math.max(lDiff, lTilt, lSag));
 
-        const tiltX = tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) / 10 : (tilt.tilt_x_permille !== undefined ? Number(tilt.tilt_x_permille) / 10 : null);
-        const tiltY = tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) / 10 : (tilt.tilt_y_permille !== undefined ? Number(tilt.tilt_y_permille) / 10 : null);
+        const tiltX = tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) : (tilt.tilt_x_permille !== undefined ? Number(tilt.tilt_x_permille) : null);
+        const tiltY = tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) : (tilt.tilt_y_permille !== undefined ? Number(tilt.tilt_y_permille) : null);
         const tiltDir = tilt.direction || tilt.tilt_direction || null;
         const beamSag = beam.sagMm !== undefined && beam.sagMm !== '' ? Number(beam.sagMm) : null;
+        const rawRel = String(st.reliability || '').toUpperCase();
+        const normReliability = ['HIGH', 'MEDIUM', 'LOW'].includes(rawRel)
+          ? rawRel
+          : rawRel.includes('THẤP') ? 'LOW' : rawRel.includes('TRUNG') ? 'MEDIUM' : (st.reliability ? 'HIGH' : null);
+
+        const diffPhotosJson = Array.isArray(diff.photos) ? JSON.stringify(diff.photos) : null;
+        const tiltPhotosJson = Array.isArray(tilt.photos) ? JSON.stringify(tilt.photos) : null;
+        const abnPhotosJson = Array.isArray(abn.photos) ? JSON.stringify(abn.photos) : null;
 
         await client.query(
           `INSERT INTO deformation_assessments (
              report_id, tilt_angle_x, tilt_angle_y, tilt_direction, beam_deflection_mm,
-             measurement_reliability, e3_deformation_score
-           ) VALUES ($1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0), COALESCE($6::reliability_enum, 'HIGH'), COALESCE($7, 0))
+             measurement_reliability, e3_deformation_score,
+             diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
+           ) VALUES (
+             $1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0),
+             COALESCE($6::reliability_enum, 'HIGH'), COALESCE($7, 0),
+             COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb), COALESCE($10::jsonb, '[]'::jsonb)
+           )
            ON CONFLICT (report_id) DO UPDATE SET
              tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x),
              tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y),
              tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
              beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm),
              measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
-             e3_deformation_score = COALESCE($7, deformation_assessments.e3_deformation_score);`,
+             e3_deformation_score = COALESCE($7, deformation_assessments.e3_deformation_score),
+             diff_settlement_photos_json = COALESCE($8::jsonb, deformation_assessments.diff_settlement_photos_json),
+             tilt_photos_json = COALESCE($9::jsonb, deformation_assessments.tilt_photos_json),
+             abnormal_photos_json = COALESCE($10::jsonb, deformation_assessments.abnormal_photos_json);`,
           [
             actualReportId,
             tiltX,
             tiltY,
             tiltDir,
             beamSag,
-            st.reliability || null,
+            normReliability,
             e3Score,
+            diffPhotosJson,
+            tiltPhotosJson,
+            abnPhotosJson,
           ]
         );
       }
 
-      // 4.6. Đồng bộ damage_zones & defect_items nếu floors hoặc damageZones thay đổi (Reconciliation & Soft-Delete)
+      // 4.5b. Đồng bộ bảng survey_identification_photos nếu P01..P04 (hoặc additionalPhotos của P03) được chỉnh sửa trực tiếp trong updates
+      if (u.photoP01 !== undefined || u.photoP02 !== undefined || u.photoP03 !== undefined || u.photoP04 !== undefined) {
+        const syncIdentItem = async (pObj: any, stdType: string) => {
+          if (!pObj || typeof pObj !== 'object') return;
+          const equivTypes = getEquivalentIdentPhotoTypes(stdType);
+          const isNa = Boolean(pObj.notApplicable || pObj.isNotApplicable);
+          const urlVal = isNa ? null : (pObj.url || pObj.rawPhotoUrl || null);
+          const naReasonVal = isNa ? (pObj.naReason || 'Không áp dụng') : null;
+          const updRes = await client.query(
+            `UPDATE survey_identification_photos
+             SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = $2, na_reason = $3
+             WHERE report_id = $4 AND photo_type::text = ANY($5::text[]);`,
+            [urlVal, isNa, naReasonVal, actualReportId, equivTypes]
+          );
+          if (updRes.rowCount === 0 && (urlVal || isNa)) {
+            await client.query(
+              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
+               VALUES ($1, $2, $3, $4, $5);`,
+              [actualReportId, equivTypes[1] || stdType, urlVal, isNa, naReasonVal]
+            );
+          }
+        };
+        if (u.photoP01) await syncIdentItem(u.photoP01, 'P01_HOUSE_NUMBER');
+        if (u.photoP02) await syncIdentItem(u.photoP02, 'P02_MAIN_FACADE');
+        if (u.photoP04) await syncIdentItem(u.photoP04, 'P04_CONTEXT_STREET');
+        if (u.photoP03 && typeof u.photoP03 === 'object') {
+          const equivP03 = getEquivalentIdentPhotoTypes('P03_SIDE_OR_REAR');
+          await client.query(
+            `DELETE FROM survey_identification_photos WHERE report_id = $1 AND photo_type::text = ANY($2::text[]);`,
+            [actualReportId, equivP03]
+          );
+          const p03IsNa = Boolean(u.photoP03.notApplicable || u.photoP03.isNotApplicable);
+          const p03MainUrl = p03IsNa ? null : (u.photoP03.url || null);
+          if (p03MainUrl || p03IsNa) {
+            await client.query(
+              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable, na_reason)
+               VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4, $5);`,
+              [
+                actualReportId,
+                p03MainUrl,
+                JSON.stringify({ tag: u.photoP03.tag || 'Bên hông trái' }),
+                p03IsNa,
+                p03IsNa ? (u.photoP03.naReason || 'Không áp dụng') : null,
+              ]
+            );
+          }
+          if (!p03IsNa && Array.isArray(u.photoP03.additionalPhotos)) {
+            for (const addItem of u.photoP03.additionalPhotos) {
+              const addUrl = typeof addItem === 'string' ? addItem : addItem?.url;
+              const addTag = (typeof addItem === 'object' ? addItem?.tag : null) || 'Bên hông';
+              if (addUrl) {
+                await client.query(
+                  `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable)
+                   VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, false);`,
+                  [actualReportId, addUrl, JSON.stringify({ tag: addTag, isAdditional: true })]
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // 4.6. Đồng bộ floor_surveys, damage_zones & defect_items nếu floors hoặc damageZones thay đổi (Reconciliation & Soft-Delete)
       if (u.floors || u.damageZones) {
         const floorsToSync = Array.isArray(u.floors) && u.floors.length > 0
           ? u.floors
           : (Array.isArray(u.damageZones) && u.damageZones.length > 0 ? [{ floorName: 'Tầng trệt', zones: u.damageZones }] : []);
 
         if (floorsToSync.length > 0) {
-          const existingZonesRes = await client.query<{ id: string; zone_code: string; is_deleted: boolean }>(
-            `SELECT id, zone_code, is_deleted FROM damage_zones WHERE report_id = $1;`,
+          const existingZonesRes = await client.query<{ id: string; zone_code: string; floor_name: string | null; is_deleted: boolean }>(
+            `SELECT id, zone_code, floor_name, is_deleted FROM damage_zones WHERE report_id = $1;`,
             [actualReportId]
           );
-          const existingZoneMap = new Map<string, { id: string; is_deleted: boolean }>();
-          existingZonesRes.rows.forEach((r) => existingZoneMap.set(r.zone_code, r));
+          const claimedZoneIds = new Set<string>();
+          const resolveExistingZoneId = (rawId: any, floorName: string, code: string): string | null => {
+            const idStr = rawId ? String(rawId) : '';
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(idStr)) {
+              const byId = existingZonesRes.rows.find((r) => r.id === idStr && !claimedZoneIds.has(r.id));
+              if (byId) {
+                claimedZoneIds.add(byId.id);
+                return byId.id;
+              }
+            }
+            const byFloorAndCode = existingZonesRes.rows.find(
+              (r) => !claimedZoneIds.has(r.id) && (r.floor_name || '') === floorName && r.zone_code === code
+            );
+            if (byFloorAndCode) {
+              claimedZoneIds.add(byFloorAndCode.id);
+              return byFloorAndCode.id;
+            }
+            const byCodeOnly = existingZonesRes.rows.find(
+              (r) => !claimedZoneIds.has(r.id) && r.zone_code === code
+            );
+            if (byCodeOnly) {
+              claimedZoneIds.add(byCodeOnly.id);
+              return byCodeOnly.id;
+            }
+            return null;
+          };
 
           const existingDefectsRes = await client.query<{ id: string; defect_code: string; zone_id: string; is_deleted: boolean }>(
             `SELECT d.id, d.defect_code, d.zone_id, d.is_deleted
@@ -539,39 +798,143 @@ export class AuditModificationService {
              WHERE z.report_id = $1;`,
             [actualReportId]
           );
-          const existingDefectMap = new Map<string, { id: string; zone_id: string; is_deleted: boolean }>();
-          existingDefectsRes.rows.forEach((d) => {
-            existingDefectMap.set(`${d.zone_id}:${d.defect_code}`, d);
-          });
+          const claimedDefectIds = new Set<string>();
+          const resolveExistingDefectId = (rawId: any, zoneId: string, dCode: string): string | null => {
+            const idStr = rawId ? String(rawId) : '';
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(idStr)) {
+              const byId = existingDefectsRes.rows.find(
+                (d) => d.id === idStr && d.zone_id === zoneId && !claimedDefectIds.has(d.id)
+              );
+              if (byId) {
+                claimedDefectIds.add(byId.id);
+                return byId.id;
+              }
+            }
+            const byZoneAndCode = existingDefectsRes.rows.find(
+              (d) => !claimedDefectIds.has(d.id) && d.zone_id === zoneId && d.defect_code === dCode
+            );
+            if (byZoneAndCode) {
+              claimedDefectIds.add(byZoneAndCode.id);
+              return byZoneAndCode.id;
+            }
+            return null;
+          };
 
           const activeZoneIds = new Set<string>();
           const activeDefectIds = new Set<string>();
 
-          for (const f of floorsToSync) {
+          const isCrackDefect = (cat?: string | null, type?: string | null): boolean => {
+            const catStr = (cat || '').toLowerCase();
+            const typeStr = (type || '').toLowerCase();
+            const full = `${catStr} ${typeStr}`;
+            if (
+              full.includes('thấm dột') ||
+              full.includes('ẩm mốc') ||
+              full.includes('kẹt cửa') ||
+              full.includes('cong vênh') ||
+              full.includes('bong rộp') ||
+              full.includes('bong tróc') ||
+              full.includes('rỉ sét') ||
+              full.includes('water_leak') ||
+              full.includes('seepage')
+            ) {
+              return typeStr.includes('nứt') || typeStr.includes('crack');
+            }
+            return full.includes('nứt') || full.includes('crack') || !full.trim();
+          };
+
+          const calcDefectBurlandGrade = (wMm: number): number => {
+            if (wMm <= 0.1) return 0;
+            if (wMm <= 1) return 1;
+            if (wMm <= 5) return 2;
+            if (wMm <= 15) return 3;
+            if (wMm <= 25) return 4;
+            return 5;
+          };
+
+          for (let fIdx = 0; fIdx < floorsToSync.length; fIdx++) {
+            const f = floorsToSync[fIdx];
+            const floorNameVal = f.floorName || f.floor_name || `Tầng ${fIdx + 1}`;
             const zones = Array.isArray(f.zones) ? f.zones : [];
+            const cadZonePins = Array.isArray(f.cadZonePins) ? f.cadZonePins : [];
+
             for (const z of zones) {
+              const isZoneDeleted = Boolean(z.isDeleted || z.is_deleted);
               const compType = normalizeComponentType(z.componentType || z.customComponentType);
               const zCode = z.zoneCode || z.zone_code || 'Z-01';
+              const zFloorName = z.floorName || z.floor_name || floorNameVal;
+
+              // Đồng bộ hai chiều tọa độ ghim giữa cadZonePins và đối tượng zone z
+              const matchingCadPin = cadZonePins.find((p: any) => (p.zoneCode || p.zone_code || p.label) === zCode);
+              if (matchingCadPin) {
+                if (z.pinX !== undefined && z.pinY !== undefined && matchingCadPin.pinX === undefined) {
+                  matchingCadPin.pinX = Number(z.pinX);
+                  matchingCadPin.pinY = Number(z.pinY);
+                  matchingCadPin.pin_x = Number(z.pinX);
+                  matchingCadPin.pin_y = Number(z.pinY);
+                } else if (matchingCadPin.pinX !== undefined || matchingCadPin.pin_x !== undefined) {
+                  z.pinX = Number(matchingCadPin.pinX ?? matchingCadPin.pin_x);
+                  z.pinY = Number(matchingCadPin.pinY ?? matchingCadPin.pin_y);
+                }
+                if (isZoneDeleted) {
+                  matchingCadPin.is_deleted = true;
+                  matchingCadPin.isDeleted = true;
+                } else {
+                  delete matchingCadPin.is_deleted;
+                  delete matchingCadPin.isDeleted;
+                }
+              } else if ((z.pinX !== undefined || z.pin_x !== undefined) && (z.pinY !== undefined || z.pin_y !== undefined)) {
+                cadZonePins.push({
+                  id: `pin-z-${zCode}-${fIdx}`,
+                  zoneCode: zCode,
+                  label: zCode,
+                  pinX: Number(z.pinX ?? z.pin_x),
+                  pinY: Number(z.pinY ?? z.pin_y),
+                  pin_x: Number(z.pinX ?? z.pin_x),
+                  pin_y: Number(z.pinY ?? z.pin_y),
+                  type: 'ZONE',
+                  ...(isZoneDeleted ? { is_deleted: true, isDeleted: true } : {}),
+                });
+              }
+
+              const rawDefects = Array.isArray(z.defects) ? z.defects : [];
+              const activeZDefects = rawDefects.filter((d: any) => !d.isDeleted && !d.is_deleted);
+              const maxZDefectBurland = activeZDefects.reduce((maxG: number, d: any) => {
+                if (!isCrackDefect(d.screeningCategory, d.defectType)) return maxG;
+                const dGrade =
+                  d.burlandGrade !== undefined && d.burlandGrade !== null
+                    ? Number(d.burlandGrade)
+                    : calcDefectBurlandGrade(Number(d.widthMaxMm ?? d.width_max_mm ?? d.widthMm) || 0);
+                return Math.max(maxG, dGrade);
+              }, 0);
+              const zBurlandGrade =
+                (z.burlandGrade ?? z.burland_grade) !== undefined && (z.burlandGrade ?? z.burland_grade) !== null
+                  ? Math.max(Number(z.burlandGrade ?? z.burland_grade) || 0, maxZDefectBurland)
+                  : maxZDefectBurland;
+
+              const matchedZoneId = resolveExistingZoneId(z.id, zFloorName, zCode);
               let zoneId: string;
 
-              if (existingZoneMap.has(zCode)) {
-                zoneId = existingZoneMap.get(zCode)!.id;
+              if (matchedZoneId) {
+                zoneId = matchedZoneId;
                 await client.query(
                   `UPDATE damage_zones SET
-                     floor_name = $1, room_name = $2, component_type = $3,
-                     wall_material = $4, functional_impact_repair_needed = $5, burland_grade = $6,
-                     ctx_photo_url = COALESCE(NULLIF($7, ''), ctx_photo_url), notes = $8,
-                     is_deleted = false
-                   WHERE id = $9;`,
+                     zone_code = $1, floor_name = $2, room_name = $3, component_type = $4,
+                     wall_material = $5, functional_impact_repair_needed = $6, burland_grade = $7,
+                     ctx_photo_url = COALESCE(NULLIF($8, ''), ctx_photo_url), notes = $9,
+                     is_deleted = $10
+                   WHERE id = $11;`,
                   [
-                    z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
+                    zCode,
+                    zFloorName,
                     z.roomName || z.room_name || 'Không gian chính',
                     compType,
                     z.wallMaterial || z.wall_material || null,
                     Boolean(z.functionalImpactRepairNeeded),
-                    Number(z.burlandGrade ?? z.burland_grade) || 0,
+                    zBurlandGrade,
                     z.ctxPhotoUrl || z.ctx_photo_url || '',
                     z.notes || null,
+                    isZoneDeleted,
                     zoneId,
                   ]
                 );
@@ -581,31 +944,35 @@ export class AuditModificationService {
                      report_id, zone_code, floor_name, room_name, component_type,
                      wall_material, functional_impact_repair_needed, burland_grade,
                      ctx_photo_url, notes, is_deleted
-                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                    RETURNING id;`,
                   [
                     actualReportId,
                     zCode,
-                    z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
+                    zFloorName,
                     z.roomName || z.room_name || 'Không gian chính',
                     compType,
                     z.wallMaterial || z.wall_material || null,
                     Boolean(z.functionalImpactRepairNeeded),
-                    Number(z.burlandGrade ?? z.burland_grade) || 0,
+                    zBurlandGrade,
                     z.ctxPhotoUrl || z.ctx_photo_url || '',
                     z.notes || null,
+                    isZoneDeleted,
                   ]
                 );
                 zoneId = zRes.rows[0].id;
-                existingZoneMap.set(zCode, { id: zoneId, is_deleted: false });
+                claimedZoneIds.add(zoneId);
               }
-              activeZoneIds.add(zoneId);
+              z.id = zoneId;
+              if (!isZoneDeleted) {
+                activeZoneIds.add(zoneId);
+              }
 
               const defects = Array.isArray(z.defects) ? z.defects : [];
               if (zoneId && defects.length > 0) {
                 for (const d of defects) {
+                  const isDefectDeleted = Boolean(d.isDeleted || d.is_deleted) || isZoneDeleted;
                   const dCode = d.defectCode || d.defect_code || 'D-01';
-                  const dKey = `${zoneId}:${dCode}`;
                   const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
                   const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
                   const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
@@ -614,21 +981,24 @@ export class AuditModificationService {
                     : (primaryCuUrl ? [primaryCuUrl] : []);
                   const cuPhotosJson = JSON.stringify(cuPhotosList);
                   const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+
+                  const matchedDefectId = resolveExistingDefectId(d.id, zoneId, dCode);
                   let defectId: string;
 
-                  if (existingDefectMap.has(dKey)) {
-                    defectId = existingDefectMap.get(dKey)!.id;
+                  if (matchedDefectId) {
+                    defectId = matchedDefectId;
                     await client.query(
                       `UPDATE defect_items SET
-                         pin_x = $1, pin_y = $2, screening_category = $3, defect_type = $4,
-                         crack_direction = $5, width_max_mm = $6, length_mm = $7, activity_state = $8,
-                         material_degradation_e4 = $9, structural_significance_e2 = $10, has_scale_card = $11,
-                         is_structural_critical = $12, cu_photo_url = COALESCE(NULLIF($13, ''), cu_photo_url),
-                         extra_photo_url = COALESCE($14, extra_photo_url), pin_color = $15,
-                         cu_photo_code = COALESCE($16, cu_photo_code), cu_photos_json = $17,
-                         is_deleted = false
-                       WHERE id = $18;`,
+                         defect_code = $1, pin_x = $2, pin_y = $3, screening_category = $4, defect_type = $5,
+                         crack_direction = $6, width_max_mm = $7, length_mm = $8, activity_state = $9,
+                         material_degradation_e4 = $10, structural_significance_e2 = $11, has_scale_card = $12,
+                         is_structural_critical = $13, cu_photo_url = COALESCE(NULLIF($14, ''), cu_photo_url),
+                         extra_photo_url = COALESCE($15, extra_photo_url), pin_color = $16,
+                         cu_photo_code = COALESCE($17, cu_photo_code), cu_photos_json = $18,
+                         is_deleted = $19
+                       WHERE id = $20;`,
                       [
+                        dCode,
                         Number(d.pinX ?? d.pin_x) || 0,
                         Number(d.pinY ?? d.pin_y) || 0,
                         d.screeningCategory || d.defectType || 'CRACK',
@@ -646,6 +1016,7 @@ export class AuditModificationService {
                         d.pinColor || '#ef4444',
                         primaryCuCode,
                         cuPhotosJson,
+                        isDefectDeleted,
                         defectId,
                       ]
                     );
@@ -657,7 +1028,7 @@ export class AuditModificationService {
                          material_degradation_e4, structural_significance_e2, has_scale_card,
                          is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
                          cu_photo_code, cu_photos_json, is_deleted
-                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, false)
+                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                        RETURNING id;`,
                       [
                         zoneId,
@@ -679,40 +1050,95 @@ export class AuditModificationService {
                         d.pinColor || '#ef4444',
                         primaryCuCode,
                         cuPhotosJson,
+                        isDefectDeleted,
                       ]
                     );
                     defectId = dRes.rows[0].id;
-                    existingDefectMap.set(dKey, { id: defectId, zone_id: zoneId, is_deleted: false });
+                    claimedDefectIds.add(defectId);
                   }
-                  activeDefectIds.add(defectId);
+                  d.id = defectId;
+                  if (!isDefectDeleted) {
+                    activeDefectIds.add(defectId);
+                  }
                 }
               }
             }
+            f.cadZonePins = cadZonePins;
 
             // Đồng bộ cả cấu kiện chịu lực kết cấu E vào damage_zones
             const elements = Array.isArray(f.structuralElements) ? f.structuralElements : [];
+            const cadElementPins = Array.isArray(f.cadElementPins) ? f.cadElementPins : [];
             for (const el of elements) {
+              const isElDeleted = Boolean(el.isDeleted || el.is_deleted);
               const compType = normalizeComponentType(el.elementType || el.componentType || 'COLUMN');
               const elCode = el.elementCode || el.zone_code || el.zoneCode || 'E-01';
+              const elFloorName = el.floorName || el.floor_name || floorNameVal;
+
+              // Đồng bộ hai chiều tọa độ ghim giữa cadElementPins và đối tượng el
+              const matchingElPin = cadElementPins.find((p: any) => (p.zoneCode || p.zone_code || p.elementCode || p.label) === elCode);
+              if (matchingElPin) {
+                if (el.pinX !== undefined && el.pinY !== undefined && matchingElPin.pinX === undefined) {
+                  matchingElPin.pinX = Number(el.pinX);
+                  matchingElPin.pinY = Number(el.pinY);
+                  matchingElPin.pin_x = Number(el.pinX);
+                  matchingElPin.pin_y = Number(el.pinY);
+                } else if (matchingElPin.pinX !== undefined || matchingElPin.pin_x !== undefined) {
+                  el.pinX = Number(matchingElPin.pinX ?? matchingElPin.pin_x);
+                  el.pinY = Number(matchingElPin.pinY ?? matchingElPin.pin_y);
+                }
+                if (isElDeleted) {
+                  matchingElPin.is_deleted = true;
+                  matchingElPin.isDeleted = true;
+                } else {
+                  delete matchingElPin.is_deleted;
+                  delete matchingElPin.isDeleted;
+                }
+              } else if ((el.pinX !== undefined || el.pin_x !== undefined) && (el.pinY !== undefined || el.pin_y !== undefined)) {
+                cadElementPins.push({
+                  id: `pin-e-${elCode}-${fIdx}`,
+                  zoneCode: elCode,
+                  elementCode: elCode,
+                  label: elCode,
+                  pinX: Number(el.pinX ?? el.pin_x),
+                  pinY: Number(el.pinY ?? el.pin_y),
+                  pin_x: Number(el.pinX ?? el.pin_x),
+                  pin_y: Number(el.pinY ?? el.pin_y),
+                  type: 'STRUCTURAL',
+                  ...(isElDeleted ? { is_deleted: true, isDeleted: true } : {}),
+                });
+              }
+
+              const rawElDefects = Array.isArray(el.defects) ? el.defects : [];
+              const activeElDefects = rawElDefects.filter((d: any) => !d.isDeleted && !d.is_deleted);
+              // Theo chuẩn Burland 1977 & FE Phase 1 (Step4_BurlandSummary.tsx): Cấu kiện kết cấu BTCT E-xx không tính cấp Burland
+              const elBurlandGrade =
+                (el.burlandGrade ?? el.burland_grade) !== undefined && (el.burlandGrade ?? el.burland_grade) !== null
+                  ? Number(el.burlandGrade ?? el.burland_grade) || 0
+                  : 0;
+
+              const matchedElZoneId = resolveExistingZoneId(el.id, elFloorName, elCode);
               let elZoneId: string;
 
-              if (existingZoneMap.has(elCode)) {
-                elZoneId = existingZoneMap.get(elCode)!.id;
+              if (matchedElZoneId) {
+                elZoneId = matchedElZoneId;
                 await client.query(
                   `UPDATE damage_zones SET
-                     floor_name = $1, room_name = $2, component_type = $3,
-                     wall_material = $4, functional_impact_repair_needed = $5,
-                     ctx_photo_url = COALESCE(NULLIF($6, ''), ctx_photo_url), notes = $7,
-                     is_deleted = false
-                   WHERE id = $8;`,
+                     zone_code = $1, floor_name = $2, room_name = $3, component_type = $4,
+                     wall_material = $5, functional_impact_repair_needed = $6, burland_grade = $7,
+                     ctx_photo_url = COALESCE(NULLIF($8, ''), ctx_photo_url), notes = $9,
+                     is_deleted = $10
+                   WHERE id = $11;`,
                   [
-                    el.floorName || f.floorName || 'Tầng trệt',
+                    elCode,
+                    elFloorName,
                     el.roomName || 'Cấu kiện kết cấu',
                     compType,
                     el.materialType || el.wallMaterial || 'BTCT',
-                    Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
+                    Boolean(el.hasDamage || activeElDefects.length > 0),
+                    elBurlandGrade,
                     el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
                     el.notes || null,
+                    isElDeleted,
                     elZoneId,
                   ]
                 );
@@ -722,31 +1148,35 @@ export class AuditModificationService {
                      report_id, zone_code, floor_name, room_name, component_type,
                      wall_material, functional_impact_repair_needed, burland_grade,
                      ctx_photo_url, notes, is_deleted
-                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                    RETURNING id;`,
                   [
                     actualReportId,
                     elCode,
-                    el.floorName || f.floorName || 'Tầng trệt',
+                    elFloorName,
                     el.roomName || 'Cấu kiện kết cấu',
                     compType,
                     el.materialType || el.wallMaterial || 'BTCT',
-                    Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
-                    0,
+                    Boolean(el.hasDamage || activeElDefects.length > 0),
+                    elBurlandGrade,
                     el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
                     el.notes || null,
+                    isElDeleted,
                   ]
                 );
                 elZoneId = elRes.rows[0].id;
-                existingZoneMap.set(elCode, { id: elZoneId, is_deleted: false });
+                claimedZoneIds.add(elZoneId);
               }
-              activeZoneIds.add(elZoneId);
+              el.id = elZoneId;
+              if (!isElDeleted) {
+                activeZoneIds.add(elZoneId);
+              }
 
               const defects = Array.isArray(el.defects) ? el.defects : [];
               if (elZoneId && defects.length > 0) {
                 for (const d of defects) {
+                  const isDefectDeleted = Boolean(d.isDeleted || d.is_deleted) || isElDeleted;
                   const dCode = d.defectCode || d.defect_code || 'D-01';
-                  const dKey = `${elZoneId}:${dCode}`;
                   const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
                   const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
                   const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
@@ -755,21 +1185,24 @@ export class AuditModificationService {
                     : (primaryCuUrl ? [primaryCuUrl] : []);
                   const cuPhotosJson = JSON.stringify(cuPhotosList);
                   const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+
+                  const matchedDefectId = resolveExistingDefectId(d.id, elZoneId, dCode);
                   let defectId: string;
 
-                  if (existingDefectMap.has(dKey)) {
-                    defectId = existingDefectMap.get(dKey)!.id;
+                  if (matchedDefectId) {
+                    defectId = matchedDefectId;
                     await client.query(
                       `UPDATE defect_items SET
-                         pin_x = $1, pin_y = $2, screening_category = $3, defect_type = $4,
-                         crack_direction = $5, width_max_mm = $6, length_mm = $7, activity_state = $8,
-                         material_degradation_e4 = $9, structural_significance_e2 = $10, has_scale_card = $11,
-                         is_structural_critical = $12, cu_photo_url = COALESCE(NULLIF($13, ''), cu_photo_url),
-                         extra_photo_url = COALESCE($14, extra_photo_url), pin_color = $15,
-                         cu_photo_code = COALESCE($16, cu_photo_code), cu_photos_json = $17,
-                         is_deleted = false
-                       WHERE id = $18;`,
+                         defect_code = $1, pin_x = $2, pin_y = $3, screening_category = $4, defect_type = $5,
+                         crack_direction = $6, width_max_mm = $7, length_mm = $8, activity_state = $9,
+                         material_degradation_e4 = $10, structural_significance_e2 = $11, has_scale_card = $12,
+                         is_structural_critical = $13, cu_photo_url = COALESCE(NULLIF($14, ''), cu_photo_url),
+                         extra_photo_url = COALESCE($15, extra_photo_url), pin_color = $16,
+                         cu_photo_code = COALESCE($17, cu_photo_code), cu_photos_json = $18,
+                         is_deleted = $19
+                       WHERE id = $20;`,
                       [
+                        dCode,
                         Number(d.pinX ?? d.pin_x) || 0,
                         Number(d.pinY ?? d.pin_y) || 0,
                         d.screeningCategory || d.defectType || 'CRACK',
@@ -787,6 +1220,7 @@ export class AuditModificationService {
                         d.pinColor || '#ef4444',
                         primaryCuCode,
                         cuPhotosJson,
+                        isDefectDeleted,
                         defectId,
                       ]
                     );
@@ -798,7 +1232,7 @@ export class AuditModificationService {
                          material_degradation_e4, structural_significance_e2, has_scale_card,
                          is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
                          cu_photo_code, cu_photos_json, is_deleted
-                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, false)
+                       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                        RETURNING id;`,
                       [
                         elZoneId,
@@ -820,16 +1254,61 @@ export class AuditModificationService {
                         d.pinColor || '#ef4444',
                         primaryCuCode,
                         cuPhotosJson,
+                        isDefectDeleted,
                       ]
                     );
                     defectId = dRes.rows[0].id;
-                    existingDefectMap.set(dKey, { id: defectId, zone_id: elZoneId, is_deleted: false });
+                    claimedDefectIds.add(defectId);
                   }
-                  activeDefectIds.add(defectId);
+                  d.id = defectId;
+                  if (!isDefectDeleted) {
+                    activeDefectIds.add(defectId);
+                  }
                 }
               }
             }
+            f.cadElementPins = cadElementPins;
           }
+
+          // Đồng bộ bảng SQL floor_surveys khi có danh sách tầng (u.floors)
+          if (Array.isArray(u.floors) && u.floors.length > 0) {
+            await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [actualReportId]);
+            for (let i = 0; i < u.floors.length; i++) {
+              const fl = u.floors[i];
+              await client.query(
+                `INSERT INTO floor_surveys (
+                   report_id, floor_name, floor_order, overview_photos_json,
+                   cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+                [
+                  actualReportId,
+                  fl.floorName || fl.floor_name || `Tầng ${i + 1}`,
+                  i + 1,
+                  JSON.stringify(fl.overviewPhotos || []),
+                  fl.cadDrawingUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || null,
+                  JSON.stringify(fl.cadZonePins || []),
+                  fl.cadStructuralDrawingUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || null,
+                  JSON.stringify(fl.cadElementPins || []),
+                  fl.notes || null,
+                ]
+              );
+            }
+            mergedJson.floors = u.floors;
+            mergedJson.damageZones = u.floors.flatMap((fl: any) =>
+              (Array.isArray(fl.zones) ? fl.zones : []).map((z: any) => ({
+                ...z,
+                floorName: z.floorName || fl.floorName,
+              }))
+            );
+          } else if (Array.isArray(u.damageZones)) {
+            mergedJson.damageZones = u.damageZones;
+          }
+
+          // Cập nhật lại survey_data_json với các UUID và tọa độ ghim đã chuẩn hóa
+          await client.query(
+            `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
+            [JSON.stringify(mergedJson), actualReportId]
+          );
 
           // Xóa mềm các zone và defect không còn xuất hiện trong payload
           if (activeZoneIds.size > 0) {
@@ -917,9 +1396,148 @@ export class AuditModificationService {
     });
 
     // 4.7. Tự động kích hoạt tính lại toàn bộ điểm rủi ro (Raw Scores) theo Ground Truth mới SAU KHI commit
+    // và đồng bộ các chỉnh sửa trực tiếp ở Bước 7 (ecs / vi) vào risk_score_cards & survey_data_json
     try {
       const { ScoringService } = await import('../../scoring/scoring.service');
-      await ScoringService.calculatePhase1Scores(actualReportId);
+      const calcRes = await ScoringService.calculatePhase1Scores(actualReportId);
+      const calcScores = calcRes?.scores;
+
+      const uObj = (payload.updates && typeof payload.updates === 'object') ? payload.updates : {};
+      const uEcs = (uObj.ecs && typeof uObj.ecs === 'object') ? uObj.ecs : null;
+      const uVi = (uObj.vi && typeof uObj.vi === 'object') ? uObj.vi : null;
+
+      const curEcs = (mergedJson.ecs && typeof mergedJson.ecs === 'object') ? mergedJson.ecs : {};
+      const curVi = (mergedJson.vi && typeof mergedJson.vi === 'object') ? mergedJson.vi : {};
+
+      const hasEcsInputUpdate =
+        curEcs.e1 === undefined ||
+        ['floors', 'damageZones', 'burlandSummary', 'settlementTilt', 'deformation', 'historyInterview', 'operationalDefects'].some(
+          (k) => uObj[k] !== undefined
+        );
+      const hasViInputUpdate =
+        hasEcsInputUpdate ||
+        curVi.v1 === undefined ||
+        ['usageFunction', 'surveyCaseType', 'isVacantLand', 'objectGroup', 'structureSystem', 'foundationCatScore', 'constructionYear'].some(
+          (k) => uObj[k] !== undefined
+        );
+
+      const e1 = uEcs?.e1 !== undefined ? Number(uEcs.e1) : (hasEcsInputUpdate ? (calcScores?.e1Burland ?? Number(curEcs.e1 ?? 0)) : Number(curEcs.e1 ?? calcScores?.e1Burland ?? 0));
+      const e2 = uEcs?.e2 !== undefined ? Number(uEcs.e2) : (hasEcsInputUpdate ? (calcScores?.e2Structure ?? Number(curEcs.e2 ?? 0)) : Number(curEcs.e2 ?? calcScores?.e2Structure ?? 0));
+      const e3 = uEcs?.e3 !== undefined ? Number(uEcs.e3) : (hasEcsInputUpdate ? (calcScores?.e3Deformation ?? Number(curEcs.e3 ?? 0)) : Number(curEcs.e3 ?? calcScores?.e3Deformation ?? 0));
+      const e4 = uEcs?.e4 !== undefined ? Number(uEcs.e4) : (hasEcsInputUpdate ? (calcScores?.e4Material ?? Number(curEcs.e4 ?? 0)) : Number(curEcs.e4 ?? calcScores?.e4Material ?? 0));
+      const e5 = uEcs?.e5 !== undefined ? Number(uEcs.e5) : (hasEcsInputUpdate ? (calcScores?.e5History ?? Number(curEcs.e5 ?? 0)) : Number(curEcs.e5 ?? calcScores?.e5History ?? 0));
+      const e6 = uEcs?.e6 !== undefined ? Number(uEcs.e6) : (hasEcsInputUpdate ? (calcScores?.e6Function ?? Number(curEcs.e6 ?? 0)) : Number(curEcs.e6 ?? calcScores?.e6Function ?? 0));
+      const totalEcs = uEcs?.totalEcs !== undefined ? Number(uEcs.totalEcs) : (e1 + e2 + e3 + e4 + e5 + e6);
+      const ecsClass: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' =
+        totalEcs <= 5 ? 'GOOD' : totalEcs <= 10 ? 'MEDIUM' : totalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
+
+      const v1 = uVi?.v1 !== undefined ? Number(uVi.v1) : (hasViInputUpdate ? (calcScores?.v1 ?? Number(curVi.v1 ?? 2)) : Number(curVi.v1 ?? calcScores?.v1 ?? 2));
+      const v2 = uVi?.v2 !== undefined ? Number(uVi.v2) : (hasViInputUpdate ? (calcScores?.v2 ?? Number(curVi.v2 ?? 2)) : Number(curVi.v2 ?? calcScores?.v2 ?? 2));
+      const v3 = uVi?.v3 !== undefined ? Number(uVi.v3) : (hasViInputUpdate ? (calcScores?.v3 ?? (curVi.v3 !== undefined ? Number(curVi.v3) : null)) : (curVi.v3 !== undefined ? Number(curVi.v3) : (calcScores?.v3 ?? null)));
+      const v4 = uVi?.v4 !== undefined ? Number(uVi.v4) : (hasViInputUpdate ? (calcScores?.v4 ?? (curVi.v4 !== undefined ? Number(curVi.v4) : null)) : (curVi.v4 !== undefined ? Number(curVi.v4) : (calcScores?.v4 ?? null)));
+      const v5 = uVi?.v5 !== undefined ? Number(uVi.v5) : (ecsClass === 'CRITICAL' ? 4 : ecsClass === 'DEFICIENT' ? 3 : ecsClass === 'MEDIUM' ? 2 : 1);
+      const v6 = uVi?.v6 !== undefined ? Number(uVi.v6) : (hasViInputUpdate ? (calcScores?.v6 ?? Number(curVi.v6 ?? 1)) : Number(curVi.v6 ?? calcScores?.v6 ?? 1));
+
+      const hasAllV = v3 !== null && v4 !== null && Number.isFinite(v3) && Number.isFinite(v4);
+      const totalVi = hasAllV ? (v1 + v2 + Number(v3) + Number(v4) + v5 + v6) : null;
+      const avgVi = totalVi !== null ? Number((totalVi / 6).toFixed(2)) : null;
+      const viClass = avgVi === null ? null : (avgVi > 3.25 ? 'VERY_HIGH' : avgVi > 2.5 ? 'HIGH' : avgVi > 1.5 ? 'MEDIUM' : 'LOW');
+
+      // Đồng bộ chỉnh sửa Impact (I1..I4) và BRA (LOW/MEDIUM/HIGH/VERY_HIGH) từ Bước 8 (executiveSummary)
+      const uExec = (payload.updates?.executiveSummary && typeof payload.updates.executiveSummary === 'object')
+        ? payload.updates.executiveSummary
+        : null;
+      const rawExecImpact = String(uExec?.constructionImpactStatus || mergedJson.executiveSummary?.constructionImpactStatus || '').toUpperCase();
+      const execImpactMatch = rawExecImpact.match(/\b(I[1-4])\b/);
+      const explicitICode = execImpactMatch ? execImpactMatch[1] : null;
+      if (uExec?.constructionImpactStatus && explicitICode) {
+        mergedJson.impactAssessment = {
+          ...(mergedJson.impactAssessment && typeof mergedJson.impactAssessment === 'object' ? mergedJson.impactAssessment : {}),
+          iCode: explicitICode,
+          code: explicitICode,
+        };
+      }
+
+      const rawExecBra = String(uExec?.braStatus || '').toUpperCase();
+      let explicitBraPair: { code: string; vi: string; en: string } | null = null;
+      if (rawExecBra === 'LOW' || rawExecBra === 'VERY_LOW') {
+        explicitBraPair = { code: 'LOW', vi: 'Rủi ro thấp', en: 'Low Risk' };
+      } else if (rawExecBra === 'MEDIUM' || rawExecBra === 'MODERATE') {
+        explicitBraPair = { code: 'MEDIUM', vi: 'Rủi ro trung bình', en: 'Medium Risk' };
+      } else if (rawExecBra === 'HIGH') {
+        explicitBraPair = { code: 'HIGH', vi: 'Rủi ro cao', en: 'High Risk' };
+      } else if (rawExecBra === 'VERY_HIGH' || rawExecBra === 'CRITICAL') {
+        explicitBraPair = { code: 'VERY_HIGH', vi: 'Rủi ro rất cao', en: 'Very High Risk' };
+      }
+
+      if (explicitBraPair) {
+        mergedJson.braAssessment = {
+          ...(mergedJson.braAssessment && typeof mergedJson.braAssessment === 'object' ? mergedJson.braAssessment : {}),
+          finalRiskLevelVi: explicitBraPair.vi,
+          finalRiskLevelEn: explicitBraPair.en,
+          riskLevelVi: explicitBraPair.vi,
+          riskLevelEn: explicitBraPair.en,
+          braStatus: explicitBraPair.code,
+        };
+      } else if (uVi || uEcs) {
+        // Nếu chỉ sửa điểm thành phần ở Bước 7 mà không ép cứng BRA ở Bước 8, xóa cache braAssessment cũ để tính lại theo ma trận V × I
+        delete mergedJson.braAssessment;
+        if (mergedJson.executiveSummary && typeof mergedJson.executiveSummary === 'object') {
+          delete mergedJson.executiveSummary.braStatus;
+        }
+      }
+
+      const explicitImpactNum = explicitICode ? Number(explicitICode.replace('I', '')) : null;
+
+      await Database.query(
+        `UPDATE risk_score_cards SET
+           e1_burland_score = $2,
+           e2_structure_score = $3,
+           e3_deformation_score = $4,
+           e4_material_score = $5,
+           e5_history_score = $6,
+           e6_overall_function_score = $7,
+           total_ecs_score = $8,
+           ecs_class = $9,
+           v1_importance_score = $10,
+           v2_structure_score = $11,
+           v3_foundation_score = $12,
+           v4_age_score = $13,
+           v5_ecs_score = $14,
+           v6_sensitivity_score = $15,
+           avg_vi_score = $16,
+           vi_class = $17,
+           overridden_impact_level_i = COALESCE($18, overridden_impact_level_i),
+           overridden_bra = COALESCE($19, overridden_bra)
+         WHERE report_id = $1;`,
+        [
+          actualReportId,
+          e1, e2, e3, e4, e5, e6,
+          totalEcs, ecsClass,
+          v1, v2, v3, v4, v5, v6,
+          avgVi, viClass,
+          explicitImpactNum,
+          explicitBraPair?.code || null,
+        ]
+      );
+
+      mergedJson.ecs = {
+        ...curEcs,
+        e1, e2, e3, e4, e5, e6,
+        totalEcs,
+        ecsClass,
+      };
+      mergedJson.vi = {
+        ...curVi,
+        v1, v2, v3, v4, v5, v6,
+        ...(totalVi !== null ? { totalVi } : {}),
+        ...(avgVi !== null ? { viAvg: avgVi, avgVi } : {}),
+        ...(viClass !== null ? { viClass } : {}),
+      };
+      await Database.query(
+        `UPDATE base_survey_reports SET survey_data_json = $1 WHERE id = $2;`,
+        [JSON.stringify(mergedJson), actualReportId]
+      );
 
       // Kiểm tra nếu hồ sơ đã có phán quyết kỹ sư trưởng (Engineering Judgement)
       const judgementCheck = await Database.query<{
@@ -1095,6 +1713,29 @@ export class AuditModificationService {
         diffCount: diffPayload.length,
       },
     };
+
+    // 3.0. Tự động khởi tạo phiên bản cơ sở v0 (ORIGINAL_SUBMISSION) TRƯỚC KHI ghi đè dữ liệu chỉnh sửa lần đầu
+    try {
+      const verCountRes = await Database.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      if (Number(verCountRes.rows[0]?.count || 0) === 0) {
+        const { AuditVersionService } = await import('./audit-version.service');
+        const repInfo = await Database.query<{ surveyor_id: string }>(
+          `SELECT surveyor_id FROM base_survey_reports WHERE id = $1;`,
+          [actualReportId]
+        );
+        await AuditVersionService.createSnapshot(actualReportId, {
+          versionTag: 'ORIGINAL_SUBMISSION',
+          title: 'Bản nộp thực địa ban đầu',
+          editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi chỉnh sửa thẩm định lần đầu (Auto-Seed Baseline v0)',
+          userId: repInfo.rows[0]?.surveyor_id,
+        });
+      }
+    } catch (seedV0Err: any) {
+      console.warn('[saveStagedModifications] Không thể tự động khởi tạo v0 trước chỉnh sửa:', seedV0Err?.message);
+    }
 
     await Database.transaction(async (client) => {
       // 3.1. Cập nhật base_survey_reports
@@ -1389,18 +2030,36 @@ export class AuditModificationService {
     reason: string,
     clientIp?: string
   ) {
-    const repRes = await Database.query<{ id: string; parcel_id: string; zone_id: string; project_parcel_code: string }>(
-      `SELECT r.id, r.parcel_id, p.zone_id, p.project_parcel_code 
+    const repRes = await Database.query<{
+      id: string;
+      parcel_id: string;
+      unit_id: string | null;
+      report_type: string | null;
+      zone_id: string;
+      project_parcel_code: string;
+    }>(
+      `SELECT r.id, r.parcel_id, r.unit_id, r.report_type, p.zone_id, p.project_parcel_code 
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
-       WHERE r.id = $1;`,
+       WHERE r.id = $1 AND r.deleted_at IS NULL;`,
       [reportId]
     );
     if (!repRes.rows[0]) {
       throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
     }
-    const oldParcelId = repRes.rows[0].parcel_id;
-    const currentZoneId = repRes.rows[0].zone_id;
+
+    const repRow = repRes.rows[0];
+    if (
+      repRow.unit_id ||
+      ['CONDO_UNIT', 'UNIT_CHILD', 'MASTER_AREA', 'CONDO_MASTER_AREA'].includes(repRow.report_type || '')
+    ) {
+      throw new BadRequestError(
+        'Hồ sơ căn hộ con hoặc khu vực mặt bằng chung cư không được phép hoán đổi ranh thửa đất GIS của toàn bộ tòa nhà mẹ. Vui lòng sử dụng chức năng "Hoán đổi vị trí CAD" trong Quản lý Tòa nhà Chung cư.'
+      );
+    }
+
+    const oldParcelId = repRow.parcel_id;
+    const currentZoneId = repRow.zone_id;
 
     // Làm sạch chuỗi đầu vào triệt để (loại bỏ ngoặc vuông [], ngoặc kép "", ngoặc đơn '', escape, khoảng trắng)
     const cleanTarget = (targetParcelIdOrCode || '')
@@ -1445,13 +2104,35 @@ export class AuditModificationService {
       );
     }
 
+    const effectiveReason = reason || 'Điều chuyển vị trí ranh đất không gian GIS do KSV tích nhầm polygon trên bản đồ';
     const swapResult = await CadastralService.swapParcelGeometries(
       oldParcelId,
       targetParcel.id,
       adminId,
-      reason || 'Điều chuyển vị trí ranh đất không gian GIS do KSV tích nhầm polygon trên bản đồ',
+      effectiveReason,
       clientIp
     );
+
+    try {
+      const { AuditVersionService } = await import('./audit-version.service');
+      await AuditVersionService.createSnapshot(reportId, {
+        versionTag: 'PARCEL_SWAP',
+        title: `Hoán đổi vị trí ranh đất GIS với thửa [${targetParcel.project_parcel_code}]`,
+        editReason: effectiveReason,
+        userId: adminId,
+        clientIp,
+        diffSummary: [
+          {
+            field: 'cadastral_polygon_geom',
+            label: 'Ranh giới không gian GIS',
+            oldValue: repRow.project_parcel_code,
+            newValue: targetParcel.project_parcel_code,
+          },
+        ],
+      });
+    } catch (snapErr) {
+      console.error('[reassignReportParcel] Không thể tạo snapshot phiên bản:', snapErr);
+    }
 
     return {
       success: true,
@@ -1473,32 +2154,93 @@ export class AuditModificationService {
     reason: string,
     clientIp?: string
   ) {
-    const repARes = await Database.query<{ id: string; parcel_id: string }>(
-      `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1;`,
+    const repARes = await Database.query<{
+      id: string;
+      parcel_id: string;
+      unit_id: string | null;
+      report_type: string | null;
+    }>(
+      `SELECT id, parcel_id, unit_id, report_type FROM base_survey_reports WHERE id = $1 AND deleted_at IS NULL;`,
       [reportAId]
     );
-    const repBRes = await Database.query<{ id: string; parcel_id: string }>(
-      `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1;`,
+    const repBRes = await Database.query<{
+      id: string;
+      parcel_id: string;
+      unit_id: string | null;
+      report_type: string | null;
+    }>(
+      `SELECT id, parcel_id, unit_id, report_type FROM base_survey_reports WHERE id = $1 AND deleted_at IS NULL;`,
       [reportBId]
     );
 
     if (!repARes.rows[0]) throw new NotFoundError(`Không tìm thấy hồ sơ A với ID: ${reportAId}`);
     if (!repBRes.rows[0]) throw new NotFoundError(`Không tìm thấy hồ sơ B với ID: ${reportBId}`);
 
-    const parcelAId = repARes.rows[0].parcel_id;
-    const parcelBId = repBRes.rows[0].parcel_id;
+    const repA = repARes.rows[0];
+    const repB = repBRes.rows[0];
+
+    if (
+      repA.unit_id ||
+      repB.unit_id ||
+      ['CONDO_UNIT', 'UNIT_CHILD', 'MASTER_AREA', 'CONDO_MASTER_AREA'].includes(repA.report_type || '') ||
+      ['CONDO_UNIT', 'UNIT_CHILD', 'MASTER_AREA', 'CONDO_MASTER_AREA'].includes(repB.report_type || '')
+    ) {
+      throw new BadRequestError(
+        'Hồ sơ căn hộ con hoặc khu vực mặt bằng chung cư không được phép hoán đổi ranh thửa đất GIS của toàn bộ tòa nhà mẹ. Vui lòng sử dụng chức năng "Hoán đổi vị trí CAD" trong Quản lý Tòa nhà Chung cư.'
+      );
+    }
+
+    const parcelAId = repA.parcel_id;
+    const parcelBId = repB.parcel_id;
 
     if (parcelAId === parcelBId) {
       throw new BadRequestError('Hai hồ sơ đang thuộc cùng một thửa đất, không thể hoán đổi');
     }
 
+    const effectiveReason = reason || 'Hoán đổi vị trí ranh đất không gian GIS giữa 2 hồ sơ liền kề bị tích chéo';
     const swapResult = await CadastralService.swapParcelGeometries(
       parcelAId,
       parcelBId,
       adminId,
-      reason || 'Hoán đổi vị trí ranh đất không gian GIS giữa 2 hồ sơ liền kề bị tích chéo',
+      effectiveReason,
       clientIp
     );
+
+    try {
+      const { AuditVersionService } = await import('./audit-version.service');
+      await AuditVersionService.createSnapshot(reportAId, {
+        versionTag: 'PARCEL_SWAP',
+        title: `Hoán đổi ranh đất GIS với thửa [${swapResult.parcelB.projectParcelCode}]`,
+        editReason: effectiveReason,
+        userId: adminId,
+        clientIp,
+        diffSummary: [
+          {
+            field: 'cadastral_polygon_geom',
+            label: 'Ranh giới không gian GIS',
+            oldValue: swapResult.parcelA.projectParcelCode,
+            newValue: swapResult.parcelB.projectParcelCode,
+          },
+        ],
+      });
+      await AuditVersionService.createSnapshot(reportBId, {
+        versionTag: 'PARCEL_SWAP',
+        title: `Hoán đổi ranh đất GIS với thửa [${swapResult.parcelA.projectParcelCode}]`,
+        editReason: effectiveReason,
+        userId: adminId,
+        clientIp,
+        diffSummary: [
+          {
+            field: 'cadastral_polygon_geom',
+            label: 'Ranh giới không gian GIS',
+            oldValue: swapResult.parcelB.projectParcelCode,
+            newValue: swapResult.parcelA.projectParcelCode,
+          },
+        ],
+      });
+    } catch (snapErr) {
+      console.error('[swapReportParcels] Không thể tạo snapshot phiên bản:', snapErr);
+    }
 
     return {
       success: true,
@@ -2448,6 +3190,24 @@ export class AuditModificationService {
           JSON.stringify({ restoredAt: new Date().toISOString(), ...pa.metadata })
         ]
       );
+    }
+
+    // Đồng bộ ngược mảng ảnh trong surveyJson.settlementTilt sang bảng deformation_assessments (nếu có)
+    if (surveyJson.settlementTilt) {
+      const st = surveyJson.settlementTilt;
+      const diffPhotosJson = Array.isArray(st.diffSettlement?.photos) ? JSON.stringify(st.diffSettlement.photos) : null;
+      const tiltPhotosJson = Array.isArray(st.buildingTilt?.photos) ? JSON.stringify(st.buildingTilt.photos) : null;
+      const abnPhotosJson = Array.isArray(st.abnormalCase?.photos) ? JSON.stringify(st.abnormalCase.photos) : null;
+      if (diffPhotosJson !== null || tiltPhotosJson !== null || abnPhotosJson !== null) {
+        await client.query(
+          `UPDATE deformation_assessments SET
+             diff_settlement_photos_json = COALESCE($2::jsonb, diff_settlement_photos_json),
+             tilt_photos_json = COALESCE($3::jsonb, tilt_photos_json),
+             abnormal_photos_json = COALESCE($4::jsonb, abnormal_photos_json)
+           WHERE report_id = $1;`,
+          [reportId, diffPhotosJson, tiltPhotosJson, abnPhotosJson]
+        );
+      }
     }
   }
 

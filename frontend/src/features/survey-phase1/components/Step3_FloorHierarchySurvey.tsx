@@ -122,12 +122,10 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       structuralElements: [],
       hasStructuralElements: true,
     };
+    const nextFloors = [...formData.floors, newFloor];
     updateFormData({
-      floors: [...formData.floors, newFloor],
-      settlementTilt: {
-        ...formData.settlementTilt,
-        needAdditionalMonitoring: { required: false, notes: '' },
-      },
+      floors: nextFloors,
+      aboveFloors: Math.max(Number(formData.aboveFloors) || 1, nextFloors.length),
     });
     setActiveFloorIndex(formData.floors.length);
     setActiveZoneIndex(0);

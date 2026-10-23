@@ -24,15 +24,38 @@ interface UseSweepMapStateProps {
   parcels: GisParcel[];
   selectedZone: string;
   onSelectZone: (zone: string) => void;
+  initialSelectedParcel?: GisParcel | null;
   onSelectParcel: (parcel: GisParcel) => void;
   onRecordAbsence?: (parcel: GisParcel) => void;
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
 }
 
+interface SavedSweepMapSession {
+  activeParcelId?: string | null;
+  mapMode?: 'standard' | 'satellite' | 'osm';
+  appliedFilters?: AppliedFiltersState;
+  showCenterline?: boolean;
+  showZonesZoi?: boolean;
+  showStationMarkers?: boolean;
+  showStationOutlines?: boolean;
+}
+
+const SWEEP_MAP_SESSION_KEY = 'ksqh_sweep_map_state';
+
+const readSavedMapSession = (): SavedSweepMapSession => {
+  try {
+    const raw = sessionStorage.getItem(SWEEP_MAP_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SavedSweepMapSession) : {};
+  } catch {
+    return {};
+  }
+};
+
 export const useSweepMapState = ({
   parcels,
   selectedZone,
   onSelectZone: _onSelectZone,
+  initialSelectedParcel,
   onSelectParcel,
   onRecordAbsence,
   userGps,
@@ -43,13 +66,39 @@ export const useSweepMapState = ({
     name: currentZoneConfig.name,
     center: currentZoneConfig.center,
   };
-  const [activeParcel, setActiveParcel] = useState<GisParcel | null>(null);
+  const [activeParcel, setActiveParcelState] = useState<GisParcel | null>(() => {
+    return initialSelectedParcel || null;
+  });
+
+  const setActiveParcel = (parcel: GisParcel | null) => {
+    setActiveParcelState(parcel);
+    try {
+      const prev = readSavedMapSession();
+      sessionStorage.setItem(
+        SWEEP_MAP_SESSION_KEY,
+        JSON.stringify({
+          ...prev,
+          activeParcelId: parcel ? parcel.id : null,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  };
 
   // GIS Layer Toggles
-  const [showCenterline, setShowCenterline] = useState<boolean>(true);
-  const [showZonesZoi, setShowZonesZoi] = useState<boolean>(true);
-  const [showStationMarkers, setShowStationMarkers] = useState<boolean>(true);
-  const [showStationOutlines, setShowStationOutlines] = useState<boolean>(true);
+  const [showCenterline, setShowCenterline] = useState<boolean>(
+    () => readSavedMapSession().showCenterline ?? true
+  );
+  const [showZonesZoi, setShowZonesZoi] = useState<boolean>(
+    () => readSavedMapSession().showZonesZoi ?? true
+  );
+  const [showStationMarkers, setShowStationMarkers] = useState<boolean>(
+    () => readSavedMapSession().showStationMarkers ?? true
+  );
+  const [showStationOutlines, setShowStationOutlines] = useState<boolean>(
+    () => readSavedMapSession().showStationOutlines ?? true
+  );
 
   // Search Parcel state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
@@ -58,20 +107,68 @@ export const useSweepMapState = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Map Mode Switcher (Standard Esri Streets / Satellite / OSM)
-  const [mapMode, setMapMode] = useState<'standard' | 'satellite' | 'osm'>('standard');
+  const [mapMode, setMapMode] = useState<'standard' | 'satellite' | 'osm'>(() => {
+    const saved = readSavedMapSession().mapMode;
+    return saved === 'satellite' || saved === 'osm' || saved === 'standard' ? saved : 'standard';
+  });
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
 
   // 3-Bar Filter & Legend Drawer/Modal state
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFiltersState>({
-    APPROVED: true,
-    PHASE2_COMPLETED: true,
-    SUBMITTED: true,
-    IN_PROGRESS: true,
-    POSTPONED_ABSENT: true,
-    NOT_SURVEYED: true,
-    hideNonBuildings: false,
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFiltersState>(() => {
+    const saved = readSavedMapSession().appliedFilters;
+    return (
+      saved || {
+        APPROVED: true,
+        PHASE2_COMPLETED: true,
+        SUBMITTED: true,
+        IN_PROGRESS: true,
+        POSTPONED_ABSENT: true,
+        NOT_SURVEYED: true,
+        hideNonBuildings: false,
+      }
+    );
   });
+
+  // Lưu trạng thái chế độ bản đồ, bộ lọc và các lớp layer vào sessionStorage
+  useEffect(() => {
+    try {
+      const prev = readSavedMapSession();
+      sessionStorage.setItem(
+        SWEEP_MAP_SESSION_KEY,
+        JSON.stringify({
+          ...prev,
+          mapMode,
+          appliedFilters,
+          showCenterline,
+          showZonesZoi,
+          showStationMarkers,
+          showStationOutlines,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }, [mapMode, appliedFilters, showCenterline, showZonesZoi, showStationMarkers, showStationOutlines]);
+
+  // Khôi phục activeParcel từ initialSelectedParcel hoặc sessionStorage khi parcels tải xong
+  useEffect(() => {
+    if (!parcels || parcels.length === 0) return;
+
+    const savedId = initialSelectedParcel?.id || readSavedMapSession().activeParcelId;
+    if (!savedId) return;
+
+    const matched = parcels.find(
+      (p) => p.id === savedId || p.projectParcelCode === savedId
+    );
+    if (matched) {
+      setActiveParcelState(matched);
+      if (initialSelectedParcel && initialSelectedParcel.id === matched.id) {
+        const center = getParcelCenter(matched, currentStation.center);
+        setTargetFlyCoords(center);
+      }
+    }
+  }, [parcels, initialSelectedParcel?.id]);
 
   // Draft filters while modal is open
   const [draftFilters, setDraftFilters] = useState(appliedFilters);

@@ -80,7 +80,7 @@
             <span class="summary-label">Engineering judgement:</span>
             <span class="summary-choice-group">
               <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'KEEP')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'KEEP')}}☑{{else}}☐{{/if}} Giữ</span>
-              <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'UPGRADE')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'UPGRADE')}}☑{{else}}☐{{/if}} Nâng</span>
+              <span class="summary-choice-item {{#if (or (eq section8.ecs.engineeringJudgement.action 'UPGRADE') (eq section8.ecs.engineeringJudgement.action 'CUSTOM_OVERRIDE'))}}active{{/if}}">{{#if (or (eq section8.ecs.engineeringJudgement.action 'UPGRADE') (eq section8.ecs.engineeringJudgement.action 'CUSTOM_OVERRIDE'))}}☑{{else}}☐{{/if}} Nâng</span>
               <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'DOWNGRADE')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'DOWNGRADE')}}☑{{else}}☐{{/if}} Hạ</span>
             </span>
           </td>
@@ -158,7 +158,7 @@
             <span class="summary-label">Engineering judgement:</span>
             <span class="summary-choice-group">
               <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'KEEP')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'KEEP')}}☑{{else}}☐{{/if}} Giữ</span>
-              <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'UPGRADE')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'UPGRADE')}}☑{{else}}☐{{/if}} Nâng</span>
+              <span class="summary-choice-item {{#if (or (eq section8.vi.engineeringJudgement.action 'UPGRADE') (eq section8.vi.engineeringJudgement.action 'CUSTOM_OVERRIDE'))}}active{{/if}}">{{#if (or (eq section8.vi.engineeringJudgement.action 'UPGRADE') (eq section8.vi.engineeringJudgement.action 'CUSTOM_OVERRIDE'))}}☑{{else}}☐{{/if}} Nâng</span>
               <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'DOWNGRADE')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'DOWNGRADE')}}☑{{else}}☐{{/if}} Hạ</span>
             </span>
           </td>

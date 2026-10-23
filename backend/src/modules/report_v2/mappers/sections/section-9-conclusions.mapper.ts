@@ -21,9 +21,23 @@ export class Section9ConclusionMapper {
     specs: any,
     standardText?: StandardTextContent
   ): Section9ConclusionRecommendation {
-    // CHƯƠNG IX: KẾT LUẬN & KIẾN NGHỊ (ĐỌC TRỰC TIẾP TỪ DB CỦA THỬA ĐẤT)
-    const ownerFeedbackText = rawReport.owner_remarks || json.signatures?.ownerFeedback || json.ownerRemarks || '';
-    const surveyorConclusionText = rawReport.summary_conclusions || json.summaryConclusions || '';
+    // CHƯƠNG IX: KẾT LUẬN & KIẾN NGHỊ (ƯU TIÊN ĐỌC TRỰC TIẾP TỪ JSON ĐÃ DUYỆT, FALLBACK VỀ CỘT SQL)
+    const ownerFeedbackText =
+      json.signatures?.ownerFeedback ??
+      json.ownerFeedback ??
+      json.ownerRemarks ??
+      rawReport.owner_remarks ??
+      '';
+    const surveyorConclusionText =
+      json.summaryConclusions ??
+      json.executiveSummary?.summaryConclusions ??
+      rawReport.summary_conclusions ??
+      '';
+    const keyRisksDefectsText = String(
+      json.keyRisksDefectsText ??
+      json.executiveSummary?.keyRisksDefectsText ??
+      ''
+    ).trim();
 
     const conclusionsList: BilingualText[] = [];
     if (surveyorConclusionText) {
@@ -32,10 +46,16 @@ export class Section9ConclusionMapper {
         en: `Surveyor field conclusion: ${surveyorConclusionText}`,
       });
     }
+    if (keyRisksDefectsText && keyRisksDefectsText !== 'Không') {
+      conclusionsList.push({
+        vi: `Các rủi ro / khuyết tật trọng yếu: ${keyRisksDefectsText}`,
+        en: `Key risks and defects: ${keyRisksDefectsText}`,
+      });
+    }
     // D6: Không tự sinh kết luận. Nếu KSV/Admin không nhập, mục kết luận để trống (template in '--').
 
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey);
-    const ownerName = rawReport.owner_name || json.ownerName || 'Chủ hộ';
+    const ownerName = json.ownerName || rawReport.owner_name || 'Chủ hộ';
     const isOwnerSigned = Boolean(rawReport.owner_signature_img || json.signatures?.ownerRepresentative?.signatureImg);
 
     let witnessNarrative: BilingualText;
@@ -81,7 +101,7 @@ export class Section9ConclusionMapper {
     }
 
     // Tầng hầm chưa khảo sát
-    const basementCount = Number(rawReport?.basement_count ?? json?.undergroundFloors ?? 0);
+    const basementCount = Number(json?.undergroundFloors ?? rawReport?.basement_count ?? 0);
     if (basementCount > 0 && !rawScope.basement) {
       limitationsList.push({
         vi: 'Khu vực tầng hầm: Chưa tiếp cận khảo sát',
@@ -90,7 +110,7 @@ export class Section9ConclusionMapper {
     }
 
     // 1. Kiểm tra khu vực/phạm vi không thể tiếp cận (Inaccessible areas)
-    const inaccessible = rawReport.inaccessible_areas || json.accessLimitation?.restrictedAreas || json.inaccessibleAreas;
+    const inaccessible = json.accessLimitation?.restrictedAreas ?? json.inaccessibleAreas ?? rawReport.inaccessible_areas;
     if (inaccessible && inaccessible !== 'NONE' && inaccessible !== 'None' && inaccessible !== 'Không') {
       let areaItems: string[] = Array.isArray(inaccessible) ? [...inaccessible] : [String(inaccessible)];
 
@@ -138,7 +158,7 @@ export class Section9ConclusionMapper {
       });
     }
 
-    let accessNotes = rawReport.accessibility_limitations || json.accessLimitation?.notes || json.accessLimitation?.mainReason;
+    let accessNotes = json.accessLimitation?.notes || json.accessLimitation?.mainReason || rawReport.accessibility_limitations;
     if (accessNotes && typeof accessNotes === 'string') {
       // Làm sạch các tag kỹ thuật như [Khu vực khác: ...] khỏi phần ghi chú hiển thị
       accessNotes = accessNotes.replace(/\[Khu vực khác:\s*.*?\]/g, '').trim();
@@ -170,28 +190,24 @@ export class Section9ConclusionMapper {
       }
     }
 
-    // 3. Kiểm tra thông tin kết cấu móng & bản vẽ hoàn công nếu chưa thu thập được
-    const rawFoundation = specs.foundationType || json.foundationType;
-    if (!rawFoundation || rawFoundation === 'UNKNOWN' || rawFoundation === 'CHUA_RO' || String(rawFoundation).toLowerCase().includes('chưa rõ') || String(rawFoundation).toLowerCase().includes('không rõ')) {
-      limitationsList.push({
-        vi: 'Thông tin kết cấu móng: Chưa thu thập được hồ sơ thiết kế/hoàn công tại thời điểm khảo sát',
-        en: 'Foundation structural data: Design/as-built drawings unavailable at time of survey',
-      });
-    }
-
-    const hasDrawings = specs.hasAsBuiltDrawings || specs.hasDrawings || json.hasDrawings || json.hasAsBuiltDrawings;
-    if (hasDrawings === false) {
-      limitationsList.push({
-        vi: 'Hồ sơ bản vẽ hoàn công / kết cấu công trình: Chủ hộ không cung cấp được tại hiện trường',
-        en: 'As-built / structural drawings: Not provided by property owner on site',
-      });
-    }
-
-    // D6: không có hạn chế được ghi nhận -> mảng rỗng, template in '--' (không khẳng định 'Không')
+    // D6 & Quy tắc 100% Read-From-Approved: Chỉ in đúng danh sách hạn chế khảo sát đã được KSV/Admin chốt trong hồ sơ,
+    // tuyệt đối không tự động chèn thêm câu hạn chế ngầm lúc render.
     const finalLimitations: BilingualText[] = limitationsList;
 
-    // Kiến nghị kỹ thuật & nội dung cần bổ sung lấy 100% từ cấu hình chuẩn dự án (Q1)
-    const recommendations: BilingualText[] = standardText?.recommendations || [];
+    // Kiến nghị kỹ thuật & nội dung cần bổ sung lấy từ cấu hình chuẩn dự án (Q1) + kiến nghị riêng của hồ sơ đã thẩm định
+    const recommendations: BilingualText[] = [...(standardText?.recommendations || [])];
+    const specificRecommendationsText = String(
+      json.executiveSummary?.specificRecommendationsText ??
+      json.engineeringRecommendations ??
+      rawReport.engineering_recommendations ??
+      ''
+    ).trim();
+    if (specificRecommendationsText && specificRecommendationsText !== 'Không') {
+      recommendations.push({
+        vi: `Kiến nghị kỹ thuật cụ thể của hồ sơ: ${specificRecommendationsText}`,
+        en: `Specific technical recommendation: ${specificRecommendationsText}`,
+      });
+    }
     const pendingFieldDesignItems: BilingualText[] = standardText?.pendingItems || [];
 
     const section9: Section9ConclusionRecommendation = {

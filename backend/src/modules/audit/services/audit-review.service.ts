@@ -66,6 +66,25 @@ export class AuditReviewService {
         ))`;
       } else if (level === 'APPROVED') {
         whereClause += ` AND r.status::text = 'APPROVED'`;
+      } else if (level === 'PENDING_RELEASE') {
+        whereClause += ` AND r.status::text = 'APPROVED' AND (
+          (
+            EXISTS (SELECT 1 FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+            AND EXISTS (
+              SELECT 1 FROM survey_report_versions v
+              WHERE v.report_id = r.id
+                AND v.version_tag IN ('APPROVED_RELEASE', 'ADMIN_DIFF_SAVE', 'ROLLBACK_RESTORE')
+                AND v.created_at > (SELECT MAX(rr.released_at) FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+            )
+          ) OR (
+            NOT EXISTS (SELECT 1 FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+            AND COALESCE(r.export_revision, 0) = 0
+            AND (
+              (SELECT COUNT(*) FROM survey_report_versions v WHERE v.report_id = r.id AND v.version_tag = 'APPROVED_RELEASE') > 1
+              OR COALESCE((r.survey_data_json->>'hasPendingRelease')::boolean, FALSE) = TRUE
+            )
+          )
+        )`;
       }
     }
 
@@ -153,19 +172,22 @@ export class AuditReviewService {
         u.surveyor_code,
         u.phone AS surveyor_phone,
         CASE 
-          WHEN sc.e1_burland_score = 0 THEN 'GRADE_0'
-          WHEN sc.e1_burland_score = 1 THEN 'GRADE_1'
-          WHEN sc.e1_burland_score = 2 THEN 'GRADE_2'
-          WHEN sc.e1_burland_score = 3 THEN 'GRADE_3'
-          WHEN sc.e1_burland_score >= 4 THEN 'GRADE_4'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 0 THEN 'GRADE_0'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 1 THEN 'GRADE_1'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 2 THEN 'GRADE_2'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 3 THEN 'GRADE_3'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 4 THEN 'GRADE_4'
+          WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) >= 5 THEN 'GRADE_5'
           ELSE NULL
         END AS burland_damage_category,
-        COALESCE(sc.e1_burland_score, 0) AS burland_score,
+        COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) AS burland_score,
         (
           SELECT MAX(d.width_max_mm)
           FROM defect_items d
           JOIN damage_zones z ON d.zone_id = z.id
           WHERE z.report_id = r.id
+            AND (d.is_deleted = FALSE OR d.is_deleted IS NULL)
+            AND (z.is_deleted = FALSE OR z.is_deleted IS NULL)
         ) AS burland_max_crack_width_mm,
         sc.total_ecs_score AS ecs_score,
         sc.avg_vi_score AS vi_score,
@@ -174,6 +196,8 @@ export class AuditReviewService {
           FROM defect_items d 
           JOIN damage_zones z ON d.zone_id = z.id 
           WHERE z.report_id = r.id
+            AND (d.is_deleted = FALSE OR d.is_deleted IS NULL)
+            AND (z.is_deleted = FALSE OR z.is_deleted IS NULL)
         ) AS defect_count,
         (
           SELECT COUNT(*) 
@@ -217,7 +241,28 @@ export class AuditReviewService {
           WHERE v.report_id = r.id
           ORDER BY v.version_number DESC
           LIMIT 1
-        ) AS latest_edit_reason
+        ) AS latest_edit_reason,
+        COALESCE(r.export_revision, 0) AS export_revision,
+        (
+          r.status::text = 'APPROVED' AND (
+            (
+              EXISTS (SELECT 1 FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+              AND EXISTS (
+                SELECT 1 FROM survey_report_versions v
+                WHERE v.report_id = r.id
+                  AND v.version_tag IN ('APPROVED_RELEASE', 'ADMIN_DIFF_SAVE', 'ROLLBACK_RESTORE')
+                  AND v.created_at > (SELECT MAX(rr.released_at) FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+              )
+            ) OR (
+              NOT EXISTS (SELECT 1 FROM report_releases rr WHERE rr.report_id = r.id AND rr.deleted_at IS NULL)
+              AND COALESCE(r.export_revision, 0) = 0
+              AND (
+                (SELECT COUNT(*) FROM survey_report_versions v WHERE v.report_id = r.id AND v.version_tag = 'APPROVED_RELEASE') > 1
+                OR COALESCE((r.survey_data_json->>'hasPendingRelease')::boolean, FALSE) = TRUE
+              )
+            )
+          )
+        ) AS has_pending_release
       FROM base_survey_reports r
       JOIN parcels p ON r.parcel_id = p.id
       LEFT JOIN building_units bu ON r.unit_id = bu.id
@@ -247,6 +292,7 @@ export class AuditReviewService {
               p.frontage_width, p.lot_depth, p.official_cadastral_code,
               p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
               p.building_type, p.is_locked, p.seal_hash, p.locked_at,
+              p.distance_to_centerline_m, p.mutation_type,
               ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
               ST_AsGeoJSON(p.location_geom) AS location_geojson,
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
@@ -877,9 +923,20 @@ export class AuditReviewService {
       identificationPhotos: identificationPhotos,
       signatures: normalizedSignatures,
       cadastralGeojson: report.cadastral_geojson || null,
+      cadastral_geojson: report.cadastral_geojson || null,
       locationGeojson: report.location_geojson || null,
       landAreaM2: report.land_area_m2 || null,
       constructionAreaM2: report.construction_area_m2 || null,
+      distanceToCenterlineM:
+        report.distance_to_centerline_m !== null && report.distance_to_centerline_m !== undefined
+          ? Number(report.distance_to_centerline_m)
+          : null,
+      distance_to_centerline_m:
+        report.distance_to_centerline_m !== null && report.distance_to_centerline_m !== undefined
+          ? Number(report.distance_to_centerline_m)
+          : null,
+      mutationType: report.mutation_type || null,
+      mutation_type: report.mutation_type || null,
 
       leftPane: {
         parcel: {
@@ -1081,8 +1138,12 @@ export class AuditReviewService {
         status: string;
         export_revision: number;
         survey_data_json: any;
+        cadastral_geojson: string | null;
+        distance_to_centerline_m: number | null;
+        mutation_type: string | null;
       }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.export_revision, r.survey_data_json
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type, r.status, r.export_revision, r.survey_data_json,
+                ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson, p.distance_to_centerline_m, p.mutation_type
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)
@@ -1108,17 +1169,18 @@ export class AuditReviewService {
       // =======================================================================
       // CONSISTENCY GATE: Kiểm tra tính nhất quán dữ liệu trước khi APPROVE
       // =======================================================================
-      const gateResult = ReportConsistencyGate.assertConsistency(reportRow, surveyJson, judgementNotes);
+      const { SurveyRepository } = await import('../../survey/survey.repository');
+      const fullReportContext = await SurveyRepository.findReportById(actualReportId);
+      const gateReportObj = fullReportContext ? { ...fullReportContext, ...reportRow } : reportRow;
+      const gateResult = ReportConsistencyGate.assertConsistency(gateReportObj, surveyJson, judgementNotes);
 
-      // Kiểm tra xem báo cáo đã từng có bản APPROVED_RELEASE trước đó chưa (quy trình Mở khóa Approved -> Chỉnh sửa -> Duyệt lại)
+      // Lấy revision hiện tại của hồ sơ (không tự ý tăng khi duyệt lại; Rev chỉ tăng khi chủ động bấm "Phát hành Rev mới")
+      const currentRev = repRes.rows[0].export_revision ?? 0;
       const prevApprovedCountRes = await client.query<{ count: string }>(
         `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE';`,
         [actualReportId]
       );
-      const prevApprovedCount = Number(prevApprovedCountRes.rows[0]?.count || 0);
-      const isReApproval = prevApprovedCount > 0;
-      const currentRev = repRes.rows[0].export_revision ?? 0;
-      const nextRevision = isReApproval ? Math.max(currentRev + 1, prevApprovedCount) : 0;
+      const isReApproval = Number(prevApprovedCountRes.rows[0]?.count || 0) > 0;
 
       // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả
       const approveRes = await client.query<{ approved_at: Date }>(
@@ -1131,7 +1193,7 @@ export class AuditReviewService {
              updated_at = NOW()
          WHERE id = $1
          RETURNING approved_at;`,
-        [actualReportId, adminId, judgementNotes || null, nextRevision]
+        [actualReportId, adminId, judgementNotes || null, currentRev]
       );
 
       // D1/D3: chụp snapshot điểm bất biến (APPROVED_RELEASE + SHA-256) trong CÙNG transaction với APPROVE
@@ -1140,8 +1202,8 @@ export class AuditReviewService {
         actualReportId,
         adminId,
         approveRes.rows[0].approved_at,
-        nextRevision === 0 ? 'Chốt điểm tại thời điểm APPROVE' : `Phê duyệt lại (Rev ${String(nextRevision).padStart(2, '0')})`,
-        nextRevision
+        isReApproval ? `Phê duyệt lại số liệu sau mở khóa (Hiện hành Rev ${String(currentRev).padStart(2, '0')})` : 'Chốt điểm tại thời điểm APPROVE',
+        currentRev
       );
 
       let parcelApprovedStatus = 'APPROVED';
@@ -1193,7 +1255,8 @@ export class AuditReviewService {
             reportId: actualReportId,
             parcelId: actualParcelId,
             status: 'APPROVED',
-            exportRevision: nextRevision,
+            exportRevision: currentRev,
+            isReApproval,
             judgementNotes: judgementNotes || null,
             gateWarnings: gateResult.warnings,
             gateDetails: gateResult.details,
@@ -1208,10 +1271,13 @@ export class AuditReviewService {
         reportId: actualReportId,
         parcelId: actualParcelId,
         status: 'APPROVED',
-        exportRevision: nextRevision,
+        exportRevision: currentRev,
+        isReApproval,
         snapshotVersionId: approvedSnapshot.versionId,
         snapshotSha256: approvedSnapshot.snapshot.contentSha256,
-        message: 'Đã phê duyệt báo cáo và chốt snapshot điểm (APPROVED_RELEASE). File Final được phát hành khi xuất lần đầu.',
+        message: isReApproval
+          ? 'Đã phê duyệt lại báo cáo sau hiệu chỉnh. Số hiệu Rev giữ nguyên, chỉ tăng khi chủ động bấm "Phát hành Rev mới".'
+          : 'Đã phê duyệt báo cáo và chốt snapshot điểm (APPROVED_RELEASE). File Final được phát hành khi xuất lần đầu.',
       };
     });
   }

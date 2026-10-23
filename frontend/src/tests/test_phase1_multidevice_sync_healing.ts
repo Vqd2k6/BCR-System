@@ -33,9 +33,13 @@ const mockLocalStorage = {
   },
 };
 
-(globalThis as any).localStorage = mockLocalStorage;
-if (typeof (globalThis as any).window === 'undefined') {
-  (globalThis as any).window = {
+const globalEnv = globalThis as unknown as {
+  localStorage?: typeof mockLocalStorage;
+  window?: { localStorage: typeof mockLocalStorage };
+};
+globalEnv.localStorage = mockLocalStorage;
+if (typeof globalEnv.window === 'undefined') {
+  globalEnv.window = {
     localStorage: mockLocalStorage,
   };
 }

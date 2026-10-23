@@ -47,6 +47,7 @@ interface Step3DamageZonesAndDefectsProps {
   onTriggerPinningZone: (zoneId: string) => void;
   watermarkOptions?: MetroWatermarkOptions;
   isReadOnly?: boolean;
+  isCadLocked?: boolean;
   onBack: () => void;
   onNext: () => void;
   onPreviewImage: (url: string) => void;
@@ -76,6 +77,7 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
   onTriggerPinningZone,
   watermarkOptions,
   isReadOnly,
+  isCadLocked = false,
   onBack,
   onNext,
   onPreviewImage,
@@ -152,6 +154,7 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
             floorName={floorName}
             cadTitle={`Mặt bằng: ${unitCode}`}
             readOnly={isReadOnly}
+            isCadLocked={isCadLocked}
           />
         </div>
       </div>

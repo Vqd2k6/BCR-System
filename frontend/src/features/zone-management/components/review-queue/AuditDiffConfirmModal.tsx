@@ -24,6 +24,11 @@ import { api } from '../../../../services/api';
 import type { PhotoActionPayload } from './AuditPhotoActionModal';
 
 export const PRESET_AUDIT_DIFF_REASONS = [
+  'Cập nhật ranh đất đã nắn chỉnh sau Giải phóng mặt bằng (GPMB) & tính lại cự ly Metro',
+  'Hiệu chỉnh số liệu mặt tiền & diện tích theo sổ đỏ/bản vẽ hoàn công',
+  'Chuẩn hóa tên đường và đơn vị hành chính theo Nghị quyết 1685/NQ-UBTVQH15',
+  'Điều chỉnh cấp nứt Burland và phân loại kết cấu sau phúc tra thực địa',
+  'Xoay hướng ảnh và cập nhật thước đo khe nứt chuẩn A4',
   'Chuẩn hóa thông tin số nhà & tên chủ hộ theo hồ sơ pháp lý / CCCD',
   'Cập nhật phân loại móng sang CAT 1 kèm bản vẽ hoàn công',
   'Bổ sung vết nứt kết cấu và tọa độ ghim trên mặt bằng CAD',
@@ -433,7 +438,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
                 {photoActions.map((pa, paIdx) => (
                   <div key={paIdx} className="flex items-center justify-between text-[11px] text-purple-800 bg-white/80 p-1.5 rounded border border-purple-100">
                     <span className="font-mono font-bold">
-                      [{pa.action}] {pa.category} ({pa.targetPhotoId || (pa as any).photoTitle || 'Ảnh'})
+                      [{pa.action}] {pa.category} ({pa.targetPhotoId || (pa as { photoTitle?: string }).photoTitle || 'Ảnh'})
                     </span>
                     <span className="text-slate-500 italic truncate max-w-[200px]">
                       {pa.reason || 'Sửa đổi trực tiếp'}
@@ -444,19 +449,43 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Reason Input */}
-          <div className="space-y-1.5 pt-1">
+          {/* Reason Input (Preset Reasons Dropdown + Chips + Textarea - TC-UI-02) */}
+          <div className="space-y-2 pt-1">
             <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-              <span>Lý do điều chỉnh thông tin <span className="text-red-500">*</span></span>
-              <span className="text-[11px] text-slate-400 font-normal">Ghi nhận vào system_audit_logs</span>
+              <span>Danh mục Lý do điều chỉnh kỹ thuật chuẩn hóa <span className="text-red-500">*</span></span>
+              <span className="text-[11px] text-slate-400 font-normal">Bắt buộc chọn hoặc nhập để ghi nhận vào system_audit_logs</span>
             </label>
+
+            <select
+              value={PRESET_AUDIT_DIFF_REASONS.find((r) => editReason.startsWith(r)) || ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleTogglePresetReason(e.target.value);
+                }
+              }}
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+            >
+              <option value="">--- Chọn nhanh lý do kỹ thuật từ danh mục chuẩn hóa ---</option>
+              {PRESET_AUDIT_DIFF_REASONS.map((preset, idx) => (
+                <option key={idx} value={preset}>
+                  {preset}
+                </option>
+              ))}
+            </select>
+
             <textarea
               rows={2}
               value={editReason}
               onChange={(e) => setEditReason(e.target.value)}
-              placeholder="Ví dụ: Chuẩn hóa lại số nhà theo CCCD chủ hộ; Cập nhật độ sâu móng theo bản vẽ hoàn công..."
+              placeholder="Chọn lý do từ danh mục trên và/hoặc gõ thêm ghi chú giải trình chi tiết..."
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
             />
+            {!editReason.trim() && (
+              <p className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Vui lòng chọn hoặc nhập lý do chỉnh sửa kỹ thuật để kích hoạt nút Lưu.</span>
+              </p>
+            )}
 
             {/* Gợi ý lý do nhanh (Bấm để thêm vào nội dung) */}
             <div className="space-y-1.5 pt-0.5">
@@ -550,8 +579,14 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || diffItems.length === 0 || hasCatBlocker}
-              title={hasCatBlocker ? 'Không thể lưu do có lỗi chặn pháp lý móng CAT 1/2' : undefined}
+              disabled={isSubmitting || (diffItems.length === 0 && photoActions.length === 0) || hasCatBlocker || !editReason.trim()}
+              title={
+                hasCatBlocker
+                  ? 'Không thể lưu do có lỗi chặn pháp lý móng CAT 1/2'
+                  : !editReason.trim()
+                  ? 'Vui lòng chọn hoặc nhập lý do chỉnh sửa'
+                  : undefined
+              }
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />

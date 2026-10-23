@@ -88,18 +88,19 @@ export class ReportV3Service {
     });
   }
 
-  /** Render DRAFT (HTML) – overrides chỉ được áp dụng cho hồ sơ chưa APPROVED; hồ sơ APPROVED luôn nạp Snapshot bất biến */
+  /** Render DRAFT/FINAL Preview (HTML) – overrides chỉ được áp dụng cho hồ sơ chưa APPROVED; hồ sơ APPROVED luôn nạp Snapshot bất biến (hỗ trợ ?rev=N) */
   public static async renderDraftHtml(
     resolved: ResolvedReportV3,
     overrides: unknown,
     maskPii: boolean,
-    enableWatermark: boolean
+    enableWatermark: boolean,
+    revision?: number
   ) {
     const effectiveOverrides = resolved.status === 'APPROVED' ? undefined : overrides;
     let reportData = resolved.raw;
     if (resolved.status === 'APPROVED') {
       try {
-        const approved = await ReportSnapshotService.getLatestApprovedSnapshot(resolved.id);
+        const approved = await ReportSnapshotService.getSnapshotForRevision(resolved.id, revision);
         if (approved?.snapshot) {
           reportData = ReportSnapshotService.applySnapshotToReport(resolved.raw, approved.snapshot);
           reportData.status = 'APPROVED';
@@ -114,10 +115,11 @@ export class ReportV3Service {
   public static async renderDraftPdf(
     resolved: ResolvedReportV3,
     overrides: unknown,
-    enableWatermark: boolean
+    enableWatermark: boolean,
+    revision?: number
   ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string }> {
     return RenderQueue.run(async () => {
-      const { html, viewModel } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark);
+      const { html, viewModel } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision);
       const reportNo = viewModel.metadata.reportNo;
       const buildingId = viewModel.metadata.buildingId;
       const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(html, {

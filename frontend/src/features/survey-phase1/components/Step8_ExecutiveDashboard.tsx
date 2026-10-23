@@ -126,7 +126,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 </span>
                 <InfoPopover title="1. Hiện trạng công trình (ECS / BCS)" size="sm">
                   <p><strong>Nguồn:</strong> Tổng hợp từ 6 chỉ tiêu kỹ thuật E1 đến E6 (thang 0-24 điểm) ở Bước 6.1.</p>
-                  <p className="mt-1"><strong>Phân hạng:</strong> GOOD (0-4: Tốt), MEDIUM (5-12: Trung bình), DEFICIENT (13-24: Kém/Hư hại nặng).</p>
+                  <p className="mt-1"><strong>Phân hạng:</strong> GOOD (0-5: Tốt), MEDIUM (6-10: Trung bình), DEFICIENT (11-16: Kém), CRITICAL (17-24: Nguy hiểm).</p>
                   <p className="mt-1"><strong>Ý nghĩa:</strong> Làm căn cứ pháp lý hiện trạng trước thi công tuyến Metro nhằm phục vụ giải quyết bồi thường hoặc khước từ đền bù.</p>
                 </InfoPopover>
               </div>
@@ -191,7 +191,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 </span>
                 <InfoPopover title="3. Chỉ số dễ tổn thương (Vulnerability Index - VI)" size="sm">
                   <p><strong>Nguồn:</strong> Trung bình cộng 6 thông số độ nhạy cảm công trình (V1 đến V6, thang 1-4) ở Bước 6.2.</p>
-                  <p className="mt-1"><strong>Phân hạng:</strong> VI-1 (&lt;1.5: Rất thấp), VI-2 (1.5-2.2: Thấp), VI-3 (2.3-3.0: Trung bình), VI-4 (&gt;3.0: Cao).</p>
+                  <p className="mt-1"><strong>Phân hạng:</strong> LOW (≤1.50: Thấp), MEDIUM (1.51-2.50: Trung bình), HIGH (2.51-3.25: Cao), VERY_HIGH (&gt;3.25: Rất cao).</p>
                   <p className="mt-1"><strong>Ý nghĩa:</strong> Đánh giá mức độ nhạy cảm trước rung động và lún đất do máy đào hầm TBM gây ra.</p>
                 </InfoPopover>
               </div>

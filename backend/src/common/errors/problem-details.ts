@@ -24,6 +24,7 @@ export class AppError extends Error {
     invalidParams?: Array<{ field: string; message: string }>
   ) {
     super(message);
+    this.name = new.target.name;
     this.status = status;
     this.code = code;
     this.invalidParams = invalidParams;

@@ -76,6 +76,8 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
   const handleOpenCad = (floorNum?: number) => {
     const targetFloor = floorNum !== undefined
       ? floorNum
+      : typeof selectedFloor === 'number'
+      ? selectedFloor
       : (allFloorsData.length > 0 ? allFloorsData[0].floorNumber : (availableFloors.length > 0 ? availableFloors[0] : 1));
     setCadModalInitialFloor(targetFloor);
     setShowCadModal(true);
@@ -224,6 +226,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         ) : (
           <SurveyorCadReadOnlyModal
             parcel={parcel}
+            initialFloor={cadModalInitialFloor}
             onClose={() => {
               setShowCadModal(false);
               refetchFloorPlans();

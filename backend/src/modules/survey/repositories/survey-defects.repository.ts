@@ -161,14 +161,25 @@ export class SurveyDefectsRepository {
         );
       }
 
-      // Đồng bộ địa chỉ thực tế từ Bước 1 vào thửa đất
+      // Đồng bộ địa chỉ thực tế từ Bước 1 vào thửa đất (Chỉ áp dụng cho hồ sơ cấp thửa unit_id IS NULL và khi thửa đất chưa có hồ sơ cấp thửa APPROVED)
       if (photos.houseNumber || photos.street) {
         await client.query(
           `UPDATE parcels SET 
              house_number = COALESCE($1, house_number),
              street = COALESCE($2, street),
              updated_at = NOW()
-           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $3);`,
+           WHERE id = (
+             SELECT r.parcel_id FROM base_survey_reports r
+             WHERE r.id = $3
+               AND r.unit_id IS NULL
+               AND NOT EXISTS (
+                 SELECT 1 FROM base_survey_reports r2
+                 WHERE r2.parcel_id = r.parcel_id
+                   AND r2.unit_id IS NULL
+                   AND r2.status = 'APPROVED'
+                   AND r2.deleted_at IS NULL
+               )
+           );`,
           [photos.houseNumber || null, photos.street || null, reportId]
         );
       }
@@ -410,16 +421,17 @@ export class SurveyDefectsRepository {
       await Database.query(
         `INSERT INTO deformation_assessments (
            report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
-           beam_deflection_mm, measurement_method, measurement_reliability,
+           beam_deflection_mm, e3_deformation_score, measurement_method, measurement_reliability,
            diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code,
            diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          ON CONFLICT (report_id) DO UPDATE SET
            tilt_angle_x = EXCLUDED.tilt_angle_x,
            tilt_angle_y = EXCLUDED.tilt_angle_y,
            tilt_direction = EXCLUDED.tilt_direction,
            floor_slope_ratio = EXCLUDED.floor_slope_ratio,
            beam_deflection_mm = EXCLUDED.beam_deflection_mm,
+           e3_deformation_score = EXCLUDED.e3_deformation_score,
            measurement_method = EXCLUDED.measurement_method,
            measurement_reliability = EXCLUDED.measurement_reliability,
            diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
@@ -435,6 +447,7 @@ export class SurveyDefectsRepository {
           deform.tiltDirection ? String(deform.tiltDirection) : null,
           Number(deform.floorSlopeRatio) || 0,
           Number(deform.beamDeflectionMm) || 0,
+          Number(deform.e3DeformationScore) || 0,
           deform.measurementMethod || 'LASER_LEVEL',
           deform.measurementReliability || 'HIGH',
           deform.diffSettlementPhotoCode || null,
@@ -449,15 +462,16 @@ export class SurveyDefectsRepository {
       await Database.query(
         `INSERT INTO deformation_assessments (
            report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
-           beam_deflection_mm, measurement_method, measurement_reliability,
+           beam_deflection_mm, e3_deformation_score, measurement_method, measurement_reliability,
            diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (report_id) DO UPDATE SET
            tilt_angle_x = EXCLUDED.tilt_angle_x,
            tilt_angle_y = EXCLUDED.tilt_angle_y,
            tilt_direction = EXCLUDED.tilt_direction,
            floor_slope_ratio = EXCLUDED.floor_slope_ratio,
            beam_deflection_mm = EXCLUDED.beam_deflection_mm,
+           e3_deformation_score = EXCLUDED.e3_deformation_score,
            measurement_method = EXCLUDED.measurement_method,
            measurement_reliability = EXCLUDED.measurement_reliability,
            diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
@@ -470,6 +484,7 @@ export class SurveyDefectsRepository {
           deform.tiltDirection ? String(deform.tiltDirection) : null,
           Number(deform.floorSlopeRatio) || 0,
           Number(deform.beamDeflectionMm) || 0,
+          Number(deform.e3DeformationScore) || 0,
           deform.measurementMethod || 'LASER_LEVEL',
           deform.measurementReliability || 'HIGH',
           JSON.stringify(deform.diffSettlementPhotos || []),
@@ -486,8 +501,19 @@ export class SurveyDefectsRepository {
     if (accType === 'LIMITED') coverage = 'MOT_PHAN';
     else if (accType === 'ABSENT_REFUSED' || accType === 'ABSENTEE' || scopeData?.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
 
-    const inaccessible = Array.isArray(scopeData?.accessLimitation?.restrictedAreas) && scopeData.accessLimitation.restrictedAreas.length > 0
-      ? scopeData.accessLimitation.restrictedAreas.join(', ')
+    const rawRestricted = Array.isArray(scopeData?.accessLimitation?.restrictedAreas)
+      ? scopeData.accessLimitation.restrictedAreas.map((area: string) => {
+          if (area === 'Các tầng trên' && scopeData?.accessLimitation?.restrictedFloorLevels) {
+            return `${area} (${scopeData.accessLimitation.restrictedFloorLevels})`;
+          }
+          if (area === 'Khác' && scopeData?.accessLimitation?.customRestrictedArea) {
+            return scopeData.accessLimitation.customRestrictedArea;
+          }
+          return area;
+        })
+      : [];
+    const inaccessible = rawRestricted.length > 0
+      ? rawRestricted.join(', ')
       : (scopeData?.inaccessibleAreas || null);
 
     const limitations = scopeData?.accessLimitation?.mainReason
@@ -535,18 +561,30 @@ export class SurveyDefectsRepository {
       for (const f of floors) {
         if (f.zones && Array.isArray(f.zones)) {
           for (const z of f.zones) {
-            allZones.push({ ...z, floorName: z.floorName || f.floorName });
+            const resolvedRoom = (z.roomName === 'Khác' && z.customRoomName) ? z.customRoomName : z.roomName;
+            const resolvedComp = (z.componentType === 'Khác' && z.customComponentType) ? z.customComponentType : z.componentType;
+            const resolvedWallMat = (z.wallMaterial === 'Khác' && z.customWallMaterial) ? z.customWallMaterial : z.wallMaterial;
+            allZones.push({
+              ...z,
+              floorName: z.floorName || f.floorName,
+              roomName: resolvedRoom,
+              componentType: resolvedComp,
+              wallMaterial: resolvedWallMat,
+            });
           }
         }
         if (f.structuralElements && Array.isArray(f.structuralElements)) {
           for (const e of f.structuralElements) {
             const hasDefects = e.defects && Array.isArray(e.defects) && e.defects.length > 0;
+            const resolvedRoom = (e.roomName === 'Khác' && e.customRoomName) ? e.customRoomName : (e.roomName || 'Cấu kiện kết cấu');
+            const resolvedElType = (e.elementType === 'Khác' && e.customElementType) ? e.customElementType : e.elementType;
+            const resolvedMatType = (e.materialType === 'Khác' && e.customMaterialType) ? e.customMaterialType : (e.materialType || 'BTCT');
             allZones.push({
               zoneCode: e.elementCode || 'E-01',
               floorName: f.floorName,
-              roomName: e.roomName || 'Cấu kiện kết cấu',
-              componentType: normalizeComponentType(e.elementType),
-              wallMaterial: e.materialType || 'BTCT',
+              roomName: resolvedRoom,
+              componentType: normalizeComponentType(resolvedElType),
+              wallMaterial: resolvedMatType,
               functionalImpactRepairNeeded: hasDefects,
               burlandGrade: 0,
               ctxPhotoUrl: e.ctxPhotoUrl || '',

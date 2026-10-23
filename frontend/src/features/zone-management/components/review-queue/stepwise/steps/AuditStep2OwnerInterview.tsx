@@ -1007,58 +1007,74 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
             </div>
 
             {/* Hoạt động sản xuất / Vận hành 24/7 */}
-            <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-900 block">
-                  Vận Hành / Sản Xuất 24/7
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                  {hi.continuousOperation247?.has ? 'CÓ' : 'KHÔNG'}
-                </span>
-              </div>
-              {isEditMode ? (
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-amber-900 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(hi.continuousOperation247?.has)}
-                      onChange={(e) =>
-                        handleNestedFieldChange('historyInterview', 'continuousOperation247', 'Vận hành 24/7', {
-                          ...hi.continuousOperation247,
-                          has: e.target.checked,
-                        })
-                      }
-                      className="rounded text-amber-600"
-                    />
-                    <span>Hoạt động sản xuất liên tục 24/7</span>
-                  </label>
-                  {hi.continuousOperation247?.has && (
-                    <input
-                      type="text"
-                      value={hi.continuousOperation247?.notes || ''}
-                      onChange={(e) =>
-                        handleNestedFieldChange('historyInterview', 'continuousOperation247', 'Ghi chú vận hành', {
-                          ...hi.continuousOperation247,
-                          notes: e.target.value,
-                        })
-                      }
-                      placeholder="Chi tiết ca kíp, dây chuyền hoạt động..."
-                      className="w-full p-1 bg-white border border-amber-300 rounded text-xs text-amber-950"
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="text-[11px] text-slate-600">
-                  {hi.continuousOperation247?.has ? (
-                    <span className="text-amber-900 font-semibold">
-                      {hi.continuousOperation247?.notes || 'Công trình duy trì hoạt động sản xuất hoặc phục vụ liên tục 24/7'}
+            {(() => {
+              const hasCont247 =
+                typeof hi.continuousOperation247 === 'boolean'
+                  ? hi.continuousOperation247
+                  : Boolean(hi.continuousOperation247?.has);
+              const cont247Notes =
+                typeof hi.continuousOperation247 === 'object' && hi.continuousOperation247 !== null
+                  ? hi.continuousOperation247.notes || ''
+                  : '';
+              return (
+                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-900 block">
+                      Vận Hành / Sản Xuất 24/7
                     </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                      {hasCont247 ? 'CÓ' : 'KHÔNG'}
+                    </span>
+                  </div>
+                  {isEditMode ? (
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-amber-900 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={hasCont247}
+                          onChange={(e) =>
+                            handleNestedFieldChange(
+                              'historyInterview',
+                              'continuousOperation247',
+                              'Vận hành 24/7',
+                              typeof hi.continuousOperation247 === 'object' && hi.continuousOperation247 !== null
+                                ? { ...hi.continuousOperation247, has: e.target.checked }
+                                : e.target.checked
+                            )
+                          }
+                          className="rounded text-amber-600"
+                        />
+                        <span>Hoạt động sản xuất liên tục 24/7</span>
+                      </label>
+                      {hasCont247 && (
+                        <input
+                          type="text"
+                          value={cont247Notes}
+                          onChange={(e) =>
+                            handleNestedFieldChange('historyInterview', 'continuousOperation247', 'Ghi chú vận hành', {
+                              has: true,
+                              notes: e.target.value,
+                            })
+                          }
+                          placeholder="Chi tiết ca kíp, dây chuyền hoạt động..."
+                          className="w-full p-1 bg-white border border-amber-300 rounded text-xs text-amber-950"
+                        />
+                      )}
+                    </div>
                   ) : (
-                    'Không có yêu cầu vận hành hoặc sản xuất đặc biệt 24/7.'
+                    <div className="text-[11px] text-slate-600">
+                      {hasCont247 ? (
+                        <span className="text-amber-900 font-semibold">
+                          {cont247Notes || 'Công trình duy trì hoạt động sản xuất hoặc phục vụ liên tục 24/7'}
+                        </span>
+                      ) : (
+                        'Không có yêu cầu vận hành hoặc sản xuất đặc biệt 24/7.'
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         </div>
       </div>

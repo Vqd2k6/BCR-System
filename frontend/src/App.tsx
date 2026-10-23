@@ -185,7 +185,43 @@ export const App: React.FC = () => {
     }
   };
 
-  const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
+  const [hubParcel, setHubParcel] = useState<GisParcel | null>(() => {
+    try {
+      const savedHub = sessionStorage.getItem('ksqh_active_hub_parcel');
+      return savedHub ? (JSON.parse(savedHub) as GisParcel) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const updateHubParcel = (p: GisParcel | null) => {
+    setHubParcel(p);
+    try {
+      if (p) {
+        sessionStorage.setItem('ksqh_active_hub_parcel', JSON.stringify(p));
+      } else {
+        sessionStorage.removeItem('ksqh_active_hub_parcel');
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:updateHubParcel] Lỗi lưu trạng thái hubParcel:', _e);
+    }
+  };
+
+  // Lưu vết tab trước khi vào màn hình khảo sát (A -> B -> C -> thoát C quay lại đúng B)
+  const saveReturnToTab = (currentTab: NavTab) => {
+    if (
+      currentTab !== 'phase1' &&
+      currentTab !== 'condo-master' &&
+      currentTab !== 'condo-unit' &&
+      currentTab !== 'phase2'
+    ) {
+      try {
+        sessionStorage.setItem('ksqh_return_to_tab', currentTab);
+      } catch (_e: unknown) {
+        console.warn('[App:saveReturnToTab] Lỗi lưu returnToTab:', _e);
+      }
+    }
+  };
   const [mutationStudioParcel, setMutationStudioParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
@@ -622,6 +658,16 @@ export const App: React.FC = () => {
   // Lắng nghe sự kiện Back / Forward toàn cục của trình duyệt
   useEffect(() => {
     const handlePopState = () => {
+      // Nếu đang ở trong phiên khảo sát chi tiết (phase1 / condo-master / condo-unit),
+      // các trang khảo sát tự quản lý sự kiện popstate để xác nhận lưu nháp và gọi onBackToHome()
+      if (
+        activeTab === 'phase1' ||
+        activeTab === 'condo-master' ||
+        activeTab === 'condo-unit'
+      ) {
+        return;
+      }
+
       const nav = getNavigationFromUrl();
       if (nav.tab && nav.tab !== activeTab) {
         setActiveTab(nav.tab);
@@ -652,15 +698,18 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeTab, selectedZone, parcels]);
 
-  const handleChangeTab = (newTab: NavTab) => {
+  const handleChangeTab = (newTab: NavTab, options?: { keepSelectedParcel?: boolean }) => {
     if (user && !isTabAllowedForRole(newTab, user.role)) {
       console.warn(`[App:handleChangeTab] Chặn chuyển tab trái phép [${newTab}] cho vai trò [${user.role}]`);
       return;
     }
+    saveReturnToTab(newTab);
     setActiveTab(newTab);
     if (newTab === 'home' || newTab === 'map' || newTab === 'attendance' || newTab === 'admin-export') {
       clearSurveyParamsFromUrl();
-      updateSelectedParcel(null);
+      if (!options?.keepSelectedParcel) {
+        updateSelectedParcel(null);
+      }
       updateSelectedUnit(null);
     }
     updateNavigationUrl({ tab: newTab });
@@ -720,7 +769,7 @@ export const App: React.FC = () => {
   const handleStartPhase1 = (parcel: GisParcel, readOnly: boolean = false) => {
     // Thửa đất Chung cư bắt buộc quản lý trong Hub, không mở khảo sát lẻ ở ngoài
     if (parcel.buildingType === 'CONDOMINIUM') {
-      setHubParcel(parcel);
+      updateHubParcel(parcel);
       return;
     }
 
@@ -738,6 +787,7 @@ export const App: React.FC = () => {
     const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
     setIsReadOnlySurvey(effectiveReadOnly);
     triggerSurveyWithCheckInGuard(() => {
+      saveReturnToTab(activeTab);
       updateSelectedParcel(parcel);
       updateSelectedUnit(null);
       setActiveTab('phase1');
@@ -759,6 +809,7 @@ export const App: React.FC = () => {
         (parcel as unknown as { survey_status?: string }).survey_status === 'APPROVED';
       const effectiveReadOnly = readOnly !== undefined ? readOnly : isSubmitted;
 
+      saveReturnToTab(activeTab);
       setIsReadOnlySurvey(effectiveReadOnly);
       updateSelectedParcel(parcel);
       updateSelectedUnit(null);
@@ -775,6 +826,7 @@ export const App: React.FC = () => {
   const handleStartCondoUnit = (parcel: GisParcel, unit: BuildingUnit) => {
     triggerSurveyWithCheckInGuard(() => {
       const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
+      saveReturnToTab(activeTab);
       setIsReadOnlySurvey(isUnitSubmitted);
       updateSelectedParcel(parcel);
       updateSelectedUnit(unit);
@@ -792,6 +844,7 @@ export const App: React.FC = () => {
     const targetTab: NavTab = phase === 2 ? 'phase2' : 'condo-unit';
     triggerSurveyWithCheckInGuard(() => {
       const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'POSTPONED_ABSENT';
+      saveReturnToTab(activeTab);
       setIsReadOnlySurvey(isUnitSubmitted);
       updateSelectedParcel(parcel);
       updateSelectedUnit(unit);
@@ -807,6 +860,7 @@ export const App: React.FC = () => {
 
   const handleStartPhase2 = (parcel: GisParcel) => {
     triggerSurveyWithCheckInGuard(() => {
+      saveReturnToTab(activeTab);
       updateSelectedParcel(parcel);
       setActiveTab('phase2');
       updateNavigationUrl({
@@ -879,12 +933,32 @@ export const App: React.FC = () => {
 
   const navigateBackFromSurvey = () => {
     setIsReadOnlySurvey(false);
-    updateSelectedParcel(null);
     updateSelectedUnit(null);
     clearSurveyParamsFromUrl();
-    const fallbackTab = getDefaultTabForRole(user?.role);
-    setActiveTab(fallbackTab);
-    updateNavigationUrl({ tab: fallbackTab });
+
+    let savedReturnTab: NavTab | null = null;
+    try {
+      const raw = sessionStorage.getItem('ksqh_return_to_tab') as NavTab | null;
+      if (
+        raw &&
+        raw !== 'phase1' &&
+        raw !== 'condo-master' &&
+        raw !== 'condo-unit' &&
+        raw !== 'phase2' &&
+        isTabAllowedForRole(raw, user?.role)
+      ) {
+        savedReturnTab = raw;
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:navigateBackFromSurvey] Lỗi đọc returnToTab:', _e);
+    }
+
+    const targetTab = savedReturnTab || getDefaultTabForRole(user?.role);
+    if (targetTab !== 'map') {
+      updateSelectedParcel(null);
+    }
+    setActiveTab(targetTab);
+    updateNavigationUrl({ tab: targetTab });
   };
 
   return (
@@ -920,10 +994,11 @@ export const App: React.FC = () => {
         {user?.role === 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
           <ZoneManagerDashboardPage
             parcels={parcels}
+            initialSelectedParcel={selectedParcelForSurvey}
             onSelectParcelForSurvey={(p) => updateSelectedParcel(p)}
             onStartPhase1={handleStartPhase1}
             onStartPhase2={handleStartPhase2}
-            onOpenBuildingHub={(p) => setHubParcel(p)}
+            onOpenBuildingHub={(p) => updateHubParcel(p)}
             onRecordAbsence={handleRecordAbsence}
             onProposeSplit={(p) => setMutationStudioParcel(p)}
             onReloadParcels={loadParcels}
@@ -951,13 +1026,14 @@ export const App: React.FC = () => {
               if (parcelToFocus) {
                 updateSelectedParcel(parcelToFocus);
               }
-              handleChangeTab('map');
+              handleChangeTab('map', { keepSelectedParcel: Boolean(parcelToFocus) });
             }}
             onNavigateToCheckIn={() => handleChangeTab('attendance')}
             onStartPhase1={handleStartPhase1}
             onStartCondoMaster={handleStartCondoMaster}
             onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
+            onOpenBuildingHub={(p) => updateHubParcel(p)}
             onRecordAbsence={handleRecordAbsence}
             onResumeSurveyPresent={handleResumeSurveyPresent}
             onRefresh={loadParcels}
@@ -970,10 +1046,11 @@ export const App: React.FC = () => {
               parcels={parcels}
               selectedZone={selectedZone}
               onSelectZone={handleSelectZone}
+              initialSelectedParcel={selectedParcelForSurvey}
               onSelectParcel={(p) => updateSelectedParcel(p)}
               onStartSurvey={handleStartPhase1}
               onStartPhase2={handleStartPhase2}
-              onOpenBuildingHub={(p) => setHubParcel(p)}
+              onOpenBuildingHub={(p) => updateHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
               onProposeSplit={(p) => {
                 if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
@@ -1048,13 +1125,15 @@ export const App: React.FC = () => {
               parcel={selectedParcelForSurvey}
               readOnly={isReadOnlySurvey}
               onBackToHome={() => {
+                const parentParcel = selectedParcelForSurvey;
                 navigateBackFromSurvey();
-                setHubParcel(selectedParcelForSurvey);
+                updateHubParcel(parentParcel);
               }}
               onFinished={() => {
+                const parentParcel = selectedParcelForSurvey;
                 navigateBackFromSurvey();
                 loadParcels();
-                setHubParcel(selectedParcelForSurvey);
+                updateHubParcel(parentParcel);
               }}
             />
           ) : (
@@ -1072,13 +1151,16 @@ export const App: React.FC = () => {
               unit={selectedUnitForSurvey}
               readOnly={isReadOnlySurvey}
               onBackToHome={() => {
+                const parentParcel = selectedParcelForSurvey;
                 navigateBackFromSurvey();
-                setHubParcel(selectedParcelForSurvey);
+                updateHubParcel(parentParcel);
               }}
               onFinished={() => {
+                const parentParcel = selectedParcelForSurvey;
                 setSelectedUnitForSurvey(null);
                 navigateBackFromSurvey();
                 loadParcels();
+                updateHubParcel(parentParcel);
               }}
             />
           ) : (
@@ -1096,13 +1178,13 @@ export const App: React.FC = () => {
       {hubParcel && (
         <BuildingHubModal
           parcel={hubParcel}
-          onClose={() => setHubParcel(null)}
+          onClose={() => updateHubParcel(null)}
           onStartMasterSurvey={(p, readOnly) => {
-            setHubParcel(null);
+            updateHubParcel(null);
             handleStartCondoMaster(p, readOnly);
           }}
           onStartUnitSurvey={(p, unit, phase) => {
-            setHubParcel(null);
+            updateHubParcel(null);
             if (phase === 2) {
               handleStartUnitSurvey(p, unit, 2);
             } else {

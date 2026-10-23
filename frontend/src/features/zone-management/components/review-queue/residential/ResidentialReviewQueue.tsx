@@ -22,6 +22,7 @@ import type { GisParcel } from '../../../../../components/gis/shared/types';
 
 interface Props {
   selectedZone: string;
+  externalSearchQuery?: string;
   onOpenStudio: (reportId: string | null) => void;
   onPreviewReport: (reportId: string | null) => void;
   onOpenRejectModal: (item: PendingSubmissionItem) => void;
@@ -37,6 +38,7 @@ type ResidentialTab = 'ALL' | 'UNDER_REVIEW' | 'CRITICAL' | 'SLA' | 'REJECTED' |
 
 export const ResidentialReviewQueue: React.FC<Props> = ({
   selectedZone,
+  externalSearchQuery,
   onOpenStudio,
   onPreviewReport,
   onOpenRejectModal,
@@ -47,14 +49,48 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   onOpenRevertModal,
   onStatsNeedRefresh,
 }) => {
-  const [activeTab, setActiveTab] = useState<ResidentialTab>('ALL');
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const resTabKey = `ksqh_residential_review_tab_${selectedZone}`;
+  const [activeTab, setActiveTab] = useState<ResidentialTab>(() => {
+    try {
+      const saved = sessionStorage.getItem(resTabKey) as ResidentialTab | null;
+      if (
+        saved === 'ALL' ||
+        saved === 'UNDER_REVIEW' ||
+        saved === 'CRITICAL' ||
+        saved === 'SLA' ||
+        saved === 'REJECTED' ||
+        saved === 'APPROVED'
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(resTabKey, activeTab);
+    } catch {
+      // ignore
+    }
+  }, [resTabKey, activeTab]);
+  const [searchInput, setSearchInput] = useState(externalSearchQuery || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(externalSearchQuery || '');
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
+
+  // Đồng bộ từ khóa tìm kiếm từ bộ lọc bên ngoài (ví dụ khi bấm "Thẩm định" từ Bản đồ GIS)
+  useEffect(() => {
+    const nextSearch = externalSearchQuery || '';
+    setSearchInput(nextSearch);
+    setDebouncedSearch(nextSearch);
+    setCurrentPage(1);
+  }, [externalSearchQuery]);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -78,6 +114,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
         params: {
           zoneId: selectedZone,
           filterLevel: 'RESIDENTIAL',
+          search: externalSearchQuery || undefined,
           limit: 200,
         },
       });
@@ -99,7 +136,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
 
   useEffect(() => {
     fetchResidentialSubmissions();
-  }, [selectedZone]);
+  }, [selectedZone, externalSearchQuery]);
 
   // Tab Filtering & Search
   const filteredItems = useMemo(() => {

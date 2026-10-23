@@ -69,13 +69,33 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     return localStorage.getItem(masterUpdateKey) === 'true';
   });
 
+  const hubSessionKey = `ksqh_building_hub_state_${parcel.id}`;
+
+  const readSavedHubSession = (): {
+    selectedFloor?: number | 'ALL';
+    activeHubTab?: 'UNIT' | 'MASTER';
+    selectedStatus?: string;
+    searchTerm?: string;
+    inspectedUnitId?: string | null;
+  } => {
+    try {
+      const raw = sessionStorage.getItem(hubSessionKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
   const [units, setUnits] = useState<BuildingUnit[]>([]);
   const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => readSavedHubSession().searchTerm ?? '');
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
-  const [selectedFloor, setSelectedFloor] = useState<number | 'ALL'>('ALL');
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedFloor, setSelectedFloor] = useState<number | 'ALL'>(() => {
+    const saved = readSavedHubSession().selectedFloor;
+    return saved !== undefined ? saved : 'ALL';
+  });
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => readSavedHubSession().selectedStatus ?? 'ALL');
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [inspectedUnit, setInspectedUnit] = useState<BuildingUnit | null>(null);
 
@@ -90,7 +110,49 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const [newUnitCode, setNewUnitCode] = useState<string>('');
   const [newFloorNumber, setNewFloorNumber] = useState<number | ''>(1);
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
-  const [activeHubTab, setActiveHubTab] = useState<'UNIT' | 'MASTER'>('UNIT');
+  const [activeHubTab, setActiveHubTab] = useState<'UNIT' | 'MASTER'>(() => {
+    const saved = readSavedHubSession().activeHubTab;
+    return saved === 'MASTER' || saved === 'UNIT' ? saved : 'UNIT';
+  });
+
+  // Lưu ngữ cảnh tầng / tab / bộ lọc của BuildingHubModal vào sessionStorage để khi từ Căn hộ / Tòa mẹ quay ra không bị nhảy về ALL
+  useEffect(() => {
+    try {
+      const prev = readSavedHubSession();
+      sessionStorage.setItem(
+        hubSessionKey,
+        JSON.stringify({
+          selectedFloor,
+          activeHubTab,
+          selectedStatus,
+          searchTerm,
+          inspectedUnitId: inspectedUnit ? inspectedUnit.id : prev.inspectedUnitId ?? null,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }, [hubSessionKey, selectedFloor, activeHubTab, selectedStatus, searchTerm, inspectedUnit]);
+
+  const handleSelectInspectedUnit = (u: BuildingUnit | null) => {
+    setInspectedUnit(u);
+    try {
+      const prev = readSavedHubSession();
+      sessionStorage.setItem(
+        hubSessionKey,
+        JSON.stringify({
+          ...prev,
+          selectedFloor,
+          activeHubTab,
+          selectedStatus,
+          searchTerm,
+          inspectedUnitId: u ? u.id : null,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  };
 
   // Load units from API
   const fetchUnits = async () => {
@@ -132,6 +194,13 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         });
 
         setUnits(mappedUnits);
+        const savedSession = readSavedHubSession();
+        if (savedSession.inspectedUnitId) {
+          const foundInspected = mappedUnits.find((item) => item.id === savedSession.inspectedUnitId);
+          if (foundInspected) {
+            setInspectedUnit(foundInspected);
+          }
+        }
       } else {
         setUnits([]);
       }
@@ -414,7 +483,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     floorsData: displayedFloorsData,
     allFloorsData,
     inspectedUnit,
-    setInspectedUnit,
+    setInspectedUnit: handleSelectInspectedUnit,
     loading,
     searchTerm,
     setSearchTerm,

@@ -253,28 +253,43 @@ function getMetroBoundaryData() {
 }
 
 /**
- * Trích xuất mảng tọa độ [lat, lng] từ dữ liệu thửa đất
+ * Trích xuất mảng tọa độ [lat, lng] từ dữ liệu thửa đất.
+ * Thứ tự ưu tiên chuẩn hóa:
+ * 1. Nếu Admin đã tích chọn "Xác nhận giữ ranh KSV thực địa" (keepKsvBoundaryConfirmed = true) -> Ưu tiên parcelCoordinates / polygonCoords của KSV.
+ * 2. Nếu có ranh PostGIS chuẩn hóa (parcel_polygon_geojson / cadastral_geojson) -> Ưu tiên đa giác PostGIS mới nhất (đã cắt GPMB / nắn chỉnh).
+ * 3. Nếu có json.parcelCoordinates hoặc json.polygonCoords đã đồng bộ -> Sử dụng tọa độ trong JSON.
+ * 4. Fallback tạo đa giác quanh tọa độ GPS.
  */
 export function extractParcelPolygonCoords(rawReport: any, json: any): [number, number][] | null {
-  // 1. Thử từ json.polygonCoords
-  if (Array.isArray(json?.polygonCoords) && json.polygonCoords.length >= 3) {
-    return json.polygonCoords;
+  const ksvCoords =
+    Array.isArray(json?.parcelCoordinates) && json.parcelCoordinates.length >= 3
+      ? json.parcelCoordinates
+      : Array.isArray(json?.polygonCoords) && json.polygonCoords.length >= 3
+      ? json.polygonCoords
+      : null;
+
+  // 1. Trường hợp Admin xác nhận giữ ranh KSV thực địa kèm giải trình
+  if (json?.keepKsvBoundaryConfirmed === true && ksvCoords) {
+    return ksvCoords;
   }
 
-  // 2. Thử từ rawReport.parcel_polygon_geojson
-  if (rawReport?.parcel_polygon_geojson) {
+  // 2. Ưu tiên đa giác từ CSDL PostGIS (rawReport.parcel_polygon_geojson hoặc rawReport.cadastral_geojson)
+  const rawGeo = rawReport?.parcel_polygon_geojson || rawReport?.cadastral_geojson;
+  if (rawGeo) {
     try {
-      const geojson = typeof rawReport.parcel_polygon_geojson === 'string'
-        ? JSON.parse(rawReport.parcel_polygon_geojson)
-        : rawReport.parcel_polygon_geojson;
-      if (geojson && geojson.coordinates && Array.isArray(geojson.coordinates[0])) {
-        // Chuyển [lng, lat] thành [lat, lng]
+      const geojson = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : rawGeo;
+      if (geojson && geojson.coordinates && Array.isArray(geojson.coordinates[0]) && geojson.coordinates[0].length >= 3) {
         const ring = geojson.coordinates[0];
         return ring.map((pt: any) => [Number(pt[1]), Number(pt[0])] as [number, number]);
       }
     } catch (e) {
-      // Bỏ qua lỗi parse
+      // Bỏ qua lỗi parse, chuyển sang fallback
     }
+  }
+
+  // 3. Thử từ json.parcelCoordinates hoặc json.polygonCoords
+  if (ksvCoords) {
+    return ksvCoords;
   }
 
   // 3. Fallback đa giác hình chữ nhật quanh tọa độ GPS (nếu có GPS)
@@ -777,20 +792,34 @@ export function calculateMetroDistances(
   json: any
 ): MetroDistanceResult {
   // 1. Khoảng cách tới Tim tuyến Metro (Centerline)
-  const manualDist = parseCleanDistanceNumber(json.manualMetroDistanceM);
+  const manualDist = parseCleanDistanceNumber(json.manualMetroDistanceM ?? json.distanceToMetroM);
   const jsonMetroOffset = parseCleanDistanceNumber(json.metroOffsetDistance);
   const dbCenterlineDist = parseCleanDistanceNumber(rawReport.distance_to_centerline_m);
 
-  let alignmentM: number | null = manualDist ?? jsonMetroOffset ?? dbCenterlineDist;
+  // Nếu thửa đất đã được nắn chỉnh trên PostGIS (REDRAW) và Admin không chọn giữ ranh KSV, ưu tiên dbCenterlineDist mới nhất
+  const isReshapedOnGis = rawReport?.mutation_type === 'REDRAW' && json?.keepKsvBoundaryConfirmed !== true;
+  let alignmentM: number | null =
+    manualDist ?? (isReshapedOnGis ? (dbCenterlineDist ?? jsonMetroOffset) : (jsonMetroOffset ?? dbCenterlineDist));
 
   // 2. Khoảng cách tới Biên hố đào / Mép kết cấu Metro (Outer Boundary / Excavation Edge)
-  const jsonClearance = parseCleanDistanceNumber(json.clearanceOffsetDistance);
+  const jsonClearance = parseCleanDistanceNumber(json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM);
   const jsonStationEdge = parseCleanDistanceNumber(json.stationEdgeDistance);
 
   let edgeM: number | null = jsonClearance ?? jsonStationEdge;
 
-  // 3. Nếu thiếu, tính toán tự động từ đỉnh polygon gần nhất của thửa đất (như ở màn hình thẩm định admin)
-  if (edgeM === null || alignmentM === null) {
+  const frozenImpact = json?.impactAssessment || {};
+  const frozenDist = parseCleanDistanceNumber(frozenImpact.distanceM);
+  if (frozenDist !== null) {
+    if (frozenImpact.distanceType === 'STATION_EDGE' && edgeM === null) {
+      edgeM = frozenDist;
+    } else if (frozenImpact.distanceType === 'TUNNEL_CENTERLINE' && alignmentM === null) {
+      alignmentM = frozenDist;
+    }
+  }
+
+  // 3. Nếu thiếu và chưa khóa snapshot APPROVED có đủ khoảng cách, tính toán tự động từ đỉnh polygon gần nhất
+  const isApprovedWithDistance = String(rawReport?.status || '').toUpperCase() === 'APPROVED' && (alignmentM !== null || edgeM !== null);
+  if (!isApprovedWithDistance && (edgeM === null || alignmentM === null)) {
     const polygon = extractParcelPolygonCoords(rawReport, json);
     if (polygon && polygon.length >= 3) {
       const computed = calculateDistancesFromPolygon(polygon);

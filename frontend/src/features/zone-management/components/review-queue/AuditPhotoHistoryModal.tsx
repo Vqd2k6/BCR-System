@@ -42,7 +42,13 @@ export interface PhotoHistoryItem {
   deleted_by_name?: string;
   replacement_for_url?: string;
   superseded_by_url?: string;
-  metadata_json?: any;
+  metadata_json?: {
+    targetPhotoId?: string;
+    defectId?: string;
+    zoneId?: string;
+    photoIndex?: number;
+    [key: string]: unknown;
+  };
   created_at: string;
   updated_at: string;
 }

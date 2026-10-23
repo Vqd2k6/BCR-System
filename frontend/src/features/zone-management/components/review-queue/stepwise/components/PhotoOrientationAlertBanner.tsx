@@ -77,7 +77,7 @@ export const PhotoOrientationAlertBanner: React.FC<PhotoOrientationAlertBannerPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {strictViolations.map((v, vIdx) => (
                   <div
-                    key={`${v.key}_${vIdx}`}
+                    key={`orientation_${v.key}_${v.floorIndex ?? 'g'}_${v.zoneCode ?? ''}_${v.photoCode ?? ''}_${vIdx}`}
                     className="p-2.5 rounded-xl bg-white/95 border-2 border-amber-400 flex items-center justify-between gap-2 shadow-2xs hover:border-amber-500 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -136,7 +136,7 @@ export const PhotoOrientationAlertBanner: React.FC<PhotoOrientationAlertBannerPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {advisoryViolations.map((v, vIdx) => (
                   <div
-                    key={`${v.key}_${vIdx}`}
+                    key={`orientation_${v.key}_${v.floorIndex ?? 'g'}_${v.zoneCode ?? ''}_${v.photoCode ?? ''}_${vIdx}`}
                     className="p-2.5 rounded-xl bg-white/80 border border-amber-200 flex items-center justify-between gap-2 shadow-2xs hover:border-amber-400 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">

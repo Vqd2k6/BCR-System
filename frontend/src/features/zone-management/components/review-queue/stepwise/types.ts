@@ -234,6 +234,8 @@ export interface StepwiseSettlementTilt {
     notes?: string;
   };
   abnormalCase?: {
+    hasAbnormal?: boolean;
+    description?: string;
     photoUrl?: string;
     photoCode?: string;
     photos?: Array<{ url: string; photoCode?: string; notes?: string }>;
@@ -279,6 +281,9 @@ export interface AuditStepwiseFormState {
   gpsLocation?: { lat?: number; lng?: number; latitude?: number; longitude?: number };
   coordinates?: [number, number] | [number, number][] | unknown;
   parcelCoordinates?: [number, number][];
+  polygonCoords?: [number, number][];
+  keepKsvBoundaryConfirmed?: boolean;
+  keepKsvBoundaryReason?: string;
   metroOffsetDistance?: string | number;
   clearanceOffsetDistance?: string | number;
   metroDistanceM?: number | string;
@@ -354,6 +359,7 @@ export interface AuditStepBaseProps {
   reportId?: string;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
+  handleApplySyncedGeometry?: (newCoords: [number, number][], newMetroDist: string, newClearanceDist: string) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
@@ -450,6 +456,10 @@ export interface StepwiseDeformation {
 export interface StepwiseSurveyJson {
   metroOffsetDistance?: string | number;
   clearanceOffsetDistance?: string | number;
+  parcelCoordinates?: [number, number][];
+  polygonCoords?: [number, number][];
+  keepKsvBoundaryConfirmed?: boolean;
+  keepKsvBoundaryReason?: string;
   gpsCoords?: { latitude?: number; lat?: number; longitude?: number; lng?: number; accuracy?: number };
   projectParcelCode?: string;
   houseNumber?: string;

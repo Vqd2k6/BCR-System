@@ -83,6 +83,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
+    handleApplySyncedGeometry,
     handleDiscard,
     discardDiffItem,
     handleReviewSave,
@@ -279,6 +280,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           data={data}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
+          handleApplySyncedGeometry={handleApplySyncedGeometry}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
@@ -359,6 +361,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           reportId={reportId}
           handleNestedFieldChange={handleNestedFieldChange}
           handleFieldChange={handleFieldChange}
+          handleApplySyncedGeometry={handleApplySyncedGeometry}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onRefresh={onRefresh}
           isFieldDirty={isFieldDirty}

@@ -54,11 +54,42 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
   const [showAbsenteeConfirm, setShowAbsenteeConfirm] = useState(false);
 
   // In-place edit state
+  const surveyJsonInit = (data.surveyJson || data.survey_data_json || {}) as Record<string, any>;
   const [isEditing, setIsEditing] = useState(false);
+  const [editDisplayCode, setEditDisplayCode] = useState(
+    String(surveyJsonInit.displayCode || data.unitInfo?.display_code || data.unitInfo?.unit_code || '')
+  );
+  const [editUnitAreaM2, setEditUnitAreaM2] = useState(
+    String(surveyJsonInit.unitAreaM2 ?? data.unitInfo?.unit_area_m2 ?? '')
+  );
   const [editOwnerName, setEditOwnerName] = useState(data.unitInfo?.owner_name || data.ownerName || '');
   const [editOwnerPhone, setEditOwnerPhone] = useState(data.unitInfo?.owner_phone || data.ownerPhone || '');
+  const [editOwnerIdCard, setEditOwnerIdCard] = useState(
+    String(surveyJsonInit.ownerIdCard || data.unitInfo?.owner_id_card || '')
+  );
   const [editResidentStatus, setEditResidentStatus] = useState(data.unitInfo?.resident_status || 'CHỦ_HỘ_Ở');
+  const [editDoorJammingStatus, setEditDoorJammingStatus] = useState(
+    String(surveyJsonInit.doorJammingStatus || 'NORMAL')
+  );
+  const [editHasWaterLeak, setEditHasWaterLeak] = useState(
+    Boolean(surveyJsonInit.upperFloorWaterLeakage?.has)
+  );
+  const [editWaterLeakDesc, setEditWaterLeakDesc] = useState(
+    String(surveyJsonInit.upperFloorWaterLeakage?.description || surveyJsonInit.upperFloorWaterLeakage?.leakageItems?.[0]?.description || '')
+  );
+  const [editBeamSagMm, setEditBeamSagMm] = useState(
+    String(surveyJsonInit.beamSagging?.sagMm ?? '')
+  );
+  const [editBeamSpanM, setEditBeamSpanM] = useState(
+    String(surveyJsonInit.beamSagging?.spanM ?? '')
+  );
+  const [editSummaryConclusions, setEditSummaryConclusions] = useState(
+    String(surveyJsonInit.summaryConclusions || data.summaryConclusions || '')
+  );
   const [editEngineeringRecs, setEditEngineeringRecs] = useState(data.engineeringRecommendations || '');
+  const [editOwnerFeedback, setEditOwnerFeedback] = useState(
+    String(surveyJsonInit.ownerFeedback || surveyJsonInit.ownerRemarks || '')
+  );
   const [editReason, setEditReason] = useState('');
 
   const surveyJson = data.surveyJson || data.survey_data_json || {};
@@ -154,6 +185,18 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
     const diffs: DiffItem[] = [];
     const updates: Record<string, unknown> = {};
 
+    const origDisplayCode = String(surveyJsonInit.displayCode || unitInfo?.display_code || unitInfo?.unit_code || '');
+    if (editDisplayCode !== origDisplayCode) {
+      diffs.push({ field: 'displayCode', label: 'Biển số căn hộ thực tế', oldValue: origDisplayCode, newValue: editDisplayCode });
+      updates.displayCode = editDisplayCode;
+    }
+
+    const origArea = String(surveyJsonInit.unitAreaM2 ?? unitInfo?.unit_area_m2 ?? '');
+    if (editUnitAreaM2 !== origArea) {
+      diffs.push({ field: 'unitAreaM2', label: 'Diện tích căn hộ (m²)', oldValue: origArea, newValue: editUnitAreaM2 });
+      updates.unitAreaM2 = editUnitAreaM2 ? Number(editUnitAreaM2) : '';
+    }
+
     if (editOwnerName !== (unitInfo?.owner_name || data.ownerName || '')) {
       diffs.push({
         field: 'ownerName',
@@ -174,6 +217,12 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
       updates.ownerPhone = editOwnerPhone;
     }
 
+    const origIdCard = String(surveyJsonInit.ownerIdCard || unitInfo?.owner_id_card || '');
+    if (editOwnerIdCard !== origIdCard) {
+      diffs.push({ field: 'ownerIdCard', label: 'CCCD / Định danh chủ hộ', oldValue: origIdCard, newValue: editOwnerIdCard });
+      updates.ownerIdCard = editOwnerIdCard;
+    }
+
     if (editResidentStatus !== (unitInfo?.resident_status || 'CHỦ_HỘ_Ở')) {
       diffs.push({
         field: 'residentStatus',
@@ -184,6 +233,52 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
       updates.residentStatus = editResidentStatus;
     }
 
+    const origJam = String(surveyJsonInit.doorJammingStatus || 'NORMAL');
+    if (editDoorJammingStatus !== origJam) {
+      diffs.push({ field: 'doorJammingStatus', label: 'Tình trạng đóng mở cửa', oldValue: origJam, newValue: editDoorJammingStatus });
+      updates.doorJammingStatus = editDoorJammingStatus;
+    }
+
+    const origHasLeak = Boolean(surveyJsonInit.upperFloorWaterLeakage?.has);
+    const origLeakDesc = String(surveyJsonInit.upperFloorWaterLeakage?.description || surveyJsonInit.upperFloorWaterLeakage?.leakageItems?.[0]?.description || '');
+    if (editHasWaterLeak !== origHasLeak || editWaterLeakDesc !== origLeakDesc) {
+      diffs.push({
+        field: 'upperFloorWaterLeakage',
+        label: 'Hiện tượng thấm dột trần',
+        oldValue: origHasLeak ? origLeakDesc || 'Có thấm dột' : 'Không',
+        newValue: editHasWaterLeak ? editWaterLeakDesc || 'Có thấm dột' : 'Không',
+      });
+      updates.upperFloorWaterLeakage = {
+        ...(surveyJsonInit.upperFloorWaterLeakage || {}),
+        has: editHasWaterLeak,
+        description: editWaterLeakDesc,
+        location: surveyJsonInit.upperFloorWaterLeakage?.location || 'Trần căn hộ',
+      };
+    }
+
+    const origSagMm = String(surveyJsonInit.beamSagging?.sagMm ?? '');
+    const origSpanM = String(surveyJsonInit.beamSagging?.spanM ?? '');
+    if (editBeamSagMm !== origSagMm || editBeamSpanM !== origSpanM) {
+      diffs.push({
+        field: 'beamSagging',
+        label: 'Độ võng dầm / bản sàn',
+        oldValue: origSagMm ? `${origSagMm}mm / ${origSpanM}m` : 'Không',
+        newValue: editBeamSagMm ? `${editBeamSagMm}mm / ${editBeamSpanM}m` : 'Không',
+      });
+      updates.beamSagging = {
+        ...(surveyJsonInit.beamSagging || {}),
+        hasSagging: Number(editBeamSagMm) > 0,
+        sagMm: editBeamSagMm ? Number(editBeamSagMm) : 0,
+        spanM: editBeamSpanM ? Number(editBeamSpanM) : 0,
+      };
+    }
+
+    const origSummary = String(surveyJsonInit.summaryConclusions || data.summaryConclusions || '');
+    if (editSummaryConclusions !== origSummary) {
+      diffs.push({ field: 'summaryConclusions', label: 'Kết luận tổng hợp căn hộ', oldValue: origSummary, newValue: editSummaryConclusions });
+      updates.summaryConclusions = editSummaryConclusions;
+    }
+
     if (editEngineeringRecs !== (data.engineeringRecommendations || '')) {
       diffs.push({
         field: 'engineeringRecommendations',
@@ -192,6 +287,12 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
         newValue: editEngineeringRecs,
       });
       updates.engineeringRecommendations = editEngineeringRecs;
+    }
+
+    const origFeedback = String(surveyJsonInit.ownerFeedback || surveyJsonInit.ownerRemarks || '');
+    if (editOwnerFeedback !== origFeedback) {
+      diffs.push({ field: 'ownerFeedback', label: 'Ý kiến chủ hộ', oldValue: origFeedback, newValue: editOwnerFeedback });
+      updates.ownerFeedback = editOwnerFeedback;
     }
 
     if (diffs.length === 0) {
@@ -310,6 +411,34 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Biển số phòng thực tế</label>
+              <input
+                type="text"
+                value={editDisplayCode}
+                onChange={(e) => setEditDisplayCode(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Diện tích căn hộ (m²)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={editUnitAreaM2}
+                onChange={(e) => setEditUnitAreaM2(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">CCCD / Định danh chủ hộ</label>
+              <input
+                type="text"
+                value={editOwnerIdCard}
+                onChange={(e) => setEditOwnerIdCard(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
               <label className="text-[11px] font-bold text-slate-700 block mb-1">Tên chủ hộ</label>
               <input
                 type="text"
@@ -340,17 +469,90 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
                 <option value="TRANH_CHẤP">Tranh chấp / Khiếu nại</option>
               </select>
             </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Tình trạng đóng mở cửa</label>
+              <select
+                value={editDoorJammingStatus}
+                onChange={(e) => setEditDoorJammingStatus(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+              >
+                <option value="NORMAL">Bình thường</option>
+                <option value="JAMMED">Bị kẹt cánh / khó đóng mở</option>
+                <option value="RUBBING_FLOOR">Xệ cánh cạ sàn</option>
+                <option value="CRACKED_GLASS">Nứt rạn kính cửa</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Độ võng dầm/sàn f (mm) & Nhịp L (m)</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  step="0.5"
+                  value={editBeamSagMm}
+                  onChange={(e) => setEditBeamSagMm(e.target.value)}
+                  placeholder="f (mm)"
+                  className="w-1/2 px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editBeamSpanM}
+                  onChange={(e) => setEditBeamSpanM(e.target.value)}
+                  placeholder="L (m)"
+                  className="w-1/2 px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 mb-1">
+                <input
+                  type="checkbox"
+                  checked={editHasWaterLeak}
+                  onChange={(e) => setEditHasWaterLeak(e.target.checked)}
+                />
+                <span>Thấm dột trần lầu trên</span>
+              </label>
+              <input
+                type="text"
+                value={editWaterLeakDesc}
+                onChange={(e) => setEditWaterLeakDesc(e.target.value)}
+                placeholder="Mô tả vị trí / tình trạng thấm dột..."
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 block mb-1">Khuyến nghị kỹ thuật của Admin</label>
-            <input
-              type="text"
-              value={editEngineeringRecs}
-              onChange={(e) => setEditEngineeringRecs(e.target.value)}
-              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
-              placeholder="VD: Cần theo dõi thêm nứt trần tiếp giáp WC tầng trên..."
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Kết luận tổng hợp căn hộ</label>
+              <input
+                type="text"
+                value={editSummaryConclusions}
+                onChange={(e) => setEditSummaryConclusions(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                placeholder="Kết luận hiện trạng căn hộ..."
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Khuyến nghị kỹ thuật của Admin</label>
+              <input
+                type="text"
+                value={editEngineeringRecs}
+                onChange={(e) => setEditEngineeringRecs(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                placeholder="VD: Cần theo dõi thêm nứt trần tiếp giáp WC tầng trên..."
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Ý kiến chủ hộ</label>
+              <input
+                type="text"
+                value={editOwnerFeedback}
+                onChange={(e) => setEditOwnerFeedback(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                placeholder="Ý kiến ghi nhận từ chủ sở hữu căn hộ..."
+              />
+            </div>
           </div>
 
           <div>

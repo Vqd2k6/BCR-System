@@ -324,7 +324,11 @@ async function resetVerificationReleases(): Promise<void> {
     [VERIFICATION_SET.map((r) => r.id)]
   );
   await Database.query(
-    `UPDATE base_survey_reports SET export_revision = 0 WHERE id = ANY($1::uuid[]);`,
+    `DELETE FROM survey_report_versions WHERE report_id = ANY($1::uuid[]) AND version_tag = 'APPROVED_RELEASE';`,
+    [VERIFICATION_SET.map((r) => r.id)]
+  );
+  await Database.query(
+    `UPDATE base_survey_reports SET export_revision = 0, status = 'UNDER_REVIEW' WHERE id = ANY($1::uuid[]);`,
     [VERIFICATION_SET.map((r) => r.id)]
   );
 
@@ -397,9 +401,11 @@ async function partB(): Promise<void> {
       const snap = await ReportSnapshotService.getLatestApprovedSnapshot(r.id);
       truthy(snap !== null, 'thiếu snapshot APPROVED_RELEASE');
       if (!snap) throw new Error('thiếu snapshot');
-      const recomputed = ReportSnapshotService.computeContentHash({
-        ecs: snap.snapshot.ecs, vi: snap.snapshot.vi, burlandMaxGrade: snap.snapshot.burlandMaxGrade,
-      });
+      const recomputed = ReportSnapshotService.computeContentHash(
+        { ecs: snap.snapshot.ecs, vi: snap.snapshot.vi, burlandMaxGrade: snap.snapshot.burlandMaxGrade },
+        snap.snapshot.frozenSurveyDataJson,
+        snap.snapshot.frozenParcel
+      );
       eq(recomputed, snap.snapshot.contentSha256, 'hash nội dung snapshot');
       return `ECS=${snap.snapshot.ecs.total}/${snap.snapshot.ecs.ecsClass}, V3=${snap.snapshot.vi.v3 ?? '--'}, V4=${snap.snapshot.vi.v4 ?? '--'}, VIavg=${snap.snapshot.vi.avg ?? '--'}`;
     });

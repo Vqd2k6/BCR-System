@@ -134,6 +134,13 @@ export function useMasterAreaSurveyState({
     isCadOverriddenByUserRef.current = isCadOverriddenByUser;
   }, [isCadOverriddenByUser]);
 
+  // Cờ khóa cứng CAD sau khi hoán đổi vị trí để bảo vệ điểm ghim (Z/E) đã khảo sát
+  const [isCadLocked, setIsCadLocked] = useState<boolean>(false);
+  const isCadLockedRef = useRef<boolean>(false);
+  useEffect(() => {
+    isCadLockedRef.current = isCadLocked;
+  }, [isCadLocked]);
+
   // Danh sách các bản vẽ CAD tầng có sẵn trong tòa nhà
   const [availableFloorPlans, setAvailableFloorPlans] = useState<FloorPlanItem[]>(floorPlans || []);
   useEffect(() => {
@@ -305,7 +312,7 @@ export function useMasterAreaSurveyState({
               );
               if (matchedUnit?.unit_cad_url) {
                 setCadSketchPhotoUrl((prev) => {
-                  if (prev || isCadOverriddenByUserRef.current) return prev;
+                  if (prev || isCadOverriddenByUserRef.current || isCadLockedRef.current) return prev;
                   return matchedUnit.unit_cad_url || '';
                 });
               }
@@ -369,10 +376,20 @@ export function useMasterAreaSurveyState({
       setOverviewPhotos(source.overviewPhotos as EvidencePhotoItem[]);
       evidenceCount += source.overviewPhotos.length;
     }
+    if (typeof source.isCadLocked === 'boolean') {
+      setIsCadLocked(source.isCadLocked);
+      isCadLockedRef.current = source.isCadLocked;
+      if (source.isCadLocked) {
+        setIsCadOverriddenByUser(true);
+        isCadOverriddenByUserRef.current = true;
+        hasAutoCroppedRef.current = true;
+      }
+    }
     if (typeof source.isCadOverriddenByUser === 'boolean') {
-      setIsCadOverriddenByUser(source.isCadOverriddenByUser);
-      isCadOverriddenByUserRef.current = source.isCadOverriddenByUser;
-      if (source.isCadOverriddenByUser) {
+      const nextOverridden = Boolean(source.isCadOverriddenByUser || source.isCadLocked);
+      setIsCadOverriddenByUser(nextOverridden);
+      isCadOverriddenByUserRef.current = nextOverridden;
+      if (nextOverridden) {
         hasAutoCroppedRef.current = true;
       }
     }
@@ -492,6 +509,7 @@ export function useMasterAreaSurveyState({
       noStructuralElementsReason,
       customBbox,
       isCadOverriddenByUser,
+      isCadLocked,
     };
 
     return healLocalPhotoUris({
@@ -524,6 +542,8 @@ export function useMasterAreaSurveyState({
     surveyorRemarks,
     surveyorSignatureUrl,
     customBbox,
+    isCadOverriddenByUser,
+    isCadLocked,
     dominantBurlandGrade,
     currentStep,
     floorNumber,
@@ -971,8 +991,16 @@ export function useMasterAreaSurveyState({
   useEffect(() => {
     // 1. Chặn tuyệt đối nếu chưa hoàn thành hydrate dữ liệu nháp/báo cáo từ server/local
     if (!hasHydrated) return;
-    // 2. Chặn nếu người dùng đã từng thao tác (xoá, chọn ô, upload) hoặc đã auto crop trước đó
-    if (hasAutoCroppedRef.current || isCadOverriddenByUserRef.current) return;
+    // 2. Chặn nếu người dùng đã từng thao tác (xoá, chọn ô, upload), đã khóa cứng CAD sau swap, hoặc đã có điểm ghim
+    if (
+      hasAutoCroppedRef.current ||
+      isCadOverriddenByUserRef.current ||
+      isCadLockedRef.current ||
+      cadZonePins.length > 0 ||
+      cadElementPins.length > 0
+    ) {
+      return;
+    }
     // 3. Chặn nếu state đã có CAD (từ draft hoặc prop)
     if (cadSketchPhotoUrl) {
       hasAutoCroppedRef.current = true;
@@ -985,13 +1013,13 @@ export function useMasterAreaSurveyState({
       cropImageBoundingBox(parentCad, activeBbox, 0.05)
         .then((cropped) => {
           setCadSketchPhotoUrl((prev) => {
-            // Không ghi đè nếu người dùng đã can thiệp trong lúc crop chạy
-            if (prev || isCadOverriddenByUserRef.current) return prev;
+            // Không ghi đè nếu người dùng đã can thiệp hoặc CAD đã khóa trong lúc crop chạy
+            if (prev || isCadOverriddenByUserRef.current || isCadLockedRef.current) return prev;
             return cropped;
           });
           if (!cadStructuralSketchPhotoUrl) {
             setCadStructuralSketchPhotoUrl((prev) => {
-              if (prev || isCadOverriddenByUserRef.current) return prev;
+              if (prev || isCadOverriddenByUserRef.current || isCadLockedRef.current) return prev;
               return cropped;
             });
           }
@@ -1007,12 +1035,15 @@ export function useMasterAreaSurveyState({
     activeBbox,
     cadSketchPhotoUrl,
     cadStructuralSketchPhotoUrl,
+    cadZonePins.length,
+    cadElementPins.length,
   ]);
 
   // =========================================================================
   // BƯỚC 2: SETUP BẢN VẼ CAD (TRÍCH XUẤT TỪ CAD TẦNG, CHỌN TẦNG KHÁC & TẢI MỚI)
   // =========================================================================
   const handleAutoCropFromFloorCad = async () => {
+    if (isCadLockedRef.current) return;
     const parentCadUrl = floorPlanData?.plan?.cad_photo_url || floorCadUrl;
     if (!parentCadUrl) {
       alert('Không tìm thấy bản vẽ CAD tầng mẹ để trích xuất!');
@@ -1046,6 +1077,7 @@ export function useMasterAreaSurveyState({
   };
 
   const handleConfirmCadCrop = (croppedDataUrl: string, newBbox: NormalizedBbox) => {
+    if (isCadLockedRef.current) return;
     setCadSketchPhotoUrl(croppedDataUrl);
     if (!useSeparateStructuralCad) {
       setCadStructuralSketchPhotoUrl(croppedDataUrl);
@@ -1057,6 +1089,7 @@ export function useMasterAreaSurveyState({
   };
 
   const handleUseFullFloorCad = (fullFloorCadUrl: string) => {
+    if (isCadLockedRef.current) return;
     setCadSketchPhotoUrl(fullFloorCadUrl);
     if (!useSeparateStructuralCad) {
       setCadStructuralSketchPhotoUrl(fullFloorCadUrl);
@@ -1068,6 +1101,7 @@ export function useMasterAreaSurveyState({
   };
 
   const handleClearCadSketch = () => {
+    if (isCadLockedRef.current) return;
     setCadSketchPhotoUrl('');
     if (!useSeparateStructuralCad) {
       setCadStructuralSketchPhotoUrl('');
@@ -1079,6 +1113,7 @@ export function useMasterAreaSurveyState({
   };
 
   const handleSetCadSketchPhotoUrl = (url: string) => {
+    if (isCadLockedRef.current) return;
     setCadSketchPhotoUrl(url);
     if (!useSeparateStructuralCad && !cadStructuralSketchPhotoUrl) {
       setCadStructuralSketchPhotoUrl(url);
@@ -2203,6 +2238,7 @@ export function useMasterAreaSurveyState({
     handleUseFullFloorCad,
     handleSetCadSketchPhotoUrl,
     isCadOverriddenByUser,
+    isCadLocked,
     availableFloorPlans,
     handleSelectFloorPlanForCrop,
     // Step 3 (2-way sync với CAD)

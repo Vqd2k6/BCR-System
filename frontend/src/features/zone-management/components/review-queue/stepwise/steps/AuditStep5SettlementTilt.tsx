@@ -205,18 +205,32 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <div>
                 <span className="text-[10px] text-slate-500 font-semibold block">Vị trí ghi nhận lún:</span>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    value={diff.position || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'diffSettlement', 'Vị trí lún lệch', {
-                        ...diff,
-                        position: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs mt-0.5"
-                    placeholder="Vị trí ghi nhận lún..."
-                  />
+                  <div className="space-y-1.5 mt-0.5">
+                    <input
+                      type="text"
+                      value={diff.position || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'diffSettlement', 'Vị trí lún lệch', {
+                          ...diff,
+                          position: e.target.value,
+                        })
+                      }
+                      className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                      placeholder="Vị trí ghi nhận lún..."
+                    />
+                    <input
+                      type="text"
+                      value={diff.notes || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'diffSettlement', 'Ghi chú lún lệch', {
+                          ...diff,
+                          notes: e.target.value,
+                        })
+                      }
+                      className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                      placeholder="Ghi chú chi tiết lún lệch..."
+                    />
+                  </div>
                 ) : (
                   <div className="text-[11px] text-slate-600">
                     {diff.position || 'Không'}
@@ -359,6 +373,22 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
               {isEditMode ? (
                 <div className="space-y-1.5">
+                  <select
+                    value={tilt.level ?? 0}
+                    onChange={(e) =>
+                      handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Cấp độ nghiêng', {
+                        ...tilt,
+                        level: Number(e.target.value),
+                      })
+                    }
+                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs font-bold"
+                  >
+                    <option value={0}>Cấp 0 - Thẳng đứng / Trong giới hạn</option>
+                    <option value={1}>Cấp 1 - Nghiêng nhẹ</option>
+                    <option value={2}>Cấp 2 - Nghiêng trung bình</option>
+                    <option value={3}>Cấp 3 - Nghiêng nặng</option>
+                    <option value={4}>Cấp 4 - Nghiêng nguy hiểm</option>
+                  </select>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 flex-1">
                       <span className="text-xs font-mono font-bold text-slate-600">X:</span>
@@ -404,6 +434,18 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     }
                     className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
                     placeholder="Hướng nghiêng (VD: Nghiêng về hẻm sau...)"
+                  />
+                  <input
+                    type="text"
+                    value={tilt.notes || ''}
+                    onChange={(e) =>
+                      handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Ghi chú độ nghiêng', {
+                        ...tilt,
+                        notes: e.target.value,
+                      })
+                    }
+                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                    placeholder="Ghi chú kiểm tra độ nghiêng..."
                   />
                 </div>
               ) : (
@@ -592,6 +634,18 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     }
                     className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
                     placeholder="Vị trí dầm (VD: Dầm D2 trục 2-3 Tầng 2)"
+                  />
+                  <input
+                    type="text"
+                    value={beam.description || ''}
+                    onChange={(e) =>
+                      handleNestedFieldChange('settlementTilt', 'beamSagging', 'Mô tả độ võng dầm', {
+                        ...beam,
+                        description: e.target.value,
+                      })
+                    }
+                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                    placeholder="Mô tả chi tiết hiện trạng võng dầm/sàn..."
                   />
                 </div>
               ) : (

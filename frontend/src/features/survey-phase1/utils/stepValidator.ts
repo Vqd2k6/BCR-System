@@ -1217,6 +1217,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         isBlocking: true,
       });
     }
+
+    if (
+      formData.vi?.engineeringJudgement?.action &&
+      formData.vi.engineeringJudgement.action !== 'KEEP' &&
+      !formData.vi.engineeringJudgement.reason?.trim()
+    ) {
+      missing.push({
+        fieldId: 'input-vi-reason',
+        label: '6.2. Lý do can thiệp kỹ sư (VI)',
+        step: 6,
+        description: 'Khi kỹ sư can thiệp Nâng hoặc Hạ hạng VI, bắt buộc phải giải trình căn cứ kỹ thuật.',
+        isBlocking: true,
+      });
+    }
   }
 
   if (step === 8) {
@@ -1262,8 +1276,12 @@ export const validateAllSteps = (formData: Phase1SurveyFormData): StepValidation
     };
   }
 
-  // If absentee or under construction, only Step 1 is required
-  if (formData.surveyCaseType === 'ABSENTEE' || formData.surveyCaseType === 'UNDER_CONSTRUCTION') {
+  // If absentee, under construction, or vacant land, only Step 1 is required
+  if (
+    formData.surveyCaseType === 'ABSENTEE' ||
+    formData.surveyCaseType === 'UNDER_CONSTRUCTION' ||
+    formData.surveyCaseType === 'VACANT_LAND'
+  ) {
     const step1Res = validateStep(1, formData);
     return step1Res;
   }

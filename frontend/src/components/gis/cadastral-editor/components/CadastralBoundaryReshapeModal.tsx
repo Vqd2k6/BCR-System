@@ -267,7 +267,7 @@ export const CadastralBoundaryReshapeModal: React.FC<CadastralBoundaryReshapeMod
       if (res.data?.success) {
         setSuccessMessage(res.data.message || 'Nắn chỉnh ranh giới thành công!');
         setTimeout(() => {
-          onSuccess(res.data);
+          onSuccess({ ...res.data, newCoordinates: vertices });
           onClose();
         }, 1200);
       } else {

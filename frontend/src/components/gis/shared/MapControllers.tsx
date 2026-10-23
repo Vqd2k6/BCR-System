@@ -164,12 +164,53 @@ export const MapClickListener: React.FC<{
 };
 
 /**
- * Controller to set view to center coordinates
+ * Controller to set view to center coordinates & persist viewport per zone in sessionStorage
  * Phòng vệ race condition: Chỉ gọi setView khi vị trí thực sự dịch chuyển đáng kể (> 0.0001 độ)
  */
-export function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+export function ChangeView({
+  center,
+  zoom,
+  zoneKey,
+}: {
+  center: [number, number];
+  zoom: number;
+  zoneKey?: string;
+}) {
   const map = useMap();
-  const prevRef = React.useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+  const prevRef = React.useRef<{ lat: number; lng: number; zoom: number; zoneKey?: string } | null>(null);
+
+  useMapEvents({
+    moveend() {
+      if (!zoneKey || !map) return;
+      try {
+        const c = map.getCenter();
+        const z = map.getZoom();
+        const raw = sessionStorage.getItem('ksqh_sweep_map_viewport_by_zone');
+        const mapByZone: Record<string, { lat: number; lng: number; zoom: number }> = raw
+          ? JSON.parse(raw)
+          : {};
+        mapByZone[zoneKey] = { lat: c.lat, lng: c.lng, zoom: z };
+        sessionStorage.setItem('ksqh_sweep_map_viewport_by_zone', JSON.stringify(mapByZone));
+      } catch {
+        // Safe ignore
+      }
+    },
+    zoomend() {
+      if (!zoneKey || !map) return;
+      try {
+        const c = map.getCenter();
+        const z = map.getZoom();
+        const raw = sessionStorage.getItem('ksqh_sweep_map_viewport_by_zone');
+        const mapByZone: Record<string, { lat: number; lng: number; zoom: number }> = raw
+          ? JSON.parse(raw)
+          : {};
+        mapByZone[zoneKey] = { lat: c.lat, lng: c.lng, zoom: z };
+        sessionStorage.setItem('ksqh_sweep_map_viewport_by_zone', JSON.stringify(mapByZone));
+      } catch {
+        // Safe ignore
+      }
+    },
+  });
 
   useEffect(() => {
     if (!map) return;
@@ -179,26 +220,54 @@ export function ChangeView({ center, zoom }: { center: [number, number]; zoom: n
       return;
     }
 
-    const [lat, lng] = center;
+    let [lat, lng] = center;
+    let targetZoom = zoom;
+
+    if (zoneKey) {
+      try {
+        const raw = sessionStorage.getItem('ksqh_sweep_map_viewport_by_zone');
+        if (raw) {
+          const mapByZone = JSON.parse(raw) as Record<
+            string,
+            { lat: number; lng: number; zoom: number }
+          >;
+          const saved = mapByZone[zoneKey];
+          if (
+            saved &&
+            typeof saved.lat === 'number' &&
+            typeof saved.lng === 'number' &&
+            typeof saved.zoom === 'number'
+          ) {
+            lat = saved.lat;
+            lng = saved.lng;
+            targetZoom = saved.zoom;
+          }
+        }
+      } catch {
+        // Safe ignore
+      }
+    }
+
     const prev = prevRef.current;
 
-    // Ngưỡng sai số 0.0001 độ (~11 mét) hoặc zoom khác biệt
+    // Ngưỡng sai số 0.0001 độ (~11 mét) hoặc zoom / zone khác biệt
     const isDifferent =
       !prev ||
+      prev.zoneKey !== zoneKey ||
       Math.abs(prev.lat - lat) > 0.0001 ||
       Math.abs(prev.lng - lng) > 0.0001 ||
-      prev.zoom !== zoom;
+      prev.zoom !== targetZoom;
 
     if (isDifferent) {
-      prevRef.current = { lat, lng, zoom };
+      prevRef.current = { lat, lng, zoom: targetZoom, zoneKey };
       try {
         map.stop(); // Hủy transition animation cũ trước khi set view mới
-        map.setView(center, zoom);
+        map.setView([lat, lng], targetZoom);
       } catch (err) {
         console.debug('[ChangeView] Safe setView ignore:', err);
       }
     }
-  }, [center, zoom, map]);
+  }, [center, zoom, zoneKey, map]);
   return null;
 }
 

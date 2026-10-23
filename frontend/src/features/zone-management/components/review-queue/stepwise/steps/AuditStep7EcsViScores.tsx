@@ -48,18 +48,20 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
     return cls;
   };
 
-  // Baseline values (Tính tự động từ KSV hiện trường)
-  const baselineBurland = Number(riskCard?.e1_burland_score ?? ecs.e1 ?? 0);
-  const baselineTotalEcs = Number(riskCard?.total_ecs_score ?? ecs.totalEcs ?? 0);
+  // Baseline values (Ưu tiên điểm formState đang chỉnh sửa / tính lại trực tiếp theo công thức FE Phase 1, fallback riskCard)
+  const baselineBurland = Number(ecs.e1 ?? riskCard?.e1_burland_score ?? 0);
+  const baselineTotalEcs = Number(ecs.totalEcs ?? riskCard?.total_ecs_score ?? 0);
   const baselineEcsClass = toVietnameseRiskClass(
-    riskCard?.ecs_class ||
+    ecs.ecsClass ||
+      riskCard?.ecs_class ||
       (baselineTotalEcs <= 5 ? 'GOOD' : baselineTotalEcs <= 10 ? 'MEDIUM' : baselineTotalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL')
   );
-  const baselineImportance = Number(riskCard?.v1_importance_score ?? vi.v1 ?? 2.0);
-  const baselineAvgVi = Number(riskCard?.avg_vi_score ?? vi.avgVi ?? vi.totalVi ?? 1.0);
+  const baselineImportance = Number(vi.v1 ?? riskCard?.v1_importance_score ?? 2.0);
+  const baselineAvgVi = Number(vi.viAvg ?? vi.avgVi ?? riskCard?.avg_vi_score ?? vi.totalVi ?? 1.0);
   const baselineViClass = toVietnameseRiskClass(
-    riskCard?.vi_class ||
-      (baselineAvgVi < 1.5 ? 'LOW' : baselineAvgVi < 2.5 ? 'MEDIUM' : baselineAvgVi < 3.5 ? 'HIGH' : 'VERY_HIGH')
+    vi.viClass ||
+      riskCard?.vi_class ||
+      (baselineAvgVi <= 1.50 ? 'LOW' : baselineAvgVi <= 2.50 ? 'MEDIUM' : baselineAvgVi <= 3.25 ? 'HIGH' : 'VERY_HIGH')
   );
 
   // Lớp Can thiệp chuyên gia (Overrides)
@@ -147,60 +149,60 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
     },
   ];
 
-  // Breakdown V1..V6 (VI) with complete technical definitions
+  // Breakdown V1..V6 (VI) with complete technical definitions (Đồng bộ 100% FE Phase 1 - viCalculator.ts)
   const viItems = [
     {
       code: 'V1',
       key: 'v1',
-      name: 'Tầm Quan Trọng & Cự Ly Tim Hầm',
+      name: 'Công Năng & Nhóm Đối Tượng',
       score: effectiveImportance,
       max: 4,
-      definition: 'Mức độ quan trọng công năng công trình và cự ly không gian tới tim hầm Metro',
+      definition: 'Đất trống/nhà bỏ trống (0đ), Nhà ở thông thường General (2đ), Công trình Important (3đ), Critical (4đ)',
       isOverridden: isOverridden && riskCard?.overridden_importance_score !== null,
     },
     {
       code: 'V2',
       key: 'v2',
       name: 'Hệ Kết Cấu Chịu Lực Chính',
-      score: Number(vi.v2 ?? 1),
+      score: Number(vi.v2 ?? riskCard?.v2_structure_score ?? 2),
       max: 4,
-      definition: 'Độ dẻo dai và tính ổn định tổng thể của hệ khung (BTCT toàn khối, tường gạch...)',
+      definition: 'Khung BTCT toàn khối (1đ), Kết cấu hỗn hợp/thép (2đ), Tường gạch chịu lực (3đ), Kết cấu tạm/kém ổn định (4đ)',
       isOverridden: false,
     },
     {
       code: 'V3',
       key: 'v3',
-      name: 'Giải Pháp & Độ Tin Cậy Móng',
-      score: Number(vi.v3 ?? 1),
-      max: 5,
-      definition: 'Phân loại nhóm giải pháp móng (CAT 1 cọc khoan nhồi đến CAT 5 móng nông bùn)',
+      name: 'Loại Móng & Hồ Sơ CAT Móng',
+      score: Number(vi.v3 ?? riskCard?.v3_foundation_score ?? 2),
+      max: 4,
+      definition: 'Ánh xạ từ phân loại hồ sơ CAT móng: CAT 1-2 (1đ), CAT 3 (2đ), CAT 4 (3đ), CAT 5 (4đ)',
       isOverridden: false,
     },
     {
       code: 'V4',
       key: 'v4',
-      name: 'Niên Đại & Tuổi Thọ Công Trình',
-      score: Number(vi.v4 ?? 1),
+      name: 'Tuổi Đời Công Trình & Cơi Nới',
+      score: Number(vi.v4 ?? riskCard?.v4_age_score ?? 2),
       max: 4,
-      definition: 'Thời gian đã đưa vào khai thác sử dụng và mức độ hao mòn kết cấu theo năm',
+      definition: 'Tuổi công trình <10 năm (1đ), 10-25 năm (2đ), 26-40 năm (3đ), >40 năm hoặc có cơi nới tải trọng nặng ≥3đ (4đ)',
       isOverridden: false,
     },
     {
       code: 'V5',
       key: 'v5',
-      name: 'Số Tầng Nổi & Phân Bố Tải Trọng',
-      score: Number(vi.v5 ?? 1),
+      name: 'Hiện Trạng Kỹ Thuật (Từ Hạng ECS)',
+      score: Number(vi.v5 ?? riskCard?.v5_ecs_score ?? 1),
       max: 4,
-      definition: 'Số tầng cao, tải trọng bản thân truyền xuống móng và độ cứng uốn không gian',
+      definition: 'Tự động ánh xạ từ hạng hiện trạng kỹ thuật ECS: GOOD (1đ), MEDIUM (2đ), DEFICIENT (3đ), CRITICAL (4đ)',
       isOverridden: false,
     },
     {
       code: 'V6',
       key: 'v6',
-      name: 'Điều Kiện Địa Chất & Lân Cận',
-      score: Number(vi.v6 ?? 1),
+      name: 'Thiết Bị Nhạy Cảm & Vận Hành 24/7',
+      score: Number(vi.v6 ?? riskCard?.v6_sensitivity_score ?? 1),
       max: 4,
-      definition: 'Lớp đất nền chịu lực, mực nước ngầm và mức độ chèn ép ranh giới công trình liền kề',
+      definition: 'Sinh hoạt bình thường (1đ), Có thiết bị máy móc nhạy cảm rung chấn (3đ), Vận hành liên tục 24/7 (4đ)',
       isOverridden: false,
     },
   ];

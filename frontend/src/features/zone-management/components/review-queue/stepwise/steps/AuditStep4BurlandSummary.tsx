@@ -2,6 +2,16 @@ import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../..
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary, PhotoReplaceParams, AuditPhotoHistoryParams } from '../types';
 import React from 'react';
 import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass, RefreshCw, History, Navigation } from 'lucide-react';
+import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
+
+const getBurlandGradeFromWidth = (w: number): number => {
+  if (w <= 0.1) return 0;
+  if (w <= 1) return 1;
+  if (w <= 5) return 2;
+  if (w <= 15) return 3;
+  if (w <= 25) return 4;
+  return 5;
+};
 
 interface Props {
   isEditMode: boolean;
@@ -51,30 +61,55 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const flagItem = STRUCTURAL_FLAG_LEVELS.find((f) => f.value === flagLevel) || STRUCTURAL_FLAG_LEVELS[0];
 
   // Thu thập toàn bộ vết nứt mảng tường Z để tính Histogram Burland và tìm Vết nứt khống chế (Spotlight)
+  interface StructuralElementAuditItem {
+    id?: string;
+    elementCode?: string;
+    elementType?: string;
+    materialType?: string;
+    dimensions?: string;
+    sectionDimensions?: string;
+    structuralIntegrity?: string;
+    floorName?: string;
+    roomName?: string;
+    defects?: DefectItem[];
+  }
   const allDefects: DefectItem[] = [];
   const availableZones: string[] = [];
-  const allStructuralElements: any[] = [];
-  const allStructuralDefects: any[] = [];
+  const allStructuralElements: StructuralElementAuditItem[] = [];
+  const allStructuralDefects: Array<DefectItem & {
+    elementCode?: string;
+    elementType?: string;
+    materialType?: string;
+    dimensions?: string;
+    structuralIntegrity?: string;
+  }> = [];
 
   if (Array.isArray(formState.floors)) {
     (formState.floors as FloorSurveyData[]).forEach((fl: FloorSurveyData) => {
       (fl.zones || []).forEach((z: DamageZoneData) => {
+        if ((z as any).isDeleted || (z as any).is_deleted) return;
         const zCode = z.zoneCode || z.id;
         if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
         (z.defects || []).forEach((d: DefectItem) => {
+          if ((d as any).isDeleted || (d as any).is_deleted) return;
+          if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
+          const computedGrade = getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0);
           allDefects.push({
             ...d,
+            burlandGrade: d.burlandGrade ?? (d as any).burland_grade ?? computedGrade,
             floorName: fl.floorName,
             zoneCode: z.zoneCode,
           });
         });
       });
-      (fl.structuralElements || []).forEach((elem: any) => {
+      ((fl.structuralElements || []) as StructuralElementAuditItem[]).forEach((elem: StructuralElementAuditItem) => {
+        if ((elem as any).isDeleted || (elem as any).is_deleted) return;
         allStructuralElements.push({
           ...elem,
           floorName: fl.floorName,
         });
         (elem.defects || []).forEach((d: DefectItem) => {
+          if ((d as any).isDeleted || (d as any).is_deleted) return;
           allStructuralDefects.push({
             ...d,
             elementCode: elem.elementCode || elem.id,
@@ -89,11 +124,16 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     });
   } else if (Array.isArray(formState.damageZones)) {
     (formState.damageZones as DamageZoneData[]).forEach((z: DamageZoneData) => {
+      if ((z as any).isDeleted || (z as any).is_deleted) return;
       const zCode = z.zoneCode || z.id;
       if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
       (z.defects || []).forEach((d: DefectItem) => {
+        if ((d as any).isDeleted || (d as any).is_deleted) return;
+        if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
+        const computedGrade = getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0);
         allDefects.push({
           ...d,
+          burlandGrade: d.burlandGrade ?? (d as any).burland_grade ?? computedGrade,
           floorName: 'Tầng khảo sát',
           zoneCode: z.zoneCode,
         });
@@ -106,7 +146,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   // Đếm tần suất theo cấp Burland 0-5 (chỉ dành cho vết nứt tường gạch Z)
   const gradeCounts = [0, 0, 0, 0, 0, 0];
   allDefects.forEach((d) => {
-    const g = Number(d.burlandGrade ?? d.burland_grade ?? 0);
+    const g = Number(d.burlandGrade ?? d.burland_grade ?? getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0));
     if (g >= 0 && g <= 5) gradeCounts[g]++;
   });
 
@@ -114,7 +154,9 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const governingDefect = allDefects.reduce((maxD, curr) => {
     const currGrade = Number(curr.burlandGrade ?? curr.burland_grade ?? 0);
     const maxGradeVal = maxD ? Number(maxD.burlandGrade ?? maxD.burland_grade ?? 0) : -1;
-    return currGrade > maxGradeVal ? curr : maxD;
+    const currWidth = Number(curr.widthMaxMm ?? (curr as any).width_max_mm ?? 0);
+    const maxWidth = maxD ? Number(maxD.widthMaxMm ?? (maxD as any).width_max_mm ?? 0) : -1;
+    return currGrade > maxGradeVal || (currGrade === maxGradeVal && currWidth > maxWidth) ? curr : maxD;
   }, null as DefectItem | null);
 
   const govPhotoUrl =
@@ -477,14 +519,18 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-100">
-                  {allStructuralElements.map((elem: any, idx: number) => {
+                  {allStructuralElements.map((elem: StructuralElementAuditItem, idx: number) => {
                     const eCode = elem.elementCode || `E-${idx + 1}`;
                     const eDefs = Array.isArray(elem.defects) ? elem.defects : [];
-                    const maxDefWidth = eDefs.reduce((max: number, d: any) => {
-                      const w = Number(d.widthMaxMm ?? d.width_max_mm ?? 0);
+                    const maxDefWidth = eDefs.reduce((max: number, d: DefectItem) => {
+                      const dRec = d as unknown as Record<string, unknown>;
+                      const w = Number(d.widthMaxMm ?? dRec.width_max_mm ?? 0);
                       return w > max ? w : max;
                     }, 0);
-                    const hasCriticalDefect = eDefs.some((d: any) => d.isStructuralCritical || d.is_structural_critical);
+                    const hasCriticalDefect = eDefs.some((d: DefectItem) => {
+                      const dRec = d as unknown as Record<string, unknown>;
+                      return Boolean(d.isStructuralCritical || dRec.is_structural_critical);
+                    });
 
                     return (
                       <tr key={elem.id || eCode} className="hover:bg-amber-50/50 transition-colors">

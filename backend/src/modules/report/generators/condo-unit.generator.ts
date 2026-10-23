@@ -63,14 +63,19 @@ export class CondoUnitReportGenerator {
               ? 'Tầng trệt (G)'
               : `Lầu ${Math.floor(fNum)} (Tầng ${Math.floor(fNum)})`;
 
-    const unitAreaM2 = json.unitAreaM2 || reportData.unit_area_m2 || '';
+    const unitAreaM2 = json.unitAreaM2 ?? reportData.unit_area_m2 ?? '';
     const ownerName = json.ownerName || reportData.owner_name || 'Chủ sở hữu căn hộ';
     const ownerPhone = json.ownerPhone || reportData.owner_phone || '';
     const ownerIdCard = json.ownerIdCard || reportData.owner_id_card || '';
-    const ownerFeedback = json.ownerFeedback || json.ownerRemarks || reportData.owner_remarks || 'Đồng ý với hiện trạng ghi nhận tại căn hộ.';
+    const ownerFeedback =
+      json.ownerFeedback ||
+      json.signatures?.ownerFeedback ||
+      json.ownerRemarks ||
+      reportData.owner_remarks ||
+      'Đồng ý với hiện trạng ghi nhận tại căn hộ.';
 
     // Phân loại cư ngụ
-    const resStatus = json.residentStatus || 'CHỦ_HỘ_Ở';
+    const resStatus = json.residentStatus || reportData.resident_status || 'CHỦ_HỘ_Ở';
     const statusLabels: Record<string, string> = {
       'CHỦ_HỘ_Ở': 'Chủ hộ đang trực tiếp cư ngụ',
       'CHO_THUÊ': 'Đang cho thuê cư ngụ',
@@ -236,11 +241,14 @@ export class CondoUnitReportGenerator {
 
     let maxBurland = 0;
 
-    // 1. Trích xuất từ reportData.damage_zones nếu đã lưu DB
-    if (Array.isArray(reportData.damage_zones) && reportData.damage_zones.length > 0) {
-      reportData.damage_zones.forEach((z: any) => {
+    // 1. Trích xuất từ reportData.damageZones / reportData.damage_zones nếu đã lưu DB
+    const dbDamageZones = Array.isArray(reportData.damageZones) && reportData.damageZones.length > 0
+      ? reportData.damageZones
+      : (Array.isArray(reportData.damage_zones) ? reportData.damage_zones : []);
+    if (dbDamageZones.length > 0) {
+      dbDamageZones.filter((z: any) => !z.is_deleted && !z.isDeleted).forEach((z: any) => {
         if (Array.isArray(z.defects)) {
-          z.defects.forEach((d: any) => {
+          z.defects.filter((d: any) => !d.is_deleted && !d.isDeleted).forEach((d: any) => {
             const w = Number(d.width_max_mm || d.widthMaxMm) || 0;
             const bGrade = getBurlandGrade(w);
             if (bGrade > maxBurland) maxBurland = bGrade;
@@ -418,9 +426,22 @@ export class CondoUnitReportGenerator {
 
       summaryConclusions,
       engineeringRecommendations,
-      surveyorSignatureUrl: json.surveyorSignature || reportData.surveyor_signature_url,
-      surveyorName: reportData.surveyor_name || 'Khảo sát viên Hiện trường',
-      ownerSignatureUrl: json.ownerSignature || reportData.owner_signature_url,
+      surveyorSignatureUrl:
+        json.surveyorSignature ||
+        json.signatures?.surveyorSignatureUrl ||
+        json.signatures?.preparedBy?.signatureImg ||
+        reportData.surveyor_signature_url,
+      surveyorName:
+        json.surveyorName ||
+        json.signatures?.surveyorName ||
+        json.signatures?.preparedBy?.fullName ||
+        reportData.surveyor_name ||
+        'Khảo sát viên Hiện trường',
+      ownerSignatureUrl:
+        json.ownerSignature ||
+        json.signatures?.ownerSignatureUrl ||
+        json.signatures?.ownerRepresentative?.signatureImg ||
+        reportData.owner_signature_url,
       zoneAdminSignatureUrl: reportData.zone_admin_signature_url,
       workingMinutesPhotos,
       generatedAt,

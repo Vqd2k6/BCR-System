@@ -8,7 +8,7 @@ import { ReportSnapshotService } from './modules/report_v3/report-snapshot.servi
 async function bootstrap() {
   const app = createApp();
 
-  // Kiểm tra kết nối CSDL và PostGIS
+  // Kiểm tra kết nối CSDL và PostGIS (với KeepAlive & Query Timeout chống treo sau khi máy sleep)
   const health = await Database.healthCheck();
   console.log(`[DATABASE CONNECTED] Status: ${health.status}, PostGIS: ${health.postgisVersion || 'N/A'}`);
 

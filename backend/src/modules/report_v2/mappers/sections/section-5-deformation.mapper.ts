@@ -26,31 +26,40 @@ export class Section5DeformationMapper {
       return p?.raw_photo_url || p?.annotated_photo_url || fallbackUrl || '';
     };
 
-    const tiltPhotoObj = rawReport.deformation?.tilt_photos_json?.[0] || deform.buildingTilt?.photos?.[0];
+    const getPhotoEntryUrl = (entry: any): string | undefined =>
+      typeof entry === 'string' ? entry : entry?.url;
+
+    const hasExplicitTiltPhotosArray = Array.isArray(json.settlementTilt?.buildingTilt?.photos);
+    const tiltPhotoObj = hasExplicitTiltPhotosArray
+      ? json.settlementTilt.buildingTilt.photos[0]
+      : (deform.buildingTilt?.photos?.[0] || rawReport.deformation?.tilt_photos_json?.[0]);
     const p05Url =
       json.photoP05?.url ||
       (typeof json.photoP05 === 'string' ? json.photoP05 : undefined) ||
       json.photos?.p05 ||
       json.step1Photos?.p05TiltCheckUrl ||
-      tiltPhotoObj?.url ||
-      deform.buildingTilt?.photoUrl ||
-      findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT']);
+      getPhotoEntryUrl(tiltPhotoObj) ||
+      (!hasExplicitTiltPhotosArray ? (deform.buildingTilt?.photoUrl || findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT'])) : '');
 
-    const settlePhotoObj = rawReport.deformation?.diff_settlement_photos_json?.[0] || deform.diffSettlement?.photos?.[0];
+    const hasExplicitSettlePhotosArray = Array.isArray(json.settlementTilt?.diffSettlement?.photos);
+    const settlePhotoObj = hasExplicitSettlePhotosArray
+      ? json.settlementTilt.diffSettlement.photos[0]
+      : (deform.diffSettlement?.photos?.[0] || rawReport.deformation?.diff_settlement_photos_json?.[0]);
     const p06Url =
-      settlePhotoObj?.url ||
-      deform.diffSettlement?.photoUrl ||
-      findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06']);
+      getPhotoEntryUrl(settlePhotoObj) ||
+      (!hasExplicitSettlePhotosArray ? (deform.diffSettlement?.photoUrl || findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06'])) : '');
 
-    const deformObj = json.settlementTilt || rawReport.deformation || {};
+    const deformObj = { ...(rawReport.deformation || {}), ...(json.settlementTilt || {}) };
     const diffDeform = deformObj.diffSettlement || {};
     const tiltDeform = deformObj.buildingTilt || {};
     const sagDeform = deformObj.beamSagging || {};
 
     // 1. Lún lệch
-    const hasDiff = (diffDeform.level ?? 0) > 0 || Boolean(diffDeform.notes && diffDeform.notes.trim() !== '');
+    const diffPos = diffDeform.position?.trim() || '';
+    const diffNotes = diffDeform.notes?.trim() || '';
+    const hasDiff = (diffDeform.level ?? 0) > 0 || Boolean(diffPos) || Boolean(diffNotes);
     const diffPhotoCode = diffDeform.photoCode || (p06Url ? 'P-06' : '');
-    const diffNotes = diffDeform.notes?.trim();
+    const diffSummaryText = [diffPos, diffNotes].filter(Boolean).join(' - ');
 
     // 2. Suy thoái cấu kiện
     const hasDegradation = structuralCracksCount > 0;
@@ -63,6 +72,7 @@ export class Section5DeformationMapper {
     const tiltX = tiltDeform.xPermille ?? deformObj.tilt_angle_x;
     const tiltY = tiltDeform.yPermille ?? deformObj.tilt_angle_y;
     const tiltDir = tiltDeform.direction || deformObj.tilt_direction;
+    const tiltNotes = tiltDeform.notes?.trim() || '';
     const tiltPhotoCode = tiltDeform.photoCode || deformObj.tilt_photo_code || (p05Url ? 'P-05' : '');
     const hasNonZeroTilt = (Number(tiltX) !== 0 && !isNaN(Number(tiltX))) || (Number(tiltY) !== 0 && !isNaN(Number(tiltY)));
     // #29: chỉ coi là 'có đo' khi có số đo thực (ảnh P-05 hoặc cờ Laser đơn thuần không đủ)
@@ -81,7 +91,7 @@ export class Section5DeformationMapper {
     } else {
       measuredTilt = '-- (Quan sát ngoại quan, không đo đạc)';
     }
-    const isTiltObserved = tiltLevel > 0 || hasNonZeroTilt;
+    const isTiltObserved = tiltLevel > 0 || hasNonZeroTilt || Boolean(tiltNotes);
 
     // 5. Độ võng dầm/sàn
     const sagLevel = sagDeform.level ?? 0;
@@ -103,8 +113,8 @@ export class Section5DeformationMapper {
         observedDisplay: hasDiff ? { vi: 'CÓ', en: 'YES' } : { vi: 'Không', en: 'None' },
         location: hasDiff
           ? {
-              vi: `Ghi nhận lún lệch: ${diffNotes || 'tại chân móng/nền'}${diffPhotoCode ? ` [Ảnh: ${diffPhotoCode}]` : ''}`,
-              en: `Differential settlement observed: ${diffNotes || 'at foundation/ground'}${diffPhotoCode ? ` [Photo: ${diffPhotoCode}]` : ''}`,
+              vi: `Ghi nhận lún lệch (Mức ${diffDeform.level ?? 0}/4): ${diffSummaryText || 'tại chân móng/nền'}${diffPhotoCode ? ` [Ảnh: ${diffPhotoCode}]` : ''}`,
+              en: `Differential settlement observed (Level ${diffDeform.level ?? 0}/4): ${diffSummaryText || 'at foundation/ground'}${diffPhotoCode ? ` [Photo: ${diffPhotoCode}]` : ''}`,
             }
           : {
               vi: `Không phát hiện lún chênh bất thường tại móng${diffPhotoCode ? ` [Ảnh kiểm tra: ${diffPhotoCode}]` : ''}`,
@@ -116,8 +126,8 @@ export class Section5DeformationMapper {
         observedDisplay: hasDegradation ? { vi: 'CÓ', en: 'YES' } : { vi: 'Không', en: 'None' },
         location: hasDegradation
           ? {
-              vi: `Ghi nhận ${structuralCracksCount} cấu kiện chịu lực có dấu hiệu suy thoái/nứt cấp ≥ 3 (xem chi tiết Mục VI & Phụ lục 2)`,
-              en: `${structuralCracksCount} load-bearing elements show signs of degradation/cracks grade ≥ 3 (see Section VI & App. 2)`,
+              vi: deformObj.componentDeterioration?.notes || `Ghi nhận ${structuralCracksCount} khuyết tật trên cấu kiện chịu lực (xem chi tiết Mục VI & Phụ lục 2)`,
+              en: deformObj.componentDeterioration?.notes || `${structuralCracksCount} defect(s) recorded on load-bearing elements (see Section VI & App. 2)`,
             }
           : {
               vi: 'Không phát hiện dấu hiệu suy thoái nghiêm trọng của cấu kiện kết cấu',
@@ -129,8 +139,12 @@ export class Section5DeformationMapper {
         observedDisplay: hasRepair ? { vi: 'CÓ', en: 'YES' } : { vi: 'Không', en: 'None' },
         location: hasRepair
           ? {
-              vi: 'Chủ hộ ghi nhận có sửa chữa trước đây, hiện trạng kết cấu ổn định',
-              en: 'Owner reported past repairs, structure currently stable',
+              vi: majorRepair === 1
+                ? 'Ghi nhận có sửa chữa nhẹ trước đây (đã xử lý ổn định, xem Mục III)'
+                : 'Ghi nhận có cải tạo / sửa chữa trước đây (xem chi tiết Mục III)',
+              en: majorRepair === 1
+                ? 'Minor past repairs recorded (stabilised, see Section III)'
+                : 'Past structural alteration / repair recorded (see Section III)',
             }
           : {
               vi: 'Không phát hiện dấu vết sửa chữa, gia cường kết cấu lớn',
@@ -151,8 +165,8 @@ export class Section5DeformationMapper {
         measured: measuredTilt,
         location: isTiltObserved
           ? {
-              vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltPhotoCode ? ` [Mã ảnh: ${tiltPhotoCode}]` : ''}`,
-              en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
+              vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Mã ảnh: ${tiltPhotoCode}]` : ''}`,
+              en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
             }
           : {
               vi: hasTiltMeas
@@ -164,8 +178,8 @@ export class Section5DeformationMapper {
             },
         details: isTiltObserved
           ? {
-              vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltPhotoCode ? ` [Mã ảnh: ${tiltPhotoCode}]` : ''}`,
-              en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
+              vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Mã ảnh: ${tiltPhotoCode}]` : ''}`,
+              en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
             }
           : {
               vi: hasTiltMeas
@@ -199,8 +213,14 @@ export class Section5DeformationMapper {
         measured: measuredSag,
       },
       basisOfDetermination: {
-        vi: Array.isArray(deformObj.dataSource) ? deformObj.dataSource.join(', ') : (hasTiltMeas ? 'Đo nghiêng Laser & Quan sát hiện trường' : 'Quan sát hiện trường'),
-        en: hasTiltMeas ? 'Site visual inspection & Laser measurement' : 'Site visual inspection (Visual check only)',
+        vi: Array.isArray(deformObj.dataSource) && deformObj.dataSource.length > 0
+          ? deformObj.dataSource.join(', ')
+          : (typeof deformObj.dataSource === 'string' && deformObj.dataSource.trim() !== ''
+            ? deformObj.dataSource.trim()
+            : (hasTiltMeas ? 'Đo nghiêng Laser & Quan sát hiện trường' : 'Quan sát hiện trường')),
+        en: typeof deformObj.dataSource === 'string' && deformObj.dataSource.trim() !== ''
+          ? deformObj.dataSource.trim()
+          : (hasTiltMeas ? 'Site visual inspection & Laser measurement' : 'Site visual inspection (Visual check only)'),
       },
       reliability: {
         vi: deformObj.reliability || '--',
@@ -220,10 +240,22 @@ export class Section5DeformationMapper {
           ? ' Attached corresponding check photos in Appendix 1.'
           : '';
 
-        if (isTiltObserved || hasDiff || isSagObserved) {
+        const abnCase = deformObj.abnormalCase || {};
+        const abnDesc = (abnCase.description || abnCase.notes || '').trim();
+        const hasAbnDesc = Boolean((abnCase.hasAbnormal !== false) && abnDesc);
+        const abnNoteVi = hasAbnDesc ? ` Ghi nhận bất thường ngoại quan: ${abnDesc}.` : '';
+        const abnNoteEn = hasAbnDesc ? ` Exterior anomaly noted: ${abnDesc}.` : '';
+
+        const monObj = deformObj.needAdditionalMonitoring || {};
+        const monNotes = (monObj.notes || '').trim();
+        const hasMonNotes = Boolean(monObj.required && monNotes);
+        const monNoteVi = hasMonNotes ? ` Kiến nghị quan trắc bổ sung: ${monNotes}.` : '';
+        const monNoteEn = hasMonNotes ? ` Additional monitoring recommendation: ${monNotes}.` : '';
+
+        if (isTiltObserved || hasDiff || isSagObserved || hasAbnDesc || hasMonNotes) {
           return {
-            vi: `Hiện trạng công trình ghi nhận biến dạng đo đạc tại hiện trường (chi tiết các chỉ tiêu đánh giá phía trên).${photoNoteVi}`,
-            en: `Field survey recorded deformation on-site (detailed in criteria table above).${photoNoteEn}`,
+            vi: `Hiện trạng công trình ghi nhận biến dạng đo đạc tại hiện trường (chi tiết các chỉ tiêu đánh giá phía trên).${abnNoteVi}${monNoteVi}${photoNoteVi}`,
+            en: `Field survey recorded deformation on-site (detailed in criteria table above).${abnNoteEn}${monNoteEn}${photoNoteEn}`,
           };
         }
         return {
@@ -233,13 +265,29 @@ export class Section5DeformationMapper {
       })(),
       tiltPhoto: p05Url ? {
         url: p05Url,
-        base64: ReportImageResolver.resolveToBase64(p05Url),
+        base64: ReportImageResolver.resolveToBase64(
+          p05Url,
+          (json.photoRotations || rawReport.photoRotations || {})['P-05'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['photoP05'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['buildingTilt'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['buildingTilt_0'] ??
+            (json.photoRotations || rawReport.photoRotations || {})[p05Url] ??
+            0
+        ),
         caption: { vi: 'Thực tế kiểm tra độ nghiêng thân nhà (P-05)', en: 'Building inclination check (P-05)' },
         alreadyWatermarked: isPhotoAlreadyWatermarked(p05Url),
       } : undefined,
       settlementPhoto: p06Url ? {
         url: p06Url,
-        base64: ReportImageResolver.resolveToBase64(p06Url),
+        base64: ReportImageResolver.resolveToBase64(
+          p06Url,
+          (json.photoRotations || rawReport.photoRotations || {})['P-06'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['photoP06'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['diffSettlement'] ??
+            (json.photoRotations || rawReport.photoRotations || {})['diffSettlement_0'] ??
+            (json.photoRotations || rawReport.photoRotations || {})[p06Url] ??
+            0
+        ),
         caption: { vi: 'Thực tế kiểm tra lún móng & nền công trình (P-06)', en: 'Foundation & settlement survey (P-06)' },
         alreadyWatermarked: isPhotoAlreadyWatermarked(p06Url),
       } : undefined,

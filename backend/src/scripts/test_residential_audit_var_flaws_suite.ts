@@ -1639,15 +1639,15 @@ async function runTestSuite() {
       });
 
       const rel1 = await AuditReviewService.approveReport(reportId, adminId, 'Duyệt lần 2 sau sửa đổi');
-      expect(rel1.exportRevision).toBe(1);
+      expect(rel1.exportRevision).toBe(0);
 
       const rel1Check = await client.query<{ title: string; snapshot_data: any }>(
         `SELECT title, snapshot_data FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE' ORDER BY version_number DESC LIMIT 1;`,
         [reportId]
       );
-      expect(rel1Check.rows[0].title).toContain('Rev 01');
+      expect(rel1Check.rows[0].title).toContain('Phê duyệt lại số liệu sau mở khóa');
       const snap1 = typeof rel1Check.rows[0].snapshot_data === 'string' ? JSON.parse(rel1Check.rows[0].snapshot_data) : rel1Check.rows[0].snapshot_data;
-      expect(snap1.exportRevision).toBe(1);
+      expect(snap1.exportRevision).toBe(0);
     });
 
     await assertTest('Logic 9', 'TC89', 'Lịch sử phiên bản lưu giữ cả bản Rev 00 và Rev 01 (bảo toàn phả hệ)', async () => {

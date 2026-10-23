@@ -92,6 +92,8 @@ export interface PendingSubmissionItem {
   has_admin_diff?: boolean;
   latest_version_tag?: string | null;
   latest_edit_reason?: string | null;
+  export_revision?: number;
+  has_pending_release?: boolean;
 }
 
 export type TabType =
@@ -122,6 +124,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
   selectedZone,
   onStatsNeedRefresh,
   externalFilterCategory,
+  externalFilterValue,
   title,
 }) => {
   const isProdScopeLocked = isProductionScopeLockActive();
@@ -141,8 +144,16 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
       return 'URGENT';
     }
-    if (externalFilterCategory === 'CONDO') {
+    if (externalFilterCategory === 'CONDO' || externalFilterCategory === 'CONDO_SEARCH') {
       return 'CONDO';
+    }
+    try {
+      const savedScope = sessionStorage.getItem('ksqh_review_active_scope');
+      if (savedScope === 'CONDO' || savedScope === 'URGENT' || savedScope === 'RESIDENTIAL') {
+        return savedScope;
+      }
+    } catch {
+      // ignore
     }
     return 'RESIDENTIAL';
   };
@@ -157,8 +168,10 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     }
     if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
       setActiveScope('URGENT');
-    } else if (externalFilterCategory === 'CONDO') {
+    } else if (externalFilterCategory === 'CONDO' || externalFilterCategory === 'CONDO_SEARCH') {
       setActiveScope('CONDO');
+    } else if (externalFilterCategory === 'SEARCH') {
+      setActiveScope('RESIDENTIAL');
     }
   }, [externalFilterCategory, isProdScopeLocked]);
 
@@ -179,6 +192,11 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     }
     setLockedScopeNotice(null);
     setActiveScope(newScope);
+    try {
+      sessionStorage.setItem('ksqh_review_active_scope', newScope);
+    } catch {
+      // ignore
+    }
     const url = new URL(window.location.href);
     url.searchParams.set('nav', 'review');
     url.searchParams.set('scope', newScope.toLowerCase());
@@ -266,12 +284,20 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     setAuditStudioOpen(true);
   };
 
-  const handlePreviewReport = (reportId: string | null) => {
+  const handlePreviewReport = async (reportId: string | null) => {
     if (!reportId) return;
-    const token = localStorage.getItem('token');
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
-    const previewUrl = `${apiBase}/reports/${reportId}/preview-html?token=${encodeURIComponent(token || '')}`;
-    window.open(previewUrl, '_blank', 'noopener,noreferrer');
+    try {
+      const res = await api.get(`/v3/reports/${encodeURIComponent(reportId)}/preview/html`, {
+        responseType: 'text',
+      });
+      const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } catch (err: unknown) {
+      console.error('[ZoneAuditReviewQueue] Lỗi mở xem trước báo cáo V3:', err);
+      alert('Không thể mở bản xem trước báo cáo.');
+    }
   };
 
   const handleOpenAuditHistory = async (reportId: string, itemCode?: string) => {
@@ -479,6 +505,11 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       {(activeScope === 'RESIDENTIAL' || isProdScopeLocked) && (
         <ResidentialReviewQueue
           selectedZone={selectedZone}
+          externalSearchQuery={
+            externalFilterCategory === 'SEARCH' || externalFilterCategory === 'CONDO_SEARCH'
+              ? externalFilterValue
+              : undefined
+          }
           onOpenStudio={handleOpenStudio}
           onPreviewReport={handlePreviewReport}
           onOpenRejectModal={(item) =>
@@ -523,6 +554,11 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       {!isProdScopeLocked && activeScope === 'CONDO' && (
         <CondoProjectsReviewQueue
           selectedZone={selectedZone}
+          externalSearchQuery={
+            externalFilterCategory === 'CONDO_SEARCH' || externalFilterCategory === 'SEARCH'
+              ? externalFilterValue
+              : undefined
+          }
           onOpenStudio={handleOpenStudio}
           onPreviewReport={handlePreviewReport}
           onOpenRejectModal={(item) =>

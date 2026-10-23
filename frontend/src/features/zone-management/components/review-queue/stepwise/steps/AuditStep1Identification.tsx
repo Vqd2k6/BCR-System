@@ -17,6 +17,7 @@ interface Props extends AuditStepBaseProps {}
 interface AdjacentSide {
   details?: string;
   note?: string;
+  notes?: string;
 }
 
 interface AdjacentBuildings {
@@ -69,12 +70,54 @@ const getNumericValue = (val: unknown): string => {
   return isNaN(num) ? '' : String(num);
 };
 
+const normalizePolygonRing = (coords: [number, number][] | undefined): [number, number][] => {
+  if (!Array.isArray(coords)) return [];
+  const valid = coords.filter(
+    (pt): pt is [number, number] =>
+      Array.isArray(pt) &&
+      pt.length >= 2 &&
+      typeof pt[0] === 'number' &&
+      typeof pt[1] === 'number' &&
+      Number.isFinite(pt[0]) &&
+      Number.isFinite(pt[1])
+  );
+  if (valid.length > 3) {
+    const first = valid[0];
+    const last = valid[valid.length - 1];
+    if (Math.abs(first[0] - last[0]) < 1e-6 && Math.abs(first[1] - last[1]) < 1e-6) {
+      return valid.slice(0, -1);
+    }
+  }
+  return valid;
+};
+
+const arePolygonsDifferent = (
+  polyA: [number, number][] | undefined,
+  polyB: [number, number][] | undefined,
+  tolerance = 0.00001
+): boolean => {
+  const ringA = normalizePolygonRing(polyA);
+  const ringB = normalizePolygonRing(polyB);
+  if (ringA.length < 3 || ringB.length < 3) return false;
+  if (ringA.length !== ringB.length) return true;
+  for (let i = 0; i < ringA.length; i++) {
+    if (
+      Math.abs(ringA[i][0] - ringB[i][0]) > tolerance ||
+      Math.abs(ringA[i][1] - ringB[i][1]) > tolerance
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export const AuditStep1Identification: React.FC<Props> = ({
   isEditMode,
   formState,
   data,
   handleFieldChange,
   handleNestedFieldChange,
+  handleApplySyncedGeometry,
   isFieldDirty,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
@@ -202,20 +245,21 @@ export const AuditStep1Identification: React.FC<Props> = ({
       historyCount: p03Raw.historyCount,
       hasHistory: p03Raw.hasHistory,
     },
-    ...p03AdditionalPhotos.map((extra: any, idx: number): DynamicPhotoItem => {
-      const extraUrl = typeof extra === 'string' ? extra : (extra.url || extra.photoUrl || extra.raw_photo_url || '');
+    ...p03AdditionalPhotos.map((extra: string | IdentificationPhotoItemExtended, idx: number): DynamicPhotoItem => {
+      const extraObj = typeof extra === 'string' ? { url: extra } : extra;
+      const extraUrl = extraObj.url || extraObj.photoUrl || extraObj.raw_photo_url || '';
       return {
         key: `photoP03_extra_${idx}`,
-        code: extra.photoCode || `P-03_${idx + 2}`,
-        label: `Mặt bên / sau (${extra.tag || `Ảnh bổ sung ${idx + 1}`})`,
+        code: extraObj.photoCode || `P-03_${idx + 2}`,
+        label: `Mặt bên / sau (${extraObj.tag || `Ảnh bổ sung ${idx + 1}`})`,
         url: extraUrl,
-        photoCode: extra.photoCode,
-        tag: extra.tag || `Bổ sung ${idx + 1}`,
+        photoCode: extraObj.photoCode,
+        tag: extraObj.tag || `Bổ sung ${idx + 1}`,
         notApplicable: false,
         isExtra: true,
         extraIndex: idx,
-        historyCount: extra.historyCount,
-        hasHistory: extra.hasHistory,
+        historyCount: extraObj.historyCount,
+        hasHistory: extraObj.hasHistory,
       };
     }),
     {
@@ -247,14 +291,47 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const lngDisplay = gpsCoords.longitude ?? gpsCoords.lng;
   const accuracyDisplay = gpsCoords.accuracy;
 
-  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
-  const parcelCoords = useMemo<[number, number][]>(() => {
-    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
-      return formState.parcelCoordinates;
+  // 1. Trích xuất đa giác ranh đất từ CSDL PostGIS (cadastralGeojson)
+  const postgisPolygonCoords = useMemo<[number, number][]>(() => {
+    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
+    if (rawGeojson) {
+      try {
+        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : (rawGeojson as { type?: string; coordinates?: [number, number][][] });
+        if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          return normalizePolygonRing(parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]));
+        }
+      } catch (e) {
+        console.warn('[AuditStep1] Failed to parse cadastralGeojson:', e);
+      }
     }
-    const rawSJsonCoords = sJson.parcelCoordinates as [number, number][] | undefined;
+    return [];
+  }, [data?.cadastralGeojson, data?.cadastral_geojson]);
+
+  // 2. Trích xuất đa giác ranh đất đang lưu trong hồ sơ khảo sát (formState hoặc sJson)
+  const surveyPolygonCoords = useMemo<[number, number][]>(() => {
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return normalizePolygonRing(formState.parcelCoordinates);
+    }
+    const rawSJsonCoords = (sJson.parcelCoordinates || sJson.polygonCoords) as [number, number][] | undefined;
     if (Array.isArray(rawSJsonCoords) && rawSJsonCoords.length >= 3) {
-      return rawSJsonCoords;
+      return normalizePolygonRing(rawSJsonCoords);
+    }
+    return [];
+  }, [formState.parcelCoordinates, sJson.parcelCoordinates, sJson.polygonCoords]);
+
+  // 3. Phát hiện xung đột ranh GPMB giữa PostGIS và Survey JSON (TC-SPA-01 & TC-SPA-02)
+  const hasGpmbBoundaryConflict = useMemo<boolean>(() => {
+    if (postgisPolygonCoords.length < 3 || surveyPolygonCoords.length < 3) return false;
+    return arePolygonsDifferent(postgisPolygonCoords, surveyPolygonCoords);
+  }, [postgisPolygonCoords, surveyPolygonCoords]);
+
+  // 4. Trích xuất tọa độ Polygon hiển thị trên bản đồ Step 1
+  const parcelCoords = useMemo<[number, number][]>(() => {
+    if (surveyPolygonCoords.length >= 3) {
+      return surveyPolygonCoords;
+    }
+    if (postgisPolygonCoords.length >= 3) {
+      return postgisPolygonCoords;
     }
     const rawCoords = data?.coordinates as [number, number][] | undefined;
     if (Array.isArray(rawCoords) && rawCoords.length >= 3) {
@@ -263,20 +340,43 @@ export const AuditStep1Identification: React.FC<Props> = ({
     if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
       return data.parcelCoordinates;
     }
-    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
-    if (rawGeojson) {
-      try {
-        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
-        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
-          // Chuẩn hóa: Đảo [lng, lat] GeoJSON sang [lat, lng] cho Leaflet Map
-          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
-        }
-      } catch (e) {
-        console.warn('Failed to parse cadastralGeojson in AuditStep1:', e);
-      }
-    }
     return [];
-  }, [formState.parcelCoordinates, sJson.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
+  }, [surveyPolygonCoords, postgisPolygonCoords, data?.coordinates, data?.parcelCoordinates]);
+
+  // 5. Tính toán chỉ số cự ly Trước/Sau cho Popover So Sánh (TC-SPA-03)
+  const [showDistanceDiffPopover, setShowDistanceDiffPopover] = useState<boolean>(false);
+
+  const distanceDiffPreview = useMemo(() => {
+    const targetCoords = postgisPolygonCoords.length >= 3 ? postgisPolygonCoords : parcelCoords;
+    const newMetrics = calculateComprehensiveMetroSpatialMetrics(targetCoords);
+    const oldMetroStr = formatDistanceDisplay(formState.metroOffsetDistance ?? sJson.metroOffsetDistance);
+    const oldClearanceStr = formatDistanceDisplay(formState.clearanceOffsetDistance ?? sJson.clearanceOffsetDistance);
+    const newMetroVal = newMetrics.distanceToCenterlineMeters !== undefined ? newMetrics.distanceToCenterlineMeters.toFixed(1) : '0.0';
+    const newClearanceVal =
+      newMetrics.outerBoundaryType === 'STATION_OUTLINE' && newMetrics.distanceToOuterBoundaryMeters !== null
+        ? newMetrics.distanceToOuterBoundaryMeters.toFixed(1)
+        : 'Không có ga trong khu vực';
+
+    return {
+      targetCoords,
+      oldVertexCount: surveyPolygonCoords.length || parcelCoords.length,
+      newVertexCount: targetCoords.length,
+      oldMetroDisplay: oldMetroStr,
+      newMetroDisplay: `${newMetroVal} m`,
+      newMetroValue: newMetroVal,
+      oldClearanceDisplay: oldClearanceStr,
+      newClearanceDisplay: newClearanceVal === 'Không có ga trong khu vực' ? newClearanceVal : `${newClearanceVal} m`,
+      newClearanceValue: newClearanceVal,
+    };
+  }, [
+    postgisPolygonCoords,
+    parcelCoords,
+    surveyPolygonCoords.length,
+    formState.metroOffsetDistance,
+    formState.clearanceOffsetDistance,
+    sJson.metroOffsetDistance,
+    sJson.clearanceOffsetDistance,
+  ]);
 
   // Định dạng địa chỉ chuẩn hóa mặc định theo mô hình 168 ĐVHC cấp xã TP.HCM
   const defaultStandardized168 = useMemo(() => {
@@ -316,33 +416,60 @@ export const AuditStep1Identification: React.FC<Props> = ({
     handleFieldChange('standardizedAddress', 'Địa chỉ chuẩn hóa A4 (168 ĐVHC)', val);
   };
 
-  // Đồng bộ cự ly trắc địa 1-click từ bản đồ GIS
+  // Mở Popover So sánh cự ly Trước/Sau khi bấm nút Đồng bộ trắc địa PostGIS
   const handleSyncFromGis = () => {
-    const metrics = calculateComprehensiveMetroSpatialMetrics(parcelCoords);
-    if (metrics.distanceToCenterlineMeters !== undefined) {
-      handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', metrics.distanceToCenterlineMeters.toFixed(1));
-    }
-    if (metrics.outerBoundaryType === 'STATION_OUTLINE' && metrics.distanceToOuterBoundaryMeters !== null) {
-      handleFieldChange('clearanceOffsetDistance', 'Cự ly mép ga trắng', metrics.distanceToOuterBoundaryMeters.toFixed(1));
-    } else if (metrics.outerBoundaryType === 'NO_STATION') {
-      handleFieldChange('clearanceOffsetDistance', 'Cự ly mép ga trắng', 'Không có ga trong khu vực');
-    }
+    setShowDistanceDiffPopover(true);
   };
 
-  // Adjacent Buildings Data
-  const adjacent: AdjacentBuildings = (formState.adjacentBuildings || sJson.adjacentBuildings || {
+  // Xác nhận áp dụng Ranh đất PostGIS & Cự ly mới (Ràng buộc 02: CHỈ cập nhật tọa độ & cự ly, bảo toàn diện tích & mặt tiền)
+  const handleConfirmApplySyncedGeometry = () => {
+    const { targetCoords, newMetroValue, newClearanceValue } = distanceDiffPreview;
+    if (handleApplySyncedGeometry) {
+      handleApplySyncedGeometry(targetCoords, newMetroValue, newClearanceValue);
+    } else {
+      handleFieldChange('parcelCoordinates', 'Tọa độ đa giác ranh thửa (PostGIS GPMB)', targetCoords);
+      handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro (m)', newMetroValue);
+      handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài / mép ga (m)', newClearanceValue);
+      if (formState.keepKsvBoundaryConfirmed) {
+        handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', false);
+      }
+    }
+    setShowDistanceDiffPopover(false);
+  };
+
+  // Adjacent Buildings Data (Đồng bộ hai chiều cả key 'note' của Phase 1 FE và 'notes' của Audit)
+  const rawAdjacent = (formState.adjacentBuildings || sJson.adjacentBuildings || {
     left: { details: '', note: '' },
     right: { details: '', note: '' },
     back: { details: '', note: '' },
-  }) as AdjacentBuildings;
+  }) as AdjacentBuildings & Record<string, { details?: string; note?: string; notes?: string }>;
+  const adjacent: AdjacentBuildings = {
+    left: {
+      ...(rawAdjacent.left || {}),
+      details: rawAdjacent.left?.details || '',
+      note: rawAdjacent.left?.note ?? rawAdjacent.left?.notes ?? '',
+    },
+    right: {
+      ...(rawAdjacent.right || {}),
+      details: rawAdjacent.right?.details || '',
+      note: rawAdjacent.right?.note ?? rawAdjacent.right?.notes ?? '',
+    },
+    back: {
+      ...(rawAdjacent.back || {}),
+      details: rawAdjacent.back?.details || '',
+      note: rawAdjacent.back?.note ?? rawAdjacent.back?.notes ?? '',
+    },
+  };
 
   const handleAdjacentChange = (side: 'left' | 'right' | 'back', field: 'details' | 'note', value: string) => {
+    const updatedSide = {
+      ...(adjacent[side] || {}),
+      [field]: value,
+      ...(field === 'note' ? { notes: value } : {}),
+    };
     const updated: AdjacentBuildings = {
       ...adjacent,
-      [side]: {
-        ...(adjacent[side] || {}),
-        [field]: value,
-      },
+      [side]: updatedSide,
     };
     if (handleNestedFieldChange) {
       handleNestedFieldChange('adjacentBuildings', side, `Công trình liền kề (${side})`, updated[side]);
@@ -1650,24 +1777,152 @@ export const AuditStep1Identification: React.FC<Props> = ({
         </div>
 
         {/* 1.3. CỰ LY KHÔNG GIAN TRẮC ĐỊA & TỌA ĐỘ GPS TUYẾN METRO 2 */}
-        <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 space-y-3">
+        <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 space-y-3 relative">
+          {/* BANNER CAM CẢNH BÁO XUNG ĐỘT RANH ĐẤT GPMB (TC-SPA-01 & TC-GAT-01/02) */}
+          {hasGpmbBoundaryConflict && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border-2 border-amber-400 shadow-xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase text-amber-950">
+                        Phát Hiện Lệch Ranh Đất GPMB / Nắn Chỉnh Trên Bản Đồ GIS PostGIS
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-400">
+                        KSV ({distanceDiffPreview.oldVertexCount} đỉnh) ≠ PostGIS ({distanceDiffPreview.newVertexCount} đỉnh)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900 mt-0.5">
+                      Đa giác ranh thửa trên CSDL PostGIS đã được nắn chỉnh so với ranh khảo sát gốc trong hồ sơ. Vui lòng đồng bộ ranh PostGIS mới hoặc xác nhận giữ ranh KSV kèm lý do giải trình trước khi Phê duyệt.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDistanceDiffPopover(true)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-black flex items-center gap-1.5 shrink-0 shadow-xs transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>1-Click Đồng Bộ Ranh Đất Đã Nắn Chỉnh</span>
+                </button>
+              </div>
+
+              {/* Tuỳ chọn xác nhận giữ ranh KSV thực địa kèm giải trình >= 10 ký tự (TC-GAT-02) */}
+              <div className="pt-2 border-t border-amber-200/80 flex flex-col sm:flex-row sm:items-center gap-2.5 text-xs">
+                <label className="flex items-center gap-2 font-bold text-amber-950 cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formState.keepKsvBoundaryConfirmed)}
+                    onChange={(e) =>
+                      handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', e.target.checked)
+                    }
+                    className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span>Xác nhận giữ ranh KSV thực địa (không áp dụng ranh PostGIS)</span>
+                </label>
+                {Boolean(formState.keepKsvBoundaryConfirmed) && (
+                  <input
+                    type="text"
+                    value={String(formState.keepKsvBoundaryReason || '')}
+                    onChange={(e) =>
+                      handleFieldChange('keepKsvBoundaryReason', 'Lý do giải trình giữ ranh KSV', e.target.value)
+                    }
+                    placeholder="Nhập lý do giải trình kỹ thuật (tối thiểu 10 ký tự)..."
+                    className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-amber-400 text-xs font-semibold text-slate-800"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* POPOVER SO SÁNH CỰ LY TRƯỚC / SAU KHI BẤM ĐỒNG BỘ (TC-SPA-03 & TC-SPA-04) */}
+          {showDistanceDiffPopover && (
+            <div className="p-4 rounded-xl bg-white border-2 border-sky-500 shadow-lg space-y-3 z-20">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-sky-600" />
+                  <span className="text-xs font-black uppercase text-slate-900">
+                    So Sánh Cự Ly Trắc Địa Trước / Sau Đồng Bộ PostGIS
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDistanceDiffPopover(false)}
+                  className="px-2 py-0.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded cursor-pointer"
+                >
+                  Đóng ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                    Khoảng cách đến Tim hầm Metro 2
+                  </span>
+                  <div className="flex items-center gap-2 mt-1 font-mono">
+                    <span className="text-slate-500 line-through">{distanceDiffPreview.oldMetroDisplay}</span>
+                    <span className="text-slate-400">➔</span>
+                    <span className="text-sm font-black text-emerald-700">{distanceDiffPreview.newMetroDisplay}</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                    Khoảng cách đến Mép ga / Đường bao ngoài
+                  </span>
+                  <div className="flex items-center gap-2 mt-1 font-mono">
+                    <span className="text-slate-500 line-through">{distanceDiffPreview.oldClearanceDisplay}</span>
+                    <span className="text-slate-400">➔</span>
+                    <span className="text-sm font-black text-emerald-700">{distanceDiffPreview.newClearanceDisplay}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  <strong>Bảo toàn chỉ số thực địa (Ràng buộc 02):</strong> Chỉ cập nhật tọa độ ranh (<code>parcelCoordinates</code>) và 2 cự ly Metro; giữ nguyên 100% <code>landAreaM2</code> ({formState.landAreaM2 || '---'} m²), <code>constructionAreaM2</code>, <code>frontageWidth</code> và <code>lotDepth</code>.
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDistanceDiffPopover(false)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmApplySyncedGeometry}
+                  className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Xác Nhận Áp Dụng Cự Ly & Ranh Mới</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-black uppercase text-sky-950 flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-sky-700" />
               <span>1.3. Cự Ly Không Gian Trắc Địa & Tọa Độ GPS (Tuyến Metro Số 2)</span>
             </span>
             <div className="flex items-center gap-2">
-              {isEditMode && (
-                <button
-                  type="button"
-                  onClick={handleSyncFromGis}
-                  className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-sky-800 bg-white border border-sky-300 rounded-lg hover:bg-sky-100 shadow-2xs transition-all active:scale-95"
-                  title="Tự động tính cự ly tim hầm và cự ly mép ga trắng từ bản đồ GIS và điền vào form"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Lấy số đo từ bản đồ GIS</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleSyncFromGis}
+                className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-sky-800 bg-white border border-sky-300 rounded-lg hover:bg-sky-100 shadow-2xs transition-all active:scale-95"
+                title="Mở bảng đối chiếu & đồng bộ cự ly tim hầm và mép ga trắng từ bản đồ GIS PostGIS"
+              >
+                <Navigation className="w-3.5 h-3.5 text-sky-600" />
+                <span>Đồng bộ trắc địa PostGIS</span>
+              </button>
               <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-300">
                 Có thể bù sai số GPS thủ công
               </span>

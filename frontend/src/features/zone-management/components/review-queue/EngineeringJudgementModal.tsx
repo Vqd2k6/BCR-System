@@ -55,15 +55,16 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
   const [totalEcs, setTotalEcs] = useState<number>(baselineTotalEcs);
   const [avgVi, setAvgVi] = useState<number>(baselineAvgVi);
 
-  const e2StructureScore = Number(riskCard?.e2_structure_score ?? 0);
-  const isSafetyLocked = e2StructureScore >= 3;
+  const e2StructureScore = Number(riskCard?.e2_structure_score ?? rawSurveyJson?.ecs?.e2 ?? 0);
+  const e3DeformationScore = Number(riskCard?.e3_deformation_score ?? rawSurveyJson?.ecs?.e3 ?? 0);
+  const isSafetyLocked = e2StructureScore >= 3 || e3DeformationScore >= 3;
 
   // Tính định tính tự động từ định lượng theo chuẩn backend
   const calculatedEcsClass: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' =
     totalEcs <= 5 ? 'GOOD' : totalEcs <= 10 ? 'MEDIUM' : totalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
 
   const calculatedViClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
-    avgVi < 1.5 ? 'LOW' : avgVi < 2.5 ? 'MEDIUM' : avgVi < 3.5 ? 'HIGH' : 'VERY_HIGH';
+    avgVi <= 1.50 ? 'LOW' : avgVi <= 2.50 ? 'MEDIUM' : avgVi <= 3.25 ? 'HIGH' : 'VERY_HIGH';
 
   useEffect(() => {
     if (isOpen) {
@@ -157,14 +158,14 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
   const renderViBadge = (cls: string) => {
     switch (cls) {
       case 'LOW':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Tổn Thương Thấp (&lt;1.5)</span>;
+        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Tổn Thương Thấp (≤1.50)</span>;
       case 'MEDIUM':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">Trung Bình (1.5 - 2.5)</span>;
+        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">Trung Bình (1.51 - 2.50)</span>;
       case 'HIGH':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">Tổn Thương Cao (2.5 - 3.5)</span>;
+        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">Tổn Thương Cao (2.51 - 3.25)</span>;
       case 'VERY_HIGH':
       default:
-        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">Rất Cao (&gt;3.5)</span>;
+        return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">Rất Cao (&gt;3.25)</span>;
     }
   };
 

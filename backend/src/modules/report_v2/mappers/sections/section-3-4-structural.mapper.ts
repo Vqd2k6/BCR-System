@@ -27,7 +27,7 @@ export class Section3And4Mapper {
     rawFoundDepth: any
   ): Section3And4Result {
     // CHƯƠNG III: LỊCH SỬ VÀ TÌNH TRẠNG SỬ DỤNG
-    const historyRaw = json.historyInterview || {};
+    const historyRaw = { ...(json.buildingHistory || {}), ...(json.historyInterview || {}) };
     let dbDetails: any = {};
     if (rawReport.historicalSensitivity?.details) {
       try {
@@ -41,7 +41,7 @@ export class Section3And4Mapper {
     const historyObj = { ...dbDetails, ...historyRaw };
 
     const renovationLoad = Number(historyObj.renovationLoad ?? (rawReport.historicalSensitivity?.extended_or_renovated ? 1 : 0));
-    const majorRepair = Number(historyObj.majorRepair ?? 0);
+    const majorRepair = Number(historyObj.majorRepair ?? historyObj.majorRepairHistory ?? 0);
     const pastSettlement = Number(historyObj.pastSettlement ?? (rawReport.historicalSensitivity?.previous_settlement_or_tilt ? 1 : 0));
     const neighborDamage = Number(historyObj.neighborDamage ?? 0);
     const fireFloodIncident = Number(historyObj.fireFloodIncident ?? (rawReport.historicalSensitivity?.fire_or_accident ? 1 : 0));
@@ -136,20 +136,21 @@ export class Section3And4Mapper {
             ? { vi: 'Có – Ảnh hưởng đáng kể', en: 'Yes – Substantial damage' }
             : { vi: 'Có – Tranh chấp / Ảnh hưởng nghiêm trọng', en: 'Yes – Severe damage / Disputed' },
 
-      informationSource: (json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE' || json.foundationCatScore === 4 || String(json.foundationSource || '').includes('suy luận'))
-        ? {
-            vi: 'Quan sát hiện trường',
-            en: 'Site observation',
-          }
-        : (json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND')
-          ? {
-              vi: 'Khảo sát thực địa',
-              en: 'Field inspection',
-            }
-          : {
-              vi: 'Phỏng vấn chủ hộ',
-              en: 'Property owner interview',
-            },
+      informationSource: (() => {
+        const explicitSource = historyObj.informationSource || json.informationSource;
+        if (explicitSource && typeof explicitSource === 'string' && explicitSource.trim() !== '') {
+          const s = explicitSource.trim();
+          const sEn = s.toLowerCase().includes('quan sát') ? 'Site observation' : s.toLowerCase().includes('phỏng vấn') ? 'Property owner interview' : s;
+          return { vi: s, en: sEn };
+        }
+        if (json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE') {
+          return { vi: 'Quan sát hiện trường', en: 'Site observation' };
+        }
+        if (json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND') {
+          return { vi: 'Khảo sát thực địa', en: 'Field inspection' };
+        }
+        return { vi: 'Phỏng vấn chủ hộ', en: 'Property owner interview' };
+      })(),
     };
 
     // CHƯƠNG IV: ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG
@@ -168,22 +169,29 @@ export class Section3And4Mapper {
       structTypeVi = String(rawStructSys).replace(/^Khác:\s*/i, '').trim() || structTypeVi;
     }
 
-    // 2. Tách biệt Hình thức kết cấu (Hình thái kiến trúc không gian đô thị)
-    const bldgTypeStr = (rawReport.building_type || json.surveyCaseType || json.usageFunction || '').toLowerCase();
-    let structFormVi = 'Nhà phố liên kế nhiều tầng (Row / Terraced House)';
-    let structFormEn = 'Terraced Row House';
-    if (isVacantLand) {
-      structFormVi = 'Khu đất trống (Vacant land)';
-      structFormEn = 'Vacant land';
-    } else if (bldgTypeStr.includes('chung cư') || bldgTypeStr.includes('apartment') || bldgTypeStr.includes('condo')) {
-      structFormVi = 'Tòa nhà chung cư / Căn hộ nhiều tầng';
-      structFormEn = 'Multi-storey Condominium / Apartment Building';
-    } else if (bldgTypeStr.includes('biệt thự') || bldgTypeStr.includes('độc lập') || bldgTypeStr.includes('standalone')) {
-      structFormVi = 'Nhà riêng lẻ độc lập (Detached Single House)';
-      structFormEn = 'Standalone / Detached House';
-    } else if (bldgTypeStr.includes('thương mại') || bldgTypeStr.includes('shophouse') || bldgTypeStr.includes('văn phòng')) {
-      structFormVi = 'Nhà phố thương mại / Văn phòng dịch vụ';
-      structFormEn = 'Commercial Shophouse / Office Building';
+    // 2. Tách biệt Hình thức kết cấu (Ưu tiên đọc trường đã duyệt trước)
+    const explicitForm = json.structuralForm || specs.structural_form || specs.structuralForm;
+    const bldgTypeStr = (json.usageFunction || json.buildingName || rawReport.building_type || json.surveyCaseType || '').toLowerCase();
+    let structFormVi = explicitForm && String(explicitForm).trim() !== ''
+      ? String(explicitForm).trim()
+      : 'Nhà phố liên kế nhiều tầng (Row / Terraced House)';
+    let structFormEn = explicitForm && String(explicitForm).trim() !== ''
+      ? String(explicitForm).trim()
+      : 'Terraced Row House';
+    if (!explicitForm) {
+      if (isVacantLand) {
+        structFormVi = 'Khu đất trống (Vacant land)';
+        structFormEn = 'Vacant land';
+      } else if (bldgTypeStr.includes('chung cư') || bldgTypeStr.includes('apartment') || bldgTypeStr.includes('condo')) {
+        structFormVi = 'Tòa nhà chung cư / Căn hộ nhiều tầng';
+        structFormEn = 'Multi-storey Condominium / Apartment Building';
+      } else if (bldgTypeStr.includes('biệt thự') || bldgTypeStr.includes('độc lập') || bldgTypeStr.includes('standalone')) {
+        structFormVi = 'Nhà riêng lẻ độc lập (Detached Single House)';
+        structFormEn = 'Standalone / Detached House';
+      } else if (bldgTypeStr.includes('thương mại') || bldgTypeStr.includes('shophouse') || bldgTypeStr.includes('văn phòng')) {
+        structFormVi = 'Nhà phố thương mại / Văn phòng dịch vụ';
+        structFormEn = 'Commercial Shophouse / Office Building';
+      }
     }
 
     // 3. Loại móng
@@ -248,21 +256,28 @@ export class Section3And4Mapper {
       ? { vi: 'Khảo sát hiện trạng đất trống (N/A)', en: 'Vacant land observation (N/A)' }
       : (catEvidenceMap[rawFoundCat] || catEvidenceMap[5]);
 
-    // 7. Tình trạng kết cấu quan sát được (Data-driven từ kiểm tra khuyết tật thực tế)
-    let visibleStructVi = 'Các cấu kiện chịu lực chính (cột, dầm, sàn) nguyên vẹn, ổn định tại thời điểm khảo sát';
-    let visibleStructEn = 'Main load-bearing elements (columns, beams, slabs) intact and stable at survey time';
-    if (isVacantLand) {
-      visibleStructVi = 'Hiện trạng đất trống, không có kết cấu công trình xây dựng';
-      visibleStructEn = 'Vacant land, no building structures present';
-    } else if (isUnderConstruction) {
-      visibleStructVi = 'Công trình đang thi công xây dựng dở dang (xem ghi chú kỹ thuật)';
-      visibleStructEn = 'Building under active construction / structural works in progress';
-    } else if (structuralCracksCount > 0) {
-      visibleStructVi = `Ghi nhận khuyết tật kết cấu cục bộ (${structuralCracksCount} vị trí nứt cấp ≥ 3, xem Mục VI & Phụ lục 2)`;
-      visibleStructEn = `Localised structural defects observed (${structuralCracksCount} cracks grade ≥ 3, see Section VI & Appendix 2)`;
-    } else if (surfaceCracksCount > 0) {
-      visibleStructVi = 'Các cấu kiện chịu lực chính (cột, dầm, sàn) ổn định; ghi nhận nứt vữa hoàn thiện kiến trúc';
-      visibleStructEn = 'Main load-bearing elements intact; minor aesthetic plaster cracks observed';
+    // 7. Tình trạng kết cấu quan sát được (Ưu tiên trường đã duyệt; không tự gán cứng "cấp ≥ 3")
+    const explicitVisibleStruct = json.visibleStructuralCondition || specs.visible_structural_condition || specs.visibleStructuralCondition;
+    let visibleStructVi = explicitVisibleStruct && String(explicitVisibleStruct).trim() !== ''
+      ? String(explicitVisibleStruct).trim()
+      : 'Các cấu kiện chịu lực chính (cột, dầm, sàn) nguyên vẹn, ổn định tại thời điểm khảo sát';
+    let visibleStructEn = explicitVisibleStruct && String(explicitVisibleStruct).trim() !== ''
+      ? String(explicitVisibleStruct).trim()
+      : 'Main load-bearing elements (columns, beams, slabs) intact and stable at survey time';
+    if (!explicitVisibleStruct) {
+      if (isVacantLand) {
+        visibleStructVi = 'Hiện trạng đất trống, không có kết cấu công trình xây dựng';
+        visibleStructEn = 'Vacant land, no building structures present';
+      } else if (isUnderConstruction) {
+        visibleStructVi = 'Công trình đang thi công xây dựng dở dang (xem ghi chú kỹ thuật)';
+        visibleStructEn = 'Building under active construction / structural works in progress';
+      } else if (structuralCracksCount > 0) {
+        visibleStructVi = `Ghi nhận khuyết tật trên cấu kiện kết cấu (${structuralCracksCount} vị trí, xem chi tiết Mục VI & Phụ lục 2)`;
+        visibleStructEn = `Structural member defects observed (${structuralCracksCount} location(s), see Section VI & Appendix 2)`;
+      } else if (surfaceCracksCount > 0) {
+        visibleStructVi = 'Các cấu kiện chịu lực chính (cột, dầm, sàn) ổn định; ghi nhận nứt vữa hoàn thiện kiến trúc';
+        visibleStructEn = 'Main load-bearing elements intact; minor aesthetic plaster cracks observed';
+      }
     }
 
     // 8. Công trình liền kề (Trái, Phải, Sau)
@@ -282,7 +297,7 @@ export class Section3And4Mapper {
           const sFloors = sideObj.floors ? `${sideObj.floors} tầng` : '';
           const sFloorsEn = sideObj.floors ? `${sideObj.floors} storeys` : '';
           const sContact = sideObj.contact || '';
-          const sNotes = sideObj.notes || '';
+          const sNotes = sideObj.note || sideObj.notes || '';
           const vi = [sType, sFloors, sContact, sNotes].filter(Boolean).join(' - ');
 
           let typeEn = sType;

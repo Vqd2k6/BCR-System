@@ -28,18 +28,18 @@ export { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime };
 export class ReportV2ViewModelMapper {
   public static buildViewModel(rawReport: any, overrides?: any, config?: ReportContentConfig): ReportV2ViewModel {
     const json = rawReport.survey_data_json || {};
-    const specs = rawReport.buildingSpecs || json || {};
-    const deform = rawReport.deformation || json.settlementTilt || {};
+    const specs = { ...(rawReport.buildingSpecs || {}), ...json };
+    const deform = { ...(rawReport.deformation || {}), ...(json.settlementTilt || {}) };
     const identPhotos = rawReport.identificationPhotos || [];
 
     // Tọa độ GPS
     const defaultLat = json.gpsCoords?.lat ? Number(json.gpsCoords.lat) : 10.7769;
     const defaultLng = json.gpsCoords?.lng ? Number(json.gpsCoords.lng) : 106.7009;
 
-    // Chuẩn hóa ngày khảo sát (khóa chặt thời gian thực tế của KSV, không lấy thời gian hiện tại)
+    // Chuẩn hóa ngày khảo sát (ưu tiên json.surveyDate nếu đã được hiệu chỉnh trong thẩm định)
     const rawSurveyDate =
-      rawReport.survey_date ||
       json.surveyDate ||
+      rawReport.survey_date ||
       json.signatures?.preparedBy?.date ||
       json.signatures?.ownerRepresentative?.date ||
       rawReport.created_at;

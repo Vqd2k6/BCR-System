@@ -9,13 +9,14 @@ import {
   CheckCircle2,
   Loader2,
   Layers,
-  MapPin,
   ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import type { BuildingUnit } from '../types';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
+import { deleteSurveyDraft } from '../../../../core/utils/idbDraftStorage';
 import confetti from 'canvas-confetti';
 
 interface Props {
@@ -40,7 +41,6 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
   const [selectedTargetUnit, setSelectedTargetUnit] = useState<BuildingUnit | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFloorFilter, setSelectedFloorFilter] = useState<number | 'ALL'>('ALL');
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'UNIT' | 'MASTER'>('ALL');
   const [reason, setReason] = useState('KSV ấn nhầm vị trí khi khảo sát thực địa');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -55,7 +55,9 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
     setSelectedTargetUnit(null);
 
     api
-      .get<{ data: { units: BuildingUnit[] } }>(`/parcels/${parcelId}/units`)
+      .get<{ data: { units: BuildingUnit[] } }>(`/parcels/${parcelId}/units`, {
+        timeout: 15000,
+      })
       .then((res) => {
         if (!isSubscribed) return;
         const units = res.data?.data?.units || [];
@@ -75,7 +77,7 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
     };
   }, [isOpen, parcelId]);
 
-  // Đặt tầng mặc định của bộ lọc theo tầng của sourceUnit
+  // Đặt tầng mặc định của bộ lọc theo sourceUnit (Khóa cùng phân loại UNIT <-> UNIT hoặc MASTER <-> MASTER)
   useEffect(() => {
     if (sourceUnit) {
       const fl = sourceUnit.floor_number !== undefined ? Number(sourceUnit.floor_number) : 1;
@@ -94,22 +96,21 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
     return Array.from(floorsSet).sort((a, b) => a - b);
   }, [allUnits]);
 
-  // Lọc các ứng viên có thể hoán đổi (loại trừ chính sourceUnit)
+  // Lọc các ứng viên có thể hoán đổi (loại trừ chính sourceUnit và bắt buộc cùng phân loại UNIT / MASTER)
   const candidateUnits = useMemo(() => {
     if (!sourceUnit) return [];
+    const sourceType = ((sourceUnit.unit_type || sourceUnit.unitType || 'UNIT') as 'UNIT' | 'MASTER');
     return allUnits.filter((u) => {
       if (u.id === sourceUnit.id) return false;
+
+      // Bắt buộc cùng loại (UNIT <-> UNIT hoặc MASTER <-> MASTER)
+      const uType = (u.unit_type || u.unitType || 'UNIT') as 'UNIT' | 'MASTER';
+      if (uType !== sourceType) return false;
 
       // Lọc theo tầng
       if (selectedFloorFilter !== 'ALL') {
         const uFl = u.floor_number !== undefined ? Number(u.floor_number) : 1;
         if (uFl !== Number(selectedFloorFilter)) return false;
-      }
-
-      // Lọc theo loại Unit / Master
-      const uType = (u.unit_type || u.unitType || 'UNIT') as 'UNIT' | 'MASTER';
-      if (selectedTypeFilter !== 'ALL' && uType !== selectedTypeFilter) {
-        return false;
       }
 
       // Lọc theo từ khóa tìm kiếm
@@ -123,12 +124,13 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
 
       return true;
     });
-  }, [allUnits, sourceUnit, selectedFloorFilter, selectedTypeFilter, searchTerm]);
+  }, [allUnits, sourceUnit, selectedFloorFilter, searchTerm]);
 
   if (!isOpen || !sourceUnit) return null;
 
   const isSourceMaster = (sourceUnit.unit_type || sourceUnit.unitType) === 'MASTER';
   const sourceShortCode = formatShortUnitDisplay(sourceUnit.unit_code, isSourceMaster ? 'MASTER' : 'UNIT');
+  const isSourceApproved = sourceUnit.status === 'APPROVED' || sourceUnit.status === 'APPROVED_PHASE2';
 
   const isTargetMaster = selectedTargetUnit
     ? (selectedTargetUnit.unit_type || selectedTargetUnit.unitType) === 'MASTER'
@@ -136,16 +138,38 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
   const targetShortCode = selectedTargetUnit
     ? formatShortUnitDisplay(selectedTargetUnit.unit_code, isTargetMaster ? 'MASTER' : 'UNIT')
     : '';
+  const isCrossFloorSwap =
+    Boolean(selectedTargetUnit) &&
+    Number(selectedTargetUnit?.floor_number ?? 1) !== Number(sourceUnit.floor_number ?? 1);
 
   const handleConfirmSwap = async () => {
+    if (isSourceApproved) {
+      setErrorMsg(`Đơn vị [${sourceUnit.unit_code}] đã được phê duyệt chính thức (APPROVED) và bị khóa pháp lý bất biến.`);
+      return;
+    }
+
     if (!selectedTargetUnit) {
       setErrorMsg('Vui lòng chọn một vị trí đối ứng để hoán đổi');
+      return;
+    }
+
+    if (selectedTargetUnit.status === 'APPROVED' || selectedTargetUnit.status === 'APPROVED_PHASE2') {
+      setErrorMsg(`Đơn vị đối ứng [${selectedTargetUnit.unit_code}] đã được phê duyệt chính thức (APPROVED) và bị khóa bất biến.`);
       return;
     }
 
     if (!reason || reason.trim().length < 5) {
       setErrorMsg('Vui lòng nhập lý do hoán đổi (tối thiểu 5 ký tự)');
       return;
+    }
+
+    if (isCrossFloorSwap) {
+      const ok = window.confirm(
+        `⚠️ CẢNH BÁO HOÁN ĐỔI KHÁC TẦNG:\n\n` +
+          `Bạn đang hoán đổi vị trí giữa Tầng ${sourceUnit.floor_number ?? 1} (${sourceUnit.unit_code}) và Tầng ${selectedTargetUnit.floor_number ?? 1} (${selectedTargetUnit.unit_code}).\n\n` +
+          `Bạn có chắc chắn muốn tiếp tục không?`
+      );
+      if (!ok) return;
     }
 
     try {
@@ -156,14 +180,34 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
         success: boolean;
         message: string;
         data?: { message: string; swapEventCode: string };
-      }>(`/parcels/${parcelId}/units/swap-cad-geometry`, {
-        unitAId: sourceUnit.id,
-        unitBId: selectedTargetUnit.id,
-        reason: reason.trim(),
-      });
+      }>(
+        `/parcels/${parcelId}/units/swap-cad-geometry`,
+        {
+          unitAId: sourceUnit.id,
+          unitBId: selectedTargetUnit.id,
+          reason: reason.trim(),
+        },
+        {
+          timeout: 20000,
+        }
+      );
 
       if (!res.data?.success) {
         throw new Error(res.data?.message || 'Server không phản hồi');
+      }
+
+      // Xóa cache nháp localStorage & IndexedDB của 2 đơn vị vừa hoán đổi để khi mở lại nạp đúng dữ liệu mới nhất từ Server
+      for (const uid of [sourceUnit.id, selectedTargetUnit.id]) {
+        try {
+          const unitDraftKey = `metro2_condo_unit_draft_${parcelId}_${uid}`;
+          const masterDraftKey = `metro2_master_area_draft_${parcelId}_${uid}`;
+          localStorage.removeItem(unitDraftKey);
+          localStorage.removeItem(masterDraftKey);
+          void deleteSurveyDraft(unitDraftKey);
+          void deleteSurveyDraft(masterDraftKey);
+        } catch {
+          // Ignore storage cleanup error
+        }
       }
 
       // Kích hoạt hiệu ứng thành công
@@ -181,7 +225,7 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
         `✅ Hoán đổi tọa độ CAD thành công!\n\n` +
           `• Vị trí 1: ${sourceUnit.unit_code} (${sourceUnit.display_code || '---'})\n` +
           `• Vị trí 2: ${selectedTargetUnit.unit_code} (${selectedTargetUnit.display_code || '---'})\n\n` +
-          `Toàn bộ hồ sơ khảo sát, ảnh chụp và watermark được bảo toàn nguyên vẹn.`
+          `Toàn bộ hồ sơ khảo sát, ảnh chụp, watermark được bảo toàn nguyên vẹn và bản vẽ CAD của 2 đơn vị đã được khóa cứng.`
       );
 
       if (onSuccess) {
@@ -190,7 +234,9 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
       onClose();
     } catch (err: unknown) {
       console.error('[UnitCadSpatialSwapModal] Swap error:', err);
-      setErrorMsg(getErrorMessage(err));
+      const msg = getErrorMessage(err);
+      setErrorMsg(msg);
+      alert(`❌ Không thể hoán đổi tọa độ CAD:\n${msg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -409,17 +455,10 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
                   ))}
                 </select>
 
-                <select
-                  value={selectedTypeFilter}
-                  onChange={(e) =>
-                    setSelectedTypeFilter(e.target.value as 'ALL' | 'UNIT' | 'MASTER')
-                  }
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
-                >
-                  <option value="ALL">Tất cả loại</option>
-                  <option value="UNIT">Chỉ Căn Hộ</option>
-                  <option value="MASTER">Chỉ Khu Master</option>
-                </select>
+                <span className="inline-flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-teal-800">
+                  <Lock size={12} className="text-teal-600" />
+                  <span>{isSourceMaster ? 'Cùng loại: Khu Master' : 'Cùng loại: Căn Hộ'}</span>
+                </span>
 
                 <div className="relative flex-1 sm:w-48">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -434,6 +473,17 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
               </div>
             </div>
 
+            {isCrossFloorSwap && selectedTargetUnit && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-2">
+                <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+                <span>
+                  <strong>Cảnh báo hoán đổi khác tầng:</strong> Đang chọn hoán đổi giữa{' '}
+                  <strong>Tầng {sourceUnit.floor_number ?? 1}</strong> và{' '}
+                  <strong>Tầng {selectedTargetUnit.floor_number ?? 1}</strong>. Hệ thống sẽ tự động đồng bộ lại số tầng và mặt bằng tầng tương ứng.
+                </span>
+              </div>
+            )}
+
             {/* Danh sách ứng viên */}
             <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl p-2 bg-slate-50/50 space-y-1.5">
               {isLoadingUnits ? (
@@ -443,22 +493,28 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
                 </div>
               ) : candidateUnits.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400">
-                  Không tìm thấy vị trí nào phù hợp với bộ lọc hiện tại.
+                  Không tìm thấy vị trí cùng phân loại nào phù hợp với bộ lọc hiện tại.
                 </div>
               ) : (
                 candidateUnits.map((u) => {
                   const isSelected = selectedTargetUnit?.id === u.id;
                   const isMasterItem = (u.unit_type || u.unitType) === 'MASTER';
                   const shortDisp = formatShortUnitDisplay(u.unit_code, isMasterItem ? 'MASTER' : 'UNIT');
+                  const isApprovedCandidate = u.status === 'APPROVED' || u.status === 'APPROVED_PHASE2';
 
                   return (
                     <div
                       key={u.id}
-                      onClick={() => setSelectedTargetUnit(u)}
-                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isSelected
-                          ? 'border-indigo-500 bg-indigo-50/80 ring-2 ring-indigo-400/40 shadow-xs'
-                          : 'border-slate-200 bg-white hover:bg-slate-100/80 text-slate-800'
+                      onClick={() => {
+                        if (isApprovedCandidate) return;
+                        setSelectedTargetUnit(u);
+                      }}
+                      className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                        isApprovedCandidate
+                          ? 'border-slate-200 bg-slate-100/70 opacity-60 cursor-not-allowed'
+                          : isSelected
+                          ? 'border-indigo-500 bg-indigo-50/80 ring-2 ring-indigo-400/40 shadow-xs cursor-pointer'
+                          : 'border-slate-200 bg-white hover:bg-slate-100/80 text-slate-800 cursor-pointer'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -490,8 +546,8 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
 
                       <div className="flex items-center gap-2 shrink-0">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            u.status === 'APPROVED'
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            isApprovedCandidate
                               ? 'bg-emerald-100 text-emerald-800'
                               : u.status === 'SUBMITTED'
                               ? 'bg-sky-100 text-sky-800'
@@ -500,7 +556,8 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
                               : 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          {u.status || 'Chưa KS'}
+                          {isApprovedCandidate && <Lock size={10} />}
+                          {isApprovedCandidate ? 'Đã duyệt (Khóa)' : u.status || 'Chưa KS'}
                         </span>
                         {isSelected && <CheckCircle2 size={16} className="text-indigo-600 shrink-0" />}
                       </div>
@@ -535,35 +592,44 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
           )}
         </div>
 
-        {/* 4. Footer */}
-        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
-          >
-            Hủy Bỏ
-          </button>
+        {/* 4. Sticky Footer (luôn hiển thị thông báo lỗi nếu có ngay trên thanh nút bấm) */}
+        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-2.5 shrink-0">
+          {errorMsg && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold flex items-center gap-2 shadow-2xs">
+              <AlertTriangle size={16} className="shrink-0 text-rose-600" />
+              <span className="flex-1">{errorMsg}</span>
+            </div>
+          )}
 
-          <button
-            type="button"
-            disabled={!selectedTargetUnit || isSubmitting || reason.trim().length < 5}
-            onClick={handleConfirmSwap}
-            className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-700 shadow-sm transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                <span>Đang hoán đổi tọa độ...</span>
-              </>
-            ) : (
-              <>
-                <ArrowRightLeft size={14} />
-                <span>Xác Nhận Hoán Đổi Tọa Độ CAD</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+            >
+              Hủy Bỏ
+            </button>
+
+            <button
+              type="button"
+              disabled={!selectedTargetUnit || isSubmitting || reason.trim().length < 5}
+              onClick={handleConfirmSwap}
+              className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-700 shadow-sm transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Đang hoán đổi tọa độ...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowRightLeft size={14} />
+                  <span>Xác Nhận Hoán Đổi Tọa Độ CAD</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

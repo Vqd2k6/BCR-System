@@ -76,12 +76,15 @@ export class ReportController {
 
   /**
    * GET /api/v1/reports/:id
-   * Lấy chi tiết thông tin hồ sơ khảo sát (phục vụ form chỉnh sửa)
+   * Lấy chi tiết thông tin hồ sơ khảo sát (hỗ trợ ?rev=N để xem đúng Snapshot của Rev chỉ định)
    */
   static async getReportDetail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const report = await ReportService.getReportDetail(id);
+      const isGuest = (req as any).user?.role === 'GUEST' || req.query.isGuest === 'true' || req.query.maskPii === 'true';
+      const rawRev = req.query.rev;
+      const rev = rawRev !== undefined && rawRev !== '' && !isNaN(Number(rawRev)) ? Number(rawRev) : undefined;
+      const report = await ReportService.getReportDetail(id, isGuest, rev);
       res.status(200).json({ success: true, data: report });
     } catch (err) {
       next(err);

@@ -52,6 +52,7 @@ interface Step4StructuralElementsAndDefectsProps {
   onTriggerPinningElement: (elementId: string) => void;
   watermarkOptions?: MetroWatermarkOptions;
   isReadOnly?: boolean;
+  isCadLocked?: boolean;
   onBack: () => void;
   onNext: () => void;
   onPreviewImage: (url: string) => void;
@@ -86,6 +87,7 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
   onTriggerPinningElement,
   watermarkOptions,
   isReadOnly,
+  isCadLocked = false,
   onBack,
   onNext,
   onPreviewImage,
@@ -202,6 +204,7 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                 floorName={floorName}
                 cadTitle={`Kết cấu: ${unitCode}`}
                 readOnly={isReadOnly}
+                isCadLocked={isCadLocked}
               />
             </div>
           </div>

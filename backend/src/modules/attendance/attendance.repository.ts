@@ -86,7 +86,7 @@ export class AttendanceRepository {
       params.push(filters.surveyorId);
       whereClause += ` AND t.surveyor_id = $${params.length}`;
     }
-    if (filters.zoneId) {
+    if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
       params.push(filters.zoneId);
       whereClause += ` AND t.zone_id = $${params.length}`;
     }
@@ -149,7 +149,7 @@ export class AttendanceRepository {
     let whereClause = ``;
     const params: any[] = [];
 
-    if (zoneId) {
+    if (zoneId && zoneId.toUpperCase() !== 'ALL' && zoneId.toUpperCase() !== 'ALL_ZONES') {
       params.push(zoneId);
       whereClause += ` AND t.zone_id = $${params.length}`;
     }

@@ -84,6 +84,7 @@ interface Props {
   parcelCode?: string;
   cadTitle?: string;
   readOnly?: boolean;
+  isCadLocked?: boolean;
 }
 
 export const FloorCadPinningCanvas: React.FC<Props> = ({
@@ -100,6 +101,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   parcelCode,
   cadTitle,
   readOnly = false,
+  isCadLocked = false,
 }) => {
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
@@ -281,7 +283,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
       : null;
 
   const handleDeleteOrRetakeCadPhoto = (isRetake: boolean = false) => {
-    if (readOnly) return;
+    if (readOnly || isCadLocked) return;
     const pinCount = pins.length;
     const actionText = isRetake ? 'chụp lại hoặc đổi sơ đồ CAD' : 'xóa ảnh sơ đồ CAD';
     const confirmMsg = pinCount > 0
@@ -384,27 +386,31 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   </button>
                 )}
 
-                {/* Retake/Change CAD sketch button */}
-                <button
-                  type="button"
-                  onClick={() => handleDeleteOrRetakeCadPhoto(true)}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-slate-700 border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 cursor-pointer"
-                  title="Chụp lại hoặc chọn ảnh sơ đồ CAD khác (giữ nguyên tọa độ các điểm ghim)"
-                >
-                  <Camera className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="hidden sm:inline">Đổi sơ đồ</span>
-                </button>
+                {!isCadLocked && (
+                  <>
+                    {/* Retake/Change CAD sketch button */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteOrRetakeCadPhoto(true)}
+                      className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-slate-700 border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 cursor-pointer"
+                      title="Chụp lại hoặc chọn ảnh sơ đồ CAD khác (giữ nguyên tọa độ các điểm ghim)"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="hidden sm:inline">Đổi sơ đồ</span>
+                    </button>
 
-                {/* Delete CAD sketch button */}
-                <button
-                  type="button"
-                  onClick={() => handleDeleteOrRetakeCadPhoto(false)}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 cursor-pointer"
-                  title="Xóa ảnh sơ đồ CAD này để tải lại"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                  <span className="hidden sm:inline">Xóa sơ đồ</span>
-                </button>
+                    {/* Delete CAD sketch button */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteOrRetakeCadPhoto(false)}
+                      className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 cursor-pointer"
+                      title="Xóa ảnh sơ đồ CAD này để tải lại"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      <span className="hidden sm:inline">Xóa sơ đồ</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   type="button"
@@ -478,7 +484,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <span className="hidden sm:inline">Phóng to CAD</span>
                 <span className="sm:hidden">Phóng to</span>
               </button>
-              {!readOnly && (
+              {!readOnly && !isCadLocked && (
                 <>
                   <button
                     type="button"

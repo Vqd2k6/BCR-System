@@ -60,6 +60,7 @@ import {
   Crop,
   RefreshCw,
   Loader2,
+  Lock,
 } from 'lucide-react';
 
 import { validateCondoUnitStep3, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
@@ -115,6 +116,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
   const contextReadOnly = useSurveyReadOnly();
   const isReadOnly = contextReadOnly ?? storeReadOnly;
+  const isCadHardLocked = Boolean(formData.isCadLocked);
 
   const [activeTab, setActiveTab] = useState<'ZONES' | 'STRUCTURAL'>('ZONES');
   const [activeZoneIndex, setActiveZoneIndex] = useState<number>(0);
@@ -283,7 +285,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const hasAttemptedAutoImportCadRef = useRef<boolean>(false);
   useEffect(() => {
     if (hasAttemptedAutoImportCadRef.current) return;
-    if (formData.isCadOverriddenByUser) {
+    if (formData.isCadOverriddenByUser || formData.isCadLocked) {
       hasAttemptedAutoImportCadRef.current = true;
       return;
     }
@@ -293,10 +295,10 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     } else if (formData.unitCadUrl) {
       hasAttemptedAutoImportCadRef.current = true;
     }
-  }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl, formData.isCadOverriddenByUser]);
+  }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl, formData.isCadOverriddenByUser, formData.isCadLocked]);
 
   const loadFloorPlanAuto = async () => {
-    if (formData.isCadOverriddenByUser) return;
+    if (formData.isCadOverriddenByUser || formData.isCadLocked) return;
     try {
       setIsLoadingFloorPlan(true);
       let data = null;
@@ -442,6 +444,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleOpenCadCropModal = (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    if (isCadHardLocked) return;
     setCadCropModalMode(mode);
     if (!floorPlanData) {
       void fetchFloorPlanData();
@@ -449,6 +452,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleClearCad = (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    if (isCadHardLocked) return;
     const isArch = mode === 'ARCHITECTURAL';
     const title = isArch ? 'CAD Kiến trúc CAD_01' : 'CAD Kết cấu CAD_02';
     if (!window.confirm(`Bạn có chắc chắn muốn xóa bản vẽ ${title} hiện tại không?`)) return;
@@ -468,6 +472,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleAutoExtractFromFloorPlan = async (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    if (isCadHardLocked) return;
     setIsCroppingCad(true);
     try {
       let data = floorPlanData;
@@ -913,6 +918,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         <AlertCircle size={13} /> Chưa có CAD
                       </span>
                     )}
+                    {isCadHardLocked && (
+                      <span
+                        className="text-indigo-800 bg-indigo-50 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1"
+                        title="Bản vẽ CAD của căn này đã được khóa cứng sau khi hoán đổi vị trí để bảo vệ 100% các điểm ghim Z-01/E-01 đã khảo sát"
+                      >
+                        <Lock size={12} /> Đã khóa cứng CAD (Bảo vệ điểm ghim khảo sát)
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500">
                     Chạm trực tiếp vào sơ đồ để gán tọa độ và tự động sinh Vùng kiến trúc Z mới
@@ -933,41 +946,45 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     <span>Phóng to</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
-                    className="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                    title="Chọn ô khác hoặc chọn bản vẽ từ tầng khác trong tòa"
-                  >
-                    <Layers size={13} />
-                    <span>Chọn CAD tầng</span>
-                  </button>
+                  {!isCadHardLocked && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Chọn ô khác hoặc chọn bản vẽ từ tầng khác trong tòa"
+                      >
+                        <Layers size={13} />
+                        <span>Chọn CAD tầng</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
-                    className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                    title="Cắt lại ô bản vẽ từ CAD tầng"
-                  >
-                    <Crop size={13} />
-                    <span>Cắt lại</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Cắt lại ô bản vẽ từ CAD tầng"
+                      >
+                        <Crop size={13} />
+                        <span>Cắt lại</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleClearCad('ARCHITECTURAL')}
-                    className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                    title="Xóa bản vẽ hiện tại để tải ảnh mới hoặc chọn lại"
-                  >
-                    <Trash2 size={13} />
-                    <span>Xóa / Đổi bản vẽ</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleClearCad('ARCHITECTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Xóa bản vẽ hiện tại để tải ảnh mới hoặc chọn lại"
+                      >
+                        <Trash2 size={13} />
+                        <span>Xóa / Đổi bản vẽ</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
 
             {/* When CAD does NOT exist: 3 visual choice buttons */}
-            {!isReadOnly && !formData.unitCadUrl && (
+            {!isReadOnly && !formData.unitCadUrl && !isCadHardLocked && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 animate-in fade-in">
                 <button
                   type="button"
@@ -1022,7 +1039,10 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
             <FloorCadPinningCanvas
               cadPhotoUrl={formData.unitCadUrl || ''}
-              onCadPhotoChange={(url) => updateFormData({ unitCadUrl: url, isCadOverriddenByUser: true })}
+              onCadPhotoChange={(url) => {
+                if (isCadHardLocked) return;
+                updateFormData({ unitCadUrl: url, isCadOverriddenByUser: true });
+              }}
               pins={formData.cadZonePins || []}
               onChangePins={(pins) => updateFormData({ cadZonePins: pins })}
               onAutoCreatePin={handleAutoCreateZonePin}
@@ -1037,6 +1057,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               parcelCode={formData.unitCode}
               cadTitle={`Sơ đồ mặt bằng kiến trúc CAD_01 (Căn ${formData.unitCode}):`}
               readOnly={isReadOnly}
+              isCadLocked={isCadHardLocked}
             />
           </Card>
 
@@ -1441,6 +1462,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             <AlertCircle size={13} /> Chưa có CAD
                           </span>
                         )}
+                        {isCadHardLocked && (
+                          <span
+                            className="text-indigo-800 bg-indigo-50 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1"
+                            title="Bản vẽ CAD của căn này đã được khóa cứng sau khi hoán đổi vị trí để bảo vệ 100% các điểm ghim Z-01/E-01 đã khảo sát"
+                          >
+                            <Lock size={12} /> Đã khóa cứng CAD (Bảo vệ điểm ghim khảo sát)
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500">
                         Chạm trực tiếp vào sơ đồ để gán tọa độ và tự động sinh Cấu kiện kết cấu E mới
@@ -1461,41 +1490,45 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         <span>Phóng to</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCadCropModal('STRUCTURAL')}
-                        className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                        title="Chọn CAD tầng khác trong tòa nhà"
-                      >
-                        <Layers size={13} />
-                        <span>Chọn CAD tầng</span>
-                      </button>
+                      {!isCadHardLocked && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCadCropModal('STRUCTURAL')}
+                            className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                            title="Chọn CAD tầng khác trong tòa nhà"
+                          >
+                            <Layers size={13} />
+                            <span>Chọn CAD tầng</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCadCropModal('STRUCTURAL')}
-                        className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                        title="Cắt lại ô bản vẽ kết cấu từ CAD tầng"
-                      >
-                        <Crop size={13} />
-                        <span>Cắt lại</span>
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCadCropModal('STRUCTURAL')}
+                            className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                            title="Cắt lại ô bản vẽ kết cấu từ CAD tầng"
+                          >
+                            <Crop size={13} />
+                            <span>Cắt lại</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleClearCad('STRUCTURAL')}
-                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
-                        title="Xóa bản vẽ kết cấu riêng (sẽ quay lại dùng CAD kiến trúc)"
-                      >
-                        <Trash2 size={13} />
-                        <span>Xóa / Đổi bản vẽ</span>
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => handleClearCad('STRUCTURAL')}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                            title="Xóa bản vẽ kết cấu riêng (sẽ quay lại dùng CAD kiến trúc)"
+                          >
+                            <Trash2 size={13} />
+                            <span>Xóa / Đổi bản vẽ</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* When structural CAD does NOT exist: choice buttons to set separate structural CAD */}
-                {!isReadOnly && !formData.unitStructuralCadUrl && (
+                {!isReadOnly && !formData.unitStructuralCadUrl && !isCadHardLocked && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 animate-in fade-in">
                     <button
                       type="button"
@@ -1550,7 +1583,10 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
                 <FloorCadPinningCanvas
                   cadPhotoUrl={formData.unitStructuralCadUrl || formData.unitCadUrl || ''}
-                  onCadPhotoChange={(url) => updateFormData({ unitStructuralCadUrl: url, isCadOverriddenByUser: true })}
+                  onCadPhotoChange={(url) => {
+                    if (isCadHardLocked) return;
+                    updateFormData({ unitStructuralCadUrl: url, isCadOverriddenByUser: true });
+                  }}
                   pins={formData.cadElementPins || []}
                   onChangePins={(pins) => updateFormData({ cadElementPins: pins })}
                   onAutoCreatePin={handleAutoCreateElementPin}
@@ -1565,6 +1601,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   parcelCode={formData.unitCode}
                   cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (Căn ${formData.displayCode || formData.unitCode}):`}
                   readOnly={isReadOnly}
+                  isCadLocked={isCadHardLocked}
                 />
               </Card>
 

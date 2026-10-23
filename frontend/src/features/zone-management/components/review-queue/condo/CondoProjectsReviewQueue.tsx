@@ -12,6 +12,7 @@ import { CondoTowerUnitQueue } from './CondoTowerUnitQueue';
 
 interface Props {
   selectedZone: string;
+  externalSearchQuery?: string;
   onOpenStudio: (reportId: string | null) => void;
   onPreviewReport: (reportId: string | null) => void;
   onOpenRejectModal: (item: PendingSubmissionItem) => void;
@@ -24,6 +25,7 @@ interface Props {
 
 export const CondoProjectsReviewQueue: React.FC<Props> = ({
   selectedZone,
+  externalSearchQuery,
   onOpenStudio,
   onPreviewReport,
   onOpenRejectModal,
@@ -33,12 +35,23 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
   onOpenAuditHistory,
   onStatsNeedRefresh,
 }) => {
-  const [selectedTowerParcelId, setSelectedTowerParcelId] = useState<string | null>(null);
+  const towerSessionKey = `ksqh_condo_review_selected_tower_${selectedZone}`;
+  const [selectedTowerParcelId, setSelectedTowerParcelId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(towerSessionKey);
+    } catch {
+      return null;
+    }
+  });
   const [selectedTowerItem, setSelectedTowerItem] = useState<PendingSubmissionItem | null>(null);
   const [towerItems, setTowerItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchTowerInput, setSearchTowerInput] = useState('');
+  const [searchTowerInput, setSearchTowerInput] = useState(externalSearchQuery || '');
+
+  useEffect(() => {
+    setSearchTowerInput(externalSearchQuery || '');
+  }, [externalSearchQuery]);
 
   const fetchTowers = async () => {
     if (!selectedZone) return;
@@ -52,7 +65,20 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
       });
 
       if (res.data?.success && Array.isArray(res.data.data)) {
-        setTowerItems(res.data.data);
+        const list: PendingSubmissionItem[] = res.data.data;
+        setTowerItems(list);
+        try {
+          const savedTowerId = sessionStorage.getItem(`ksqh_condo_review_selected_tower_${selectedZone}`);
+          if (savedTowerId) {
+            const matched = list.find((t) => t.parcel_id === savedTowerId);
+            if (matched) {
+              setSelectedTowerParcelId(savedTowerId);
+              setSelectedTowerItem(matched);
+            }
+          }
+        } catch {
+          // ignore
+        }
       } else {
         setTowerItems([]);
       }
@@ -71,6 +97,11 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
   const handleSelectTower = (parcelId: string, item: PendingSubmissionItem) => {
     setSelectedTowerParcelId(parcelId);
     setSelectedTowerItem(item);
+    try {
+      sessionStorage.setItem(towerSessionKey, parcelId);
+    } catch {
+      // ignore
+    }
   };
 
   const filteredTowers = useMemo(() => {
@@ -93,6 +124,11 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
         onBackToTowers={() => {
           setSelectedTowerParcelId(null);
           setSelectedTowerItem(null);
+          try {
+            sessionStorage.removeItem(towerSessionKey);
+          } catch {
+            // ignore
+          }
           fetchTowers();
         }}
         onOpenStudio={onOpenStudio}

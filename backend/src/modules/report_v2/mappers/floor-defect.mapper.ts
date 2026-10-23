@@ -85,20 +85,55 @@ export class FloorDefectMapper {
         : undefined;
 
       // 2. Thu thập các điểm ghim Vùng Z và Cấu kiện E trên sơ đồ CAD (Khuyết tật D KHÔNG hiển thị trên CAD theo quy định)
+      // Đồng thời lọc bỏ các ghim của vùng Z hoặc cấu kiện E đã bị xóa mềm (is_deleted / isDeleted)
       const cadPins: CadPinOverlayItem[] = [];
       const cadStructuralPins: CadPinOverlayItem[] = [];
 
+      const deletedZoneCodes = new Set<string>();
+      const activeZonesByCode = new Map<string, any>();
+      if (Array.isArray(fl.zones)) {
+        for (const z of fl.zones) {
+          const zCode = z?.zoneCode || z?.zone_code;
+          if (!zCode) continue;
+          if (z.isDeleted || z.is_deleted) {
+            deletedZoneCodes.add(zCode);
+          } else {
+            activeZonesByCode.set(zCode, z);
+          }
+        }
+      }
+
+      const deletedElemCodes = new Set<string>();
+      const activeElemsByCode = new Map<string, any>();
+      if (Array.isArray(fl.structuralElements)) {
+        for (const el of fl.structuralElements) {
+          const elCode = el?.elementCode || el?.element_code || el?.zoneCode || el?.zone_code;
+          if (!elCode) continue;
+          if (el.isDeleted || el.is_deleted) {
+            deletedElemCodes.add(elCode);
+          } else {
+            activeElemsByCode.set(elCode, el);
+          }
+        }
+      }
+
+      const seenCadZoneCodes = new Set<string>();
       // Vùng Z từ fl.cadZonePins: Toạ độ chuẩn tỷ lệ % trên sơ đồ CAD kiến trúc (1:1 theo dữ liệu khảo sát)
       if (Array.isArray(fl.cadZonePins)) {
         for (const p of fl.cadZonePins) {
-          if (p && p.pinX !== undefined && p.pinY !== undefined) {
-            const code = p.zoneCode || p.label || 'Z';
+          if (!p || p.isDeleted || p.is_deleted) continue;
+          const pX = p.pinX ?? p.pin_x;
+          const pY = p.pinY ?? p.pin_y;
+          if (pX !== undefined && pY !== undefined) {
+            const code = p.zoneCode || p.zone_code || p.label || 'Z';
+            if (deletedZoneCodes.has(code)) continue;
+            seenCadZoneCodes.add(code);
             cadPins.push({
               id: p.id,
               code,
               label: p.label || code,
-              pinX: Number(p.pinX),
-              pinY: Number(p.pinY),
+              pinX: Number(pX),
+              pinY: Number(pY),
               type: 'ZONE',
               typeLower: 'zone',
               description: `Vùng kiến trúc ${code}`,
@@ -106,21 +141,69 @@ export class FloorDefectMapper {
           }
         }
       }
+      // Bổ sung ghim cho các Vùng Z mới thêm có pinX/pinY trực tiếp trên đối tượng z nhưng chưa nằm trong fl.cadZonePins
+      for (const [zCode, z] of activeZonesByCode.entries()) {
+        if (!seenCadZoneCodes.has(zCode)) {
+          const zX = z.pinX ?? z.pin_x;
+          const zY = z.pinY ?? z.pin_y;
+          if (zX !== undefined && zY !== undefined && zX !== null && zY !== null) {
+            cadPins.push({
+              id: z.id || `pin-${zCode}`,
+              code: zCode,
+              label: zCode,
+              pinX: Number(zX),
+              pinY: Number(zY),
+              type: 'ZONE',
+              typeLower: 'zone',
+              description: `Vùng kiến trúc ${zCode}`,
+            });
+          }
+        }
+      }
 
+      const seenCadElemCodes = new Set<string>();
       // Cấu kiện E từ fl.cadElementPins: Bản vẽ kết cấu vốn là ảnh dọc, giữ nguyên tọa độ
       if (Array.isArray(fl.cadElementPins)) {
         for (const p of fl.cadElementPins) {
-          if (p && p.pinX !== undefined && p.pinY !== undefined) {
-            const code = p.zoneCode || p.elementCode || p.label || 'E';
+          if (!p || p.isDeleted || p.is_deleted) continue;
+          const pX = p.pinX ?? p.pin_x;
+          const pY = p.pinY ?? p.pin_y;
+          if (pX !== undefined && pY !== undefined) {
+            const code = p.zoneCode || p.zone_code || p.elementCode || p.element_code || p.label || 'E';
+            if (deletedElemCodes.has(code)) continue;
+            seenCadElemCodes.add(code);
             const item: CadPinOverlayItem = {
               id: p.id,
               code,
               label: p.label || code,
-              pinX: Number(p.pinX),
-              pinY: Number(p.pinY),
+              pinX: Number(pX),
+              pinY: Number(pY),
               type: 'STRUCTURAL',
               typeLower: 'element',
               description: `Cấu kiện kết cấu ${code}`,
+            };
+            cadStructuralPins.push(item);
+            if (!hasStructuralCadMap) {
+              cadPins.push(item);
+            }
+          }
+        }
+      }
+      // Bổ sung ghim cho các Cấu kiện E mới thêm có pinX/pinY trực tiếp trên đối tượng el nhưng chưa nằm trong fl.cadElementPins
+      for (const [elCode, el] of activeElemsByCode.entries()) {
+        if (!seenCadElemCodes.has(elCode)) {
+          const eX = el.pinX ?? el.pin_x;
+          const eY = el.pinY ?? el.pin_y;
+          if (eX !== undefined && eY !== undefined && eX !== null && eY !== null) {
+            const item: CadPinOverlayItem = {
+              id: el.id || `pin-${elCode}`,
+              code: elCode,
+              label: elCode,
+              pinX: Number(eX),
+              pinY: Number(eY),
+              type: 'STRUCTURAL',
+              typeLower: 'element',
+              description: `Cấu kiện kết cấu ${elCode}`,
             };
             cadStructuralPins.push(item);
             if (!hasStructuralCadMap) {
@@ -221,23 +304,24 @@ export class FloorDefectMapper {
       const zoneAndElementConditions: FloorConditionZoneElementItem[] = [];
 
       let defectNo = 0;
-      const usedDefectCodes = new Set<string>();
 
       const rawZones = (fl.zones && fl.zones.length > 0)
-        ? fl.zones
+        ? fl.zones.filter((z: any) => !z?.isDeleted && !z?.is_deleted)
         : (Array.isArray(fl.defects) && fl.defects.length > 0)
-          ? [{ zoneCode: 'Z-01', roomName: 'Khu vực khảo sát', defects: fl.defects }]
+          ? [{ zoneCode: 'Z-01', roomName: 'Khu vực khảo sát', defects: fl.defects.filter((d: any) => !d?.isDeleted && !d?.is_deleted) }]
           : [];
 
       // Duyệt qua các vùng Z
       for (const z of rawZones) {
         const zCode = z.zoneCode || 'Z-01';
-        const roomVi = z.roomName || 'Khu vực chung';
+        const resolvedRoom = (z.roomName === 'Khác' && z.customRoomName) ? z.customRoomName : z.roomName;
+        const resolvedWallMat = (z.wallMaterial === 'Khác' && z.customWallMaterial) ? z.customWallMaterial : z.wallMaterial;
+        const roomVi = resolvedRoom || 'Khu vực chung';
         const roomEn = z.roomNameEn || roomVi;
-        const wallMatVi = z.wallMaterial || 'Chưa ghi nhận vật liệu';
-        const wallMatEn = z.wallMaterialEn || (z.wallMaterial ? z.wallMaterial : 'Not recorded');
+        const wallMatVi = resolvedWallMat || 'Chưa ghi nhận vật liệu';
+        const wallMatEn = z.wallMaterialEn || (resolvedWallMat ? resolvedWallMat : 'Not recorded');
 
-        const defects = z.defects || [];
+        const defects = (z.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
         let maxZoneW = 0;
         let zoneConditionVi = 'Bình thường (B-0)';
         let zoneConditionEn = 'Normal (B-0)';
@@ -246,19 +330,23 @@ export class FloorDefectMapper {
         const pZoneLabel = `P-${photoCounter.current.toString().padStart(2, '0')}`;
 
         if (defects.length > 0) {
-          for (const d of defects) {
+          const usedZoneDefectCodes = new Set<string>();
+          for (let dIdx = 0; dIdx < defects.length; dIdx++) {
+            const d = defects[dIdx];
             defectNo++;
-            let dCode = d.defectCode;
-            if (!dCode || usedDefectCodes.has(dCode)) {
-              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode || d.defect_code;
+            if (!dCode || usedZoneDefectCodes.has(dCode)) {
+              dCode = `D-${(dIdx + 1).toString().padStart(2, '0')}`;
             }
-            usedDefectCodes.add(dCode);
+            usedZoneDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
             if (w > maxZoneW) maxZoneW = w;
 
-            const bGrade = BurlandCalculator.calculateGradeFromCrackWidth(w);
+            const bGrade = (d.burlandGrade !== undefined && d.burlandGrade !== null && !isNaN(Number(d.burlandGrade)))
+              ? Number(d.burlandGrade)
+              : BurlandCalculator.calculateGradeFromCrackWidth(w);
             const bCatVi = BurlandCalculator.getBurlandGradeLabelVi(bGrade);
             const bCatEn = BurlandCalculator.getBurlandGradeLabelEn(bGrade);
 
@@ -322,9 +410,10 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Surface defect (spalling/dampness)';
 
-            const ctxRot = d.ctxRotation ?? z.ctxRotation ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[zCode] ?? rotMap[ctxUrl] ?? 0;
-            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
-            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+            const fIdx = floorIndex - 1;
+            const ctxRot = d.ctxRotation ?? z.ctxRotation ?? rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[zCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_cu`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_cu`] ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_extra_cu`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_extra_cu`] ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
 
             const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
             const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
@@ -387,10 +476,28 @@ export class FloorDefectMapper {
             });
           }
 
-          const zoneBurland = BurlandCalculator.calculateGradeFromCrackWidth(maxZoneW);
+          const zoneBurland = (z.burlandGrade !== undefined && z.burlandGrade !== null && !isNaN(Number(z.burlandGrade)))
+            ? Number(z.burlandGrade)
+            : BurlandCalculator.calculateGradeFromCrackWidth(maxZoneW);
           const firstDefectCode = defects[0]?.defectCode || 'D-01';
-          zoneConditionVi = `Nhẹ (B-${zoneBurland}) - ${firstDefectCode}`;
-          zoneConditionEn = `Slight (B-${zoneBurland}) - ${firstDefectCode}`;
+          const shortGradeVi: Record<number, string> = {
+            0: 'Không đáng kể',
+            1: 'Rất nhẹ',
+            2: 'Nhẹ',
+            3: 'Trung bình',
+            4: 'Nặng',
+            5: 'Rất nặng',
+          };
+          const shortGradeEn: Record<number, string> = {
+            0: 'Negligible',
+            1: 'Very Slight',
+            2: 'Slight',
+            3: 'Moderate',
+            4: 'Severe',
+            5: 'Very Severe',
+          };
+          zoneConditionVi = `${shortGradeVi[zoneBurland] || 'Nhẹ'} (B-${zoneBurland}) - ${firstDefectCode}`;
+          zoneConditionEn = `${shortGradeEn[zoneBurland] || 'Slight'} (B-${zoneBurland}) - ${firstDefectCode}`;
         }
 
         const zPhotoUrl = z.photoUrl || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '';
@@ -484,37 +591,44 @@ export class FloorDefectMapper {
         }
       }
 
-      // Duyệt qua các cấu kiện kết cấu E
-      const elements = fl.structuralElements || [];
+      // Duyệt qua các cấu kiện kết cấu E (Bỏ qua phần tử và khuyết tật đã xóa mềm)
+      const elements = (fl.structuralElements || []).filter((e: any) => !e?.isDeleted && !e?.is_deleted);
       for (const e of elements) {
         photoCounter.current++;
         const pElemLabel = `P-${photoCounter.current.toString().padStart(2, '0')}`;
         const eCode = e.elementCode || 'E-01';
-        const eRoomVi = e.roomName || 'Khu vực chính';
+        const resolvedERoom = (e.roomName === 'Khác' && e.customRoomName) ? e.customRoomName : e.roomName;
+        const resolvedEMat = (e.materialType === 'Khác' && e.customMaterialType) ? e.customMaterialType : e.materialType;
+        const resolvedEType = (e.elementType === 'Khác' && e.customElementType) ? e.customElementType : e.elementType;
+        const eRoomVi = resolvedERoom || 'Khu vực chính';
         const eRoomEn = e.roomNameEn || eRoomVi;
-        const eMatVi = e.materialType || e.elementType || 'Cấu kiện kết cấu';
+        const eMatVi = resolvedEMat || resolvedEType || 'Cấu kiện kết cấu';
         const eMatEn = e.materialTypeEn || 'Structural member';
         const ePhotoUrl = e.photoUrl || e.ctxPhotoUrl || '';
 
-        const eDefects = e.defects || [];
+        const eDefects = (e.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
         let maxElemW = 0;
         let elemConditionVi = 'Ổn định, nguyên vẹn';
         let elemConditionEn = 'Stable, intact';
 
         if (eDefects.length > 0) {
-          for (const d of eDefects) {
+          const usedElemDefectCodes = new Set<string>();
+          for (let edIdx = 0; edIdx < eDefects.length; edIdx++) {
+            const d = eDefects[edIdx];
             defectNo++;
-            let dCode = d.defectCode;
-            if (!dCode || usedDefectCodes.has(dCode)) {
-              dCode = `D-${defectNo.toString().padStart(2, '0')}`;
+            let dCode = d.defectCode || d.defect_code;
+            if (!dCode || usedElemDefectCodes.has(dCode)) {
+              dCode = `D-${(edIdx + 1).toString().padStart(2, '0')}`;
             }
-            usedDefectCodes.add(dCode);
+            usedElemDefectCodes.add(dCode);
             const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
             const rawL = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
             const l = rawL > 50 ? +(rawL / 1000).toFixed(2) : rawL;
             if (w > maxElemW) maxElemW = w;
 
-            const bGrade = BurlandCalculator.calculateGradeFromCrackWidth(w);
+            const bGrade = (d.burlandGrade !== undefined && d.burlandGrade !== null && !isNaN(Number(d.burlandGrade)))
+              ? Number(d.burlandGrade)
+              : BurlandCalculator.calculateGradeFromCrackWidth(w);
             const bCatVi = BurlandCalculator.getBurlandGradeLabelVi(bGrade);
             const bCatEn = BurlandCalculator.getBurlandGradeLabelEn(bGrade);
 
@@ -578,9 +692,10 @@ export class FloorDefectMapper {
             const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật cấu kiện kết cấu';
             const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Structural element defect';
 
-            const ctxRot = d.ctxRotation ?? e.ctxRotation ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[eCode] ?? rotMap[ctxUrl] ?? 0;
-            const cuRot = d.cuRotation ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
-            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
+            const fIdx = floorIndex - 1;
+            const ctxRot = d.ctxRotation ?? e.ctxRotation ?? rotMap[`element_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[eCode] ?? rotMap[ctxUrl] ?? 0;
+            const cuRot = d.cuRotation ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_cu`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_cu`] ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
+            const extraCuRot = d.extraCuRotation ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_extra_cu`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_extra_cu`] ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? rotMap[extraCuUrl] ?? 0;
 
             const rawCtxBase64 = ctxUrl ? ReportImageResolver.resolveToBase64(ctxUrl, ctxRot) : '';
             const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl, cuRot) : '';
@@ -631,6 +746,10 @@ export class FloorDefectMapper {
               activityStateDisplay: actStateDisplay,
               notes: d.notes || '',
               cadPinRef: cadPinRefStr,
+              pinX: (d.pinX ?? d.pin_x) !== undefined && (d.pinX ?? d.pin_x) !== null ? Number(d.pinX ?? d.pin_x) : undefined,
+              pinY: (d.pinY ?? d.pin_y) !== undefined && (d.pinY ?? d.pin_y) !== null ? Number(d.pinY ?? d.pin_y) : undefined,
+              pinColor: d.pinColor || d.pin_color || '#ef4444',
+              hasPin: (d.pinX ?? d.pin_x) !== undefined && (d.pinX ?? d.pin_x) !== null && (d.pinY ?? d.pin_y) !== undefined && (d.pinY ?? d.pin_y) !== null,
             });
           }
 
@@ -848,10 +967,9 @@ export class FloorDefectMapper {
         beamDeflectionRow: {
           location: { vi: 'Toàn tầng', en: 'Whole floor' },
           measuredDeflectionMm: `${beamDeflectionMm.toFixed(1).replace('.', ',')} mm`,
-          extraMonitoringRequired: {
-            vi: 'không yêu cầu',
-            en: 'not required',
-          },
+          extraMonitoringRequired: Boolean(fl.requiresAdditionalMonitoring ?? fl.needAdditionalMonitoring ?? fl.extraMonitoringRequired)
+            ? { vi: 'có yêu cầu', en: 'required' }
+            : { vi: 'không yêu cầu', en: 'not required' },
         },
       });
     }

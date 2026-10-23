@@ -29,6 +29,41 @@ interface PinUndoActionRotate {
 
 type PinUndoAction = PinUndoActionMove | PinUndoActionRotate;
 
+interface AuditExtendedMeta {
+  isDeleted?: boolean;
+  is_deleted?: boolean;
+  historyCount?: number;
+  hasHistory?: boolean;
+  floorNumber?: number;
+  cadSketchRotation?: number;
+  originPinX?: number;
+  originPinY?: number;
+}
+
+const isItemSoftDeleted = (item: unknown): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  const meta = item as AuditExtendedMeta;
+  return Boolean(meta.is_deleted || meta.isDeleted);
+};
+
+const getItemHistoryMeta = (item: unknown): { historyCount?: number; hasHistory?: boolean } => {
+  if (!item || typeof item !== 'object') return {};
+  return item as AuditExtendedMeta;
+};
+
+const getFloorNumberVal = (fl: FloorSurveyData, activeFloorIdx: number): number => {
+  const num = (fl as FloorSurveyData & AuditExtendedMeta).floorNumber;
+  return typeof num === 'number' && num > 0 ? num : activeFloorIdx + 1;
+};
+
+const getPinOriginCoords = (pin: CadZonePin): { x: number; y: number } => {
+  const ext = pin as CadZonePin & AuditExtendedMeta;
+  return {
+    x: Number(ext.originPinX ?? pin.pinX ?? pin.pin_x ?? 50),
+    y: Number(ext.originPinY ?? pin.pinY ?? pin.pin_y ?? 50),
+  };
+};
+
 const ROOM_PRESETS = [
   'Phòng khách',
   'Phòng ngủ 1',
@@ -232,12 +267,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   const currentZones: DamageZoneData[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
   const currentElements: StructuralElementData[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
 
-  const activeZones = currentZones.filter((z) => !z.is_deleted && !(z as any).isDeleted);
-  const deletedZones = currentZones.filter((z) => z.is_deleted || (z as any).isDeleted);
+  const activeZones = currentZones.filter((z) => !isItemSoftDeleted(z));
+  const deletedZones = currentZones.filter((z) => isItemSoftDeleted(z));
   const displayedZones = showDeletedItems ? currentZones : activeZones;
 
-  const activeElements = currentElements.filter((e) => !e.is_deleted && !(e as any).isDeleted);
-  const deletedElements = currentElements.filter((e) => e.is_deleted || (e as any).isDeleted);
+  const activeElements = currentElements.filter((e) => !isItemSoftDeleted(e));
+  const deletedElements = currentElements.filter((e) => isItemSoftDeleted(e));
   const displayedElements = showDeletedItems ? currentElements : activeElements;
 
   const currentCadPins: CadZonePin[] = cadViewMode === 'ARCH'
@@ -259,7 +294,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     : (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url || '');
 
   const cadKey = `floor_${currentFloor.id || activeFloorIndex}_cad`;
-  const cadRotation = stagedPhotoRotations[cadKey] ?? (currentFloor as any).cadSketchRotation ?? 0;
+  const cadRotation = stagedPhotoRotations[cadKey] ?? ((currentFloor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
 
   // Khởi tạo và ghi nhớ toạ độ gốc KSV của từng ghim
   React.useEffect(() => {
@@ -267,10 +302,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     allPins.forEach((p) => {
       const code = p.zoneCode || p.zone_code;
       if (code && !initialPinCoordsRef.current[code]) {
-        initialPinCoordsRef.current[code] = {
-          x: Number((p as any).originPinX ?? p.pinX ?? p.pin_x ?? 50),
-          y: Number((p as any).originPinY ?? p.pinY ?? p.pin_y ?? 50),
-        };
+        initialPinCoordsRef.current[code] = getPinOriginCoords(p);
       }
     });
   }, [currentFloor]);
@@ -509,25 +541,33 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     setCadPinningMode(null);
   };
 
-  // Commit new coordinates for D pins on CTX
+  // Commit new coordinates for D pins on CTX (supports both Zone Z and Structural Element E)
   const handleCommitDefectPinCoord = (zoneId: string, defectId: string, dCode: string, newX: number, newY: number) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const defects = (z.defects || []).map((d: DefectItem) => {
             if (d.id !== defectId && d.defectCode !== defectId) return d;
             return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
           });
           return { ...z, defects };
         });
-        return { ...fl, zones };
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          if (e.id !== zoneId && (e.elementCode || e.element_code) !== zoneId) return e;
+          const defects = (e.defects || []).map((d: DefectItem) => {
+            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+          });
+          return { ...e, defects };
+        });
+        return { ...fl, zones, structuralElements };
       });
       handleFieldChange('floors', `Điều chỉnh vị trí ghim ${dCode} (${newX}%, ${newY}%)`, updatedFloors);
     } else {
       const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
+        if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
         const defects = (z.defects || []).map((d: DefectItem) => {
           if (d.id !== defectId && d.defectCode !== defectId) return d;
           return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
@@ -671,24 +711,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Add new defect to a zone
+  // Add new defect to a zone (using Monotonic Max + 1 sequential code D-01, D-02...)
   const handleAddDefect = (zoneId: string) => {
-    const newDefectId = `D-${Date.now().toString().slice(-4)}`;
-    const newDefect = {
-      id: newDefectId,
-      defectCode: newDefectId,
-      defectType: 'Vết nứt tường',
-      screeningCategory: 'Vết nứt tường',
-      widthMaxMm: 0.2,
-      lengthMm: 100,
-      depthMm: 5,
-      isStructuralCritical: false,
-      crackDirection: 'Ngang',
-      activityState: 'S',
-      hasScaleCard: true,
-      notes: '',
-      cuPhotos: [],
-    };
+    const newDefectId = `defect-${Date.now()}`;
+    let createdDCode = 'D-01';
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
@@ -696,18 +722,73 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
           const currentDefects = Array.isArray(z.defects) ? z.defects : [];
+          const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
+          const nextDCode = getNextAvailablePinCode(
+            currentDefects.map((d: DefectItem) => ({ zoneCode: d.defectCode || d.defect_code })),
+            'D',
+            historicalDCodes
+          );
+          createdDCode = nextDCode;
+          const newDefect = {
+            id: newDefectId,
+            defectCode: nextDCode,
+            defectType: 'Vết nứt tường',
+            screeningCategory: 'Vết nứt tường',
+            widthMaxMm: 0.2,
+            lengthMm: 100,
+            depthMm: 5,
+            pinX: 50,
+            pinY: 50,
+            pin_x: 50,
+            pin_y: 50,
+            isStructuralCritical: false,
+            crackDirection: 'Ngang',
+            activityState: 'S',
+            hasScaleCard: true,
+            notes: '',
+            cuPhotos: [],
+          };
           return { ...z, defects: [...currentDefects, newDefect] };
         });
         return { ...fl, zones };
       });
-      handleFieldChange('floors', `Thêm khuyết tật ${newDefectId}`, updatedFloors);
+      handleFieldChange('floors', `Thêm khuyết tật ${createdDCode}`, updatedFloors);
     } else {
       const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
         const currentDefects = Array.isArray(z.defects) ? z.defects : [];
+        const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
+        const nextDCode = getNextAvailablePinCode(
+          currentDefects.map((d: DefectItem) => ({ zoneCode: d.defectCode || d.defect_code })),
+          'D',
+          historicalDCodes
+        );
+        createdDCode = nextDCode;
+        const newDefect = {
+          id: newDefectId,
+          defectCode: nextDCode,
+          defectType: 'Vết nứt tường',
+          screeningCategory: 'Vết nứt tường',
+          widthMaxMm: 0.2,
+          lengthMm: 100,
+          depthMm: 5,
+          pinX: 50,
+          pinY: 50,
+          pin_x: 50,
+          pin_y: 50,
+          isStructuralCritical: false,
+          crackDirection: 'Ngang',
+          activityState: 'S',
+          hasScaleCard: true,
+          notes: '',
+          materialDegradationE4: 0,
+          structuralSignificanceE2: 1,
+          cuPhotoUrl: '',
+          cuPhotos: [],
+        };
         return { ...z, defects: [...currentDefects, newDefect] };
       });
-      handleFieldChange('damageZones', `Thêm khuyết tật ${newDefectId}`, updatedZones);
+      handleFieldChange('damageZones', `Thêm khuyết tật ${createdDCode}`, updatedZones);
     }
   };
 
@@ -771,7 +852,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
   // Request zone deletion (prompt danger modal if defects exist)
   const handleRemoveZone = (zone: DamageZoneData) => {
-    const activeChildDefects = (zone.defects || []).filter((d: DefectItem) => !d.is_deleted && !(d as any).isDeleted);
+    const activeChildDefects = (zone.defects || []).filter((d: DefectItem) => !isItemSoftDeleted(d));
     if (activeChildDefects.length > 0) {
       setZoneToDelete(zone);
       return;
@@ -835,7 +916,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
         const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
           if (e.id !== elemId && e.elementCode !== elemId) return e;
-          const defects = (e.defects || []).map((d: any) => ({ ...d, is_deleted: true }));
+          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true }));
           return { ...e, is_deleted: true, defects };
         });
         return { ...fl, structuralElements };
@@ -851,7 +932,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
         const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
           if (e.id !== elemId && e.elementCode !== elemId) return e;
-          const defects = (e.defects || []).map((d: any) => ({ ...d, is_deleted: false }));
+          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false }));
           return { ...e, is_deleted: false, defects };
         });
         return { ...fl, structuralElements };
@@ -892,6 +973,88 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('floors', `Khuyết tật cấu kiện E (${fieldLabel})`, updatedFloors);
     }
+  };
+
+  // Add new defect to a structural element E (sequential D-01, D-02...)
+  const handleAddElementDefect = (elemId: string) => {
+    if (!hasFloors) return;
+    const newDefectId = `elem-defect-${Date.now()}`;
+    let createdDCode = 'D-01';
+    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        const currentDefects = Array.isArray(e.defects) ? e.defects : [];
+        const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
+        const nextDCode = getNextAvailablePinCode(
+          currentDefects.map((d: DefectItem) => ({ zoneCode: d.defectCode || d.defect_code })),
+          'D',
+          historicalDCodes
+        );
+        createdDCode = nextDCode;
+        const newDefect: DefectItem = {
+          id: newDefectId,
+          defectCode: nextDCode,
+          defectType: 'Vết nứt dầm/cột',
+          screeningCategory: 'Vết nứt dầm/cột',
+          widthMaxMm: 0.3,
+          lengthMm: 150,
+          depthMm: 5,
+          pinX: 50,
+          pinY: 50,
+          pin_x: 50,
+          pin_y: 50,
+          materialDegradationE4: 1,
+          structuralSignificanceE2: 1,
+          isStructuralCritical: true,
+          crackDirection: 'Ngang',
+          activityState: 'S',
+          hasScaleCard: true,
+          notes: '',
+          cuPhotoUrl: '',
+          cuPhotos: [],
+        };
+        return { ...e, defects: [...currentDefects, newDefect] };
+      });
+      return { ...fl, structuralElements };
+    });
+    handleFieldChange('floors', `Thêm khuyết tật ${createdDCode} vào cấu kiện ${elemId}`, updatedFloors);
+  };
+
+  // Soft-remove defect from a structural element E
+  const handleRemoveElementDefect = (elemId: string, defectId: string) => {
+    if (!hasFloors) return;
+    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        const defects = (e.defects || []).map((d: DefectItem) => {
+          if (d.id !== defectId && d.defectCode !== defectId) return d;
+          return { ...d, is_deleted: true };
+        });
+        return { ...e, defects };
+      });
+      return { ...fl, structuralElements };
+    });
+    handleFieldChange('floors', `Xóa mềm khuyết tật ${defectId} của cấu kiện ${elemId}`, updatedFloors);
+  };
+
+  // Restore soft-deleted defect of a structural element E
+  const handleRestoreElementDefect = (elemId: string, defectId: string) => {
+    if (!hasFloors) return;
+    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        const defects = (e.defects || []).map((d: DefectItem) => {
+          if (d.id !== defectId && d.defectCode !== defectId) return d;
+          return { ...d, is_deleted: false };
+        });
+        return { ...e, defects };
+      });
+      return { ...fl, structuralElements };
+    });
+    handleFieldChange('floors', `Khôi phục khuyết tật ${defectId} của cấu kiện ${elemId}`, updatedFloors);
   };
 
   // Total counts for header
@@ -1040,7 +1203,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               {(() => {
                 const stagedCad = getStagedAction({
                   category: 'CAD_FLOOR',
-                  targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
+                  targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
                 });
                 if (!stagedCad) return null;
                 return (
@@ -1062,7 +1225,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               {(() => {
                 const stagedCad = getStagedAction({
                   category: 'CAD_FLOOR',
-                  targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
+                  targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
                 });
                 const effectiveCad = stagedCad?.newPhotoUrl || cadPhotoUrl;
 
@@ -1094,8 +1257,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               initialMode: 'REPLACE',
                               category: 'CAD_FLOOR',
                               targetPhotoType: 'CAD',
-                              targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
-                              photoIndex: (currentFloor as any).floorNumber || (activeFloorIndex + 1),
+                              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
+                              photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
                               currentPhotoUrl: effectiveCad,
                               floorCode: currentFloor.floorName,
                               photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
@@ -1103,8 +1266,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           } else if (onOpenPhotoReplace) {
                             onOpenPhotoReplace({
                               targetPhotoType: 'FLOOR_CAD',
-                              targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
-                              photoIndex: (currentFloor as any).floorNumber || (activeFloorIndex + 1),
+                              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
+                              photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
                               currentPhotoUrl: effectiveCad,
                               photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
                             });
@@ -1197,7 +1360,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           {(() => {
             const stagedCad = getStagedAction({
               category: 'CAD_FLOOR',
-              targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
+              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
             });
             const effectiveCad = stagedCad?.newPhotoUrl || cadPhotoUrl;
 
@@ -1215,8 +1378,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             initialMode: 'ADD',
                             category: 'CAD_FLOOR',
                             targetPhotoType: 'CAD',
-                            targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
-                            photoIndex: (currentFloor as any).floorNumber || (activeFloorIndex + 1),
+                            targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
+                            photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
                             floorCode: currentFloor.floorName,
                             photoTitle: `Thêm bản vẽ CAD ${currentFloor.floorName || ''}`,
                           })
@@ -1280,10 +1443,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const displayX = isBeingDragged ? draggingCadPin.currentX : pX;
                     const displayY = isBeingDragged ? draggingCadPin.currentY : pY;
 
-                    const origin = initialPinCoordsRef.current[pCode] || {
-                      x: Number((pin as any).originPinX ?? pin.pinX ?? pin.pin_x ?? 50),
-                      y: Number((pin as any).originPinY ?? pin.pinY ?? pin.pin_y ?? 50),
-                    };
+                    const origin = initialPinCoordsRef.current[pCode] || getPinOriginCoords(pin);
                     const isMovedFromOrigin = Math.abs(pX - origin.x) > 0.5 || Math.abs(pY - origin.y) > 0.5;
 
                     return (
@@ -1509,13 +1669,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           ) : (
             displayedZones.map((z: DamageZoneData) => {
               const zCode = z.zoneCode || z.zone_code || 'Z-??';
-              const isZoneDeleted = Boolean(z.is_deleted || (z as any).isDeleted);
+              const isZoneDeleted = isItemSoftDeleted(z);
               const rawDefectsList: DefectItem[] = Array.isArray(z.defects)
                 ? z.defects
                 : typeof z.defects === 'string'
                 ? JSON.parse(z.defects)
                 : [];
-              const activeDefectsList = rawDefectsList.filter((d) => !d.is_deleted && !(d as any).isDeleted);
+              const activeDefectsList = rawDefectsList.filter((d) => !isItemSoftDeleted(d));
               const defectsList = showDeletedItems ? rawDefectsList : activeDefectsList;
 
               const stagedCtx = getStagedAction({
@@ -1748,8 +1908,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
                               onRotate={(newRot) => onRotatePhoto?.(compositeRotKey, newRot)}
                               domId={domId}
-                              historyCount={(z as any)?.historyCount}
-                              hasHistory={(z as any)?.hasHistory}
+                              historyCount={getItemHistoryMeta(z).historyCount}
+                              hasHistory={getItemHistoryMeta(z).hasHistory}
                               optimisticStatus={stagedOv ? (stagedOv.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                               onUndoDelete={stagedOv ? () => onUndoPhotoAction?.(stagedOv) : undefined}
                               onOpenPhotoZoom={onOpenPhotoZoom}
@@ -1925,7 +2085,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                                 return (
                                   <div
-                                    key={defectKey}
+                                    key={`pin_${zCode}_${defectKey}_${dIdx}`}
                                     style={{
                                       position: 'absolute',
                                       top: `${displayY}%`,
@@ -1974,7 +2134,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       e.stopPropagation();
                                       try {
                                         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                                      } catch {}
+                                      } catch (err) {
+                                        console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
+                                      }
                                       const finalX = draggingDefectPin.currentX;
                                       const finalY = draggingDefectPin.currentY;
                                       setDraggingDefectPin(null);
@@ -2201,9 +2363,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           Không có khuyết tật nứt nào trong vùng kiến trúc này
                         </div>
                       ) : (
-                        defectsList.map((d: DefectItem) => {
+                        defectsList.map((d: DefectItem, dIdx: number) => {
                           const dCode = d.defectCode || d.defect_code || 'D-??';
-                          const isDefectDeleted = Boolean(d.is_deleted || (d as any).isDeleted);
+                          const isDefectDeleted = Boolean(d.is_deleted || (d as { isDeleted?: boolean }).isDeleted);
                           const cuPhotos: string[] =
                             Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
                               ? d.cuPhotos
@@ -2215,7 +2377,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                           return (
                             <div
-                              key={d.id || dCode}
+                              key={`defect_card_${zCode}_${d.id || dCode}_${dIdx}`}
                               id={`defect-card-${d.id || dCode}`}
                               className={`rounded-xl border p-3 shadow-2xs space-y-2.5 transition-all duration-300 ${
                                 isDefectDeleted
@@ -2487,12 +2649,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     });
                                     const hasMultiCu = cuPhotos.length > 1;
                                     const dId = d.id ? String(d.id) : '';
-                                    const compositeRotKey = dId
-                                      ? (dId.startsWith('defect_') ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}` : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`)
-                                      : `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                                    const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
+                                    const compositeRotKey =
+                                      dId && isDefectUuid
+                                        ? dId.startsWith('defect_')
+                                          ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                          : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                        : dId
+                                          ? `defect_f${activeFloorIndex}_z${zCode}_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                                          : `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                                    const altCompositeRotKey = `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
                                     const legacyRotKey = `defect_${d.id || dCode}_cu`;
-                                    const rot = stagedPhotoRotations[compositeRotKey] ?? stagedPhotoRotations[cuUrl] ?? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${dCode}-CU`] ?? 0;
-                                    const orientStatus = violationsMap?.get(compositeRotKey) || violationsMap?.get(cuUrl) || violationsMap?.get(legacyRotKey);
+                                    const rot = stagedPhotoRotations[compositeRotKey] ?? stagedPhotoRotations[altCompositeRotKey] ?? stagedPhotoRotations[cuUrl] ?? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${dCode}-CU`] ?? 0;
+                                    const orientStatus = violationsMap?.get(compositeRotKey) || violationsMap?.get(altCompositeRotKey) || violationsMap?.get(cuUrl) || violationsMap?.get(legacyRotKey);
                                     const domId = `audit-photo-card-f${activeFloorIndex}-z${zCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`;
                                     return (
                                       <AuditPhotoCard
@@ -2520,8 +2689,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
                                         onRotate={(newRot) => onRotatePhoto?.(compositeRotKey, newRot)}
                                         domId={domId}
-                                        historyCount={(d as any)?.historyCount}
-                                        hasHistory={(d as any)?.hasHistory}
+                                        historyCount={getItemHistoryMeta(d).historyCount}
+                                        hasHistory={getItemHistoryMeta(d).hasHistory}
                                         optimisticStatus={stagedCu ? (stagedCu.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                                         onUndoDelete={stagedCu ? () => onUndoPhotoAction?.(stagedCu) : undefined}
                                         onOpenPhotoZoom={onOpenPhotoZoom}
@@ -2582,7 +2751,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               </span>
             </div>
             <span className="text-xs text-slate-500 font-semibold">
-              {displayedElements.reduce((acc, el) => acc + (el.defects?.filter((d: any) => !d.is_deleted && !d.isDeleted)?.length || 0), 0)} khuyết tật kết cấu
+              {displayedElements.reduce((acc, el) => acc + (el.defects?.filter((d: DefectItem) => !isItemSoftDeleted(d))?.length || 0), 0)} khuyết tật kết cấu
             </span>
           </div>
 
@@ -2595,9 +2764,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             <div className="space-y-4">
               {displayedElements.map((elem: StructuralElementData) => {
                 const eCode = elem.elementCode || 'E-??';
-                const isElemDeleted = Boolean(elem.is_deleted || (elem as any).isDeleted);
+                const isElemDeleted = isItemSoftDeleted(elem);
                 const rawEDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
-                const eDefects = showDeletedItems ? rawEDefects : rawEDefects.filter((d: any) => !d.is_deleted && !d.isDeleted);
+                const eDefects = showDeletedItems ? rawEDefects : rawEDefects.filter((d: DefectItem) => !isItemSoftDeleted(d));
                 const overviewPhotos = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
 
                 return (
@@ -2760,8 +2929,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 isEditMode={isEditMode}
                                 aspectRatio="h-24"
                                 badgeColor="amber"
-                                historyCount={(elem as any)?.historyCount}
-                                hasHistory={(elem as any)?.hasHistory}
+                                historyCount={getItemHistoryMeta(elem).historyCount}
+                                hasHistory={getItemHistoryMeta(elem).hasHistory}
                                 optimisticStatus={stagedCtx ? (stagedCtx.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                                 onUndoDelete={stagedCtx ? () => onUndoPhotoAction?.(stagedCtx) : undefined}
                                 onOpenPhotoZoom={onOpenPhotoZoom}
@@ -2794,8 +2963,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 isEditMode={isEditMode}
                                 aspectRatio="h-24"
                                 badgeColor="slate"
-                                historyCount={(elem as any)?.historyCount}
-                                hasHistory={(elem as any)?.hasHistory}
+                                historyCount={getItemHistoryMeta(elem).historyCount}
+                                hasHistory={getItemHistoryMeta(elem).hasHistory}
                                 optimisticStatus={stagedOv ? (stagedOv.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                                 onUndoDelete={stagedOv ? () => onUndoPhotoAction?.(stagedOv) : undefined}
                                 onOpenPhotoZoom={onOpenPhotoZoom}
@@ -2840,33 +3009,138 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     </div>
 
                     {/* Danh sách khuyết tật D của cấu kiện E */}
-                    {eDefects.length > 0 && (
-                      <div className="space-y-2 pt-1">
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-slate-700 block">
                           Khuyết tật chi tiết trên cấu kiện ({eDefects.length} mục):
                         </span>
+                        {isEditMode && !isElemDeleted && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddElementDefect(elem.id || eCode)}
+                            className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                          >
+                            + Thêm Khuyết Tật D ({eCode})
+                          </button>
+                        )}
+                      </div>
+                      {eDefects.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           {eDefects.map((def: DefectItem, dIdx: number) => {
-                            const dCode = def.defectCode || `D-${dIdx + 1}`;
-                            const cuPhotos: any[] = Array.isArray(def.cuPhotos) ? (def.cuPhotos as any[]) : [];
+                            const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
+                            const isDefDeleted = isItemSoftDeleted(def);
+                            const cuPhotos: Array<string | { url?: string; photoUrl?: string }> = Array.isArray(def.cuPhotos)
+                              ? (def.cuPhotos as Array<string | { url?: string; photoUrl?: string }>)
+                              : [];
                             return (
-                              <div key={def.id || dCode} className="p-3 bg-white rounded-xl border border-amber-200 space-y-1.5 shadow-2xs">
-                                <div className="flex items-center justify-between">
+                              <div
+                                key={def.id || dCode}
+                                className={`p-3 rounded-xl border space-y-1.5 shadow-2xs ${
+                                  isDefDeleted
+                                    ? 'bg-rose-50/40 border-rose-300 border-dashed opacity-80'
+                                    : 'bg-white border-amber-200'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <span className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded text-[11px]">
                                     {dCode}
                                   </span>
-                                  <span className="font-bold text-slate-700">{def.defectType || 'Vết nứt BTCT'}</span>
-                                  <span className="font-mono font-bold text-rose-600">
-                                    {def.widthMaxMm ?? def.width_max_mm ?? 0} mm
-                                  </span>
+                                  {isEditMode && !isDefDeleted ? (
+                                    <select
+                                      value={def.defectType || def.screeningCategory || 'Vết nứt dầm/cột'}
+                                      onChange={(e) =>
+                                        handleElementDefectChange(elem.id || eCode, def.id || dCode, 'defectType', e.target.value, `${dCode} Loại khuyết tật`)
+                                      }
+                                      className="p-1 border border-amber-300 rounded text-[11px] font-bold bg-white"
+                                    >
+                                      {DEFECT_TYPE_PRESETS.map((dt) => (
+                                        <option key={dt} value={dt}>{dt}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span className="font-bold text-slate-700">{def.defectType || 'Vết nứt BTCT'}</span>
+                                  )}
+                                  {isDefDeleted ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRestoreElementDefect(elem.id || eCode, def.id || dCode)}
+                                      className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold cursor-pointer"
+                                    >
+                                      Hoàn tác
+                                    </button>
+                                  ) : isEditMode ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="0.05"
+                                        value={def.widthMaxMm ?? def.width_max_mm ?? 0}
+                                        onChange={(e) =>
+                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'widthMaxMm', Number(e.target.value), `${dCode} Bề rộng`)
+                                        }
+                                        className="w-14 px-1 py-0.5 border border-amber-300 rounded text-rose-600 font-bold text-[11px]"
+                                        title="Bề rộng (mm)"
+                                      />
+                                      <span className="text-[10px] text-slate-500">mm</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveElementDefect(elem.id || eCode, def.id || dCode)}
+                                        className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Xóa
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono font-bold text-rose-600">
+                                      {def.widthMaxMm ?? def.width_max_mm ?? 0} mm
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="text-[11px] text-slate-500 flex items-center justify-between">
-                                  <span>Dài: {def.lengthMm ?? def.length_mm ?? 0} mm &bull; Hướng: {def.crackDirection || 'Không xác định'}</span>
+                                <div className="text-[11px] text-slate-500 flex items-center justify-between flex-wrap gap-1">
+                                  {isEditMode && !isDefDeleted ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span>Dài:</span>
+                                      <input
+                                        type="number"
+                                        value={def.lengthMm ?? def.length_mm ?? 0}
+                                        onChange={(e) =>
+                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'lengthMm', Number(e.target.value), `${dCode} Chiều dài`)
+                                        }
+                                        className="w-14 px-1 py-0.5 border border-slate-300 rounded text-[11px]"
+                                      />
+                                      <span>mm &bull; Hướng:</span>
+                                      <select
+                                        value={def.crackDirection || 'Ngang'}
+                                        onChange={(e) =>
+                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
+                                        }
+                                        className="p-0.5 border border-slate-300 rounded text-[11px]"
+                                      >
+                                        <option value="Ngang">Ngang</option>
+                                        <option value="Dọc">Dọc</option>
+                                        <option value="Chéo 45 độ">Chéo 45 độ</option>
+                                        <option value="Chân chim">Chân chim</option>
+                                      </select>
+                                    </div>
+                                  ) : (
+                                    <span>Dài: {def.lengthMm ?? def.length_mm ?? 0} mm &bull; Hướng: {def.crackDirection || 'Không xác định'}</span>
+                                  )}
                                   <span className={def.hasScaleCard ? 'text-emerald-600 font-bold' : 'text-amber-600'}>
                                     {def.hasScaleCard ? '✓ Có thước đo' : '✕ Thiếu thước'}
                                   </span>
                                 </div>
-                                {def.notes && <div className="text-[11px] text-slate-600 italic">{def.notes}</div>}
+                                {isEditMode && !isDefDeleted ? (
+                                  <input
+                                    type="text"
+                                    value={def.notes || ''}
+                                    onChange={(e) =>
+                                      handleElementDefectChange(elem.id || eCode, def.id || dCode, 'notes', e.target.value, `${dCode} Ghi chú`)
+                                    }
+                                    placeholder="Ghi chú vết nứt kết cấu..."
+                                    className="w-full p-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                                  />
+                                ) : (
+                                  def.notes && <div className="text-[11px] text-slate-600 italic">{def.notes}</div>
+                                )}
 
                                 {/* CU photos for this defect */}
                                 <div className="space-y-1 pt-1 border-t border-slate-100">
@@ -2898,7 +3172,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                   </div>
 
                                   <div className="flex items-center gap-2 pt-1 overflow-x-auto">
-                                    {cuPhotos.map((cuItem: any, cuIdx: number) => {
+                                    {cuPhotos.map((cuItem: string | { url?: string; photoUrl?: string }, cuIdx: number) => {
                                       const cuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
                                       if (!cuUrl) return null;
                                       const stagedCu = getStagedAction({
@@ -2924,8 +3198,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                             isEditMode={isEditMode}
                                             aspectRatio="h-16"
                                             badgeColor="rose"
-                                            historyCount={(def as any)?.historyCount}
-                                            hasHistory={(def as any)?.hasHistory}
+                                            historyCount={getItemHistoryMeta(def).historyCount}
+                                            hasHistory={getItemHistoryMeta(def).hasHistory}
                                             optimisticStatus={stagedCu ? (stagedCu.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
                                             onUndoDelete={stagedCu ? () => onUndoPhotoAction?.(stagedCu) : undefined}
                                             onOpenPhotoZoom={onOpenPhotoZoom}
@@ -2972,8 +3246,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             );
                           })}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
                     {isEditMode ? (
                       <input
@@ -3017,7 +3291,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               <p className="font-semibold text-rose-900">
                 ⚠️ Vùng này đang chứa{' '}
                 <strong className="text-rose-700 font-black">
-                  {(zoneToDelete.defects || []).filter((d: any) => !d.is_deleted && !d.isDeleted).length}
+                  {(zoneToDelete.defects || []).filter((d: DefectItem) => !isItemSoftDeleted(d)).length}
                 </strong>{' '}
                 khuyết tật nứt (D) đang hoạt động!
               </p>

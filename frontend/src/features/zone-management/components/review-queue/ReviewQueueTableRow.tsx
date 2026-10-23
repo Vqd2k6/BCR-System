@@ -75,12 +75,19 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
       );
     }
     if (item.status === 'APPROVED') {
+      const revStr = String(item.export_revision ?? 0).padStart(2, '0');
       return (
         <div className="flex flex-col gap-0.5 items-center">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 w-fit whitespace-nowrap">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>Đã Phê Duyệt</span>
+            <span>Đã Phê Duyệt (Rev.{revStr})</span>
           </span>
+          {item.has_pending_release && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 w-fit whitespace-nowrap mt-0.5">
+              <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
+              <span>Chờ phát hành Rev mới</span>
+            </span>
+          )}
           {item.approver_name && (
             <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 whitespace-nowrap" title={item.judgement_notes || undefined}>
               <User className="w-3 h-3 text-slate-400 shrink-0" />

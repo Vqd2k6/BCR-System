@@ -23,6 +23,7 @@ import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadast
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
+import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseAccessLimitation, StepwiseGisMutationConfirmed } from '../types';
 
@@ -33,6 +34,7 @@ interface Props {
   reportId?: string;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
+  handleApplySyncedGeometry?: (newCoords: [number, number][], newMetroDist: string, newClearanceDist: string) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onRefresh?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
@@ -65,6 +67,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   reportId,
   handleNestedFieldChange,
   handleFieldChange,
+  handleApplySyncedGeometry,
   onOpenPhotoZoom,
   onRefresh,
   isFieldDirty,
@@ -93,10 +96,21 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   const splitChildren = Array.isArray(mutationDetails.splitChildren) ? mutationDetails.splitChildren : [];
   const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
 
-  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
+  // Trích xuất tọa độ Polygon thửa đất (ưu tiên PostGIS GeoJSON mới nhất hoặc formState đã đồng bộ)
   const parcelCoords = useMemo<[number, number][]>(() => {
     if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
       return formState.parcelCoordinates;
+    }
+    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
+    if (rawGeojson) {
+      try {
+        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : (rawGeojson as { type?: string; coordinates?: [number, number][][] });
+        if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+        }
+      } catch (e) {
+        console.warn('Failed to parse cadastralGeojson in AuditStep6:', e);
+      }
     }
     const rawCoords = data?.coordinates as [number, number][] | undefined;
     if (Array.isArray(rawCoords) && rawCoords.length >= 3) {
@@ -105,19 +119,8 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
       return data.parcelCoordinates;
     }
-    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
-    if (rawGeojson) {
-      try {
-        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
-        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
-          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
-        }
-      } catch (e) {
-        console.warn('Failed to parse cadastralGeojson in AuditStep6:', e);
-      }
-    }
     return [];
-  }, [formState.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
+  }, [formState.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson, data?.coordinates, data?.parcelCoordinates]);
 
   const reshapeParcel = useMemo<GisParcel | null>(() => {
     const pId = data?.parcelId || formState.parcelId || (data?.activeParcel as GisParcel | undefined)?.id;
@@ -175,7 +178,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setSuccessToast('')}
-            className="text-emerald-200 hover:text-white"
+            className="text-emerald-200 hover:text-white cursor-pointer"
           >
             ✕
           </button>
@@ -631,6 +634,16 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           onClose={() => setIsReshapeModalOpen(false)}
           onSuccess={(res) => {
             showToast(res?.message || 'Đã nắn chỉnh ranh giới thửa đất thành công.');
+            const newCoords = Array.isArray(res?.newCoordinates) ? (res.newCoordinates as [number, number][]) : [];
+            if (newCoords.length >= 3 && handleApplySyncedGeometry) {
+              const metrics = calculateComprehensiveMetroSpatialMetrics(newCoords);
+              const newMetro = metrics.distanceToCenterlineMeters !== undefined ? metrics.distanceToCenterlineMeters.toFixed(1) : '0.0';
+              const newClearance =
+                metrics.outerBoundaryType === 'STATION_OUTLINE' && metrics.distanceToOuterBoundaryMeters !== null
+                  ? metrics.distanceToOuterBoundaryMeters.toFixed(1)
+                  : 'Không có ga trong khu vực';
+              handleApplySyncedGeometry(newCoords, newMetro, newClearance);
+            }
             if (onRefresh) onRefresh();
           }}
         />

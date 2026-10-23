@@ -58,6 +58,33 @@ export const FrozenParcelSchema = z.object({
   parcelSideAm: z.number().nullable().optional(),
   parcelSideBm: z.number().nullable().optional(),
   polygonGeojson: z.unknown().optional(),
+  zoneId: z.string().nullable().optional(),
+  segmentType: z.string().nullable().optional(),
+  frontageWidth: z.union([z.number(), z.string()]).nullable().optional(),
+  lotDepth: z.union([z.number(), z.string()]).nullable().optional(),
+  gisMutationType: z.string().nullable().optional(),
+  metroSegmentName: z.string().nullable().optional(),
+  metroConstructionType: z.string().nullable().optional(),
+  metroStartChainage: z.union([z.number(), z.string()]).nullable().optional(),
+  metroEndChainage: z.union([z.number(), z.string()]).nullable().optional(),
+  metroTunnelCrownDepth: z.union([z.number(), z.string()]).nullable().optional(),
+});
+
+export const ImpactSnapshotSchema = z.object({
+  iCode: z.enum(['I1', 'I2', 'I3', 'I4']).nullable().optional(),
+  distanceM: nullableScore.optional(),
+  distanceType: z.string().nullable().optional(),
+});
+
+export const BraSnapshotSchema = z.object({
+  vCode: z.enum(['V1', 'V2', 'V3', 'V4']).nullable().optional(),
+  iCode: z.enum(['I1', 'I2', 'I3', 'I4']).nullable().optional(),
+  finalRiskLevelVi: z.string().nullable().optional(),
+  finalRiskLevelEn: z.string().nullable().optional(),
+  isOverridden: z.boolean().optional(),
+  engineeringJudgementAction: z.string().nullable().optional(),
+  engineeringJudgementReason: z.string().nullable().optional(),
+  judgementEngineerName: z.string().nullable().optional(),
 });
 
 export const ReportSnapshotSchema = z.object({
@@ -70,6 +97,9 @@ export const ReportSnapshotSchema = z.object({
   burlandMaxGrade: z.number().int().min(0).max(5).nullable(),
   contentSha256: z.string().regex(/^[0-9a-f]{64}$/),
   exportRevision: z.number().int().nonnegative().optional(),
+  impact: ImpactSnapshotSchema.optional(),
+  bra: BraSnapshotSchema.optional(),
+  pinnedConfig: z.record(z.unknown()).optional(),
   frozenParcel: FrozenParcelSchema.optional(),
   frozenSurveyDataJson: z.record(z.unknown()).optional(),
   frozenReportData: z.record(z.unknown()).optional(),
@@ -77,6 +107,8 @@ export const ReportSnapshotSchema = z.object({
 
 export type EcsSnapshot = z.infer<typeof EcsSnapshotSchema>;
 export type ViSnapshot = z.infer<typeof ViSnapshotSchema>;
+export type ImpactSnapshot = z.infer<typeof ImpactSnapshotSchema>;
+export type BraSnapshot = z.infer<typeof BraSnapshotSchema>;
 export type FrozenParcelData = z.infer<typeof FrozenParcelSchema>;
 export type ReportSnapshot = z.infer<typeof ReportSnapshotSchema>;
 

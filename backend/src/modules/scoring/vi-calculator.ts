@@ -10,6 +10,11 @@
  * ============================================================================
  */
 
+import {
+  classifyStructureSystem,
+  v2ScoreForStructure,
+} from '../report_v2/mappers/structure-system.classifier';
+
 export type EcsClass = 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
 export type ViClass = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
 
@@ -26,8 +31,8 @@ export interface ViCalculatorInput {
   continuousOperation247?: boolean | null;
   hasSensitiveEquipment?: boolean | null;
   ecsClass?: EcsClass | null;
-  /** Điểm V2/V4/V6 do Admin chốt (nếu có) – ưu tiên hơn giá trị tự tính */
-  adminOverrides?: Partial<Record<'v2' | 'v4' | 'v6', number>>;
+  /** Điểm V1..V6 do Admin chốt (nếu có) – ưu tiên hơn giá trị tự tính */
+  adminOverrides?: Partial<Record<'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6', number>>;
   /** Năm hiện tại, inject để test được */
   currentYear?: number;
 }
@@ -77,36 +82,74 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
   const isVacant =
     input.surveyCaseType === 'VACANT_LAND' || input.isVacantLand === true || input.usageFunction === 'Đất trống';
   let v1 = 2;
-  if (isAbandoned || isVacant) v1 = 0;
-  else if (input.objectGroup === 'CRITICAL') v1 = 4;
-  else if (input.objectGroup === 'IMPORTANT') v1 = 3;
-
-  // V2
-  let v2 = input.adminOverrides?.v2 ?? 2;
-  const sys = input.structureSystem || '';
-  if (sys.includes('RC') || sys.includes('BTCT toàn khối')) v2 = 1;
-  else if (sys.includes('Masonry') || sys.includes('Tường gạch')) v2 = 3;
-  else if (sys.includes('Kém ổn định')) v2 = 4;
-
-  // V3
-  const v3 = v3FromCat(input.foundationCatScore);
-
-  // V4
-  let v4: number | null = input.adminOverrides?.v4 ?? null;
-  const year = input.currentYear ?? new Date().getFullYear();
-  if (typeof input.constructionYear === 'number' && input.constructionYear > 1900) {
-    v4 = v4FromAge(year - input.constructionYear);
+  if (input.adminOverrides?.v1 !== undefined && input.adminOverrides.v1 !== null) {
+    v1 = input.adminOverrides.v1;
+  } else if (isAbandoned || isVacant) {
+    v1 = 0;
+  } else if (input.objectGroup === 'CRITICAL') {
+    v1 = 4;
+  } else if (input.objectGroup === 'IMPORTANT') {
+    v1 = 3;
   }
-  if ((input.renovationLoad ?? 0) >= 3) v4 = 4;
+
+  // V2: ưu tiên adminOverrides.v2; nếu không có thì phân loại chuẩn (RC_INFILL = 2, RC_FRAME = 1, MASONRY = 3, WEAK = 4)
+  let v2: number;
+  if (input.adminOverrides?.v2 !== undefined && input.adminOverrides.v2 !== null) {
+    v2 = input.adminOverrides.v2;
+  } else {
+    const sys = (input.structureSystem || '').trim();
+    if (!sys) {
+      v2 = 2;
+    } else if (sys.includes('Kém ổn định') || sys.toLowerCase().includes('weak') || sys.toLowerCase().includes('temporary')) {
+      v2 = 4;
+    } else {
+      v2 = v2ScoreForStructure(classifyStructureSystem(sys));
+    }
+  }
+
+  // V3: ưu tiên adminOverrides.v3; nếu không có thì tính từ CAT móng
+  const v3 =
+    input.adminOverrides?.v3 !== undefined && input.adminOverrides.v3 !== null
+      ? input.adminOverrides.v3
+      : v3FromCat(input.foundationCatScore);
+
+  // V4: ưu tiên adminOverrides.v4; nếu không có thì tính từ tuổi công trình & cải tạo nâng tầng
+  let v4: number | null =
+    input.adminOverrides?.v4 !== undefined && input.adminOverrides.v4 !== null
+      ? input.adminOverrides.v4
+      : null;
+  if (v4 === null) {
+    const year = input.currentYear ?? new Date().getFullYear();
+    if (typeof input.constructionYear === 'number' && input.constructionYear > 1900) {
+      v4 = v4FromAge(year - input.constructionYear);
+    }
+    if ((input.renovationLoad ?? 0) >= 3) v4 = 4;
+  }
 
   // V5
   const ecsClass = input.ecsClass || 'GOOD';
-  const v5 = ecsClass === 'CRITICAL' ? 4 : ecsClass === 'DEFICIENT' ? 3 : ecsClass === 'MEDIUM' ? 2 : 1;
+  const v5 =
+    input.adminOverrides?.v5 !== undefined && input.adminOverrides.v5 !== null
+      ? input.adminOverrides.v5
+      : ecsClass === 'CRITICAL'
+        ? 4
+        : ecsClass === 'DEFICIENT'
+          ? 3
+          : ecsClass === 'MEDIUM'
+            ? 2
+            : 1;
 
-  // V6
-  let v6 = input.adminOverrides?.v6 ?? 1;
-  if (input.continuousOperation247) v6 = 4;
-  else if (input.hasSensitiveEquipment) v6 = 3;
+  // V6: ưu tiên adminOverrides.v6; nếu không có thì tính từ chế độ vận hành / thiết bị nhạy cảm
+  let v6: number;
+  if (input.adminOverrides?.v6 !== undefined && input.adminOverrides.v6 !== null) {
+    v6 = input.adminOverrides.v6;
+  } else if (input.continuousOperation247) {
+    v6 = 4;
+  } else if (input.hasSensitiveEquipment) {
+    v6 = 3;
+  } else {
+    v6 = 1;
+  }
 
   if (v3 === null || v4 === null) {
     return { v1, v2, v3, v4, v5, v6, totalVi: null, viAvg: null, viClass: null };

@@ -78,7 +78,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
                   <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
                   <ul className="space-y-1 pl-1 text-slate-600">
-                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ (Cat 1 đến 5/5)&quot;:</span> Đã xác định được loại móng qua hồ sơ hoàn công (CAT 5), bản vẽ cấp phép (CAT 4), phỏng vấn chủ nhà (CAT 3) hoặc đánh giá kỹ thuật (CAT 2/1).</li>
+                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ (Cat 1 đến 5/5)&quot;:</span> Đã xác định được loại móng và cấp độ nhạy cảm (CAT 1: Móng cọc BTCT, CAT 2: Móng băng BTCT, CAT 3: Móng đơn BTCT, CAT 4: Móng nông/gia cố, CAT 5: Không xác định).</li>
                     <li><span className="font-semibold text-amber-700">● &quot;Chưa đủ (Cat 0/5)&quot;:</span> Chưa chọn loại móng của ngôi nhà.</li>
                   </ul>
                   <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Loại móng (móng cọc, móng băng, móng đơn) quyết định trực tiếp khả năng chịu lún chênh và biến dạng khi khiên đào hầm TBM hoạt động ngầm bên dưới.</p>

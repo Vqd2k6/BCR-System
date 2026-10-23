@@ -54,16 +54,34 @@ export class Appendix3And4Mapper {
     // Bản gốc Biên bản hiện trường chỉ chứa ảnh biên bản làm việc thực địa (không chứa bản vẽ móng CAT)
     const allDocPhotos = [...minutesPhotos, ...extraDocs].filter(Boolean);
 
-    const ownerFeedbackText = rawReport.owner_remarks || json.signatures?.ownerFeedback || json.ownerRemarks || '';
+    const ownerFeedbackText =
+      json.signatures?.ownerFeedback ??
+      json.ownerFeedback ??
+      json.ownerRemarks ??
+      rawReport.owner_remarks ??
+      '';
 
     const rawRepName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name || '';
     const isRepCadastral = !rawRepName || /chủ\s*hộ\s*thửa/i.test(rawRepName) || /tờ\s*bản\s*đồ/i.test(rawRepName);
     const actualSignerName = isRepCadastral ? '' : rawRepName.trim();
-    const ownerName = (rawReport.owner_name || json.ownerName || '').trim();
+    const ownerName = (json.ownerName || rawReport.owner_name || '').trim();
     const finalOwnerName = actualSignerName || ownerName || 'Chủ hộ';
     const isOwnerItself = !actualSignerName || actualSignerName === ownerName;
     const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
     const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative / Occupant';
+
+    const witnessName =
+      json.signatures?.localAuthority?.fullName ||
+      json.signatures?.witnessName ||
+      json.witnessInfo?.name ||
+      json.witnessName ||
+      '';
+    const witnessRole =
+      json.signatures?.localAuthority?.title ||
+      json.signatures?.witnessRole ||
+      json.witnessInfo?.role ||
+      json.witnessRole ||
+      '';
 
     return {
       surveyTime: surveyDateWithTime,
@@ -76,11 +94,11 @@ export class Appendix3And4Mapper {
           : `${finalOwnerName} - ${roleSuffixEn}`,
       },
       localAuthority: {
-        vi: json.signatures?.localAuthority?.fullName
-          ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
+        vi: witnessName
+          ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}`
           : '--',
-        en: json.signatures?.localAuthority?.fullName
-          ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
+        en: witnessName
+          ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}`
           : '--',
       },
       supervisionConsultant: {
@@ -110,16 +128,24 @@ export class Appendix3And4Mapper {
       electronicSignOff: {
         vi: isAbsentee
           ? `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Tình trạng: Vắng mặt (Lập biên bản niêm yết theo quy định); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`
-          : `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Chủ sở hữu: ${rawReport.owner_name || json.ownerName || 'Chủ hộ'} (đã ký); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`,
+          : `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Chủ sở hữu: ${json.ownerName || rawReport.owner_name || 'Chủ hộ'} (đã ký); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`,
         en: isAbsentee
           ? `Surveyor: ${surveyorName || 'Unrecorded'}; Status: Absent (Official notice posted per field procedure); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`
-          : `Surveyor: ${surveyorName || 'Unrecorded'}; Owner: ${rawReport.owner_name || json.ownerName || 'Property owner'} (signed); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`,
+          : `Surveyor: ${surveyorName || 'Unrecorded'}; Owner: ${json.ownerName || rawReport.owner_name || 'Property owner'} (signed); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`,
       },
-      dataSource: {
-        vi: `Bản xuất phần mềm ${reportNo}, xuất lúc ${new Date().toLocaleTimeString('vi-VN')} ngày ${surveyDateFormatted || '–'}`,
-        en: `Software export ${reportNo}, exported at ${new Date().toISOString()}`,
-      },
+      dataSource: (() => {
+        const isApproved = String(rawReport.status || '').toUpperCase() === 'APPROVED';
+        const refIso = (isApproved && rawReport.approved_at)
+          ? new Date(rawReport.approved_at).toISOString()
+          : (rawSurveyDate ? new Date(rawSurveyDate).toISOString() : '');
+        return {
+          vi: `Bản xuất phần mềm ${reportNo}, ngày khảo sát ${surveyDateFormatted || '–'}`,
+          en: `Software export ${reportNo}${refIso ? `, approved/recorded at ${refIso}` : ''}`,
+        };
+      })(),
       signedRecordPages: allDocPhotos.map((url: string, idx: number) => {
+        const rotMap = json.photoRotations || rawReport.photoRotations || {};
+        const docRot = rotMap[`minutes_${idx}`] ?? rotMap[url] ?? 0;
         const docTitleVi = isAbsentee
           ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
           : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
@@ -134,7 +160,7 @@ export class Appendix3And4Mapper {
             en: docTitleEn,
           },
           url,
-          base64: ReportImageResolver.resolveToBase64(url),
+          base64: ReportImageResolver.resolveToBase64(url, docRot),
           alreadyWatermarked: isPhotoAlreadyWatermarked(url),
           watermarkDateTime: extractPhotoDateTime(url, null, rawSurveyDate),
           metroPhotoCode: isAbsentee
@@ -177,7 +203,7 @@ export class Appendix3And4Mapper {
     }
 
     // Tầng hầm: Chỉ tính khi công trình thực tế có thiết kế tầng hầm
-    const basementCount = Number(rawReport?.basement_count ?? rawReport?.buildingSpecs?.basementCount ?? json?.buildingSpecs?.basementCount ?? json?.basementCount ?? json?.undergroundFloors ?? 0);
+    const basementCount = Number(json?.undergroundFloors ?? json?.basementCount ?? json?.buildingSpecs?.basementCount ?? rawReport?.basement_count ?? rawReport?.buildingSpecs?.basementCount ?? 0);
     const hasBaseScope = Boolean(rawScope.basement);
     const basementAccessed = basementCount > 0 && hasBaseScope;
     const basementNotAccessed = basementCount > 0 && !hasBaseScope;

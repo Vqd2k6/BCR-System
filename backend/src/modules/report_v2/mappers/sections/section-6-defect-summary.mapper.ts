@@ -29,32 +29,32 @@ export class Section6DefectSummaryMapper {
     // CHƯƠNG VI: TÓM TẮT ĐIỀU TRA LỖI & BCS CHECKLIST (ĐỘNG TỪ PHỤ LỤC 2 & STEP 3/4)
     const allDefectRows = appendix2.flatMap((f) => f.defectSummaryRows);
 
-    // 1. Phân loại 4 nhóm khuyết tật chuẩn theo Step 3
-    const structuralDefects = allDefectRows.filter((d) =>
+    // 1. Phân loại 4 nhóm khuyết tật chuẩn theo Step 3 (Mutually Exclusive 100%: Tổng 4 nhóm === totalDefects)
+    const isStructuralDefect = (d: FloorDefectSummaryRow): boolean =>
       d.location.vi.includes('Cấu kiện') ||
       d.defectType.vi.toLowerCase().includes('cột') ||
       d.defectType.vi.toLowerCase().includes('dầm') ||
       d.defectType.vi.toLowerCase().includes('sàn') ||
-      d.defectType.vi.toLowerCase().includes('kết cấu')
-    );
+      d.defectType.vi.toLowerCase().includes('kết cấu');
 
-    const masonryPlasterCracks = allDefectRows.filter((d) =>
-      !structuralDefects.includes(d) &&
-      d.widthMm !== '–'
-    );
-
-    const moistureDefects = allDefectRows.filter((d) =>
-      !structuralDefects.includes(d) &&
+    const isMoistureDefect = (d: FloorDefectSummaryRow): boolean =>
+      !isStructuralDefect(d) &&
       (d.defectType.vi.toLowerCase().includes('thấm') ||
        d.defectType.vi.toLowerCase().includes('ẩm') ||
-       d.description.vi.toLowerCase().includes('ẩm') ||
-       d.description.vi.toLowerCase().includes('thấm'))
-    );
+       (d.widthMm === '–' &&
+        (d.description.vi.toLowerCase().includes('ẩm') ||
+         d.description.vi.toLowerCase().includes('thấm'))));
 
-    const spallingAndOtherDefects = allDefectRows.filter((d) =>
-      !structuralDefects.includes(d) &&
-      !masonryPlasterCracks.includes(d) &&
-      !moistureDefects.includes(d)
+    const isMasonryPlasterCrack = (d: FloorDefectSummaryRow): boolean =>
+      !isStructuralDefect(d) &&
+      !isMoistureDefect(d) &&
+      d.widthMm !== '–';
+
+    const structuralDefects = allDefectRows.filter(isStructuralDefect);
+    const moistureDefects = allDefectRows.filter(isMoistureDefect);
+    const masonryPlasterCracks = allDefectRows.filter(isMasonryPlasterCrack);
+    const spallingAndOtherDefects = allDefectRows.filter(
+      (d) => !isStructuralDefect(d) && !isMoistureDefect(d) && !isMasonryPlasterCrack(d)
     );
 
     const surfaceCracksCount = masonryPlasterCracks.length;
@@ -104,22 +104,11 @@ export class Section6DefectSummaryMapper {
     // 2. Bảng VI.1: Ma trận phân bố khuyết tật theo từng tầng (Defect Distribution Matrix by Floor)
     const floorDistribution = appendix2.map((fl) => {
       const flDefs = fl.defectSummaryRows;
-      const flStruct = flDefs.filter((d) =>
-        d.location.vi.includes('Cấu kiện') ||
-        d.defectType.vi.toLowerCase().includes('cột') ||
-        d.defectType.vi.toLowerCase().includes('dầm') ||
-        d.defectType.vi.toLowerCase().includes('sàn')
-      );
-      const flMasonry = flDefs.filter((d) => !flStruct.includes(d) && d.widthMm !== '–');
-      const flMoist = flDefs.filter((d) =>
-        !flStruct.includes(d) &&
-        (d.defectType.vi.toLowerCase().includes('thấm') ||
-         d.defectType.vi.toLowerCase().includes('ẩm') ||
-         d.description.vi.toLowerCase().includes('ẩm') ||
-         d.description.vi.toLowerCase().includes('thấm'))
-      );
-      const flSpallAndOther = flDefs.filter((d) =>
-        !flStruct.includes(d) && !flMasonry.includes(d) && !flMoist.includes(d)
+      const flStruct = flDefs.filter(isStructuralDefect);
+      const flMoist = flDefs.filter(isMoistureDefect);
+      const flMasonry = flDefs.filter(isMasonryPlasterCrack);
+      const flSpallAndOther = flDefs.filter(
+        (d) => !isStructuralDefect(d) && !isMoistureDefect(d) && !isMasonryPlasterCrack(d)
       );
 
       const flCrackWidths = flDefs

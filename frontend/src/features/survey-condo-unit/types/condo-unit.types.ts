@@ -137,6 +137,7 @@ export interface CondoUnitFormData {
   cadBbox?: CadBbox | null;
   cadPolygon?: CadPolygon | null;
   isCadOverriddenByUser?: boolean;
+  isCadLocked?: boolean;
   zones: DamageZoneData[];
   structuralElements: StructuralElementData[];
   hasStructuralElements: boolean;

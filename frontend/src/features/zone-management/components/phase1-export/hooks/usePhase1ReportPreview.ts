@@ -26,6 +26,7 @@ export const usePhase1ReportPreview = ({
   const [modalFeedback, setModalFeedback] = useState<ModalFeedbackMessage | null>(null);
   const [reportVersion, setReportVersion] = useState<'v2' | 'v1'>('v2');
   const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
+  const [selectedRevision, setSelectedRevision] = useState<number | undefined>(undefined);
 
   // Manage Blob URL for HTML preview
   useEffect(() => {
@@ -47,26 +48,30 @@ export const usePhase1ReportPreview = ({
 
   const parcelIdOrFallback = (p: ExportParcelItem) => p.activePhase1ReportId || p.id;
 
-  const handleOpenPreview = async (parcel: ExportParcelItem, versionOverride?: 'v2' | 'v1') => {
+  const handleOpenPreview = async (parcel: ExportParcelItem, versionOverride?: 'v2' | 'v1', revOverride?: number) => {
     const ver = versionOverride || reportVersion;
     setPreviewParcel(parcel);
+    setSelectedRevision(revOverride);
     setIsPreviewLoading(true);
     setPreviewTab('html');
     setPreviewHtmlContent(null);
     setPreviewReportData(null);
 
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
-    const previewEndpoint = ver === 'v2'
-      ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
-      : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+    const previewEndpoint = `/v3/reports/${encodeURIComponent(reportId)}/preview/html`;
 
     try {
       const [htmlResResult, dataResResult] = await Promise.allSettled([
         api.get(previewEndpoint, {
-          params: { watermark: String(enableWatermark) },
+          params: {
+            watermark: String(enableWatermark),
+            ...(revOverride !== undefined ? { rev: revOverride } : {}),
+          },
           responseType: 'text',
         }),
-        api.get(`/reports/${encodeURIComponent(reportId)}`),
+        api.get(`/reports/${encodeURIComponent(reportId)}`, {
+          params: revOverride !== undefined ? { rev: revOverride } : {},
+        }),
       ]);
 
       if (htmlResResult.status === 'fulfilled') {
@@ -105,39 +110,72 @@ export const usePhase1ReportPreview = ({
     }
   };
 
+  const handleSelectRevision = async (rev?: number) => {
+    setSelectedRevision(rev);
+    if (!previewParcel) return;
+    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
+    setIsPreviewLoading(true);
+    try {
+      const [htmlRes, dataRes] = await Promise.all([
+        api.get(`/v3/reports/${encodeURIComponent(reportId)}/preview/html`, {
+          params: {
+            watermark: String(enableWatermark),
+            ...(rev !== undefined ? { rev } : {}),
+          },
+          responseType: 'text',
+        }),
+        api.get(`/reports/${encodeURIComponent(reportId)}`, {
+          params: rev !== undefined ? { rev } : {},
+        }),
+      ]);
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      const repData = dataRes.data?.data || dataRes.data;
+      setPreviewReportData(repData);
+      setEditFormData(initializeEditFormData(repData, previewParcel));
+
+      setModalFeedback({
+        type: 'info',
+        text:
+          rev !== undefined
+            ? `Đang hiển thị bản phát hành đã lưu trữ: Rev.${String(rev).padStart(2, '0')}`
+            : 'Đang hiển thị bản phê duyệt hiện hành mới nhất.',
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err: unknown) {
+      console.warn('[Preview] Lỗi khi chuyển đổi phiên bản Rev:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không thể tải phiên bản Rev: ${getErrorMessage(err, 'Lỗi server')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
   const handleSwitchVersion = async (targetVersion: 'v2' | 'v1') => {
     setReportVersion(targetVersion);
     if (!previewParcel) return;
     const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
     setIsPreviewLoading(true);
     try {
-      const endpoint = targetVersion === 'v2'
-        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
-        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
-      
-      let htmlRes;
-      if (hasUnsavedChanges && editFormData) {
-        const payload = {
-          ...buildReportPayload(editFormData, previewReportData),
-          enableWatermark,
-        };
-        htmlRes = await api.post(endpoint, payload, {
-          params: { watermark: String(enableWatermark) },
-          responseType: 'text',
-        });
-      } else {
-        htmlRes = await api.get(endpoint, {
-          params: { watermark: String(enableWatermark) },
-          responseType: 'text',
-        });
-      }
+      const endpoint = `/v3/reports/${encodeURIComponent(reportId)}/preview/html`;
+      const htmlRes = await api.get(endpoint, {
+        params: {
+          watermark: String(enableWatermark),
+          ...(selectedRevision !== undefined ? { rev: selectedRevision } : {}),
+        },
+        responseType: 'text',
+      });
 
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
       setPreviewRenderKey((k) => k + 1);
       setModalFeedback({
         type: 'info',
-        text: `Đã chuyển sang mẫu báo cáo: ${targetVersion === 'v2' ? 'Mẫu Mới 0410 Song Ngữ (V2)' : 'Mẫu Cũ (V1)'}`,
+        text: 'Đã làm mới bản xem trước theo chuẩn Báo cáo Song Ngữ 0410 (V3).',
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } catch (err: unknown) {
@@ -208,99 +246,26 @@ export const usePhase1ReportPreview = ({
     setHasUnsavedChanges(true);
   };
 
-  const handleSaveReportEdits = async (isNewRevision: boolean = false) => {
-    if (!previewParcel || !editFormData) return;
-    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
-
-    setIsSavingEdits(true);
-    try {
-      const payload = buildReportPayload(editFormData, previewReportData);
-      await api.put(`/reports/${encodeURIComponent(reportId)}/survey-data`, {
-        ...payload,
-        isNewRevision,
-      });
-
-      const previewEndpoint = reportVersion === 'v2'
-        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
-        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
-
-      const htmlRes = await api.get(previewEndpoint, {
-        params: { watermark: String(enableWatermark) },
-        responseType: 'text',
-      });
-      setPreviewHtmlContent(typeof htmlRes.data === 'string' ? htmlRes.data : JSON.stringify(htmlRes.data));
-      setPreviewRenderKey((k) => k + 1);
-      setHasUnsavedChanges(false);
-
-      setActionMessage({
-        type: 'success',
-        text: `Đã lưu thành công dữ liệu vào Database cho lô ${previewParcel.projectParcelCode}!`,
-      });
-    } catch (err: unknown) {
-      console.error('Lỗi khi lưu dữ liệu vào DB:', err);
-      setActionMessage({
-        type: 'error',
-        text: `Không thể lưu vào Database: ${getErrorMessage(err, 'Lỗi server')}`,
-      });
-    } finally {
-      setIsSavingEdits(false);
-    }
+  const handleSaveReportEdits = async (_isNewRevision: boolean = false) => {
+    const timeStr = new Date().toLocaleTimeString('vi-VN');
+    const msg = 'Chức năng sửa dữ liệu trực tiếp đã ngừng hỗ trợ. Mọi chỉnh sửa bắt buộc thực hiện tại phân hệ Thẩm định (Audit Studio).';
+    setModalFeedback({ type: 'error', text: msg, timestamp: timeStr });
+    setActionMessage({ type: 'error', text: msg });
   };
 
   const handleApplyPreviewWithoutSaving = async () => {
-    if (!previewParcel || !editFormData) return;
-    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
-
-    setIsSavingEdits(true);
     const timeStr = new Date().toLocaleTimeString('vi-VN');
-    try {
-      const payload = buildReportPayload(editFormData, previewReportData);
-      const endpoint = reportVersion === 'v2'
-        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
-        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
-
-      const htmlRes = await api.post(endpoint, payload, {
-        responseType: 'text',
-      });
-
-      const newHtml = typeof htmlRes.data === 'string' ? htmlRes.data : JSON.stringify(htmlRes.data);
-      setPreviewHtmlContent(newHtml);
-      setPreviewRenderKey((k) => k + 1);
-      setPreviewTab('html');
-
-      const successText = `⚡ Đã cập nhật bản in với thông số mới thành công (Lúc ${timeStr})! Bản in A4 đã được làm mới (${reportVersion === 'v2' ? 'Mẫu Mới 0410' : 'Mẫu Cũ V1'}). Dữ liệu trong Database được bảo vệ 100% không đổi.`;
-      setModalFeedback({
-        type: 'success',
-        text: successText,
-        timestamp: timeStr,
-      });
-      setActionMessage({
-        type: 'success',
-        text: successText,
-      });
-    } catch (err: unknown) {
-      console.error('Lỗi khi xem trước tạm thời:', err);
-      const errText = `Không thể tạo bản xem trước tạm thời: ${getErrorMessage(err, 'Lỗi server')}`;
-      setModalFeedback({
-        type: 'error',
-        text: errText,
-        timestamp: timeStr,
-      });
-      setActionMessage({
-        type: 'error',
-        text: errText,
-      });
-    } finally {
-      setIsSavingEdits(false);
-    }
+    const msg = 'Chức năng sửa dữ liệu trực tiếp đã ngừng hỗ trợ. Vui lòng sử dụng nút "Chuyển sang màn hình Thẩm định" để chỉnh sửa hồ sơ.';
+    setModalFeedback({ type: 'info', text: msg, timestamp: timeStr });
+    setActionMessage({ type: 'info', text: msg });
   };
 
   const handleSwitchTab = async (targetTab: 'html' | 'edit' | 'json') => {
-    if (targetTab === 'html' && previewTab === 'edit' && hasUnsavedChanges && editFormData) {
+    if (targetTab === 'edit') {
       await handleApplyPreviewWithoutSaving();
-    } else {
-      setPreviewTab(targetTab);
+      return;
     }
+    setPreviewTab(targetTab);
   };
 
   const handleOpenPreviewInNewTab = () => {
@@ -313,8 +278,8 @@ export const usePhase1ReportPreview = ({
     } else {
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
       const baseApi = (api.defaults.baseURL || '/api/v1').replace(/\/+$/, '');
-      const prefix = reportVersion === 'v2' ? `${baseApi}/v3/reports` : `${baseApi}/reports`;
-      window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html?watermark=${enableWatermark}`, '_blank');
+      const revQuery = selectedRevision !== undefined ? `&rev=${selectedRevision}` : '';
+      window.open(`${baseApi}/v3/reports/${encodeURIComponent(activeReportId)}/preview/html?watermark=${enableWatermark}${revQuery}`, '_blank');
     }
   };
 
@@ -327,10 +292,8 @@ export const usePhase1ReportPreview = ({
       });
       return;
     }
-    const ver = reportVersion;
     const rawId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
-    const isV2 = ver === 'v2';
 
     setModalFeedback({
       type: 'info',
@@ -339,22 +302,21 @@ export const usePhase1ReportPreview = ({
     });
 
     try {
-      const endpoint = isV2
-        ? `/v3/reports/${reportId}/export/pdf`
-        : `/reports/${reportId}/export/pdf`;
-
-      const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
-      const response = payload
-        ? await api.post(endpoint, { ...payload, enableWatermark }, { params: { watermark: String(enableWatermark) }, responseType: 'blob' })
-        : await api.get(endpoint, { params: { watermark: String(enableWatermark) }, responseType: 'blob' });
+      const endpoint = `/v3/reports/${reportId}/export/pdf`;
+      const response = await api.get(endpoint, {
+        params: {
+          watermark: String(enableWatermark),
+          ...(selectedRevision !== undefined ? { rev: selectedRevision } : {}),
+        },
+        responseType: 'blob',
+      });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(blob);
       const printWindow = window.open(pdfUrl, '_blank');
 
-      const filename = isV2
-        ? `BaoCao_SongNgu_Phase1_V2_${previewParcel.projectParcelCode}.pdf`
-        : `BaoCao_KhaoSat_Phase1_${previewParcel.projectParcelCode}.pdf`;
+      const revSuffix = selectedRevision !== undefined ? `_Rev${String(selectedRevision).padStart(2, '0')}` : '';
+      const filename = `BaoCao_SongNgu_Phase1_V2_${previewParcel.projectParcelCode}${revSuffix}.pdf`;
 
       if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
         const link = document.createElement('a');
@@ -394,31 +356,21 @@ export const usePhase1ReportPreview = ({
       iframes.forEach((ifr) => {
         ifr.contentWindow?.postMessage({ type: 'SET_WATERMARK', enableWatermark: enabled }, '*');
       });
-    } catch (_) {}
+    } catch (err: unknown) {
+      console.warn('Không thể gửi postMessage watermark tới iframe:', err);
+    }
     if (!previewParcel) return;
     const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
     setIsPreviewLoading(true);
     try {
-      const endpoint = reportVersion === 'v2'
-        ? `/v3/reports/${encodeURIComponent(reportId)}/preview/html`
-        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
-
-      let htmlRes;
-      if (hasUnsavedChanges && editFormData) {
-        const payload = {
-          ...buildReportPayload(editFormData, previewReportData),
-          enableWatermark: enabled,
-        };
-        htmlRes = await api.post(endpoint, payload, {
-          params: { watermark: String(enabled) },
-          responseType: 'text',
-        });
-      } else {
-        htmlRes = await api.get(endpoint, {
-          params: { watermark: String(enabled) },
-          responseType: 'text',
-        });
-      }
+      const endpoint = `/v3/reports/${encodeURIComponent(reportId)}/preview/html`;
+      const htmlRes = await api.get(endpoint, {
+        params: {
+          watermark: String(enabled),
+          ...(selectedRevision !== undefined ? { rev: selectedRevision } : {}),
+        },
+        responseType: 'text',
+      });
 
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
@@ -437,15 +389,13 @@ export const usePhase1ReportPreview = ({
     }
   };
 
-  const handleExportSingleDocx = async (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => {
+  const handleExportSingleDocx = async (parcel: ExportParcelItem, _overrides?: Record<string, unknown>) => {
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
     setActionMessage({ type: 'info', text: `Đang tạo tập tin Word (DOCX) cho lô ${parcel.projectParcelCode}...` });
 
     try {
-      const response = overrides
-        ? await api.post(`/reports/${reportId}/export/docx`, overrides, { responseType: 'blob' })
-        : await api.get(`/reports/${reportId}/export/docx`, { responseType: 'blob' });
+      const response = await api.get(`/reports/${reportId}/export/docx`, { responseType: 'blob' });
 
       const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -471,35 +421,37 @@ export const usePhase1ReportPreview = ({
     }
   };
 
-  const handleExportSinglePdf = async (parcel: ExportParcelItem, overrides?: Record<string, unknown>, versionOverride?: 'v2' | 'v1') => {
-    const ver = versionOverride || reportVersion;
+  const handleExportSinglePdf = async (
+    parcel: ExportParcelItem,
+    _overrides?: Record<string, unknown>,
+    _versionOverride?: 'v2' | 'v1',
+    revOverride?: number
+  ) => {
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
-    const isV2 = ver === 'v2';
+    const activeRev = revOverride !== undefined ? revOverride : selectedRevision;
+    const revSuffix = activeRev !== undefined ? `_Rev${String(activeRev).padStart(2, '0')}` : '';
 
     setActionMessage({
       type: 'info',
-      text: isV2
-        ? `Đang kết nối backend và tạo PDF Song Ngữ chuẩn 0410 (V2) cho lô ${parcel.projectParcelCode}...`
-        : `Đang kết nối backend và tạo tập tin PDF A4 cho lô ${parcel.projectParcelCode}...`,
+      text: `Đang kết nối backend và tạo PDF Song Ngữ chuẩn 0410 (V3) cho lô ${parcel.projectParcelCode}${revSuffix}...`,
     });
 
     try {
-      const endpoint = isV2
-        ? `/v3/reports/${reportId}/export/pdf`
-        : `/reports/${reportId}/export/pdf`;
-
-      const response = overrides
-        ? await api.post(endpoint, { ...overrides, enableWatermark }, { params: { watermark: String(enableWatermark) }, responseType: 'blob' })
-        : await api.get(endpoint, { params: { watermark: String(enableWatermark) }, responseType: 'blob' });
+      const endpoint = `/v3/reports/${reportId}/export/pdf`;
+      const response = await api.get(endpoint, {
+        params: {
+          watermark: String(enableWatermark),
+          ...(activeRev !== undefined ? { rev: activeRev } : {}),
+        },
+        responseType: 'blob',
+      });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = isV2
-        ? `BaoCao_SongNgu_Phase1_V2_${parcel.projectParcelCode}.pdf`
-        : `BaoCao_KhaoSat_Phase1_${parcel.projectParcelCode}.pdf`;
+      link.download = `BaoCao_SongNgu_Phase1_V2_${parcel.projectParcelCode}${revSuffix}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -507,7 +459,7 @@ export const usePhase1ReportPreview = ({
 
       setActionMessage({
         type: 'success',
-        text: `Tải xuống thành công Báo cáo PDF ${isV2 ? 'Song Ngữ (Mẫu 0410 V2)' : 'A4 (Mẫu V1)'} cho lô ${parcel.projectParcelCode}!`,
+        text: `Tải xuống thành công Báo cáo PDF Song Ngữ (Mẫu 0410) cho lô ${parcel.projectParcelCode}${revSuffix}!`,
       });
     } catch (err: unknown) {
       setActionMessage({
@@ -515,6 +467,11 @@ export const usePhase1ReportPreview = ({
         text: `Không thể xuất PDF cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi không xác định')}`,
       });
     }
+  };
+
+  const handleExportRevisionPdf = async (rev: number) => {
+    if (!previewParcel) return;
+    await handleExportSinglePdf(previewParcel, undefined, undefined, rev);
   };
 
   return {
@@ -540,6 +497,10 @@ export const usePhase1ReportPreview = ({
     setReportVersion,
     enableWatermark,
     setEnableWatermark,
+    selectedRevision,
+    setSelectedRevision,
+    handleSelectRevision,
+    handleExportRevisionPdf,
     handleToggleWatermark,
     handleSwitchVersion,
     handleOpenPreview,

@@ -39,17 +39,23 @@ export class Database {
    */
   static async transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await pool.connect();
+    let shouldDestroyClient = false;
     try {
       await client.query('BEGIN');
       const result = await callback(client);
       await client.query('COMMIT');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        shouldDestroyClient = true;
+        console.error('[TRANSACTION ROLLBACK FAILED - EVICTING DEAD CLIENT]', rollbackError);
+      }
       console.error('[TRANSACTION ROLLBACK ERROR]', error);
       throw error;
     } finally {
-      client.release();
+      client.release(shouldDestroyClient);
     }
   }
 

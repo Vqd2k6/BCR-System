@@ -1,6 +1,6 @@
 import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
-import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 
 export interface ParcelEntity {
   id: string;
@@ -119,7 +119,7 @@ export class CadastralRepository {
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
     // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
     const target = (zoneId || 'ALL').toUpperCase();
-    const isAll = target === 'ALL';
+    const isAll = target === 'ALL' || target === 'ALL_ZONES';
 
     const zoneAliases: Record<string, string[]> = {
       'ZONE_S1': ['ZONE_S1', 'ZONE_01'],
@@ -840,11 +840,31 @@ export class CadastralRepository {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, NOW())
           ON CONFLICT (parcel_id, unit_code) WHERE deleted_at IS NULL DO UPDATE SET
             display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
-            floor_number = EXCLUDED.floor_number,
-            floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
-            cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
-            cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
-            unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
+            floor_number = CASE
+              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              THEN COALESCE(building_units.floor_number, EXCLUDED.floor_number)
+              ELSE EXCLUDED.floor_number
+            END,
+            floor_plan_id = CASE
+              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              THEN COALESCE(building_units.floor_plan_id, EXCLUDED.floor_plan_id)
+              ELSE COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id)
+            END,
+            cad_bbox = CASE
+              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              THEN COALESCE(building_units.cad_bbox, EXCLUDED.cad_bbox)
+              ELSE COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox)
+            END,
+            cad_polygon = CASE
+              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              THEN COALESCE(building_units.cad_polygon, EXCLUDED.cad_polygon)
+              ELSE COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon)
+            END,
+            unit_cad_url = CASE
+              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              THEN COALESCE(building_units.unit_cad_url, EXCLUDED.unit_cad_url)
+              ELSE COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url)
+            END,
             unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
             deleted_at = NULL,
             updated_at = NOW()
@@ -1274,6 +1294,112 @@ export class CadastralRepository {
         throw new BadRequestError('Không thể hoán đổi vị trí với chính nó');
       }
 
+      // 1.1. Chặn hoán đổi chéo phân loại (UNIT <-> MASTER)
+      const typeA = unitA.unit_type || 'UNIT';
+      const typeB = unitB.unit_type || 'UNIT';
+      if (typeA !== typeB) {
+        throw new BadRequestError(
+          `Không thể hoán đổi chéo giữa Căn hộ (${unitA.unit_code} - ${typeA}) và Mặt bằng/Khu vực chung (${unitB.unit_code} - ${typeB}). Chỉ cho phép hoán đổi cùng phân loại (UNIT <-> UNIT hoặc MASTER <-> MASTER).`
+        );
+      }
+
+      // 1.2. Khóa và truy vấn toàn bộ hồ sơ khảo sát (bao gồm cả DRAFT và SUBMITTED) của 2 vị trí
+      interface UnitReportRow {
+        id: string;
+        unit_id: string | null;
+        status: string;
+        survey_data_json: Record<string, unknown> | string | null;
+        sync_version: number | null;
+      }
+
+      const reportsARes = await client.query<UnitReportRow>(
+        `SELECT id, unit_id, status, survey_data_json, sync_version
+         FROM base_survey_reports
+         WHERE (unit_id = $1::uuid OR ($2::uuid IS NOT NULL AND id = $2::uuid))
+           AND deleted_at IS NULL
+         FOR UPDATE;`,
+        [unitA.id, unitA.phase1_report_id || null]
+      );
+
+      const reportsBRes = await client.query<UnitReportRow>(
+        `SELECT id, unit_id, status, survey_data_json, sync_version
+         FROM base_survey_reports
+         WHERE (unit_id = $1::uuid OR ($2::uuid IS NOT NULL AND id = $2::uuid))
+           AND deleted_at IS NULL
+         FOR UPDATE;`,
+        [unitB.id, unitB.phase1_report_id || null]
+      );
+
+      // 1.3. Chốt chặn bất biến pháp lý: Không cho phép hoán đổi nếu tòa nhà mẹ hoặc một trong 2 vị trí đã APPROVED
+      const parcelStatusRes = await client.query<{ survey_status: string; project_parcel_code: string }>(
+        `SELECT survey_status, project_parcel_code FROM parcels WHERE id = $1::uuid FOR UPDATE;`,
+        [parcelId]
+      );
+      if (
+        parcelStatusRes.rows[0] &&
+        ['APPROVED', 'APPROVED_PHASE2'].includes(parcelStatusRes.rows[0].survey_status)
+      ) {
+        throw new ForbiddenError(
+          `Không thể hoán đổi vị trí: Tòa nhà [${parcelStatusRes.rows[0].project_parcel_code}] đã được phê duyệt chính thức (${parcelStatusRes.rows[0].survey_status}) và bị khóa bất biến.`
+        );
+      }
+
+      const isApprovedOrLockedA =
+        unitA.status === 'APPROVED' ||
+        unitA.status === 'APPROVED_PHASE2' ||
+        reportsARes.rows.some((r) => r.status === 'APPROVED' || r.status === 'APPROVED_PHASE2');
+      if (isApprovedOrLockedA) {
+        throw new ForbiddenError(
+          `Không thể hoán đổi vị trí: Đơn vị [${unitA.unit_code}] đã được phê duyệt chính thức (APPROVED) hoặc đã bị khóa pháp lý bất biến.`
+        );
+      }
+
+      const isApprovedOrLockedB =
+        unitB.status === 'APPROVED' ||
+        unitB.status === 'APPROVED_PHASE2' ||
+        reportsBRes.rows.some((r) => r.status === 'APPROVED' || r.status === 'APPROVED_PHASE2');
+      if (isApprovedOrLockedB) {
+        throw new ForbiddenError(
+          `Không thể hoán đổi vị trí: Đơn vị [${unitB.unit_code}] đã được phê duyệt chính thức (APPROVED) hoặc đã bị khóa pháp lý bất biến.`
+        );
+      }
+
+      // 1.4. Xác định trạng thái dữ liệu của từng vị trí (1 căn đã có data <-> 1 căn chưa có data, 2 căn có data, hoặc 2 căn chưa có data)
+      const hasDataA =
+        Boolean(unitA.phase1_report_id) ||
+        Boolean(unitA.status && unitA.status !== 'NOT_SURVEYED') ||
+        reportsARes.rows.length > 0;
+
+      const hasDataB =
+        Boolean(unitB.phase1_report_id) ||
+        Boolean(unitB.status && unitB.status !== 'NOT_SURVEYED') ||
+        reportsBRes.rows.length > 0;
+
+      const extractCadUrlFromReport = (rep?: UnitReportRow): string | null => {
+        if (!rep || !rep.survey_data_json) return null;
+        const parsed =
+          typeof rep.survey_data_json === 'string'
+            ? (JSON.parse(rep.survey_data_json) as Record<string, unknown>)
+            : rep.survey_data_json;
+        const directUrl =
+          (typeof parsed.unitCadUrl === 'string' && parsed.unitCadUrl.trim() !== '' ? parsed.unitCadUrl : null) ||
+          (typeof parsed.cadSketchPhotoUrl === 'string' && parsed.cadSketchPhotoUrl.trim() !== '' ? parsed.cadSketchPhotoUrl : null);
+        if (directUrl) return directUrl;
+        if (parsed.floorSurvey && typeof parsed.floorSurvey === 'object') {
+          const fs = parsed.floorSurvey as Record<string, unknown>;
+          if (typeof fs.cadSketchPhotoUrl === 'string' && fs.cadSketchPhotoUrl.trim() !== '') {
+            return fs.cadSketchPhotoUrl;
+          }
+          if (typeof fs.cadDrawingUrl === 'string' && fs.cadDrawingUrl.trim() !== '') {
+            return fs.cadDrawingUrl;
+          }
+        }
+        return null;
+      };
+
+      const preservedCadUrlA = unitA.unit_cad_url || extractCadUrlFromReport(reportsARes.rows[0]) || null;
+      const preservedCadUrlB = unitB.unit_cad_url || extractCadUrlFromReport(reportsBRes.rows[0]) || null;
+
       // Lưu trữ snapshot cũ để ghi audit log và cập nhật
       const oldGeomA = {
         cad_bbox: unitA.cad_bbox,
@@ -1291,7 +1417,14 @@ export class CadastralRepository {
         floor_number: unitB.floor_number,
       };
 
-      // 2. Cập nhật hoán đổi tọa độ cho Unit A (nhận tọa độ của B)
+      // Quy tắc bảo toàn CAD theo giống cơ chế hoán đổi Nhà dân:
+      // - Chỉ đổi vị trí khung định vị trên bản đồ mặt bằng tầng (cad_bbox, cad_polygon, floor_plan_id, floor_number).
+      // - Nếu đơn vị ĐÃ CÓ DỮ LIỆU KHẢO SÁT (hasData = true): Giữ nguyên 100% ảnh CAD nội bộ của chính đơn vị đó (preservedCadUrl) để bảo vệ các điểm ghim Z-01/E-01, tuyệt đối không lấy unit_cad_url của đơn vị kia đè vào.
+      // - Nếu đơn vị CHƯA CÓ DỮ LIỆU KHẢO SÁT (hasData = false): Đặt unit_cad_url = NULL để khi KSV vào khảo sát lần đầu sẽ tự động cắt CAD chuẩn theo khung vị trí mới.
+      const nextUnitCadUrlA = hasDataA ? preservedCadUrlA : null;
+      const nextUnitCadUrlB = hasDataB ? preservedCadUrlB : null;
+
+      // 2. Cập nhật hoán đổi tọa độ khung trên mặt bằng tầng cho Unit A (nhận vị trí ô của B trên map tầng)
       const updateARes = await client.query<BuildingUnitEntity>(
         `UPDATE building_units
          SET cad_bbox = $1,
@@ -1305,14 +1438,14 @@ export class CadastralRepository {
         [
           oldGeomB.cad_bbox ? JSON.stringify(oldGeomB.cad_bbox) : null,
           oldGeomB.cad_polygon ? JSON.stringify(oldGeomB.cad_polygon) : null,
-          oldGeomB.unit_cad_url,
+          nextUnitCadUrlA,
           oldGeomB.floor_plan_id,
           oldGeomB.floor_number,
           unitA.id,
         ]
       );
 
-      // 3. Cập nhật hoán đổi tọa độ cho Unit B (nhận tọa độ của A)
+      // 3. Cập nhật hoán đổi tọa độ khung trên mặt bằng tầng cho Unit B (nhận vị trí ô của A trên map tầng)
       const updateBRes = await client.query<BuildingUnitEntity>(
         `UPDATE building_units
          SET cad_bbox = $1,
@@ -1326,69 +1459,164 @@ export class CadastralRepository {
         [
           oldGeomA.cad_bbox ? JSON.stringify(oldGeomA.cad_bbox) : null,
           oldGeomA.cad_polygon ? JSON.stringify(oldGeomA.cad_polygon) : null,
-          oldGeomA.unit_cad_url,
+          nextUnitCadUrlB,
           oldGeomA.floor_plan_id,
           oldGeomA.floor_number,
           unitB.id,
         ]
       );
 
-      // 4. Đồng bộ lại dữ liệu tọa độ CAD trong base_survey_reports (nếu các unit đã có báo cáo)
-      if (unitA.phase1_report_id) {
-        await client.query(
-          `UPDATE base_survey_reports
-           SET survey_data_json = jsonb_set(
-             jsonb_set(
-               jsonb_set(
-                 COALESCE(survey_data_json, '{}'::jsonb),
-                 '{cadPolygon}',
-                 $1::jsonb
-               ),
-               '{cadBbox}',
-               $2::jsonb
-             ),
-             '{unitCadUrl}',
-             to_jsonb($3::text)
-           ),
-           updated_at = NOW()
-           WHERE id = $4;`,
-          [
-            JSON.stringify(oldGeomB.cad_polygon || null),
-            JSON.stringify(oldGeomB.cad_bbox || null),
-            oldGeomB.unit_cad_url || '',
-            unitA.phase1_report_id,
-          ]
-        );
+      // 4. Đồng bộ lại dữ liệu khung vị trí trên mặt bằng tầng và khóa cứng CAD (isCadLocked = true) trong base_survey_reports & floor_surveys
+      const syncUnitReportsAndLockCad = async (
+        unit: BuildingUnitEntity,
+        reports: UnitReportRow[],
+        newGeom: {
+          cad_bbox: CadBBox | null | undefined;
+          cad_polygon: CadPolygonPoint[] | null | undefined;
+          floor_plan_id: string | null | undefined;
+          floor_number: number;
+        },
+        preservedCadUrl: string | null
+      ) => {
+        const isMaster = (unit.unit_type || 'UNIT') === 'MASTER';
+        for (const rep of reports) {
+          const rawJson: Record<string, unknown> =
+            typeof rep.survey_data_json === 'string'
+              ? (JSON.parse(rep.survey_data_json) as Record<string, unknown>)
+              : { ...(rep.survey_data_json || {}) };
+
+          const existingUnitCadUrl =
+            (typeof rawJson.unitCadUrl === 'string' && rawJson.unitCadUrl.trim() !== ''
+              ? rawJson.unitCadUrl
+              : null) || preservedCadUrl;
+
+          const existingCadSketchUrl =
+            (typeof rawJson.cadSketchPhotoUrl === 'string' && rawJson.cadSketchPhotoUrl.trim() !== ''
+              ? rawJson.cadSketchPhotoUrl
+              : null) || preservedCadUrl;
+
+          const updatedJson: Record<string, unknown> = {
+            ...rawJson,
+            cadBbox: newGeom.cad_bbox || null,
+            cadPolygon: newGeom.cad_polygon || null,
+            floorNumber: newGeom.floor_number,
+            isCadLocked: true,
+            isCadOverriddenByUser: true,
+          };
+
+          if (!isMaster && existingUnitCadUrl) {
+            updatedJson.unitCadUrl = existingUnitCadUrl;
+          }
+          if (isMaster && existingCadSketchUrl) {
+            updatedJson.cadSketchPhotoUrl = existingCadSketchUrl;
+          }
+
+          if (updatedJson.floorSurvey && typeof updatedJson.floorSurvey === 'object') {
+            const fs = { ...(updatedJson.floorSurvey as Record<string, unknown>) };
+            fs.floorOrder = newGeom.floor_number;
+            fs.isCadLocked = true;
+            if (existingCadSketchUrl && (!fs.cadSketchPhotoUrl || fs.cadSketchPhotoUrl === '')) {
+              fs.cadSketchPhotoUrl = existingCadSketchUrl;
+            }
+            updatedJson.floorSurvey = fs;
+          }
+
+          if (Array.isArray(updatedJson.floors) && updatedJson.floors.length > 0) {
+            updatedJson.floors = updatedJson.floors.map((fl: unknown, idx: number) => {
+              if (idx === 0 && fl && typeof fl === 'object') {
+                const flObj = { ...(fl as Record<string, unknown>) };
+                flObj.floorOrder = newGeom.floor_number;
+                flObj.isCadLocked = true;
+                return flObj;
+              }
+              return fl;
+            });
+          }
+
+          await client.query(
+            `UPDATE base_survey_reports
+             SET survey_data_json = $1::jsonb,
+                 sync_version = COALESCE(sync_version, 1) + 1,
+                 updated_at = NOW()
+             WHERE id = $2::uuid;`,
+            [JSON.stringify(updatedJson), rep.id]
+          );
+
+          await client.query(
+            `UPDATE floor_surveys
+             SET floor_order = $1,
+                 floor_name = CASE
+                   WHEN $3 = 'MASTER' THEN floor_name
+                   ELSE $2
+                 END
+             WHERE report_id = $4::uuid;`,
+            [
+              newGeom.floor_number,
+              `Căn hộ ${unit.display_code || unit.unit_code} (Tầng ${newGeom.floor_number})`,
+              unit.unit_type || 'UNIT',
+              rep.id,
+            ]
+          );
+
+          // 4.1. Ghi bản chụp lịch sử phiên bản (survey_report_versions) để Audit Studio truy vết (EC-04)
+          const maxVerRes = await client.query<{ max_ver: number | null }>(
+            `SELECT MAX(version_number) AS max_ver FROM survey_report_versions WHERE report_id = $1::uuid;`,
+            [rep.id]
+          );
+          const nextVer =
+            maxVerRes.rows[0]?.max_ver !== null && maxVerRes.rows[0]?.max_ver !== undefined
+              ? Number(maxVerRes.rows[0].max_ver) + 1
+              : 1;
+
+          await client.query(
+            `INSERT INTO survey_report_versions (
+               report_id, version_number, version_tag, title, edit_reason,
+               snapshot_data, diff_summary, created_by_user_id, client_ip
+             ) VALUES (
+               $1::uuid, $2, 'UNIT_CAD_SPATIAL_SWAP', $3, $4,
+               $5::jsonb, $6::jsonb,
+               (SELECT id FROM users WHERE id = $7::uuid LIMIT 1),
+               $8
+             );`,
+            [
+              rep.id,
+              nextVer,
+              `Hoán đổi vị trí ô CAD mặt bằng (${unit.unit_code})`,
+              reason,
+              JSON.stringify(updatedJson),
+              JSON.stringify([
+                {
+                  field: 'cadBbox',
+                  oldValue: unit.cad_bbox || null,
+                  newValue: newGeom.cad_bbox || null,
+                },
+                {
+                  field: 'floorNumber',
+                  oldValue: unit.floor_number,
+                  newValue: newGeom.floor_number,
+                },
+                {
+                  field: 'isCadLocked',
+                  oldValue: Boolean(rawJson.isCadLocked),
+                  newValue: true,
+                },
+              ]),
+              adminId,
+              clientIp || null,
+            ]
+          );
+        }
+      };
+
+      if (hasDataA && reportsARes.rows.length > 0) {
+        await syncUnitReportsAndLockCad(unitA, reportsARes.rows, oldGeomB, preservedCadUrlA);
       }
 
-      if (unitB.phase1_report_id) {
-        await client.query(
-          `UPDATE base_survey_reports
-           SET survey_data_json = jsonb_set(
-             jsonb_set(
-               jsonb_set(
-                 COALESCE(survey_data_json, '{}'::jsonb),
-                 '{cadPolygon}',
-                 $1::jsonb
-               ),
-               '{cadBbox}',
-               $2::jsonb
-             ),
-             '{unitCadUrl}',
-             to_jsonb($3::text)
-           ),
-           updated_at = NOW()
-           WHERE id = $4;`,
-          [
-            JSON.stringify(oldGeomA.cad_polygon || null),
-            JSON.stringify(oldGeomA.cad_bbox || null),
-            oldGeomA.unit_cad_url || '',
-            unitB.phase1_report_id,
-          ]
-        );
+      if (hasDataB && reportsBRes.rows.length > 0) {
+        await syncUnitReportsAndLockCad(unitB, reportsBRes.rows, oldGeomA, preservedCadUrlB);
       }
 
-      // 5. Ghi log kiểm toán pháp lý hệ thống
+      // 5. Ghi log kiểm toán pháp lý hệ thống (system_audit_logs)
       const swapEventCode = `SWAP-UNIT-CAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       await client.query(
         `INSERT INTO system_audit_logs (
@@ -1406,23 +1634,29 @@ export class CadastralRepository {
               id: unitA.id,
               unitCode: unitA.unit_code,
               displayCode: unitA.display_code,
-              unitType: unitA.unit_type,
+              unitType: typeA,
               status: unitA.status,
+              hasSurveyData: hasDataA,
+              isCadLocked: hasDataA,
               oldFloor: oldGeomA.floor_number,
               newFloor: oldGeomB.floor_number,
               oldBbox: oldGeomA.cad_bbox,
               newBbox: oldGeomB.cad_bbox,
+              preservedUnitCadUrl: nextUnitCadUrlA,
             },
             unitB: {
               id: unitB.id,
               unitCode: unitB.unit_code,
               displayCode: unitB.display_code,
-              unitType: unitB.unit_type,
+              unitType: typeB,
               status: unitB.status,
+              hasSurveyData: hasDataB,
+              isCadLocked: hasDataB,
               oldFloor: oldGeomB.floor_number,
               newFloor: oldGeomA.floor_number,
               oldBbox: oldGeomB.cad_bbox,
               newBbox: oldGeomA.cad_bbox,
+              preservedUnitCadUrl: nextUnitCadUrlB,
             },
             reason,
             timestamp: new Date().toISOString(),
@@ -1432,7 +1666,7 @@ export class CadastralRepository {
       );
 
       return {
-        message: `Đã hoán đổi thành công tọa độ CAD giữa ${unitA.unit_code} và ${unitB.unit_code}. Toàn bộ mã định danh, hồ sơ và watermark ảnh được bảo toàn nguyên vẹn.`,
+        message: `Đã hoán đổi thành công vị trí trên mặt bằng tầng giữa ${unitA.unit_code} và ${unitB.unit_code}. Toàn bộ mã định danh, hồ sơ khảo sát, bản vẽ CAD nội bộ và các điểm ghim đã được khóa cứng & bảo toàn 100%.`,
         unitA: updateARes.rows[0],
         unitB: updateBRes.rows[0],
         swapEventCode,

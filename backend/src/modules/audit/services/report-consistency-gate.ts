@@ -28,7 +28,52 @@ export interface ConsistencyGateResult {
     recordedV2Score?: number;
     hasStructureV2Mismatch: boolean;
     hasEmptyPartialAccessNotes: boolean;
+    hasGeometryMismatch?: boolean;
+    keepKsvBoundaryAcknowledged?: boolean;
   };
+}
+
+function normalizePolygonRing(coords: unknown): [number, number][] {
+  if (!Array.isArray(coords)) return [];
+  const valid: [number, number][] = [];
+  for (const pt of coords) {
+    if (
+      Array.isArray(pt) &&
+      pt.length >= 2 &&
+      Number.isFinite(Number(pt[0])) &&
+      Number.isFinite(Number(pt[1]))
+    ) {
+      valid.push([Number(pt[0]), Number(pt[1])]);
+    }
+  }
+  if (valid.length > 3) {
+    const first = valid[0];
+    const last = valid[valid.length - 1];
+    if (Math.abs(first[0] - last[0]) < 1e-6 && Math.abs(first[1] - last[1]) < 1e-6) {
+      return valid.slice(0, -1);
+    }
+  }
+  return valid;
+}
+
+function arePolygonsDifferent(
+  polyA: [number, number][],
+  polyB: [number, number][],
+  tolerance = 0.00001
+): boolean {
+  const ringA = normalizePolygonRing(polyA);
+  const ringB = normalizePolygonRing(polyB);
+  if (ringA.length < 3 || ringB.length < 3) return false;
+  if (ringA.length !== ringB.length) return true;
+  for (let i = 0; i < ringA.length; i++) {
+    if (
+      Math.abs(ringA[i][0] - ringB[i][0]) > tolerance ||
+      Math.abs(ringA[i][1] - ringB[i][1]) > tolerance
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export class ReportConsistencyGate {
@@ -77,7 +122,10 @@ export class ReportConsistencyGate {
           flNameEn.includes('roof') ||
           flNameEn.includes('terrace');
 
-        if (isRoofFloor && Array.isArray(fl.defects) && fl.defects.length > 0) {
+        const activeFloorDefects = Array.isArray(fl.defects)
+          ? fl.defects.filter((d: any) => !d?.isDeleted && !d?.is_deleted)
+          : [];
+        if (isRoofFloor && activeFloorDefects.length > 0) {
           hasRoofDefects = true;
           hardErrors.push(
             'Mâu thuẫn dữ liệu: Phạm vi tiếp cận ghi nhận "Mái / Sân thượng: Không tiếp cận" nhưng danh sách khảo sát lại có vết nứt/khuyết tật tại tầng mái/sân thượng. Vui lòng chuẩn hóa trước khi phê duyệt.'
@@ -87,6 +135,7 @@ export class ReportConsistencyGate {
 
         if (Array.isArray(fl.zones)) {
           for (const z of fl.zones) {
+            if (z?.isDeleted || z?.is_deleted) continue;
             const rName = (z.roomName || '').toLowerCase();
             const rNameEn = (z.roomNameEn || '').toLowerCase();
             const isRoofZone =
@@ -95,7 +144,10 @@ export class ReportConsistencyGate {
               rName.includes('sân thượng') ||
               rNameEn.includes('roof') ||
               rNameEn.includes('terrace');
-            if (isRoofZone && Array.isArray(z.defects) && z.defects.length > 0) {
+            const activeZoneDefects = Array.isArray(z.defects)
+              ? z.defects.filter((d: any) => !d?.isDeleted && !d?.is_deleted)
+              : [];
+            if (isRoofZone && activeZoneDefects.length > 0) {
               hasRoofDefects = true;
               hardErrors.push(
                 `Mâu thuẫn dữ liệu: Phạm vi tiếp cận ghi nhận "Mái / Sân thượng: Không tiếp cận" nhưng khu vực khảo sát mái/sân thượng (${z.roomName || 'Sân thượng'}) có chứa khuyết tật. Vui lòng chuẩn hóa trước khi phê duyệt.`
@@ -159,9 +211,13 @@ export class ReportConsistencyGate {
       surveyJson?.structureSystem || specs.structuralType || specs.structural_system || '';
     const structClass = classifyStructureSystem(rawStructSys);
     const expectedV2 = v2ScoreForStructure(structClass);
+    const rawRecordedV2 =
+      surveyJson?.vulnerabilityIndex?.v2 ??
+      surveyJson?.vi?.v2 ??
+      reportRow?.riskScores?.v2_structure_score;
     const recordedV2 =
-      surveyJson?.vulnerabilityIndex?.v2 !== undefined
-        ? Number(surveyJson.vulnerabilityIndex.v2)
+      rawRecordedV2 !== undefined && rawRecordedV2 !== null
+        ? Number(rawRecordedV2)
         : undefined;
 
     let hasStructureV2Mismatch = false;
@@ -193,6 +249,58 @@ export class ReportConsistencyGate {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // 5. HARD INCONSISTENCY: Xung đột ranh đất GPMB giữa PostGIS và Survey JSON (Mục 01 - /grill-me)
+    // -------------------------------------------------------------------------
+    let hasGeometryMismatch = false;
+    let keepKsvBoundaryAcknowledged = false;
+
+    const rawGeo =
+      reportRow?.cadastral_geojson ||
+      reportRow?.parcel_polygon_geojson ||
+      reportRow?.cadastralGeojson;
+
+    let postgisRing: [number, number][] = [];
+    if (rawGeo) {
+      try {
+        const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : rawGeo;
+        if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          postgisRing = normalizePolygonRing(
+            parsed.coordinates[0].map((pt: [number, number]) => [Number(pt[1]), Number(pt[0])])
+          );
+        }
+      } catch (err) {
+        console.error('[ReportConsistencyGate] Lỗi phân tích đa giác PostGIS:', err);
+      }
+    }
+
+    const surveyRing = normalizePolygonRing(
+      Array.isArray(surveyJson?.parcelCoordinates) && surveyJson.parcelCoordinates.length >= 3
+        ? surveyJson.parcelCoordinates
+        : surveyJson?.polygonCoords
+    );
+
+    if (postgisRing.length >= 3 && surveyRing.length >= 3) {
+      if (arePolygonsDifferent(postgisRing, surveyRing, 0.00001)) {
+        hasGeometryMismatch = true;
+        const isKeepKsvConfirmed = surveyJson?.keepKsvBoundaryConfirmed === true;
+        const ksvReasonStr = String(
+          surveyJson?.keepKsvBoundaryReason || judgementNotes || ''
+        ).trim();
+
+        if (isKeepKsvConfirmed && ksvReasonStr.length >= 10) {
+          keepKsvBoundaryAcknowledged = true;
+          warnings.push(
+            `[POSTGIS_GEOMETRY_MISMATCH_ACKNOWLEDGED] Đã xác nhận giữ ranh khảo sát thực địa của KSV kèm giải trình ("${ksvReasonStr.slice(0, 60)}").`
+          );
+        } else {
+          hardErrors.push(
+            '[POSTGIS_GEOMETRY_MISMATCH_UNACKNOWLEDGED] Phát hiện xung đột ranh đất GPMB: Đa giác ranh thửa trên CSDL PostGIS khác với ranh khảo sát trong hồ sơ nhưng chưa được đồng bộ hoặc xác nhận giữ ranh KSV kèm lý do giải trình (tối thiểu 10 ký tự).'
+          );
+        }
+      }
+    }
+
     return {
       passed: hardErrors.length === 0,
       hardErrors,
@@ -208,6 +316,8 @@ export class ReportConsistencyGate {
         recordedV2Score: recordedV2,
         hasStructureV2Mismatch,
         hasEmptyPartialAccessNotes,
+        hasGeometryMismatch,
+        keepKsvBoundaryAcknowledged,
       },
     };
   }

@@ -147,121 +147,38 @@ export class ReportService {
   /**
    * Cập nhật thông tin/ghi chú trực tiếp của Báo cáo trước khi xuất file
    */
-  static async updateReportSurveyData(reportId: string, updates: any): Promise<{
+  static async updateReportSurveyData(reportId: string, _updates: any): Promise<{
     success: boolean;
     reportId: string;
     exportRevision: number;
     message: string;
   }> {
-    const rawReport = await ReportService.resolveReport(reportId);
-
-    if (rawReport.status === 'APPROVED') {
-      throw new ForbiddenError(
-        'Hồ sơ khảo sát này đã được Zone Admin phê duyệt chính thức và bị khóa bất biến, không thể chỉnh sửa dữ liệu.'
-      );
-    }
-
-    const realReportId = rawReport.id;
-    const existingJson = rawReport.survey_data_json || {};
-
-    // Clone existing JSON to avoid in-place mutation issues
-    const updatedJson = JSON.parse(JSON.stringify(existingJson));
-
-    // 1. Thông tin chung & Quy mô công trình
-    if (updates.buildingName !== undefined) updatedJson.buildingName = updates.buildingName;
-    if (updates.ownerName !== undefined) updatedJson.ownerName = updates.ownerName;
-    if (updates.ownerPhone !== undefined) updatedJson.ownerPhone = updates.ownerPhone;
-    if (updates.houseNumber !== undefined) updatedJson.houseNumber = updates.houseNumber;
-    if (updates.street !== undefined) updatedJson.street = updates.street;
-    if (updates.aboveFloors !== undefined) updatedJson.aboveFloors = Number(updates.aboveFloors);
-    if (updates.undergroundFloors !== undefined) updatedJson.undergroundFloors = Number(updates.undergroundFloors);
-    if (updates.constructionYear !== undefined) updatedJson.constructionYear = updates.constructionYear;
-    if (updates.isEstimatedYear !== undefined) updatedJson.isEstimatedYear = Boolean(updates.isEstimatedYear);
-    if (updates.constructionAreaM2 !== undefined) updatedJson.constructionAreaM2 = updates.constructionAreaM2;
-    if (updates.buildingHeightM !== undefined) updatedJson.buildingHeightM = updates.buildingHeightM;
-    if (updates.structureSystem !== undefined) updatedJson.structureSystem = updates.structureSystem;
-    if (updates.usageFunction !== undefined) updatedJson.usageFunction = updates.usageFunction;
-
-    // 2. Móng công trình
-    if (updates.foundationType !== undefined) updatedJson.foundationType = updates.foundationType;
-    if (updates.foundationCatScore !== undefined) updatedJson.foundationCatScore = updates.foundationCatScore;
-    if (updates.foundationSource !== undefined) updatedJson.foundationSource = updates.foundationSource;
-    if (updates.foundationDepthM !== undefined) updatedJson.foundationDepthM = updates.foundationDepthM;
-    if (updates.pileDimensionMm !== undefined) updatedJson.pileDimensionMm = updates.pileDimensionMm;
-    if (updates.foundationNotes !== undefined) updatedJson.foundationNotes = updates.foundationNotes;
-
-    // 3. Công trình liền kề
-    if (updates.adjacentBuildings !== undefined) {
-      updatedJson.adjacentBuildings = {
-        ...updatedJson.adjacentBuildings,
-        ...updates.adjacentBuildings,
-      };
-    }
-
-    // 4. Các tầng & Sổ khuyết tật (Floors, Zones, Defects)
-    if (updates.floors && Array.isArray(updates.floors)) {
-      updatedJson.floors = updates.floors;
-    }
-
-    // 5. Đo đạc biến dạng & Lún nghiêng
-    if (updates.settlementTilt !== undefined) {
-      updatedJson.settlementTilt = {
-        ...updatedJson.settlementTilt,
-        ...updates.settlementTilt,
-      };
-    }
-
-    // 6. Kết luận & Kiến nghị kỹ thuật
-    if (!updatedJson.executiveSummary) updatedJson.executiveSummary = {};
-    if (updates.summaryConclusions !== undefined) {
-      updatedJson.executiveSummary.keyRisksDefectsText = updates.summaryConclusions;
-      updatedJson.executiveSummary.summaryConclusionsText = updates.summaryConclusions;
-    }
-    if (updates.engineeringRecommendations !== undefined) {
-      updatedJson.executiveSummary.specificRecommendationsText = updates.engineeringRecommendations;
-    }
-
-    // 7. Ý kiến chủ nhà
-    if (updates.ownerRemarks !== undefined) {
-      updatedJson.ownerRemarks = updates.ownerRemarks;
-      if (!updatedJson.signatures) updatedJson.signatures = {};
-      updatedJson.signatures.ownerFeedback = updates.ownerRemarks;
-    }
-
-    // 8. Nếu client gửi trực tiếp surveyDataJson
-    if (updates.surveyDataJson && typeof updates.surveyDataJson === 'object') {
-      Object.assign(updatedJson, updates.surveyDataJson);
-    }
-
-    const newRev = await SurveyRepository.updateReportData(realReportId, {
-      surveyDataJson: updatedJson,
-      ownerRemarks: updates.ownerRemarks ?? updatedJson.ownerRemarks,
-      summaryConclusions: updates.summaryConclusions ?? updatedJson.executiveSummary?.keyRisksDefectsText,
-      engineeringRecommendations: updates.engineeringRecommendations ?? updatedJson.executiveSummary?.specificRecommendationsText,
-      houseNumber: updates.houseNumber ?? updatedJson.houseNumber,
-      street: updates.street ?? updatedJson.street,
-      ownerName: updates.ownerName ?? updatedJson.ownerName,
-      ownerPhone: updates.ownerPhone ?? updatedJson.ownerPhone,
-      constructionAreaM2: updates.constructionAreaM2 ?? updatedJson.constructionAreaM2,
-      buildingHeightM: updates.buildingHeightM ?? updatedJson.buildingHeightM,
-      foundationDepthM: updates.foundationDepthM ?? updatedJson.foundationDepthM,
-      foundationNotes: updates.foundationNotes ?? updatedJson.foundationNotes,
-      yearOfConstruction: updates.constructionYear ?? updatedJson.constructionYear,
-      buildingName: updates.buildingName ?? updatedJson.buildingName,
-    });
-
-    return {
-      success: true,
-      reportId: realReportId,
-      exportRevision: newRev,
-      message: `Đã cập nhật thông tin khảo sát thành công (Phiên bản xuất: Rev ${String(newRev).padStart(2, '0')})`,
-    };
+    await ReportService.resolveReport(reportId);
+    throw new ForbiddenError(
+      'Chức năng sửa dữ liệu trực tiếp đã ngừng hỗ trợ. Mọi chỉnh sửa bắt buộc thực hiện tại phân hệ Thẩm định (Audit Studio).'
+    );
   }
 
   /**
-   * Lấy chi tiết raw report data theo ID hoặc code
+   * Lấy chi tiết raw report data theo ID hoặc code (tự động nạp Snapshot nếu đã APPROVED và che PII nếu là GUEST)
    */
-  static async getReportDetail(reportId: string): Promise<any> {
-    return await ReportService.resolveReport(reportId);
+  static async getReportDetail(reportId: string, maskPii: boolean = false, revision?: number): Promise<any> {
+    let rawReport = await ReportService.resolveReport(reportId);
+    if (String(rawReport.status || '').toUpperCase() === 'APPROVED' && rawReport.id) {
+      try {
+        const { ReportSnapshotService } = await import('../report_v3/report-snapshot.service');
+        const snap = await ReportSnapshotService.getSnapshotForRevision(String(rawReport.id), revision);
+        if (snap?.snapshot) {
+          rawReport = ReportSnapshotService.applySnapshotToReport(rawReport, snap.snapshot);
+          rawReport.status = 'APPROVED';
+        }
+      } catch (err) {
+        console.warn(`[ReportService.getReportDetail] Không thể nạp snapshot cho report ${rawReport.id}:`, err);
+      }
+    }
+    if (maskPii) {
+      return maskReportPii(rawReport);
+    }
+    return rawReport;
   }
 }

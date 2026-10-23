@@ -291,7 +291,13 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
             const ctxUrl = (z.ctxPhotoUrl || z.ctx_photo_url || '') as string;
             // Composite key phân cấp duy nhất cho Vùng Z
             const zId = z.id ? String(z.id) : '';
-            const zoneKey = zId ? (zId.startsWith('zone_') ? `${zId}_ctx` : `zone_${zId}_ctx`) : `zone_f${fIdx}_z${zCode}_ctx`;
+            const isZoneUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(zId);
+            const zoneKey =
+              zId && isZoneUuid
+                ? zId.startsWith('zone_')
+                  ? `${zId}_ctx`
+                  : `zone_${zId}_ctx`
+                : `zone_f${fIdx}_z${zCode}_ctx`;
             if (ctxUrl) {
               addCandidate({
                 key: zoneKey,
@@ -320,9 +326,15 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
                   const hasMultiCu = cuPhotos.length > 1;
                   // Composite key phân cấp duy nhất cho từng khuyết tật và từng ảnh cận cảnh
                   const dId = d.id ? String(d.id) : '';
-                  const defectKey = dId
-                    ? (dId.startsWith('defect_') ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}` : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`)
-                    : `defect_f${fIdx}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                  const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
+                  const defectKey =
+                    dId && isDefectUuid
+                      ? dId.startsWith('defect_')
+                        ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                        : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                      : dId
+                        ? `defect_f${fIdx}_z${zCode}_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                        : `defect_f${fIdx}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
                   const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
 
                   addCandidate({
@@ -371,9 +383,11 @@ export function usePhotoOrientationAudit(data: Record<string, unknown> | null | 
         defects.forEach((d, dIdx) => {
           const cuUrl = (d.cu_photo_url || d.cuPhotoUrl || '') as string;
           const dCode = (d.defect_code || d.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`) as string;
+          const dId = d.id ? String(d.id) : '';
+          const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
           if (cuUrl) {
             addCandidate({
-              key: `defect_${d.id || dCode}_cu`,
+              key: dId && isDefectUuid ? `defect_${dId}_cu` : `defect_flat_${dIdx}_${dCode}_cu`,
               ruleKey: 'D_CU',
               photoCode: `${dCode}-CU`,
               title: `Cận cảnh vết nứt ${dCode}`,

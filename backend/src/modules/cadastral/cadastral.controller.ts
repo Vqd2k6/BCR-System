@@ -26,9 +26,10 @@ export class CadastralController {
     try {
       const isGuest = req.user?.role === 'GUEST';
       let zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
-      // Nếu là GUEST và đã được gán Zone cụ thể thì bắt buộc theo Zone đó
-      if (isGuest && req.user?.assignedZoneId) {
-        zoneId = req.user.assignedZoneId;
+      // Nếu là GUEST và đã được gán Zone cụ thể (không phải ALL / ALL_ZONES) thì bắt buộc theo Zone đó
+      const guestAssigned = (req.user?.assignedZoneId || '').trim().toUpperCase();
+      if (isGuest && guestAssigned && guestAssigned !== 'ALL' && guestAssigned !== 'ALL_ZONES') {
+        zoneId = req.user!.assignedZoneId!;
       }
       const status = req.query.status as string;
       const parcels = await CadastralService.listParcelsInZone(zoneId, status);
@@ -485,7 +486,8 @@ export class CadastralController {
         parcelBId,
         adminId,
         reason || '',
-        clientIp
+        clientIp,
+        req.user
       );
 
       res.status(200).json(result);

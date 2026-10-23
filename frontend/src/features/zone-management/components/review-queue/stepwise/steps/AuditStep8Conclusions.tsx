@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileCheck2, Compass, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { BRA_MATRIX_LOOKUP, calculateConstructionImpact } from '../../../../../survey-phase1/engine/braEngine';
+import { BRA_MATRIX_LOOKUP, calculateConstructionImpact, calculateBraRisk } from '../../../../../survey-phase1/engine/braEngine';
 import type { AuditStepwiseFormState, StepwiseExecutiveSummary } from '../types';
 import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
 
@@ -55,8 +55,14 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   const overrideReason: string = (exec.impactOverrideReason as string) || '';
   const isReasonValid = !isImpactOverridden || overrideReason.trim().length >= 5;
 
-  // Map braStatus to code
-  const vCode: 'V1' | 'V2' | 'V3' | 'V4' = currentBra === 'VERY_HIGH' ? 'V4' : currentBra === 'HIGH' ? 'V3' : currentBra === 'MEDIUM' ? 'V2' : 'V1';
+  // Xác định hàng vCode (V1..V4) từ phân hạng tổn thương VI (vi.viClass) theo đúng chuẩn braEngine.ts của FE Phase 1
+  const viState = (formState.vi || {}) as { viClass?: string; viAvg?: number; avgVi?: number };
+  const rawViAvg = Number(viState.viAvg ?? viState.avgVi ?? 0);
+  const derivedViClass =
+    viState.viClass ||
+    (rawViAvg > 3.25 ? 'VERY_HIGH' : rawViAvg > 2.5 ? 'HIGH' : rawViAvg > 1.5 ? 'MEDIUM' : 'LOW');
+  const braMatrixEval = calculateBraRisk(derivedViClass, impactCode);
+  const vCode: 'V1' | 'V2' | 'V3' | 'V4' = braMatrixEval.vCode;
 
   const summaryConclusions = formState.summaryConclusions || exec.summaryConclusions || '';
   const keyRisksDefectsText = formState.keyRisksDefectsText || exec.keyRisksDefectsText || '';
@@ -251,7 +257,7 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
               <tbody>
                 {(['V1', 'V2', 'V3', 'V4'] as const).map((vKey) => {
                   const isCurrentV = vCode === vKey;
-                  const vName = vKey === 'V1' ? 'V1 (Rất thấp)' : vKey === 'V2' ? 'V2 (Thấp)' : vKey === 'V3' ? 'V3 (Trung bình)' : 'V4 (Cao)';
+                  const vName = vKey === 'V1' ? 'V1 (Low)' : vKey === 'V2' ? 'V2 (Medium)' : vKey === 'V3' ? 'V3 (High)' : 'V4 (Very High)';
                   return (
                     <tr key={vKey} className={isCurrentV ? 'bg-sky-50 font-bold' : ''}>
                       <td className={`border border-slate-200 p-2 text-left font-bold bg-slate-100 ${isCurrentV ? 'text-sky-900 bg-sky-100' : 'text-slate-700'}`}>

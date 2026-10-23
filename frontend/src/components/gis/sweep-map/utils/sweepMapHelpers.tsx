@@ -49,7 +49,13 @@ export const getParcelCenter = (parcel: GisParcel, fallbackCenter: [number, numb
 export const getEffectiveParcelStatus = (parcel: GisParcel): GisParcel['surveyStatus'] => {
   if (!parcel) return 'NOT_SURVEYED';
   const baseStatus = parcel.surveyStatus || parcel.survey_status || 'NOT_SURVEYED';
-  if (baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2' || baseStatus === 'SUBMITTED') {
+  if (
+    baseStatus === 'APPROVED' ||
+    baseStatus === 'PHASE2_COMPLETED' ||
+    baseStatus === 'APPROVED_PHASE2' ||
+    baseStatus === 'SUBMITTED' ||
+    baseStatus === 'UNDER_REVIEW'
+  ) {
     return baseStatus;
   }
   const pid = parcel.id;
@@ -85,6 +91,7 @@ export const getStatusColor = (status: GisParcel['surveyStatus']) => {
     case 'APPROVED_PHASE2':
       return '#2563eb'; // Royal Blue: Phase 2 Completed (Prior to construction)
     case 'SUBMITTED':
+    case 'UNDER_REVIEW':
       return '#0284c7'; // Sky Blue: Submitted & Pending Zone Admin approval
     case 'IN_PROGRESS':
       return '#f59e0b'; // Amber: In progress on device (Unsubmitted)
@@ -121,7 +128,8 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisPa
           Hoàn tất Phase 2
         </span>
       );
-    case 'SUBMITTED': {
+    case 'SUBMITTED':
+    case 'UNDER_REVIEW': {
       let subTypeText = '';
       if (parcel?.id) {
         try {

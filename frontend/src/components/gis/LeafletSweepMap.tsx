@@ -21,10 +21,12 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   parcels,
   selectedZone,
   onSelectZone,
+  initialSelectedParcel,
   onSelectParcel,
   onStartSurvey,
   onStartPhase2,
   onOpenBuildingHub,
+  onOpenAuditReview,
   onRecordAbsence,
   onProposeSplit,
   userGps,
@@ -79,6 +81,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     parcels,
     selectedZone,
     onSelectZone,
+    initialSelectedParcel,
     onSelectParcel,
     onRecordAbsence,
     userGps,
@@ -141,7 +144,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           style={{ width: '100%', height: '100%' }}
           scrollWheelZoom={true}
         >
-          <ChangeView center={currentStation.center} zoom={16} />
+          <ChangeView center={currentStation.center} zoom={16} zoneKey={currentStation.code} />
           <FlyToController targetCoords={targetFlyCoords} />
           <ZoomControl position="bottomright" />
 
@@ -291,6 +294,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           onStartSurvey={onStartSurvey}
           onStartPhase2={onStartPhase2}
           onOpenBuildingHub={onOpenBuildingHub}
+          onOpenAuditReview={(p) => {
+            onOpenAuditReview?.(p);
+          }}
           onProposeSplit={(p) => {
             setActiveParcel(null);
             onProposeSplit?.(p);

@@ -31,23 +31,37 @@ export class RiskScoringCalculator {
     const specs = rawReport.buildingSpecs || json || {};
     const rScores = rawReport.riskScores;
 
-    // Kiểm tra công trình nguyên vẹn không khuyết tật (Zero Defects)
+    // Kiểm tra công trình nguyên vẹn không khuyết tật (Zero Defects) - Tôn trọng 100% điểm và cấp độ đã chốt trong APPROVED
     const hasAnyFloorDefects = Array.isArray(json.floors) && json.floors.some((fl: any) =>
-      (fl.zones || []).some((zn: any) => (zn.defects || []).length > 0) ||
-      (fl.elements || []).some((el: any) => (el.defects || []).length > 0)
+      (fl.zones || []).filter((zn: any) => !zn?.isDeleted && !zn?.is_deleted).some((zn: any) => (zn.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted).length > 0) ||
+      (fl.structuralElements || fl.elements || []).filter((el: any) => !el?.isDeleted && !el?.is_deleted).some((el: any) => (el.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted).length > 0)
     );
-    const isZeroDefects = isZeroDefectsParam !== undefined
-      ? isZeroDefectsParam
-      : (burlandMaxGrade === 0 && !hasAnyFloorDefects);
+    const rawApprovedFlag = String(json.burlandSummary?.structuralFlagLevel || '').trim().toUpperCase();
+    const hasExplicitApprovedGradeOrFlag =
+      (burlandMaxGrade !== undefined && burlandMaxGrade > 0) ||
+      (json.burlandSummary?.localMaxGrade !== undefined && Number(json.burlandSummary.localMaxGrade) > 0) ||
+      ['LOW', 'MODERATE', 'HIGH', 'CRITICAL'].includes(rawApprovedFlag) ||
+      (ecsData.e1 !== undefined && Number(ecsData.e1) > 0) ||
+      (ecsData.e2 !== undefined && Number(ecsData.e2) > 0) ||
+      (rScores?.e1_burland_score !== undefined && Number(rScores.e1_burland_score) > 0) ||
+      (rScores?.e2_structure_score !== undefined && Number(rScores.e2_structure_score) > 0);
+    const isZeroDefects = hasExplicitApprovedGradeOrFlag
+      ? false
+      : (isZeroDefectsParam !== undefined
+        ? isZeroDefectsParam
+        : (burlandMaxGrade === 0 && !hasAnyFloorDefects));
 
     // =========================================================================
     // 1. TÍNH TOÁN BẢNG 11: ECS (EXISTING CONDITION SCORE: 0 - 24)
+    // Đọc 100% từ dữ liệu đã chốt (survey_data_json.ecs / riskScores) không dùng Math.max ghi đè
     // =========================================================================
-    // E1: Hư hỏng nhìn thấy tường/khối xây (Burland Grade Max)
-    // Quy tắc ecsCalculator.ts: B <= 1: 0đ; B = 2: 1đ; B = 3: 2đ; B = 4: 3đ; B >= 5: 4đ
     const e1BurlandGrade = isZeroDefects ? 0 : (burlandMaxGrade ?? (json.burlandSummary?.localMaxGrade ?? 0));
     const e1Calc = e1BurlandGrade <= 1 ? 0 : e1BurlandGrade === 2 ? 1 : e1BurlandGrade === 3 ? 2 : e1BurlandGrade === 4 ? 3 : 4;
-    const e1 = isZeroDefects ? 0 : (ecsData.e1 !== undefined ? Math.max(Number(ecsData.e1), e1Calc) : e1Calc);
+    const e1 = ecsData.e1 !== undefined && ecsData.e1 !== null
+      ? Number(ecsData.e1)
+      : (rScores?.e1_burland_score !== undefined && rScores?.e1_burland_score !== null
+        ? Number(rScores.e1_burland_score)
+        : (isZeroDefects ? 0 : e1Calc));
 
     // E2: Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực
     const flagLevel = isZeroDefects
@@ -60,7 +74,11 @@ export class RiskScoringCalculator {
       else if (flagLevel === 'HIGH') flagVal = 3;
       else if (flagLevel === 'CRITICAL') flagVal = 4;
     }
-    const e2 = isZeroDefects ? 0 : Math.max(ecsData.e2 !== undefined ? Number(ecsData.e2) : 0, flagVal);
+    const e2 = ecsData.e2 !== undefined && ecsData.e2 !== null
+      ? Number(ecsData.e2)
+      : (rScores?.e2_structure_score !== undefined && rScores?.e2_structure_score !== null
+        ? Number(rScores.e2_structure_score)
+        : (isZeroDefects ? 0 : flagVal));
 
     // E3: Lún/nghiêng/võng/biến dạng
     const st = json.settlementTilt || {};
@@ -68,10 +86,19 @@ export class RiskScoringCalculator {
     const lTilt = st.buildingTilt?.level ?? 0;
     const lSag = st.beamSagging?.level ?? 0;
     const e3Default = Math.min(4, Math.max(lSettlement, lTilt, lSag));
-    const e3 = ecsData.e3 !== undefined ? Number(ecsData.e3) : e3Default;
+    const e3 = ecsData.e3 !== undefined && ecsData.e3 !== null
+      ? Number(ecsData.e3)
+      : (rScores?.e3_deformation_score !== undefined && rScores?.e3_deformation_score !== null
+        ? Number(rScores.e3_deformation_score)
+        : e3Default);
 
     // E4: Suy giảm vật liệu/độ bền lâu
-    const e4 = ecsData.e4 !== undefined ? Number(ecsData.e4) : 0;
+    const rE4 = rScores?.e4_material_score ?? rScores?.e4_degradation_score;
+    const e4 = ecsData.e4 !== undefined && ecsData.e4 !== null
+      ? Number(ecsData.e4)
+      : (rE4 !== undefined && rE4 !== null
+        ? Number(rE4)
+        : 0);
 
     // E5: Lịch sử/cơi nới/sự cố & toàn vẹn
     let e5Default = 0;
@@ -88,18 +115,50 @@ export class RiskScoringCalculator {
       const countHigh = scores.filter((s: number) => s > 2).length;
       e5Default = countHigh >= 2 ? 4 : maxScore;
     }
-    const e5 = ecsData.e5 !== undefined ? Number(ecsData.e5) : e5Default;
+    const e5 = ecsData.e5 !== undefined && ecsData.e5 !== null
+      ? Number(ecsData.e5)
+      : (rScores?.e5_history_score !== undefined && rScores?.e5_history_score !== null
+        ? Number(rScores.e5_history_score)
+        : e5Default);
 
     // E6: Tình trạng chức năng/tổng thể
-    const e6 = ecsData.e6 !== undefined ? Number(ecsData.e6) : 0;
+    const rE6 = rScores?.e6_overall_function_score ?? rScores?.e6_serviceability_score;
+    const e6 = ecsData.e6 !== undefined && ecsData.e6 !== null
+      ? Number(ecsData.e6)
+      : (rE6 !== undefined && rE6 !== null
+        ? Number(rE6)
+        : 0);
 
-    const totalEcs = ecsData.totalEcs !== undefined
-      ? Math.max(Number(ecsData.totalEcs), e1 + e2 + e3 + e4 + e5 + e6)
-      : (e1 + e2 + e3 + e4 + e5 + e6);
+    const sumEcs = e1 + e2 + e3 + e4 + e5 + e6;
+    const totalEcs = (rScores?.is_engineering_judgement_applied && rScores?.overridden_total_ecs !== undefined && rScores?.overridden_total_ecs !== null)
+      ? Number(rScores.overridden_total_ecs)
+      : (ecsData.totalEcs !== undefined && ecsData.totalEcs !== null
+        ? Number(ecsData.totalEcs)
+        : (rScores?.total_ecs_score !== undefined && rScores?.total_ecs_score !== null
+          ? Number(rScores.total_ecs_score)
+          : sumEcs));
+
+    const frozenEcsClass = String(
+      (rScores?.is_engineering_judgement_applied && rScores?.overridden_ecs_class)
+        ? rScores.overridden_ecs_class
+        : (ecsData.ecsClass || rScores?.ecs_class || '')
+    ).trim().toUpperCase();
 
     let ecsClassVi = 'Tốt';
     let ecsClassEn = 'Good';
-    if (totalEcs >= 17) {
+    if (frozenEcsClass === 'CRITICAL' || frozenEcsClass === 'NGUY HIỂM' || frozenEcsClass === 'VERY_HIGH') {
+      ecsClassVi = 'Nguy hiểm';
+      ecsClassEn = 'Critical';
+    } else if (frozenEcsClass === 'DEFICIENT' || frozenEcsClass === 'KÉM' || frozenEcsClass === 'HIGH') {
+      ecsClassVi = 'Kém';
+      ecsClassEn = 'Deficient';
+    } else if (frozenEcsClass === 'MEDIUM' || frozenEcsClass === 'MODERATE' || frozenEcsClass === 'TRUNG BÌNH') {
+      ecsClassVi = 'Trung bình';
+      ecsClassEn = 'Medium';
+    } else if (frozenEcsClass === 'GOOD' || frozenEcsClass === 'VERY_LOW' || frozenEcsClass === 'LOW' || frozenEcsClass === 'TỐT') {
+      ecsClassVi = 'Tốt';
+      ecsClassEn = 'Good';
+    } else if (totalEcs >= 17) {
       ecsClassVi = 'Nguy hiểm';
       ecsClassEn = 'Critical';
     } else if (totalEcs >= 11) {
@@ -178,28 +237,40 @@ export class RiskScoringCalculator {
 
     // =========================================================================
     // 2. TÍNH TOÁN BẢNG 13: VI (VULNERABILITY INDEX: 1.00 - 4.00)
+    // Đọc 100% từ dữ liệu đã chốt (survey_data_json.vi / riskScores)
     // =========================================================================
-    // V1: Công năng & Quy mô (Normal 0, General 2, Important 3, Critical 4)
     const usageFunc = json.usageFunction || specs.land_use_function || '';
     const objGroup = (json.objectGroup || specs.building_grade || 'GENERAL').toUpperCase();
     const isAbandoned = usageFunc === 'Nhà bỏ trống' || usageFunc === 'Đất trống' || json.surveyCaseType === 'VACANT_LAND';
-    let v1Calc = isAbandoned ? 0 : objGroup === 'CRITICAL' ? 4 : objGroup === 'IMPORTANT' ? 3 : 2;
-    const v1 = viData.v1 !== undefined ? Number(viData.v1) : v1Calc;
+    const v1Calc = isAbandoned ? 0 : objGroup === 'CRITICAL' ? 4 : objGroup === 'IMPORTANT' ? 3 : 2;
+    const v1 = viData.v1 !== undefined && viData.v1 !== null
+      ? Number(viData.v1)
+      : (rScores?.v1_importance_score !== undefined && rScores?.v1_importance_score !== null
+        ? Number(rScores.v1_importance_score)
+        : v1Calc);
 
-    // V2: Hệ kết cấu chịu lực (RC: 1.0, RC+brick/thép/khác: 2.0, Masonry: 3.0, Substandard: 4.0) – cùng bộ phân loại với Mục IV
+    // V2: Hệ kết cấu chịu lực (RC: 1.0, RC+brick/thép/khác: 2.0, Masonry: 3.0, Substandard: 4.0)
     const structSys = json.structureSystem || specs.structuralType || '';
     const v2Calc = v2ScoreForStructure(classifyStructureSystem(structSys));
-    const v2 = viData.v2 !== undefined ? Number(viData.v2) : v2Calc;
+    const v2 = viData.v2 !== undefined && viData.v2 !== null
+      ? Number(viData.v2)
+      : (rScores?.v2_structure_score !== undefined && rScores?.v2_structure_score !== null
+        ? Number(rScores.v2_structure_score)
+        : v2Calc);
 
     // V3: Loại móng & Nền đất (Cat 1-2: 1đ, Cat 3: 2đ, Cat 4: 3đ, Cat 5: 4đ)
-    // D3/D7: KHÔNG gán CAT mặc định. Thiếu CAT → V3 = null → báo cáo in '--'.
     const catRaw = json.foundationCatScore ?? specs.foundationCatScore;
     const catNum = catRaw === undefined || catRaw === null || catRaw === '' ? NaN : Number(catRaw);
     const catScore: number | null = Number.isInteger(catNum) && catNum >= 1 && catNum <= 5 ? catNum : null;
-    const v3Saved = viData.v3 !== undefined && viData.v3 !== null ? Number(viData.v3) : null;
+    const v3Saved = viData.v3 !== undefined && viData.v3 !== null
+      ? Number(viData.v3)
+      : (rScores?.v3_foundation_score !== undefined && rScores?.v3_foundation_score !== null
+        ? Number(rScores.v3_foundation_score)
+        : null);
     const v3: number | null = v3Saved ?? v3FromCat(catScore);
 
     // V4: Tuổi đời / Cơi nới (<10n: 1, 10-25n: 2, 25-40n: 3, >40n: 4)
+    // Khóa năm tham chiếu theo ngày phê duyệt / ngày khảo sát của hồ sơ để không bị trôi tuổi ở các năm sau
     const rawConstrYear = specs.constructionYear || specs.year_of_construction || json.constructionYear;
     let constrYear: number | null = null;
     let ageYears: number | null = null;
@@ -207,7 +278,10 @@ export class RiskScoringCalculator {
     let v4BasisEn = '';
     if (rawConstrYear && !isNaN(parseInt(rawConstrYear, 10)) && parseInt(rawConstrYear, 10) > 1900) {
       constrYear = parseInt(rawConstrYear, 10);
-      ageYears = new Date().getFullYear() - constrYear;
+      const refDateRaw = rawReport.approved_at || rawReport.survey_date || json.surveyDate || rawReport.created_at;
+      const parsedRefYear = refDateRaw ? new Date(refDateRaw).getFullYear() : NaN;
+      const refYear = !isNaN(parsedRefYear) && parsedRefYear >= 2000 ? parsedRefYear : new Date().getFullYear();
+      ageYears = Math.max(0, refYear - constrYear);
       v4BasisVi = `Năm XD ~${constrYear} (~${ageYears} năm)`;
       v4BasisEn = `Built ~${constrYear} (~${ageYears} yrs)`;
     } else {
@@ -215,32 +289,58 @@ export class RiskScoringCalculator {
       v4BasisEn = 'Built year not recorded';
     }
 
-    // D7: V4 theo tuổi công trình; cơi nới nặng (renovationLoad ≥ 3) → 4; thiếu cả hai → null ('--')
     let v4Calc: number | null = ageYears !== null ? v4FromAge(ageYears) : null;
     if ((json.historyInterview?.renovationLoad ?? 0) >= 3) v4Calc = 4;
-    const v4Saved = viData.v4 !== undefined && viData.v4 !== null ? Number(viData.v4) : null;
+    const v4Saved = viData.v4 !== undefined && viData.v4 !== null
+      ? Number(viData.v4)
+      : (rScores?.v4_age_score !== undefined && rScores?.v4_age_score !== null
+        ? Number(rScores.v4_age_score)
+        : null);
     const v4: number | null = v4Saved ?? v4Calc;
 
     // V5: Hiện trạng kỹ thuật ECS (Good: 1, Medium: 2, Deficient: 3, Critical: 4)
-    let v5Calc = totalEcs >= 17 ? 4 : totalEcs >= 11 ? 3 : totalEcs >= 6 ? 2 : 1;
-    const v5 = viData.v5 !== undefined ? Number(viData.v5) : v5Calc;
+    const v5Calc = totalEcs >= 17 ? 4 : totalEcs >= 11 ? 3 : totalEcs >= 6 ? 2 : 1;
+    const rV5 = rScores?.v5_ecs_score ?? rScores?.v5_condition_score;
+    const v5 = viData.v5 !== undefined && viData.v5 !== null
+      ? Number(viData.v5)
+      : (rV5 !== undefined && rV5 !== null
+        ? Number(rV5)
+        : v5Calc);
 
-    // V6: Thiết bị nhạy cảm & Vận hành (Không có: 1, Dân dụng: 2, VP/KD: 3, Y tế/24-7: 4)
+    // V6: Thiết bị nhạy cảm & Vận hành
     let v6Calc = 1;
     if (json.historyInterview?.continuousOperation247) v6Calc = 4;
     else if (json.historyInterview?.sensitiveEquipment?.has) v6Calc = 3;
-    const v6 = viData.v6 !== undefined ? Number(viData.v6) : v6Calc;
+    const rV6 = rScores?.v6_sensitivity_score ?? rScores?.v6_environment_score;
+    const v6 = viData.v6 !== undefined && viData.v6 !== null
+      ? Number(viData.v6)
+      : (rV6 !== undefined && rV6 !== null
+        ? Number(rV6)
+        : v6Calc);
 
     // Thiếu V3 hoặc V4 → chưa đủ dữ liệu để kết luận VI (không đoán)
     const viComplete = v3 !== null && v4 !== null;
     const totalVi: number | null = !viComplete
       ? null
-      : (viData.totalVi !== undefined && viData.totalVi !== null ? Number(viData.totalVi) : (v1 + v2 + v3 + v4 + v5 + v6));
+      : (viData.totalVi !== undefined && viData.totalVi !== null
+        ? Number(viData.totalVi)
+        : (rScores?.total_vi_score !== undefined && rScores?.total_vi_score !== null
+          ? Number(rScores.total_vi_score)
+          : (v1 + v2 + v3 + v4 + v5 + v6)));
+    const rawSavedViAvg = (rScores?.is_engineering_judgement_applied && rScores?.overridden_avg_vi !== undefined && rScores?.overridden_avg_vi !== null)
+      ? rScores.overridden_avg_vi
+      : (viData.viAvg ?? viData.avgVi ?? rScores?.avg_vi_score ?? null);
     const viAvg: number | null = totalVi === null
       ? null
-      : (viData.viAvg !== undefined && viData.viAvg !== null
-        ? parseFloat(Number(viData.viAvg).toFixed(2))
+      : (rawSavedViAvg !== undefined && rawSavedViAvg !== null && !isNaN(Number(rawSavedViAvg))
+        ? parseFloat(Number(rawSavedViAvg).toFixed(2))
         : parseFloat((totalVi / 6).toFixed(2)));
+
+    const frozenViClass = String(
+      (rScores?.is_engineering_judgement_applied && rScores?.overridden_vi_class)
+        ? rScores.overridden_vi_class
+        : (viData.viClass || rScores?.vi_class || '')
+    ).trim().toUpperCase();
 
     let viClassVi = 'Thấp';
     let viClassEn = 'Low';
@@ -249,6 +349,22 @@ export class RiskScoringCalculator {
       viClassVi = '--';
       viClassEn = '--';
       vCode = null;
+    } else if (frozenViClass === 'VERY_HIGH' || frozenViClass === 'VERY HIGH' || frozenViClass === 'RẤT CAO') {
+      viClassVi = 'Rất cao';
+      viClassEn = 'Very High';
+      vCode = 'V4';
+    } else if (frozenViClass === 'HIGH' || frozenViClass === 'CAO') {
+      viClassVi = 'Cao';
+      viClassEn = 'High';
+      vCode = 'V3';
+    } else if (frozenViClass === 'MEDIUM' || frozenViClass === 'MODERATE' || frozenViClass === 'TRUNG BÌNH') {
+      viClassVi = 'Trung bình';
+      viClassEn = 'Medium';
+      vCode = 'V2';
+    } else if (frozenViClass === 'LOW' || frozenViClass === 'VERY_LOW' || frozenViClass === 'THẤP') {
+      viClassVi = 'Thấp';
+      viClassEn = 'Low';
+      vCode = 'V1';
     } else if (viAvg > 3.25) {
       viClassVi = 'Rất cao';
       viClassEn = 'Very High';
@@ -321,6 +437,7 @@ export class RiskScoringCalculator {
 
     // =========================================================================
     // 3. TÍNH TOÁN CẤP TÁC ĐỘNG THI CÔNG (IMPACT: I1 - I4)
+    // Đọc từ json.impactAssessment đã đóng băng nếu có, hoặc tính chuẩn từ khoảng cách chốt
     // =========================================================================
     const parseMeters = (val: string | number | undefined | null): number | null => {
       if (val === undefined || val === null || val === '') return null;
@@ -331,12 +448,17 @@ export class RiskScoringCalculator {
       return isNaN(num) ? null : num;
     };
 
-    const edgeDist = parseMeters(json.stationEdgeDistance || json.clearanceOffsetDistance || specs.clearanceOffsetDistance);
-    const centerDist = parseMeters(json.metroOffsetDistance || specs.metroOffsetDistance);
+    const frozenImpact = json.impactAssessment || {};
+    const edgeDist = parseMeters(json.stationEdgeDistance || json.clearanceOffsetDistance || json.distanceToTunnelEdgeM || specs.clearanceOffsetDistance);
+    const centerDist = parseMeters(json.manualMetroDistanceM || json.distanceToMetroM || json.metroOffsetDistance || specs.metroOffsetDistance || rawReport.distance_to_centerline_m);
 
-    const hasStationEdge = edgeDist !== null;
+    const hasStationEdge = frozenImpact.distanceType
+      ? frozenImpact.distanceType === 'STATION_EDGE'
+      : edgeDist !== null;
     const distanceType: 'STATION_EDGE' | 'TUNNEL_CENTERLINE' = hasStationEdge ? 'STATION_EDGE' : 'TUNNEL_CENTERLINE';
-    const metroOffset = hasStationEdge ? edgeDist : (centerDist !== null ? centerDist : 30);
+    const metroOffset = (frozenImpact.distanceM !== undefined && frozenImpact.distanceM !== null && !isNaN(Number(frozenImpact.distanceM)))
+      ? Number(frozenImpact.distanceM)
+      : (hasStationEdge && edgeDist !== null ? edgeDist : (centerDist !== null ? centerDist : 30));
 
     const distanceLabel: BilingualText = hasStationEdge
       ? { vi: 'khoảng cách đến biên công trình ga ngầm Metro', en: 'offset to Metro underground station boundary' }
@@ -347,7 +469,23 @@ export class RiskScoringCalculator {
     let impactVi = 'Thấp';
     let impactEn = 'Low';
 
-    if (isSpecialObj) {
+    const execSummary = json.executiveSummary || {};
+    const execImpactStr = String(execSummary.constructionImpactStatus || '').toUpperCase();
+    const execImpactMatch = execImpactStr.match(/\b(I[1-4])\b/);
+    const cardOverriddenImpact = rScores?.overridden_impact_level_i ? `I${rScores.overridden_impact_level_i}` : null;
+    const frozenImpactCode =
+      frozenImpact.iCode ||
+      frozenImpact.code ||
+      execImpactMatch?.[1] ||
+      cardOverriddenImpact ||
+      rScores?.impact_grade;
+    if (['I1', 'I2', 'I3', 'I4'].includes(frozenImpactCode)) {
+      iCode = frozenImpactCode;
+      if (iCode === 'I1') { impactVi = frozenImpact.levelVi || 'Thấp'; impactEn = frozenImpact.levelEn || 'Low'; }
+      else if (iCode === 'I2') { impactVi = frozenImpact.levelVi || 'Trung bình'; impactEn = frozenImpact.levelEn || 'Medium'; }
+      else if (iCode === 'I3') { impactVi = frozenImpact.levelVi || 'Cao'; impactEn = frozenImpact.levelEn || 'High'; }
+      else { impactVi = frozenImpact.levelVi || 'Rất cao'; impactEn = frozenImpact.levelEn || 'Very High'; }
+    } else if (isSpecialObj) {
       if (metroOffset >= 30) { iCode = 'I1'; impactVi = 'Thấp'; impactEn = 'Low'; }
       else if (metroOffset >= 20) { iCode = 'I2'; impactVi = 'Trung bình'; impactEn = 'Medium'; }
       else if (metroOffset >= 10) { iCode = 'I3'; impactVi = 'Cao'; impactEn = 'High'; }
@@ -418,10 +556,34 @@ export class RiskScoringCalculator {
     });
 
     // Thiếu dữ liệu VI → không xếp cấp rủi ro (không đoán)
+    const frozenBra = json.braAssessment || {};
     const activeLookup = vCode !== null ? rawLookup[vCode][iCode] : null;
-    const finalRiskLevel = activeLookup
-      ? { vi: activeLookup.riskLevelVi, en: activeLookup.riskLevelEn }
-      : { vi: '--', en: '--' };
+    const rawExplicitBra = String(
+      frozenBra.braStatus ||
+      frozenBra.finalRiskLevelVi ||
+      frozenBra.riskLevelVi ||
+      rScores?.overridden_bra ||
+      ''
+    ).toUpperCase();
+    let explicitBraLevel: { vi: string; en: string } | null = null;
+    if (rawExplicitBra === 'VERY_LOW' || rawExplicitBra === 'LOW' || rawExplicitBra.includes('THẤP')) {
+      explicitBraLevel = { vi: 'Rủi ro thấp', en: 'Low Risk' };
+    } else if (rawExplicitBra === 'MEDIUM' || rawExplicitBra === 'MODERATE' || rawExplicitBra.includes('TRUNG BÌNH')) {
+      explicitBraLevel = { vi: 'Rủi ro trung bình', en: 'Medium Risk' };
+    } else if (rawExplicitBra === 'HIGH' || (rawExplicitBra.includes('CAO') && !rawExplicitBra.includes('RẤT CAO'))) {
+      explicitBraLevel = { vi: 'Rủi ro cao', en: 'High Risk' };
+    } else if (rawExplicitBra === 'VERY_HIGH' || rawExplicitBra === 'CRITICAL' || rawExplicitBra.includes('RẤT CAO')) {
+      explicitBraLevel = { vi: 'Rủi ro rất cao', en: 'Very High Risk' };
+    }
+
+    const finalRiskLevel = explicitBraLevel
+      ? explicitBraLevel
+      : activeLookup
+        ? {
+            vi: frozenBra.finalRiskLevelVi || frozenBra.riskLevelVi || activeLookup.riskLevelVi,
+            en: frozenBra.finalRiskLevelEn || frozenBra.riskLevelEn || activeLookup.riskLevelEn,
+          }
+        : { vi: '--', en: '--' };
     const recommendation = activeLookup
       ? { vi: activeLookup.recVi, en: activeLookup.recEn }
       : { vi: 'Chưa đủ dữ liệu (CAT móng / năm xây dựng) để xếp cấp rủi ro.', en: 'Insufficient data (foundation CAT / construction year) to classify risk.' };
@@ -435,19 +597,21 @@ export class RiskScoringCalculator {
 
     // Engineering Judgement cho ECS (Ưu tiên từ phiếu khảo sát FE survey_data_json, fallback sang DB risk_score_cards)
     const ecsJudgementRaw = ecsData.engineeringJudgement || {};
-    const ecsActionRaw = ecsJudgementRaw.action || rScores?.engineering_judgement_action || 'KEEP';
-    let ecsAction: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' = 'KEEP';
+    const ecsActionRaw = String(ecsJudgementRaw.action || rScores?.engineering_judgement_action || 'KEEP').toUpperCase();
+    let ecsAction: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE' = 'KEEP';
     if (ecsActionRaw === 'UPGRADE' || ecsActionRaw === 'UP') ecsAction = 'UPGRADE';
     else if (ecsActionRaw === 'DOWNGRADE' || ecsActionRaw === 'DOWN') ecsAction = 'DOWNGRADE';
+    else if (ecsActionRaw === 'CUSTOM_OVERRIDE') ecsAction = 'CUSTOM_OVERRIDE';
     const ecsReason = ecsJudgementRaw.reason || rScores?.engineering_judgement_reason || '';
     const isEcsJudgementApplied = ecsAction !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied);
 
     // Engineering Judgement cho VI (Ưu tiên từ phiếu khảo sát FE survey_data_json, fallback sang DB risk_score_cards)
     const viJudgementRaw = viData.engineeringJudgement || {};
-    const viActionRaw = viJudgementRaw.action || rScores?.engineering_judgement_action || 'KEEP';
-    let viAction: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' = 'KEEP';
+    const viActionRaw = String(viJudgementRaw.action || rScores?.engineering_judgement_action || 'KEEP').toUpperCase();
+    let viAction: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE' = 'KEEP';
     if (viActionRaw === 'UPGRADE' || viActionRaw === 'UP') viAction = 'UPGRADE';
     else if (viActionRaw === 'DOWNGRADE' || viActionRaw === 'DOWN') viAction = 'DOWNGRADE';
+    else if (viActionRaw === 'CUSTOM_OVERRIDE') viAction = 'CUSTOM_OVERRIDE';
     const viReason = viJudgementRaw.reason || rScores?.engineering_judgement_reason || '';
     const isViJudgementApplied = viAction !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied);
 

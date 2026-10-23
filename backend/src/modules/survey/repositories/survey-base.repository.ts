@@ -153,10 +153,13 @@ export class SurveyBaseRepository {
     );
     const zonesRes = await Database.query(
       `SELECT z.*,
-              COALESCE(json_agg(d.*) FILTER (WHERE d.id IS NOT NULL), '[]') AS defects
+              COALESCE(
+                json_agg(d.*) FILTER (WHERE d.id IS NOT NULL AND (d.is_deleted = false OR d.is_deleted IS NULL)),
+                '[]'
+              ) AS defects
        FROM damage_zones z
-       LEFT JOIN defect_items d ON z.id = d.zone_id
-       WHERE z.report_id = $1
+       LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
+       WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL)
        GROUP BY z.id;`,
       [actualReportId]
     );
@@ -170,6 +173,10 @@ export class SurveyBaseRepository {
     );
     const p2DetailsRes = await Database.query(
       `SELECT * FROM phase2_report_details WHERE report_id = $1;`,
+      [actualReportId]
+    );
+    const scopeRes = await Database.query(
+      `SELECT * FROM survey_scopes WHERE report_id = $1;`,
       [actualReportId]
     );
 
@@ -204,6 +211,7 @@ export class SurveyBaseRepository {
       deformation: deformRes.rows[0] || null,
       riskScores: scoresRes.rows[0] || null,
       phase2Details: p2DetailsRes.rows[0] || null,
+      surveyScope: scopeRes.rows[0] || null,
     };
   }
 
@@ -245,8 +253,8 @@ export class SurveyBaseRepository {
           `UPDATE parcels
            SET house_number = COALESCE($1, house_number),
                street = COALESCE($2, street),
-               owner_name = COALESCE(NULLIF(owner_name, ''), $3),
-               owner_phone = COALESCE(NULLIF(owner_phone, ''), $4),
+               owner_name = COALESCE(NULLIF($3, ''), owner_name),
+               owner_phone = COALESCE(NULLIF($4, ''), owner_phone),
                construction_area_m2 = COALESCE($5, construction_area_m2),
                survey_status = 'SUBMITTED', 
                updated_at = NOW()

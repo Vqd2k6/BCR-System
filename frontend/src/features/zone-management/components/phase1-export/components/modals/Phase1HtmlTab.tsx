@@ -13,7 +13,7 @@ import {
   Stamp,
 } from 'lucide-react';
 import type { ExportParcelItem, EditFormData } from '../../types';
-import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
+import type { ServerReportData } from '../../utils/reportDataTransformers';
 
 interface Phase1HtmlTabProps {
   previewParcel: ExportParcelItem;
@@ -34,6 +34,7 @@ interface Phase1HtmlTabProps {
   hasUnsavedChanges?: boolean;
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
+  onOpenAuditStudio?: (parcel: ExportParcelItem) => void;
 }
 
 export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
@@ -43,25 +44,20 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   previewRenderKey,
   previewZoom,
   setPreviewZoom,
-  setPreviewTab,
   handleOpenPreviewInNewTab,
   handleOpenPreview,
   handleExportSinglePdf,
-  handleExportSingleDocx,
   editFormData,
-  previewReportData,
-  reportVersion = 'v2',
   handleDirectPrint,
-  hasUnsavedChanges = false,
   enableWatermark = true,
   handleToggleWatermark,
+  onOpenAuditStudio,
 }) => {
   // Trạng thái hiển thị thanh điều khiển bên trái (mặc định mở, có thể thu gọn để xem Full A4)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const handleExportPdf = () => {
-    const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
-    handleExportSinglePdf(previewParcel, payload);
+    handleExportSinglePdf(previewParcel);
   };
 
   return (
@@ -136,15 +132,17 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setPreviewTab('edit')}
-              className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              title="Chỉnh sửa thông số, kích thước hoặc ghi chú khuyết tật"
-            >
-              <Edit3 size={13} className="text-amber-600" />
-              <span>Sửa Dữ Liệu / Ghi Chú</span>
-            </button>
+            {onOpenAuditStudio && (
+              <button
+                type="button"
+                onClick={() => onOpenAuditStudio(previewParcel)}
+                className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                title="Mở màn hình Thẩm định (Audit Studio) để chỉnh sửa và phê duyệt hồ sơ"
+              >
+                <Edit3 size={13} className="text-amber-600" />
+                <span>Chuyển sang màn hình Thẩm định</span>
+              </button>
+            )}
           </div>
 
           {/* Nhóm Tính Năng Watermark (Bật / Tắt Con Dấu) */}
@@ -319,25 +317,27 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               Chưa nạp được HTML preview cho hồ sơ này
             </span>
             <p className="text-xs text-slate-500">
-              Bạn có thể bấm &quot;Thử Nạp Lại&quot; hoặc chuyển sang tab &quot;Chỉnh Sửa Dữ Liệu&quot; để cập nhật thông số và xem trước.
+              Bạn có thể bấm &quot;Thử Nạp Lại&quot; hoặc chuyển sang màn hình Thẩm định để kiểm tra hồ sơ.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <button
                 type="button"
                 onClick={() => handleOpenPreview(previewParcel)}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <RefreshCw size={14} />
                 <span>Thử Nạp Lại HTML</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setPreviewTab('edit')}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md"
-              >
-                <Edit3 size={14} />
-                <span>Mở Chỉnh Sửa Dữ Liệu</span>
-              </button>
+              {onOpenAuditStudio && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAuditStudio(previewParcel)}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Edit3 size={14} />
+                  <span>Chuyển sang màn hình Thẩm định</span>
+                </button>
+              )}
             </div>
           </div>
         )}

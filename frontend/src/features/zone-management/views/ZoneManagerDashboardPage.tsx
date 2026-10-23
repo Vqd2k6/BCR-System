@@ -18,6 +18,7 @@ import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/naviga
 
 interface Props {
   parcels?: GisParcel[];
+  initialSelectedParcel?: GisParcel | null;
   onSelectParcelForSurvey?: (parcel: GisParcel) => void;
   onStartPhase1?: (parcel: GisParcel, isReadOnly?: boolean) => void;
   onStartPhase2?: (parcel: GisParcel) => void;
@@ -32,6 +33,7 @@ interface Props {
 
 export const ZoneManagerDashboardPage: React.FC<Props> = ({
   parcels = [],
+  initialSelectedParcel,
   onSelectParcelForSurvey,
   onStartPhase1,
   onStartPhase2,
@@ -64,6 +66,20 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   const [activeNav, setActiveNav] = useState<ZoneNavView>(() => {
     const nav = getNavigationFromUrl();
     if (nav.nav) return nav.nav;
+    try {
+      const savedNav = sessionStorage.getItem('ksqh_zone_admin_nav') as ZoneNavView | null;
+      if (
+        savedNav === 'dashboard' ||
+        savedNav === 'review' ||
+        savedNav === 'map' ||
+        savedNav === 'parcels' ||
+        savedNav === 'export'
+      ) {
+        return savedNav;
+      }
+    } catch {
+      // ignore
+    }
     return 'dashboard';
   });
 
@@ -79,6 +95,12 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   const [selectedZone, setSelectedZone] = useState<string>(() => {
     const nav = getNavigationFromUrl();
     if (nav.zone) return nav.zone.toUpperCase();
+    try {
+      const savedZone = sessionStorage.getItem('ksqh_zone_admin_selected_zone');
+      if (savedZone) return savedZone.toUpperCase();
+    } catch {
+      // ignore
+    }
     return resolveDefaultZone(user?.assignedZoneId);
   });
 
@@ -106,10 +128,62 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Click-to-filter state from Dashboard to Review Queue
-  const [activeFilterCategory, setActiveFilterCategory] = useState<string | undefined>(undefined);
-  const [activeFilterValue, setActiveFilterValue] = useState<string | undefined>(undefined);
-  const [activeFilterLabel, setActiveFilterLabel] = useState<string | undefined>(undefined);
+  // Click-to-filter state from Dashboard / Map to Review Queue (persisted across survey/view navigation)
+  const [activeFilterCategory, setActiveFilterCategory] = useState<string | undefined>(() => {
+    try {
+      const saved = sessionStorage.getItem('ksqh_zone_admin_filter');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { category?: string };
+        return parsed.category;
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  });
+  const [activeFilterValue, setActiveFilterValue] = useState<string | undefined>(() => {
+    try {
+      const saved = sessionStorage.getItem('ksqh_zone_admin_filter');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { value?: string };
+        return parsed.value;
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  });
+  const [activeFilterLabel, setActiveFilterLabel] = useState<string | undefined>(() => {
+    try {
+      const saved = sessionStorage.getItem('ksqh_zone_admin_filter');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { label?: string };
+        return parsed.label;
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  });
+
+  useEffect(() => {
+    try {
+      if (activeFilterCategory || activeFilterValue || activeFilterLabel) {
+        sessionStorage.setItem(
+          'ksqh_zone_admin_filter',
+          JSON.stringify({
+            category: activeFilterCategory,
+            value: activeFilterValue,
+            label: activeFilterLabel,
+          })
+        );
+      } else {
+        sessionStorage.removeItem('ksqh_zone_admin_filter');
+      }
+    } catch {
+      // ignore
+    }
+  }, [activeFilterCategory, activeFilterValue, activeFilterLabel]);
 
   const fetchLiveIntelligence = useCallback(async (zone: string) => {
     setIsLoading(true);
@@ -169,7 +243,33 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
 
   const handleNavChange = (nav: ZoneNavView) => {
     setActiveNav(nav);
+    try {
+      sessionStorage.setItem('ksqh_zone_admin_nav', nav);
+    } catch {
+      // ignore
+    }
     updateNavigationUrl({ nav });
+  };
+
+  const handleZoneChange = (z: string, clearFilter = false) => {
+    setSelectedZone(z);
+    try {
+      sessionStorage.setItem('ksqh_zone_admin_selected_zone', z);
+    } catch {
+      // ignore
+    }
+    updateNavigationUrl({ zone: z });
+    if (clearFilter) {
+      handleClearFilter();
+    }
+  };
+
+  const handleNavigateToReviewForParcel = (parcel: GisParcel) => {
+    const filterCode = parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id;
+    setActiveFilterCategory(parcel.buildingType === 'CONDOMINIUM' ? 'CONDO_SEARCH' : 'SEARCH');
+    setActiveFilterValue(filterCode);
+    setActiveFilterLabel(`Thửa đất ${parcel.projectParcelCode || parcel.id}`);
+    handleNavChange('review');
   };
 
   // Đồng bộ popstate nếu người dùng dùng phím Back / Forward trong Zone Portal
@@ -192,11 +292,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       activeNav={activeNav}
       onChangeNav={handleNavChange}
       selectedZone={selectedZone}
-      onSelectZone={(z) => {
-        setSelectedZone(z);
-        updateNavigationUrl({ zone: z });
-        handleClearFilter();
-      }}
+      onSelectZone={(z) => handleZoneChange(z, true)}
       pendingCount={stats.submitted}
       isLoading={isLoading}
       onRefresh={() => fetchLiveIntelligence(selectedZone)}
@@ -227,7 +323,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
                 type="button"
                 onClick={() => {
                   handleClearFilter();
-                  setActiveNav('review');
+                  handleNavChange('review');
                 }}
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-700 cursor-pointer flex items-center gap-1 hover:underline"
               >
@@ -281,13 +377,15 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
           <LeafletSweepMap
             parcels={parcels}
             selectedZone={selectedZone}
-            onSelectZone={(z) => setSelectedZone(z)}
+            onSelectZone={(z) => handleZoneChange(z, false)}
+            initialSelectedParcel={initialSelectedParcel}
             onSelectParcel={(p) => {
               onSelectParcelForSurvey?.(p);
             }}
             onStartSurvey={onStartPhase1 || (() => {})}
             onStartPhase2={onStartPhase2 || (() => {})}
             onOpenBuildingHub={onOpenBuildingHub || (() => {})}
+            onOpenAuditReview={handleNavigateToReviewForParcel}
             onRecordAbsence={onRecordAbsence || (() => {})}
             onProposeSplit={onProposeSplit || (() => {})}
             onSwapSuccess={onReloadParcels}
@@ -304,14 +402,9 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             initialParcels={parcels}
             onNavigateToMap={(parcel) => {
               onSelectParcelForSurvey?.(parcel);
-              setActiveNav('map');
+              handleNavChange('map');
             }}
-            onViewSurvey={(parcel) => {
-              setActiveFilterCategory('SEARCH');
-              setActiveFilterValue(parcel.projectParcelCode || parcel.officialCadastralCode);
-              setActiveFilterLabel(`Thửa đất ${parcel.projectParcelCode || parcel.id}`);
-              setActiveNav('review');
-            }}
+            onViewSurvey={handleNavigateToReviewForParcel}
             onRefreshStats={() => fetchLiveIntelligence(selectedZone)}
           />
         </div>

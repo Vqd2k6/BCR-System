@@ -57,7 +57,13 @@ export const UserEditModal: React.FC<Props> = ({
       setPhone(user.phone || '');
       setRole(user.role);
       const userZone = user.assignedZoneId || user.assigned_zone_id;
-      setAssignedZoneId(userZone || (user.role === 'ZONE_ADMIN' || user.role === 'GUEST' ? 'ALL_ZONES' : 'ZONE_01'));
+      const normalizedUserZone =
+        !userZone || userZone === 'ALL' || userZone === 'ALL_ZONES'
+          ? user.role === 'ZONE_ADMIN' || user.role === 'GUEST'
+            ? 'ALL_ZONES'
+            : 'ZONE_01'
+          : userZone;
+      setAssignedZoneId(normalizedUserZone);
       setSignatureImageUrl(user.signatureImageUrl || user.signature_image_url || null);
       setPassword('');
     } else {

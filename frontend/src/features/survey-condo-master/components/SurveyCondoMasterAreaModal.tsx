@@ -300,6 +300,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               hasParentCad={Boolean(state.floorPlanData?.plan?.cad_photo_url || floorCadUrl)}
               watermarkOptions={state.watermarkOptions}
               isReadOnly={state.isReadOnly}
+              isCadLocked={state.isCadLocked}
               onBack={() => state.goToStep(1)}
               onNext={() => state.goToStep(3)}
               onPreviewImage={state.setPreviewImageUrl}
@@ -331,6 +332,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               onTriggerPinningZone={state.setPinningZoneId}
               watermarkOptions={state.watermarkOptions}
               isReadOnly={state.isReadOnly}
+              isCadLocked={state.isCadLocked}
               onBack={() => state.goToStep(2)}
               onNext={() => state.goToStep(4)}
               onPreviewImage={state.setPreviewImageUrl}
@@ -367,6 +369,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               onTriggerPinningElement={state.setPinningElementId}
               watermarkOptions={state.watermarkOptions}
               isReadOnly={state.isReadOnly}
+              isCadLocked={state.isCadLocked}
               onBack={() => state.goToStep(3)}
               onNext={() => state.goToStep(5)}
               onPreviewImage={state.setPreviewImageUrl}

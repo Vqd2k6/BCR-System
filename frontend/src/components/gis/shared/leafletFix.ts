@@ -30,8 +30,7 @@ export function applyLeafletDefensiveFix(): void {
   try {
     // 1. Vá an toàn cho _getMapPanePos (nguồn gốc của lỗi reading '_leaflet_pos')
     if (L.Map && L.Map.prototype) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mapProto = L.Map.prototype as any;
+      const mapProto = L.Map.prototype as unknown as LeafletInternalMap;
       const origGetMapPanePos = mapProto._getMapPanePos;
 
       mapProto._getMapPanePos = function (this: LeafletInternalMap) {

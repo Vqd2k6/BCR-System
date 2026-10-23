@@ -136,10 +136,12 @@ export interface LeafletSweepMapProps {
   parcels: GisParcel[];
   selectedZone: string;
   onSelectZone: (zone: string) => void;
+  initialSelectedParcel?: GisParcel | null;
   onSelectParcel: (parcel: GisParcel) => void;
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
+  onOpenAuditReview?: (parcel: GisParcel) => void;
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   userGps?: { lat: number; lng: number; accuracy?: number } | null;

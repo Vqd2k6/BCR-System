@@ -2,7 +2,7 @@ import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
 import { calculateVi } from './vi-calculator';
 
-/** Các trường của survey_data_json mà bộ chấm điểm VI cần đọc */
+/** Các trường của survey_data_json mà bộ chấm điểm ECS & VI cần đọc (Đồng bộ 100% FE Phase 1) */
 interface ScoringSurveyJson {
   usageFunction?: string;
   surveyCaseType?: string;
@@ -11,10 +11,101 @@ interface ScoringSurveyJson {
   structureSystem?: string;
   foundationCatScore?: number | null;
   constructionYear?: number | null;
+  operationalDefects?: string[];
+  burlandSummary?: {
+    localMaxGrade?: number;
+    predominantGrade?: number;
+    structuralFlagLevel?: string;
+  };
+  settlementTilt?: {
+    diffSettlement?: { level?: number };
+    buildingTilt?: { level?: number };
+    tiltAssessment?: { level?: number };
+    beamSagging?: { level?: number };
+  };
+  deformation?: {
+    diffSettlement?: { level?: number };
+    buildingTilt?: { level?: number };
+    tiltAssessment?: { level?: number };
+    beamSagging?: { level?: number };
+  };
   historyInterview?: {
     renovationLoad?: number;
+    majorRepair?: number;
+    pastSettlement?: number;
+    neighborDamage?: number;
+    fireFloodIncident?: number;
     continuousOperation247?: boolean;
     sensitiveEquipment?: { has?: boolean };
+  };
+  floors?: Array<{
+    zones?: Array<{
+      zoneCode?: string;
+      isDeleted?: boolean;
+      is_deleted?: boolean;
+      burlandGrade?: number;
+      functionalImpactRepairNeeded?: boolean;
+      defects?: Array<{
+        isDeleted?: boolean;
+        is_deleted?: boolean;
+        screeningCategory?: string;
+        defectType?: string;
+        widthMaxMm?: number;
+        width_max_mm?: number;
+        structuralSignificanceE2?: number;
+        materialDegradationE4?: number;
+        functionalImpactE6?: number;
+        isStructuralCritical?: boolean;
+      }>;
+    }>;
+    structuralElements?: Array<{
+      elementCode?: string;
+      isDeleted?: boolean;
+      is_deleted?: boolean;
+      hasDamage?: boolean;
+      conditionStatus?: string;
+      defects?: Array<{
+        isDeleted?: boolean;
+        is_deleted?: boolean;
+        screeningCategory?: string;
+        defectType?: string;
+        widthMaxMm?: number;
+        width_max_mm?: number;
+        structuralSignificanceE2?: number;
+        materialDegradationE4?: number;
+        functionalImpactE6?: number;
+        isStructuralCritical?: boolean;
+      }>;
+    }>;
+  }>;
+  ecs?: {
+    e1?: number;
+    e2?: number;
+    e3?: number;
+    e4?: number;
+    e5?: number;
+    e6?: number;
+    totalEcs?: number;
+    ecsClass?: string;
+    engineeringJudgement?: {
+      action?: string;
+      reason?: string;
+    };
+  };
+  vi?: {
+    v1?: number;
+    v2?: number;
+    v3?: number;
+    v4?: number;
+    v5?: number;
+    v6?: number;
+    totalVi?: number;
+    viAvg?: number;
+    viClass?: string;
+    engineeringJudgement?: {
+      action?: string;
+      reason?: string;
+    };
   };
 }
 
@@ -25,17 +116,181 @@ function mapBuildingGradeToObjectGroup(grade?: string | null): string {
   return 'GENERAL';
 }
 
+/** Kiểm tra khuyết tật có phải dạng vết nứt hay không (đồng bộ 1:1 với frontend/src/components/canvas/defectHelpers.ts) */
+function isCrackRelatedDefect(cat?: string | null, type?: string | null): boolean {
+  const catStr = (cat || '').toLowerCase();
+  const typeStr = (type || '').toLowerCase();
+  const full = `${catStr} ${typeStr}`;
+
+  if (
+    full.includes('thấm dột') ||
+    full.includes('ẩm mốc') ||
+    full.includes('kẹt cửa') ||
+    full.includes('cong vênh') ||
+    full.includes('bong rộp') ||
+    full.includes('bong tróc') ||
+    full.includes('rỉ sét')
+  ) {
+    if (typeStr.includes('nứt') || typeStr.includes('crack')) {
+      return true;
+    }
+    return false;
+  }
+
+  return full.includes('nứt') || full.includes('crack');
+}
+
+/** Quy đổi bề rộng vết nứt (mm) sang cấp Burland 0..5 (đồng bộ 1:1 với Step4_BurlandSummary.tsx) */
+function getBurlandGradeFromWidth(w: number): number {
+  if (w <= 0.1) return 0;
+  if (w <= 1) return 1;
+  if (w <= 5) return 2;
+  if (w <= 15) return 3;
+  if (w <= 25) return 4;
+  return 5;
+}
+
 export class ScoringService {
   /**
    * Tự động tính điểm ECS (0-24) và Chỉ số Tổn thương VI cho Báo cáo Phase 1
+   * Đồng bộ 100% theo công thức Frontend Phase 1 (ecsCalculator.ts, viCalculator.ts, Step4_BurlandSummary.tsx)
    */
   static async calculatePhase1Scores(reportId: string) {
-    // 1. Lấy E1 (Max Burland Grade từ các Vùng Z-xx theo chuẩn bậc thang FE)
-    const e1Res = await Database.query<{ max_burland: number }>(
-      `SELECT COALESCE(MAX(burland_grade), 0) AS max_burland FROM damage_zones WHERE report_id = $1 AND is_deleted = FALSE;`,
+    // 0. Đọc survey_data_json & building_specifications trước để kết hợp cùng dữ liệu bảng quan hệ
+    const specRes = await Database.query<{
+      building_grade?: string;
+      land_use_function?: string;
+      year_of_construction?: number;
+      structural_system?: string;
+      survey_data_json?: ScoringSurveyJson | string;
+    }>(
+      `SELECT bs.building_grade, bs.land_use_function, bs.year_of_construction, bs.structural_system, r.survey_data_json
+       FROM base_survey_reports r
+       LEFT JOIN building_specifications bs ON bs.report_id = r.id
+       WHERE r.id = $1;`,
       [reportId]
     );
-    const burlandMax = Number(e1Res.rows[0]?.max_burland || 0);
+    const specData = specRes.rows[0];
+    let surveyJson: ScoringSurveyJson | null = null;
+    if (specData?.survey_data_json) {
+      try {
+        surveyJson = typeof specData.survey_data_json === 'string'
+          ? JSON.parse(specData.survey_data_json)
+          : specData.survey_data_json;
+      } catch (err) {
+        console.error('[ScoringService] survey_data_json không phải JSON hợp lệ:', reportId, err);
+      }
+    }
+
+    // Quét dữ liệu floors trong survey_data_json theo đúng chuẩn FE ecsCalculator.ts & Step4_BurlandSummary.tsx
+    let jsonCrackBurlandMax = 0;
+    let jsonMaxE2 = 0;
+    let jsonMaxE4 = 0;
+    let jsonMaxDefectE6 = 0;
+    let jsonDamagedZoneCount = 0;
+    let jsonTotalDefectsCount = 0;
+    let jsonHasCritical = false;
+
+    const floors = Array.isArray(surveyJson?.floors) ? surveyJson!.floors! : [];
+    for (const fl of floors) {
+      const activeZones = (fl.zones || []).filter((z) => !z.isDeleted && !z.is_deleted);
+      for (const zn of activeZones) {
+        const activeDefects = (zn.defects || []).filter((d) => !d.isDeleted && !d.is_deleted);
+        jsonTotalDefectsCount += activeDefects.length;
+
+        let zoneCrackMaxGrade = Number(zn.burlandGrade) || 0;
+        for (const df of activeDefects) {
+          if (isCrackRelatedDefect(df.screeningCategory, df.defectType)) {
+            const w = Number(df.widthMaxMm ?? df.width_max_mm) || 0;
+            const g = getBurlandGradeFromWidth(w);
+            if (g > zoneCrackMaxGrade) zoneCrackMaxGrade = g;
+            if (g > jsonCrackBurlandMax) jsonCrackBurlandMax = g;
+          }
+          const valE2 = typeof df.structuralSignificanceE2 === 'number' ? df.structuralSignificanceE2 : (Number(df.structuralSignificanceE2) || 0);
+          if (valE2 > jsonMaxE2) jsonMaxE2 = valE2;
+
+          const valE4 = typeof df.materialDegradationE4 === 'number' ? df.materialDegradationE4 : (Number(df.materialDegradationE4) || 0);
+          if (valE4 > jsonMaxE4) jsonMaxE4 = valE4;
+
+          let valE6 = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : (Number(df.functionalImpactE6) || 0);
+          if (valE6 === 5 || df.screeningCategory === 'DOOR_JAMMED' || df.defectType === 'DOOR_JAMMED') {
+            valE6 = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
+          }
+          if (valE6 > jsonMaxDefectE6) jsonMaxDefectE6 = valE6;
+          if (df.isStructuralCritical) jsonHasCritical = true;
+        }
+        if (zoneCrackMaxGrade > jsonCrackBurlandMax) {
+          jsonCrackBurlandMax = zoneCrackMaxGrade;
+        }
+        if (zn.functionalImpactRepairNeeded || zoneCrackMaxGrade >= 3) {
+          jsonDamagedZoneCount++;
+        }
+      }
+
+      const activeElements = (fl.structuralElements || []).filter((el) => !el.isDeleted && !el.is_deleted);
+      for (const el of activeElements) {
+        const activeDefects = (el.defects || []).filter((d) => !d.isDeleted && !d.is_deleted);
+        jsonTotalDefectsCount += activeDefects.length;
+
+        if (el.hasDamage || el.conditionStatus === 'DAMAGED' || activeDefects.length > 0) {
+          jsonDamagedZoneCount++;
+        }
+        for (const df of activeDefects) {
+          const valE2 = typeof df.structuralSignificanceE2 === 'number' ? df.structuralSignificanceE2 : (Number(df.structuralSignificanceE2) || 0);
+          if (valE2 > jsonMaxE2) jsonMaxE2 = valE2;
+
+          const valE4 = typeof df.materialDegradationE4 === 'number' ? df.materialDegradationE4 : (Number(df.materialDegradationE4) || 0);
+          if (valE4 > jsonMaxE4) jsonMaxE4 = valE4;
+
+          let valE6 = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : (Number(df.functionalImpactE6) || 0);
+          if (valE6 === 5 || df.screeningCategory === 'DOOR_JAMMED' || df.defectType === 'DOOR_JAMMED') {
+            valE6 = 2;
+          }
+          if (valE6 > jsonMaxDefectE6) jsonMaxDefectE6 = valE6;
+          if (df.isStructuralCritical) jsonHasCritical = true;
+        }
+      }
+    }
+
+    // 1. Lấy E1 (Max Burland Grade từ vùng kiến trúc Z-xx & burlandSummary theo chuẩn bậc thang FE)
+    const e1Res = await Database.query<{ max_burland: number }>(
+      `SELECT COALESCE(MAX(burland_grade), 0) AS max_burland
+       FROM damage_zones
+       WHERE report_id = $1
+         AND (is_deleted = FALSE OR is_deleted IS NULL)
+         AND (zone_code IS NULL OR NOT (zone_code LIKE 'E-%'));`,
+      [reportId]
+    );
+    const sqlBurlandMax = Number(e1Res.rows[0]?.max_burland || 0);
+    const summaryBurlandMax =
+      surveyJson?.burlandSummary?.localMaxGrade !== undefined && surveyJson?.burlandSummary?.localMaxGrade !== null
+        ? Number(surveyJson.burlandSummary.localMaxGrade) || 0
+        : 0;
+
+    // 2. Lấy E2 & E4 (Max từ các ghim khuyết tật D-xx + Cờ kết cấu Bước 4)
+    const e2e4Res = await Database.query<{
+      max_e2: number;
+      max_e4: number;
+      has_critical: boolean;
+      defect_count: string;
+    }>(
+      `SELECT 
+         COALESCE(MAX(d.structural_significance_e2), 0) AS max_e2,
+         COALESCE(MAX(d.material_degradation_e4), 0) AS max_e4,
+         BOOL_OR(d.is_structural_critical) AS has_critical,
+         COUNT(d.id) AS defect_count
+       FROM defect_items d
+       JOIN damage_zones z ON d.zone_id = z.id
+       WHERE z.report_id = $1
+         AND (d.is_deleted = FALSE OR d.is_deleted IS NULL)
+         AND (z.is_deleted = FALSE OR z.is_deleted IS NULL);`,
+      [reportId]
+    );
+    const sqlDefectCount = Number(e2e4Res.rows[0]?.defect_count || 0);
+    const totalDefectsCount = Math.max(jsonTotalDefectsCount, sqlDefectCount);
+    const isZeroDefects = totalDefectsCount === 0 && summaryBurlandMax === 0;
+
+    const burlandMax = isZeroDefects ? 0 : Math.max(summaryBurlandMax, jsonCrackBurlandMax, sqlBurlandMax);
     let e1 = 0;
     if (burlandMax <= 1) e1 = 0;
     else if (burlandMax === 2) e1 = 1;
@@ -43,46 +298,67 @@ export class ScoringService {
     else if (burlandMax === 4) e1 = 3;
     else if (burlandMax >= 5) e1 = 4;
 
-    // 2. Lấy E2 & E4 (Max từ các ghim khuyết tật D-xx)
-    const e2e4Res = await Database.query<{
-      max_e2: number;
-      max_e4: number;
-      has_critical: boolean;
-    }>(
-      `SELECT 
-         COALESCE(MAX(d.structural_significance_e2), 0) AS max_e2,
-         COALESCE(MAX(d.material_degradation_e4), 0) AS max_e4,
-         BOOL_OR(d.is_structural_critical) AS has_critical
-       FROM defect_items d
-       JOIN damage_zones z ON d.zone_id = z.id
-       WHERE z.report_id = $1 AND d.is_deleted = FALSE AND z.is_deleted = FALSE;`,
-      [reportId]
-    );
-    const e2 = Math.min(Number(e2e4Res.rows[0]?.max_e2 || 0), 4);
-    const e4 = Math.min(Number(e2e4Res.rows[0]?.max_e4 || 0), 4);
-    const hasCritical = Boolean(e2e4Res.rows[0]?.has_critical);
+    const flagLevel = isZeroDefects ? 'NONE' : (surveyJson?.burlandSummary?.structuralFlagLevel || 'NONE');
+    let flagVal = 0;
+    if (!isZeroDefects) {
+      if (flagLevel === 'LOW') flagVal = 1;
+      else if (flagLevel === 'MODERATE') flagVal = 2;
+      else if (flagLevel === 'HIGH') flagVal = 3;
+      else if (flagLevel === 'CRITICAL') flagVal = 4;
+    }
 
-    // 3. Lấy E3 (Từ đánh giá Lún Nghiêng)
+    const maxDefectStructural = Math.max(Number(e2e4Res.rows[0]?.max_e2 || 0), jsonMaxE2);
+    const e2 = isZeroDefects ? 0 : Math.min(4, Math.max(maxDefectStructural, flagVal));
+    const e4 = Math.min(4, Math.max(Number(e2e4Res.rows[0]?.max_e4 || 0), jsonMaxE4));
+    const hasCritical = Boolean(e2e4Res.rows[0]?.has_critical) || jsonHasCritical;
+
+    // 3. Lấy E3 (Từ đánh giá Lún Nghiêng Võng: Max của diffSettlement, buildingTilt, beamSagging)
     const e3Res = await Database.query<{ e3_score: number }>(
       `SELECT COALESCE(e3_deformation_score, 0) AS e3_score FROM deformation_assessments WHERE report_id = $1;`,
       [reportId]
     );
-    const e3 = Math.min(Number(e3Res.rows[0]?.e3_score || 0), 4);
+    const st = surveyJson?.settlementTilt || surveyJson?.deformation;
+    const jsonE3 = st
+      ? Math.min(
+          4,
+          Math.max(
+            Number(st.diffSettlement?.level) || 0,
+            Number(st.buildingTilt?.level ?? st.tiltAssessment?.level) || 0,
+            Number(st.beamSagging?.level) || 0
+          )
+        )
+      : 0;
+    const e3 = Math.min(4, Math.max(Number(e3Res.rows[0]?.e3_score || 0), jsonE3));
 
-    // 4. Lấy E5 (Từ Lịch sử phỏng vấn)
+    // 4. Lấy E5 (Từ Lịch sử phỏng vấn: Max của 5 câu hỏi + cộng hưởng >= 2 câu > 2đ -> 4đ)
     const e5Res = await Database.query<{ e5_history_score: number }>(
       `SELECT COALESCE(e5_history_score, 0) AS e5_history_score FROM historical_sensitivities WHERE report_id = $1;`,
       [reportId]
     );
-    const e5 = Math.min(Number(e5Res.rows[0]?.e5_history_score || 0), 4);
+    let jsonE5 = 0;
+    const hi = surveyJson?.historyInterview;
+    if (hi && typeof hi === 'object') {
+      const hiScores = [
+        Number(hi.renovationLoad) || 0,
+        Number(hi.majorRepair) || 0,
+        Number(hi.pastSettlement) || 0,
+        Number(hi.neighborDamage) || 0,
+        Number(hi.fireFloodIncident) || 0,
+      ];
+      const maxHiScore = Math.max(...hiScores);
+      const countHigh = hiScores.filter((s) => s > 2).length;
+      jsonE5 = countHigh >= 2 ? 4 : maxHiScore;
+    }
+    const e5 = Math.min(4, Math.max(Number(e5Res.rows[0]?.e5_history_score || 0), jsonE5));
 
-    // 5. Lấy E6 (Hiện trạng chức năng / tổng thể theo chuẩn FE ecsCalculator.ts)
+    // 5. Lấy E6 (Hiện trạng chức năng / tổng thể theo chuẩn FE ecsCalculator.ts: Math.min(4, Math.max(maxDefectE6, zoneScore)))
     const e6ZoneRes = await Database.query<{ damaged_count: string }>(
       `SELECT COUNT(*) AS damaged_count FROM damage_zones 
-       WHERE report_id = $1 AND is_deleted = FALSE AND (functional_impact_repair_needed = TRUE OR burland_grade >= 3);`,
+       WHERE report_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL) AND (functional_impact_repair_needed = TRUE OR burland_grade >= 3);`,
       [reportId]
     );
-    const damagedZoneCount = Number(e6ZoneRes.rows[0]?.damaged_count || 0);
+    const sqlDamagedZoneCount = Number(e6ZoneRes.rows[0]?.damaged_count || 0);
+    const damagedZoneCount = floors.length > 0 ? Math.max(jsonDamagedZoneCount, sqlDamagedZoneCount) : sqlDamagedZoneCount;
     let zoneScore = 0;
     if (damagedZoneCount === 0) zoneScore = 0;
     else if (damagedZoneCount <= 2) zoneScore = 1;
@@ -98,25 +374,16 @@ export class ScoringService {
        ), 0) AS max_functional
        FROM defect_items d
        JOIN damage_zones z ON d.zone_id = z.id
-       WHERE z.report_id = $1 AND d.is_deleted = FALSE AND z.is_deleted = FALSE;`,
+       WHERE z.report_id = $1
+         AND (d.is_deleted = FALSE OR d.is_deleted IS NULL)
+         AND (z.is_deleted = FALSE OR z.is_deleted IS NULL);`,
       [reportId]
     );
-    let maxDefectE6 = Number(e6DefectRes.rows[0]?.max_functional || 0);
-
-    // Kiểm tra thêm operationalDefects từ survey_data_json nếu có
-    const repRes = await Database.query<{ survey_data_json: any }>(
-      `SELECT survey_data_json FROM base_survey_reports WHERE id = $1;`,
-      [reportId]
-    );
-    let opDefects: string[] = [];
-    if (repRes.rows[0]?.survey_data_json) {
-      const sJson = typeof repRes.rows[0].survey_data_json === 'string'
-        ? JSON.parse(repRes.rows[0].survey_data_json)
-        : repRes.rows[0].survey_data_json;
-      if (Array.isArray(sJson.operationalDefects)) opDefects = sJson.operationalDefects;
-    }
-    const hasDoorJammed = opDefects.includes('DOOR_JAMMED') || maxDefectE6 > 0;
-    const e6 = Math.min(4, zoneScore + (hasDoorJammed ? 2 : 0));
+    const sqlMaxDefectE6 = Number(e6DefectRes.rows[0]?.max_functional || 0);
+    const opDefects = Array.isArray(surveyJson?.operationalDefects) ? surveyJson!.operationalDefects! : [];
+    const opDoorJammedScore = opDefects.includes('DOOR_JAMMED') ? 2 : 0;
+    const maxDefectE6 = Math.max(jsonMaxDefectE6, sqlMaxDefectE6, opDoorJammedScore);
+    const e6 = Math.min(4, Math.max(maxDefectE6, zoneScore));
 
     // Tổng điểm ECS
     const totalEcs = e1 + e2 + e3 + e4 + e5 + e6;
@@ -127,43 +394,23 @@ export class ScoringService {
     else if (totalEcs <= 16) ecsClass = 'DEFICIENT';
     else ecsClass = 'CRITICAL';
 
-    // 6. Tính điểm Dễ Tổn thương VI (V1 -> V6)
-    // Lấy thông tin công năng & nhóm đối tượng để tính V1 chuẩn
-    const specRes = await Database.query<{
-      building_grade?: string;
-      land_use_function?: string;
-      survey_data_json?: ScoringSurveyJson | string;
-    }>(
-      `SELECT bs.building_grade, bs.land_use_function, r.survey_data_json
-       FROM base_survey_reports r
-       LEFT JOIN building_specifications bs ON bs.report_id = r.id
-       WHERE r.id = $1;`,
-      [reportId]
-    );
-    const specData = specRes.rows[0];
-    let surveyJson: ScoringSurveyJson | null = null;
-    if (specData?.survey_data_json) {
-      try {
-        surveyJson = typeof specData.survey_data_json === 'string'
-          ? JSON.parse(specData.survey_data_json)
-          : specData.survey_data_json;
-      } catch (err) {
-        console.error('[ScoringService] survey_data_json không phải JSON hợp lệ, bỏ qua dữ liệu khảo sát khi tính VI:', reportId, err);
-      }
-    }
-
-    // Chuẩn D7: dùng chung calculator với frontend (viCalculator.ts) – không hardcode V2/V3/V4
+    // 6. Tính điểm Dễ Tổn thương VI (V1 -> V6) theo đúng công thức FE Phase 1 (viCalculator.ts)
     const usageFunction = surveyJson?.usageFunction || specData?.land_use_function || '';
-    const catRaw = surveyJson?.foundationCatScore;
-    const yearRaw = surveyJson?.constructionYear;
+    const catRaw = surveyJson?.foundationCatScore !== undefined && surveyJson?.foundationCatScore !== null
+      ? Number(surveyJson.foundationCatScore)
+      : null;
+    const yearRaw = surveyJson?.constructionYear !== undefined && surveyJson?.constructionYear !== null
+      ? Number(surveyJson.constructionYear)
+      : (specData?.year_of_construction !== undefined && specData?.year_of_construction !== null ? Number(specData.year_of_construction) : null);
+
     const vi = calculateVi({
       usageFunction,
       surveyCaseType: surveyJson?.surveyCaseType || '',
       isVacantLand: surveyJson?.isVacantLand === true,
       objectGroup: surveyJson?.objectGroup || mapBuildingGradeToObjectGroup(specData?.building_grade),
-      structureSystem: surveyJson?.structureSystem || '',
-      foundationCatScore: typeof catRaw === 'number' ? catRaw : null,
-      constructionYear: typeof yearRaw === 'number' ? yearRaw : null,
+      structureSystem: surveyJson?.structureSystem || specData?.structural_system || '',
+      foundationCatScore: catRaw !== null && Number.isFinite(catRaw) ? catRaw : null,
+      constructionYear: yearRaw !== null && Number.isFinite(yearRaw) ? yearRaw : null,
       renovationLoad: surveyJson?.historyInterview?.renovationLoad ?? 0,
       continuousOperation247: surveyJson?.historyInterview?.continuousOperation247 === true,
       hasSensitiveEquipment: surveyJson?.historyInterview?.sensitiveEquipment?.has === true,
@@ -225,6 +472,26 @@ export class ScoringService {
       ]
     );
 
+    // Đồng bộ Engineering Judgement từ survey_data_json (nếu KSV hoặc Admin có khai báo lý do can thiệp)
+    const ecsEj = surveyJson?.ecs?.engineeringJudgement;
+    const viEj = surveyJson?.vi?.engineeringJudgement;
+    const activeEj =
+      ecsEj?.action && ecsEj.action !== 'KEEP'
+        ? ecsEj
+        : viEj?.action && viEj.action !== 'KEEP'
+          ? viEj
+          : null;
+    if (activeEj) {
+      await Database.query(
+        `UPDATE risk_score_cards
+         SET is_engineering_judgement_applied = TRUE,
+             engineering_judgement_action = COALESCE(NULLIF($2, ''), engineering_judgement_action),
+             engineering_judgement_reason = COALESCE(NULLIF($3, ''), engineering_judgement_reason)
+         WHERE report_id = $1;`,
+        [reportId, activeEj.action || 'CUSTOM_OVERRIDE', activeEj.reason || '']
+      );
+    }
+
     return {
       reportId,
       scores: {
@@ -236,6 +503,12 @@ export class ScoringService {
         e6Function: e6,
         totalEcs,
         ecsClass,
+        v1,
+        v2,
+        v3,
+        v4,
+        v5,
+        v6,
         avgViScore: avgVi,
         viClass,
       },

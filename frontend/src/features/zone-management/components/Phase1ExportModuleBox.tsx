@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { Phase1ExportHeader } from './phase1-export/components/Phase1ExportHeader';
 import { Phase1FilterToolbar } from './phase1-export/components/Phase1FilterToolbar';
 import { Phase1ParcelsTable } from './phase1-export/components/Phase1ParcelsTable';
 import { Phase1PreviewModal } from './phase1-export/components/modals/Phase1PreviewModal';
+import { AuditStudioModal } from './review-queue/AuditStudioModal';
 import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
 import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPreview';
 import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
@@ -82,9 +83,20 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     handleExportSinglePdf,
     enableWatermark,
     handleToggleWatermark,
+    selectedRevision,
+    handleSelectRevision,
+    handleExportRevisionPdf,
   } = usePhase1ReportPreview({
     setActionMessage,
   });
+
+  const [auditStudioReportId, setAuditStudioReportId] = useState<string | null>(null);
+
+  const handleOpenAuditStudio = (parcel: ExportParcelItem) => {
+    const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
+    if (!reportId) return;
+    setAuditStudioReportId(reportId);
+  };
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -156,7 +168,30 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleExportSinglePdf={handleExportSinglePdf}
         enableWatermark={enableWatermark}
         handleToggleWatermark={handleToggleWatermark}
+        onOpenAuditStudio={handleOpenAuditStudio}
+        selectedRevision={selectedRevision}
+        handleSelectRevision={handleSelectRevision}
+        handleExportRevisionPdf={handleExportRevisionPdf}
       />
+
+      {auditStudioReportId && (
+        <AuditStudioModal
+          isOpen={Boolean(auditStudioReportId)}
+          reportId={auditStudioReportId}
+          onClose={() => {
+            setAuditStudioReportId(null);
+            if (previewParcel) {
+              handleOpenPreview(previewParcel);
+            }
+          }}
+          onRefreshList={() => {
+            fetchExportableParcels();
+            if (previewParcel) {
+              handleOpenPreview(previewParcel);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

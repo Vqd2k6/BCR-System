@@ -41,6 +41,11 @@ function resolveDatabaseConfig() {
       connectionString,
       max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
       idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+      connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '10000', 10),
+      query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT_MS || '25000', 10),
+      statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '25000', 10),
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ssl: (process.env.DB_SSL === 'false' || connectionString.includes('localhost') || connectionString.includes('127.0.0.1'))
         ? undefined
         : { rejectUnauthorized: false },
@@ -70,6 +75,11 @@ function resolveDatabaseConfig() {
     database: process.env.DB_NAME || 'metro2_gis_db',
     max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
     idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '10000', 10),
+    query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT_MS || '25000', 10),
+    statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '25000', 10),
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
     ssl: (process.env.DB_SSL === 'true' || host.includes('supabase')) ? { rejectUnauthorized: false } : undefined,
   };
 }

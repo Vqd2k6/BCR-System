@@ -85,16 +85,19 @@ export class BurlandCalculator {
       const flNameVi = fl.floorName || 'Tầng trệt';
       const flNameEn = fl.floorNameEn || (flNameVi.includes('trệt') ? 'Ground Floor' : flNameVi.includes('lửng') ? 'Mezzanine' : flNameVi);
 
-      // 1. Duyệt Vùng Kiến trúc Z
-      for (const z of fl.zones || []) {
+      // 1. Duyệt Vùng Kiến trúc Z (Bỏ qua vùng và khuyết tật đã xóa mềm)
+      const activeZones = (fl.zones || []).filter((z: any) => !z?.isDeleted && !z?.is_deleted);
+      for (const z of activeZones) {
         totalSurveyedObjects++;
         const zCode = z.zoneCode || 'Z-01';
-        const locVi = z.roomName || 'Khu vực chính';
+        const resolvedRoom = (z.roomName === 'Khác' && z.customRoomName) ? z.customRoomName : z.roomName;
+        const resolvedWallMat = (z.wallMaterial === 'Khác' && z.customWallMaterial) ? z.customWallMaterial : z.wallMaterial;
+        const locVi = resolvedRoom || 'Khu vực chính';
         const locEn = z.roomNameEn || locVi;
-        const wallMatVi = z.wallMaterial || 'Chưa ghi nhận vật liệu';
-        const wallMatEn = z.wallMaterialEn || (z.wallMaterial ? z.wallMaterial : 'Not recorded');
+        const wallMatVi = resolvedWallMat || 'Chưa ghi nhận vật liệu';
+        const wallMatEn = z.wallMaterialEn || (resolvedWallMat ? resolvedWallMat : 'Not recorded');
 
-        const defects: any[] = z.defects || [];
+        const defects: any[] = (z.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
         let maxW = 0;
         let crackDesc = '';
         let zoneCrackCount = 0;
@@ -113,7 +116,10 @@ export class BurlandCalculator {
           }
         }
 
-        const zoneGrade = maxW > 0 ? BurlandCalculator.calculateGradeFromCrackWidth(maxW) : 0;
+        const calculatedZoneGrade = maxW > 0 ? BurlandCalculator.calculateGradeFromCrackWidth(maxW) : 0;
+        const zoneGrade = (z.burlandGrade !== undefined && z.burlandGrade !== null && !isNaN(Number(z.burlandGrade)))
+          ? Number(z.burlandGrade)
+          : calculatedZoneGrade;
         gradeCountMap[zoneGrade] = (gradeCountMap[zoneGrade] || 0) + 1;
 
         const item: BurlandZoneSummaryItem = {
@@ -145,15 +151,19 @@ export class BurlandCalculator {
         }
       }
 
-      // 2. Duyệt Cấu kiện Kết cấu Chịu lực E (Kiểm tra tình trạng chịu lực riêng tại Bảng VII.4)
-      for (const e of fl.structuralElements || []) {
+      // 2. Duyệt Cấu kiện Kết cấu Chịu lực E (Kiểm tra tình trạng chịu lực riêng tại Bảng VII.4, bỏ qua phần tử đã xóa mềm)
+      const activeElements = (fl.structuralElements || []).filter((e: any) => !e?.isDeleted && !e?.is_deleted);
+      for (const e of activeElements) {
         const eCode = e.elementCode || 'E-01';
-        const locVi = e.roomName || 'Khu vực chính';
+        const resolvedERoom = (e.roomName === 'Khác' && e.customRoomName) ? e.customRoomName : e.roomName;
+        const resolvedEType = (e.elementType === 'Khác' && e.customElementType) ? e.customElementType : e.elementType;
+        const resolvedEMat = (e.materialType === 'Khác' && e.customMaterialType) ? e.customMaterialType : e.materialType;
+        const locVi = resolvedERoom || 'Khu vực chính';
         const locEn = e.roomNameEn || locVi;
-        const elemTypeVi = e.elementType || 'Cột / Dầm / Sàn';
-        const matVi = e.materialType || 'Bê tông cốt thép';
+        const elemTypeVi = resolvedEType || 'Cột / Dầm / Sàn';
+        const matVi = resolvedEMat || 'Bê tông cốt thép';
 
-        const defects: any[] = e.defects || [];
+        const defects: any[] = (e.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
         let maxW = 0;
         let elemCrackCount = 0;
         for (const d of defects) {
@@ -198,13 +208,11 @@ export class BurlandCalculator {
       gradeCountMap[0] = 1;
     }
 
-    // 3. Quy tắc ưu tiên dữ liệu: Nếu KSV đã chốt tại Bước 4 thì lấy dữ liệu chốt hợp lệ
+    // 3. Quy tắc ưu tiên dữ liệu: Đọc 100% từ dữ liệu đã chốt tại Bước 4 (burlandSummary), không dùng Math.max ghi đè
     const rawBs = rawSummary || {};
     let finalLocalMax = calculatedMaxGrade;
-    if (calculatedMaxGrade === 0) {
-      finalLocalMax = 0;
-    } else if (rawBs.localMaxGrade !== undefined && rawBs.localMaxGrade !== null) {
-      finalLocalMax = Math.max(Number(rawBs.localMaxGrade), calculatedMaxGrade);
+    if (rawBs.localMaxGrade !== undefined && rawBs.localMaxGrade !== null && !isNaN(Number(rawBs.localMaxGrade))) {
+      finalLocalMax = Number(rawBs.localMaxGrade);
     }
 
     // Tìm cấp chủ đạo (Mode)
@@ -216,11 +224,8 @@ export class BurlandCalculator {
         finalPredominant = g;
       }
     }
-    if (rawBs.predominantGrade !== undefined && rawBs.predominantGrade !== null) {
-      const bsPred = Number(rawBs.predominantGrade);
-      if ((gradeCountMap[bsPred] || 0) > 0) {
-        finalPredominant = bsPred;
-      }
+    if (rawBs.predominantGrade !== undefined && rawBs.predominantGrade !== null && !isNaN(Number(rawBs.predominantGrade))) {
+      finalPredominant = Number(rawBs.predominantGrade);
     }
 
     const predominantCount = gradeCountMap[finalPredominant] || 0;
@@ -289,22 +294,30 @@ export class BurlandCalculator {
       },
     ];
 
-    // Vùng chi phối
-    const govCode = (calculatedMaxGrade > 0 && governingItem?.code)
-      ? governingItem.code
-      : (rawBs.governingZoneCode || governingItem?.code || 'Z-01');
-    const govFloor = governingItem?.floorVi || 'Tầng trệt';
-    const govLoc = governingItem?.locationVi || 'Khu vực chính';
-    const govW = governingItem?.wmax || 0;
+    // Vùng chi phối: Ưu tiên 100% mã vùng chi phối đã chốt trong burlandSummary.governingZoneCode
+    const explicitGovZone = rawBs.governingZoneCode
+      ? zoneSummaries.find((zs) => zs.zoneCode === rawBs.governingZoneCode)
+      : undefined;
+    const govCode = rawBs.governingZoneCode || governingItem?.code || 'Z-01';
+    const govFloor = explicitGovZone?.floorName?.vi || governingItem?.floorVi || 'Tầng trệt';
+    const govFloorEn = explicitGovZone?.floorName?.en || governingItem?.floorEn || govFloor;
+    const govLoc = explicitGovZone?.location?.vi || governingItem?.locationVi || 'Khu vực chính';
+    const govLocEn = explicitGovZone?.location?.en || governingItem?.locationEn || govLoc;
+    const govW = explicitGovZone
+      ? (typeof explicitGovZone.wmaxMm === 'number' ? explicitGovZone.wmaxMm : 0)
+      : (governingItem?.wmax || 0);
     const govDesc = rawBs.governingZoneDescription || governingItem?.descVi || '';
 
-    // Cờ kết cấu (E2) - Giá trị chuẩn xác tuyệt đối theo dữ liệu khảo sát
+    // Cờ kết cấu (E2) - Giá trị chuẩn xác tuyệt đối theo dữ liệu đã chốt trong burlandSummary
     const hasStructuralIssue = structuralElements.some(e => e.defectCount > 0);
     const totalZoneCracks = zoneSummaries.reduce((sum, z) => sum + z.crackCount, 0);
     const totalStructuralDefects = structuralElements.reduce((sum, e) => sum + e.defectCount, 0);
-    const isZeroDefects = (totalZoneCracks === 0 && totalStructuralDefects === 0 && calculatedMaxGrade === 0);
-
     const rawFlagStr = (rawBs.structuralFlagLevel ?? '').toString().trim().toUpperCase();
+    const hasExplicitGradeOrFlag =
+      finalLocalMax > 0 ||
+      ['LOW', 'MODERATE', 'HIGH', 'CRITICAL'].includes(rawFlagStr) ||
+      rawBs.hasStructuralFlag === true;
+    const isZeroDefects = (totalZoneCracks === 0 && totalStructuralDefects === 0 && calculatedMaxGrade === 0 && !hasExplicitGradeOrFlag);
 
     let hasFlag = false;
     let structFlagVi = 'Không';
@@ -375,7 +388,7 @@ export class BurlandCalculator {
       },
       governingZone: {
         vi: `${govCode} – ${govFloor} (${govLoc})`,
-        en: `${govCode} – ${governingItem?.floorEn || govFloor} (${governingItem?.locationEn || govLoc})`,
+        en: `${govCode} – ${govFloorEn} (${govLocEn})`,
       },
       governingZoneDescription: {
         vi: isZeroDefects

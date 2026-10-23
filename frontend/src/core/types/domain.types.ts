@@ -21,6 +21,7 @@ export type SurveyStatus =
   | 'SCHEDULED'
   | 'IN_PROGRESS'
   | 'SUBMITTED'
+  | 'UNDER_REVIEW'
   | 'APPROVED'
   | 'REJECTED'
   | 'POSTPONED_ABSENT'

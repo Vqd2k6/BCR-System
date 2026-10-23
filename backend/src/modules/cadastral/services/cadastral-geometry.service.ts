@@ -146,7 +146,8 @@ export class CadastralGeometryService {
     parcelBIdent: string,
     adminId: string,
     reason: string,
-    clientIp?: string
+    clientIp?: string,
+    user?: { userId: string; role: string; assignedZoneId?: string | null }
   ) {
     return Database.transaction(async (client) => {
       // 1. Tìm thông tin thửa A và B
@@ -160,12 +161,16 @@ export class CadastralGeometryService {
         owner_name: string;
         land_area_m2: number;
         construction_area_m2: number;
+        distance_to_centerline_m: number | null;
+        survey_status: string;
+        lifecycle_status: string;
         cadastral_geojson: string;
         footprint_geojson: string;
         location_geojson: string;
       }>(
         `SELECT id, zone_id, project_parcel_code, official_cadastral_code, house_number, street, owner_name,
-                land_area_m2, construction_area_m2,
+                land_area_m2, construction_area_m2, distance_to_centerline_m,
+                survey_status, lifecycle_status,
                 ST_AsGeoJSON(cadastral_polygon_geom) AS cadastral_geojson,
                 ST_AsGeoJSON(footprint_polygon_geom) AS footprint_geojson,
                 ST_AsGeoJSON(location_geom) AS location_geojson
@@ -197,6 +202,128 @@ export class CadastralGeometryService {
         );
       }
 
+      // 1.1. Chốt chặn IDOR & Phân quyền Zone Admin
+      let effectiveRole = user?.role;
+      let effectiveZoneId = user?.assignedZoneId;
+      if (!effectiveRole && adminId) {
+        const uRes = await client.query<{ role: string; assigned_zone_id: string | null }>(
+          `SELECT role, assigned_zone_id FROM users WHERE id = $1::uuid LIMIT 1;`,
+          [adminId]
+        );
+        if (uRes.rows[0]) {
+          effectiveRole = uRes.rows[0].role;
+          effectiveZoneId = uRes.rows[0].assigned_zone_id;
+        }
+      }
+
+      if (effectiveRole && effectiveRole !== 'SUPER_ADMIN') {
+        if (effectiveRole !== 'ZONE_ADMIN') {
+          throw new ForbiddenError('Chỉ Zone Admin hoặc Super Admin mới có quyền hoán đổi hình học không gian GIS.');
+        }
+        const normalizedAssigned = (effectiveZoneId || '').trim().toUpperCase();
+        const hasAllZonesPrivilege =
+          !normalizedAssigned || normalizedAssigned === 'ALL' || normalizedAssigned === 'ALL_ZONES';
+        if (
+          !hasAllZonesPrivilege &&
+          (parcelA.zone_id !== effectiveZoneId || parcelB.zone_id !== effectiveZoneId)
+        ) {
+          throw new ForbiddenError(
+            `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ được phép thao tác trong phân khu [${effectiveZoneId}], không thể hoán đổi thửa thuộc phân khu [${parcelA.zone_id}].`
+          );
+        }
+      }
+
+      // 1.2. Chốt chặn trạng thái vòng đời (lifecycle_status) & bất biến pháp lý (APPROVED / is_locked)
+      if (parcelA.lifecycle_status && parcelA.lifecycle_status !== 'ACTIVE') {
+        throw new BadRequestError(
+          `Không thể hoán đổi: Thửa đất [${parcelA.project_parcel_code}] đang ở trạng thái vòng đời '${parcelA.lifecycle_status}'.`
+        );
+      }
+      if (parcelB.lifecycle_status && parcelB.lifecycle_status !== 'ACTIVE') {
+        throw new BadRequestError(
+          `Không thể hoán đổi: Thửa đất [${parcelB.project_parcel_code}] đang ở trạng thái vòng đời '${parcelB.lifecycle_status}'.`
+        );
+      }
+
+      if (parcelA.survey_status === 'APPROVED') {
+        throw new ForbiddenError(
+          `Không thể hoán đổi: Thửa đất [${parcelA.project_parcel_code}] đã được phê duyệt chính thức (APPROVED) và bị khóa bất biến.`
+        );
+      }
+      if (parcelB.survey_status === 'APPROVED') {
+        throw new ForbiddenError(
+          `Không thể hoán đổi: Thửa đất [${parcelB.project_parcel_code}] đã được phê duyệt chính thức (APPROVED) và bị khóa bất biến.`
+        );
+      }
+
+      interface ParcelReportRow {
+        id: string;
+        parcel_id: string;
+        status: string;
+        report_type: string | null;
+        survey_data_json: Record<string, unknown> | string | null;
+      }
+
+      const reportsCheckRes = await client.query<ParcelReportRow>(
+        `SELECT id, parcel_id, status, report_type, survey_data_json
+         FROM base_survey_reports
+         WHERE parcel_id IN ($1::uuid, $2::uuid)
+           AND deleted_at IS NULL
+         FOR UPDATE;`,
+        [parcelA.id, parcelB.id]
+      );
+
+      const lockedReport = reportsCheckRes.rows.find(
+        (r) => r.status === 'APPROVED' || r.status === 'APPROVED_PHASE2'
+      );
+      if (lockedReport) {
+        const lockedParcelCode =
+          lockedReport.parcel_id === parcelA.id ? parcelA.project_parcel_code : parcelB.project_parcel_code;
+        throw new ForbiddenError(
+          `Không thể hoán đổi ranh giới GIS: Thửa đất [${lockedParcelCode}] có hồ sơ khảo sát đã được phê duyệt (APPROVED) hoặc đã khóa pháp lý bất biến.`
+        );
+      }
+
+      // Hàm trích xuất tọa độ [lat, lng][] từ GeoJSON Polygon/MultiPolygon để đồng bộ khoảng cách Metro & survey_data_json
+      const extractLatLngCoords = (geoJsonStr: string | null): [number, number][] => {
+        if (!geoJsonStr) return [];
+        try {
+          const parsed = JSON.parse(geoJsonStr) as { type?: string; coordinates?: unknown };
+          if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates) && Array.isArray(parsed.coordinates[0])) {
+            return (parsed.coordinates[0] as [number, number][]).map((pt) => [Number(pt[1]), Number(pt[0])]);
+          }
+          if (
+            parsed.type === 'MultiPolygon' &&
+            Array.isArray(parsed.coordinates) &&
+            Array.isArray(parsed.coordinates[0]) &&
+            Array.isArray((parsed.coordinates[0] as unknown[])[0])
+          ) {
+            return ((parsed.coordinates[0] as unknown[])[0] as [number, number][]).map((pt) => [
+              Number(pt[1]),
+              Number(pt[0]),
+            ]);
+          }
+        } catch {
+          // Bỏ qua nếu không parse được
+        }
+        return [];
+      };
+
+      const coordsForAFromB = extractLatLngCoords(parcelB.cadastral_geojson);
+      const coordsForBFromA = extractLatLngCoords(parcelA.cadastral_geojson);
+
+      const metricsForA = coordsForAFromB.length >= 3 ? calculateDistancesFromPolygon(coordsForAFromB) : null;
+      const metricsForB = coordsForBFromA.length >= 3 ? calculateDistancesFromPolygon(coordsForBFromA) : null;
+
+      const nextDistA =
+        metricsForA?.centerlineDist !== undefined && metricsForA?.centerlineDist !== null
+          ? metricsForA.centerlineDist
+          : parcelB.distance_to_centerline_m;
+      const nextDistB =
+        metricsForB?.centerlineDist !== undefined && metricsForB?.centerlineDist !== null
+          ? metricsForB.centerlineDist
+          : parcelA.distance_to_centerline_m;
+
       // 2. Thực hiện tráo đổi hình học không gian (Geometry Swap)
       await client.query(
         `UPDATE parcels
@@ -205,14 +332,16 @@ export class CadastralGeometryService {
              location_geom = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) ELSE NULL END,
              land_area_m2 = $4,
              construction_area_m2 = $5,
+             distance_to_centerline_m = $6,
              updated_at = NOW()
-         WHERE id = $6;`,
+         WHERE id = $7;`,
         [
           parcelB.cadastral_geojson,
           parcelB.footprint_geojson,
           parcelB.location_geojson,
           parcelB.land_area_m2,
           parcelB.construction_area_m2,
+          nextDistA,
           parcelA.id,
         ]
       );
@@ -224,16 +353,88 @@ export class CadastralGeometryService {
              location_geom = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) ELSE NULL END,
              land_area_m2 = $4,
              construction_area_m2 = $5,
+             distance_to_centerline_m = $6,
              updated_at = NOW()
-         WHERE id = $6;`,
+         WHERE id = $7;`,
         [
           parcelA.cadastral_geojson,
           parcelA.footprint_geojson,
           parcelA.location_geojson,
           parcelA.land_area_m2,
           parcelA.construction_area_m2,
+          nextDistB,
           parcelB.id,
         ]
+      );
+
+      // 2.1. Đồng bộ tọa độ đa giác & khoảng cách Metro vào base_survey_reports.survey_data_json (bảo toàn 100% dữ liệu khảo sát thực địa)
+      const syncParcelReportsAfterSwap = async (
+        targetParcelId: string,
+        newCoords: [number, number][],
+        centerlineDist: number | null | undefined,
+        outerBoundaryDist: number | null | undefined
+      ) => {
+        const parcelReports = reportsCheckRes.rows.filter((r) => r.parcel_id === targetParcelId);
+        for (const rep of parcelReports) {
+          const rawJson: Record<string, unknown> =
+            typeof rep.survey_data_json === 'string'
+              ? (JSON.parse(rep.survey_data_json) as Record<string, unknown>)
+              : { ...(rep.survey_data_json || {}) };
+
+          const metroOffsetStr =
+            centerlineDist !== null && centerlineDist !== undefined
+              ? `${Number(centerlineDist).toFixed(1)}m`
+              : undefined;
+          const clearanceStr =
+            outerBoundaryDist !== null && outerBoundaryDist !== undefined
+              ? `${Number(outerBoundaryDist).toFixed(1)}m`
+              : undefined;
+
+          const updatedJson: Record<string, unknown> = {
+            ...rawJson,
+          };
+
+          if (newCoords.length >= 3) {
+            updatedJson.parcelCoordinates = newCoords;
+            updatedJson.polygonCoords = newCoords;
+          }
+          if (metroOffsetStr) {
+            updatedJson.metroOffsetDistance = metroOffsetStr;
+          }
+          if (clearanceStr) {
+            updatedJson.clearanceOffsetDistance = clearanceStr;
+            updatedJson.stationEdgeDistance = clearanceStr;
+          }
+
+          if (updatedJson.parentInfo && typeof updatedJson.parentInfo === 'object') {
+            const pInfo = { ...(updatedJson.parentInfo as Record<string, unknown>) };
+            if (metroOffsetStr) pInfo.metroOffsetDistance = metroOffsetStr;
+            if (clearanceStr) pInfo.stationEdgeDistance = clearanceStr;
+            updatedJson.parentInfo = pInfo;
+          }
+
+          await client.query(
+            `UPDATE base_survey_reports
+             SET survey_data_json = $1::jsonb,
+                 sync_version = COALESCE(sync_version, 1) + 1,
+                 updated_at = NOW()
+             WHERE id = $2::uuid;`,
+            [JSON.stringify(updatedJson), rep.id]
+          );
+        }
+      };
+
+      await syncParcelReportsAfterSwap(
+        parcelA.id,
+        coordsForAFromB,
+        nextDistA,
+        metricsForA?.outerBoundaryDist
+      );
+      await syncParcelReportsAfterSwap(
+        parcelB.id,
+        coordsForBFromA,
+        nextDistB,
+        metricsForB?.outerBoundaryDist
       );
 
       // 3. Ghi log sự kiện biến động (Mutation Event)
@@ -493,9 +694,9 @@ export class CadastralGeometryService {
       }
 
       // 7. Đồng bộ 2 chiều sang base_survey_reports.survey_data_json (Q1, Q2, Q3)
-      // Tự động cập nhật toạ độ và cự ly mới, giữ nguyên chữ ký chủ hộ và giữ nguyên trạng thái hồ sơ SUBMITTED
+      // Tự động cập nhật toạ độ và cự ly mới cho các hồ sơ chưa APPROVED, giữ nguyên chữ ký chủ hộ và giữ nguyên trạng thái hồ sơ SUBMITTED
       const reportsRes = await client.query<{ id: string; survey_data_json: any; status: string }>(
-        `SELECT id, survey_data_json, status FROM base_survey_reports WHERE parcel_id = $1;`,
+        `SELECT id, survey_data_json, status FROM base_survey_reports WHERE parcel_id = $1 AND deleted_at IS NULL AND status != 'APPROVED';`,
         [parcelId]
       );
 
@@ -504,12 +705,23 @@ export class CadastralGeometryService {
           ? JSON.parse(rep.survey_data_json)
           : (rep.survey_data_json || {});
 
+        // Ràng buộc 02 (/grill-me): Bảo toàn 100% số liệu KSV thực địa (landAreaM2, constructionAreaM2, frontageWidth, lotDepth)
+        // Chỉ gán mặc định nếu hồ sơ chưa từng có số liệu diện tích
+        const preservedLandAreaM2 =
+          existingJson.landAreaM2 !== undefined && existingJson.landAreaM2 !== null && existingJson.landAreaM2 !== ''
+            ? existingJson.landAreaM2
+            : newAreaM2;
+        const preservedConstructionAreaM2 =
+          existingJson.constructionAreaM2 !== undefined && existingJson.constructionAreaM2 !== null && existingJson.constructionAreaM2 !== ''
+            ? existingJson.constructionAreaM2
+            : newAreaM2;
+
         const updatedSurveyJson = {
           ...existingJson,
           parcelCoordinates: newCoordinates,
           polygonCoords: newCoordinates,
-          landAreaM2: newAreaM2,
-          constructionAreaM2: updateFootprint ? newAreaM2 : (existingJson.constructionAreaM2 ?? newAreaM2),
+          landAreaM2: preservedLandAreaM2,
+          constructionAreaM2: preservedConstructionAreaM2,
           metroOffsetDistance: newCenterlineDist !== null ? `${newCenterlineDist.toFixed(1)}m` : existingJson.metroOffsetDistance,
           clearanceOffsetDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : 'Không có ga trong khu vực',
           stationEdgeDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : existingJson.stationEdgeDistance,

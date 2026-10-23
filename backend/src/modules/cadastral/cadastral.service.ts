@@ -254,9 +254,17 @@ export class CadastralService {
     parcelBIdent: string,
     adminId: string,
     reason: string,
-    clientIp?: string
+    clientIp?: string,
+    user?: { userId: string; role: string; assignedZoneId?: string | null }
   ) {
-    return CadastralGeometryService.swapParcelGeometries(parcelAIdent, parcelBIdent, adminId, reason, clientIp);
+    return CadastralGeometryService.swapParcelGeometries(
+      parcelAIdent,
+      parcelBIdent,
+      adminId,
+      reason,
+      clientIp,
+      user
+    );
   }
 
   static async reshapeParcelGeometry(
@@ -337,6 +345,46 @@ export class CadastralService {
   }
 
   // --- BẢO VỆ PHÂN QUYỀN & CHỐNG IDOR ---
+  static isZoneMatchOrAllPrivilege(assignedZoneId: string | null | undefined, targetParcelZoneId: string | null | undefined): boolean {
+    const normalizedAssigned = (assignedZoneId || '').trim().toUpperCase();
+    if (!normalizedAssigned || normalizedAssigned === 'ALL' || normalizedAssigned === 'ALL_ZONES') {
+      return true;
+    }
+    const normalizedTarget = (targetParcelZoneId || '').trim().toUpperCase();
+    if (!normalizedTarget || normalizedAssigned === normalizedTarget) {
+      return true;
+    }
+
+    const zoneAliases: Record<string, string[]> = {
+      ZONE_S1: ['ZONE_S1', 'ZONE_01', 'ST01'],
+      ZONE_01: ['ZONE_01', 'ZONE_S1', 'ST01'],
+      ZONE_S2: ['ZONE_S2', 'ZONE_02', 'ZONE_03', 'ST02'],
+      ZONE_02: ['ZONE_02', 'ZONE_S2', 'ST02'],
+      ZONE_S3: ['ZONE_S3', 'ZONE_03', 'ZONE_05', 'ST03'],
+      ZONE_03: ['ZONE_03', 'ZONE_S3', 'ZONE_S2', 'ST03'],
+      ZONE_S4: ['ZONE_S4', 'ZONE_04', 'ZONE_07', 'ST04'],
+      ZONE_04: ['ZONE_04', 'ZONE_S4', 'ST04'],
+      ZONE_S5: ['ZONE_S5', 'ZONE_09', 'ZONE_05', 'ST05'],
+      ZONE_05: ['ZONE_05', 'ZONE_S5', 'ZONE_S3', 'ST05'],
+      ZONE_S6: ['ZONE_S6', 'ZONE_11', 'ST06'],
+      ZONE_11: ['ZONE_11', 'ZONE_S6', 'ST06'],
+      ZONE_S7: ['ZONE_S7', 'ZONE_13', 'ST07'],
+      ZONE_13: ['ZONE_13', 'ZONE_S7', 'ST07'],
+      ZONE_S8: ['ZONE_S8', 'ZONE_08', 'ZONE_15', 'ST08'],
+      ZONE_08: ['ZONE_08', 'ZONE_S8', 'ST08'],
+      ZONE_S9: ['ZONE_S9', 'ZONE_09', 'ZONE_17', 'ST09'],
+      ZONE_09: ['ZONE_09', 'ZONE_S9', 'ZONE_S5', 'ZONE_17', 'ST09'],
+      ST09: ['ST09', 'ZONE_09', 'ZONE_S9', 'ZONE_17'],
+      ZONE_S10: ['ZONE_S10', 'ZONE_19', 'ST10'],
+      ZONE_19: ['ZONE_19', 'ZONE_S10', 'ST10'],
+      ZONE_S11: ['ZONE_S11', 'ZONE_21', 'ST11'],
+      ZONE_21: ['ZONE_21', 'ZONE_S11', 'ST11'],
+    };
+
+    const allowedTargets = zoneAliases[normalizedAssigned] || [normalizedAssigned];
+    return allowedTargets.includes(normalizedTarget);
+  }
+
   static async assertUserCanModifyParcel(
     user: { userId: string; role: string; assignedZoneId?: string | null } | undefined,
     parcelId: string
@@ -352,12 +400,13 @@ export class CadastralService {
       return parcel;
     }
     if (user.role === 'ZONE_ADMIN') {
-      if (user.assignedZoneId && parcel.zone_id !== user.assignedZoneId) {
-        throw new ForbiddenError(
-          `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ có quyền quản trị phân khu [${user.assignedZoneId}], không thể thao tác trên thửa đất [${parcel.project_parcel_code}] thuộc phân khu [${parcel.zone_id}].`
-        );
+      if (this.isZoneMatchOrAllPrivilege(user.assignedZoneId, parcel.zone_id)) {
+        return parcel;
       }
-      return parcel;
+
+      throw new ForbiddenError(
+        `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ có quyền quản trị phân khu [${user.assignedZoneId}], không thể thao tác trên thửa đất [${parcel.project_parcel_code}] thuộc phân khu [${parcel.zone_id}].`
+      );
     }
     throw new ForbiddenError('Chỉ Zone Admin hoặc Super Admin mới có quyền thực hiện thao tác quản trị này.');
   }

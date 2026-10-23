@@ -254,6 +254,22 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     onBackToHome();
   };
 
+  // Chặn thao tác back trình duyệt để quay lại đúng BuildingHubModal thay vì văng ra trang chủ
+  useEffect(() => {
+    window.history.pushState({ condoMasterSessionActive: true }, '');
+
+    const handlePopState = () => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty && !effectiveReadOnly) {
+        state.syncDraftToServer();
+      }
+      onBackToHome();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [effectiveReadOnly, onBackToHome]);
+
   // Cuộn lên đầu trang khi chuyển bước
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });

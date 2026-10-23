@@ -104,6 +104,12 @@ export function maskReportPii(report: any): any {
           sData.signatures.ownerRepresentative.signatureImageUrl = null;
         }
       }
+      if (Array.isArray(sData.signatures?.workingMinutesPhotos)) {
+        sData.signatures.workingMinutesPhotos = [];
+      }
+      if (Array.isArray(sData.workingMinutesPhotos)) {
+        sData.workingMinutesPhotos = [];
+      }
       if (sData.interviews) {
         if (sData.interviews.intervieweeName) {
           sData.interviews.intervieweeName = maskName(sData.interviews.intervieweeName);

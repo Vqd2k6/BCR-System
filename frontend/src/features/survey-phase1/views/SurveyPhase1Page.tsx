@@ -38,6 +38,7 @@ import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock'
 
 interface IdentificationPhotoBackend {
   photo_type: string;
+  photo_code?: string;
   raw_photo_url?: string;
   is_not_applicable?: boolean;
   facade_polygon_points_json?: PolygonPoint[];
@@ -181,6 +182,16 @@ interface Phase1ServerReportResponse {
     };
     floorSurveys?: BackendFloorSurveyRecord[];
     damageZones?: BackendDamageZoneRecord[];
+    deformation?: {
+      tilt_angle_x?: number;
+      tilt_angle_y?: number;
+      tilt_direction?: string | null;
+      floor_slope_ratio?: number;
+      beam_deflection_mm?: number;
+      e3_deformation_score?: number;
+      measurement_method?: string;
+      measurement_reliability?: 'HIGH' | 'MEDIUM' | 'LOW';
+    };
     owner_remarks?: string;
     surveyor_name?: string;
     surveyor_signature_url?: string;
@@ -492,7 +503,30 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                       heightM: updates.photoP02?.heightM || '',
                     };
                   } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
-                    updates.photoP03 = { ...(updates.photoP03 || {}), url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
+                    const existingP03 = updates.photoP03 || { url: '', notApplicable: false, additionalPhotos: [] };
+                    if (!existingP03.url && !existingP03.notApplicable) {
+                      updates.photoP03 = {
+                        ...existingP03,
+                        url: p.raw_photo_url || '',
+                        notApplicable: Boolean(p.is_not_applicable),
+                      };
+                    } else if (p.raw_photo_url) {
+                      const prevAdd = Array.isArray(existingP03.additionalPhotos) ? existingP03.additionalPhotos : [];
+                      if (!prevAdd.some((ap) => ap.url === p.raw_photo_url) && existingP03.url !== p.raw_photo_url) {
+                        updates.photoP03 = {
+                          ...existingP03,
+                          additionalPhotos: [
+                            ...prevAdd,
+                            {
+                              id: `p03_add_${prevAdd.length + 1}`,
+                              url: p.raw_photo_url,
+                              tag: 'Bên hông',
+                              photoCode: p.photo_code || `P-03-${prevAdd.length + 2}`,
+                            },
+                          ],
+                        };
+                      }
+                    }
                   } else if (p.photo_type === 'P04_CONTEXT_STREET') {
                     updates.photoP04 = { ...(updates.photoP04 || {}), url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
                   }
@@ -549,13 +583,71 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   };
                 });
               } else if (rep.floorSurveys && rep.floorSurveys.length > 0) {
-                // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones
+                // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones (tách Z-xx và E-xx)
+                const elementsByFloor: Record<string, FloorSurveyData['structuralElements']> = {};
                 const zonesByFloor = (rep.damageZones || []).reduce<Record<string, DamageZoneData[]>>((acc, z) => {
                   const fid = z.floor_name || z.floor_id || z.floorName || 'default';
+                  const zCode = String(z.zone_code || z.zoneCode || 'Z-01');
+                  const mappedDefects = (z.defects || []).map((d): DefectItem => {
+                    const cuList: string[] = Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
+                      ? d.cu_photos_json
+                      : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                          ? d.cuPhotos
+                          : (d.cu_photo_url || d.cuPhotoUrl ? [d.cu_photo_url || d.cuPhotoUrl || ''] : []));
+                    const codeList: string[] = Array.isArray(d.cu_photo_codes_json) && d.cu_photo_codes_json.length > 0
+                      ? d.cu_photo_codes_json
+                      : (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0
+                          ? d.cuPhotoCodes
+                          : (d.cu_photo_code || d.cuPhotoCode ? [d.cu_photo_code || d.cuPhotoCode || ''] : []));
+                    return {
+                      id: d.id,
+                      defectCode: d.defect_code || d.defectCode || 'D-01',
+                      pinX: Number(d.pin_x ?? d.pinX) || 0,
+                      pinY: Number(d.pin_y ?? d.pinY) || 0,
+                      screeningCategory: d.screening_category || d.screeningCategory || 'Nứt tường gạch / Vữa trát hoàn thiện',
+                      defectType: d.defect_type || d.defectType || 'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
+                      crackDirection: (d.crack_direction || d.crackDirection) as DefectItem['crackDirection'],
+                      widthMaxMm: Number(d.width_max_mm ?? d.widthMaxMm) || 0,
+                      lengthMm: Number(d.length_mm ?? d.lengthMm) || 0,
+                      activityState: (d.activity_state || d.activityState || 'S') as DefectItem['activityState'],
+                      materialDegradationE4: Number(d.material_degradation_e4 ?? d.materialDegradationE4) || 0,
+                      structuralSignificanceE2: Number(d.structural_significance_e2 ?? d.structuralSignificanceE2) || 0,
+                      functionalImpactE6: (d.functional_impact_e6 ?? d.functionalImpactE6 ?? '') as DefectItem['functionalImpactE6'],
+                      cuPhotoUrl: cuList[0] || d.cu_photo_url || d.cuPhotoUrl || '',
+                      cuPhotoCode: codeList[0] || d.cu_photo_code || d.cuPhotoCode || '',
+                      cuPhotos: cuList,
+                      cuPhotoCodes: codeList,
+                      extraPhotoUrl: d.extra_photo_url || d.extraPhotoUrl,
+                      pinColor: d.pin_color || d.pinColor || '#ef4444',
+                      hasScaleCard: d.has_scale_card ?? d.hasScaleCard ?? true,
+                      isStructuralCritical: d.is_structural_critical ?? d.isStructuralCritical ?? false,
+                      notes: d.notes || '',
+                    };
+                  });
+
+                  if (zCode.toUpperCase().startsWith('E-')) {
+                    if (!elementsByFloor[fid]) elementsByFloor[fid] = [];
+                    elementsByFloor[fid].push({
+                      id: z.id,
+                      elementCode: zCode,
+                      floorName: z.floor_name || z.floorName || '',
+                      roomName: z.room_name || z.zone_name || z.roomName || 'Cấu kiện kết cấu',
+                      elementType: (z.component_type || z.componentType || 'COLUMN') as NonNullable<FloorSurveyData['structuralElements']>[number]['elementType'],
+                      materialType: z.wall_material || z.wallMaterial || 'BTCT',
+                      notes: z.notes || '',
+                      overviewPhotos: [],
+                      ctxPhotoUrl: z.ctx_photo_url || z.photo_context_url || '',
+                      ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
+                      hasDamage: mappedDefects.length > 0 || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
+                      defects: mappedDefects,
+                    });
+                    return acc;
+                  }
+
                   if (!acc[fid]) acc[fid] = [];
                   acc[fid].push({
                     id: z.id,
-                    zoneCode: z.zone_code || z.zoneCode || 'Z-01',
+                    zoneCode: zCode,
                     floorName: z.floor_name || z.floorName || '',
                     roomName: z.room_name || z.zone_name || z.roomName || 'Không gian chung',
                     componentType: z.component_type || z.componentType || 'WALL',
@@ -564,44 +656,9 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     overviewPhotos: [],
                     ctxPhotoUrl: z.ctx_photo_url || z.photo_context_url || '',
                     ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
-                    hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
+                    hasDamage: mappedDefects.length > 0 || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
                     burlandGrade: Number(z.burland_grade ?? z.burlandGrade) || 0,
-                    defects: (z.defects || []).map((d): DefectItem => {
-                      const cuList: string[] = Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
-                        ? d.cu_photos_json
-                        : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
-                            ? d.cuPhotos
-                            : (d.cu_photo_url || d.cuPhotoUrl ? [d.cu_photo_url || d.cuPhotoUrl || ''] : []));
-                      const codeList: string[] = Array.isArray(d.cu_photo_codes_json) && d.cu_photo_codes_json.length > 0
-                        ? d.cu_photo_codes_json
-                        : (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0
-                            ? d.cuPhotoCodes
-                            : (d.cu_photo_code || d.cuPhotoCode ? [d.cu_photo_code || d.cuPhotoCode || ''] : []));
-                      return {
-                        id: d.id,
-                        defectCode: d.defect_code || d.defectCode || 'D-01',
-                        pinX: Number(d.pin_x ?? d.pinX) || 0,
-                        pinY: Number(d.pin_y ?? d.pinY) || 0,
-                        screeningCategory: d.screening_category || d.screeningCategory || 'Nứt tường gạch / Vữa trát hoàn thiện',
-                        defectType: d.defect_type || d.defectType || 'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
-                        crackDirection: (d.crack_direction || d.crackDirection) as DefectItem['crackDirection'],
-                        widthMaxMm: Number(d.width_max_mm ?? d.widthMaxMm) || 0,
-                        lengthMm: Number(d.length_mm ?? d.lengthMm) || 0,
-                        activityState: (d.activity_state || d.activityState || 'S') as DefectItem['activityState'],
-                        materialDegradationE4: Number(d.material_degradation_e4 ?? d.materialDegradationE4) || 0,
-                        structuralSignificanceE2: Number(d.structural_significance_e2 ?? d.structuralSignificanceE2) || 0,
-                        functionalImpactE6: (d.functional_impact_e6 ?? d.functionalImpactE6 ?? '') as DefectItem['functionalImpactE6'],
-                        cuPhotoUrl: cuList[0] || d.cu_photo_url || d.cuPhotoUrl || '',
-                        cuPhotoCode: codeList[0] || d.cu_photo_code || d.cuPhotoCode || '',
-                        cuPhotos: cuList,
-                        cuPhotoCodes: codeList,
-                        extraPhotoUrl: d.extra_photo_url || d.extraPhotoUrl,
-                        pinColor: d.pin_color || d.pinColor || '#ef4444',
-                        hasScaleCard: d.has_scale_card ?? d.hasScaleCard ?? true,
-                        isStructuralCritical: d.is_structural_critical ?? d.isStructuralCritical ?? false,
-                        notes: d.notes || '',
-                      };
-                    }),
+                    defects: mappedDefects,
                   });
                   return acc;
                 }, {});
@@ -622,9 +679,51 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     cadZonePins: (f.cad_zone_pins_json || f.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
                     cadElementPins: (f.cad_element_pins_json || f.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
                     zones: zonesByFloor[f.floor_name || ''] || zonesByFloor[f.floorName || ''] || zonesByFloor[f.id] || f.zones || [],
-                    structuralElements: (f.structural_elements || []) as unknown as FloorSurveyData['structuralElements'],
+                    structuralElements: elementsByFloor[f.floor_name || ''] || elementsByFloor[f.floorName || ''] || elementsByFloor[f.id] || ((f.structural_elements || []) as unknown as FloorSurveyData['structuralElements']),
                   };
                 });
+              }
+              if (!updates.settlementTilt && rep.deformation) {
+                const def = rep.deformation;
+                const tx = Number(def.tilt_angle_x) || 0;
+                const ty = Number(def.tilt_angle_y) || 0;
+                const maxTilt = Math.max(Math.abs(tx), Math.abs(ty));
+                const tiltLvl = (maxTilt > 10 ? 4 : maxTilt > 5 ? 3 : maxTilt > 2 ? 2 : maxTilt > 0 ? 1 : 0) as 0 | 1 | 2 | 3 | 4;
+                const sagMm = Number(def.beam_deflection_mm) || 0;
+                const sagLvl = (sagMm > 20 ? 4 : sagMm > 10 ? 2 : 0) as 0 | 2 | 4;
+                const e3Lvl = (Math.min(4, Math.max(0, Number(def.e3_deformation_score) || 0))) as 0 | 1 | 2 | 3 | 4;
+                updates.settlementTilt = {
+                  diffSettlement: {
+                    level: Math.max(e3Lvl, 0) as 0 | 1 | 2 | 3 | 4,
+                    position: '',
+                    photoUrl: '',
+                  },
+                  buildingTilt: {
+                    level: tiltLvl,
+                    xPermille: tx,
+                    yPermille: ty,
+                    direction: (def.tilt_direction || '') as Phase1SurveyFormData['settlementTilt']['buildingTilt']['direction'],
+                    photoUrl: '',
+                  },
+                  beamSagging: {
+                    level: sagLvl,
+                    position: '',
+                    sagMm,
+                    photoUrl: '',
+                  },
+                  abnormalCase: {
+                    photoUrl: '',
+                    notes: '',
+                  },
+                  needAdditionalMonitoring: {
+                    required: e3Lvl >= 2 || tiltLvl >= 2,
+                    notes: '',
+                  },
+                  dataSource: def.measurement_method
+                    ? def.measurement_method.split(',').map((s) => s.trim()).filter(Boolean)
+                    : [],
+                  reliability: def.measurement_reliability || 'HIGH',
+                };
               }
               if (rep.owner_remarks) {
                 updates.ownerRemarks = rep.owner_remarks;

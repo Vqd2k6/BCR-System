@@ -20,15 +20,48 @@ export const useSurveyorHomeState = ({
 }: UseSurveyorHomeStateProps) => {
   const { user } = useAuth();
   const canApproveOrReject = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem('ksqh_surveyor_home_state');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { searchTerm?: string };
+        if (typeof parsed.searchTerm === 'string') return parsed.searchTerm;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  });
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
 
   // Default filter: PENDING_ONLY (Chỉ hiện các căn cần làm, ẩn các căn đã duyệt)
-  const [statusFilter, setStatusFilter] = useState<string>('PENDING_ONLY');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem('ksqh_surveyor_home_state');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { statusFilter?: string };
+        if (typeof parsed.statusFilter === 'string' && parsed.statusFilter) return parsed.statusFilter;
+      }
+    } catch {
+      // ignore
+    }
+    return 'PENDING_ONLY';
+  });
   const [showStatusHelp, setShowStatusHelp] = useState<boolean>(false);
 
   // Pagination / Load limit (Requirement 1: Load 10 parcels at a time for performance)
   const [displayLimit, setDisplayLimit] = useState<number>(10);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        'ksqh_surveyor_home_state',
+        JSON.stringify({ searchTerm, statusFilter })
+      );
+    } catch {
+      // ignore
+    }
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     setDisplayLimit(10);

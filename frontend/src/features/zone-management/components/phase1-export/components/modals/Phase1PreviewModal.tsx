@@ -15,10 +15,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage } from '../../types';
-import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
+import type { ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
 import { ReleaseRevisionPanel } from './ReleaseRevisionPanel';
-import { Phase1EditFormTab } from './Phase1EditFormTab';
 import { Phase1JsonTab } from './Phase1JsonTab';
 
 interface Phase1PreviewModalProps {
@@ -55,6 +54,10 @@ interface Phase1PreviewModalProps {
   handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
+  onOpenAuditStudio?: (parcel: ExportParcelItem) => void;
+  selectedRevision?: number;
+  handleSelectRevision?: (rev?: number) => void | Promise<void>;
+  handleExportRevisionPdf?: (rev: number) => void | Promise<void>;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -91,8 +94,17 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   handleExportSinglePdf,
   enableWatermark = true,
   handleToggleWatermark,
+  onOpenAuditStudio,
+  selectedRevision,
+  handleSelectRevision,
+  handleExportRevisionPdf,
 }) => {
   if (!previewParcel) return null;
+
+  const isApproved =
+    previewParcel.surveyStatus?.toUpperCase() === 'APPROVED' ||
+    String((previewReportData as Record<string, unknown> | null)?.status || '').toUpperCase() === 'APPROVED' ||
+    String((previewReportData as Record<string, unknown> | null)?.surveyStatus || '').toUpperCase() === 'APPROVED';
 
   return (
     <div
@@ -118,6 +130,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
                 <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <Sparkles size={10} className="text-amber-500" /> Chuẩn 0410 Song Ngữ
                 </span>
+                {selectedRevision !== null && selectedRevision !== undefined && (
+                  <span className="text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                    Bản lưu trữ Rev.{String(selectedRevision).padStart(2, '0')}
+                  </span>
+                )}
                 {hasUnsavedChanges && (
                   <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                     <AlertCircle size={10} /> Có thay đổi chưa lưu
@@ -140,8 +157,9 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
 
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
               <button
+                type="button"
                 onClick={() => handleSwitchTab('html')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   previewTab === 'html'
                     ? 'bg-white text-sky-700 shadow-sm border border-slate-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
@@ -151,24 +169,22 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
                 <span>Bản In HTML</span>
               </button>
 
-              <button
-                onClick={() => handleSwitchTab('edit')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 relative ${
-                  previewTab === 'edit'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                <Edit3 size={13} />
-                <span>Sửa Dữ Liệu Trực Tiếp</span>
-                {hasUnsavedChanges && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                )}
-              </button>
+              {onOpenAuditStudio && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAuditStudio(previewParcel)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs cursor-pointer"
+                  title="Mở màn hình Thẩm định (Audit Studio) để chỉnh sửa và phê duyệt hồ sơ"
+                >
+                  <Edit3 size={13} className="text-amber-600" />
+                  <span>Chuyển sang màn hình Thẩm định</span>
+                </button>
+              )}
 
               <button
+                type="button"
                 onClick={() => handleSwitchTab('json')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   previewTab === 'json'
                     ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
@@ -256,20 +272,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               hasUnsavedChanges={hasUnsavedChanges}
               enableWatermark={enableWatermark}
               handleToggleWatermark={handleToggleWatermark}
-            />
-          ) : previewTab === 'edit' && editFormData ? (
-            <Phase1EditFormTab
-              editFormData={editFormData}
-              hasUnsavedChanges={hasUnsavedChanges}
-              isSavingEdits={isSavingEdits}
-              defectFilterQuery={defectFilterQuery}
-              setDefectFilterQuery={setDefectFilterQuery}
-              handleUpdateFormField={handleUpdateFormField}
-              handleUpdateDefectField={handleUpdateDefectField}
-              handleAddDefect={handleAddDefect}
-              handleDeleteDefect={handleDeleteDefect}
-              handleApplyPreviewWithoutSaving={handleApplyPreviewWithoutSaving}
-              handleDirectPrint={handleDirectPrint}
+              onOpenAuditStudio={onOpenAuditStudio}
             />
           ) : (
             <Phase1JsonTab
@@ -282,40 +285,26 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
         {/* Modal Footer */}
         <div className="px-5 py-3 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>Tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410 - V2)</span>
-            {hasUnsavedChanges && (
-              <span className="text-amber-600 font-bold bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 text-[11px]">
-                <AlertCircle size={12} /> Có thay đổi trong phiên
-              </span>
-            )}
+            <span>Tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410 - V3)</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setPreviewParcel(null)}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
             >
               Đóng
             </button>
 
             <ReleaseRevisionPanel
               reportId={previewParcel.activePhase1ReportId || previewParcel.id || previewParcel.projectParcelCode}
+              isApproved={isApproved}
+              selectedRevision={selectedRevision}
+              onSelectRevision={handleSelectRevision}
+              onDownloadRevisionPdf={handleExportRevisionPdf}
               onFeedback={(type, text) => setModalFeedback({ type, text, timestamp: new Date().toLocaleTimeString('vi-VN') })}
             />
-
-            {previewTab === 'edit' && (
-              <button
-                type="button"
-                onClick={handleApplyPreviewWithoutSaving}
-                disabled={isSavingEdits}
-                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-                title="Cập nhật ngay vào bản in xem trước (Hoàn toàn KHÔNG ghi vào DB)"
-              >
-                {isSavingEdits ? <RefreshCw size={14} className="animate-spin" /> : <Eye size={14} />}
-                <span>{isSavingEdits ? '⏳ Đang tạo lại bản in...' : '⚡ Cập Nhật Bản In'}</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -332,12 +321,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               type="button"
               onClick={() => {
                 if (previewParcel) {
-                  const payload = (hasUnsavedChanges && editFormData) ? buildReportPayload(editFormData, previewReportData) : undefined;
-                  handleExportSinglePdf(previewParcel, payload);
+                  handleExportSinglePdf(previewParcel);
                 }
               }}
               disabled={isSavingEdits}
-              className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-sky-200 flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-sky-200 flex items-center gap-1.5 cursor-pointer"
               title="Xuất file PDF theo tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410)"
             >
               {isSavingEdits ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}

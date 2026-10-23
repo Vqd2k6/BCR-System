@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
+import { calculateEcsScore } from '../../../../../survey-phase1/engine/ecsCalculator';
+import { calculateViScore } from '../../../../../survey-phase1/engine/viCalculator';
+import { calculateConstructionImpact, calculateBraRisk } from '../../../../../survey-phase1/engine/braEngine';
+import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
+import type { Phase1SurveyFormData } from '../../../../../survey-phase1/types/phase1.types';
 import type {
   DiffItem,
   AuditStepwiseData,
@@ -10,6 +15,258 @@ import type {
 } from '../types';
 
 export type { DiffItem };
+
+const getBurlandGradeFromWidth = (w: number): number => {
+  if (w <= 0.1) return 0;
+  if (w <= 1) return 1;
+  if (w <= 5) return 2;
+  if (w <= 15) return 3;
+  if (w <= 25) return 4;
+  return 5;
+};
+
+const STEP_1_TO_5_SCORING_KEYS = new Set([
+  'usageFunction',
+  'surveyCaseType',
+  'isVacantLand',
+  'objectGroup',
+  'structureSystem',
+  'foundationCatScore',
+  'constructionYear',
+  'historyInterview',
+  'settlementTilt',
+  'floors',
+  'damageZones',
+  'burlandSummary',
+  'metroOffsetDistance',
+  'clearanceOffsetDistance',
+  'manualMetroDistanceM',
+]);
+
+function recomputeDerivedPhase1State(
+  nextState: Record<string, unknown>,
+  changedTopKey: string
+): Record<string, unknown> {
+  const updated = { ...nextState };
+
+  // 1. Nếu sửa floors / damageZones -> tự động đồng bộ burlandSummary theo chuẩn Step4_BurlandSummary.tsx
+  if (changedTopKey === 'floors' || changedTopKey === 'damageZones') {
+    const floors = Array.isArray(updated.floors) ? (updated.floors as any[]) : [];
+    const curBs = ((updated.burlandSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+    let totalDefectsCount = 0;
+    const zCrackGrades: Array<{ grade: number; zoneCode: string }> = [];
+
+    floors.forEach((f) => {
+      (f.zones || []).forEach((z: any) => {
+        if (z.isDeleted || z.is_deleted) return;
+        const activeDefects = (z.defects || []).filter((d: any) => !d.isDeleted && !d.is_deleted);
+        totalDefectsCount += activeDefects.length;
+        activeDefects.forEach((d: any) => {
+          if (isCrackRelated(d.screeningCategory, d.defectType)) {
+            zCrackGrades.push({
+              grade: getBurlandGradeFromWidth(Number(d.widthMaxMm ?? d.width_max_mm) || 0),
+              zoneCode: z.zoneCode || 'Z-01',
+            });
+          }
+        });
+      });
+      (f.structuralElements || []).forEach((e: any) => {
+        if (e.isDeleted || e.is_deleted) return;
+        const activeDefects = (e.defects || []).filter((d: any) => !d.isDeleted && !d.is_deleted);
+        totalDefectsCount += activeDefects.length;
+      });
+    });
+
+    if (totalDefectsCount === 0) {
+      updated.burlandSummary = {
+        ...curBs,
+        predominantGrade: 0,
+        localMaxGrade: 0,
+        structuralFlagLevel: 'NONE',
+        needStructuralEngineerReview: false,
+      };
+    } else if (zCrackGrades.length > 0) {
+      let inheritedMax = 0;
+      let governingZoneCode = String(curBs.governingZoneCode || 'Z-01');
+      const counts: Record<number, number> = {};
+      zCrackGrades.forEach((item) => {
+        if (item.grade >= inheritedMax) {
+          inheritedMax = item.grade;
+          governingZoneCode = item.zoneCode;
+        }
+        counts[item.grade] = (counts[item.grade] || 0) + 1;
+      });
+      let maxCount = -1;
+      let inheritedPredominant = 0;
+      Object.entries(counts).forEach(([gStr, count]) => {
+        const g = Number(gStr);
+        if (count > maxCount || (count === maxCount && g > inheritedPredominant)) {
+          maxCount = count;
+          inheritedPredominant = g;
+        }
+      });
+      updated.burlandSummary = {
+        ...curBs,
+        localMaxGrade: inheritedMax,
+        predominantGrade: inheritedPredominant,
+        governingZoneCode,
+      };
+    }
+  }
+
+  // 2. Nếu sửa dữ liệu nguồn ở Bước 1..5 -> tự động tính lại ECS, VI, Impact và BRA theo chuẩn FE Phase 1
+  if (STEP_1_TO_5_SCORING_KEYS.has(changedTopKey)) {
+    const rawHi = (updated.historyInterview || {}) as Record<string, unknown>;
+    const normalizedHi = {
+      ...rawHi,
+      continuousOperation247:
+        typeof rawHi.continuousOperation247 === 'boolean'
+          ? rawHi.continuousOperation247
+          : Boolean((rawHi.continuousOperation247 as { has?: boolean } | undefined)?.has),
+    };
+    const phase1Input: Partial<Phase1SurveyFormData> = {
+      ...(updated as unknown as Partial<Phase1SurveyFormData>),
+      constructionYear:
+        updated.constructionYear !== undefined && updated.constructionYear !== ''
+          ? Number(updated.constructionYear)
+          : undefined,
+      foundationCatScore:
+        updated.foundationCatScore !== undefined && updated.foundationCatScore !== null && updated.foundationCatScore !== ''
+          ? (Number(updated.foundationCatScore) as 0 | 1 | 2 | 3 | 4 | 5)
+          : 0,
+      historyInterview: normalizedHi as unknown as Phase1SurveyFormData['historyInterview'],
+    };
+
+    const nextEcs = calculateEcsScore(phase1Input);
+    const nextVi = calculateViScore(phase1Input, nextEcs);
+    updated.ecs = {
+      ...((updated.ecs as Record<string, unknown>) || {}),
+      ...nextEcs,
+    };
+    updated.vi = {
+      ...((updated.vi as Record<string, unknown>) || {}),
+      ...nextVi,
+      avgVi: nextVi.viAvg,
+    };
+
+    const curExec = ((updated.executiveSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const autoImpact = calculateConstructionImpact(
+      (updated.objectGroup as string) || 'GENERAL',
+      updated.clearanceOffsetDistance as string,
+      (updated.manualMetroDistanceM || updated.metroOffsetDistance) as string
+    );
+    const curImpactStr = String(curExec.constructionImpactStatus || autoImpact.label);
+    const effectiveICode = (
+      ['metroOffsetDistance', 'clearanceOffsetDistance', 'manualMetroDistanceM', 'objectGroup'].includes(changedTopKey)
+        ? autoImpact.code
+        : curImpactStr.startsWith('I4')
+          ? 'I4'
+          : curImpactStr.startsWith('I3')
+            ? 'I3'
+            : curImpactStr.startsWith('I2')
+              ? 'I2'
+              : 'I1'
+    ) as 'I1' | 'I2' | 'I3' | 'I4';
+    const braRes = calculateBraRisk(nextVi.viClass, effectiveICode);
+    const nextBraStatus =
+      braRes.riskLevel === 'Very High'
+        ? 'VERY_HIGH'
+        : braRes.riskLevel === 'High'
+          ? 'HIGH'
+          : braRes.riskLevel === 'Medium'
+            ? 'MEDIUM'
+            : 'LOW';
+
+    updated.executiveSummary = {
+      ...curExec,
+      ...(changedTopKey === 'metroOffsetDistance' || changedTopKey === 'clearanceOffsetDistance' || changedTopKey === 'manualMetroDistanceM'
+        ? { constructionImpactStatus: autoImpact.label }
+        : {}),
+      braStatus: nextBraStatus,
+    };
+  } else if (changedTopKey === 'ecs' || changedTopKey === 'vi') {
+    // 3. Nếu Admin chỉnh trực tiếp điểm thành phần e1..e6 hoặc v1..v6 ở Bước 7 -> tự động cộng lại tổng & hạng
+    const curEcs = ((updated.ecs as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const curVi = ((updated.vi as Record<string, unknown>) || {}) as Record<string, unknown>;
+
+    const e1 = Number(curEcs.e1 ?? 0);
+    const e2 = Number(curEcs.e2 ?? 0);
+    const e3 = Number(curEcs.e3 ?? 0);
+    const e4 = Number(curEcs.e4 ?? 0);
+    const e5 = Number(curEcs.e5 ?? 0);
+    const e6 = Number(curEcs.e6 ?? 0);
+    const totalEcs = e1 + e2 + e3 + e4 + e5 + e6;
+    const ecsClass: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' =
+      totalEcs <= 5 ? 'GOOD' : totalEcs <= 10 ? 'MEDIUM' : totalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
+
+    updated.ecs = {
+      ...curEcs,
+      e1,
+      e2,
+      e3,
+      e4,
+      e5,
+      e6,
+      totalEcs,
+      ecsClass,
+      isOverrideLocked: e2 >= 3 || e3 >= 3,
+    };
+
+    const v1 = Number(curVi.v1 ?? 2);
+    const v2 = Number(curVi.v2 ?? 2);
+    const v3 = Number(curVi.v3 ?? 2);
+    const v4 = Number(curVi.v4 ?? 2);
+    const v5 =
+      changedTopKey === 'ecs'
+        ? ecsClass === 'CRITICAL'
+          ? 4
+          : ecsClass === 'DEFICIENT'
+            ? 3
+            : ecsClass === 'MEDIUM'
+              ? 2
+              : 1
+        : Number(curVi.v5 ?? 1);
+    const v6 = Number(curVi.v6 ?? 1);
+    const totalVi = v1 + v2 + v3 + v4 + v5 + v6;
+    const viAvg = Number((totalVi / 6).toFixed(2));
+    const viClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
+      viAvg > 3.25 ? 'VERY_HIGH' : viAvg > 2.5 ? 'HIGH' : viAvg > 1.5 ? 'MEDIUM' : 'LOW';
+
+    updated.vi = {
+      ...curVi,
+      v1,
+      v2,
+      v3,
+      v4,
+      v5,
+      v6,
+      totalVi,
+      viAvg,
+      avgVi: viAvg,
+      viClass,
+    };
+
+    const curExec = ((updated.executiveSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const curImpactStr = String(curExec.constructionImpactStatus || 'I1');
+    const iCode = (
+      curImpactStr.startsWith('I4') ? 'I4' : curImpactStr.startsWith('I3') ? 'I3' : curImpactStr.startsWith('I2') ? 'I2' : 'I1'
+    ) as 'I1' | 'I2' | 'I3' | 'I4';
+    const braRes = calculateBraRisk(viClass, iCode);
+    updated.executiveSummary = {
+      ...curExec,
+      braStatus:
+        braRes.riskLevel === 'Very High'
+          ? 'VERY_HIGH'
+          : braRes.riskLevel === 'High'
+            ? 'HIGH'
+            : braRes.riskLevel === 'Medium'
+              ? 'MEDIUM'
+              : 'LOW',
+    };
+  }
+
+  return updated;
+}
 
 export interface UseAuditStepwiseFormParams {
   data: AuditStepwiseData | null | undefined;
@@ -109,6 +366,14 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
       // Spatial & GPS calculations (Allow manual override)
       gpsCoords: { lat: Number(latInit), lng: Number(lngInit), accuracy: Number(accInit) },
+      parcelCoordinates:
+        Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3
+          ? sJson.parcelCoordinates
+          : Array.isArray(sJson.polygonCoords) && sJson.polygonCoords.length >= 3
+          ? sJson.polygonCoords
+          : undefined,
+      keepKsvBoundaryConfirmed: Boolean(sJson.keepKsvBoundaryConfirmed),
+      keepKsvBoundaryReason: typeof sJson.keepKsvBoundaryReason === 'string' ? sJson.keepKsvBoundaryReason : '',
       metroOffsetDistance: defaultMetroDist,
       clearanceOffsetDistance: defaultClearanceDist,
       manualMetroDistanceM: sJson.manualMetroDistanceM ?? data.manualMetroDistanceM ?? '',
@@ -177,6 +442,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
           description: sJson.settlementTilt?.beamSagging?.description || defState.beam_sagging_description || '',
         },
         abnormalCase: {
+          hasAbnormal: Boolean(sJson.settlementTilt?.abnormalCase?.hasAbnormal ?? sJson.settlementTilt?.abnormalCase?.description ?? sJson.settlementTilt?.abnormalCase?.notes ?? defState.abnormal_photo_url),
+          description: sJson.settlementTilt?.abnormalCase?.description || sJson.settlementTilt?.abnormalCase?.notes || defState.abnormal_notes || '',
           photoUrl: sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url || '',
           photoCode: sJson.settlementTilt?.abnormalCase?.photoCode || defState.abnormal_photo_code || 'ANOMALY_01',
           photos: Array.isArray(sJson.settlementTilt?.abnormalCase?.photos) && sJson.settlementTilt.abnormalCase.photos.length > 0
@@ -186,14 +453,14 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
             : (sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url
               ? [{ url: sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url, photoCode: sJson.settlementTilt?.abnormalCase?.photoCode || defState.abnormal_photo_code || 'ANOMALY_01' }]
               : []),
-          notes: sJson.settlementTilt?.abnormalCase?.notes || defState.abnormal_notes || '',
+          notes: sJson.settlementTilt?.abnormalCase?.notes || sJson.settlementTilt?.abnormalCase?.description || defState.abnormal_notes || '',
         },
         dataSource: Array.isArray(sJson.settlementTilt?.dataSource)
           ? sJson.settlementTilt.dataSource
-          : Array.isArray((sJson.settlementTilt as any)?.dataSources)
-          ? (sJson.settlementTilt as any).dataSources
-          : Array.isArray((sJson as any).settlementTiltData?.dataSources)
-          ? (sJson as any).settlementTiltData.dataSources
+          : Array.isArray((sJson.settlementTilt as Record<string, unknown> | undefined)?.dataSources)
+          ? ((sJson.settlementTilt as Record<string, unknown>).dataSources as unknown[])
+          : Array.isArray(((sJson as Record<string, unknown>).settlementTiltData as Record<string, unknown> | undefined)?.dataSources)
+          ? (((sJson as Record<string, unknown>).settlementTiltData as Record<string, unknown>).dataSources as unknown[])
           : [],
         reliability: sJson.settlementTilt?.reliability || 'MEDIUM',
         needAdditionalMonitoring: sJson.settlementTilt?.needAdditionalMonitoring || {
@@ -257,13 +524,16 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   }, [data]);
 
   // Helper to deep get value
-  const getDeepVal = (obj: any, path: string[]) => {
-    return path.reduce((curr, p) => (curr && typeof curr === 'object' ? curr[p] : undefined), obj);
+  const getDeepVal = (obj: Record<string, unknown> | undefined, path: string[]): unknown => {
+    return path.reduce<unknown>(
+      (curr, p) => (curr && typeof curr === 'object' ? (curr as Record<string, unknown>)[p] : undefined),
+      obj
+    );
   };
 
   // Handle direct field change
   const handleFieldChange = (fieldKey: string, label: string, val: unknown) => {
-    setFormState((prev) => ({ ...prev, [fieldKey]: val }));
+    setFormState((prev) => recomputeDerivedPhase1State({ ...prev, [fieldKey]: val }, fieldKey));
 
     const originalVal = originalState[fieldKey];
     if (JSON.stringify(originalVal) === JSON.stringify(val)) {
@@ -281,6 +551,27 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
           newValue: val,
         },
       }));
+    }
+  };
+
+  /**
+   * Đồng bộ Ranh đất PostGIS & Cự ly Metro (Ràng buộc 02 - /grill-me):
+   * CHỈ cập nhật parcelCoordinates, metroOffsetDistance, clearanceOffsetDistance.
+   * Tuyệt đối KHÔNG ghi đè landAreaM2, constructionAreaM2, frontageWidth, lotDepth.
+   */
+  const handleApplySyncedGeometry = (
+    newCoords: [number, number][],
+    newMetroDist: string,
+    newClearanceDist: string
+  ) => {
+    if (!isEditMode) {
+      setIsEditMode(true);
+    }
+    handleFieldChange('parcelCoordinates', 'Tọa độ đa giác ranh thửa (PostGIS GPMB)', newCoords);
+    handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro (m)', newMetroDist);
+    handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài / mép ga (m)', newClearanceDist);
+    if (formState.keepKsvBoundaryConfirmed) {
+      handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', false);
     }
   };
 
@@ -306,7 +597,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         updatedParent = { ...parentObj, [childKey]: val };
       }
 
-      return { ...prev, [parentKey]: updatedParent };
+      return recomputeDerivedPhase1State({ ...prev, [parentKey]: updatedParent }, parentKey);
     });
 
     const dirtyKey = `${parentKey}.${childKey}`;
@@ -401,6 +692,9 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     Object.keys(dirtyFields).forEach((k) => {
       const topKey = k.includes('.') ? k.split('.')[0] : k;
       updatesPayload[topKey] = formState[topKey];
+      if (topKey === 'floors' || topKey === 'damageZones') {
+        updatesPayload.burlandSummary = formState.burlandSummary;
+      }
     });
 
     return { diffItems, updatesPayload };
@@ -486,6 +780,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
+    handleApplySyncedGeometry,
     handleDiscard,
     discardDiffItem,
     handleReviewSave,

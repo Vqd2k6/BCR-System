@@ -43,7 +43,124 @@ export interface SurveyReportVersionItem {
   createdAt: string;
   createdByName?: string;
   createdByRole?: string;
-  diffSummary?: any[];
+  diffSummary?: Record<string, unknown>[];
+}
+
+interface SnapshotPhotoNode {
+  url?: string;
+  rawUrl?: string;
+  photoUrl?: string;
+  title?: string;
+  description?: string;
+  additionalPhotos?: Array<string | SnapshotPhotoNode>;
+}
+
+interface SnapshotDefectNode {
+  id?: string;
+  defectCode?: string;
+  defect_code?: string;
+  defectType?: string;
+  description?: string;
+  severity?: string | number;
+  widthMaxMm?: number;
+  cuPhotoUrl?: string;
+  cu_photo_url?: string;
+  cuPhotos?: Array<string | SnapshotPhotoNode>;
+}
+
+interface SnapshotZoneNode {
+  id?: string;
+  zoneCode?: string;
+  zone_code?: string;
+  zoneName?: string;
+  ctxPhotoUrl?: string;
+  ctx_photo_url?: string;
+  photoUrl?: string;
+  cadPins?: { xPercent?: number; yPercent?: number; x?: number; y?: number };
+  defects?: SnapshotDefectNode[];
+  defectItems?: SnapshotDefectNode[];
+}
+
+interface SnapshotFloorNode {
+  floorName?: string;
+  floorNumber?: number;
+  damageZones?: SnapshotZoneNode[];
+  zones?: SnapshotZoneNode[];
+}
+
+interface SnapshotRiskCardNode {
+  e1_burland_score?: string | number;
+  e2_structure_score?: string | number;
+  e3_deformation_score?: string | number;
+  e4_material_score?: string | number;
+  e5_history_score?: string | number;
+  e6_overall_function_score?: string | number;
+  total_ecs_score?: string | number;
+  ecs_class?: string;
+  avg_vi_score?: string | number;
+  vi_class?: string;
+  bra?: string;
+  construction_impact_level_i?: string;
+  is_engineering_judgement_applied?: boolean;
+  engineering_judgement_action?: string;
+  engineering_judgement_reason?: string;
+}
+
+interface SnapshotPaneNode {
+  [key: string]: unknown;
+  parcel?: Record<string, unknown>;
+  specs?: Record<string, unknown> & { foundationCatScore?: string | number };
+  identificationPhotos?: Record<string, SnapshotPhotoNode | undefined>;
+  conclusions?: { recommendations?: string };
+  riskCard?: SnapshotRiskCardNode;
+  damageZones?: SnapshotZoneNode[];
+  floors?: SnapshotFloorNode[];
+}
+
+interface SnapshotSurveyJsonNode {
+  [key: string]: unknown;
+  specs?: Record<string, unknown> & { foundationCatScore?: string | number };
+  identificationPhotos?: Record<string, SnapshotPhotoNode | undefined>;
+  photoP01?: SnapshotPhotoNode;
+  photoP02?: SnapshotPhotoNode;
+  photoP03?: SnapshotPhotoNode;
+  photoP04?: SnapshotPhotoNode;
+  riskCard?: SnapshotRiskCardNode;
+  damageZones?: SnapshotZoneNode[];
+  floors?: SnapshotFloorNode[];
+  settlementTilt?: {
+    beamSagging?: { photos?: Array<string | SnapshotPhotoNode> };
+    differentialSettlement?: { photos?: Array<string | SnapshotPhotoNode> };
+    tilt?: { photos?: Array<string | SnapshotPhotoNode> };
+  };
+  signatures?: {
+    surveyorName?: string;
+    surveyorSignatureUrl?: string;
+    ownerSignatureUrl?: string;
+    ownerFeedback?: string;
+  };
+  vacantLandPhotos?: Array<string | SnapshotPhotoNode>;
+  constructionPhotos?: Array<string | SnapshotPhotoNode>;
+}
+
+interface SnapshotDataNode extends SnapshotSurveyJsonNode {
+  leftPane?: SnapshotPaneNode;
+  rightPane?: SnapshotPaneNode;
+  frozenParcel?: Record<string, unknown>;
+  parcel?: Record<string, unknown>;
+  frozenSurveyDataJson?: SnapshotSurveyJsonNode;
+  surveyJson?: SnapshotSurveyJsonNode;
+  surveyorName?: string;
+  surveyorSignatureUrl?: string;
+  ownerSignatureUrl?: string;
+  ownerRemarks?: string;
+  engineeringRecommendations?: string;
+  foundationCatScore?: string | number;
+  asBuiltDrawings?: SnapshotPhotoNode[];
+}
+
+interface SelectedSnapshotResponse {
+  snapshotData?: SnapshotDataNode;
 }
 
 interface Props {
@@ -51,7 +168,7 @@ interface Props {
   reportId: string;
   parcelCode?: string;
   reportCode?: string;
-  currentData: any; // Full AuditStepwiseData
+  currentData: SnapshotDataNode | Record<string, unknown> | null | undefined; // Full AuditStepwiseData
   onClose: () => void;
   onRollbackSuccess: () => void;
 }
@@ -61,16 +178,17 @@ export const VersionComparisonModal: React.FC<Props> = ({
   reportId,
   parcelCode,
   reportCode,
-  currentData,
+  currentData: rawCurrentData,
   onClose,
   onRollbackSuccess,
 }) => {
+  const currentData = (rawCurrentData || {}) as SnapshotDataNode;
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [versions, setVersions] = useState<SurveyReportVersionItem[]>([]);
   const [selectedVerNumber, setSelectedVerNumber] = useState<number | null>(null);
 
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
-  const [selectedSnapshot, setSelectedSnapshot] = useState<any | null>(null);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SelectedSnapshotResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Dual-mode state: Diff vs Full Snapshot
@@ -226,8 +344,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
   const curJson = currentData?.surveyJson || {};
 
   // Extraction helpers
-  const getParcelVal = (pane: any, field: string) => pane?.parcel?.[field] ?? pane?.[field] ?? '---';
-  const getSpecVal = (pane: any, field: string) => pane?.specs?.[field] ?? '---';
+  const getParcelVal = (pane: SnapshotPaneNode | undefined, field: string) => pane?.parcel?.[field] ?? pane?.[field] ?? '---';
+  const getSpecVal = (pane: SnapshotPaneNode | undefined, field: string) => pane?.specs?.[field] ?? '---';
 
   interface PhotoDiffItem {
     id: string;
@@ -245,11 +363,14 @@ export const VersionComparisonModal: React.FC<Props> = ({
   const photoDiffItems = useMemo<PhotoDiffItem[]>(() => {
     const items: PhotoDiffItem[] = [];
 
-    const getUrl = (val: any): string | null => {
+    const getUrl = (val: unknown): string | null => {
       if (!val) return null;
       if (typeof val === 'string') return val.trim() || null;
-      if (typeof val === 'object' && val.url) return String(val.url).trim() || null;
-      if (typeof val === 'object' && val.photoUrl) return String(val.photoUrl).trim() || null;
+      if (typeof val === 'object') {
+        const rec = val as Record<string, unknown>;
+        if (rec.url) return String(rec.url).trim() || null;
+        if (rec.photoUrl) return String(rec.photoUrl).trim() || null;
+      }
       return null;
     };
 
@@ -264,7 +385,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
     const snapIdent = snapData?.identificationPhotos || snapLeft?.identificationPhotos || snapJson?.identificationPhotos || {};
     const curIdent = currentData?.identificationPhotos || curLeft?.identificationPhotos || curJson?.identificationPhotos || {};
 
-    const identDefs = [
+    const identDefs: Array<{ key: string; code: string; title: string; snapKey: 'photoP01' | 'photoP02' | 'photoP03' | 'photoP04' }> = [
       { key: 'photoP01', code: 'P-01', title: 'P-01: Biển số nhà & Mặt tiền cận', snapKey: 'photoP01' },
       { key: 'photoP02', code: 'P-02', title: 'P-02: Toàn cảnh mặt tiền công trình', snapKey: 'photoP02' },
       { key: 'photoP03', code: 'P-03', title: 'P-03: Hiện trạng mặt bên / mặt sau', snapKey: 'photoP03' },
@@ -290,8 +411,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
     });
 
     // P-03 Supplementary Photos
-    const oldP03Add: any[] = Array.isArray(snapIdent?.photoP03?.additionalPhotos) ? snapIdent.photoP03.additionalPhotos : (Array.isArray(snapJson?.photoP03?.additionalPhotos) ? snapJson.photoP03.additionalPhotos : []);
-    const newP03Add: any[] = Array.isArray(curIdent?.photoP03?.additionalPhotos) ? curIdent.photoP03.additionalPhotos : (Array.isArray(curJson?.photoP03?.additionalPhotos) ? curJson.photoP03.additionalPhotos : []);
+    const oldP03Add: Array<string | SnapshotPhotoNode> = Array.isArray(snapIdent?.photoP03?.additionalPhotos) ? snapIdent.photoP03.additionalPhotos : (Array.isArray(snapJson?.photoP03?.additionalPhotos) ? snapJson.photoP03.additionalPhotos : []);
+    const newP03Add: Array<string | SnapshotPhotoNode> = Array.isArray(curIdent?.photoP03?.additionalPhotos) ? curIdent.photoP03.additionalPhotos : (Array.isArray(curJson?.photoP03?.additionalPhotos) ? curJson.photoP03.additionalPhotos : []);
     const maxP03Add = Math.max(oldP03Add.length, newP03Add.length);
     for (let i = 0; i < maxP03Add; i++) {
       const oldU = getUrl(oldP03Add[i]);
@@ -321,12 +442,18 @@ export const VersionComparisonModal: React.FC<Props> = ({
     ];
 
     stCategories.forEach((st) => {
-      const pOld: any[] = Array.isArray(st.photosOld) ? st.photosOld : [];
-      const pNew: any[] = Array.isArray(st.photosNew) ? st.photosNew : [];
+      const pOld: Array<string | SnapshotPhotoNode> = Array.isArray(st.photosOld) ? st.photosOld : [];
+      const pNew: Array<string | SnapshotPhotoNode> = Array.isArray(st.photosNew) ? st.photosNew : [];
       const maxLen = Math.max(pOld.length, pNew.length);
       for (let i = 0; i < maxLen; i++) {
         const oldU = getUrl(pOld[i]);
         const newU = getUrl(pNew[i]);
+        const itemNew = pNew[i];
+        const itemOld = pOld[i];
+        const noteText =
+          (typeof itemNew === 'object' && itemNew?.description) ||
+          (typeof itemOld === 'object' && itemOld?.description) ||
+          undefined;
         if (oldU || newU) {
           items.push({
             id: `st_${st.code}_${i + 1}`,
@@ -337,19 +464,19 @@ export const VersionComparisonModal: React.FC<Props> = ({
             oldUrl: oldU,
             newUrl: newU,
             status: getStatus(oldU, newU),
-            note: (typeof pNew[i] === 'object' && pNew[i]?.description) || (typeof pOld[i] === 'object' && pOld[i]?.description) || undefined,
+            note: noteText,
           });
         }
       }
     });
 
     // 3. Defects & Damage Zones (Step 3)
-    const getZoneList = (data: any, json: any): any[] => {
+    const getZoneList = (data: SnapshotDataNode | undefined, json: SnapshotSurveyJsonNode | undefined): SnapshotZoneNode[] => {
       if (Array.isArray(data?.damageZones) && data.damageZones.length > 0) return data.damageZones;
       if (Array.isArray(data?.rightPane?.damageZones) && data.rightPane.damageZones.length > 0) return data.rightPane.damageZones;
       if (Array.isArray(data?.floors) && data.floors.length > 0) {
-        const zArr: any[] = [];
-        data.floors.forEach((fl: any) => {
+        const zArr: SnapshotZoneNode[] = [];
+        data.floors.forEach((fl: SnapshotFloorNode) => {
           if (Array.isArray(fl.damageZones)) zArr.push(...fl.damageZones);
           else if (Array.isArray(fl.zones)) zArr.push(...fl.zones);
         });
@@ -363,13 +490,13 @@ export const VersionComparisonModal: React.FC<Props> = ({
     const curZones = getZoneList(currentData, curJson);
 
     const allZoneCodes = Array.from(new Set([
-      ...snapZones.map((z: any) => z.zoneCode || z.zone_code || z.id),
-      ...curZones.map((z: any) => z.zoneCode || z.zone_code || z.id)
+      ...snapZones.map((z: SnapshotZoneNode) => z.zoneCode || z.zone_code || z.id),
+      ...curZones.map((z: SnapshotZoneNode) => z.zoneCode || z.zone_code || z.id)
     ])).filter(Boolean);
 
     allZoneCodes.forEach((zCode) => {
-      const sZone = snapZones.find((z: any) => (z.zoneCode || z.zone_code || z.id) === zCode);
-      const cZone = curZones.find((z: any) => (z.zoneCode || z.zone_code || z.id) === zCode);
+      const sZone = snapZones.find((z: SnapshotZoneNode) => (z.zoneCode || z.zone_code || z.id) === zCode);
+      const cZone = curZones.find((z: SnapshotZoneNode) => (z.zoneCode || z.zone_code || z.id) === zCode);
 
       // CTX Overview Photo
       const oldCtx = getUrl(sZone?.ctxPhotoUrl || sZone?.ctx_photo_url || sZone?.photoUrl);
@@ -388,17 +515,17 @@ export const VersionComparisonModal: React.FC<Props> = ({
       }
 
       // Defects CU Photos
-      const sDefects: any[] = Array.isArray(sZone?.defects || sZone?.defectItems) ? (sZone?.defects || sZone?.defectItems) : [];
-      const cDefects: any[] = Array.isArray(cZone?.defects || cZone?.defectItems) ? (cZone?.defects || cZone?.defectItems) : [];
+      const sDefects: SnapshotDefectNode[] = Array.isArray(sZone?.defects || sZone?.defectItems) ? (sZone?.defects || sZone?.defectItems || []) : [];
+      const cDefects: SnapshotDefectNode[] = Array.isArray(cZone?.defects || cZone?.defectItems) ? (cZone?.defects || cZone?.defectItems || []) : [];
 
       const allDefCodes = Array.from(new Set([
-        ...sDefects.map((d: any) => d.defectCode || d.defect_code || d.id),
-        ...cDefects.map((d: any) => d.defectCode || d.defect_code || d.id)
+        ...sDefects.map((d: SnapshotDefectNode) => d.defectCode || d.defect_code || d.id),
+        ...cDefects.map((d: SnapshotDefectNode) => d.defectCode || d.defect_code || d.id)
       ])).filter(Boolean);
 
       allDefCodes.forEach((dCode) => {
-        const sDef = sDefects.find((d: any) => (d.defectCode || d.defect_code || d.id) === dCode);
-        const cDef = cDefects.find((d: any) => (d.defectCode || d.defect_code || d.id) === dCode);
+        const sDef = sDefects.find((d: SnapshotDefectNode) => (d.defectCode || d.defect_code || d.id) === dCode);
+        const cDef = cDefects.find((d: SnapshotDefectNode) => (d.defectCode || d.defect_code || d.id) === dCode);
 
         const oldCu = getUrl(sDef?.cuPhotoUrl || sDef?.cu_photo_url || (Array.isArray(sDef?.cuPhotos) ? sDef?.cuPhotos[0] : null));
         const newCu = getUrl(cDef?.cuPhotoUrl || cDef?.cu_photo_url || (Array.isArray(cDef?.cuPhotos) ? cDef?.cuPhotos[0] : null));
@@ -450,8 +577,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
       });
     }
 
-    const oldVacant: any[] = Array.isArray(snapJson?.vacantLandPhotos) ? snapJson.vacantLandPhotos : (Array.isArray(snapData?.vacantLandPhotos) ? snapData.vacantLandPhotos : []);
-    const newVacant: any[] = Array.isArray(curJson?.vacantLandPhotos) ? curJson.vacantLandPhotos : (Array.isArray(currentData?.vacantLandPhotos) ? currentData.vacantLandPhotos : []);
+    const oldVacant: Array<string | SnapshotPhotoNode> = Array.isArray(snapJson?.vacantLandPhotos) ? snapJson.vacantLandPhotos : (Array.isArray(snapData?.vacantLandPhotos) ? snapData.vacantLandPhotos : []);
+    const newVacant: Array<string | SnapshotPhotoNode> = Array.isArray(curJson?.vacantLandPhotos) ? curJson.vacantLandPhotos : (Array.isArray(currentData?.vacantLandPhotos) ? currentData.vacantLandPhotos : []);
     const maxVacant = Math.max(oldVacant.length, newVacant.length);
     for (let i = 0; i < maxVacant; i++) {
       const oldU = getUrl(oldVacant[i]);
@@ -470,8 +597,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
       }
     }
 
-    const oldConst: any[] = Array.isArray(snapJson?.constructionPhotos) ? snapJson.constructionPhotos : (Array.isArray(snapData?.constructionPhotos) ? snapData.constructionPhotos : []);
-    const newConst: any[] = Array.isArray(curJson?.constructionPhotos) ? curJson.constructionPhotos : (Array.isArray(currentData?.constructionPhotos) ? currentData.constructionPhotos : []);
+    const oldConst: Array<string | SnapshotPhotoNode> = Array.isArray(snapJson?.constructionPhotos) ? snapJson.constructionPhotos : (Array.isArray(snapData?.constructionPhotos) ? snapData.constructionPhotos : []);
+    const newConst: Array<string | SnapshotPhotoNode> = Array.isArray(curJson?.constructionPhotos) ? curJson.constructionPhotos : (Array.isArray(currentData?.constructionPhotos) ? currentData.constructionPhotos : []);
     const maxConst = Math.max(oldConst.length, newConst.length);
     for (let i = 0; i < maxConst; i++) {
       const oldU = getUrl(oldConst[i]);
@@ -542,7 +669,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
   };
 
   // Helper row renderer with diff comparison
-  const renderCompareRow = (label: string, oldVal: any, newVal: any) => {
+  const renderCompareRow = (label: string, oldVal: unknown, newVal: unknown) => {
     const isDifferent = String(oldVal ?? '').trim() !== String(newVal ?? '').trim();
     return (
       <div
@@ -572,7 +699,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
   };
 
   // Helper row renderer for full snapshot inspection
-  const renderSnapshotField = (label: string, val: any, badge?: string) => (
+  const renderSnapshotField = (label: string, val: unknown, badge?: string) => (
     <div className="py-2 px-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs flex items-start justify-between gap-2">
       <span className="text-slate-400 font-normal shrink-0">{label}:</span>
       <div className="flex items-center gap-1.5 text-right font-semibold text-slate-200">
@@ -1226,7 +1353,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                       Bản vẽ hoàn công đính kèm ({snapData.asBuiltDrawings.length}):
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {snapData.asBuiltDrawings.map((drawing: any, idx: number) => (
+                      {snapData.asBuiltDrawings.map((drawing: SnapshotPhotoNode, idx: number) => (
                         <div key={idx} className="bg-slate-950 rounded-lg p-2 border border-slate-800">
                           {drawing.photoUrl ? (
                             <img
@@ -1266,7 +1393,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   }
                   return (
                     <div className="space-y-3">
-                      {floors.map((floor: any, fIdx: number) => {
+                      {floors.map((floor: SnapshotFloorNode, fIdx: number) => {
                         const zones = floor.damageZones || floor.zones || [];
                         return (
                           <div key={fIdx} className="bg-slate-950/70 rounded-xl border border-slate-800 p-3.5 space-y-2.5">
@@ -1284,7 +1411,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                               <p className="text-xs text-slate-500 italic">Không có vùng hư hại trên tầng này.</p>
                             ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                {zones.map((zone: any, zIdx: number) => {
+                                {zones.map((zone: SnapshotZoneNode, zIdx: number) => {
                                   const defects = zone.defects || zone.defectItems || [];
                                   return (
                                     <div key={zIdx} className="bg-slate-900 rounded-lg p-2.5 border border-slate-800/80 space-y-1.5">
@@ -1300,7 +1427,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                                       </div>
                                       {defects.length > 0 && (
                                         <div className="text-[11px] text-slate-300 space-y-0.5">
-                                          {defects.map((def: any, dIdx: number) => (
+                                          {defects.map((def: SnapshotDefectNode, dIdx: number) => (
                                             <div key={dIdx} className="flex items-center gap-1.5 text-slate-300">
                                               <span className="text-amber-400 font-bold">•</span>
                                               <span className="font-mono text-indigo-300">{def.defectCode || `D${dIdx + 1}`}:</span>

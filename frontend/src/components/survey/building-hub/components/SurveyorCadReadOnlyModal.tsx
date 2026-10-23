@@ -6,6 +6,7 @@ import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUti
 
 interface SurveyorCadReadOnlyModalProps {
   parcel: GisParcel;
+  initialFloor?: number;
   onClose: () => void;
 }
 
@@ -30,6 +31,7 @@ interface FloorPlanItem {
 
 export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> = ({
   parcel,
+  initialFloor,
   onClose,
 }) => {
   const [plans, setPlans] = useState<FloorPlanItem[]>([]);
@@ -38,7 +40,9 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
     parcel.deletedFloors || parcel.deleted_floors || []
   );
   const [loading, setLoading] = useState<boolean>(true);
-  const [filterFloor, setFilterFloor] = useState<number | 'ALL'>('ALL');
+  const [filterFloor, setFilterFloor] = useState<number | 'ALL'>(
+    initialFloor !== undefined ? initialFloor : 'ALL'
+  );
 
   const parcelId = parcel.id;
 

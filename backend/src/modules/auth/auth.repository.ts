@@ -84,7 +84,7 @@ export class AuthRepository {
       params.push(filters.role);
       whereClause += ` AND role = $${params.length}`;
     }
-    if (filters.zoneId) {
+    if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
       params.push(filters.zoneId);
       whereClause += ` AND assigned_zone_id = $${params.length}`;
     }

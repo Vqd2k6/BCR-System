@@ -10,6 +10,7 @@ import {
   RefreshCw,
   RotateCcw,
   Layers,
+  Lock,
 } from 'lucide-react';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
@@ -37,6 +38,7 @@ interface Step2OverviewAndCadSetupProps {
   hasParentCad: boolean;
   watermarkOptions?: MetroWatermarkOptions;
   isReadOnly?: boolean;
+  isCadLocked?: boolean;
   onBack: () => void;
   onNext: () => void;
   onPreviewImage: (url: string) => void;
@@ -62,6 +64,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
   hasParentCad,
   watermarkOptions,
   isReadOnly,
+  isCadLocked = false,
   onBack,
   onNext,
   onPreviewImage,
@@ -157,7 +160,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
       {/* 2.2: THIẾT LẬP BẢN VẼ SƠ ĐỒ KHU VỰC (CÁC NÚT THAO TÁC + CAD) */}
       {/* =============================================================== */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-xs">
               2.2
@@ -166,19 +169,29 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
               Bản vẽ sơ đồ khu vực {unitCode}
             </h3>
           </div>
-          {cadSketchPhotoUrl ? (
-            <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <CheckCircle2 size={13} /> Đã có CAD
-            </span>
-          ) : (
-            <span className="text-amber-700 bg-amber-50 border border-amber-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-              <AlertCircle size={13} /> Chưa có CAD
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isCadLocked && (
+              <span
+                className="text-amber-800 bg-amber-50 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1"
+                title="Bản vẽ CAD đã được khóa cứng sau khi hoán đổi vị trí để bảo vệ các điểm ghim khảo sát"
+              >
+                <Lock size={12} /> Đã khóa cứng CAD (Bảo vệ điểm ghim khảo sát)
+              </span>
+            )}
+            {cadSketchPhotoUrl ? (
+              <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <CheckCircle2 size={13} /> Đã có CAD
+              </span>
+            ) : (
+              <span className="text-amber-700 bg-amber-50 border border-amber-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <AlertCircle size={13} /> Chưa có CAD
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Các nút thiết lập bản vẽ khi chưa có CAD */}
-        {!isReadOnly && !cadSketchPhotoUrl && (
+        {!isReadOnly && !isCadLocked && !cadSketchPhotoUrl && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {onAutoCropFromFloorCad && hasParentCad && (
               <button
@@ -252,7 +265,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                   <ZoomIn size={13} />
                   <span>Phóng to</span>
                 </button>
-                {!isReadOnly && hasParentCad && (
+                {!isReadOnly && !isCadLocked && hasParentCad && (
                   <button
                     type="button"
                     onClick={onOpenCadCropModal}
@@ -263,7 +276,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                     <span>Chọn CAD tầng</span>
                   </button>
                 )}
-                {!isReadOnly && hasParentCad && (
+                {!isReadOnly && !isCadLocked && hasParentCad && (
                   <button
                     type="button"
                     onClick={onOpenCadCropModal}
@@ -274,7 +287,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                     <span>Cắt lại</span>
                   </button>
                 )}
-                {!isReadOnly && (
+                {!isReadOnly && !isCadLocked && (
                   <button
                     type="button"
                     onClick={() => {
