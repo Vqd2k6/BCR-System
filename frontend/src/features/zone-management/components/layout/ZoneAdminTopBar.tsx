@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ChevronRight,
+  FlaskConical,
 } from 'lucide-react';
+import { ForensicImageLabModal } from '../../../image-lab/ForensicImageLabModal';
 
 interface Props {
   title: string;
@@ -14,12 +16,10 @@ interface Props {
 
 export const ZoneAdminTopBar: React.FC<Props> = ({
   title,
-  subtitle,
   selectedZone,
-  isLoading = false,
-  onRefresh,
-  onAlertClick,
 }) => {
+  const [showImageLabModal, setShowImageLabModal] = useState(false);
+
   return (
     <header className="h-16 px-4 sm:px-6 bg-white border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 shadow-xs z-20">
       {/* Breadcrumbs & Title */}
@@ -35,6 +35,24 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
           </span>
         </div>
       </div>
+
+      {/* Nút mở Module Test Xử Lý Ảnh Vết Nứt (Forensic Image Lab Sandbox) */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowImageLabModal(true)}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all cursor-pointer active:scale-95 shadow-2xs"
+          title="Mở Phòng thí nghiệm kiểm định thuật toán làm rõ vết nứt & khử tối ảnh"
+        >
+          <FlaskConical size={15} className="text-indigo-600" />
+          <span>Test Xử Lý Ảnh Nứt</span>
+        </button>
+      </div>
+
+      <ForensicImageLabModal
+        isOpen={showImageLabModal}
+        onClose={() => setShowImageLabModal(false)}
+      />
     </header>
   );
 };

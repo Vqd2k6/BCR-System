@@ -10,9 +10,11 @@ import {
   Phone,
   Building,
   CheckCircle2,
+  FlaskConical,
 } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
+import { ForensicImageLabModal } from '../../features/image-lab/ForensicImageLabModal';
 
 interface Props {
   activeTab: string;
@@ -23,6 +25,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showImageLabModal, setShowImageLabModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -95,7 +98,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
           <button
             type="button"
             onClick={() => onChangeTab('home')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'home'
                 ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800'
@@ -103,6 +106,17 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
           >
             <List size={15} />
             <span>Danh sách Thửa đất</span>
+          </button>
+
+          {/* Nút mở Module Test Xử Lý Ảnh Độc Lập (Forensic Image Lab) */}
+          <button
+            type="button"
+            onClick={() => setShowImageLabModal(true)}
+            className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all cursor-pointer active:scale-95"
+            title="Mở Phòng thí nghiệm kiểm định thuật toán làm rõ vết nứt & khử tối ảnh"
+          >
+            <FlaskConical size={15} />
+            <span>Test Xử Lý Ảnh Nứt</span>
           </button>
         </nav>
 
@@ -181,6 +195,12 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
       <UserProfileModal
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
+      />
+
+      {/* Standalone Forensic Image Lab Sandbox Modal */}
+      <ForensicImageLabModal
+        isOpen={showImageLabModal}
+        onClose={() => setShowImageLabModal(false)}
       />
     </header>
   );

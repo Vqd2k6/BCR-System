@@ -21,6 +21,7 @@ import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { ReportConfigController } from './modules/report_config/report-config.controller';
+import { ImageLabController } from './modules/image-lab/image-lab.controller';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -85,6 +86,12 @@ export function createApp(): express.Application {
   api.put('/storage/local-put', express.raw({ type: '*/*', limit: '50mb' }), StorageController.handleLocalPut);
   api.post('/storage/upload', authenticateJwt, upload.single('file'), StorageController.uploadFile);
   api.post('/storage/upload-base64', authenticateJwt, StorageController.uploadBase64);
+
+  // ==========================================
+  // 0b. FORENSIC IMAGE LAB SANDBOX (STANDALONE ADMIN TEST MODULE)
+  // ==========================================
+  api.post('/image-lab/process', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), upload.single('file'), ImageLabController.processImage);
+  api.get('/image-lab/recent-survey-photos', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.getRecentSurveyPhotos);
 
   // ==========================================
   // 1. AUTHENTICATION (PUBLIC)
