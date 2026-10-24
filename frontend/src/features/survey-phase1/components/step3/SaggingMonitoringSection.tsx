@@ -106,11 +106,12 @@ export const SaggingMonitoringSection: React.FC<SaggingMonitoringSectionProps> =
             <PhotoCaptureInput
               label="Ảnh chụp dầm/sàn bị võng hoặc vị trí mốc quan trắc:"
               value={beamSagging.photoUrl || ''}
-              onChange={(url) =>
+              onChange={(url, code) =>
                 onUpdateSettlementTilt({
                   beamSagging: {
                     ...beamSagging,
                     photoUrl: url,
+                    photoCode: code || beamSagging.photoCode,
                   },
                 })
               }

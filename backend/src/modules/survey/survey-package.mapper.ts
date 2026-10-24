@@ -6,6 +6,26 @@ import {
 
 export class SurveyPackageMapper {
   /**
+   * Kiểm tra xem chuỗi tên chủ hộ có phải là chuỗi giả định địa chính ('Chủ hộ thửa XX', 'Chưa cập nhật'...) hay không
+   */
+  static isCadastralPlaceholderName(name?: unknown): boolean {
+    if (!name || typeof name !== 'string') return false;
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    return /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(trimmed);
+  }
+
+  /**
+   * Trả về tên chủ hộ thực tế đã làm sạch (trả về null nếu rỗng hoặc là chuỗi giả định địa chính)
+   */
+  static cleanRealOwnerName(name?: unknown): string | null {
+    if (!name || typeof name !== 'string') return null;
+    const trimmed = name.trim();
+    if (!trimmed || SurveyPackageMapper.isCadastralPlaceholderName(trimmed)) return null;
+    return trimmed;
+  }
+
+  /**
    * Lưới an toàn phía máy chủ: quét đệ quy surveyData và trả về đường dẫn JSON của mọi chuỗi
    * "blob:..." (ảnh còn nằm trong máy/IndexedDB) hoặc "data:image/..." dài (ảnh Base64 chưa upload).
    * Những giá trị này sẽ thành ảnh hỏng/mất vĩnh viễn trên báo cáo nếu được lưu như đã nộp.
@@ -48,7 +68,20 @@ export class SurveyPackageMapper {
     const p03 = surveyData?.photoP03 || {};
     const p04 = surveyData?.photoP04 || {};
 
+    const resolvedP02Dimensions =
+      surveyData?.step1Photos?.p02Dimensions ||
+      p02.dimensions ||
+      (p02.widthM !== undefined || p02.heightM !== undefined || Array.isArray(p02.freehandStrokes)
+        ? {
+            widthM: p02.widthM ?? '',
+            heightM: p02.heightM ?? '',
+            freehandStrokes: Array.isArray(p02.freehandStrokes) ? p02.freehandStrokes : [],
+          }
+        : undefined);
+
     return {
+      houseNumber: surveyData?.houseNumber || null,
+      street: surveyData?.street || null,
       p01HouseNumberUrl: surveyData?.step1Photos?.p01HouseNumberUrl || p01.url || null,
       p01PhotoCode: surveyData?.step1Photos?.p01PhotoCode || p01.photoCode || 'P-01',
       p01NotApplicable: surveyData?.step1Photos?.p01NotApplicable ?? p01.notApplicable ?? false,
@@ -57,7 +90,7 @@ export class SurveyPackageMapper {
       p02PhotoCode: surveyData?.step1Photos?.p02PhotoCode || p02.photoCode || 'P-02',
       p02FacadePolygonPoints: surveyData?.step1Photos?.p02FacadePolygonPoints || p02.polygonPoints,
       p02FloorSplitLines: surveyData?.step1Photos?.p02FloorSplitLines || p02.floorSplits,
-      p02Dimensions: surveyData?.step1Photos?.p02Dimensions || p02.dimensions,
+      p02Dimensions: resolvedP02Dimensions,
       p02NotApplicable: surveyData?.step1Photos?.p02NotApplicable ?? p02.notApplicable ?? false,
       p02NaReason: surveyData?.step1Photos?.p02NaReason || p02.naReason,
       p03SideRearUrl: surveyData?.step1Photos?.p03SideRearUrl || p03.url || null,
@@ -88,6 +121,13 @@ export class SurveyPackageMapper {
       else if (score === 5) foundationCategory = 'CAT_5_KHONG_XAC_DINH';
     }
 
+    const pileDimensionsText =
+      surveyData?.pileDimensionMm !== undefined && surveyData?.pileDimensionMm !== ''
+        ? String(surveyData.pileDimensionMm)
+        : surveyData?.pileWidthMm || surveyData?.pileLengthMm
+          ? `${surveyData.pileWidthMm || ''}x${surveyData.pileLengthMm || ''}`
+          : null;
+
     return {
       buildingName: surveyData?.specs?.buildingName || surveyData?.buildingName,
       buildingGrade: surveyData?.objectGroup === 'GENERAL' || surveyData?.objectGroup === 'IMPORTANT' || surveyData?.objectGroup === 'CRITICAL'
@@ -102,10 +142,18 @@ export class SurveyPackageMapper {
       isYearEstimated: Boolean(surveyData?.specs?.isYearEstimated ?? surveyData?.isEstimatedYear),
       structuralSystem: normalizeStructuralSystem(rawStructure),
       foundationCategory,
+      foundationCatScore: surveyData?.foundationCatScore !== undefined && surveyData?.foundationCatScore !== '' ? Number(surveyData.foundationCatScore) : null,
+      pileDimensionsText,
       foundationSource: surveyData?.specs?.foundationSource || surveyData?.foundationSource || 'Bản vẽ hoàn công',
       adjacentBuildings: surveyData?.specs?.adjacentBuildings || (surveyData?.adjacentBuildings ? JSON.stringify(surveyData.adjacentBuildings) : null),
-      extendedOrRenovated: (surveyData?.historyInterview?.renovationLoad ?? 0) > 0 || Boolean(surveyData?.specs?.extendedOrRenovated ?? surveyData?.extendedOrRenovated ?? surveyData?.history?.extendedOrRenovated ?? false),
-      previousSettlementOrTilt: (surveyData?.historyInterview?.pastSettlement ?? 0) > 0 || Boolean(surveyData?.specs?.previousSettlementOrTilt ?? surveyData?.previousSettlementOrTilt ?? false),
+      extendedOrRenovated:
+        (surveyData?.historyInterview?.renovationLoad ?? 0) > 0 ||
+        (surveyData?.historyInterview?.majorRepair ?? 0) > 0 ||
+        Boolean(surveyData?.specs?.extendedOrRenovated ?? surveyData?.extendedOrRenovated ?? surveyData?.history?.extendedOrRenovated ?? false),
+      previousSettlementOrTilt:
+        (surveyData?.historyInterview?.pastSettlement ?? 0) > 0 ||
+        (surveyData?.historyInterview?.neighborDamage ?? 0) > 0 ||
+        Boolean(surveyData?.specs?.previousSettlementOrTilt ?? surveyData?.previousSettlementOrTilt ?? false),
       fireOrAccident: (surveyData?.historyInterview?.fireFloodIncident ?? 0) > 0 || Boolean(surveyData?.specs?.fireOrAccident ?? surveyData?.fireOrAccident ?? false),
       sensitiveEquipmentPresent: Boolean(surveyData?.historyInterview?.sensitiveEquipment?.has ?? surveyData?.specs?.sensitiveEquipmentPresent ?? surveyData?.sensitiveEquipmentPresent ?? false),
       historyDetails: surveyData?.historyInterview ? JSON.stringify(surveyData.historyInterview) : (surveyData?.specs?.historyDetails || surveyData?.historyDetails || null),
@@ -116,6 +164,15 @@ export class SurveyPackageMapper {
       foundationNotes: surveyData?.specs?.foundationNotes ?? surveyData?.foundationNotes,
       asBuiltDrawingPhotoUrl: surveyData?.asBuiltDrawingPhotoUrl || (Array.isArray(surveyData?.asBuiltDrawingPhotos) && surveyData.asBuiltDrawingPhotos[0]?.url) || null,
       asBuiltDrawingPhotos: Array.isArray(surveyData?.asBuiltDrawingPhotos) ? surveyData.asBuiltDrawingPhotos : [],
+      asBuiltDrawingFiles: Array.isArray(surveyData?.asBuiltDrawingFiles) ? surveyData.asBuiltDrawingFiles : [],
+      unitsPerFloor: surveyData?.unitsPerFloor !== undefined && surveyData?.unitsPerFloor !== '' ? Number(surveyData.unitsPerFloor) : null,
+      totalUnitsCount: surveyData?.totalUnitsCount !== undefined && surveyData?.totalUnitsCount !== '' ? Number(surveyData.totalUnitsCount) : null,
+      managementContactJson: {
+        managementContactName: surveyData?.managementContactName || null,
+        managementContactPhone: surveyData?.managementContactPhone || null,
+        unitsPerFloor: surveyData?.unitsPerFloor ?? null,
+        totalUnitsCount: surveyData?.totalUnitsCount ?? null,
+      },
     };
   }
 
@@ -128,6 +185,7 @@ export class SurveyPackageMapper {
       const sag = surveyData.settlementTilt.beamSagging || {};
       const settle = surveyData.settlementTilt.diffSettlement || {};
       const anomaly = surveyData.settlementTilt.abnormalCase || {};
+      const mon = surveyData.settlementTilt.needAdditionalMonitoring || {};
       const computedE3 = Math.min(
         4,
         Math.max(Number(settle.level) || 0, Number(tilt.level) || 0, Number(sag.level) || 0)
@@ -150,9 +208,25 @@ export class SurveyPackageMapper {
         diffSettlementPhotoCode: settle.photoCode || null,
         tiltPhotoCode: tilt.photoCode || null,
         abnormalPhotoCode: anomaly.photoCode || null,
+        beamSaggingPhotoCode: sag.photoCode || null,
         diffSettlementPhotos: Array.isArray(settle.photos) ? settle.photos : (settle.photoUrl ? [{ url: settle.photoUrl, photoCode: settle.photoCode }] : []),
         tiltPhotos: Array.isArray(tilt.photos) ? tilt.photos : (tilt.photoUrl ? [{ url: tilt.photoUrl, photoCode: tilt.photoCode }] : []),
         abnormalPhotos: Array.isArray(anomaly.photos) ? anomaly.photos : (anomaly.photoUrl ? [{ url: anomaly.photoUrl, photoCode: anomaly.photoCode }] : []),
+        beamSaggingPhotos: Array.isArray(sag.photos)
+          ? sag.photos
+          : sag.photoUrl
+            ? [{ url: sag.photoUrl, photoCode: sag.photoCode, position: sag.position, notes: sag.notes, level: sag.level }]
+            : [],
+        monitoringRequired: Boolean(mon.required),
+        monitoringNotes: mon.notes || null,
+        notes: [settle.notes, tilt.notes, sag.notes, anomaly.description].filter(Boolean).join('; ') || null,
+        detailsJson: {
+          diffSettlement: settle,
+          buildingTilt: tilt,
+          beamSagging: sag,
+          abnormalCase: anomaly,
+          needAdditionalMonitoring: mon,
+        },
       };
     } else if (surveyData?.deformation) {
       return {
@@ -167,9 +241,15 @@ export class SurveyPackageMapper {
         diffSettlementPhotoCode: surveyData.deformation.diffSettlementPhotoCode || null,
         tiltPhotoCode: surveyData.deformation.tiltPhotoCode || null,
         abnormalPhotoCode: surveyData.deformation.abnormalPhotoCode || null,
+        beamSaggingPhotoCode: surveyData.deformation.beamSaggingPhotoCode || null,
         diffSettlementPhotos: Array.isArray(surveyData.deformation.diffSettlementPhotos) ? surveyData.deformation.diffSettlementPhotos : [],
         tiltPhotos: Array.isArray(surveyData.deformation.tiltPhotos) ? surveyData.deformation.tiltPhotos : [],
         abnormalPhotos: Array.isArray(surveyData.deformation.abnormalPhotos) ? surveyData.deformation.abnormalPhotos : [],
+        beamSaggingPhotos: Array.isArray(surveyData.deformation.beamSaggingPhotos) ? surveyData.deformation.beamSaggingPhotos : [],
+        monitoringRequired: Boolean(surveyData.deformation.monitoringRequired),
+        monitoringNotes: surveyData.deformation.monitoringNotes || null,
+        notes: surveyData.deformation.notes || null,
+        detailsJson: surveyData.deformation.detailsJson || {},
       };
     }
     return null;
@@ -185,9 +265,16 @@ export class SurveyPackageMapper {
     const surveyorSig = surveyData?.signatures?.preparedBy?.photoUrl || surveyData?.signatures?.surveyorSignatureUrl || surveyData?.surveyorSignatureUrl || surveyData?.surveyorSignature || '';
     const ownerSig = surveyData?.signatures?.ownerRepresentative?.photoUrl || surveyData?.signatures?.ownerSignatureUrl || surveyData?.ownerSignatureUrl || surveyData?.ownerSignature || '';
 
+    const realOwnerName =
+      SurveyPackageMapper.cleanRealOwnerName(surveyData?.ownerName) ||
+      SurveyPackageMapper.cleanRealOwnerName(surveyData?.signatures?.ownerRepresentative?.fullName) ||
+      null;
+
     // Đảm bảo surveyDataJson lưu trữ cấu trúc signatures lồng ghép đồng bộ chuẩn Phase 1
+    // và nếu tìm thấy realOwnerName hợp lệ thì ghi ngược vào enrichedSurveyData.ownerName
     const enrichedSurveyData = {
       ...surveyData,
+      ...(realOwnerName ? { ownerName: realOwnerName } : {}),
       workingMinutesPhotos,
       signatures: {
         ...(surveyData?.signatures || {}),
@@ -207,11 +294,13 @@ export class SurveyPackageMapper {
       engineeringRecommendations: surveyData?.executiveSummary?.specificRecommendationsText || surveyData?.signatures?.engineeringRecommendations || surveyData?.engineeringRecommendations || '',
       houseNumber: surveyData?.houseNumber,
       street: surveyData?.street,
-      ownerName: surveyData?.ownerName || surveyData?.signatures?.ownerRepresentative?.fullName || null,
+      ownerName: realOwnerName,
       ownerPhone: surveyData?.ownerPhone || null,
       ownerIdCard: surveyData?.ownerIdCard || surveyData?.ownerId || null,
       residentStatus: surveyData?.residentStatus || null,
       displayCode: surveyData?.displayCode || surveyData?.display_code || null,
+      unitCadUrl: surveyData?.unitCadUrl || surveyData?.damageMapUrl || null,
+      cadBbox: surveyData?.cadBbox || null,
       constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : (surveyData?.unitAreaM2 !== '' && surveyData?.unitAreaM2 !== undefined ? Number(surveyData.unitAreaM2) : null),
       workingMinutesPhotos,
       surveyDataJson: enrichedSurveyData,
@@ -272,6 +361,7 @@ export class SurveyPackageMapper {
               activityState: ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U',
               materialDegradationE4: Number(d.materialDegradationE4 ?? 0),
               structuralSignificanceE2: Number(d.structuralSignificanceE2 ?? (widthMm >= 2.0 ? 3 : 1)),
+              functionalImpactE6: d.functionalImpactE6 || null,
               hasScaleCard: d.hasScaleCard ?? true,
               isStructuralCritical: Boolean(d.isStructuralCritical ?? widthMm >= 5.0),
               cuPhotoUrl: primaryCu,
@@ -280,6 +370,7 @@ export class SurveyPackageMapper {
               cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : [dCode]),
               pinColor: d.pinColor || '#ef4444',
               notes: d.notes || d.description || '',
+              capturedAt: d.capturedAt || null,
             };
           });
 
@@ -327,6 +418,7 @@ export class SurveyPackageMapper {
               activityState: ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'S',
               materialDegradationE4: Number(d.materialDegradationE4 ?? 0),
               structuralSignificanceE2: Number(d.structuralSignificanceE2 ?? 3),
+              functionalImpactE6: d.functionalImpactE6 || null,
               hasScaleCard: d.hasScaleCard ?? true,
               isStructuralCritical: Boolean(d.isStructuralCritical ?? widthMm >= 3.0),
               cuPhotoUrl: primaryCu,
@@ -335,6 +427,7 @@ export class SurveyPackageMapper {
               cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : [dCode]),
               pinColor: d.pinColor || '#f97316',
               notes: d.notes || d.description || '',
+              capturedAt: d.capturedAt || null,
             };
           });
 
@@ -343,6 +436,8 @@ export class SurveyPackageMapper {
             roomName: (e.roomName === 'Khác' && e.customRoomName) ? e.customRoomName : (e.roomName || 'Không gian căn hộ'),
             elementType: (e.elementType === 'Khác' && e.customElementType) ? e.customElementType : (e.elementType || 'COLUMN'),
             materialType: (e.materialType === 'Khác' && e.customMaterialType) ? e.customMaterialType : (e.materialType || 'Bê tông cốt thép (BTCT)'),
+            dimensions: e.dimensions || null,
+            structuralIntegrity: e.structuralIntegrity || null,
             ctxPhotoUrl: e.ctxPhotoUrl || '',
             ctxPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
             overviewPhotos: Array.isArray(e.overviewPhotos) ? e.overviewPhotos : [],
@@ -466,6 +561,7 @@ export class SurveyPackageMapper {
         cadStructuralDrawingUrl: structuralCadUrl,
         cadElementPins,
         hasStructuralElements,
+        noStructuralElementsReason: surveyData?.noStructuralElementsReason || null,
         notes: `Khảo sát căn hộ ${unitCode} (Tầng ${floorNum})`,
         zones,
         structuralElements,
@@ -498,6 +594,7 @@ export class SurveyPackageMapper {
     if (beamSagging?.photoUrl) {
       abnormalPhotos.push({
         url: beamSagging.photoUrl,
+        photoCode: beamSagging.photoCode || 'SAG-01',
         caption: `Đo võng dầm/sàn: ${beamSagging.location || ''} (f=${sagMm}mm, nhịp=${spanM}m, tỉ số=${beamSagging.ratioText || 'N/A'})`,
       });
     }
@@ -513,14 +610,24 @@ export class SurveyPackageMapper {
       diffSettlementPhotoCode: null,
       tiltPhotoCode: null,
       abnormalPhotoCode: abnormalPhotos.length > 0 ? 'SAG-01' : null,
+      beamSaggingPhotoCode: beamSagging?.photoCode || (abnormalPhotos.length > 0 ? 'SAG-01' : null),
       diffSettlementPhotos: [],
       tiltPhotos: [],
       abnormalPhotos,
+      beamSaggingPhotos: abnormalPhotos,
+      monitoringRequired: false,
+      monitoringNotes: null,
       notes: [
         hasDoorJam ? `Cửa: ${doorJamming}` : null,
         hasSettle ? `Lún: ${settlementObserved} (${settlementNotes || ''})` : null,
         hasSag ? `Võng dầm: ${beamSagging.location} (f/L=${beamSagging.ratioText || 'N/A'})` : null,
       ].filter(Boolean).join('; '),
+      detailsJson: {
+        beamSagging,
+        doorJammingStatus: doorJamming,
+        settlementObserved,
+        settlementNotes,
+      },
     };
   }
 }

@@ -10,6 +10,7 @@ import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../..
 import { healLocalPhotoUris, saveUploadedPhotoMapping, findUnsyncedPhotoPaths } from '../../../../core/storage/offlinePhotoStorage';
 import { surveyDraftService } from '../../services/surveyDraftService';
 import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
+import { isCadastralOwnerPlaceholder, resolveOwnerName } from '../../utils/stepValidator';
 
 export const createFormSlice: StateCreator<
   Phase1SurveyStore,
@@ -91,7 +92,11 @@ export const createFormSlice: StateCreator<
     }
     initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || parcel.house_number || '';
     initialData.street = initialData.street || parcel.street || '';
-    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || parcel.owner_name || '';
+    const rawIncomingOwner = unit?.ownerName || parcel.ownerName || parcel.owner_name || '';
+    initialData.ownerName = resolveOwnerName(
+      isCadastralOwnerPlaceholder(initialData.ownerName) ? '' : initialData.ownerName,
+      isCadastralOwnerPlaceholder(rawIncomingOwner) ? '' : rawIncomingOwner
+    );
     initialData.ownerPhone = initialData.ownerPhone || unit?.ownerPhone || unit?.owner_phone || parcel.ownerPhone || parcel.owner_phone || '';
     if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0 || initialData.aboveFloors === '') {
       initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
@@ -103,7 +108,7 @@ export const createFormSlice: StateCreator<
       initialData.gpsCoords = spatialMetrics.closestVertex;
       initialData.metroOffsetDistance = spatialMetrics.metroOffsetDistance;
       initialData.clearanceOffsetDistance = spatialMetrics.clearanceOffsetDistance;
-      initialData.chainage = '';
+      initialData.chainage = initialData.chainage || '';
     }
 
     // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit
@@ -165,12 +170,13 @@ export const createFormSlice: StateCreator<
 
     // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi không ở chế độ Read-Only và chưa nộp)
     if (!get().isReadOnly && !isSubmittedOrApproved) {
-      loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
+      loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number; _localUpdatedAt?: string }>(draftKey)
         .then((fullDraft) => {
           if (fullDraft && fullDraft.parcelId === parcel.id) {
             const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
             set((state) => {
               const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...fullDraft }));
+              merged.ownerName = resolveOwnerName(state.formData.ownerName, fullDraft.ownerName);
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
@@ -242,13 +248,36 @@ export const createFormSlice: StateCreator<
                 ? serverRes.draft.currentStep
                 : undefined;
 
+            const pStatus = parcel.surveyStatus || parcel.survey_status;
+            const isRejectedOrReverted = pStatus === 'REJECTED';
+
             let finalMerged: Phase1SurveyFormData | null = null;
             set((state) => {
-              const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
+              const localUpdatedAtStr = (state.formData as Phase1SurveyFormData & { _localUpdatedAt?: string })._localUpdatedAt;
+              const localTime = localUpdatedAtStr ? new Date(localUpdatedAtStr).getTime() : 0;
+              const serverTime = serverRes.draft?.updatedAt ? new Date(serverRes.draft.updatedAt).getTime() : 0;
+              const preferLocal = !isRejectedOrReverted && localTime > 0 && serverTime > 0 && localTime > serverTime;
+
+              const rawCombined = preferLocal
+                ? { ...serverData, ...state.formData }
+                : { ...state.formData, ...serverData };
+
+              const merged = dedupePhase1FormData(healLocalPhotoUris(rawCombined));
+              merged.ownerName = resolveOwnerName(state.formData.ownerName, typeof serverData.ownerName === 'string' ? serverData.ownerName : null);
+
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
               if (!merged.photoP04?.url && state.formData.photoP04?.url) merged.photoP04 = state.formData.photoP04;
+              if (
+                (!merged.signatures?.workingMinutesPhotos || merged.signatures.workingMinutesPhotos.length === 0) &&
+                state.formData.signatures?.workingMinutesPhotos?.length
+              ) {
+                merged.signatures = {
+                  ...merged.signatures,
+                  workingMinutesPhotos: state.formData.signatures.workingMinutesPhotos,
+                };
+              }
 
               const recalculatedEcs = calculateEcsScore(merged);
               const recalculatedVi = calculateViScore(merged, recalculatedEcs);
@@ -258,7 +287,7 @@ export const createFormSlice: StateCreator<
 
               return {
                 formData: merged,
-                currentStep: targetStep !== undefined ? targetStep : state.currentStep,
+                currentStep: preferLocal ? state.currentStep : (targetStep !== undefined ? targetStep : state.currentStep),
                 syncVersion: serverRes.draft!.syncVersion || state.syncVersion,
                 syncStatus: 'SAVED',
                 lastSyncedAt: serverRes.draft!.updatedAt
@@ -346,10 +375,32 @@ export const createFormSlice: StateCreator<
       }
 
       const newFormData = dedupePhase1FormData({ ...state.formData, ...mergedPayload });
+      const resolvedOwner = resolveOwnerName(state.formData.ownerName, mergedPayload.ownerName);
+      const isSpecialCase =
+        newFormData.isAbsenteeSurvey ||
+        newFormData.surveyCaseType === 'ABSENTEE' ||
+        newFormData.surveyCaseType === 'VACANT_LAND' ||
+        newFormData.surveyCaseType === 'UNDER_CONSTRUCTION' ||
+        newFormData.surveyCaseType === 'APARTMENT';
+      newFormData.ownerName =
+        !state.isReadOnly && !state.isSubmitted && !isSpecialCase && isCadastralOwnerPlaceholder(resolvedOwner)
+          ? ''
+          : resolvedOwner;
+
       const ecs = calculateEcsScore(newFormData);
       const vi = calculateViScore(newFormData, ecs);
-      newFormData.ecs = ecs;
-      newFormData.vi = vi;
+
+      // D1: Nếu đang xem ReadOnly / Submitted mà serverFormData đã có điểm chốt (ECS/VI), bảo toàn điểm từ Server/Snapshot
+      if ((state.isReadOnly || state.isSubmitted) && serverFormData.ecs) {
+        newFormData.ecs = { ...ecs, ...serverFormData.ecs };
+      } else {
+        newFormData.ecs = ecs;
+      }
+      if ((state.isReadOnly || state.isSubmitted) && serverFormData.vi) {
+        newFormData.vi = { ...vi, ...serverFormData.vi };
+      } else {
+        newFormData.vi = vi;
+      }
 
       return { formData: newFormData };
     });
@@ -371,6 +422,7 @@ export const createFormSlice: StateCreator<
     const payloadWithStep = {
       ...formData,
       _savedStep: currentStep,
+      _localUpdatedAt: new Date().toISOString(),
     };
 
     saveSurveyDraft(draftKey, payloadWithStep)

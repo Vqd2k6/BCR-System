@@ -119,7 +119,7 @@ export class MigrationRunner {
             if (file.startsWith('20261011_')) {
               return canBaselineCondo;
             }
-            if (file.startsWith('20261024_')) {
+            if (file.startsWith('20261024_') || file.startsWith('20261025_')) {
               return false;
             }
             return true;
@@ -184,6 +184,26 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261024_add_distance_to_centerline_and_schema_reconcile.sql';`
           );
           appliedSet.delete('20261024_add_distance_to_centerline_and_schema_reconcile.sql');
+        }
+      }
+
+      // 6.3 CƠ CHẾ SELF-HEALING CHO 20261025: Đảm bảo cột rejection_reason trên base_survey_reports và các cột Phase 1 Zero Bit-Loss luôn được khởi tạo thực tế
+      if (appliedSet.has('20261025_phase1_zero_bit_loss_columns.sql')) {
+        const checkZeroBitLossCol = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'base_survey_reports' AND column_name = 'rejection_reason'
+          ) AS exists;
+        `);
+
+        if (!checkZeroBitLossCol.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261025_phase1_zero_bit_loss_columns.sql được đánh dấu nhưng schema thực tế chưa có base_survey_reports.rejection_reason. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261025_phase1_zero_bit_loss_columns.sql';`
+          );
+          appliedSet.delete('20261025_phase1_zero_bit_loss_columns.sql');
         }
       }
 

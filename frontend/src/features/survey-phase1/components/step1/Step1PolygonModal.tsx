@@ -77,14 +77,16 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
             imageUrl={photoP02Url}
             polygonPoints={polygonPoints}
             floorSplitLines={floorSplits}
+            freehandStrokes={photoP02?.freehandStrokes}
             readOnly={effectiveReadOnly}
-            onChange={(points, splitLines) => {
+            onChange={(points, splitLines, strokes) => {
               if (effectiveReadOnly) return;
               updateFormData({
                 photoP02: {
                   ...photoP02,
                   polygonPoints: points,
                   floorSplits: splitLines,
+                  freehandStrokes: strokes,
                 },
               });
             }}

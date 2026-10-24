@@ -161,17 +161,17 @@ export function usePhotoOrientationAudit(
 
       let currentUrl = rawUrl;
       for (const act of stagedPhotoActions) {
-        const matchesUrl = act.currentPhotoUrl && act.currentPhotoUrl === rawUrl;
+        const matchesUrl = act.oldPhotoUrl && act.oldPhotoUrl === rawUrl;
         const matchesTarget =
           targetPhotoId &&
           act.targetPhotoId === targetPhotoId &&
           (photoIndex === undefined || act.photoIndex === undefined || act.photoIndex === photoIndex);
 
         if (matchesUrl || matchesTarget) {
-          if (act.mode === 'DELETE') {
+          if (act.action === 'DELETE') {
             return '';
           }
-          if (act.mode === 'REPLACE' && act.newPhotoUrl) {
+          if (act.action === 'REPLACE' && act.newPhotoUrl) {
             currentUrl = act.newPhotoUrl;
           }
         }

@@ -14,6 +14,9 @@ import { Step1PolygonModal } from './step1/Step1PolygonModal';
 import { Step1BottomNav } from './step1/Step1BottomNav';
 import { Step1SuccessModals } from './step1/Step1SuccessModals';
 import { UserCheck } from 'lucide-react';
+import { isCadastralOwnerPlaceholder } from '../utils/stepValidator';
+import { healLocalPhotoUris, findUnsyncedPhotoPaths } from '../../../core/storage/offlinePhotoStorage';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 
 interface Step1BuildingIdentificationProps {
   isCondoMaster?: boolean;
@@ -87,7 +90,15 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
     const hasBuildingName = Boolean(formData.buildingName?.trim());
     const hasGps = Boolean(formData.gpsCoords?.lat && formData.gpsCoords?.lng);
     const hasAddress = Boolean(formData.street?.trim() || formData.houseNumber?.trim());
-    const hasOwnerName = Boolean(formData.ownerName?.trim());
+    const isSpecialOrMasterCase =
+      isCondoMaster ||
+      currentCase === 'ABSENTEE' ||
+      currentCase === 'VACANT_LAND' ||
+      currentCase === 'UNDER_CONSTRUCTION' ||
+      currentCase === 'APARTMENT';
+    const hasOwnerName = isSpecialOrMasterCase
+      ? Boolean(formData.ownerName?.trim())
+      : Boolean(formData.ownerName?.trim()) && !isCadastralOwnerPlaceholder(formData.ownerName);
     const hasObjectGroup = Boolean(formData.objectGroup);
     const hasAdjacent = Boolean(
       formData.adjacentBuildings?.left?.details &&
@@ -159,7 +170,17 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
 
       setIsSubmittingAbsentee(true);
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
-      console.log('[Phase1] Submitting Absentee Survey:', formData);
+      const healedFormData = healLocalPhotoUris(formData);
+      const unsyncedPaths = findUnsyncedPhotoPaths(healedFormData);
+      const pendingUploads = uploadQueue.getPendingAndActiveCount();
+      if (unsyncedPaths.length > 0 || pendingUploads > 0) {
+        void uploadQueue.resumePendingOfflineUploads();
+        alert(
+          `Đang còn ${Math.max(unsyncedPaths.length, pendingUploads)} ảnh hiện trường chưa đồng bộ xong lên đám mây. Vui lòng chờ vài giây cho đến khi ảnh tải xong rồi bấm gửi lại.`
+        );
+        return;
+      }
+      console.log('[Phase1] Submitting Absentee Survey:', healedFormData);
 
       // 1. Lưu trạng thái override cục bộ dạng CHỜ DUYỆT (với phân loại VẮNG MẶT)
       try {
@@ -178,11 +199,11 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       try {
         await api.post(`/parcels/${formData.parcelId}/record-absence`, {
           absenceReason: 'HOMEOWNER_ABSENT',
-          notes: formData.absenteeReason === 'Lý do khác' ? (formData.customAbsenteeReason || 'Lý do khác') : (formData.absenteeReason || 'Chủ nhà vắng mặt'),
-          photoProofUrl: formData.absenteeMinutesPhotos?.[0] || formData.photoP01?.url || '',
-          ownerName: formData.ownerName || null,
-          ownerPhone: formData.ownerPhone || null,
-          surveyData: formData,
+          notes: healedFormData.absenteeReason === 'Lý do khác' ? (healedFormData.customAbsenteeReason || 'Lý do khác') : (healedFormData.absenteeReason || 'Chủ nhà vắng mặt'),
+          photoProofUrl: healedFormData.absenteeMinutesPhotos?.[0] || healedFormData.photoP01?.url || '',
+          ownerName: healedFormData.ownerName || null,
+          ownerPhone: healedFormData.ownerPhone || null,
+          surveyData: healedFormData,
         });
       } catch (apiErr) {
         console.error('[Phase1] API record-absence failed:', apiErr);
@@ -221,7 +242,17 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
 
       setIsSubmittingUnderConstruction(true);
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
-      console.log('[Phase1] Submitting Under Construction Survey:', formData);
+      const healedFormData = healLocalPhotoUris(formData);
+      const unsyncedPaths = findUnsyncedPhotoPaths(healedFormData);
+      const pendingUploads = uploadQueue.getPendingAndActiveCount();
+      if (unsyncedPaths.length > 0 || pendingUploads > 0) {
+        void uploadQueue.resumePendingOfflineUploads();
+        alert(
+          `Đang còn ${Math.max(unsyncedPaths.length, pendingUploads)} ảnh hiện trường chưa đồng bộ xong lên đám mây. Vui lòng chờ vài giây cho đến khi ảnh tải xong rồi bấm gửi lại.`
+        );
+        return;
+      }
+      console.log('[Phase1] Submitting Under Construction Survey:', healedFormData);
 
       // 1. Lưu trạng thái override cục bộ dạng CHỜ DUYỆT (với phân loại ĐANG XÂY DỰNG)
       try {
@@ -240,9 +271,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
         await api.post('/surveys/phase1/submit', {
           parcelId: formData.parcelId,
           surveyData: {
-            ...formData,
-            targetGroup: formData.targetGroup || formData.objectGroup || 'GENERAL',
-            summaryConclusions: `Công trình đang xây dựng: ${formData.constructionStageNotes || ''}`,
+            ...healedFormData,
+            targetGroup: healedFormData.targetGroup || healedFormData.objectGroup || 'GENERAL',
+            summaryConclusions: `Công trình đang xây dựng: ${healedFormData.constructionStageNotes || ''}`,
           },
           status: 'SUBMITTED',
         });
@@ -275,7 +306,17 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
 
       setIsSubmittingVacantLand(true);
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
-      console.log('[Phase1] Submitting Vacant Land Survey:', formData);
+      const healedFormData = healLocalPhotoUris(formData);
+      const unsyncedPaths = findUnsyncedPhotoPaths(healedFormData);
+      const pendingUploads = uploadQueue.getPendingAndActiveCount();
+      if (unsyncedPaths.length > 0 || pendingUploads > 0) {
+        void uploadQueue.resumePendingOfflineUploads();
+        alert(
+          `Đang còn ${Math.max(unsyncedPaths.length, pendingUploads)} ảnh hiện trường chưa đồng bộ xong lên đám mây. Vui lòng chờ vài giây cho đến khi ảnh tải xong rồi bấm gửi lại.`
+        );
+        return;
+      }
+      console.log('[Phase1] Submitting Vacant Land Survey:', healedFormData);
 
       // 1. Lưu trạng thái override cục bộ dạng SUBMITTED (với phân loại ĐẤT TRỐNG)
       try {
@@ -296,13 +337,13 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
         await api.post('/surveys/phase1/submit', {
           parcelId: formData.parcelId,
           surveyData: {
-            ...formData,
+            ...healedFormData,
             surveyCaseType: 'VACANT_LAND',
             buildingCategory: 'Đất trống',
             isVacantLand: true,
             usageFunction: 'Đất trống',
-            targetGroup: formData.targetGroup || formData.objectGroup || 'GENERAL',
-            summaryConclusions: `Thửa đất trống: ${formData.vacantLandStatus || 'Đất trống chưa xây dựng'}. ${formData.vacantLandNotes || ''}`,
+            targetGroup: healedFormData.targetGroup || healedFormData.objectGroup || 'GENERAL',
+            summaryConclusions: `Thửa đất trống: ${healedFormData.vacantLandStatus || 'Đất trống chưa xây dựng'}. ${healedFormData.vacantLandNotes || ''}`,
           },
           status: 'SUBMITTED',
         });
@@ -456,6 +497,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
               ...formData.photoP02,
               polygonPoints: data.polygonPoints,
               floorSplits: data.splitLines,
+              freehandStrokes: data.freehandStrokes,
             },
           });
         }}

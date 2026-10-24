@@ -88,8 +88,11 @@ interface ScoringSurveyJson {
     totalEcs?: number;
     ecsClass?: string;
     engineeringJudgement?: {
+      isOverridden?: boolean;
       action?: string;
       reason?: string;
+      adjustedScore?: number | null;
+      adjustedClass?: string | null;
     };
   };
   vi?: {
@@ -103,8 +106,11 @@ interface ScoringSurveyJson {
     viAvg?: number;
     viClass?: string;
     engineeringJudgement?: {
+      isOverridden?: boolean;
       action?: string;
       reason?: string;
+      adjustedScore?: number | null;
+      adjustedClass?: string | null;
     };
   };
 }
@@ -472,23 +478,60 @@ export class ScoringService {
       ]
     );
 
-    // Đồng bộ Engineering Judgement từ survey_data_json (nếu KSV hoặc Admin có khai báo lý do can thiệp)
+    // Đồng bộ Engineering Judgement từ survey_data_json (nếu KSV hoặc Admin có khai báo lý do can thiệp cho ECS và/hoặc VI)
     const ecsEj = surveyJson?.ecs?.engineeringJudgement;
     const viEj = surveyJson?.vi?.engineeringJudgement;
-    const activeEj =
-      ecsEj?.action && ecsEj.action !== 'KEEP'
-        ? ecsEj
-        : viEj?.action && viEj.action !== 'KEEP'
-          ? viEj
+    const hasEcsEj = Boolean(ecsEj && (ecsEj.isOverridden || (ecsEj.action && ecsEj.action !== 'KEEP')));
+    const hasViEj = Boolean(viEj && (viEj.isOverridden || (viEj.action && viEj.action !== 'KEEP')));
+
+    if (hasEcsEj || hasViEj) {
+      const overriddenTotalEcs =
+        hasEcsEj && ecsEj?.adjustedScore !== undefined && ecsEj?.adjustedScore !== null
+          ? Number(ecsEj.adjustedScore)
           : null;
-    if (activeEj) {
+      const overriddenEcsClass =
+        hasEcsEj && ecsEj?.adjustedClass
+          ? String(ecsEj.adjustedClass)
+          : null;
+      const overriddenAvgVi =
+        hasViEj && viEj?.adjustedScore !== undefined && viEj?.adjustedScore !== null
+          ? Number(viEj.adjustedScore)
+          : null;
+      const overriddenViClass =
+        hasViEj && viEj?.adjustedClass
+          ? String(viEj.adjustedClass)
+          : null;
+
+      const combinedAction =
+        hasEcsEj && hasViEj
+          ? `${ecsEj?.action || 'CUSTOM_OVERRIDE'}_${viEj?.action || 'CUSTOM_OVERRIDE'}`
+          : (hasEcsEj ? ecsEj?.action : viEj?.action) || 'CUSTOM_OVERRIDE';
+      const combinedReason = [
+        hasEcsEj && ecsEj?.reason ? `[ECS]: ${ecsEj.reason}` : null,
+        hasViEj && viEj?.reason ? `[VI]: ${viEj.reason}` : null,
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
       await Database.query(
         `UPDATE risk_score_cards
          SET is_engineering_judgement_applied = TRUE,
              engineering_judgement_action = COALESCE(NULLIF($2, ''), engineering_judgement_action),
-             engineering_judgement_reason = COALESCE(NULLIF($3, ''), engineering_judgement_reason)
+             engineering_judgement_reason = COALESCE(NULLIF($3, ''), engineering_judgement_reason),
+             overridden_total_ecs = COALESCE($4, overridden_total_ecs),
+             overridden_ecs_class = COALESCE($5, overridden_ecs_class),
+             overridden_avg_vi = COALESCE($6, overridden_avg_vi),
+             overridden_vi_class = COALESCE($7, overridden_vi_class)
          WHERE report_id = $1;`,
-        [reportId, activeEj.action || 'CUSTOM_OVERRIDE', activeEj.reason || '']
+        [
+          reportId,
+          combinedAction,
+          combinedReason,
+          overriddenTotalEcs,
+          overriddenEcsClass,
+          overriddenAvgVi,
+          overriddenViClass,
+        ]
       );
     }
 
@@ -674,13 +717,12 @@ export class ScoringService {
       ]
     );
 
-    // Đồng thời cập nhật ghi chú chuyên gia vào base_survey_reports
+    // Chỉ cập nhật updated_at của base_survey_reports (tuyệt đối không ghi đè làm mất engineering_recommendations của KSV ở Bước 7)
     await Database.query(
       `UPDATE base_survey_reports
-       SET engineering_recommendations = $2,
-           updated_at = NOW()
+       SET updated_at = NOW()
        WHERE id = $1;`,
-      [reportId, `[CAN THIỆP CHUYÊN GIA - ${action}]: ${reason}`]
+      [reportId]
     );
 
     const updatedCardRes = await Database.query(

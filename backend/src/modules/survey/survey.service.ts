@@ -217,8 +217,20 @@ export class SurveyService {
   }
 
   static async submitPhase1Report(reportId: string, submitData: any, userId?: string, clientIp?: string) {
+    // BƯỚC 1: Ghi survey_data_json mới nhất vào base_survey_reports và đồng bộ parcels / building_units
     await SurveyRepository.submitReport(reportId, submitData);
 
+    // BƯỚC 2: Tính điểm Rủi ro (Scoring) tự động trên Backend từ survey_data_json và bảng quan hệ vừa lưu
+    let scoreWarning: string | null = null;
+    try {
+      const { ScoringService } = await import('../scoring/scoring.service');
+      await ScoringService.calculatePhase1Scores(reportId);
+    } catch (scoreErr) {
+      console.warn('[submitPhase1Report] Cảnh báo tính điểm scoring:', scoreErr);
+      scoreWarning = 'Chưa tính được điểm rủi ro tự động (sẽ tính lại khi duyệt hồ sơ)';
+    }
+
+    // BƯỚC 3: Chụp Snapshot ORIGINAL_SUBMISSION sau khi đã có đủ cả JSON + Điểm rủi ro mới nhất
     try {
       const { AuditVersionService } = await import('../audit/services/audit-version.service');
       await AuditVersionService.createSnapshot(reportId, {
@@ -234,6 +246,7 @@ export class SurveyService {
     return {
       reportId,
       status: 'SUBMITTED',
+      scoreWarning,
       message: 'Đã nộp hồ sơ Phase 1 thành công kèm chữ ký và ý kiến chủ hộ, hồ sơ chuyển sang Chờ duyệt',
     };
   }

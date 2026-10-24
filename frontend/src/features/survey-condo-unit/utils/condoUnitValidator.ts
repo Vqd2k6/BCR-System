@@ -20,6 +20,7 @@ import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 import { isLocalBlobUri, healLocalPhotoUris, findUnsyncedPhotoPaths } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { auditCondoUnitPhotos } from './condoUnitPhotoAudit';
+import { isCadastralOwnerPlaceholder } from '../../survey-phase1/utils/stepValidator';
 
 export interface CondoUnitValidationIssue {
   fieldId: string;
@@ -132,14 +133,19 @@ export function validateCondoUnitStep2(formData: CondoUnitFormData): CondoUnitVa
     });
   }
 
-  // 3. Họ và tên người đại diện / chủ hộ
-  if (!formData.ownerName?.trim()) {
+  // 3. Họ và tên người đại diện / chủ hộ (Bắt buộc nhập tên thật khi căn hộ có người ở; cho phép giữ nguyên khi Vắng mặt / Bỏ trống)
+  const isAbsentOrVacantUnit =
+    formData.isAbsentee ||
+    formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' ||
+    formData.residentStatus === 'BỎ_TRỐNG_CHƯA_VỀ_Ở';
+
+  if (!isAbsentOrVacantUnit && (!formData.ownerName?.trim() || isCadastralOwnerPlaceholder(formData.ownerName))) {
     issues.push({
       fieldId: 'input-ownerName',
       step: 2,
       target: 'OWNER_NAME',
-      title: 'Thiếu Họ và Tên Người Đại Diện',
-      message: 'Vui lòng nhập họ và tên chủ sở hữu hoặc người đại diện làm việc tại căn hộ.',
+      title: 'Thiếu Họ và Tên Người Đại Diện Thực Tế',
+      message: 'Vui lòng nhập họ và tên thực tế của chủ sở hữu hoặc người đại diện làm việc tại căn hộ (không để trống hoặc dùng tên giả định "Chưa cập nhật").',
       isBlocking: true,
     });
   }

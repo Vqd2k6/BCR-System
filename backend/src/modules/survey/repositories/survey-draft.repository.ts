@@ -128,6 +128,36 @@ export class SurveyDraftRepository {
       // Đảm bảo mergedMappings luôn nằm trong surveyData
       incomingData._photoMappings = mergedMappings;
 
+      // Bảo vệ tên chủ hộ thật: Không bao giờ cho phép chuỗi giả định ('Chủ hộ thửa ...', 'Chưa cập nhật') hoặc rỗng ghi đè lên tên thật đã lưu trong bản nháp trước đó
+      const isPlaceholderOwner = (val: unknown): boolean =>
+        typeof val === 'string' && /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(val.trim());
+      const existingOwner = typeof existingData?.ownerName === 'string' ? existingData.ownerName.trim() : '';
+      const incomingOwner = typeof incomingData?.ownerName === 'string' ? incomingData.ownerName.trim() : '';
+      if (existingOwner && !isPlaceholderOwner(existingOwner) && (!incomingOwner || isPlaceholderOwner(incomingOwner))) {
+        incomingData.ownerName = existingOwner;
+      }
+
+      const cleanDraftOwnerName =
+        typeof incomingData?.ownerName === 'string' && incomingData.ownerName.trim() && !isPlaceholderOwner(incomingData.ownerName)
+          ? incomingData.ownerName.trim()
+          : null;
+      const cleanDraftOwnerPhone =
+        typeof incomingData?.ownerPhone === 'string' && incomingData.ownerPhone.trim()
+          ? incomingData.ownerPhone.trim()
+          : null;
+      const cleanDraftHouseNumber =
+        typeof incomingData?.houseNumber === 'string' && incomingData.houseNumber.trim()
+          ? incomingData.houseNumber.trim()
+          : null;
+      const cleanDraftStreet =
+        typeof incomingData?.street === 'string' && incomingData.street.trim()
+          ? incomingData.street.trim()
+          : null;
+      const cleanDraftDisplayCode =
+        typeof incomingData?.displayCode === 'string' && incomingData.displayCode.trim()
+          ? incomingData.displayCode.trim()
+          : null;
+
       const updateRes = await Database.query(
         `UPDATE base_survey_reports
          SET survey_data_json = $2,
@@ -146,7 +176,7 @@ export class SurveyDraftRepository {
         ]
       );
 
-      // Chỉ cập nhật trạng thái tòa mẹ và active_phase1_report_id khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
+      // Chỉ cập nhật trạng thái tòa mẹ, active_phase1_report_id và đồng bộ thông tin chủ hộ/địa chỉ lên GIS khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
       if (!data.unitId) {
         await Database.query(
           `UPDATE parcels 
@@ -159,13 +189,17 @@ export class SurveyDraftRepository {
                    AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = parcels.active_phase1_report_id) 
                  THEN active_phase1_report_id 
                  ELSE $2 
-               END, 
+               END,
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               house_number = COALESCE($5, house_number),
+               street = COALESCE($6, street),
                updated_at = NOW() 
            WHERE id = $1;`,
-          [resolvedParcelId, existing.id]
+          [resolvedParcelId, existing.id, cleanDraftOwnerName, cleanDraftOwnerPhone, cleanDraftHouseNumber, cleanDraftStreet]
         );
       } else {
-        // Căn hộ con: chỉ cập nhật trạng thái căn hộ trong building_units, tuyệt đối không chạm vào active_phase1_report_id của tòa mẹ
+        // Căn hộ con: chỉ cập nhật trạng thái và thông tin chủ hộ căn hộ trong building_units, tuyệt đối không chạm vào active_phase1_report_id của tòa mẹ
         await Database.query(
           `UPDATE building_units 
            SET status = CASE 
@@ -177,10 +211,13 @@ export class SurveyDraftRepository {
                    AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = building_units.phase1_report_id) 
                  THEN phase1_report_id 
                  ELSE $2 
-               END, 
+               END,
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               display_code = COALESCE($5, display_code),
                updated_at = NOW() 
            WHERE id = $1;`,
-          [data.unitId, existing.id]
+          [data.unitId, existing.id, cleanDraftOwnerName, cleanDraftOwnerPhone, cleanDraftDisplayCode]
         );
       }
 
@@ -188,6 +225,31 @@ export class SurveyDraftRepository {
     } else {
       // Khởi tạo mã ngẫu nhiên 6 số phục vụ bàn giao ca
       const securityCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const parsedNewSurveyData: any = typeof data.surveyData === 'string'
+        ? (() => { try { return JSON.parse(data.surveyData); } catch { return {}; } })()
+        : (data.surveyData || {});
+      const isPlaceholderOwner = (val: unknown): boolean =>
+        typeof val === 'string' && /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(val.trim());
+      const cleanNewOwnerName =
+        typeof parsedNewSurveyData?.ownerName === 'string' && parsedNewSurveyData.ownerName.trim() && !isPlaceholderOwner(parsedNewSurveyData.ownerName)
+          ? parsedNewSurveyData.ownerName.trim()
+          : null;
+      const cleanNewOwnerPhone =
+        typeof parsedNewSurveyData?.ownerPhone === 'string' && parsedNewSurveyData.ownerPhone.trim()
+          ? parsedNewSurveyData.ownerPhone.trim()
+          : null;
+      const cleanNewHouseNumber =
+        typeof parsedNewSurveyData?.houseNumber === 'string' && parsedNewSurveyData.houseNumber.trim()
+          ? parsedNewSurveyData.houseNumber.trim()
+          : null;
+      const cleanNewStreet =
+        typeof parsedNewSurveyData?.street === 'string' && parsedNewSurveyData.street.trim()
+          ? parsedNewSurveyData.street.trim()
+          : null;
+      const cleanNewDisplayCode =
+        typeof parsedNewSurveyData?.displayCode === 'string' && parsedNewSurveyData.displayCode.trim()
+          ? parsedNewSurveyData.displayCode.trim()
+          : null;
       
       // Lấy project code
       const pRes = await Database.query<{ project_parcel_code: string }>(
@@ -225,7 +287,7 @@ export class SurveyDraftRepository {
         [newDraft.id]
       );
 
-      // Chỉ cập nhật trạng thái tòa mẹ và active_phase1_report_id khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
+      // Chỉ cập nhật trạng thái tòa mẹ, active_phase1_report_id và đồng bộ thông tin chủ hộ/địa chỉ lên GIS khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
       if (!data.unitId) {
         await Database.query(
           `UPDATE parcels 
@@ -239,10 +301,14 @@ export class SurveyDraftRepository {
                    AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = parcels.active_phase1_report_id) 
                  THEN active_phase1_report_id 
                  ELSE $2 
-               END, 
+               END,
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               house_number = COALESCE($5, house_number),
+               street = COALESCE($6, street),
                updated_at = NOW() 
            WHERE id = $1;`,
-          [resolvedParcelId, newDraft.id]
+          [resolvedParcelId, newDraft.id, cleanNewOwnerName, cleanNewOwnerPhone, cleanNewHouseNumber, cleanNewStreet]
         );
       } else {
         // Căn hộ con: chỉ cập nhật trạng thái căn hộ trong building_units, tuyệt đối không chạm vào active_phase1_report_id của tòa mẹ
@@ -258,10 +324,13 @@ export class SurveyDraftRepository {
                    AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = building_units.phase1_report_id) 
                  THEN phase1_report_id 
                  ELSE $2 
-               END, 
+               END,
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               display_code = COALESCE($5, display_code),
                updated_at = NOW() 
            WHERE id = $1;`,
-          [data.unitId, newDraft.id]
+          [data.unitId, newDraft.id, cleanNewOwnerName, cleanNewOwnerPhone, cleanNewDisplayCode]
         );
       }
 

@@ -26,7 +26,9 @@ import type {
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
-import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { healLocalPhotoUris, findUnsyncedPhotoPaths } from '../../../core/storage/offlinePhotoStorage';
+import { isCadastralOwnerPlaceholder, resolveOwnerName } from '../utils/stepValidator';
 
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
@@ -100,10 +102,18 @@ interface BackendDamageZoneRecord {
   room_name?: string;
   zone_name?: string;
   roomName?: string;
+  custom_room_name?: string;
   component_type?: string;
   componentType?: string;
+  custom_component_type?: string;
   wall_material?: string;
   wallMaterial?: string;
+  custom_wall_material?: string;
+  custom_element_type?: string;
+  custom_material_type?: string;
+  section_dimensions?: string;
+  structural_integrity?: string;
+  overview_photos_json?: string[];
   notes?: string;
   ctx_photo_url?: string;
   photo_context_url?: string;
@@ -120,8 +130,8 @@ interface BackendFloorSurveyRecord {
   id: string;
   floor_name?: string;
   floorName?: string;
-  overview_photos_json?: Array<string | { id?: string; url?: string; caption?: string }>;
-  overview_photos?: Array<string | { id?: string; url?: string; caption?: string }>;
+  overview_photos_json?: Array<string | { id?: string; url?: string; caption?: string; photoCode?: string; photo_code?: string }>;
+  overview_photos?: Array<string | { id?: string; url?: string; caption?: string; photoCode?: string; photo_code?: string }>;
   cad_drawing_url?: string;
   cad_sketch_photo_url?: string;
   cad_structural_drawing_url?: string;
@@ -129,6 +139,9 @@ interface BackendFloorSurveyRecord {
   cad_zone_pins?: Array<Record<string, unknown>>;
   cad_element_pins_json?: Array<Record<string, unknown>>;
   cad_element_pins?: Array<Record<string, unknown>>;
+  has_structural_elements?: boolean;
+  no_structural_elements_reason?: string;
+  beam_sagging_json?: Record<string, unknown>;
   zones?: DamageZoneData[];
   structural_elements?: Array<Record<string, unknown>>;
 }
@@ -137,7 +150,9 @@ interface Phase1ServerReportResponse {
   report?: {
     status?: SurveyStatus;
     survey_data_json?: string | Record<string, unknown>;
+    summary_conclusions?: string;
     engineering_recommendations?: string;
+    rejection_reason?: string;
     owner_name?: string;
     owner_phone?: string;
     house_number?: string;
@@ -191,6 +206,20 @@ interface Phase1ServerReportResponse {
       e3_deformation_score?: number;
       measurement_method?: string;
       measurement_reliability?: 'HIGH' | 'MEDIUM' | 'LOW';
+      diff_settlement_json?: Record<string, unknown>;
+      building_tilt_json?: Record<string, unknown>;
+      beam_sagging_json?: Record<string, unknown>;
+      abnormal_case_json?: Record<string, unknown>;
+      monitoring_notes?: string;
+    };
+    surveyScope?: {
+      has_exterior?: boolean;
+      has_first_floor?: boolean;
+      has_upper_floors?: boolean;
+      has_roof_basement?: boolean;
+      has_adjacent_check?: boolean;
+      has_other?: boolean;
+      non_surveyed_areas_json?: unknown;
     };
     owner_remarks?: string;
     surveyor_name?: string;
@@ -211,15 +240,23 @@ interface Phase1ServerReportResponse {
   };
   absenceLog?: {
     absence_reason?: string;
+    custom_reason?: string;
+    notes?: string;
     photo_proof_url?: string;
+    minutes_photos_json?: string[];
     [key: string]: unknown;
   };
+  absenceLogs?: Array<{
+    absence_reason?: string;
+    custom_reason?: string;
+    notes?: string;
+    photo_proof_url?: string;
+    minutes_photos_json?: string[];
+    [key: string]: unknown;
+  }>;
 }
 
-const isCadastralPlaceholder = (name?: string | null): boolean => {
-  if (!name || typeof name !== 'string') return false;
-  return /^chủ\s+hộ\s+thửa/i.test(name.trim());
-};
+const isCadastralPlaceholder = (name?: string | null): boolean => isCadastralOwnerPlaceholder(name);
 
 const reverseMapStructuralSystem = (dbVal?: string | null): string => {
   if (!dbVal) return '';
@@ -393,7 +430,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             console.log('[SurveyPhase1Page] Report loaded from server:', data);
             setReportData(data);
             const rep = data.report;
-            const absence = data.absenceLog as { absence_reason?: string; photo_proof_url?: string } | undefined;
+            const absence = data.absenceLog as {
+              absence_reason?: string;
+              custom_reason?: string;
+              photo_proof_url?: string;
+              minutes_photos_json?: string[];
+            } | undefined;
             const updates: Partial<Phase1SurveyFormData> = {};
 
             // Nếu hồ sơ trên máy chủ đã nộp hoặc phê duyệt, kích hoạt ngay chế độ chỉ xem
@@ -421,13 +463,26 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
             }
 
+            const allAbsenceLogs = Array.isArray(data.absenceLogs) && data.absenceLogs.length > 0
+              ? data.absenceLogs
+              : (absence ? [absence] : []);
+
             if (effectiveReadOnly) {
               if (absence && rep?.is_refused_or_absent) {
                 updates.surveyCaseType = 'ABSENTEE';
                 updates.isAbsenteeSurvey = true;
                 updates.absenteeReason = absence.absence_reason || updates.absenteeReason || '';
-                if (absence.photo_proof_url) {
-                  updates.absenteeMinutesPhotos = [absence.photo_proof_url];
+                if (absence.custom_reason && !updates.customAbsenteeReason) {
+                  updates.customAbsenteeReason = absence.custom_reason;
+                }
+                const absPhotos = Array.isArray(absence.minutes_photos_json) && absence.minutes_photos_json.length > 0
+                  ? absence.minutes_photos_json
+                  : (absence.photo_proof_url ? [absence.photo_proof_url] : []);
+                if (absPhotos.length > 0 && (!updates.absenteeMinutesPhotos || updates.absenteeMinutesPhotos.length === 0)) {
+                  updates.absenteeMinutesPhotos = absPhotos;
+                }
+                if (allAbsenceLogs.length > 0 && (!updates.previousAbsenceLogs || updates.previousAbsenceLogs.length === 0)) {
+                  updates.previousAbsenceLogs = allAbsenceLogs;
                 }
               }
             } else {
@@ -435,21 +490,25 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               if (updates.resumedFromAbsentee || parcel.surveyStatus === 'IN_PROGRESS' || rep?.is_refused_or_absent === false) {
                 updates.surveyCaseType = 'NORMAL';
                 updates.isAbsenteeSurvey = false;
-                if (absence) {
-                  updates.previousAbsenceLogs = updates.previousAbsenceLogs || [absence];
+                if (allAbsenceLogs.length > 0) {
+                  updates.previousAbsenceLogs = updates.previousAbsenceLogs?.length ? updates.previousAbsenceLogs : allAbsenceLogs;
                   updates.resumedFromAbsentee = true;
                 }
               }
             }
 
             if (rep) {
-              // Chỉ điền từ rep.owner_name nếu updates chưa có tên hoặc updates đang là placeholder mà rep có tên thật
-              if (!updates.ownerName || isCadastralPlaceholder(updates.ownerName)) {
-                if (rep.owner_name && !isCadastralPlaceholder(rep.owner_name)) {
-                  updates.ownerName = rep.owner_name;
-                } else if (!updates.ownerName && rep.owner_name) {
-                  updates.ownerName = rep.owner_name;
-                }
+              // E3: Chỉ lấy tên chủ hộ thực tế (không phải placeholder "Chủ hộ thửa...") khi ghi đè vào form
+              const resolvedRealOwner = resolveOwnerName(
+                isCadastralPlaceholder(updates.ownerName) ? '' : updates.ownerName,
+                isCadastralPlaceholder(rep.owner_name) ? '' : rep.owner_name
+              );
+              if (resolvedRealOwner) {
+                updates.ownerName = resolvedRealOwner;
+              } else if (effectiveReadOnly) {
+                updates.ownerName = updates.ownerName || rep.owner_name || '';
+              } else if (isCadastralPlaceholder(updates.ownerName)) {
+                updates.ownerName = '';
               }
               if (!updates.ownerPhone && rep.owner_phone) {
                 updates.ownerPhone = rep.owner_phone;
@@ -545,21 +604,21 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
                 const existingHi = updates.historyInterview;
                 updates.historyInterview = {
-                  renovationLoad: existingHi?.renovationLoad ?? (typeof parsedDetails?.renovationLoad === 'number' ? parsedDetails.renovationLoad : (h.extended_or_renovated ? 1 : 0)),
-                  majorRepair: existingHi?.majorRepair ?? (typeof parsedDetails?.majorRepair === 'number' ? parsedDetails.majorRepair : 0),
-                  pastSettlement: existingHi?.pastSettlement ?? (typeof parsedDetails?.pastSettlement === 'number' ? parsedDetails.pastSettlement : (h.previous_settlement_or_tilt ? 1 : 0)),
-                  neighborDamage: existingHi?.neighborDamage ?? (typeof parsedDetails?.neighborDamage === 'number' ? parsedDetails.neighborDamage : 0),
-                  fireFloodIncident: existingHi?.fireFloodIncident ?? (typeof parsedDetails?.fireFloodIncident === 'number' ? parsedDetails.fireFloodIncident : (h.fire_or_accident ? 1 : 0)),
+                  renovationLoad: existingHi?.renovationLoad ?? (typeof parsedDetails?.renovationLoad === 'number' ? parsedDetails.renovationLoad : (h.renovation_load ?? (h.extended_or_renovated ? 1 : 0))),
+                  majorRepair: existingHi?.majorRepair ?? (typeof parsedDetails?.majorRepair === 'number' ? parsedDetails.majorRepair : (h.major_repair ?? 0)),
+                  pastSettlement: existingHi?.pastSettlement ?? (typeof parsedDetails?.pastSettlement === 'number' ? parsedDetails.pastSettlement : (h.past_settlement ?? (h.previous_settlement_or_tilt ? 1 : 0))),
+                  neighborDamage: existingHi?.neighborDamage ?? (typeof parsedDetails?.neighborDamage === 'number' ? parsedDetails.neighborDamage : (h.neighbor_damage ?? 0)),
+                  fireFloodIncident: existingHi?.fireFloodIncident ?? (typeof parsedDetails?.fireFloodIncident === 'number' ? parsedDetails.fireFloodIncident : (h.fire_flood_incident ?? (h.fire_or_accident ? 1 : 0))),
                   sensitiveEquipment: existingHi?.sensitiveEquipment || (parsedDetails?.sensitiveEquipment as { has: boolean; description: string }) || {
-                    has: Boolean(h.sensitive_equipment_present),
-                    description: '',
+                    has: Boolean(h.has_sensitive_equipment ?? h.sensitive_equipment_present),
+                    description: h.sensitive_equipment_desc || '',
                   },
-                  usageStatus: existingHi?.usageStatus || (typeof parsedDetails?.usageStatus === 'string' ? parsedDetails.usageStatus : 'Đầy đủ 100%'),
-                  continuousOperation247: existingHi?.continuousOperation247 ?? (typeof parsedDetails?.continuousOperation247 === 'boolean' ? parsedDetails.continuousOperation247 : false),
+                  usageStatus: existingHi?.usageStatus || (typeof parsedDetails?.usageStatus === 'string' ? parsedDetails.usageStatus : (h.usage_status || 'Đầy đủ 100%')),
+                  continuousOperation247: existingHi?.continuousOperation247 ?? (typeof parsedDetails?.continuousOperation247 === 'boolean' ? parsedDetails.continuousOperation247 : (h.continuous_operation_247 ?? false)),
                 };
               }
               if (updates.floors && Array.isArray(updates.floors) && updates.floors.length > 0) {
-                // Đã khôi phục từ snapshot survey_data_json -> Chuẩn hóa ảnh và bảo toàn dữ liệu zones, pins, CAD
+                // Đã khôi phục từ snapshot survey_data_json -> Chuẩn hóa ảnh (bảo toàn photoCode) và dữ liệu zones, pins, CAD
                 updates.floors = updates.floors.map((fl, idx) => {
                   const beFloor = rep.floorSurveys?.[idx];
                   const rawPhotos = fl.overviewPhotos && fl.overviewPhotos.length > 0 
@@ -568,7 +627,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   
                   const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p, pIdx) => {
                     if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
-                    return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
+                    const pObj = p as { id?: string; url?: string; caption?: string; photoCode?: string; photo_code?: string };
+                    return {
+                      id: pObj.id || `fl_ov_${pIdx}`,
+                      url: pObj.url || '',
+                      caption: pObj.caption || '',
+                      ...(pObj.photoCode || pObj.photo_code ? { photoCode: pObj.photoCode || pObj.photo_code } : {}),
+                    };
                   });
 
                   return {
@@ -578,6 +643,9 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     cadStructuralSketchPhotoUrl: fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || beFloor?.cad_structural_drawing_url || '',
                     cadZonePins: (fl.cadZonePins || beFloor?.cad_zone_pins_json || beFloor?.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
                     cadElementPins: (fl.cadElementPins || beFloor?.cad_element_pins_json || beFloor?.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
+                    hasStructuralElements: fl.hasStructuralElements ?? beFloor?.has_structural_elements ?? true,
+                    noStructuralElementsReason: fl.noStructuralElementsReason || beFloor?.no_structural_elements_reason || '',
+                    beamSagging: fl.beamSagging || (beFloor?.beam_sagging_json as FloorSurveyData['beamSagging']),
                     zones: fl.zones || [],
                     structuralElements: fl.structuralElements || [],
                   };
@@ -632,10 +700,16 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                       elementCode: zCode,
                       floorName: z.floor_name || z.floorName || '',
                       roomName: z.room_name || z.zone_name || z.roomName || 'Cấu kiện kết cấu',
+                      customRoomName: z.custom_room_name || '',
                       elementType: (z.component_type || z.componentType || 'COLUMN') as NonNullable<FloorSurveyData['structuralElements']>[number]['elementType'],
+                      customElementType: z.custom_element_type || z.custom_component_type || '',
                       materialType: z.wall_material || z.wallMaterial || 'BTCT',
+                      customMaterialType: z.custom_material_type || z.custom_wall_material || '',
+                      dimensions: z.section_dimensions || '',
+                      sectionDimensions: z.section_dimensions || '',
+                      structuralIntegrity: z.structural_integrity || '',
                       notes: z.notes || '',
-                      overviewPhotos: [],
+                      overviewPhotos: Array.isArray(z.overview_photos_json) ? z.overview_photos_json : [],
                       ctxPhotoUrl: z.ctx_photo_url || z.photo_context_url || '',
                       ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
                       hasDamage: mappedDefects.length > 0 || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
@@ -650,10 +724,14 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     zoneCode: zCode,
                     floorName: z.floor_name || z.floorName || '',
                     roomName: z.room_name || z.zone_name || z.roomName || 'Không gian chung',
+                    customRoomName: z.custom_room_name || '',
                     componentType: z.component_type || z.componentType || 'WALL',
+                    customComponentType: z.custom_component_type || '',
                     wallMaterial: z.wall_material || z.wallMaterial || '',
+                    customWallMaterial: z.custom_wall_material || '',
+                    functionalImpactRepairNeeded: Boolean(z.functional_impact_repair_needed),
                     notes: z.notes || '',
-                    overviewPhotos: [],
+                    overviewPhotos: Array.isArray(z.overview_photos_json) ? z.overview_photos_json : [],
                     ctxPhotoUrl: z.ctx_photo_url || z.photo_context_url || '',
                     ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
                     hasDamage: mappedDefects.length > 0 || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
@@ -667,7 +745,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   const rawPhotos = f.overview_photos_json || f.overview_photos || [];
                   const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p, pIdx) => {
                     if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
-                    return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
+                    const pObj = p as { id?: string; url?: string; caption?: string; photoCode?: string; photo_code?: string };
+                    return {
+                      id: pObj.id || `fl_ov_${pIdx}`,
+                      url: pObj.url || '',
+                      caption: pObj.caption || '',
+                      ...(pObj.photoCode || pObj.photo_code ? { photoCode: pObj.photoCode || pObj.photo_code } : {}),
+                    };
                   });
 
                   return {
@@ -678,6 +762,9 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     cadStructuralSketchPhotoUrl: f.cad_structural_drawing_url || '',
                     cadZonePins: (f.cad_zone_pins_json || f.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
                     cadElementPins: (f.cad_element_pins_json || f.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
+                    hasStructuralElements: f.has_structural_elements ?? true,
+                    noStructuralElementsReason: f.no_structural_elements_reason || '',
+                    beamSagging: f.beam_sagging_json as FloorSurveyData['beamSagging'],
                     zones: zonesByFloor[f.floor_name || ''] || zonesByFloor[f.floorName || ''] || zonesByFloor[f.id] || f.zones || [],
                     structuralElements: elementsByFloor[f.floor_name || ''] || elementsByFloor[f.floorName || ''] || elementsByFloor[f.id] || ((f.structural_elements || []) as unknown as FloorSurveyData['structuralElements']),
                   };
@@ -693,36 +780,67 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 const sagLvl = (sagMm > 20 ? 4 : sagMm > 10 ? 2 : 0) as 0 | 2 | 4;
                 const e3Lvl = (Math.min(4, Math.max(0, Number(def.e3_deformation_score) || 0))) as 0 | 1 | 2 | 3 | 4;
                 updates.settlementTilt = {
-                  diffSettlement: {
+                  diffSettlement: (def.diff_settlement_json as unknown as Phase1SurveyFormData['settlementTilt']['diffSettlement']) || {
                     level: Math.max(e3Lvl, 0) as 0 | 1 | 2 | 3 | 4,
                     position: '',
                     photoUrl: '',
                   },
-                  buildingTilt: {
+                  buildingTilt: (def.building_tilt_json as unknown as Phase1SurveyFormData['settlementTilt']['buildingTilt']) || {
                     level: tiltLvl,
                     xPermille: tx,
                     yPermille: ty,
                     direction: (def.tilt_direction || '') as Phase1SurveyFormData['settlementTilt']['buildingTilt']['direction'],
                     photoUrl: '',
                   },
-                  beamSagging: {
+                  beamSagging: (def.beam_sagging_json as unknown as Phase1SurveyFormData['settlementTilt']['beamSagging']) || {
                     level: sagLvl,
                     position: '',
                     sagMm,
                     photoUrl: '',
                   },
-                  abnormalCase: {
+                  abnormalCase: (def.abnormal_case_json as unknown as Phase1SurveyFormData['settlementTilt']['abnormalCase']) || {
                     photoUrl: '',
                     notes: '',
                   },
                   needAdditionalMonitoring: {
-                    required: e3Lvl >= 2 || tiltLvl >= 2,
-                    notes: '',
+                    required: e3Lvl >= 2 || tiltLvl >= 2 || Boolean(def.monitoring_notes),
+                    notes: def.monitoring_notes || '',
                   },
                   dataSource: def.measurement_method
                     ? def.measurement_method.split(',').map((s) => s.trim()).filter(Boolean)
                     : [],
                   reliability: def.measurement_reliability || 'HIGH',
+                };
+              }
+              if (!updates.surveyScope && rep.surveyScope) {
+                const sc = rep.surveyScope;
+                const surveyedParts: string[] = [];
+                if (sc.has_exterior) surveyedParts.push('Ngoại thất / Mặt tiền công trình');
+                if (sc.has_first_floor) surveyedParts.push('Tầng 1 (Tầng trệt)');
+                if (sc.has_upper_floors) surveyedParts.push('Các tầng lầu trên cao');
+                if (sc.has_roof_basement) surveyedParts.push('Mái / Tầng hầm / Sân thượng');
+                if (sc.has_adjacent_check) surveyedParts.push('Khu vực tiếp giáp công trình lân cận');
+                if (sc.has_other) surveyedParts.push('Khác (Nhập chi tiết...)');
+                updates.surveyScope = {
+                  externalFront: Boolean(sc.has_exterior),
+                  surveyedFloors: sc.has_first_floor ? ['Tầng 1'] : [],
+                  surveyedParts,
+                  roofTerrace: Boolean(sc.has_roof_basement),
+                  basement: Boolean(sc.has_roof_basement),
+                  backyardOuthouse: Boolean(sc.has_other),
+                };
+              }
+              if (rep.summary_conclusions || rep.engineering_recommendations) {
+                const cleanRecs =
+                  rep.engineering_recommendations &&
+                  !/^(LÝ DO TRẢ VỀ|ADMIN MỞ LẠI|ADMIN CHUYỂN VỀ)/i.test(rep.engineering_recommendations)
+                    ? rep.engineering_recommendations
+                    : '';
+                updates.executiveSummary = {
+                  keyRisksDefectsText: updates.executiveSummary?.keyRisksDefectsText || rep.summary_conclusions || '',
+                  specificRecommendationsText: updates.executiveSummary?.specificRecommendationsText || cleanRecs || '',
+                  constructionImpactStatus: updates.executiveSummary?.constructionImpactStatus || 'PENDING',
+                  braStatus: updates.executiveSummary?.braStatus || 'PENDING',
                 };
               }
               if (rep.owner_remarks) {
@@ -761,8 +879,32 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
             }
 
+            // D2: Nếu thửa đất đang ở trạng thái IN_PROGRESS (đang làm dở) và bản ghi trên server chỉ là DRAFT thường (không phải REJECTED/ABSENT),
+            // ưu tiên bản nháp mới hơn từ IndexedDB / Server Draft để không ghi đè lùi dữ liệu KSV vừa gõ
+            const isNormalActiveDraft =
+              !effectiveReadOnly &&
+              rep?.status === 'DRAFT' &&
+              !rep?.is_refused_or_absent &&
+              parcel.surveyStatus === 'IN_PROGRESS';
+
             if (Object.keys(updates).length > 0) {
-              loadReportData(updates);
+              if (isNormalActiveDraft) {
+                const currentStoreData = usePhase1SurveyStore.getState().formData;
+                const localUpdatedAtStr = (currentStoreData as Phase1SurveyFormData & { _localUpdatedAt?: string })._localUpdatedAt;
+                if (!localUpdatedAtStr) {
+                  loadReportData(updates);
+                } else {
+                  // Chỉ bổ sung previousAbsenceLogs / resumedFromAbsentee nếu có, giữ nguyên dữ liệu nháp mới hơn
+                  if (updates.previousAbsenceLogs?.length && !currentStoreData.previousAbsenceLogs?.length) {
+                    loadReportData({
+                      previousAbsenceLogs: updates.previousAbsenceLogs,
+                      resumedFromAbsentee: updates.resumedFromAbsentee,
+                    });
+                  }
+                }
+              } else {
+                loadReportData(updates);
+              }
             }
           }
         })
@@ -864,8 +1006,16 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   const executeFinalSubmit = async () => {
     try {
       setIsSubmitting(true);
-      const cleanFormData = sanitizeSurveyDataForSync(formData);
-      console.log('[Phase1] Submitting final survey payload (sanitized):', cleanFormData);
+      const cleanFormData = healLocalPhotoUris(formData);
+      const unsyncedPaths = findUnsyncedPhotoPaths(cleanFormData);
+      const pendingUploads = uploadQueue.getPendingAndActiveCount();
+      if (unsyncedPaths.length > 0 || pendingUploads > 0) {
+        void uploadQueue.resumePendingOfflineUploads();
+        setIsPhotoSyncFromSubmit(true);
+        setIsPhotoSyncModalOpen(true);
+        return;
+      }
+      console.log('[Phase1] Submitting final survey payload (healed):', cleanFormData);
 
       const payload = {
         parcelId: formData.parcelId,
@@ -958,10 +1108,29 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền phê duyệt hồ sơ.');
       return;
     }
+
+    // E3: Chặn cứng Phê duyệt nếu hồ sơ khảo sát thường (NORMAL) thiếu tên chủ hộ thực tế hoặc còn giữ placeholder địa chính
+    const isSpecialCase =
+      formData.isAbsenteeSurvey ||
+      formData.surveyCaseType === 'ABSENTEE' ||
+      formData.surveyCaseType === 'VACANT_LAND' ||
+      formData.surveyCaseType === 'UNDER_CONSTRUCTION' ||
+      formData.surveyCaseType === 'APARTMENT' ||
+      Boolean(reportData?.report?.is_refused_or_absent);
+
+    if (!isSpecialCase && (!formData.ownerName?.trim() || isCadastralOwnerPlaceholder(formData.ownerName))) {
+      alert(
+        '⛔ Không thể phê duyệt: Hồ sơ khảo sát chưa có Tên chủ sở hữu / người sử dụng thực tế (đang để trống hoặc còn tên giả định địa chính "Chủ hộ thửa...").\n\nVui lòng bấm nút "Từ chối / Trả về" để yêu cầu Khảo sát viên bổ sung tên chủ hộ thực tế.'
+      );
+      return;
+    }
+
     const confirmApprove = window.confirm(`Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ khảo sát thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]?`);
     if (!confirmApprove) return;
 
     try {
+      await api.post(`/admin/reports/${parcel.id}/approve`, {});
+
       const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
       const overrides = overridesStr ? JSON.parse(overridesStr) : {};
       overrides[parcel.id] = {
@@ -971,17 +1140,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       };
       localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
 
-      try {
-        await api.post(`/admin/reports/${parcel.id}/approve`, {});
-      } catch (err: unknown) {
-        console.warn('Backend approve API notice:', getErrorMessage(err));
-      }
-
       alert(`Đã phê duyệt thành công hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]!`);
       onBackToHome();
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('Approve error:', e);
-      alert('Có lỗi xảy ra khi duyệt hồ sơ.');
+      alert(`❌ Không thể phê duyệt hồ sơ: ${getErrorMessage(e, 'Có lỗi xảy ra khi duyệt hồ sơ.')}`);
     }
   };
 
@@ -1136,7 +1299,14 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               <div className="mt-1.5 p-2.5 bg-white/90 rounded-xl border border-red-200 text-xs text-red-900">
                 <span className="font-bold text-red-700 block mb-0.5">Yêu cầu từ Zone Admin:</span>
                 <p className="font-medium italic leading-relaxed">
-                  {(reportData?.report?.engineering_recommendations || parcel?.rejectionReason || 'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.').replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
+                  {(
+                    reportData?.report?.rejection_reason ||
+                    parcel?.rejectionReason ||
+                    (reportData?.report?.engineering_recommendations?.startsWith('LÝ DO TRẢ VỀ:')
+                      ? reportData.report.engineering_recommendations
+                      : '') ||
+                    'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.'
+                  ).replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
                 </p>
               </div>
               <p className="text-[11px] text-red-700 mt-1.5 leading-relaxed">

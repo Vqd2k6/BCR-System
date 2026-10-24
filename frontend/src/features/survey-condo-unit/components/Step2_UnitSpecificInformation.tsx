@@ -27,6 +27,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
+import { isCadastralOwnerPlaceholder } from '../../survey-phase1/utils/stepValidator';
 
 export const Step2_UnitSpecificInformation: React.FC = () => {
   const { formData, updateFormData, setAbsenteeMode, nextStep, prevStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
@@ -47,10 +48,17 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
   const isResonance = countHigh >= 2;
   const calculatedE5 = isResonance ? 4 : maxQScore;
 
+  const isAbsentOrVacantUnit =
+    formData.isAbsentee ||
+    formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' ||
+    formData.residentStatus === 'BỎ_TRỐNG_CHƯA_VỀ_Ở';
+
   const isFormValid =
     Boolean(formData.unitCode?.trim()) &&
     Boolean(formData.displayCode?.trim()) &&
-    Boolean(formData.ownerName?.trim());
+    (isAbsentOrVacantUnit
+      ? true
+      : Boolean(formData.ownerName?.trim()) && !isCadastralOwnerPlaceholder(formData.ownerName));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">

@@ -1,6 +1,33 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
+/**
+ * Kiểm tra xem tên chủ hộ có phải là chuỗi giả định địa chính / chưa cập nhật hay không.
+ * VD: "Chủ hộ thửa 64 (Tờ 60)", "Chưa cập nhật", "Chủ sở hữu thửa 12"
+ */
+export const isCadastralOwnerPlaceholder = (name?: string | null): boolean => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  return /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(trimmed);
+};
+
+/**
+ * Ưu tiên giữ lại tên chủ hộ thực tế (không phải rỗng hoặc placeholder địa chính)
+ * khi gộp dữ liệu giữa Local Store, Server Draft và Cadastral Parcel.
+ */
+export const resolveOwnerName = (currentName?: string | null, incomingName?: string | null): string => {
+  const cur = typeof currentName === 'string' ? currentName.trim() : '';
+  const inc = typeof incomingName === 'string' ? incomingName.trim() : '';
+
+  const curIsReal = Boolean(cur) && !isCadastralOwnerPlaceholder(cur);
+  const incIsReal = Boolean(inc) && !isCadastralOwnerPlaceholder(inc);
+
+  if (incIsReal) return inc;
+  if (curIsReal) return cur;
+  return inc || cur || '';
+};
+
 export interface MissingFieldItem {
   fieldId: string;
   label: string;
@@ -37,12 +64,17 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
       });
     }
 
-    if (!formData.ownerName?.trim()) {
+    const isAbsentOrVacantUnit =
+      formData.isAbsenteeSurvey ||
+      formData.surveyCaseType === 'ABSENTEE' ||
+      formData.surveyCaseType === 'VACANT_LAND';
+
+    if (!isAbsentOrVacantUnit && (!formData.ownerName?.trim() || isCadastralOwnerPlaceholder(formData.ownerName))) {
       missing.push({
         fieldId: 'input-ownerName',
         label: '2.2. Họ tên Chủ hộ / Người sử dụng',
         step: 2,
-        description: 'Vui lòng nhập họ tên chủ sở hữu hoặc người sử dụng căn hộ.',
+        description: 'Vui lòng nhập họ tên thực tế của chủ sở hữu hoặc người sử dụng căn hộ (không để trống hoặc dùng tên giả định).',
         isBlocking: true,
       });
     }
@@ -651,13 +683,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
-    // 1.1 Owner Name
-    if (!formData.ownerName?.trim()) {
+    // 1.1 Owner Name (Bắt buộc nhập tên thật khi khảo sát thường NORMAL; cho phép giữ nguyên khi Vắng mặt / Đất trống / Đang xây dựng)
+    const isSpecialCase =
+      formData.isAbsenteeSurvey ||
+      formData.surveyCaseType === 'ABSENTEE' ||
+      formData.surveyCaseType === 'VACANT_LAND' ||
+      formData.surveyCaseType === 'UNDER_CONSTRUCTION';
+
+    if (!isSpecialCase && (!formData.ownerName?.trim() || isCadastralOwnerPlaceholder(formData.ownerName))) {
       missing.push({
         fieldId: 'input-ownerName',
         label: '1.1. Chủ sở hữu / Người sử dụng *',
         step: 1,
-        description: 'Vui lòng nhập tên chủ hộ hoặc người đại diện sử dụng công trình.',
+        description: 'Vui lòng nhập họ tên thực tế của chủ hộ hoặc người đại diện sử dụng công trình (không dùng tên giả định địa chính "Chủ hộ thửa...").',
         isBlocking: true,
       });
     }

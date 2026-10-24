@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
+import { isCadastralOwnerPlaceholder } from '@/features/survey-phase1/utils/stepValidator';
 import type { AuditStepwiseData, DiffItem, PhotoReplaceParams } from '../stepwise/types';
 
 interface Props {
@@ -102,6 +103,15 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
   const isAbsentVerified = unitInfo?.status === 'POSTPONED_ABSENT_VERIFIED';
   const isApproved = data.status === 'APPROVED' || unitInfo?.status === 'APPROVED';
 
+  const currentResidentStatus = String(unitInfo?.resident_status || surveyJsonInit.residentStatus || 'CHỦ_HỘ_Ở');
+  const currentOwnerName = String(unitInfo?.owner_name || data.ownerName || surveyJsonInit.ownerName || '').trim();
+  const isMissingRealOwnerName =
+    !isAbsent &&
+    currentResidentStatus !== 'VẮNG_MẶT_KHÓA_CỬA' &&
+    currentResidentStatus !== 'BỎ_TRỐNG_CHƯA_VỀ_Ở' &&
+    currentResidentStatus !== 'ĐỂ_TRỐNG' &&
+    (!currentOwnerName || isCadastralOwnerPlaceholder(currentOwnerName));
+
   // Photo helpers
   const identPhotos = data.rightPane?.identificationPhotos || data.identificationPhotos;
   const p01Raw = identPhotos?.photoP01 || (surveyJson.photoP01 as unknown);
@@ -137,6 +147,13 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
 
   // Handle standard Approve
   const handleApprove = async () => {
+    if (isMissingRealOwnerName) {
+      alert(
+        'Căn hộ chưa có Tên chủ hộ/người đại diện hợp lệ (đang trống hoặc vẫn giữ tên mặc định "Chủ hộ thửa..."). Vui lòng bấm "Trả về (Reject)" để KSV bổ sung tên chủ hộ thật trước khi phê duyệt!'
+      );
+      onOpenRejectModal();
+      return;
+    }
     if (!window.confirm(`Xác nhận phê duyệt thẩm định Căn hộ ${unitInfo?.display_code || unitInfo?.unit_code || data.projectParcelCode}?`)) {
       return;
     }
@@ -924,9 +941,14 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
           {!isApproved && (
             <button
               type="button"
-              disabled={isApproving}
+              disabled={isApproving || isMissingRealOwnerName}
               onClick={handleApprove}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+              title={
+                isMissingRealOwnerName
+                  ? 'Căn hộ thiếu tên chủ hộ thực tế. Vui lòng bấm Trả về (Reject) để KSV bổ sung!'
+                  : undefined
+              }
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isApproving ? 'Đang duyệt...' : 'Phê Duyệt Căn Hộ (Approve)'}</span>

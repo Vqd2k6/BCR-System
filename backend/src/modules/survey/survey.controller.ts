@@ -357,15 +357,7 @@ export class SurveyController {
         await runPersistStep('phạm vi khảo sát', () => SurveyService.saveSurveyScope(reportId, surveyData));
       }
 
-      // 5. Tính điểm Rủi ro (Scoring) tự động trên Backend — không chặn việc nộp, chỉ báo cảnh báo
-      try {
-        await ScoringService.calculatePhase1Scores(reportId);
-      } catch (scoreErr) {
-        console.warn('[submitPhase1FullPackage] Cảnh báo tính điểm scoring:', scoreErr);
-        submitWarnings.push('Chưa tính được điểm rủi ro tự động (sẽ tính lại khi duyệt hồ sơ)');
-      }
-
-      // 6. Nộp hồ sơ (Chuyển status thành SUBMITTED & lưu survey_data_json toàn vẹn)
+      // 5. Nộp hồ sơ (Ghi survey_data_json mới nhất vào base_survey_reports TRƯỚC, sau đó tính điểm Scoring và chụp Snapshot ORIGINAL_SUBMISSION)
       const submitData = SurveyPackageMapper.mapSubmitData(surveyData);
       const result = await SurveyService.submitPhase1Report(
         reportId,
@@ -373,6 +365,9 @@ export class SurveyController {
         req.user?.userId,
         req.ip
       );
+      if (result.scoreWarning) {
+        submitWarnings.push(result.scoreWarning);
+      }
 
       const isAbsentee = Boolean(
         surveyData?.isAbsentee ||

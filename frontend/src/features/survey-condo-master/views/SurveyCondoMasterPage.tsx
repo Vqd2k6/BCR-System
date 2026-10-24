@@ -17,7 +17,7 @@ import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock'
 import { ShieldAlert, RotateCcw, Unlock } from 'lucide-react';
 import { CloudPhotoSyncModal } from '../../survey-phase1/components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../../survey-phase1/utils/photoSyncAudit';
-import { uploadQueue, sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 
 export interface SurveyCondoMasterPageProps {
@@ -304,9 +304,10 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       return;
     }
 
-    const safeSurveyData = sanitizeSurveyDataForSync(formData);
-    const leftoverPaths = findUnsyncedPhotoPaths(healLocalPhotoUris(safeSurveyData));
+    const safeSurveyData = healLocalPhotoUris(formData);
+    const leftoverPaths = findUnsyncedPhotoPaths(safeSurveyData);
     if (leftoverPaths.length > 0) {
+      void uploadQueue.resumePendingOfflineUploads();
       alert(`Phát hiện ${leftoverPaths.length} ảnh chưa lên Cloud trong hồ sơ. Vui lòng đồng bộ ảnh rồi nộp lại.`);
       setIsPhotoSyncModalOpen(true);
       return;

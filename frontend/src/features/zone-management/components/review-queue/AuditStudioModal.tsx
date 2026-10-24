@@ -35,6 +35,7 @@ import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActi
 import { AuditHistoryModal } from './AuditHistoryModal';
 import { AuditPhotoHistoryModal } from './AuditPhotoHistoryModal';
 import type { AuditStepwiseData, DiffItem, AuditPhotoActionParams, AuditPhotoHistoryParams } from './stepwise/types';
+import { isCadastralOwnerPlaceholder } from '../../../survey-phase1/utils/stepValidator';
 
 interface Props {
   isOpen: boolean;
@@ -322,9 +323,50 @@ export const AuditStudioModal: React.FC<Props> = ({
     );
   };
 
+  // E3: Kiểm tra tên chủ hộ thực tế cho hồ sơ khảo sát thường (NORMAL)
+  const sJsonForOwnerCheck = (data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>;
+  const parcelForOwnerCheck = data?.parcel as { ownerName?: string; owner_name?: string } | undefined;
+  const effectiveOwnerName =
+    pendingDirtyData.updates.ownerName !== undefined
+      ? String(pendingDirtyData.updates.ownerName)
+      : String(
+          sJsonForOwnerCheck.ownerName ||
+            data?.ownerName ||
+            parcelForOwnerCheck?.ownerName ||
+            parcelForOwnerCheck?.owner_name ||
+            ''
+        );
+  const caseTypeForOwnerCheck = String(sJsonForOwnerCheck.surveyCaseType || '').toUpperCase();
+  const residentStatusForOwnerCheck = String(sJsonForOwnerCheck.residentStatus || data?.unitInfo?.resident_status || '').toUpperCase();
+  const reportTypeForOwnerCheck = String(data?.reportType || '').toUpperCase();
+  const isSpecialOrMasterForOwnerCheck = Boolean(
+    data?.isRefusedOrAbsent ||
+      data?.status === 'POSTPONED_ABSENT' ||
+      sJsonForOwnerCheck.isAbsentee ||
+      sJsonForOwnerCheck.isAbsenteeSurvey ||
+      sJsonForOwnerCheck.isRefusedOrAbsent ||
+      ['ABSENTEE', 'VACANT_LAND', 'UNDER_CONSTRUCTION'].includes(caseTypeForOwnerCheck) ||
+      ['VẮNG_MẶT_KHÓA_CỬA', 'BỎ_TRỐNG_CHƯA_VỀ_Ở'].includes(residentStatusForOwnerCheck) ||
+      ['BUILDING_MASTER', 'CONDO_MASTER', 'MASTER_AREA'].includes(reportTypeForOwnerCheck) ||
+      data?.unitInfo?.unit_type === 'MASTER'
+  );
+  const isMissingRealOwnerName = Boolean(
+    data &&
+      !isSpecialOrMasterForOwnerCheck &&
+      (!effectiveOwnerName.trim() || isCadastralOwnerPlaceholder(effectiveOwnerName))
+  );
+
   // Handle Approve button click
   const handleApprove = async () => {
     if (!data) return;
+
+    if (isMissingRealOwnerName) {
+      alert(
+        '⛔ Không thể phê duyệt: Hồ sơ khảo sát thường (NORMAL) đang thiếu Tên chủ sở hữu / người sử dụng thực tế (đang để trống hoặc còn tên giả định địa chính "Chủ hộ thửa...").\n\nVui lòng bấm "Yêu Cầu Khảo Sát Lại (Reject)" để Khảo sát viên bổ sung tên chủ hộ thực tế.'
+      );
+      setShowRejectModal(true);
+      return;
+    }
 
     // Ràng buộc kiểm toán: Nếu có diff chưa lưu -> Hiển thị popup cảnh báo 3 lựa chọn
     if (totalDiffCount > 0) {
@@ -854,6 +896,24 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
         )}
 
+        {isMissingRealOwnerName && data?.status !== 'APPROVED' && (
+          <div className="px-4 py-2.5 bg-red-50 border-t border-red-200 flex items-center justify-between gap-3 text-xs text-red-900 shrink-0">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+              <span>
+                <strong>⛔ CHẶN PHÊ DUYỆT:</strong> Hồ sơ khảo sát thường (NORMAL) đang thiếu <strong>Tên chủ sở hữu / người sử dụng thực tế</strong> (đang để trống hoặc còn giữ tên giả định địa chính). Vui lòng bấm <strong>&ldquo;Yêu Cầu Khảo Sát Lại (Reject)&rdquo;</strong> để Khảo sát viên bổ sung.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRejectModal(true)}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] shrink-0 cursor-pointer transition-colors"
+            >
+              Trả về bổ sung ngay
+            </button>
+          </div>
+        )}
+
         {/* Bottom Footer: Decision Action Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white border-t border-slate-200 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -903,16 +963,18 @@ export const AuditStudioModal: React.FC<Props> = ({
 
             <button
               type="button"
-              disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0}
+              disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}
               onClick={handleApprove}
               title={
-                totalDiffCount > 0
-                  ? 'Vui lòng bấm Lưu Thay Đổi để lưu các diff trước khi phê duyệt'
-                  : 'Phê duyệt hồ sơ'
+                isMissingRealOwnerName
+                  ? 'Hồ sơ thiếu tên chủ hộ thực tế. Vui lòng bấm Yêu Cầu Khảo Sát Lại (Reject) để KSV bổ sung.'
+                  : totalDiffCount > 0
+                    ? 'Vui lòng bấm Lưu Thay Đổi để lưu các diff trước khi phê duyệt'
+                    : 'Phê duyệt hồ sơ'
               }
               className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${data?.status === 'APPROVED'
                   ? 'bg-emerald-700/90 text-white cursor-default'
-                  : totalDiffCount > 0
+                  : totalDiffCount > 0 || isMissingRealOwnerName
                     ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
                 }`}
@@ -923,9 +985,11 @@ export const AuditStudioModal: React.FC<Props> = ({
                   ? 'Đang ký duyệt...'
                   : data?.status === 'APPROVED'
                     ? '✓ Đã Khóa Duyệt'
-                    : totalDiffCount > 0
-                      ? ' Khóa Duyệt (Còn Diff Chưa Lưu)'
-                      : 'Phê Duyệt Hồ Sơ (Approve)'}
+                    : isMissingRealOwnerName
+                      ? '⛔ Thiếu Tên Chủ Hộ (Cần Trả Về)'
+                      : totalDiffCount > 0
+                        ? ' Khóa Duyệt (Còn Diff Chưa Lưu)'
+                        : 'Phê Duyệt Hồ Sơ (Approve)'}
               </span>
             </button>
           </div>

@@ -1,9 +1,9 @@
 import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
 import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
-import type { PolygonPoint, FloorSplitLine } from '../../../components/canvas/FacadePolygonCanvas';
+import type { PolygonPoint, FloorSplitLine, FreehandStroke } from '../../../components/canvas/FacadePolygonCanvas';
 import type { SplitChildData } from '../../../components/gis/shared/types';
 
-export type { DefectItem, CadZonePin, PolygonPoint, FloorSplitLine, SplitChildData };
+export type { DefectItem, CadZonePin, PolygonPoint, FloorSplitLine, FreehandStroke, SplitChildData };
 
 export type ObjectGroupType = 'GENERAL' | 'IMPORTANT' | 'CRITICAL';
 
@@ -276,6 +276,7 @@ export interface Phase1SurveyFormData {
     notApplicable: boolean;
     polygonPoints: PolygonPoint[];
     floorSplits: FloorSplitLine[];
+    freehandStrokes?: FreehandStroke[];
     widthM: number | '';
     heightM: number | '';
   };
@@ -335,6 +336,7 @@ export interface Phase1SurveyFormData {
   surveyScope: {
     externalFront: boolean;
     surveyedFloors: string[];
+    surveyedParts?: string[];
     roofTerrace: boolean;
     basement: boolean;
     backyardOuthouse: boolean;

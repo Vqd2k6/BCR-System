@@ -20,6 +20,7 @@ import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../co
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
+import { isCadastralOwnerPlaceholder, resolveOwnerName } from '../../survey-phase1/utils/stepValidator';
 
 interface CondoUnitSurveyStore {
   currentStep: number;
@@ -210,6 +211,7 @@ export function mergeCondoUnitDataSafely(
   const merged: CondoUnitFormData = {
     ...localData,
     ...serverData,
+    ownerName: resolveOwnerName(localData.ownerName, serverData.ownerName),
     parentInfo: {
       ...localData.parentInfo,
       ...(serverData.parentInfo || {}),
@@ -638,7 +640,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       const rawFloor = unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? 1;
       const parsedFloor = typeof rawFloor === 'number' ? rawFloor : parseFloat(String(rawFloor));
       data.floorNumber = isNaN(parsedFloor) ? 1 : parsedFloor;
-      data.ownerName = unit.owner_name || unit.ownerName || '';
+      const rawUnitOwner = unit.owner_name || unit.ownerName || '';
+      data.ownerName = isCadastralOwnerPlaceholder(rawUnitOwner) ? '' : rawUnitOwner;
       data.ownerPhone = unit.owner_phone || unit.ownerPhone || '';
       data.ownerIdCard = unit.owner_id_card || unit.ownerIdCard || '';
       if (unit.unit_cad_url || unit.unitCadUrl) data.unitCadUrl = unit.unit_cad_url || unit.unitCadUrl || '';
@@ -763,7 +766,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           const rawFloor = unit?.floor_number ?? unit?.floorNumber ?? unit?.floorLevel ?? unit?.floor_level;
           const dbFloorNumber = typeof rawFloor === 'number' ? rawFloor : parseFloat(String(rawFloor));
 
+          const prevOwner = data.ownerName;
           data = { ...data, ...parsed };
+          data.ownerName = resolveOwnerName(prevOwner, parsed.ownerName);
 
           // Khôi phục dữ liệu CAD và Bounding Box từ CSDL nếu bản nháp cũ bị rỗng/thiếu hoặc đã được hoán đổi vị trí trên mặt bằng tầng
           if (!data.unitCadUrl && dbCadUrl) {

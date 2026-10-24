@@ -94,6 +94,9 @@ export class AuditReviewService {
         p.house_number ILIKE $${params.length} OR
         p.street ILIKE $${params.length} OR
         p.owner_name ILIKE $${params.length} OR
+        (r.survey_data_json->>'ownerName') ILIKE $${params.length} OR
+        (r.survey_data_json->>'houseNumber') ILIKE $${params.length} OR
+        (r.survey_data_json->>'street') ILIKE $${params.length} OR
         u.full_name ILIKE $${params.length} OR
         bu.unit_code ILIKE $${params.length} OR
         bu.display_code ILIKE $${params.length} OR
@@ -146,15 +149,46 @@ export class AuditReviewService {
         bu.display_code,
         bu.unit_type,
         bu.floor_number AS unit_floor_number,
-        bu.owner_name AS unit_owner_name,
-        bu.owner_phone AS unit_owner_phone,
+        COALESCE(
+          CASE
+            WHEN NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NOT NULL
+             AND BTRIM(r.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+            THEN BTRIM(r.survey_data_json->>'ownerName')
+            ELSE NULL
+          END,
+          CASE
+            WHEN NULLIF(BTRIM(bu.owner_name), '') IS NOT NULL
+             AND BTRIM(bu.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+            THEN BTRIM(bu.owner_name)
+            ELSE NULL
+          END,
+          bu.owner_name
+        ) AS unit_owner_name,
+        COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone) AS unit_owner_phone,
         bu.status::text AS unit_status,
         bu.resident_status AS unit_resident_status,
         p.id AS parcel_id,
         p.project_parcel_code,
         p.project_parcel_code AS parent_parcel_code,
-        p.house_number,
-        p.street,
+        COALESCE(NULLIF(BTRIM(r.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+        COALESCE(NULLIF(BTRIM(r.survey_data_json->>'street'), ''), p.street) AS street,
+        COALESCE(
+          CASE
+            WHEN NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NOT NULL
+             AND BTRIM(r.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+            THEN BTRIM(r.survey_data_json->>'ownerName')
+            ELSE NULL
+          END,
+          CASE
+            WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+             AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+            THEN BTRIM(p.owner_name)
+            ELSE NULL
+          END,
+          NULLIF(BTRIM(r.survey_data_json->>'ownerName'), ''),
+          p.owner_name
+        ) AS owner_name,
+        COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), p.owner_phone) AS owner_phone,
         p.zone_id,
         p.building_type,
         p.is_locked AS parent_parcel_is_locked,
@@ -485,11 +519,11 @@ export class AuditReviewService {
     let absenceLogsRes: any = { rows: [] };
     try {
       absenceLogsRes = await Database.query(
-        `SELECT * FROM parcel_absence_logs WHERE parcel_id = $1 ORDER BY recorded_at DESC;`,
+        `SELECT * FROM survey_absence_logs WHERE parcel_id = $1 ORDER BY recorded_at DESC;`,
         [report.parcel_id]
       );
     } catch (e: any) {
-      console.warn('⚠️ [AUDIT SERVICE] parcel_absence_logs fallback:', e?.message);
+      console.warn('⚠️ [AUDIT SERVICE] survey_absence_logs fallback:', e?.message);
     }
 
     // 6. Truy vấn bảng ảnh nhận diện P01 - P04
@@ -889,24 +923,48 @@ export class AuditReviewService {
       },
       auditWarningFlags,
       projectParcelCode: report.project_parcel_code,
-      houseNumber: report.house_number || surveyJson.houseNumber,
-      street: report.street || surveyJson.street,
+      houseNumber: surveyJson.houseNumber || report.house_number,
+      street: surveyJson.street || report.street,
       ward: report.ward || surveyJson.ward,
       district: report.district || surveyJson.district,
-      ownerName: report.owner_name || surveyJson.ownerName,
-      ownerPhone: report.owner_phone || surveyJson.ownerPhone,
+      ownerName:
+        (typeof surveyJson.ownerName === 'string' &&
+          surveyJson.ownerName.trim() &&
+          !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(surveyJson.ownerName.trim())
+          ? surveyJson.ownerName.trim()
+          : null) ||
+        (typeof report.owner_name === 'string' &&
+          report.owner_name.trim() &&
+          !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(report.owner_name.trim())
+          ? report.owner_name.trim()
+          : null) ||
+        surveyJson.ownerName ||
+        report.owner_name,
+      ownerPhone: surveyJson.ownerPhone || report.owner_phone,
       officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
       frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : (surveyJson.frontageWidth ?? null),
       lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : (surveyJson.lotDepth ?? null),
       parcel: {
         id: report.parcel_id,
         projectParcelCode: report.project_parcel_code,
-        houseNumber: report.house_number || surveyJson.houseNumber,
-        street: report.street || surveyJson.street,
+        houseNumber: surveyJson.houseNumber || report.house_number,
+        street: surveyJson.street || report.street,
         ward: report.ward || surveyJson.ward,
         district: report.district || surveyJson.district,
-        ownerName: report.owner_name || surveyJson.ownerName,
-        ownerPhone: report.owner_phone || surveyJson.ownerPhone,
+        ownerName:
+          (typeof surveyJson.ownerName === 'string' &&
+            surveyJson.ownerName.trim() &&
+            !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(surveyJson.ownerName.trim())
+            ? surveyJson.ownerName.trim()
+            : null) ||
+          (typeof report.owner_name === 'string' &&
+            report.owner_name.trim() &&
+            !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(report.owner_name.trim())
+            ? report.owner_name.trim()
+            : null) ||
+          surveyJson.ownerName ||
+          report.owner_name,
+        ownerPhone: surveyJson.ownerPhone || report.owner_phone,
         officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
         frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : surveyJson.frontageWidth,
         lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : surveyJson.lotDepth,
@@ -921,6 +979,7 @@ export class AuditReviewService {
       surveyDate: report.survey_date,
       isRefusedOrAbsent: report.is_refused_or_absent,
       engineeringRecommendations: report.engineering_recommendations,
+      rejectionReason: (report as any).rejection_reason || null,
       officialPdfUrl: report.official_pdf_url,
       surveyorSignatureUrl: report.surveyor_signature_url,
       ownerSignatureUrl: report.owner_signature_url,
@@ -954,7 +1013,19 @@ export class AuditReviewService {
           street: surveyJson.street || report.street,
           ward: surveyJson.ward || report.ward,
           district: surveyJson.district || report.district,
-          ownerName: surveyJson.ownerName || report.owner_name,
+          ownerName:
+            (typeof surveyJson.ownerName === 'string' &&
+              surveyJson.ownerName.trim() &&
+              !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(surveyJson.ownerName.trim())
+              ? surveyJson.ownerName.trim()
+              : null) ||
+            (typeof report.owner_name === 'string' &&
+              report.owner_name.trim() &&
+              !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(report.owner_name.trim())
+              ? report.owner_name.trim()
+              : null) ||
+            surveyJson.ownerName ||
+            report.owner_name,
           ownerPhone: surveyJson.ownerPhone || report.owner_phone,
           officialCadastralCode: surveyJson.officialCadastralCode || report.official_cadastral_code,
           frontageWidth: surveyJson.frontageWidth !== undefined && surveyJson.frontageWidth !== null && surveyJson.frontageWidth !== '' ? Number(surveyJson.frontageWidth) : (report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : null),
@@ -1190,6 +1261,40 @@ export class AuditReviewService {
       const { SurveyRepository } = await import('../../survey/survey.repository');
       const fullReportContext = await SurveyRepository.findReportById(actualReportId);
       const gateReportObj = fullReportContext ? { ...fullReportContext, ...reportRow } : reportRow;
+
+      // E3: Chặn cứng APPROVE nếu hồ sơ khảo sát thường (NORMAL) thiếu tên chủ hộ thực tế hoặc còn giữ placeholder địa chính
+      const caseType = String(surveyJson.surveyCaseType || '').toUpperCase();
+      const residentStatus = String(surveyJson.residentStatus || '').toUpperCase();
+      const reportType = String(reportRow.report_type || '').toUpperCase();
+      const isSpecialOrMasterReport = Boolean(
+        reportRow.is_refused_or_absent ||
+          surveyJson.isAbsentee ||
+          surveyJson.isAbsenteeSurvey ||
+          surveyJson.isRefusedOrAbsent ||
+          ['ABSENTEE', 'VACANT_LAND', 'UNDER_CONSTRUCTION'].includes(caseType) ||
+          ['VẮNG_MẶT_KHÓA_CỬA', 'BỎ_TRỐNG_CHƯA_VỀ_Ở'].includes(residentStatus) ||
+          ['BUILDING_MASTER', 'CONDO_MASTER'].includes(reportType)
+      );
+      const isPlaceholderOwner = (val: unknown) =>
+        typeof val === 'string' && /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(val.trim());
+      const resolvedRealOwnerName =
+        (typeof surveyJson.ownerName === 'string' &&
+          surveyJson.ownerName.trim() &&
+          !isPlaceholderOwner(surveyJson.ownerName)
+          ? surveyJson.ownerName.trim()
+          : null) ||
+        (typeof fullReportContext?.owner_name === 'string' &&
+          fullReportContext.owner_name.trim() &&
+          !isPlaceholderOwner(fullReportContext.owner_name)
+          ? fullReportContext.owner_name.trim()
+          : null);
+
+      if (!isSpecialOrMasterReport && !resolvedRealOwnerName) {
+        throw new BadRequestError(
+          'Không thể phê duyệt: Hồ sơ khảo sát chưa có Tên chủ sở hữu / người sử dụng thực tế (đang để trống hoặc còn tên giả định địa chính "Chủ hộ thửa..."). Vui lòng bấm "Trả về (Reject)" để Khảo sát viên bổ sung tên chủ hộ.'
+        );
+      }
+
       const gateResult = ReportConsistencyGate.assertConsistency(gateReportObj, surveyJson, judgementNotes);
 
       // Lấy revision hiện tại của hồ sơ (không tự ý tăng khi duyệt lại; Rev chỉ tăng khi chủ động bấm "Phát hành Rev mới")
@@ -1234,18 +1339,39 @@ export class AuditReviewService {
       const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
 
       if (isChildUnit && repRes.rows[0].unit_id) {
-        // Cập nhật trạng thái căn hộ con thành APPROVED (không ghi đè parcels của cả tòa nhà)
+        // Cập nhật trạng thái căn hộ con thành APPROVED + đồng bộ owner_name/owner_phone (không ghi đè parcels của cả tòa nhà)
         await client.query(
           `UPDATE building_units
-           SET status = 'APPROVED', updated_at = NOW()
+           SET status = 'APPROVED',
+               owner_name = COALESCE($2, owner_name),
+               owner_phone = COALESCE($3, owner_phone),
+               updated_at = NOW()
            WHERE id = $1;`,
-          [repRes.rows[0].unit_id]
+          [
+            repRes.rows[0].unit_id,
+            resolvedRealOwnerName,
+            typeof surveyJson.ownerPhone === 'string' && surveyJson.ownerPhone.trim() ? surveyJson.ownerPhone.trim() : null,
+          ]
         );
       } else {
-        // Standalone hoặc Building Master: Cập nhật trạng thái thửa đất
+        // Standalone hoặc Building Master: Cập nhật trạng thái thửa đất + đồng bộ owner_name, owner_phone, house_number, street
         await client.query(
-          `UPDATE parcels SET survey_status = $2, updated_at = NOW() WHERE id = $1;`,
-          [actualParcelId, parcelApprovedStatus]
+          `UPDATE parcels
+           SET survey_status = $2,
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               house_number = COALESCE($5, house_number),
+               street = COALESCE($6, street),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [
+            actualParcelId,
+            parcelApprovedStatus,
+            resolvedRealOwnerName,
+            typeof surveyJson.ownerPhone === 'string' && surveyJson.ownerPhone.trim() ? surveyJson.ownerPhone.trim() : null,
+            typeof surveyJson.houseNumber === 'string' && surveyJson.houseNumber.trim() ? surveyJson.houseNumber.trim() : null,
+            typeof surveyJson.street === 'string' && surveyJson.street.trim() ? surveyJson.street.trim() : null,
+          ]
         );
       }
 
@@ -1421,15 +1547,28 @@ export class AuditReviewService {
       const actualReportId = repRes.rows[0].id;
       const actualParcelId = repRes.rows[0].parcel_id;
 
-      await client.query(
-        `UPDATE base_survey_reports
-         SET status = 'REJECTED',
-             zone_admin_id = $2,
-             engineering_recommendations = $3,
-             updated_at = NOW()
-         WHERE id = $1;`,
-        [actualReportId, adminId, `LÝ DO TRẢ VỀ: ${rejectionReason}`]
-      );
+      const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
+      const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
+      if (hasRejectionReasonCol) {
+        await client.query(
+          `UPDATE base_survey_reports
+           SET status = 'REJECTED',
+               zone_admin_id = $2,
+               rejection_reason = $3,
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [actualReportId, adminId, `LÝ DO TRẢ VỀ: ${rejectionReason}`]
+        );
+      } else {
+        await client.query(
+          `UPDATE base_survey_reports
+           SET status = 'REJECTED',
+               zone_admin_id = $2,
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [actualReportId, adminId]
+        );
+      }
 
       const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
 
@@ -1554,21 +1693,38 @@ export class AuditReviewService {
 
       const noteText = reason ? `ADMIN MỞ LẠI HỒ SƠ: ${reason}` : 'ADMIN CHUYỂN VỀ ĐANG LÀM DỞ';
 
-      // 4. Cập nhật base_survey_reports về 'DRAFT', reset submitted_at
+      // 4. Cập nhật base_survey_reports về 'DRAFT', reset submitted_at (lưu lý do mở lại vào rejection_reason thay vì ghi đè engineering_recommendations)
       if (targetReportId) {
-        await client.query(
-          `UPDATE base_survey_reports
-           SET status = 'DRAFT',
-               submitted_at = NULL,
-               zone_admin_id = $2,
-               is_ready_for_handover = TRUE,
-               is_refused_or_absent = FALSE,
-               last_edited_by_id = $2,
-               engineering_recommendations = COALESCE($3, engineering_recommendations),
-               updated_at = NOW()
-           WHERE id = $1;`,
-          [targetReportId, adminId, noteText]
-        );
+        const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
+        const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
+        if (hasRejectionReasonCol) {
+          await client.query(
+            `UPDATE base_survey_reports
+             SET status = 'DRAFT',
+                 submitted_at = NULL,
+                 zone_admin_id = $2,
+                 is_ready_for_handover = TRUE,
+                 is_refused_or_absent = FALSE,
+                 last_edited_by_id = $2,
+                 rejection_reason = COALESCE($3, rejection_reason),
+                 updated_at = NOW()
+             WHERE id = $1;`,
+            [targetReportId, adminId, noteText]
+          );
+        } else {
+          await client.query(
+            `UPDATE base_survey_reports
+             SET status = 'DRAFT',
+                 submitted_at = NULL,
+                 zone_admin_id = $2,
+                 is_ready_for_handover = TRUE,
+                 is_refused_or_absent = FALSE,
+                 last_edited_by_id = $2,
+                 updated_at = NOW()
+             WHERE id = $1;`,
+            [targetReportId, adminId]
+          );
+        }
       }
 
       // 5. Cập nhật building_units hoặc parcels về 'IN_PROGRESS'

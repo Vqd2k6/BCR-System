@@ -187,56 +187,126 @@ export class SurveyDefectsRepository {
   }
 
   static async saveBuildingSpecs(reportId: string, specs: any): Promise<void> {
+    const hasExtendedCols = await SurveyBaseRepository.hasColumn('building_specifications', 'foundation_cat_score');
     await Database.transaction(async (client) => {
-      await client.query(
-        `INSERT INTO building_specifications (
-           report_id, building_name, building_grade, adjacent_buildings, structural_system,
-           floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
-           construction_area_m2, building_height_m, foundation_source,
-           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
-           land_use_function, as_built_drawing_photos_json
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-         ON CONFLICT (report_id) DO UPDATE SET
-           building_name = EXCLUDED.building_name,
-           building_grade = EXCLUDED.building_grade,
-           adjacent_buildings = EXCLUDED.adjacent_buildings,
-           structural_system = EXCLUDED.structural_system,
-           floor_count = EXCLUDED.floor_count,
-           basement_count = EXCLUDED.basement_count,
-           foundation_category = EXCLUDED.foundation_category,
-           year_of_construction = EXCLUDED.year_of_construction,
-           is_year_estimated = EXCLUDED.is_year_estimated,
-           construction_area_m2 = EXCLUDED.construction_area_m2,
-           building_height_m = EXCLUDED.building_height_m,
-           foundation_source = EXCLUDED.foundation_source,
-           foundation_depth_m = EXCLUDED.foundation_depth_m,
-           foundation_density = EXCLUDED.foundation_density,
-           foundation_spacing_m = EXCLUDED.foundation_spacing_m,
-           foundation_notes = EXCLUDED.foundation_notes,
-           land_use_function = EXCLUDED.land_use_function,
-           as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json;`,
-        [
-          reportId,
-          specs.buildingName || null,
-          specs.buildingGrade || 'GENERAL',
-          specs.adjacentBuildings || null,
-          specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
-          Number(specs.floorCount) || 1,
-          Number(specs.basementCount) || 0,
-          specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
-          specs.yearOfConstruction || null,
-          specs.isYearEstimated ?? false,
-          specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
-          specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
-          specs.foundationSource || null,
-          specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
-          specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
-          specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
-          specs.foundationNotes || null,
-          specs.landUseFunction || null,
-          JSON.stringify(specs.asBuiltDrawingPhotos || []),
-        ]
-      );
+      if (hasExtendedCols) {
+        await client.query(
+          `INSERT INTO building_specifications (
+             report_id, building_name, building_grade, adjacent_buildings, structural_system,
+             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+             construction_area_m2, building_height_m, foundation_source,
+             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+             land_use_function, as_built_drawing_photos_json,
+             foundation_cat_score, pile_dimensions_text, as_built_files_json, management_contact_json
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+           ON CONFLICT (report_id) DO UPDATE SET
+             building_name = EXCLUDED.building_name,
+             building_grade = EXCLUDED.building_grade,
+             adjacent_buildings = EXCLUDED.adjacent_buildings,
+             structural_system = EXCLUDED.structural_system,
+             floor_count = EXCLUDED.floor_count,
+             basement_count = EXCLUDED.basement_count,
+             foundation_category = EXCLUDED.foundation_category,
+             year_of_construction = EXCLUDED.year_of_construction,
+             is_year_estimated = EXCLUDED.is_year_estimated,
+             construction_area_m2 = EXCLUDED.construction_area_m2,
+             building_height_m = EXCLUDED.building_height_m,
+             foundation_source = EXCLUDED.foundation_source,
+             foundation_depth_m = EXCLUDED.foundation_depth_m,
+             foundation_density = EXCLUDED.foundation_density,
+             foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+             foundation_notes = EXCLUDED.foundation_notes,
+             land_use_function = EXCLUDED.land_use_function,
+             as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json,
+             foundation_cat_score = EXCLUDED.foundation_cat_score,
+             pile_dimensions_text = EXCLUDED.pile_dimensions_text,
+             as_built_files_json = EXCLUDED.as_built_files_json,
+             management_contact_json = EXCLUDED.management_contact_json;`,
+          [
+            reportId,
+            specs.buildingName || null,
+            specs.buildingGrade || 'GENERAL',
+            specs.adjacentBuildings || null,
+            specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+            Number(specs.floorCount) || 1,
+            Number(specs.basementCount) || 0,
+            specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+            specs.yearOfConstruction || null,
+            specs.isYearEstimated ?? false,
+            specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+            specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+            specs.foundationSource || null,
+            specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+            specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+            specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+            specs.foundationNotes || null,
+            specs.landUseFunction || null,
+            JSON.stringify(specs.asBuiltDrawingPhotos || []),
+            specs.foundationCatScore !== undefined && specs.foundationCatScore !== null && specs.foundationCatScore !== '' ? Number(specs.foundationCatScore) : null,
+            specs.pileDimensionsText || null,
+            JSON.stringify(specs.asBuiltDrawingFiles || []),
+            JSON.stringify(specs.managementContactJson || {}),
+          ]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO building_specifications (
+             report_id, building_name, building_grade, adjacent_buildings, structural_system,
+             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+             construction_area_m2, building_height_m, foundation_source,
+             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+             land_use_function, as_built_drawing_photos_json
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+           ON CONFLICT (report_id) DO UPDATE SET
+             building_name = EXCLUDED.building_name,
+             building_grade = EXCLUDED.building_grade,
+             adjacent_buildings = EXCLUDED.adjacent_buildings,
+             structural_system = EXCLUDED.structural_system,
+             floor_count = EXCLUDED.floor_count,
+             basement_count = EXCLUDED.basement_count,
+             foundation_category = EXCLUDED.foundation_category,
+             year_of_construction = EXCLUDED.year_of_construction,
+             is_year_estimated = EXCLUDED.is_year_estimated,
+             construction_area_m2 = EXCLUDED.construction_area_m2,
+             building_height_m = EXCLUDED.building_height_m,
+             foundation_source = EXCLUDED.foundation_source,
+             foundation_depth_m = EXCLUDED.foundation_depth_m,
+             foundation_density = EXCLUDED.foundation_density,
+             foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+             foundation_notes = EXCLUDED.foundation_notes,
+             land_use_function = EXCLUDED.land_use_function,
+             as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json;`,
+          [
+            reportId,
+            specs.buildingName || null,
+            specs.buildingGrade || 'GENERAL',
+            specs.adjacentBuildings || null,
+            specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+            Number(specs.floorCount) || 1,
+            Number(specs.basementCount) || 0,
+            specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+            specs.yearOfConstruction || null,
+            specs.isYearEstimated ?? false,
+            specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+            specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+            specs.foundationSource || null,
+            specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+            specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+            specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+            specs.foundationNotes || null,
+            specs.landUseFunction || null,
+            JSON.stringify(specs.asBuiltDrawingPhotos || []),
+          ]
+        );
+      }
+
+      if (specs.totalUnitsCount && Number(specs.totalUnitsCount) > 0) {
+        await client.query(
+          `UPDATE parcels SET total_units = $1, updated_at = NOW()
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $2 AND unit_id IS NULL);`,
+          [Number(specs.totalUnitsCount), reportId]
+        );
+      }
 
       await client.query(
         `INSERT INTO historical_sensitivities (
@@ -314,6 +384,7 @@ export class SurveyDefectsRepository {
   }
 
   static async createDefectItem(zoneId: string, defectData: any): Promise<any> {
+    const hasNewDefectCols = await SurveyBaseRepository.hasColumn('defect_items', 'functional_impact_e6');
     const hasCuPhotosJson = await SurveyBaseRepository.hasColumn('defect_items', 'cu_photos_json');
     const hasCuCode = await SurveyBaseRepository.hasColumn('defect_items', 'cu_photo_code');
     const primaryCuUrl = defectData.cuPhotos?.[0] || defectData.cuPhotoUrl || '';
@@ -322,9 +393,48 @@ export class SurveyDefectsRepository {
       ? defectData.cuPhotos
       : (primaryCuUrl ? [primaryCuUrl] : []);
     const cuPhotosJson = JSON.stringify(cuPhotos);
-    const primaryCuCode = defectData.cuPhotoCodes?.[0] || defectData.cuPhotoCode || null;
+    const cuPhotoCodes = Array.isArray(defectData.cuPhotoCodes) ? defectData.cuPhotoCodes : (defectData.cuPhotoCode ? [defectData.cuPhotoCode] : []);
+    const cuPhotoCodesJson = JSON.stringify(cuPhotoCodes);
+    const primaryCuCode = cuPhotoCodes[0] || defectData.cuPhotoCode || null;
 
-    if (hasCuPhotosJson && hasCuCode) {
+    if (hasNewDefectCols && hasCuPhotosJson && hasCuCode) {
+      const res = await Database.query(
+        `INSERT INTO defect_items (
+           zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+           crack_direction, width_max_mm, length_mm, activity_state,
+           material_degradation_e4, structural_significance_e2, functional_impact_e6, has_scale_card,
+           is_structural_critical, cu_photo_url, extra_photo_url, cu_photo_code, cu_photos_json,
+           cu_photo_codes_json, notes, captured_at, pin_color
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+         RETURNING *;`,
+        [
+          zoneId,
+          defectData.defectCode,
+          defectData.pinX,
+          defectData.pinY,
+          defectData.screeningCategory,
+          defectData.defectType,
+          defectData.crackDirection || null,
+          Number(defectData.widthMaxMm) || 0,
+          Number(defectData.lengthMm) || 0,
+          defectData.activityState || 'U',
+          Number(defectData.materialDegradationE4) || 0,
+          Number(defectData.structuralSignificanceE2) || 0,
+          defectData.functionalImpactE6 || null,
+          defectData.hasScaleCard ?? true,
+          defectData.isStructuralCritical ?? false,
+          primaryCuUrl,
+          extraCuUrl,
+          primaryCuCode,
+          cuPhotosJson,
+          cuPhotoCodesJson,
+          defectData.notes || null,
+          defectData.capturedAt || null,
+          defectData.pinColor || '#ef4444',
+        ]
+      );
+      return res.rows[0];
+    } else if (hasCuPhotosJson && hasCuCode) {
       const res = await Database.query(
         `INSERT INTO defect_items (
            zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
@@ -416,8 +526,63 @@ export class SurveyDefectsRepository {
   }
 
   static async saveDeformation(reportId: string, deform: any): Promise<void> {
+    const hasDetailsJson = await SurveyBaseRepository.hasColumn('deformation_assessments', 'details_json');
     const hasPhotoCodes = await SurveyBaseRepository.hasColumn('deformation_assessments', 'diff_settlement_photo_code');
-    if (hasPhotoCodes) {
+    if (hasDetailsJson && hasPhotoCodes) {
+      await Database.query(
+        `INSERT INTO deformation_assessments (
+           report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
+           beam_deflection_mm, e3_deformation_score, measurement_method, measurement_reliability,
+           diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code, beam_sagging_photo_code,
+           diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json, beam_sagging_photos_json,
+           monitoring_required, monitoring_notes, notes, details_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+         ON CONFLICT (report_id) DO UPDATE SET
+           tilt_angle_x = EXCLUDED.tilt_angle_x,
+           tilt_angle_y = EXCLUDED.tilt_angle_y,
+           tilt_direction = EXCLUDED.tilt_direction,
+           floor_slope_ratio = EXCLUDED.floor_slope_ratio,
+           beam_deflection_mm = EXCLUDED.beam_deflection_mm,
+           e3_deformation_score = EXCLUDED.e3_deformation_score,
+           measurement_method = EXCLUDED.measurement_method,
+           measurement_reliability = EXCLUDED.measurement_reliability,
+           diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
+           tilt_photo_code = EXCLUDED.tilt_photo_code,
+           abnormal_photo_code = EXCLUDED.abnormal_photo_code,
+           beam_sagging_photo_code = EXCLUDED.beam_sagging_photo_code,
+           diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
+           tilt_photos_json = EXCLUDED.tilt_photos_json,
+           abnormal_photos_json = EXCLUDED.abnormal_photos_json,
+           beam_sagging_photos_json = EXCLUDED.beam_sagging_photos_json,
+           monitoring_required = EXCLUDED.monitoring_required,
+           monitoring_notes = EXCLUDED.monitoring_notes,
+           notes = EXCLUDED.notes,
+           details_json = EXCLUDED.details_json;`,
+        [
+          reportId,
+          Number(deform.tiltAngleX) || 0,
+          Number(deform.tiltAngleY) || 0,
+          deform.tiltDirection ? String(deform.tiltDirection) : null,
+          Number(deform.floorSlopeRatio) || 0,
+          Number(deform.beamDeflectionMm) || 0,
+          Number(deform.e3DeformationScore) || 0,
+          deform.measurementMethod || 'LASER_LEVEL',
+          deform.measurementReliability || 'HIGH',
+          deform.diffSettlementPhotoCode || null,
+          deform.tiltPhotoCode || null,
+          deform.abnormalPhotoCode || null,
+          deform.beamSaggingPhotoCode || null,
+          JSON.stringify(deform.diffSettlementPhotos || []),
+          JSON.stringify(deform.tiltPhotos || []),
+          JSON.stringify(deform.abnormalPhotos || []),
+          JSON.stringify(deform.beamSaggingPhotos || []),
+          Boolean(deform.monitoringRequired),
+          deform.monitoringNotes || null,
+          deform.notes || null,
+          JSON.stringify(deform.detailsJson || {}),
+        ]
+      );
+    } else if (hasPhotoCodes) {
       await Database.query(
         `INSERT INTO deformation_assessments (
            report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
@@ -503,10 +668,16 @@ export class SurveyDefectsRepository {
 
     const rawRestricted = Array.isArray(scopeData?.accessLimitation?.restrictedAreas)
       ? scopeData.accessLimitation.restrictedAreas.map((area: string) => {
-          if (area === 'Các tầng trên' && scopeData?.accessLimitation?.restrictedFloorLevels) {
+          if (
+            (area === 'Các tầng trên' || area === 'Các tầng lầu trên cao' || area.startsWith('Các tầng')) &&
+            scopeData?.accessLimitation?.restrictedFloorLevels
+          ) {
             return `${area} (${scopeData.accessLimitation.restrictedFloorLevels})`;
           }
-          if (area === 'Khác' && scopeData?.accessLimitation?.customRestrictedArea) {
+          if (
+            (area === 'Khác' || area.startsWith('Khác')) &&
+            scopeData?.accessLimitation?.customRestrictedArea
+          ) {
             return scopeData.accessLimitation.customRestrictedArea;
           }
           return area;
@@ -520,40 +691,86 @@ export class SurveyDefectsRepository {
       ? (scopeData.accessLimitation.notes ? `${scopeData.accessLimitation.mainReason}: ${scopeData.accessLimitation.notes}` : scopeData.accessLimitation.mainReason)
       : (scopeData?.accessibilityLimitations || null);
 
-    await Database.query(
-      `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (report_id) DO UPDATE SET
-         survey_coverage = EXCLUDED.survey_coverage,
-         inaccessible_areas = EXCLUDED.inaccessible_areas,
-         accessibility_limitations = EXCLUDED.accessibility_limitations;`,
-      [reportId, coverage, inaccessible, limitations]
-    );
+    const hasScopeDetails = await SurveyBaseRepository.hasColumn('survey_scopes', 'scope_details_json');
+    if (hasScopeDetails) {
+      const scopeDetailsJson = JSON.stringify({
+        surveyScope: scopeData?.surveyScope || null,
+        accessLimitation: scopeData?.accessLimitation || null,
+      });
+      await Database.query(
+        `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations, scope_details_json)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (report_id) DO UPDATE SET
+           survey_coverage = EXCLUDED.survey_coverage,
+           inaccessible_areas = EXCLUDED.inaccessible_areas,
+           accessibility_limitations = EXCLUDED.accessibility_limitations,
+           scope_details_json = EXCLUDED.scope_details_json;`,
+        [reportId, coverage, inaccessible, limitations, scopeDetailsJson]
+      );
+    } else {
+      await Database.query(
+        `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (report_id) DO UPDATE SET
+           survey_coverage = EXCLUDED.survey_coverage,
+           inaccessible_areas = EXCLUDED.inaccessible_areas,
+           accessibility_limitations = EXCLUDED.accessibility_limitations;`,
+        [reportId, coverage, inaccessible, limitations]
+      );
+    }
   }
 
   static async saveFloorSurveys(reportId: string, floors: any[]): Promise<void> {
+    const hasFloorStructCol = await SurveyBaseRepository.hasColumn('floor_surveys', 'has_structural_elements');
+    const hasZoneNewCols = await SurveyBaseRepository.hasColumn('damage_zones', 'overview_photos_json');
+    const hasCtxCodeCol = await SurveyBaseRepository.hasColumn('damage_zones', 'ctx_photo_code');
+    const hasDefectNewCols = await SurveyBaseRepository.hasColumn('defect_items', 'functional_impact_e6');
+
     await Database.transaction(async (client) => {
       // 1. Lưu danh sách tầng, sơ đồ CAD_01 và CAD_02
       await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [reportId]);
       for (let i = 0; i < floors.length; i++) {
         const f = floors[i];
-        await client.query(
-          `INSERT INTO floor_surveys (
-             report_id, floor_name, floor_order, overview_photos_json,
-             cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-          [
-            reportId,
-            f.floorName || `Tầng ${i + 1}`,
-            i + 1,
-            JSON.stringify(f.overviewPhotos || []),
-            f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
-            JSON.stringify(f.cadZonePins || []),
-            f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
-            JSON.stringify(f.cadElementPins || []),
-            f.notes || null,
-          ]
-        );
+        if (hasFloorStructCol) {
+          await client.query(
+            `INSERT INTO floor_surveys (
+               report_id, floor_name, floor_order, overview_photos_json,
+               cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json,
+               has_structural_elements, no_structural_elements_reason, notes
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
+            [
+              reportId,
+              f.floorName || `Tầng ${i + 1}`,
+              i + 1,
+              JSON.stringify(f.overviewPhotos || []),
+              f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
+              JSON.stringify(f.cadZonePins || []),
+              f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
+              JSON.stringify(f.cadElementPins || []),
+              f.hasStructuralElements !== false,
+              f.noStructuralElementsReason || null,
+              f.notes || null,
+            ]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO floor_surveys (
+               report_id, floor_name, floor_order, overview_photos_json,
+               cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+            [
+              reportId,
+              f.floorName || `Tầng ${i + 1}`,
+              i + 1,
+              JSON.stringify(f.overviewPhotos || []),
+              f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
+              JSON.stringify(f.cadZonePins || []),
+              f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
+              JSON.stringify(f.cadElementPins || []),
+              f.notes || null,
+            ]
+          );
+        }
       }
 
       // 2. Lưu chi tiết Vùng Z (Damage Zones) và Khuyết tật D (Defect Items) từ các tầng
@@ -570,6 +787,7 @@ export class SurveyDefectsRepository {
               roomName: resolvedRoom,
               componentType: resolvedComp,
               wallMaterial: resolvedWallMat,
+              overviewPhotos: Array.isArray(z.overviewPhotos) ? z.overviewPhotos : [],
             });
           }
         }
@@ -589,6 +807,9 @@ export class SurveyDefectsRepository {
               burlandGrade: 0,
               ctxPhotoUrl: e.ctxPhotoUrl || '',
               ctxPhotoCode: e.ctxPhotoCode || null,
+              overviewPhotos: Array.isArray(e.overviewPhotos) ? e.overviewPhotos : [],
+              dimensions: e.dimensions || null,
+              structuralIntegrity: e.structuralIntegrity || null,
               notes: e.notes || null,
               defects: Array.isArray(e.defects) ? e.defects : [],
             });
@@ -601,26 +822,55 @@ export class SurveyDefectsRepository {
         for (const z of allZones) {
           const compType = normalizeComponentType(z.componentType || z.customComponentType);
 
-          const zoneRes = await client.query<{ id: string }>(
-            `INSERT INTO damage_zones (
-               report_id, zone_code, floor_name, room_name, component_type,
-               wall_material, functional_impact_repair_needed, burland_grade,
-               ctx_photo_url, notes
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             RETURNING id;`,
-            [
-              reportId,
-              z.zoneCode || 'Z-01',
-              z.floorName || 'Tầng trệt',
-              z.roomName || 'Không gian chung',
-              compType,
-              z.wallMaterial || null,
-              Boolean(z.functionalImpactRepairNeeded),
-              Number(z.burlandGrade) || 0,
-              z.ctxPhotoUrl || '',
-              z.notes || null,
-            ]
-          );
+          let zoneRes: { rows: Array<{ id: string }> };
+          if (hasZoneNewCols && hasCtxCodeCol) {
+            zoneRes = await client.query<{ id: string }>(
+              `INSERT INTO damage_zones (
+                 report_id, zone_code, floor_name, room_name, component_type,
+                 wall_material, functional_impact_repair_needed, burland_grade,
+                 ctx_photo_url, ctx_photo_code, overview_photos_json,
+                 dimensions_text, structural_integrity, notes
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+               RETURNING id;`,
+              [
+                reportId,
+                z.zoneCode || 'Z-01',
+                z.floorName || 'Tầng trệt',
+                z.roomName || 'Không gian chung',
+                compType,
+                z.wallMaterial || null,
+                Boolean(z.functionalImpactRepairNeeded),
+                Number(z.burlandGrade) || 0,
+                z.ctxPhotoUrl || '',
+                z.ctxPhotoCode || null,
+                JSON.stringify(z.overviewPhotos || []),
+                z.dimensions || null,
+                z.structuralIntegrity || null,
+                z.notes || null,
+              ]
+            );
+          } else {
+            zoneRes = await client.query<{ id: string }>(
+              `INSERT INTO damage_zones (
+                 report_id, zone_code, floor_name, room_name, component_type,
+                 wall_material, functional_impact_repair_needed, burland_grade,
+                 ctx_photo_url, notes
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               RETURNING id;`,
+              [
+                reportId,
+                z.zoneCode || 'Z-01',
+                z.floorName || 'Tầng trệt',
+                z.roomName || 'Không gian chung',
+                compType,
+                z.wallMaterial || null,
+                Boolean(z.functionalImpactRepairNeeded),
+                Number(z.burlandGrade) || 0,
+                z.ctxPhotoUrl || '',
+                z.notes || null,
+              ]
+            );
+          }
 
           const zoneId = zoneRes.rows[0]?.id;
           if (zoneId && z.defects && Array.isArray(z.defects)) {
@@ -632,38 +882,79 @@ export class SurveyDefectsRepository {
                 ? d.cuPhotos
                 : (primaryCuUrl ? [primaryCuUrl] : []);
               const cuPhotosJson = JSON.stringify(cuPhotosList);
-              const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || null;
+              const cuPhotoCodesList = Array.isArray(d.cuPhotoCodes)
+                ? d.cuPhotoCodes
+                : (d.cuPhotoCode ? [d.cuPhotoCode] : []);
+              const cuPhotoCodesJson = JSON.stringify(cuPhotoCodesList);
+              const primaryCuCode = cuPhotoCodesList[0] || d.cuPhotoCode || null;
 
-              await client.query(
-                `INSERT INTO defect_items (
-                   zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
-                   crack_direction, width_max_mm, length_mm, activity_state,
-                   material_degradation_e4, structural_significance_e2, has_scale_card,
-                   is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
-                   cu_photo_code, cu_photos_json
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
-                [
-                  zoneId,
-                  d.defectCode || 'D-01',
-                  Number(d.pinX) || 0,
-                  Number(d.pinY) || 0,
-                  d.screeningCategory || 'CRACK',
-                  d.defectType || 'HAIRLINE',
-                  d.crackDirection || null,
-                  Number(d.widthMaxMm) || 0,
-                  Number(d.lengthMm) || 0,
-                  actState,
-                  Number(d.materialDegradationE4) || 0,
-                  Number(d.structuralSignificanceE2) || 0,
-                  d.hasScaleCard ?? true,
-                  d.isStructuralCritical ?? false,
-                  primaryCuUrl,
-                  extraCuUrl,
-                  d.pinColor || '#ef4444',
-                  primaryCuCode,
-                  cuPhotosJson,
-                ]
-              );
+              if (hasDefectNewCols) {
+                await client.query(
+                  `INSERT INTO defect_items (
+                     zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                     crack_direction, width_max_mm, length_mm, activity_state,
+                     material_degradation_e4, structural_significance_e2, functional_impact_e6, has_scale_card,
+                     is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                     cu_photo_code, cu_photos_json, cu_photo_codes_json, notes, captured_at
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23);`,
+                  [
+                    zoneId,
+                    d.defectCode || 'D-01',
+                    Number(d.pinX) || 0,
+                    Number(d.pinY) || 0,
+                    d.screeningCategory || 'CRACK',
+                    d.defectType || 'HAIRLINE',
+                    d.crackDirection || null,
+                    Number(d.widthMaxMm) || 0,
+                    Number(d.lengthMm) || 0,
+                    actState,
+                    Number(d.materialDegradationE4) || 0,
+                    Number(d.structuralSignificanceE2) || 0,
+                    d.functionalImpactE6 || null,
+                    d.hasScaleCard ?? true,
+                    d.isStructuralCritical ?? false,
+                    primaryCuUrl,
+                    extraCuUrl,
+                    d.pinColor || '#ef4444',
+                    primaryCuCode,
+                    cuPhotosJson,
+                    cuPhotoCodesJson,
+                    d.notes || null,
+                    d.capturedAt || null,
+                  ]
+                );
+              } else {
+                await client.query(
+                  `INSERT INTO defect_items (
+                     zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                     crack_direction, width_max_mm, length_mm, activity_state,
+                     material_degradation_e4, structural_significance_e2, has_scale_card,
+                     is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                     cu_photo_code, cu_photos_json
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
+                  [
+                    zoneId,
+                    d.defectCode || 'D-01',
+                    Number(d.pinX) || 0,
+                    Number(d.pinY) || 0,
+                    d.screeningCategory || 'CRACK',
+                    d.defectType || 'HAIRLINE',
+                    d.crackDirection || null,
+                    Number(d.widthMaxMm) || 0,
+                    Number(d.lengthMm) || 0,
+                    actState,
+                    Number(d.materialDegradationE4) || 0,
+                    Number(d.structuralSignificanceE2) || 0,
+                    d.hasScaleCard ?? true,
+                    d.isStructuralCritical ?? false,
+                    primaryCuUrl,
+                    extraCuUrl,
+                    d.pinColor || '#ef4444',
+                    primaryCuCode,
+                    cuPhotosJson,
+                  ]
+                );
+              }
             }
           }
         }

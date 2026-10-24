@@ -24,7 +24,15 @@ import { useLightbox } from '../../../components/common/photo-capture/hooks/useL
 import { compressCleanImage } from '../../../utils/cleanImageCompressor';
 import { PhotoWatermarkOverlay } from '../../../components/common/photo-capture/components/PhotoWatermarkOverlay';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
+import {
+  resolveOfflinePhotoUrl,
+  getSafeDisplayUrl,
+  saveOfflinePhoto,
+  markOfflinePhotoUploaded,
+  saveUploadedPhotoMapping,
+  createManagedBlobUrl,
+  revokeManagedBlobUrl,
+} from '../../../core/storage/offlinePhotoStorage';
 import { useStorageInfo } from '../../../core/services/storageInfoService';
 
 interface Step9Props {
@@ -283,33 +291,14 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         const photoIndex = currentList.length + 1;
         const photoCode = `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(photoIndex).padStart(2, '0')}`;
 
-        // Đọc sang Data URL để preview tức thì
-        const localDataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(uploadBlob);
-        });
-
-        // 3. Cập nhật ngay preview ảnh sạch vào Store để KSV nhìn thấy tức thì
-        const updatedList = [...currentList, localDataUrl];
-        updateFormData({
-          signatures: {
-            ...sigs,
-            workingMinutesPhotos: updatedList,
-          },
-        });
-
-        // Đánh dấu trạng thái đang tải lên Cloudflare R2
-        setUploadStatusMap((prev) => ({ ...prev, [localDataUrl]: 'UPLOADING' }));
-
-        // 4. Chuẩn bị Metadata R2
+        // 3. Chuẩn bị Metadata R2 và lưu vào IndexedDB bằng scheme bền vững blob:local://
         const filename = isCondo
           ? `M2__${cleanParcel}__GENERAL__MINUTES__${String(photoIndex).padStart(2, '0')}__${Date.now()}.jpg`
           : `${photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
         const metadata: Record<string, string> = {
           'photo-code': photoCode,
           'building-code': cleanParcel,
+          'survey-parcel-id': formData.parcelId || cleanParcel,
           'photo-type': 'MINUTES',
           'floor': 'DOC',
           'category': isCondo ? 'signatures' : 'DOC',
@@ -319,7 +308,24 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           'captured-at': new Date().toISOString(),
         };
 
-        blobsRef.current.set(localDataUrl, {
+        const localPhotoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const localUri = `blob:local://${localPhotoId}`;
+        createManagedBlobUrl(localPhotoId, uploadBlob);
+        await saveOfflinePhoto(localPhotoId, uploadBlob, photoCode, metadata, filename);
+
+        // 4. Cập nhật ngay URI bền vững vào Store để KSV nhìn thấy tức thì và không bị stripHeavyBase64 xóa mất
+        const updatedList = [...currentList, localUri];
+        updateFormData({
+          signatures: {
+            ...usePhase1SurveyStore.getState().formData.signatures,
+            workingMinutesPhotos: updatedList,
+          },
+        });
+
+        // Đánh dấu trạng thái đang tải lên Cloudflare R2
+        setUploadStatusMap((prev) => ({ ...prev, [localUri]: 'UPLOADING' }));
+
+        blobsRef.current.set(localUri, {
           blob: uploadBlob,
           filename,
           folder,
@@ -328,13 +334,18 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
 
         // 6. Đưa vào hàng đợi Upload trực tiếp lên Cloudflare R2
         uploadQueue.enqueue(uploadBlob, filename, {
+          id: localPhotoId,
           folder,
           mimeType: 'image/jpeg',
           metadata,
-          onSuccess: (publicUrl) => {
-            // Thay thế localDataUrl bằng publicUrl của R2 trong Store
+          onSuccess: async (publicUrl) => {
+            await markOfflinePhotoUploaded(localPhotoId, publicUrl);
+            saveUploadedPhotoMapping(localPhotoId, publicUrl);
+            revokeManagedBlobUrl(localPhotoId);
+
+            // Thay thế localUri bằng publicUrl của R2 trong Store
             const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
-            const replacedList = latestList.map((url) => (url === localDataUrl ? publicUrl : url));
+            const replacedList = latestList.map((url) => (url === localUri ? publicUrl : url));
             updateFormData({
               signatures: {
                 ...usePhase1SurveyStore.getState().formData.signatures,
@@ -342,17 +353,17 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
               },
             });
 
-            blobsRef.current.delete(localDataUrl);
+            blobsRef.current.delete(localUri);
             setUploadStatusMap((prev) => {
               const next = { ...prev };
-              delete next[localDataUrl];
+              delete next[localUri];
               next[publicUrl] = 'SUCCESS';
               return next;
             });
           },
           onError: (err) => {
             console.warn('[Step9] Lỗi upload R2 cho biên bản hiện trường:', err);
-            setUploadStatusMap((prev) => ({ ...prev, [localDataUrl]: 'ERROR' }));
+            setUploadStatusMap((prev) => ({ ...prev, [localUri]: 'ERROR' }));
           },
         });
       } catch (err) {
@@ -423,15 +434,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
     const targetIdx = annotatingIndex;
     setAnnotatingIndex(null);
 
-    const currentPhotos = [...(sigs.workingMinutesPhotos || [])];
-    currentPhotos[targetIdx] = annotatedBase64;
-    updateFormData({
-      signatures: {
-        ...sigs,
-        workingMinutesPhotos: currentPhotos,
-      },
-    });
-
     const parcelCode = formData.projectParcelCode || 'CHUA_CO_MA';
     const cleanParcel = parcelCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
     const photoCode = `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(targetIdx + 1).padStart(2, '0')}`;
@@ -444,38 +446,67 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
     for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
     const uploadBlob = new Blob([ab], { type: 'image/jpeg' });
 
-    setUploadStatusMap((prev) => ({ ...prev, [annotatedBase64]: 'UPLOADING' }));
+    const metadata: Record<string, string> = {
+      'photo-code': photoCode,
+      'building-code': cleanParcel,
+      'survey-parcel-id': formData.parcelId || cleanParcel,
+      'photo-type': 'MINUTES',
+      'floor': 'DOC',
+      'survey-phase': 'PHASE_1',
+      'project': 'METRO2_HCM',
+      'captured-at': new Date().toISOString(),
+    };
+
+    const localPhotoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const localUri = `blob:local://${localPhotoId}`;
+    createManagedBlobUrl(localPhotoId, uploadBlob);
+    await saveOfflinePhoto(localPhotoId, uploadBlob, photoCode, metadata, filename);
+
+    const currentPhotos = [...(sigs.workingMinutesPhotos || [])];
+    currentPhotos[targetIdx] = localUri;
+    updateFormData({
+      signatures: {
+        ...usePhase1SurveyStore.getState().formData.signatures,
+        workingMinutesPhotos: currentPhotos,
+      },
+    });
+
+    setUploadStatusMap((prev) => ({ ...prev, [localUri]: 'UPLOADING' }));
+    blobsRef.current.set(localUri, {
+      blob: uploadBlob,
+      filename,
+      folder,
+      metadata,
+    });
 
     uploadQueue.enqueue(uploadBlob, filename, {
+      id: localPhotoId,
       folder,
       mimeType: 'image/jpeg',
-      metadata: {
-        'photo-code': photoCode,
-        'building-code': cleanParcel,
-        'photo-type': 'MINUTES',
-        'floor': 'DOC',
-        'survey-phase': 'PHASE_1',
-        'project': 'METRO2_HCM',
-        'captured-at': new Date().toISOString(),
-      },
-      onSuccess: (publicUrl) => {
+      metadata,
+      onSuccess: async (publicUrl) => {
+        await markOfflinePhotoUploaded(localPhotoId, publicUrl);
+        saveUploadedPhotoMapping(localPhotoId, publicUrl);
+        revokeManagedBlobUrl(localPhotoId);
+
         const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
-        const replacedList = latestList.map((i) => (i === annotatedBase64 ? publicUrl : i));
+        const replacedList = latestList.map((i) => (i === localUri ? publicUrl : i));
         updateFormData({
           signatures: {
             ...usePhase1SurveyStore.getState().formData.signatures,
             workingMinutesPhotos: replacedList,
           },
         });
+        blobsRef.current.delete(localUri);
         setUploadStatusMap((prev) => {
           const next = { ...prev };
-          delete next[annotatedBase64];
+          delete next[localUri];
           next[publicUrl] = 'SUCCESS';
           return next;
         });
       },
       onError: () => {
-        setUploadStatusMap((prev) => ({ ...prev, [annotatedBase64]: 'ERROR' }));
+        setUploadStatusMap((prev) => ({ ...prev, [localUri]: 'ERROR' }));
       },
     });
   };

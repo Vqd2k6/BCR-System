@@ -13,7 +13,7 @@ import { CondoUnitMissingFieldsModal } from '../components/CondoUnitMissingField
 import { validateCondoUnitFull, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
-import { sanitizeSurveyDataForSync, uploadQueue } from '../../../core/services/uploadQueueService';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
@@ -172,6 +172,18 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 
   const executeSubmit = async () => {
     const isAbsentee = Boolean(formData.isAbsentee || formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA');
+    const healedFormData = healLocalPhotoUris(formData);
+    const unsyncedPaths = findUnsyncedPhotoPaths(healedFormData);
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (unsyncedPaths.length > 0 || pendingUploads > 0) {
+      void uploadQueue.resumePendingOfflineUploads();
+      setIsPhotoAuditOpen(true);
+      alert(
+        `⚠️ Còn ${Math.max(unsyncedPaths.length, pendingUploads)} ảnh hiện trường chưa tải xong lên Cloud. Vui lòng chờ hoàn tất đồng bộ ảnh trước khi nộp hồ sơ.`
+      );
+      return;
+    }
+
     const confirmMessage = isAbsentee
       ? `Xác nhận nộp hồ sơ vắng mặt căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, căn hộ sẽ chuyển sang trạng thái "Tạm hoãn / Vắng mặt" (POSTPONED_ABSENT).`
       : `Xác nhận nộp hồ sơ khảo sát căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" từ Zone Admin.`;
@@ -181,14 +193,14 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 
     try {
       setIsSubmitting(true);
-      console.log('[CondoUnit] Submitting child unit survey payload (isAbsentee:', isAbsentee, '):', formData);
+      console.log('[CondoUnit] Submitting child unit survey payload (isAbsentee:', isAbsentee, '):', healedFormData);
 
       const payload = {
         parcelId: formData.parcelId,
         unitId: formData.unitId,
         reportType: 'CONDO_UNIT',
         status: isAbsentee ? 'POSTPONED_ABSENT' : 'SUBMITTED',
-        surveyData: sanitizeSurveyDataForSync(formData),
+        surveyData: healedFormData,
         submittedAt: new Date().toISOString(),
       };
 

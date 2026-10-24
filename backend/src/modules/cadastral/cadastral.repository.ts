@@ -98,10 +98,38 @@ export class CadastralRepository {
   static async findById(id: string): Promise<ParcelEntity | null> {
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
+              COALESCE(
+                CASE
+                  WHEN NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), '') IS NOT NULL
+                   AND BTRIM(r_latest.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(r_latest.survey_data_json->>'ownerName')
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                   AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(p.owner_name)
+                  ELSE NULL
+                END,
+                NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), ''),
+                p.owner_name
+              ) AS owner_name,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'ownerPhone'), ''), p.owner_phone) AS owner_phone,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'street'), ''), p.street) AS street,
               ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
        FROM parcels p
+       LEFT JOIN LATERAL (
+         SELECT bsr.survey_data_json
+         FROM base_survey_reports bsr
+         WHERE bsr.parcel_id = p.id
+           AND bsr.unit_id IS NULL
+           AND bsr.deleted_at IS NULL
+         ORDER BY (CASE WHEN bsr.id = p.active_phase1_report_id THEN 0 ELSE 1 END), bsr.updated_at DESC NULLS LAST, bsr.created_at DESC
+         LIMIT 1
+       ) r_latest ON TRUE
        WHERE p.id = $1 LIMIT 1;`,
       [id]
     );
@@ -163,6 +191,25 @@ export class CadastralRepository {
 
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
+              COALESCE(
+                CASE
+                  WHEN NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), '') IS NOT NULL
+                   AND BTRIM(r_latest.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(r_latest.survey_data_json->>'ownerName')
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                   AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(p.owner_name)
+                  ELSE NULL
+                END,
+                NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), ''),
+                p.owner_name
+              ) AS owner_name,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'ownerPhone'), ''), p.owner_phone) AS owner_phone,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'street'), ''), p.street) AS street,
               GREATEST(p.total_units, (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.deleted_at IS NULL)) AS total_units,
               (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.status IN ('APPROVED', 'SUBMITTED') AND u.deleted_at IS NULL) AS completed_units_count,
               COALESCE(
@@ -239,6 +286,15 @@ export class CadastralRepository {
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
        FROM parcels p
+       LEFT JOIN LATERAL (
+         SELECT bsr.survey_data_json
+         FROM base_survey_reports bsr
+         WHERE bsr.parcel_id = p.id
+           AND bsr.unit_id IS NULL
+           AND bsr.deleted_at IS NULL
+         ORDER BY (CASE WHEN bsr.id = p.active_phase1_report_id THEN 0 ELSE 1 END), bsr.updated_at DESC NULLS LAST, bsr.created_at DESC
+         LIMIT 1
+       ) r_latest ON TRUE
        ${whereClause}
        ORDER BY p.project_parcel_code ASC;`,
       params
@@ -278,6 +334,25 @@ export class CadastralRepository {
   ): Promise<ParcelEntity[]> {
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
+              COALESCE(
+                CASE
+                  WHEN NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), '') IS NOT NULL
+                   AND BTRIM(r_latest.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(r_latest.survey_data_json->>'ownerName')
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                   AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(p.owner_name)
+                  ELSE NULL
+                END,
+                NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), ''),
+                p.owner_name
+              ) AS owner_name,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'ownerPhone'), ''), p.owner_phone) AS owner_phone,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'street'), ''), p.street) AS street,
               ST_Distance(
                 p.location_geom::geography,
                 ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
@@ -285,6 +360,15 @@ export class CadastralRepository {
               ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson
        FROM parcels p
+       LEFT JOIN LATERAL (
+         SELECT bsr.survey_data_json
+         FROM base_survey_reports bsr
+         WHERE bsr.parcel_id = p.id
+           AND bsr.unit_id IS NULL
+           AND bsr.deleted_at IS NULL
+         ORDER BY (CASE WHEN bsr.id = p.active_phase1_report_id THEN 0 ELSE 1 END), bsr.updated_at DESC NULLS LAST, bsr.created_at DESC
+         LIMIT 1
+       ) r_latest ON TRUE
        WHERE p.lifecycle_status = 'ACTIVE'
          AND ST_DWithin(
            p.location_geom::geography,
@@ -330,6 +414,29 @@ export class CadastralRepository {
     ownerPhone?: string | null;
     surveyData?: unknown;
   }): Promise<void> {
+    let savedReportIdForRelational: string | null = null;
+    const rawSurveyObj = (data.surveyData && typeof data.surveyData === 'object') ? (data.surveyData as Record<string, any>) : null;
+    const isPlaceholderOwner = (val: unknown): boolean =>
+      typeof val === 'string' && /^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(val.trim());
+    const cleanAbsenceOwnerName =
+      data.ownerName && !isPlaceholderOwner(data.ownerName)
+        ? data.ownerName.trim()
+        : rawSurveyObj?.ownerName && !isPlaceholderOwner(rawSurveyObj.ownerName)
+          ? String(rawSurveyObj.ownerName).trim()
+          : null;
+    const cleanAbsenceOwnerPhone =
+      (data.ownerPhone && data.ownerPhone.trim()) ||
+      (typeof rawSurveyObj?.ownerPhone === 'string' && rawSurveyObj.ownerPhone.trim()) ||
+      null;
+    const cleanAbsenceHouseNumber =
+      typeof rawSurveyObj?.houseNumber === 'string' && rawSurveyObj.houseNumber.trim()
+        ? rawSurveyObj.houseNumber.trim()
+        : null;
+    const cleanAbsenceStreet =
+      typeof rawSurveyObj?.street === 'string' && rawSurveyObj.street.trim()
+        ? rawSurveyObj.street.trim()
+        : null;
+
     await Database.transaction(async (client) => {
       let attemptCount = 1;
 
@@ -342,7 +449,7 @@ export class CadastralRepository {
                owner_phone = COALESCE($3, owner_phone),
                updated_at = NOW()
            WHERE id = $1;`,
-          [data.unitId, data.ownerName || null, data.ownerPhone || null]
+          [data.unitId, cleanAbsenceOwnerName, cleanAbsenceOwnerPhone]
         );
 
         if (data.attemptCount && data.attemptCount > 0) {
@@ -362,9 +469,11 @@ export class CadastralRepository {
                absence_attempt_count = absence_attempt_count + 1,
                owner_name = COALESCE($2, owner_name),
                owner_phone = COALESCE($3, owner_phone),
+               house_number = COALESCE($4, house_number),
+               street = COALESCE($5, street),
                updated_at = NOW()
            WHERE id = $1;`,
-          [data.parcelId, data.ownerName || null, data.ownerPhone || null]
+          [data.parcelId, cleanAbsenceOwnerName, cleanAbsenceOwnerPhone, cleanAbsenceHouseNumber, cleanAbsenceStreet]
         );
 
         if (data.attemptCount && data.attemptCount > 0) {
@@ -454,6 +563,7 @@ export class CadastralRepository {
             [repId]
           );
         }
+        savedReportIdForRelational = repId;
 
         if (data.unitId) {
           await client.query(
@@ -468,6 +578,28 @@ export class CadastralRepository {
         }
       }
     });
+
+    // 5. Đồng bộ các bảng quan hệ (survey_identification_photos, building_specifications, deformation_assessments, survey_scopes) cho hồ sơ Vắng mặt
+    if (savedReportIdForRelational && rawSurveyObj) {
+      try {
+        const { SurveyPackageMapper } = await import('../survey/survey-package.mapper');
+        const { SurveyDefectsRepository } = await import('../survey/repositories/survey-defects.repository');
+        const step1Photos = SurveyPackageMapper.mapStep1Photos(rawSurveyObj);
+        await SurveyDefectsRepository.saveIdentificationPhotos(savedReportIdForRelational, step1Photos);
+        const specs = SurveyPackageMapper.mapBuildingSpecs(rawSurveyObj);
+        await SurveyDefectsRepository.saveBuildingSpecs(savedReportIdForRelational, specs);
+        const def = SurveyPackageMapper.mapDeformation(rawSurveyObj);
+        if (def) {
+          await SurveyDefectsRepository.saveDeformation(savedReportIdForRelational, def);
+        }
+        await SurveyDefectsRepository.saveSurveyScope(savedReportIdForRelational, {
+          ...rawSurveyObj,
+          isAbsenteeSurvey: true,
+        });
+      } catch (relErr) {
+        console.warn('[recordAbsence] Cảnh báo lưu bảng quan hệ cho hồ sơ vắng mặt:', relErr);
+      }
+    }
   }
 
   static async updateFootprint(

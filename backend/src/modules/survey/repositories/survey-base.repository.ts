@@ -85,9 +85,34 @@ export class SurveyBaseRepository {
 
     const res = await Database.query(
       `SELECT r.*,
-              p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street, p.ward, p.district,
-              COALESCE(NULLIF(r.survey_data_json->>'ownerName', ''), bu.owner_name, p.owner_name) AS owner_name,
-              COALESCE(NULLIF(r.survey_data_json->>'ownerPhone', ''), bu.owner_phone, p.owner_phone) AS owner_phone,
+              p.project_parcel_code, p.official_cadastral_code,
+              COALESCE(NULLIF(BTRIM(r.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+              COALESCE(NULLIF(BTRIM(r.survey_data_json->>'street'), ''), p.street) AS street,
+              p.ward, p.district,
+              COALESCE(
+                CASE
+                  WHEN NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NOT NULL
+                   AND BTRIM(r.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(r.survey_data_json->>'ownerName')
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(bu.owner_name), '') IS NOT NULL
+                   AND BTRIM(bu.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(bu.owner_name)
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                   AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+                  THEN BTRIM(p.owner_name)
+                  ELSE NULL
+                END,
+                NULLIF(BTRIM(r.survey_data_json->>'ownerName'), ''),
+                bu.owner_name,
+                p.owner_name
+              ) AS owner_name,
+              COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone, p.owner_phone) AS owner_phone,
               bu.unit_code, bu.floor_number AS unit_floor_number,
               p.zone_id, p.building_type, p.segment_type,
               p.land_area_m2, p.construction_area_m2 AS parcel_construction_area_m2, p.floor_count AS parcel_floor_count,
@@ -269,11 +294,17 @@ export class SurveyBaseRepository {
           ]
         );
       } else {
-        // Căn hộ con: Cập nhật thông tin chủ hộ, CCCD, trạng thái cư trú, biển số phòng thực tế và chuyển status sang 'SUBMITTED'
+        // Căn hộ con: Cập nhật thông tin chủ hộ, CCCD, trạng thái cư trú, biển số phòng thực tế, sơ đồ CAD và chuyển status sang 'SUBMITTED'
         const rawJson = typeof submitData.surveyDataJson === 'string'
           ? (() => { try { return JSON.parse(submitData.surveyDataJson); } catch { return null; } })()
           : submitData.surveyDataJson;
         const displayCodeVal = submitData.displayCode || submitData.display_code || rawJson?.displayCode || rawJson?.display_code || null;
+        const unitCadUrlVal = submitData.unitCadUrl || rawJson?.unitCadUrl || rawJson?.damageMapUrl || null;
+        const cadBboxVal = submitData.cadBbox || rawJson?.cadBbox ? JSON.stringify(submitData.cadBbox || rawJson?.cadBbox) : null;
+        const cleanUnitOwnerName =
+          submitData.ownerName && !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(String(submitData.ownerName).trim())
+            ? String(submitData.ownerName).trim()
+            : null;
 
         await client.query('SAVEPOINT unit_update_savepoint;');
         try {
@@ -286,15 +317,19 @@ export class SurveyBaseRepository {
                  display_code = COALESCE($5, display_code),
                  status = 'SUBMITTED',
                  phase1_report_id = $6,
+                 unit_cad_url = COALESCE($7, unit_cad_url),
+                 cad_bbox = COALESCE($8::jsonb, cad_bbox),
                  updated_at = NOW()
              WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
             [
-              submitData.ownerName || null,
+              cleanUnitOwnerName,
               submitData.ownerPhone || null,
               submitData.ownerIdCard || null,
               submitData.residentStatus || null,
               displayCodeVal,
               reportId,
+              unitCadUrlVal,
+              cadBboxVal,
             ]
           );
           await client.query('RELEASE SAVEPOINT unit_update_savepoint;');
@@ -317,15 +352,19 @@ export class SurveyBaseRepository {
                    display_code = COALESCE($5, display_code),
                    status = 'SUBMITTED',
                    phase1_report_id = $6,
+                   unit_cad_url = COALESCE($7, unit_cad_url),
+                   cad_bbox = COALESCE($8::jsonb, cad_bbox),
                    updated_at = NOW()
                WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
               [
-                submitData.ownerName || null,
+                cleanUnitOwnerName,
                 submitData.ownerPhone || null,
                 submitData.ownerIdCard || null,
                 legacyStatus,
                 displayCodeVal,
                 reportId,
+                unitCadUrlVal,
+                cadBboxVal,
               ]
             );
           } else {
@@ -580,7 +619,7 @@ export class SurveyBaseRepository {
     const absenceRes = await Database.query(
       `SELECT * FROM survey_absence_logs
        WHERE parcel_id = $1
-       ORDER BY recorded_at DESC LIMIT 1;`,
+       ORDER BY recorded_at DESC;`,
       [resolvedParcelId]
     );
 
@@ -592,6 +631,7 @@ export class SurveyBaseRepository {
     return {
       report,
       absenceLog: absenceRes.rows[0] || null,
+      absenceLogs: absenceRes.rows,
       parcel: parcelRes.rows[0] || null,
     };
   }
