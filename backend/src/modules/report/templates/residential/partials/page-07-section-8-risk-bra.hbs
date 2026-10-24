@@ -238,6 +238,14 @@
             {{section8.overallRisk.grade.vi}} ({{section8.overallRisk.grade.en}})
           </span> — Xác định tại giao điểm [{{section8.braMatrix.vCode}} × {{section8.braMatrix.iCode}}].<br>
         - <strong>Tác động thi công Metro:</strong> Cấp {{section8.impact.code}} ({{section8.impact.levelText.vi}} / {{section8.impact.levelText.en}}), {{#if section8.impact.distanceLabel.vi}}{{section8.impact.distanceLabel.vi}}{{else}}khoảng cách đến tim tuyến hầm Metro{{/if}} là <strong>{{section8.impact.distanceM}} m</strong>.
+        {{#if section8.impact.overrideReason}}
+          <br>- <strong>Lý do điều chỉnh cấp tác động:</strong> {{section8.impact.overrideReason}}
+        {{/if}}
+        {{#if section8.gateDecision}}
+          <br>- <strong>Quyết định giai đoạn tiếp theo (Gate Decision):</strong> <strong>{{section8.gateDecision}}</strong>{{#if section8.gateNotes}} ({{section8.gateNotes}}){{/if}}
+        {{else if section8.gateNotes}}
+          <br>- <strong>Ghi chú chuyển giai đoạn:</strong> {{section8.gateNotes}}
+        {{/if}}
       </div>
     </div>
 

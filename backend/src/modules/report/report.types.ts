@@ -73,6 +73,8 @@ export interface Section1GeneralInfo {
   gpsCoords: {
     lat: number;
     lng: number;
+    latitude: string;
+    longitude: string;
     formatted: string;
   };
   surveyDate: string;
@@ -178,6 +180,9 @@ export interface Section5TiltSettlement {
     observed: boolean;
     measured: string;
   };
+  hasLaserTilt?: boolean;
+  tiltX?: string;
+  tiltY?: string;
   basisOfDetermination: BilingualText;
   reliability: BilingualText;
   remarks: BilingualText;
@@ -324,6 +329,8 @@ export interface Section7BurlandClassification {
   structuralElements?: BurlandStructuralElementItem[];
   structuralDefectFlag?: BilingualText;
   structuralEngineerReview?: BilingualText;
+  evaluationNotes?: string;
+  engineerReviewNotes?: string;
 }
 
 export interface EcsAssessmentItem {
@@ -397,6 +404,7 @@ export interface Section8BuildingConditionAssessment {
     distanceType?: 'STATION_EDGE' | 'TUNNEL_CENTERLINE';
     distanceLabel?: BilingualText;
     basis: BilingualText;
+    overrideReason?: string;
   };
   braMatrix: {
     vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
@@ -416,6 +424,9 @@ export interface Section8BuildingConditionAssessment {
     baselineRisk: BilingualText;
     narrative: BilingualText;
   };
+  braLevel?: string;
+  gateDecision?: string;
+  gateNotes?: string;
   supplementaryPhase1?: any;
 }
 
@@ -507,6 +518,7 @@ export interface RoomOverviewPhotoItem {
   zoneCode: string;
   url: string;
   base64?: string;
+  rotation?: number;
   caption: BilingualText;
   statusBadge: {
     isNormal: boolean;
@@ -607,6 +619,7 @@ export interface Appendix3SignedRecord {
     title: BilingualText;
     url: string;
     base64?: string;
+    rotation?: number;
     metroPhotoCode?: string;
     watermarkDateTime?: string;
     alreadyWatermarked?: boolean;

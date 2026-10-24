@@ -122,7 +122,19 @@ export function mapFloorStructuralElements(
         const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật cấu kiện kết cấu';
         const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Structural element defect';
 
-        const ctxRot = d.ctxRotation ?? e.ctxRotation ?? rotMap[`${baseEKey}_ctx`] ?? rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[`${baseEKey}_ov_0`] ?? rotMap[eCode] ?? rotMap[ctxUrl] ?? 0;
+        const ctxRot =
+          d.ctxRotation ??
+          e.ctxRotation ??
+          rotMap[`${baseEKey}_ctx`] ??
+          rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ??
+          rotMap[`element_f${fIdx}_e${eCode}_ctx`] ??
+          rotMap[`floor_${fIdx}_${eCode}_ctx`] ??
+          rotMap[`element_${e.id || eCode}_ctx`] ??
+          rotMap[`elem_${e.id || eCode}_ctx`] ??
+          rotMap[`${eCode}_ctx`] ??
+          rotMap[eCode] ??
+          rotMap[ctxUrl] ??
+          0;
         const cuRot = d.cuRotation ?? rotMap[`defect_${d.id}_cu`] ?? rotMap[`defect_${d.id}_cu_0`] ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_cu`] ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_cu_0`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_cu`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_cu_0`] ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
         const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id}_cu_1`] ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_cu_1`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_cu_1`] ?? rotMap[`defect_f${fIdx}_e${eCode}_${d.id}_extra_cu`] ?? rotMap[`defect_f${fIdx}_e${eCode}_d${dCode}_extra_cu`] ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? (extraCuUrl ? rotMap[extraCuUrl] : undefined) ?? 0;
 
@@ -141,14 +153,16 @@ export function mapFloorStructuralElements(
           contextCaption: { vi: `${typeVi}-${dCode} (bối cảnh / context): Cấu kiện ${eCode} ${eRoomVi}`, en: `${typeEn}-${dCode} (context): Member ${eCode} ${eRoomEn}` },
           contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
           contextPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
-          contextDateTime: extractPhotoDateTime(ctxUrl, (e as any).ctxCapturedAt || (e as any).ctx_captured_at || (e as any).capturedAt, rawSurveyDate),
-          closeUpDateTime: extractPhotoDateTime(cuUrl, d.capturedAt || d.cuPhotoTimestamps?.[0] || (d as any).shot_at, rawSurveyDate),
+          contextPhotoRotation: Number(ctxRot) || 0,
+          contextDateTime: extractPhotoDateTime(ctxUrl, e.ctxCapturedAt || e.ctx_captured_at || e.capturedAt, rawSurveyDate),
+          closeUpDateTime: extractPhotoDateTime(cuUrl, d.capturedAt || d.cuPhotoTimestamps?.[0] || d.shot_at, rawSurveyDate),
           extraCloseUpDateTime: extractPhotoDateTime(extraCuUrl, d.cuPhotoTimestamps?.[1], rawSurveyDate),
           closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
           closeUpPhotoBase64: rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined,
           closeUpCaption: { vi: `${typeVi}-${dCode} (cận cảnh / close-up): ${dimVi}`, en: `${typeEn}-${dCode} (close-up): ${dimEn}` },
           closeUpAlreadyWatermarked: isPhotoAlreadyWatermarked(cuUrl),
           closeUpPhotoCode: cuPhotoCode,
+          closeUpPhotoRotation: Number(cuRot) || 0,
           hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
           wmaxMm: w,
           lengthM: l,
@@ -157,6 +171,7 @@ export function mapFloorStructuralElements(
           extraCloseUpCaption: extraCuUrl ? { vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`, en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm` } : undefined,
           extraCloseUpAlreadyWatermarked: isPhotoAlreadyWatermarked(extraCuUrl),
           extraCloseUpPhotoCode: extraCuPhotoCode,
+          extraCloseUpPhotoRotation: Number(extraCuRot) || 0,
           hasExtraCloseUp: Boolean(extraCuUrl),
           activityState: actState,
           activityStateDisplay: actStateDisplay,
@@ -174,7 +189,19 @@ export function mapFloorStructuralElements(
       elemConditionEn = `Structural crack - ${firstDefectCode}${maxElemW > 0 ? ` (w=${maxElemW}mm)` : ''}`;
     }
 
-    const ePhotoRot = e.photoRotation ?? rotMap[`${baseEKey}_ctx`] ?? rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[`element_${e.id || eCode}_photo`] ?? rotMap[eCode] ?? rotMap[ePhotoUrl] ?? 0;
+    const ePhotoRot =
+      e.photoRotation ??
+      rotMap[`${baseEKey}_ctx`] ??
+      rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ??
+      rotMap[`element_f${fIdx}_e${eCode}_ctx`] ??
+      rotMap[`floor_${fIdx}_${eCode}_ctx`] ??
+      rotMap[`element_${e.id || eCode}_ctx`] ??
+      rotMap[`elem_${e.id || eCode}_ctx`] ??
+      rotMap[`${eCode}_ctx`] ??
+      rotMap[`element_${e.id || eCode}_photo`] ??
+      rotMap[eCode] ??
+      rotMap[ePhotoUrl] ??
+      0;
     zoneAndElementConditions.push({
       code: eCode,
       location: { vi: eRoomVi, en: eRoomEn },
@@ -198,41 +225,20 @@ export function mapFloorStructuralElements(
       }
     }
 
-    if (Array.isArray(e.overviewPhotos)) {
-      e.overviewPhotos.forEach((item: any, idx: number) => {
-        const url = typeof item === 'string' ? item : item?.url;
-        if (!url) return;
-        const cleanUrl = url.trim();
-        const matchingDefectCode = eDefectContextMap.get(cleanUrl);
-        const isDefectPhoto = Boolean(matchingDefectCode);
-        const captionVi = isDefectPhoto
-          ? `Vị trí bối cảnh khuyết tật [${matchingDefectCode}] - Cấu kiện ${eMatVi} (${eCode})`
-          : `Ảnh tổng thể cấu kiện ${eMatVi} (${eCode}) - góc ${idx + 1}`;
-        const captionEn = isDefectPhoto
-          ? `Defect context location [${matchingDefectCode}] - Member ${eMatEn} (${eCode})`
-          : (/^structural member/i.test(eMatEn) ? `${eMatEn} (${eCode}) - angle ${idx + 1}` : `Structural member - ${eMatEn} (${eCode}) - angle ${idx + 1}`);
-        const eOvExplicitRot = rotMap[`${baseEKey}_ov_${idx}`] ?? rotMap[`elem_f${fIdx}_e${eCode}_ov_${idx}`] ?? rotMap[`${baseEKey}_ctx`] ?? rotMap[cleanUrl];
-        addPhotoIfUnique(
-          url,
-          eCode,
-          eRoomVi,
-          eRoomEn,
-          !isDefectPhoto,
-          captionVi,
-          captionEn,
-          item?.photoCode,
-          true,
-          isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Tổng thể cấu kiện', en: 'Member overview' },
-          item?.capturedAt || item?.shot_at,
-          eOvExplicitRot
-        );
-      });
-    }
     if (e.ctxPhotoUrl) {
       const cleanECtx = e.ctxPhotoUrl.trim();
       const matchingDefectCode = eDefectContextMap.get(cleanECtx) || (eDefects.length > 0 ? eDefects[0]?.defectCode || 'D-01' : undefined);
       const isDefectPhoto = Boolean(matchingDefectCode);
-      const eCtxExplicitRot = e.ctxRotation ?? rotMap[`${baseEKey}_ctx`] ?? rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_f${fIdx}_e${eCode}_ctx`] ?? rotMap[`element_${e.id || eCode}_ctx`] ?? rotMap[cleanECtx];
+      const eCtxExplicitRot =
+        e.ctxRotation ??
+        rotMap[`${baseEKey}_ctx`] ??
+        rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ??
+        rotMap[`element_f${fIdx}_e${eCode}_ctx`] ??
+        rotMap[`floor_${fIdx}_${eCode}_ctx`] ??
+        rotMap[`element_${e.id || eCode}_ctx`] ??
+        rotMap[`elem_${e.id || eCode}_ctx`] ??
+        rotMap[`${eCode}_ctx`] ??
+        rotMap[cleanECtx];
       addPhotoIfUnique(
         e.ctxPhotoUrl,
         eCode,
@@ -244,9 +250,47 @@ export function mapFloorStructuralElements(
         e.ctxPhotoCode,
         true,
         isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Cấu kiện ổn định', en: 'Stable member' },
-        (e as any).ctxCapturedAt || (e as any).capturedAt,
+        e.ctxCapturedAt || e.capturedAt,
         eCtxExplicitRot
       );
+    }
+    if (Array.isArray(e.overviewPhotos)) {
+      e.overviewPhotos.forEach((item: string | { url?: string; photoCode?: string; capturedAt?: string; shot_at?: string }, idx: number) => {
+        const url = typeof item === 'string' ? item : item?.url;
+        if (!url) return;
+        const cleanUrl = url.trim();
+        const matchingDefectCode = eDefectContextMap.get(cleanUrl);
+        const isDefectPhoto = Boolean(matchingDefectCode);
+        const captionVi = isDefectPhoto
+          ? `Vị trí bối cảnh khuyết tật [${matchingDefectCode}] - Cấu kiện ${eMatVi} (${eCode})`
+          : `Ảnh tổng thể cấu kiện ${eMatVi} (${eCode}) - góc ${idx + 1}`;
+        const captionEn = isDefectPhoto
+          ? `Defect context location [${matchingDefectCode}] - Member ${eMatEn} (${eCode})`
+          : (/^structural member/i.test(eMatEn) ? `${eMatEn} (${eCode}) - angle ${idx + 1}` : `Structural member - ${eMatEn} (${eCode}) - angle ${idx + 1}`);
+        const eOvExplicitRot =
+          rotMap[`${baseEKey}_ov_${idx}`] ??
+          rotMap[`elem_f${fIdx}_e${eCode}_ov_${idx}`] ??
+          rotMap[`element_f${fIdx}_e${eCode}_ov_${idx}`] ??
+          rotMap[`floor_${fIdx}_${eCode}_ov_${idx}`] ??
+          rotMap[`element_${e.id || eCode}_ov_${idx}`] ??
+          rotMap[`elem_${e.id || eCode}_ov_${idx}`] ??
+          rotMap[`${eCode}_ov_${idx}`] ??
+          rotMap[cleanUrl];
+        addPhotoIfUnique(
+          url,
+          eCode,
+          eRoomVi,
+          eRoomEn,
+          !isDefectPhoto,
+          captionVi,
+          captionEn,
+          typeof item === 'object' ? item?.photoCode : undefined,
+          true,
+          isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Tổng thể cấu kiện', en: 'Member overview' },
+          typeof item === 'object' ? (item?.capturedAt || item?.shot_at) : undefined,
+          eOvExplicitRot
+        );
+      });
     }
   }
 }

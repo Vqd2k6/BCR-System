@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw, RotateCw } from 'lucide-react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw, RotateCw, Undo2 } from 'lucide-react';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -12,7 +12,8 @@ import {
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
 
-import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation } from '../types';
+import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation, PhotoActionPayload } from '../types';
+import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
 interface Props {
   isEditMode: boolean;
@@ -24,6 +25,8 @@ interface Props {
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
@@ -39,6 +42,8 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
   onOpenPhotoAction,
   onOpenPhotoHistory,
   isFieldDirty,
+  stagedPhotoActions = [],
+  onUndoPhotoAction,
   stagedPhotoRotations = {},
   onRotatePhoto,
   violationsMap,
@@ -66,7 +71,20 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
       ? [{ url: formState.asBuiltDrawingPhotoUrl, photoCode: 'AS_BUILT_01', notes: 'Bản vẽ hoàn công' }]
       : [];
 
-  const catScore = formState.foundationCatScore ?? 3;
+  const addedAsBuiltPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'AS_BUILT',
+    targetPhotoType: 'AS_BUILT',
+    targetPhotoId: 'asBuiltDrawingPhotos',
+  });
+  const deletedAsBuiltCount = (stagedPhotoActions || []).filter(
+    (a) =>
+      a.action === 'DELETE' &&
+      (a.category === 'AS_BUILT' || a.targetPhotoType === 'AS_BUILT' || a.targetPhotoId === 'asBuiltDrawingPhotos')
+  ).length;
+  const effectiveAsBuiltCount = Math.max(0, asBuiltPhotos.length + addedAsBuiltPhotos.length - deletedAsBuiltCount);
+
+  const rawCatScore = Number(formState.foundationCatScore);
+  const catScore = !Number.isNaN(rawCatScore) && rawCatScore >= 1 && rawCatScore <= 5 ? rawCatScore : 5;
 
   const asBuiltBackupRef = useRef<Array<{ url: string; photoCode?: string; notes?: string }> | null>(null);
   const asBuiltFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -535,7 +553,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
             </div>
           ) : (
             <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200 space-y-3">
-              {asBuiltPhotos.length === 0 && (
+              {effectiveAsBuiltCount === 0 && (
                 <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-lg text-xs text-rose-700 font-bold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>⚠️ Bắt buộc: Đang chọn CAT {catScore} ({catScore === 1 ? 'Bản vẽ hoàn công' : 'Bản vẽ thiết kế'}) nhưng chưa có bản vẽ nào được tải lên!</span>
@@ -545,216 +563,379 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 <div className="flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-emerald-700" />
                   <span className="text-xs font-bold text-emerald-950 uppercase">
-                    Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({asBuiltPhotos.length} ảnh/tài liệu) <span className="text-red-600">*</span>
+                    Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({effectiveAsBuiltCount} ảnh/tài liệu) <span className="text-red-600">*</span>
                   </span>
                 </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-emerald-700 font-semibold">
-                  {asBuiltPhotos.length > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
-                </span>
-                {isEditMode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onOpenPhotoAction) {
-                        onOpenPhotoAction({
-                          category: 'AS_BUILT',
-                          targetPhotoType: 'AS_BUILT',
-                          targetPhotoId: 'asBuiltDrawingPhotos',
-                          photoTitle: 'Bản vẽ hoàn công / Sơ đồ kết cấu',
-                          initialMode: 'ADD',
-                        });
-                      } else {
-                        asBuiltFileInputRef.current?.click();
-                      }
-                    }}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Tải Lên Bản Vẽ</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {isEditMode && (
-              <div className="p-2.5 bg-white rounded-lg border border-emerald-300 space-y-1.5">
-                <label className="text-[11px] font-bold text-emerald-900 block">
-                  Đường dẫn (URL) bản vẽ hoàn công / sơ đồ kết cấu (tùy chọn nhập tay):
-                </label>
-                <input
-                  type="text"
-                  value={formState.asBuiltDrawingPhotoUrl || (asBuiltPhotos[0]?.url || '')}
-                  onChange={(e) => handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', e.target.value)}
-                  placeholder="https://... hoặc đường dẫn ảnh bản vẽ hoàn công"
-                  className="w-full p-1.5 text-xs border border-emerald-300 rounded font-mono"
-                />
-              </div>
-            )}
-
-            {asBuiltPhotos.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                {asBuiltPhotos.map((photo, idx) => {
-                  const dwgKey = `asBuiltDrawing_${idx}`;
-                  const dwgCode = photo.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
-                  const rot =
-                    stagedPhotoRotations[dwgKey] ??
-                    stagedPhotoRotations[dwgCode] ??
-                    stagedPhotoRotations[photo.url] ??
-                    0;
-                  const violation = violationsMap?.get(dwgKey) || violationsMap?.get(dwgCode);
-                  return (
-                    <div
-                      key={idx}
-                      id={`audit-photo-card-asbuilt-${idx}`}
-                      className={`group relative rounded-xl bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col ${
-                        violation
-                          ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
-                          : 'border border-emerald-200'
-                      }`}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-emerald-700 font-semibold">
+                    {effectiveAsBuiltCount > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
+                  </span>
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onOpenPhotoAction) {
+                          onOpenPhotoAction({
+                            category: 'AS_BUILT',
+                            targetPhotoType: 'AS_BUILT',
+                            targetPhotoId: 'asBuiltDrawingPhotos',
+                            photoTitle: 'Bản vẽ hoàn công / Sơ đồ kết cấu',
+                            initialMode: 'ADD',
+                          });
+                        } else {
+                          asBuiltFileInputRef.current?.click();
+                        }
+                      }}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
                     >
-                      <div
-                        className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
-                        onClick={() => {
-                          if (onOpenPhotoZoom && photo.url) {
-                            onOpenPhotoZoom(photo.url, `Bản vẽ hoàn công trang #${idx + 1}`, dwgCode, rot);
-                          }
-                        }}
-                      >
-                        <img
-                          src={photo.url}
-                          alt={`Bản vẽ ${idx + 1}`}
-                          style={{ transform: `rotate(${rot}deg)` }}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                        />
-                        {violation && (
-                          <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
-                            💡 Khuyến nghị xoay Dọc
-                          </div>
-                        )}
-                        {rot !== 0 && (
-                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs">
-                            {rot}°
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                          <Maximize2 className="w-5 h-5 drop-shadow-md" />
-                        </div>
-                      </div>
-                      <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-bold text-slate-800 truncate">
-                            {photo.photoCode || `Bản vẽ #${idx + 1}`}
-                          </div>
-                          {photo.notes && (
-                            <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {onRotatePhoto && (
-                            <button
-                              type="button"
-                              title={`Xoay bản vẽ 90° (Hiện tại: ${rot}°)`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onRotatePhoto(dwgKey, (rot + 90) % 360, photo.url);
-                              }}
-                              className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded cursor-pointer"
-                            >
-                              <RotateCw className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {onOpenPhotoHistory && (
-                          <button
-                            type="button"
-                            title="Lịch sử phiên bản bản vẽ"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPhotoHistory({
-                                photoCode: photo.photoCode || `AS_BUILT_${idx + 1}`,
-                                photoType: 'AS_BUILT',
-                                photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                currentPhotoUrl: photo.url,
-                              });
-                            }}
-                            className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded cursor-pointer"
-                          >
-                            <History className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        {isEditMode && (
-                          <>
-                            <button
-                              type="button"
-                              title="Thay thế bản vẽ này"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (onOpenPhotoAction && photo.url) {
-                                  onOpenPhotoAction({
-                                    category: 'AS_BUILT',
-                                    targetPhotoType: 'AS_BUILT',
-                                    targetPhotoId: 'asBuiltDrawingPhotos',
-                                    photoIndex: idx,
-                                    currentPhotoUrl: photo.url,
-                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                    initialMode: 'REPLACE',
-                                  });
-                                } else if (onOpenPhotoReplace && photo.url) {
-                                  onOpenPhotoReplace({
-                                    targetPhotoType: 'AS_BUILT',
-                                    targetPhotoId: 'asBuiltDrawingPhotos',
-                                    photoIndex: idx,
-                                    currentPhotoUrl: photo.url,
-                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                  });
-                                } else {
-                                  handleTriggerReplaceDrawing(idx);
-                                }
-                              }}
-                              className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Xóa bản vẽ này"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (onOpenPhotoAction && photo.url) {
-                                  onOpenPhotoAction({
-                                    category: 'AS_BUILT',
-                                    targetPhotoType: 'AS_BUILT',
-                                    targetPhotoId: 'asBuiltDrawingPhotos',
-                                    photoIndex: idx,
-                                    currentPhotoUrl: photo.url,
-                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                    initialMode: 'DELETE',
-                                  });
-                                } else {
-                                  handleDeleteDrawing(idx);
-                                }
-                              }}
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-                })}
-              </div>
-            ) : (
-              !isEditMode && (
-                <div className="p-4 bg-white/80 rounded-lg border border-dashed border-emerald-300 text-center text-xs text-slate-500">
-                  Không có bản vẽ hoàn công
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Tải Lên Bản Vẽ</span>
+                    </button>
+                  )}
                 </div>
-              )
-            )}
-          </div>
+              </div>
+
+              {isEditMode && (
+                <div className="p-2.5 bg-white rounded-lg border border-emerald-300 space-y-1.5">
+                  <label className="text-[11px] font-bold text-emerald-900 block">
+                    Đường dẫn (URL) bản vẽ hoàn công / sơ đồ kết cấu (tùy chọn nhập tay):
+                  </label>
+                  <input
+                    type="text"
+                    value={formState.asBuiltDrawingPhotoUrl || (asBuiltPhotos[0]?.url || '')}
+                    onChange={(e) => handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', e.target.value)}
+                    placeholder="https://... hoặc đường dẫn ảnh bản vẽ hoàn công"
+                    className="w-full p-1.5 text-xs border border-emerald-300 rounded font-mono"
+                  />
+                </div>
+              )}
+
+              {asBuiltPhotos.length > 0 || addedAsBuiltPhotos.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  {asBuiltPhotos.map((photo, idx) => {
+                    const optRes = resolveOptimisticPhoto(photo.url, stagedPhotoActions, {
+                      category: 'AS_BUILT',
+                      targetPhotoType: 'AS_BUILT',
+                      targetPhotoId: 'asBuiltDrawingPhotos',
+                      photoIndex: idx,
+                      url: photo.url,
+                    });
+                    const isDeleted = optRes.status === 'DELETED';
+                    const isReplaced = optRes.status === 'REPLACED';
+                    const effectiveUrl = optRes.displayUrl;
+
+                    const dwgKey = `asBuiltDrawing_${idx}`;
+                    const dwgCode = photo.photoCode || `CAT-DWG-${String(idx + 1).padStart(2, '0')}`;
+                    const rot =
+                      stagedPhotoRotations[dwgKey] ??
+                      stagedPhotoRotations[dwgCode] ??
+                      0;
+                    const violation = violationsMap?.get(dwgKey) || violationsMap?.get(dwgCode);
+
+                    if (isDeleted) {
+                      return (
+                        <div
+                          key={idx}
+                          id={`audit-photo-card-asbuilt-${idx}`}
+                          className="rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 aspect-3/4 shadow-2xs"
+                        >
+                          <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-rose-200 text-rose-800">
+                            {dwgCode}
+                          </span>
+                          <span className="text-[11px] font-bold text-rose-700">
+                            Đã xóa bản vẽ #{idx + 1} • Chờ lưu
+                          </span>
+                          {onUndoPhotoAction && optRes.stagedAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUndoPhotoAction(optRes.stagedAction!);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-lg text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Undo2 className="w-3 h-3 text-rose-600" />
+                              <span>Hoàn tác</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={idx}
+                        id={`audit-photo-card-asbuilt-${idx}`}
+                        className={`group relative rounded-xl bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col ${
+                          isReplaced
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+                            : violation
+                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
+                            : 'border border-emerald-200'
+                        }`}
+                      >
+                        <div
+                          className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                          onClick={() => {
+                            if (onOpenPhotoZoom && effectiveUrl) {
+                              onOpenPhotoZoom(
+                                effectiveUrl,
+                                isReplaced ? `Bản vẽ hoàn công trang #${idx + 1} (Chờ lưu Diff)` : `Bản vẽ hoàn công trang #${idx + 1}`,
+                                dwgKey,
+                                rot
+                              );
+                            }
+                          }}
+                        >
+                          <img
+                            src={effectiveUrl}
+                            alt={`Bản vẽ ${idx + 1}`}
+                            style={{ transform: `rotate(${rot}deg)` }}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                          />
+                          {violation && !isReplaced && (
+                            <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
+                              💡 Khuyến nghị xoay Dọc
+                            </div>
+                          )}
+                          {isReplaced && (
+                            <div className="absolute top-2 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
+                              <span>⚡ Chờ lưu</span>
+                              {onUndoPhotoAction && optRes.stagedAction && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onUndoPhotoAction(optRes.stagedAction!);
+                                  }}
+                                  className="underline cursor-pointer hover:text-amber-100 flex items-center gap-0.5"
+                                  title="Hoàn tác"
+                                >
+                                  <Undo2 className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {rot !== 0 && (
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs">
+                              {rot}°
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <Maximize2 className="w-5 h-5 drop-shadow-md" />
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold text-slate-800 truncate">
+                              {photo.photoCode || `Bản vẽ #${idx + 1}`}
+                            </div>
+                            {photo.notes && (
+                              <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {onRotatePhoto && (
+                              <button
+                                type="button"
+                                title={`Xoay bản vẽ 90° (Hiện tại: ${rot}°)`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRotatePhoto(dwgKey, (rot + 90) % 360, effectiveUrl);
+                                }}
+                                className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded cursor-pointer"
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onOpenPhotoHistory && (
+                              <button
+                                type="button"
+                                title="Lịch sử phiên bản bản vẽ"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenPhotoHistory({
+                                    photoCode: photo.photoCode || `AS_BUILT_${idx + 1}`,
+                                    photoType: 'AS_BUILT',
+                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                    currentPhotoUrl: effectiveUrl,
+                                  });
+                                }}
+                                className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded cursor-pointer"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {isEditMode && (
+                              <>
+                                <button
+                                  type="button"
+                                  title="Thay thế bản vẽ này"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenPhotoAction && effectiveUrl) {
+                                      onOpenPhotoAction({
+                                        category: 'AS_BUILT',
+                                        targetPhotoType: 'AS_BUILT',
+                                        targetPhotoId: 'asBuiltDrawingPhotos',
+                                        photoIndex: idx,
+                                        currentPhotoUrl: effectiveUrl,
+                                        photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                        initialMode: 'REPLACE',
+                                      });
+                                    } else if (onOpenPhotoReplace && effectiveUrl) {
+                                      onOpenPhotoReplace({
+                                        targetPhotoType: 'AS_BUILT',
+                                        targetPhotoId: 'asBuiltDrawingPhotos',
+                                        photoIndex: idx,
+                                        currentPhotoUrl: effectiveUrl,
+                                        photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                      });
+                                    } else {
+                                      handleTriggerReplaceDrawing(idx);
+                                    }
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Xóa bản vẽ này"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenPhotoAction && effectiveUrl) {
+                                      onOpenPhotoAction({
+                                        category: 'AS_BUILT',
+                                        targetPhotoType: 'AS_BUILT',
+                                        targetPhotoId: 'asBuiltDrawingPhotos',
+                                        photoIndex: idx,
+                                        currentPhotoUrl: effectiveUrl,
+                                        photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                        initialMode: 'DELETE',
+                                      });
+                                    } else {
+                                      handleDeleteDrawing(idx);
+                                    }
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Các bản vẽ mới tải lên trong phiên (Optimistic ADD) */}
+                  {addedAsBuiltPhotos.map((added, addIdx) => {
+                    const addKey = `asBuiltDrawing_added_${addIdx}`;
+                    const addRot = stagedPhotoRotations[addKey] ?? 0;
+                    const displayIdx = asBuiltPhotos.length + addIdx + 1;
+                    return (
+                      <div
+                        key={`added-asbuilt-${addIdx}`}
+                        id={`audit-photo-card-asbuilt-added-${addIdx}`}
+                        className="group relative rounded-xl bg-white overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md flex flex-col"
+                      >
+                        <div
+                          className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                          onClick={() => {
+                            if (onOpenPhotoZoom && added.url) {
+                              onOpenPhotoZoom(
+                                added.url,
+                                `Bản vẽ hoàn công mới thêm #${displayIdx} (Chờ lưu Diff)`,
+                                addKey,
+                                addRot
+                              );
+                            }
+                          }}
+                        >
+                          <img
+                            src={added.url}
+                            alt={`Bản vẽ mới ${displayIdx}`}
+                            style={{ transform: `rotate(${addRot}deg)` }}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
+                            <span>⚡ Mới thêm • Chờ lưu</span>
+                            {onUndoPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUndoPhotoAction(added.action);
+                                }}
+                                className="underline cursor-pointer hover:text-emerald-100 flex items-center gap-0.5 ml-1"
+                                title="Hoàn tác"
+                              >
+                                <Undo2 className="w-2.5 h-2.5" /> Hoàn tác
+                              </button>
+                            )}
+                          </div>
+                          {addRot !== 0 && (
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs">
+                              {addRot}°
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <Maximize2 className="w-5 h-5 drop-shadow-md" />
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold text-emerald-800 truncate">
+                              Bản vẽ mới #{displayIdx}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              {added.action.reason || 'Mới tải lên'}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {onRotatePhoto && (
+                              <button
+                                type="button"
+                                title={`Xoay bản vẽ 90° (Hiện tại: ${addRot}°)`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRotatePhoto(addKey, (addRot + 90) % 360, added.url);
+                                }}
+                                className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded cursor-pointer"
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onUndoPhotoAction && (
+                              <button
+                                type="button"
+                                title="Hủy bản vẽ mới thêm này"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUndoPhotoAction(added.action);
+                                }}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !isEditMode && (
+                  <div className="p-4 bg-white/80 rounded-lg border border-dashed border-emerald-300 text-center text-xs text-slate-500">
+                    Không có bản vẽ hoàn công
+                  </div>
+                )
+              )}
+            </div>
           )}
         </div>
 

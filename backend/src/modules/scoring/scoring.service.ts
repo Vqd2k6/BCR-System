@@ -1,5 +1,5 @@
 import { Database } from '../../database/db';
-import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { calculateVi } from './vi-calculator';
 
 /** Các trường của survey_data_json mà bộ chấm điểm ECS & VI cần đọc (Đồng bộ 100% FE Phase 1) */
@@ -33,9 +33,11 @@ interface ScoringSurveyJson {
     renovationLoad?: number;
     majorRepair?: number;
     pastSettlement?: number;
+    neighborImpact?: number;
     neighborDamage?: number;
+    fireFloodHistory?: number;
     fireFloodIncident?: number;
-    continuousOperation247?: boolean;
+    continuousOperation247?: boolean | { has?: boolean; notes?: string } | null;
     sensitiveEquipment?: { has?: boolean };
   };
   floors?: Array<{
@@ -268,10 +270,12 @@ export class ScoringService {
       [reportId]
     );
     const sqlBurlandMax = Number(e1Res.rows[0]?.max_burland || 0);
-    const summaryBurlandMax =
-      surveyJson?.burlandSummary?.localMaxGrade !== undefined && surveyJson?.burlandSummary?.localMaxGrade !== null
-        ? Number(surveyJson.burlandSummary.localMaxGrade) || 0
-        : 0;
+    const hasExplicitSummaryBurland =
+      surveyJson?.burlandSummary?.localMaxGrade !== undefined &&
+      surveyJson?.burlandSummary?.localMaxGrade !== null;
+    const summaryBurlandMax = hasExplicitSummaryBurland
+      ? Number(surveyJson!.burlandSummary!.localMaxGrade) || 0
+      : 0;
 
     // 2. Lấy E2 & E4 (Max từ các ghim khuyết tật D-xx + Cờ kết cấu Bước 4)
     const e2e4Res = await Database.query<{
@@ -296,7 +300,13 @@ export class ScoringService {
     const totalDefectsCount = Math.max(jsonTotalDefectsCount, sqlDefectCount);
     const isZeroDefects = totalDefectsCount === 0 && summaryBurlandMax === 0;
 
-    const burlandMax = isZeroDefects ? 0 : Math.max(summaryBurlandMax, jsonCrackBurlandMax, sqlBurlandMax);
+    // M5-03: Nếu burlandSummary.localMaxGrade được khai báo tường minh trong survey_data_json (do người thẩm định hạ/nâng cấp ở Mục 05),
+    // ưu tiên dùng summaryBurlandMax trực tiếp thay vì lấy Math.max đè lại
+    const burlandMax = isZeroDefects
+      ? 0
+      : hasExplicitSummaryBurland
+        ? summaryBurlandMax
+        : Math.max(summaryBurlandMax, jsonCrackBurlandMax, sqlBurlandMax);
     let e1 = 0;
     if (burlandMax <= 1) e1 = 0;
     else if (burlandMax === 2) e1 = 1;
@@ -348,8 +358,8 @@ export class ScoringService {
         Number(hi.renovationLoad) || 0,
         Number(hi.majorRepair) || 0,
         Number(hi.pastSettlement) || 0,
-        Number(hi.neighborDamage) || 0,
-        Number(hi.fireFloodIncident) || 0,
+        Number(hi.neighborImpact ?? hi.neighborDamage) || 0,
+        Number(hi.fireFloodHistory ?? hi.fireFloodIncident) || 0,
       ];
       const maxHiScore = Math.max(...hiScores);
       const countHigh = hiScores.filter((s) => s > 2).length;
@@ -418,7 +428,7 @@ export class ScoringService {
       foundationCatScore: catRaw !== null && Number.isFinite(catRaw) ? catRaw : null,
       constructionYear: yearRaw !== null && Number.isFinite(yearRaw) ? yearRaw : null,
       renovationLoad: surveyJson?.historyInterview?.renovationLoad ?? 0,
-      continuousOperation247: surveyJson?.historyInterview?.continuousOperation247 === true,
+      continuousOperation247: surveyJson?.historyInterview?.continuousOperation247 ?? null,
       hasSensitiveEquipment: surveyJson?.historyInterview?.sensitiveEquipment?.has === true,
       ecsClass,
     });
@@ -563,9 +573,6 @@ export class ScoringService {
   /**
    * Quyền can thiệp kỹ sư (Engineering Judgement) kèm Khóa an toàn (Safety Lock)
    */
-  /**
-   * Quyền can thiệp kỹ sư (Engineering Judgement) kèm Khóa an toàn (Safety Lock)
-   */
   static async applyEngineeringJudgement(
     reportId: string,
     action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE',
@@ -582,6 +589,40 @@ export class ScoringService {
       bra?: string;
     }
   ) {
+    // 0. Kiểm tra trạng thái khóa bất biến (APPROVED) của hồ sơ
+    const repStatusRes = await Database.query<{
+      status: string;
+      survey_data_json: Record<string, unknown> | string | null;
+    }>(`SELECT status, survey_data_json FROM base_survey_reports WHERE id = $1 LIMIT 1;`, [reportId]);
+    if (!repStatusRes.rows[0]) {
+      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát: ${reportId}`);
+    }
+    const repRow = repStatusRes.rows[0];
+    if (repRow.status === 'APPROVED' || repRow.status === 'APPROVED_PHASE2') {
+      throw new ForbiddenError(
+        'Hồ sơ khảo sát đã được phê duyệt chính thức (APPROVED) và bị khóa bất biến, không thể thực hiện ghi đè điểm.'
+      );
+    }
+
+    // 0.1. Đảm bảo đã có bản lưu v0 (ORIGINAL_SUBMISSION) trước khi áp dụng phán quyết
+    try {
+      const verCntRes = await Database.query<{ cnt: string }>(
+        `SELECT COUNT(*)::text AS cnt FROM survey_report_versions WHERE report_id = $1;`,
+        [reportId]
+      );
+      if (Number(verCntRes.rows[0]?.cnt || 0) === 0) {
+        const { AuditVersionService } = await import('../audit/services/audit-version.service');
+        await AuditVersionService.createSnapshot(reportId, {
+          versionNumber: 0,
+          versionTag: 'ORIGINAL_SUBMISSION',
+          title: 'Bản nộp gốc từ Khảo sát viên hiện trường',
+          editReason: 'Khởi tạo tự động trước khi áp dụng Phán quyết Kỹ sư trưởng',
+        });
+      }
+    } catch (seedErr) {
+      console.error('[applyEngineeringJudgement] Không thể khởi tạo snapshot v0:', seedErr);
+    }
+
     let cardRes = await Database.query<{
       e1_burland_score: number;
       e2_structure_score: number;
@@ -591,6 +632,8 @@ export class ScoringService {
       v1_importance_score: number;
       avg_vi_score: number;
       vi_class: string;
+      impact_level_i: number | null;
+      overridden_impact_level_i: number | null;
     }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
 
     if (!cardRes.rows[0]) {
@@ -605,6 +648,8 @@ export class ScoringService {
         v1_importance_score: number;
         avg_vi_score: number;
         vi_class: string;
+        impact_level_i: number | null;
+        overridden_impact_level_i: number | null;
       }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
     }
 
@@ -628,7 +673,37 @@ export class ScoringService {
       );
     }
 
+    // Đọc survey_data_json hiện tại để đồng bộ ecs.overrideReason, vi.overrideReason và braStatus (không đụng tới engineering_recommendations của Mục 08)
+    let currentJson: Record<string, unknown> = {};
+    if (repRow.survey_data_json) {
+      try {
+        currentJson =
+          typeof repRow.survey_data_json === 'string'
+            ? (JSON.parse(repRow.survey_data_json) as Record<string, unknown>)
+            : { ...repRow.survey_data_json };
+      } catch (parseErr) {
+        console.error('[applyEngineeringJudgement] Lỗi parse survey_data_json:', parseErr);
+      }
+    }
+
+    const computeBraFromViAndI = (vCls: string, iNum: number): string => {
+      const normV = String(vCls || 'LOW').toUpperCase();
+      const clampedI = Math.max(1, Math.min(4, Math.round(iNum || 1)));
+      const matrix: Record<string, Record<number, string>> = {
+        LOW: { 1: 'NEGLIGIBLE', 2: 'LOW', 3: 'MEDIUM', 4: 'HIGH' },
+        MEDIUM: { 1: 'LOW', 2: 'LOW', 3: 'MEDIUM', 4: 'HIGH' },
+        HIGH: { 1: 'LOW', 2: 'MEDIUM', 3: 'HIGH', 4: 'VERY_HIGH' },
+        VERY_HIGH: { 1: 'MEDIUM', 2: 'HIGH', 3: 'VERY_HIGH', 4: 'VERY_HIGH' },
+      };
+      return matrix[normV]?.[clampedI] || 'LOW';
+    };
+
     if (action === 'KEEP') {
+      const autoBra = computeBraFromViAndI(
+        card.vi_class || 'LOW',
+        Number(card.impact_level_i || 1)
+      );
+
       await Database.query(
         `UPDATE risk_score_cards
          SET is_engineering_judgement_applied = FALSE,
@@ -643,9 +718,54 @@ export class ScoringService {
              overridden_avg_vi = NULL,
              overridden_vi_class = NULL,
              overridden_impact_level_i = NULL,
-             overridden_bra = NULL
+             overridden_bra = NULL,
+             preliminary_bra_classification = $4
          WHERE report_id = $1;`,
-        [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin']
+        [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin', autoBra]
+      );
+
+      const curEcsObj = (currentJson.ecs && typeof currentJson.ecs === 'object' ? currentJson.ecs : {}) as Record<string, unknown>;
+      const curViObj = (currentJson.vi && typeof currentJson.vi === 'object' ? currentJson.vi : {}) as Record<string, unknown>;
+      const curExecObj = (currentJson.executiveSummary && typeof currentJson.executiveSummary === 'object' ? currentJson.executiveSummary : {}) as Record<string, unknown>;
+
+      const nextJsonKeep: Record<string, unknown> = {
+        ...currentJson,
+        ecs: {
+          ...curEcsObj,
+          isOverrideLocked: false,
+          overrideReason: reason,
+          engineeringJudgement: {
+            isOverridden: false,
+            action: 'KEEP',
+            reason,
+            adjustedScore: null,
+            adjustedClass: null,
+          },
+        },
+        vi: {
+          ...curViObj,
+          isOverrideLocked: false,
+          overrideReason: reason,
+          engineeringJudgement: {
+            isOverridden: false,
+            action: 'KEEP',
+            reason,
+            adjustedScore: null,
+            adjustedClass: null,
+          },
+        },
+        executiveSummary: {
+          ...curExecObj,
+          braStatus: autoBra,
+        },
+      };
+
+      await Database.query(
+        `UPDATE base_survey_reports
+         SET survey_data_json = $2::jsonb,
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [reportId, JSON.stringify(nextJsonKeep)]
       );
 
       try {
@@ -685,6 +805,13 @@ export class ScoringService {
       else viClass = 'LOW';
     }
 
+    const effectiveViClass = viClass || card.vi_class || 'LOW';
+    const effectiveImpactLevel =
+      overrides?.impactLevelI !== undefined
+        ? overrides.impactLevelI
+        : Number(card.overridden_impact_level_i ?? card.impact_level_i ?? 1);
+    const recomputedBra = overrides?.bra || computeBraFromViAndI(effectiveViClass, effectiveImpactLevel);
+
     await Database.query(
       `UPDATE risk_score_cards
        SET is_engineering_judgement_applied = TRUE,
@@ -699,7 +826,8 @@ export class ScoringService {
            overridden_avg_vi = $9,
            overridden_vi_class = $10,
            overridden_impact_level_i = $11,
-           overridden_bra = $12
+           overridden_bra = $12,
+           preliminary_bra_classification = $13
        WHERE report_id = $1;`,
       [
         reportId,
@@ -714,15 +842,63 @@ export class ScoringService {
         viClass || null,
         overrides?.impactLevelI !== undefined ? overrides.impactLevelI : null,
         overrides?.bra || null,
+        recomputedBra,
       ]
     );
 
-    // Chỉ cập nhật updated_at của base_survey_reports (tuyệt đối không ghi đè làm mất engineering_recommendations của KSV ở Bước 7)
+    const curEcsObj = (currentJson.ecs && typeof currentJson.ecs === 'object' ? currentJson.ecs : {}) as Record<string, unknown>;
+    const curViObj = (currentJson.vi && typeof currentJson.vi === 'object' ? currentJson.vi : {}) as Record<string, unknown>;
+    const curExecObj = (currentJson.executiveSummary && typeof currentJson.executiveSummary === 'object' ? currentJson.executiveSummary : {}) as Record<string, unknown>;
+
+    const nextJsonOverride: Record<string, unknown> = {
+      ...currentJson,
+      ecs: {
+        ...curEcsObj,
+        ...(overrides?.totalEcs !== undefined ? { totalEcs: overrides.totalEcs } : {}),
+        ...(ecsClass ? { ecsClass } : {}),
+        isOverrideLocked: true,
+        overrideReason: reason,
+        engineeringJudgement: {
+          isOverridden: true,
+          action,
+          reason,
+          adjustedScore: overrides?.totalEcs ?? null,
+          adjustedClass: ecsClass ?? null,
+        },
+      },
+      vi: {
+        ...curViObj,
+        ...(overrides?.avgVi !== undefined
+          ? {
+              viAvg: overrides.avgVi,
+              avgVi: overrides.avgVi,
+              totalVi: Math.round(overrides.avgVi * 6),
+            }
+          : {}),
+        ...(viClass ? { viClass } : {}),
+        isOverrideLocked: overrides?.avgVi !== undefined || Boolean(viClass),
+        overrideReason: reason,
+        engineeringJudgement: {
+          isOverridden: overrides?.avgVi !== undefined || Boolean(viClass),
+          action,
+          reason,
+          adjustedScore: overrides?.avgVi ?? null,
+          adjustedClass: viClass ?? null,
+        },
+      },
+      executiveSummary: {
+        ...curExecObj,
+        braStatus: recomputedBra,
+      },
+    };
+
+    // Cập nhật survey_data_json & updated_at của base_survey_reports (tuyệt đối không ghi đè làm mất engineering_recommendations của Mục 08)
     await Database.query(
       `UPDATE base_survey_reports
-       SET updated_at = NOW()
+       SET survey_data_json = $2::jsonb,
+           updated_at = NOW()
        WHERE id = $1;`,
-      [reportId]
+      [reportId, JSON.stringify(nextJsonOverride)]
     );
 
     const updatedCardRes = await Database.query(

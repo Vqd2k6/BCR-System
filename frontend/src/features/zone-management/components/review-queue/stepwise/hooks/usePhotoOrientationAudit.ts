@@ -108,17 +108,16 @@ export function usePhotoOrientationAudit(
   // State lưu kích thước ảnh đã đo được
   const [measuredDimensions, setMeasuredDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
-  // Cập nhật góc xoay cho 1 ảnh cụ thể (Thẩm định viên chủ động xoay)
-  const setPhotoRotation = useCallback((photoKey: string, rotationDeg: number, photoUrl?: string) => {
+  // Cập nhật góc xoay cho 1 ảnh cụ thể (Thẩm định viên chủ động xoay) - Chỉ lưu theo photoKey độc lập
+  const setPhotoRotation = useCallback((photoKey: string, rotationDeg: number, _photoUrl?: string) => {
     const norm = normalizeRotationAngle(rotationDeg);
     setStagedPhotoRotations((prev) => ({
       ...prev,
       [photoKey]: norm,
-      ...(photoUrl ? { [photoUrl]: norm } : {}),
     }));
   }, []);
 
-  // Lấy góc xoay hiện tại của 1 ảnh (hỗ trợ đọc theo photoKey, aliases và photoUrl)
+  // Lấy góc xoay hiện tại của 1 ảnh (hỗ trợ đọc theo photoKey, aliases độc lập)
   const getPhotoRotation = useCallback(
     (photoKey: string, photoUrl?: string, aliases?: string[]): number => {
       if (photoKey in stagedPhotoRotations) {
@@ -131,7 +130,8 @@ export function usePhotoOrientationAudit(
           }
         }
       }
-      if (photoUrl && photoUrl in stagedPhotoRotations) {
+      const isIndexedMultiPhoto = /_\d+$/.test(photoKey);
+      if (!isIndexedMultiPhoto && photoUrl && photoUrl in stagedPhotoRotations) {
         return stagedPhotoRotations[photoUrl];
       }
       const existingRotations = (surveyJson.photoRotations || {}) as Record<string, number>;
@@ -145,7 +145,7 @@ export function usePhotoOrientationAudit(
           }
         }
       }
-      if (photoUrl && photoUrl in existingRotations) {
+      if (!isIndexedMultiPhoto && photoUrl && photoUrl in existingRotations) {
         return existingRotations[photoUrl];
       }
       return 0;
@@ -382,7 +382,7 @@ export function usePhotoOrientationAudit(
       const tpInfo = getPhotoInfo(tp);
       const tpUrl = resolveUrlWithStagedActions(tpInfo.url, 'settlementTilt.buildingTilt.photos', pIdx);
       if (tpUrl && !tpInfo.isDeleted) {
-        const key = tiltPhotos.length > 1 ? `buildingTilt_${pIdx}` : 'buildingTilt';
+        const key = `buildingTilt_${pIdx}`;
         const code = tpInfo.code || (tiltPhotos.length > 1 ? `TILT_${pIdx + 1}` : 'P-05');
         addCandidate({
           key,
@@ -393,7 +393,7 @@ export function usePhotoOrientationAudit(
           stepId: 'step-2',
           domElementId: `audit-photo-card-building-tilt-${pIdx}`,
           photoIndex: pIdx,
-          aliases: [`buildingTilt_${pIdx}`, 'buildingTilt', code, 'P-05', `TILT_0${pIdx + 1}`],
+          aliases: [`buildingTilt_${pIdx}`, `TILT_${pIdx + 1}`, `TILT_0${pIdx + 1}`],
         });
       }
     });
@@ -409,7 +409,7 @@ export function usePhotoOrientationAudit(
       const spInfo = getPhotoInfo(sp);
       const spUrl = resolveUrlWithStagedActions(spInfo.url, 'settlementTilt.beamSagging.photos', pIdx);
       if (spUrl && !spInfo.isDeleted) {
-        const key = sagPhotos.length > 1 ? `beamSagging_${pIdx}` : 'beamSagging';
+        const key = `beamSagging_${pIdx}`;
         const code = spInfo.code || (sagPhotos.length > 1 ? `SAG_${pIdx + 1}` : 'SAG_01');
         addCandidate({
           key,
@@ -420,7 +420,7 @@ export function usePhotoOrientationAudit(
           stepId: 'step-2',
           domElementId: `audit-photo-card-beam-sagging-${pIdx}`,
           photoIndex: pIdx,
-          aliases: [`beamSagging_${pIdx}`, 'beamSagging', code, `SAG_0${pIdx + 1}`],
+          aliases: [`beamSagging_${pIdx}`, `SAG_${pIdx + 1}`, `SAG_0${pIdx + 1}`],
         });
       }
     });
@@ -436,7 +436,7 @@ export function usePhotoOrientationAudit(
       const sepInfo = getPhotoInfo(sep);
       const sepUrl = resolveUrlWithStagedActions(sepInfo.url, 'settlementTilt.diffSettlement.photos', pIdx);
       if (sepUrl && !sepInfo.isDeleted) {
-        const key = settlePhotos.length > 1 ? `diffSettlement_${pIdx}` : 'diffSettlement';
+        const key = `diffSettlement_${pIdx}`;
         const code = sepInfo.code || (settlePhotos.length > 1 ? `SETTLE_${pIdx + 1}` : 'P-06');
         addCandidate({
           key,
@@ -447,7 +447,7 @@ export function usePhotoOrientationAudit(
           stepId: 'step-2',
           domElementId: `audit-photo-card-diff-settlement-${pIdx}`,
           photoIndex: pIdx,
-          aliases: [`diffSettlement_${pIdx}`, 'diffSettlement', code, 'P-06', `SETTLE_0${pIdx + 1}`],
+          aliases: [`diffSettlement_${pIdx}`, `SETTLE_${pIdx + 1}`, `SETTLE_0${pIdx + 1}`],
         });
       }
     });
@@ -463,7 +463,7 @@ export function usePhotoOrientationAudit(
       const abpInfo = getPhotoInfo(abp);
       const abpUrl = resolveUrlWithStagedActions(abpInfo.url, 'settlementTilt.abnormalCase.photos', pIdx);
       if (abpUrl && !abpInfo.isDeleted) {
-        const key = abnormalPhotos.length > 1 ? `abnormalCase_${pIdx}` : 'abnormalCase';
+        const key = `abnormal_${pIdx}`;
         const code = abpInfo.code || (abnormalPhotos.length > 1 ? `ANOMALY_${pIdx + 1}` : 'P-07');
         addCandidate({
           key,
@@ -474,7 +474,7 @@ export function usePhotoOrientationAudit(
           stepId: 'step-2',
           domElementId: `audit-photo-card-abnormal-${pIdx}`,
           photoIndex: pIdx,
-          aliases: [`abnormalCase_${pIdx}`, 'abnormalCase', code, 'P-07', `ANOMALY_0${pIdx + 1}`],
+          aliases: [`abnormal_${pIdx}`, `abnormalCase_${pIdx}`, `ANOMALY_${pIdx + 1}`, `ANOMALY_0${pIdx + 1}`],
         });
       }
     });
@@ -640,11 +640,11 @@ export function usePhotoOrientationAudit(
                   const defectKey =
                     dId && isDefectUuid
                       ? dId.startsWith('defect_')
-                        ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                        : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                        ? `${dId}_cu_${cuIdx}`
+                        : `defect_${dId}_cu_${cuIdx}`
                       : dId
-                        ? `defect_f${fIdx}_z${zCode}_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                        : `defect_f${fIdx}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                        ? `defect_f${fIdx}_z${zCode}_${dId}_cu_${cuIdx}`
+                        : `defect_f${fIdx}_z${zCode}_d${dCode}_cu_${cuIdx}`;
                   const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
 
                   addCandidate({
@@ -660,7 +660,8 @@ export function usePhotoOrientationAudit(
                     defectCode: dCode,
                     photoIndex: cuIdx,
                     aliases: [
-                      `defect_f${fIdx}_z${zCode}_d${dCode}_cu`,
+                      `defect_f${fIdx}_z${zCode}_d${dCode}_cu_${cuIdx}`,
+                      !hasMultiCu ? `defect_f${fIdx}_z${zCode}_d${dCode}_cu` : '',
                       cuIdx === 1 ? `defect_f${fIdx}_z${zCode}_d${dCode}_extra_cu` : '',
                       cuIdx === 1 && dId ? `defect_${dId}_extra_cu` : '',
                     ].filter(Boolean),
@@ -756,11 +757,11 @@ export function usePhotoOrientationAudit(
                   const defectKey =
                     dId && isDefectUuid
                       ? dId.startsWith('defect_')
-                        ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                        : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
+                        ? `${dId}_cu_${cuIdx}`
+                        : `defect_${dId}_cu_${cuIdx}`
                       : dId
-                        ? `defect_f${fIdx}_e${eCode}_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                        : `defect_f${fIdx}_e${eCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
+                        ? `defect_f${fIdx}_e${eCode}_${dId}_cu_${cuIdx}`
+                        : `defect_f${fIdx}_e${eCode}_d${dCode}_cu_${cuIdx}`;
                   const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
 
                   addCandidate({
@@ -776,8 +777,9 @@ export function usePhotoOrientationAudit(
                     defectCode: dCode,
                     photoIndex: cuIdx,
                     aliases: [
-                      `defect_f${fIdx}_e${eCode}_d${dCode}_cu`,
-                      `defect_f${fIdx}_z${eCode}_d${dCode}_cu`,
+                      `defect_f${fIdx}_e${eCode}_d${dCode}_cu_${cuIdx}`,
+                      `defect_f${fIdx}_z${eCode}_d${dCode}_cu_${cuIdx}`,
+                      !hasMultiCu ? `defect_f${fIdx}_e${eCode}_d${dCode}_cu` : '',
                       cuIdx === 1 ? `defect_f${fIdx}_z${eCode}_d${dCode}_extra_cu` : '',
                     ].filter(Boolean),
                   });

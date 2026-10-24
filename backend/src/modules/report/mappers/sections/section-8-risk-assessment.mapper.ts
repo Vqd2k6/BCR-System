@@ -23,6 +23,23 @@ function pickNum(...candidates: unknown[]): number | null {
   return null;
 }
 
+function pickMeters(...candidates: unknown[]): number | null {
+  for (const c of candidates) {
+    if (c === undefined || c === null || c === '') continue;
+    if (typeof c === 'number' && Number.isFinite(c) && c >= 0) return c;
+    const str = String(c).trim();
+    if (!str) continue;
+    const direct = Number(str);
+    if (Number.isFinite(direct) && direct >= 0) return direct;
+    const m = str.match(/-?\d+(?:[.,]\d+)?/);
+    if (m) {
+      const parsed = Number(m[0].replace(',', '.'));
+      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+    }
+  }
+  return null;
+}
+
 export class Section8RiskAssessmentMapper {
   public static map(
     rawReport: any,
@@ -87,10 +104,12 @@ export class Section8RiskAssessmentMapper {
     const v5 = pickNum(viData.v5, rScores?.v5_ecs_score, rScores?.v5_condition_score);
     const v6 = pickNum(viData.v6, rScores?.v6_sensitivity_score, rScores?.v6_environment_score);
 
-    const totalVi = pickNum(viData.totalVi, rScores?.total_vi_score);
+    const allViScored = [v1, v2, v3, v4, v5, v6].every((v): v is number => v !== null);
+    const computedViSum = allViScored ? (Number(v1) + Number(v2) + Number(v3) + Number(v4) + Number(v5) + Number(v6)) : null;
+    const totalVi = pickNum(viData.totalVi, viData.totalScore, viData.total, rScores?.total_vi_score) ?? computedViSum;
     const rawSavedViAvg = (rScores?.is_engineering_judgement_applied && pickNum(rScores?.overridden_avg_vi) !== null)
       ? Number(rScores.overridden_avg_vi)
-      : pickNum(viData.viAvg, viData.avgVi, rScores?.avg_vi_score);
+      : (pickNum(viData.viAvg, viData.avgVi, rScores?.avg_vi_score) ?? (totalVi !== null ? totalVi / 6 : null));
     const viAvg = rawSavedViAvg !== null ? parseFloat(rawSavedViAvg.toFixed(2)) : null;
 
     const frozenViClass = String(
@@ -119,25 +138,45 @@ export class Section8RiskAssessmentMapper {
 
     // 3. ĐỌC 1:1 CẤP TÁC ĐỘNG THI CÔNG (IMPACT: I1–I4) — ZERO CALCULATE
     const frozenImpact = json.impactAssessment || {};
-    const edgeDist = pickNum(json.stationEdgeDistance, json.clearanceOffsetDistance, json.distanceToTunnelEdgeM, specs.clearanceOffsetDistance);
-    const centerDist = pickNum(json.manualMetroDistanceM, json.distanceToMetroM, json.metroOffsetDistance, specs.metroOffsetDistance, rawReport.distance_to_centerline_m);
+    const edgeDist = pickMeters(json.stationEdgeDistance, json.clearanceOffsetDistance, json.distanceToTunnelEdgeM, specs.clearanceOffsetDistance);
+    const centerDist = pickMeters(json.manualMetroDistanceM, json.distanceToMetroM, json.metroOffsetDistance, specs.metroOffsetDistance, rawReport.distance_to_centerline_m);
     const hasStationEdge = frozenImpact.distanceType ? frozenImpact.distanceType === 'STATION_EDGE' : edgeDist !== null;
     const distanceType: 'STATION_EDGE' | 'TUNNEL_CENTERLINE' = hasStationEdge ? 'STATION_EDGE' : 'TUNNEL_CENTERLINE';
-    const metroOffset: number | string = pickNum(frozenImpact.distanceM) ?? (hasStationEdge && edgeDist !== null ? edgeDist : (centerDist !== null ? centerDist : '--'));
+    const metroOffset: number | string = pickMeters(frozenImpact.distanceM) ?? (hasStationEdge && edgeDist !== null ? edgeDist : (centerDist !== null ? centerDist : '--'));
 
     const distanceLabel: BilingualText = hasStationEdge
       ? { vi: 'khoảng cách đến biên công trình ga ngầm Metro', en: 'offset to Metro underground station boundary' }
       : { vi: 'khoảng cách đến tim tuyến hầm Metro', en: 'offset to Metro tunnel centerline' };
 
+    const isHighImportanceGroup =
+      objGroup.includes('IMPORTANT') ||
+      objGroup.includes('CRITICAL') ||
+      objGroup.includes('SPECIAL') ||
+      objGroup.includes('HERITAGE') ||
+      objGroup.includes('GRADE_1') ||
+      objGroup.includes('GRADE_2') ||
+      objGroup.includes('QUAN TRỌNG') ||
+      objGroup.includes('ĐẶC BIỆT');
+
+    const derivedImpactCode: 'I1' | 'I2' | 'I3' | 'I4' | '' =
+      typeof metroOffset === 'number' && Number.isFinite(metroOffset)
+        ? isHighImportanceGroup
+          ? (metroOffset > 30 ? 'I1' : metroOffset > 20 ? 'I2' : metroOffset > 10 ? 'I3' : 'I4')
+          : (metroOffset > 20 ? 'I1' : metroOffset > 10 ? 'I2' : metroOffset > 5 ? 'I3' : 'I4')
+        : '';
+
     const execImpactStr = String(json.executiveSummary?.constructionImpactStatus || '').toUpperCase();
     const execImpactMatch = execImpactStr.match(/\b(I[1-4])\b/);
-    const cardOverriddenImpact = rScores?.overridden_impact_level_i ? `I${rScores.overridden_impact_level_i}` : null;
+    const cardOverriddenImpact = (rScores?.is_engineering_judgement_applied && rScores?.overridden_impact_level_i)
+      ? `I${String(rScores.overridden_impact_level_i).replace(/^I/i, '')}`
+      : null;
     const rawImpactCode = String(
       frozenImpact.iCode || frozenImpact.code || execImpactMatch?.[1] || cardOverriddenImpact || rScores?.impact_grade ||
-      (rScores?.impact_level_i ? `I${String(rScores?.impact_level_i || '').replace(/^I/i, '')}` : '')
+      (rScores?.impact_level_i ? `I${String(rScores?.impact_level_i || '').replace(/^I/i, '')}` : '') ||
+      derivedImpactCode
     ).toUpperCase();
 
-    const fallbackImpactStr = String(frozenImpact.iCode || frozenImpact.code || execImpactMatch?.[1] || cardOverriddenImpact || rScores?.impact_grade || '').toUpperCase();
+    const fallbackImpactStr = String(frozenImpact.iCode || frozenImpact.code || execImpactMatch?.[1] || cardOverriddenImpact || rScores?.impact_grade || derivedImpactCode || '').toUpperCase();
     const validImpactCode: 'I1' | 'I2' | 'I3' | 'I4' | '--' = ['I1', 'I2', 'I3', 'I4'].includes(rawImpactCode)
       ? (rawImpactCode as 'I1' | 'I2' | 'I3' | 'I4')
       : (['I1', 'I2', 'I3', 'I4'].includes(fallbackImpactStr) ? (fallbackImpactStr as 'I1' | 'I2' | 'I3' | 'I4') : '--');
@@ -153,10 +192,20 @@ export class Section8RiskAssessmentMapper {
     const braRows = buildBraMatrixRows(vCode, validImpactCode);
     const frozenBra = json.braAssessment || {};
     const activeLookup = (vCode !== null && validImpactCode !== '--') ? BRA_MATRIX_LOOKUP[vCode][validImpactCode] : null;
-    const rawExplicitBra = String(frozenBra.braStatus || frozenBra.finalRiskLevelVi || frozenBra.riskLevelVi || rScores?.overridden_bra || rScores?.final_bra_grade || '').toUpperCase();
+    const rawExplicitBra = String(
+      frozenBra.braStatus ||
+      frozenBra.finalRiskLevelVi ||
+      frozenBra.riskLevelVi ||
+      json.executiveSummary?.braStatus ||
+      (rScores?.is_engineering_judgement_applied ? rScores?.overridden_bra : null) ||
+      rScores?.final_bra_grade ||
+      rScores?.preliminary_bra_classification ||
+      rScores?.baseline_risk_assessment ||
+      ''
+    ).toUpperCase();
 
     let explicitBraLevel: { vi: string; en: string } | null = null;
-    if (rawExplicitBra === 'VERY_LOW' || rawExplicitBra === 'LOW' || rawExplicitBra.includes('THẤP')) explicitBraLevel = { vi: 'Rủi ro thấp', en: 'Low Risk' };
+    if (rawExplicitBra === 'NEGLIGIBLE' || rawExplicitBra === 'VERY_LOW' || rawExplicitBra === 'LOW' || rawExplicitBra.includes('KHÔNG ĐÁNG KỂ') || rawExplicitBra.includes('THẤP')) explicitBraLevel = { vi: 'Rủi ro thấp', en: 'Low Risk' };
     else if (rawExplicitBra === 'MEDIUM' || rawExplicitBra === 'MODERATE' || rawExplicitBra.includes('TRUNG BÌNH')) explicitBraLevel = { vi: 'Rủi ro trung bình', en: 'Medium Risk' };
     else if (rawExplicitBra === 'HIGH' || (rawExplicitBra.includes('CAO') && !rawExplicitBra.includes('RẤT CAO'))) explicitBraLevel = { vi: 'Rủi ro cao', en: 'High Risk' };
     else if (rawExplicitBra === 'VERY_HIGH' || rawExplicitBra === 'CRITICAL' || rawExplicitBra.includes('RẤT CAO')) explicitBraLevel = { vi: 'Rủi ro rất cao', en: 'Very High Risk' };
@@ -188,6 +237,25 @@ export class Section8RiskAssessmentMapper {
     const viReason = viData.engineeringJudgement?.reason || rScores?.engineering_judgement_reason || '';
     const isViJudgementApplied = viAction !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied);
 
+    const impactOverrideReason = String(
+      json.executiveSummary?.impactOverrideReason ||
+      frozenImpact.overrideReason ||
+      ''
+    ).trim() || undefined;
+    const rawGateObj = json.gateDecision && typeof json.gateDecision === 'object' ? json.gateDecision : null;
+    const gateDecision = String(
+      rawGateObj?.decision ||
+      (typeof json.gateDecision === 'string' ? json.gateDecision : '') ||
+      rScores?.gate_decision ||
+      ''
+    ).trim() || undefined;
+    const gateNotes = String(
+      rawGateObj?.reason ||
+      rawGateObj?.notes ||
+      json.gateNotes ||
+      ''
+    ).trim() || undefined;
+
     return {
       ecs: {
         items: ecsItems,
@@ -218,6 +286,7 @@ export class Section8RiskAssessmentMapper {
         distanceType,
         distanceLabel,
         basis: { vi: `Căn cứ ${distanceLabel.vi}: ${metroOffset} m`, en: `Based on ${distanceLabel.en}: ${metroOffset} m` },
+        overrideReason: impactOverrideReason,
       },
       braMatrix: { vCode, iCode: validImpactCode, rows: braRows, finalRiskLevel, recommendation, narrative: braNarrative },
       overallRisk: {
@@ -233,6 +302,9 @@ export class Section8RiskAssessmentMapper {
         baselineRisk: finalRiskLevel,
         narrative: braNarrative,
       },
+      braLevel: finalRiskLevel.vi,
+      gateDecision,
+      gateNotes,
     };
   }
 }

@@ -139,17 +139,38 @@ export class Section7BurlandMapper {
     const rawBs = rawSummary || {};
     const finalLocalMax = parseSavedGrade(rawBs.localMaxGrade);
     const finalPredominant = parseSavedGrade(rawBs.predominantGrade);
-    const predominantPct = rawBs.predominantPercentage
+    const rawDist = rawBs.distribution && typeof rawBs.distribution === 'object' ? rawBs.distribution : null;
+    const distCounts: Record<number, number> = {
+      0: rawDist && rawDist.cat0 !== undefined ? Number(rawDist.cat0) || 0 : (gradeCountMap[0] || 0),
+      1: rawDist && rawDist.cat1 !== undefined ? Number(rawDist.cat1) || 0 : (gradeCountMap[1] || 0),
+      2: rawDist && rawDist.cat2 !== undefined ? Number(rawDist.cat2) || 0 : (gradeCountMap[2] || 0),
+      3: rawDist && rawDist.cat3 !== undefined ? Number(rawDist.cat3) || 0 : (gradeCountMap[3] || 0),
+      4: rawDist && rawDist.cat4 !== undefined ? Number(rawDist.cat4) || 0 : (gradeCountMap[4] || 0),
+      5: rawDist && rawDist.cat5 !== undefined ? Number(rawDist.cat5) || 0 : (gradeCountMap[5] || 0),
+    };
+    const totalDist = distCounts[0] + distCounts[1] + distCounts[2] + distCounts[3] + distCounts[4] + distCounts[5];
+    const formatGradePct = (grade: number): string => {
+      const explicitPct = rawBs[`grade${grade}Pct`];
+      if (explicitPct !== undefined && explicitPct !== null && String(explicitPct).trim() !== '' && String(explicitPct).trim() !== '--') {
+        const s = String(explicitPct).trim();
+        return s.endsWith('%') ? s : `${s}%`;
+      }
+      const cnt = distCounts[grade] || 0;
+      return totalDist > 0 ? `${((cnt / totalDist) * 100).toFixed(1)}%` : '0.0%';
+    };
+    const predominantPct = rawBs.predominantPercentage && String(rawBs.predominantPercentage).trim() !== '--'
       ? String(rawBs.predominantPercentage)
-      : '--';
+      : (finalPredominant !== null && totalDist > 0
+          ? `${(((distCounts[finalPredominant] || 0) / totalDist) * 100).toFixed(1)}%`
+          : '0.0%');
 
     const distribution: BurlandDistributionItem[] = [
-      { grade: 0, nameVi: '0 - Không đáng kể', nameEn: '0 - Negligible', crackWidthLimit: '≤ 0.1 mm', count: gradeCountMap[0] || 0, percentage: rawBs.grade0Pct || '--', isCurrentMax: finalLocalMax === 0, isPredominant: finalPredominant === 0 },
-      { grade: 1, nameVi: '1 - Rất nhẹ', nameEn: '1 - Very Slight', crackWidthLimit: '0.1 – 1.0 mm', count: gradeCountMap[1] || 0, percentage: rawBs.grade1Pct || '--', isCurrentMax: finalLocalMax === 1, isPredominant: finalPredominant === 1 },
-      { grade: 2, nameVi: '2 - Nhẹ', nameEn: '2 - Slight', crackWidthLimit: '1.0 – 5.0 mm', count: gradeCountMap[2] || 0, percentage: rawBs.grade2Pct || '--', isCurrentMax: finalLocalMax === 2, isPredominant: finalPredominant === 2 },
-      { grade: 3, nameVi: '3 - Trung bình', nameEn: '3 - Moderate', crackWidthLimit: '5.0 – 15.0 mm', count: gradeCountMap[3] || 0, percentage: rawBs.grade3Pct || '--', isCurrentMax: finalLocalMax === 3, isPredominant: finalPredominant === 3 },
-      { grade: 4, nameVi: '4 - Nặng', nameEn: '4 - Severe', crackWidthLimit: '15.0 – 25.0 mm', count: gradeCountMap[4] || 0, percentage: rawBs.grade4Pct || '--', isCurrentMax: finalLocalMax === 4, isPredominant: finalPredominant === 4 },
-      { grade: 5, nameVi: '5 - Rất nặng', nameEn: '5 - Very Severe', crackWidthLimit: '> 25.0 mm', count: gradeCountMap[5] || 0, percentage: rawBs.grade5Pct || '--', isCurrentMax: finalLocalMax === 5, isPredominant: finalPredominant === 5 },
+      { grade: 0, nameVi: '0 - Không đáng kể', nameEn: '0 - Negligible', crackWidthLimit: '≤ 0.1 mm', count: distCounts[0], percentage: formatGradePct(0), isCurrentMax: finalLocalMax === 0, isPredominant: finalPredominant === 0 },
+      { grade: 1, nameVi: '1 - Rất nhẹ', nameEn: '1 - Very Slight', crackWidthLimit: '0.1 – 1.0 mm', count: distCounts[1], percentage: formatGradePct(1), isCurrentMax: finalLocalMax === 1, isPredominant: finalPredominant === 1 },
+      { grade: 2, nameVi: '2 - Nhẹ', nameEn: '2 - Slight', crackWidthLimit: '1.0 – 5.0 mm', count: distCounts[2], percentage: formatGradePct(2), isCurrentMax: finalLocalMax === 2, isPredominant: finalPredominant === 2 },
+      { grade: 3, nameVi: '3 - Trung bình', nameEn: '3 - Moderate', crackWidthLimit: '5.0 – 15.0 mm', count: distCounts[3], percentage: formatGradePct(3), isCurrentMax: finalLocalMax === 3, isPredominant: finalPredominant === 3 },
+      { grade: 4, nameVi: '4 - Nặng', nameEn: '4 - Severe', crackWidthLimit: '15.0 – 25.0 mm', count: distCounts[4], percentage: formatGradePct(4), isCurrentMax: finalLocalMax === 4, isPredominant: finalPredominant === 4 },
+      { grade: 5, nameVi: '5 - Rất nặng', nameEn: '5 - Very Severe', crackWidthLimit: '> 25.0 mm', count: distCounts[5], percentage: formatGradePct(5), isCurrentMax: finalLocalMax === 5, isPredominant: finalPredominant === 5 },
     ];
 
     const burlandTable: BurlandTableRow[] = [
@@ -251,11 +272,13 @@ export class Section7BurlandMapper {
     const needReviewEn = rawNeedReview === true ? 'Yes' : rawNeedReview === false ? 'No' : '--';
 
     const isZeroDefects = finalLocalMax === 0;
+    const evaluationNotes = String(rawBs.evaluationNotes || '').trim() || undefined;
+    const engineerReviewNotes = String(rawBs.engineerReviewNotes || '').trim() || undefined;
 
     return {
       burlandTable,
       distribution,
-      totalSurveyedObjects,
+      totalSurveyedObjects: totalSurveyedObjects || totalDist,
       predominantGrade: {
         vi: Section7BurlandMapper.getBurlandGradeLabelVi(finalPredominant),
         en: Section7BurlandMapper.getBurlandGradeLabelEn(finalPredominant),
@@ -309,6 +332,8 @@ export class Section7BurlandMapper {
       structuralElements,
       structuralDefectFlag: { vi: structFlagVi, en: structFlagEn },
       structuralEngineerReview: { vi: needReviewVi, en: needReviewEn },
+      evaluationNotes,
+      engineerReviewNotes,
     };
   }
 }

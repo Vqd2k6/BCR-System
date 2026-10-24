@@ -13,9 +13,21 @@ import {
   FileCheck2,
   History,
   RotateCw,
+  Undo2,
 } from 'lucide-react';
 
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation } from '../types';
+import type {
+  AuditStepwiseFormState,
+  AuditStepwiseData,
+  StepwiseSignatures,
+  PhotoReplaceParams,
+  AuditPhotoActionParams,
+  AuditPhotoHistoryParams,
+  PhotoOrientationViolation,
+  PhotoActionPayload,
+  StepwiseAbsenceLogItem,
+} from '../types';
+import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
 interface Props {
   isEditMode?: boolean;
@@ -32,6 +44,8 @@ interface Props {
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
 }
 
 export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
@@ -48,10 +62,31 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   stagedPhotoRotations = {},
   onRotatePhoto,
   violationsMap,
+  stagedPhotoActions = [],
+  onUndoPhotoAction,
 }) => {
   const sigs: StepwiseSignatures = formState.signatures || {};
-  const absenceLogs = formState.absenceLogs || data?.leftPane?.absenceLogs || [];
-  const isAbsentee = formState.isRefusedOrAbsent || formState.status === 'POSTPONED_ABSENT' || absenceLogs.length > 0;
+  const rawAbsenceLogs: StepwiseAbsenceLogItem[] = formState.absenceLogs || data?.leftPane?.absenceLogs || [];
+  const standaloneAbsenteePhotos: string[] =
+    sigs.absenteeNoticePhotos || formState.absenteeNoticePhotos || [];
+  const addedAbsenceNoticePhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'ABSENCE_NOTICE',
+    targetPhotoType: 'ABSENCE_NOTICE',
+  });
+  const absenceLogs: StepwiseAbsenceLogItem[] =
+    rawAbsenceLogs.length > 0
+      ? rawAbsenceLogs
+      : standaloneAbsenteePhotos.map((url, idx) => ({
+          id: `absent_notice_${idx}`,
+          attemptNumber: idx + 1,
+          photoUrl: url,
+          reason: 'Giấy thông báo vắng mặt hiện trường',
+        }));
+  const isAbsentee =
+    Boolean(formState.isRefusedOrAbsent) ||
+    formState.status === 'POSTPONED_ABSENT' ||
+    absenceLogs.length > 0 ||
+    addedAbsenceNoticePhotos.length > 0;
 
   // Working minutes photos
   const rawPhotos: (string | { url?: string; photoUrl?: string; photoCode?: string; caption?: string })[] =
@@ -61,25 +96,98 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   const replacePhotoInputRef = useRef<HTMLInputElement | null>(null);
   const replaceTargetIndexRef = useRef<number | null>(null);
 
-  const ownerFeedback = sigs.ownerFeedback !== undefined ? sigs.ownerFeedback : (formState.ownerFeedback ?? formState.ownerRemarks ?? '');
-  const surveyorName = sigs.surveyorName || formState.surveyorName || data?.surveyorName;
-  const surveyorPhone = sigs.surveyorPhone || formState.surveyorPhone || data?.surveyorPhone;
-  const ownerName = sigs.ownerName || formState.ownerName || data?.ownerName;
-  const ownerPhone = sigs.ownerPhone || formState.ownerPhone || (formState.ownerInterview?.phone as string | undefined);
-  const surveyDate = formState.surveyDate || data?.surveyDate;
-  const surveyorSignatureUrl =
-    (sigs as Record<string, unknown>).surveyorSignatureUrl as string | undefined ||
-    (data as Record<string, unknown> | undefined)?.surveyorSignatureUrl as string | undefined ||
-    (data as Record<string, unknown> | undefined)?.surveyor_signature_url as string | undefined;
-  const ownerSignatureUrl =
-    (sigs as Record<string, unknown>).ownerSignatureUrl as string | undefined ||
-    (data as Record<string, unknown> | undefined)?.ownerSignatureUrl as string | undefined ||
-    (data as Record<string, unknown> | undefined)?.owner_signature_url as string | undefined;
+  const ownerFeedback = sigs.ownerFeedback ?? formState.ownerFeedback ?? formState.ownerRemarks ?? '';
+  const surveyorName = sigs.surveyorName ?? formState.surveyorName ?? data?.surveyorName ?? '';
+  const surveyorPhone = sigs.surveyorPhone ?? formState.surveyorPhone ?? data?.surveyorPhone ?? '';
+  const ownerName = sigs.ownerName ?? formState.ownerName ?? data?.ownerName ?? '';
+  const ownerPhone =
+    sigs.ownerPhone ?? formState.ownerPhone ?? (formState.ownerInterview?.phone as string | undefined) ?? '';
+  const surveyDate = formState.surveyDate ?? data?.surveyDate;
 
-  // Witness / Local Authority Info
-  const witnessName = sigs.witnessName || formState.witnessName || (formState.witnessInfo?.name as string | undefined);
-  const witnessRole = sigs.witnessRole || formState.witnessRole || (formState.witnessInfo?.role as string | undefined) || 'Tổ trưởng tổ dân phố / Cán bộ địa chính';
-  const witnessPhone = sigs.witnessPhone || formState.witnessPhone || (formState.witnessInfo?.phone as string | undefined);
+  const updateSigAndRootField = (fieldKey: string, label: string, val: string) => {
+    if (handleNestedFieldChange) {
+      handleNestedFieldChange('signatures', fieldKey, label, val);
+    }
+    if (handleFieldChange) {
+      handleFieldChange(fieldKey, label, val);
+    }
+  };
+
+  // Resolve Signatures with optimistic photo actions
+  const rawSurveyorSignatureUrl =
+    ((sigs as Record<string, unknown>).surveyorSignatureUrl as string | undefined) ||
+    (sigs.surveyorSignature as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.surveyorSignatureUrl as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.surveyor_signature_url as string | undefined);
+  const surveyorSigRes = resolveOptimisticPhoto(rawSurveyorSignatureUrl, stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_SURVEYOR',
+    targetPhotoId: 'surveyorSignatureUrl',
+  });
+  const addedSurveyorSigs = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_SURVEYOR',
+  });
+  const latestAddedSurveyorSig = addedSurveyorSigs[addedSurveyorSigs.length - 1];
+  const surveyorSignatureUrl =
+    surveyorSigRes.state === 'DELETED'
+      ? undefined
+      : surveyorSigRes.displayUrl || latestAddedSurveyorSig?.displayUrl;
+  const surveyorSigAction = surveyorSigRes.matchedAction || latestAddedSurveyorSig?.matchedAction;
+
+  const rawOwnerSignatureUrl =
+    ((sigs as Record<string, unknown>).ownerSignatureUrl as string | undefined) ||
+    (sigs.ownerSignature as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.ownerSignatureUrl as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.owner_signature_url as string | undefined);
+  const ownerSigRes = resolveOptimisticPhoto(rawOwnerSignatureUrl, stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_OWNER',
+    targetPhotoId: 'ownerSignatureUrl',
+  });
+  const addedOwnerSigs = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_OWNER',
+  });
+  const latestAddedOwnerSig = addedOwnerSigs[addedOwnerSigs.length - 1];
+  const ownerSignatureUrl =
+    ownerSigRes.state === 'DELETED'
+      ? undefined
+      : ownerSigRes.displayUrl || latestAddedOwnerSig?.displayUrl;
+  const ownerSigAction = ownerSigRes.matchedAction || latestAddedOwnerSig?.matchedAction;
+
+  // Witness / Local Authority Info & Signature
+  const witnessName =
+    sigs.witnessName ?? formState.witnessName ?? (formState.witnessInfo?.name as string | undefined) ?? '';
+  const witnessRole =
+    sigs.witnessRole ??
+    formState.witnessRole ??
+    (formState.witnessInfo?.role as string | undefined) ??
+    'Tổ trưởng tổ dân phố / Cán bộ địa chính';
+  const witnessPhone =
+    sigs.witnessPhone ?? formState.witnessPhone ?? (formState.witnessInfo?.phone as string | undefined) ?? '';
+  const rawWitnessSignatureUrl =
+    ((sigs as Record<string, unknown>).witnessSignatureUrl as string | undefined) ||
+    (sigs.witnessSignature as string | undefined) ||
+    (formState.witnessSignature as string | undefined) ||
+    (formState.witnessInfo?.signature as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.witnessSignatureUrl as string | undefined) ||
+    ((data as Record<string, unknown> | undefined)?.witness_signature_url as string | undefined);
+  const witnessSigRes = resolveOptimisticPhoto(rawWitnessSignatureUrl, stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_WITNESS',
+    targetPhotoId: 'witnessSignatureUrl',
+  });
+  const addedWitnessSigs = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'SIGNATURE',
+    targetPhotoType: 'SIGNATURE_WITNESS',
+  });
+  const latestAddedWitnessSig = addedWitnessSigs[addedWitnessSigs.length - 1];
+  const witnessSignatureUrl =
+    witnessSigRes.state === 'DELETED'
+      ? undefined
+      : witnessSigRes.displayUrl || latestAddedWitnessSig?.displayUrl;
+  const witnessSigAction = witnessSigRes.matchedAction || latestAddedWitnessSig?.matchedAction;
 
   const getPhotoUrl = (p: string | { url?: string; photoUrl?: string; raw_photo_url?: string; annotated_photo_url?: string }): string => {
     if (!p) return '';
@@ -93,6 +201,56 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
     }
     return `Biên bản trang ${idx + 1}`;
   };
+
+  // Resolve Working Minutes Photos with optimistic actions (ADD, REPLACE, DELETE)
+  const resolvedBaseMinutes = rawPhotos
+    .map((photoItem, idx) => {
+      const rawUrl = getPhotoUrl(photoItem);
+      if (!rawUrl) return null;
+      const caption = getPhotoCaption(photoItem, idx);
+      const photoCode = typeof photoItem === 'object' ? photoItem.photoCode : undefined;
+      const res = resolveOptimisticPhoto(rawUrl, stagedPhotoActions, {
+        category: 'MINUTES',
+        targetPhotoType: 'WORKING_MINUTES',
+        targetPhotoId: 'signatures.workingMinutesPhotos',
+        photoIndex: idx,
+      });
+      return {
+        idx,
+        rawUrl,
+        url: res.displayUrl || rawUrl,
+        caption,
+        photoCode,
+        state: res.state,
+        matchedAction: res.matchedAction,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const addedMinutesOriginals = getOptimisticAddedPhotos(stagedPhotoActions, {
+    category: 'MINUTES',
+    targetPhotoType: 'WORKING_MINUTES',
+    targetPhotoId: 'signatures.workingMinutesPhotos',
+  });
+
+  const addedMinutesItems = addedMinutesOriginals.map((added, aIdx) => {
+    const idx = rawPhotos.length + aIdx;
+    return {
+      idx,
+      rawUrl: added.displayUrl,
+      url: added.displayUrl,
+      caption: added.matchedAction.reason
+        ? `Biên bản trang ${idx + 1} (${added.matchedAction.reason})`
+        : `Biên bản trang ${idx + 1} (Mới thêm)`,
+      photoCode: `BB_NEW_${aIdx + 1}`,
+      state: 'ADDED' as const,
+      matchedAction: added.matchedAction,
+    };
+  });
+
+  const allMinutesItems = [...resolvedBaseMinutes, ...addedMinutesItems];
+  const activeMinutesItems = allMinutesItems.filter((it) => it.state !== 'DELETED');
+  const deletedMinutesItems = allMinutesItems.filter((it) => it.state === 'DELETED');
 
   const notifyPhotosChange = (updatedPhotos: typeof rawPhotos) => {
     if (handleNestedFieldChange) {
@@ -161,7 +319,9 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   };
 
   const checkDirty = (fieldKey: string, subKey?: string) => {
-    return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
+    if (!isFieldDirty) return false;
+    if (subKey) return isFieldDirty(fieldKey, subKey);
+    return isFieldDirty(fieldKey) || isFieldDirty('signatures', fieldKey);
   };
 
   return (
@@ -214,7 +374,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               <FileText className="w-5 h-5 text-sky-700" />
               <div>
                 <span className="text-xs sm:text-sm font-black uppercase text-slate-800 tracking-wide">
-                  Ảnh Chụp Biên Bản Giấy Khảo Sát Hiện Trường ({rawPhotos.length} trang)
+                  Ảnh Chụp Biên Bản Giấy Khảo Sát Hiện Trường ({activeMinutesItems.length} trang)
                 </span>
                 <p className="text-[11px] text-slate-500">
                   Ảnh chụp nguyên bản biên bản khảo sát giấy có đầy đủ chữ ký tươi của KSV và Chủ hộ tại thực địa
@@ -265,7 +425,30 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </div>
           </div>
 
-          {rawPhotos.length === 0 ? (
+          {deletedMinutesItems.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {deletedMinutesItems.map((delItem) => (
+                <div
+                  key={`del-min-${delItem.idx}`}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5"
+                >
+                  <span>Đã xóa trang biên bản #{delItem.idx + 1}</span>
+                  {onUndoPhotoAction && delItem.matchedAction && (
+                    <button
+                      type="button"
+                      onClick={() => onUndoPhotoAction(delItem.matchedAction!)}
+                      className="text-sky-700 hover:text-sky-900 underline font-black flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hoàn tác</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeMinutesItems.length === 0 ? (
             <div className="p-8 text-center bg-white rounded-xl border border-dashed border-sky-300 space-y-3">
               <FileCheck2 className="w-10 h-10 text-sky-400 mx-auto" />
               <div>
@@ -318,42 +501,40 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {rawPhotos.map((photoItem, idx) => {
-                const url = getPhotoUrl(photoItem);
-                const caption = getPhotoCaption(photoItem, idx);
-                if (!url) return null;
-
+              {activeMinutesItems.map((item) => {
+                const { idx, url, caption, photoCode, state, matchedAction } = item;
                 const rotKey = `minutes_${idx}`;
-                const rot = stagedPhotoRotations[rotKey] ?? stagedPhotoRotations[url] ?? stagedPhotoRotations[`MINUTES-${idx + 1}`] ?? 0;
+                const rot =
+                  stagedPhotoRotations[rotKey] ??
+                  stagedPhotoRotations[`MINUTES-${idx + 1}`] ??
+                  (activeMinutesItems.length === 1 ? stagedPhotoRotations[url] : undefined) ??
+                  0;
                 const orientViolation = violationsMap?.get(rotKey) || violationsMap?.get(url);
 
                 return (
                   <div
-                    key={idx}
+                    key={rotKey}
                     id={`audit-photo-card-minutes-${idx}`}
                     className={`group relative rounded-xl border overflow-hidden bg-white shadow-xs transition-all flex flex-col ${
-                      orientViolation
+                      state === 'ADDED'
+                        ? 'border-emerald-400 ring-1 ring-emerald-300'
+                        : state === 'REPLACED'
+                        ? 'border-sky-400 ring-1 ring-sky-300'
+                        : orientViolation
                         ? 'border-amber-400 ring-1 ring-amber-300'
                         : 'border-slate-200 hover:border-sky-400 hover:shadow-md'
                     }`}
                   >
-                    {/* Image preview area */}
+                    {/* Image preview area (fixed height container so 90/270 deg rotation never overflows card) */}
                     <div
-                      className="relative aspect-4/3 bg-slate-100 cursor-pointer overflow-hidden"
-                      onClick={() =>
-                        onOpenPhotoZoom(
-                          url,
-                          caption,
-                          typeof photoItem === 'object' ? photoItem.photoCode : undefined,
-                          rot
-                        )
-                      }
+                      className="relative h-[240px] w-full bg-slate-100 cursor-pointer overflow-hidden flex items-center justify-center"
+                      onClick={() => onOpenPhotoZoom(url, caption, rotKey, rot)}
                     >
                       <img
                         src={url}
                         alt={caption}
                         style={{ transform: `rotate(${rot}deg)` }}
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
                       />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="p-1.5 rounded-full bg-white/90 text-slate-800 shadow">
@@ -363,6 +544,16 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/60 text-white font-mono text-[10px] font-bold">
                         Trang {idx + 1}
                       </span>
+                      {state === 'ADDED' && (
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[9px] shadow-xs">
+                          Mới thêm
+                        </span>
+                      )}
+                      {state === 'REPLACED' && (
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-sky-600 text-white font-bold text-[9px] shadow-xs">
+                          Đã thay ảnh
+                        </span>
+                      )}
                       {orientViolation && (
                         <span
                           className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
@@ -386,6 +577,19 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       </span>
 
                       <div className="flex items-center gap-1 shrink-0">
+                        {onUndoPhotoAction && matchedAction && (
+                          <button
+                            type="button"
+                            title="Hoàn tác thao tác ảnh này"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUndoPhotoAction(matchedAction);
+                            }}
+                            className="p-1 rounded text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {onRotatePhoto && (
                           <button
                             type="button"
@@ -407,7 +611,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                             onClick={(e) => {
                               e.stopPropagation();
                               onOpenPhotoHistory({
-                                photoCode: typeof photoItem === 'object' ? photoItem.photoCode : undefined,
+                                photoCode,
                                 photoType: 'WORKING_MINUTES',
                                 photoTitle: caption,
                                 currentPhotoUrl: url,
@@ -419,7 +623,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                           </button>
                         )}
 
-                        {isEditMode && (
+                        {isEditMode && state !== 'ADDED' && (
                           <>
                             <button
                               type="button"
@@ -511,11 +715,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Họ và tên:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={surveyorName || ''}
-                    onChange={(e) => handleFieldChange('surveyorName', 'Họ tên KSV', e.target.value)}
+                    value={surveyorName}
+                    onChange={(e) => updateSigAndRootField('surveyorName', 'Họ tên KSV', e.target.value)}
                     placeholder="Tên KSV..."
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
@@ -525,11 +729,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={surveyorPhone || ''}
-                    onChange={(e) => handleFieldChange('surveyorPhone', 'SĐT KSV', e.target.value)}
+                    value={surveyorPhone}
+                    onChange={(e) => updateSigAndRootField('surveyorPhone', 'SĐT KSV', e.target.value)}
                     placeholder="SĐT KSV..."
                     className="p-1 text-xs font-mono font-bold text-slate-700 bg-white border border-slate-300 rounded text-right max-w-[140px]"
                   />
@@ -553,7 +757,21 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 )}
               </div>
 
-              {surveyorSignatureUrl ? (
+              {surveyorSigRes.state === 'DELETED' ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-rose-600 font-bold text-[11px]">Đã xóa chữ ký KSV</span>
+                  {onUndoPhotoAction && surveyorSigAction && (
+                    <button
+                      type="button"
+                      onClick={() => onUndoPhotoAction(surveyorSigAction)}
+                      className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hoàn tác</span>
+                    </button>
+                  )}
+                </div>
+              ) : surveyorSignatureUrl ? (
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 font-semibold">Chữ ký KSV:</span>
@@ -565,6 +783,16 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                     />
                   </div>
                   <div className="flex items-center gap-1">
+                    {onUndoPhotoAction && surveyorSigAction && (
+                      <button
+                        type="button"
+                        title="Hoàn tác thay đổi chữ ký KSV"
+                        onClick={() => onUndoPhotoAction(surveyorSigAction)}
+                        className="p-1 rounded text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {onOpenPhotoHistory && (
                       <button
                         type="button"
@@ -697,11 +925,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Người ký biên bản:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={ownerName || ''}
-                    onChange={(e) => handleFieldChange('ownerName', 'Họ tên chủ hộ', e.target.value)}
+                    value={ownerName}
+                    onChange={(e) => updateSigAndRootField('ownerName', 'Họ tên chủ hộ', e.target.value)}
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
                 ) : (
@@ -710,11 +938,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={ownerPhone || ''}
-                    onChange={(e) => handleFieldChange('ownerPhone', 'SĐT chủ hộ', e.target.value)}
+                    value={ownerPhone}
+                    onChange={(e) => updateSigAndRootField('ownerPhone', 'SĐT chủ hộ', e.target.value)}
                     placeholder="SĐT..."
                     className="p-1 text-xs font-mono font-bold text-slate-700 bg-white border border-slate-300 rounded text-right max-w-[140px]"
                   />
@@ -729,7 +957,21 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 </span>
               </div>
 
-              {ownerSignatureUrl ? (
+              {ownerSigRes.state === 'DELETED' ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-rose-600 font-bold text-[11px]">Đã xóa chữ ký chủ hộ</span>
+                  {onUndoPhotoAction && ownerSigAction && (
+                    <button
+                      type="button"
+                      onClick={() => onUndoPhotoAction(ownerSigAction)}
+                      className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hoàn tác</span>
+                    </button>
+                  )}
+                </div>
+              ) : ownerSignatureUrl ? (
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 font-semibold">Chữ ký chủ hộ:</span>
@@ -741,6 +983,16 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                     />
                   </div>
                   <div className="flex items-center gap-1">
+                    {onUndoPhotoAction && ownerSigAction && (
+                      <button
+                        type="button"
+                        title="Hoàn tác thay đổi chữ ký chủ hộ"
+                        onClick={() => onUndoPhotoAction(ownerSigAction)}
+                        className="p-1 rounded text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {onOpenPhotoHistory && (
                       <button
                         type="button"
@@ -865,7 +1117,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   3. Người Làm Chứng / Địa Phương
                 </span>
               </div>
-              {(checkDirty('witnessName') || checkDirty('witnessRole')) && (
+              {(checkDirty('witnessName') || checkDirty('witnessRole') || checkDirty('witnessPhone')) && (
                 <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
               )}
             </div>
@@ -873,11 +1125,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Họ và tên:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={witnessName || ''}
-                    onChange={(e) => handleFieldChange('witnessName', 'Người làm chứng', e.target.value)}
+                    value={witnessName}
+                    onChange={(e) => updateSigAndRootField('witnessName', 'Người làm chứng', e.target.value)}
                     placeholder="Tên người làm chứng..."
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
@@ -890,11 +1142,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Chức vụ / Đơn vị:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={witnessRole || ''}
-                    onChange={(e) => handleFieldChange('witnessRole', 'Chức vụ người làm chứng', e.target.value)}
+                    value={witnessRole}
+                    onChange={(e) => updateSigAndRootField('witnessRole', 'Chức vụ người làm chứng', e.target.value)}
                     placeholder="VD: Tổ trưởng TDP 12"
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
@@ -905,11 +1157,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại:</span>
-                {isEditMode && handleFieldChange ? (
+                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
                   <input
                     type="text"
-                    value={witnessPhone || ''}
-                    onChange={(e) => handleFieldChange('witnessPhone', 'SĐT người làm chứng', e.target.value)}
+                    value={witnessPhone}
+                    onChange={(e) => updateSigAndRootField('witnessPhone', 'SĐT người làm chứng', e.target.value)}
                     placeholder="SĐT..."
                     className="p-1 text-xs font-mono text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[140px]"
                   />
@@ -917,6 +1169,123 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   <span className="font-mono text-slate-700">{witnessPhone || '---'}</span>
                 )}
               </div>
+
+              {witnessSigRes.state === 'DELETED' ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-rose-600 font-bold text-[11px]">Đã xóa chữ ký người làm chứng</span>
+                  {onUndoPhotoAction && witnessSigAction && (
+                    <button
+                      type="button"
+                      onClick={() => onUndoPhotoAction(witnessSigAction)}
+                      className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hoàn tác</span>
+                    </button>
+                  )}
+                </div>
+              ) : witnessSignatureUrl ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 font-semibold">Chữ ký NLC:</span>
+                    <img
+                      src={witnessSignatureUrl}
+                      alt="Chữ ký Người làm chứng"
+                      onClick={() => onOpenPhotoZoom(witnessSignatureUrl, 'Chữ ký Người làm chứng / Địa phương', 'SIG_WITNESS')}
+                      className="h-8 max-w-[120px] object-contain bg-white rounded border border-slate-200 cursor-pointer p-0.5 hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {onUndoPhotoAction && witnessSigAction && (
+                      <button
+                        type="button"
+                        title="Hoàn tác thay đổi chữ ký người làm chứng"
+                        onClick={() => onUndoPhotoAction(witnessSigAction)}
+                        className="p-1 rounded text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onOpenPhotoHistory && (
+                      <button
+                        type="button"
+                        title="Lịch sử chữ ký người làm chứng"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoType: 'SIGNATURE_WITNESS',
+                            photoTitle: 'Chữ ký Người Làm Chứng',
+                            currentPhotoUrl: witnessSignatureUrl,
+                          })
+                        }
+                        className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isEditMode && (
+                      <>
+                        <button
+                          type="button"
+                          title="Đổi chữ ký người làm chứng"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_WITNESS',
+                                targetPhotoId: 'witnessSignatureUrl',
+                                currentPhotoUrl: witnessSignatureUrl,
+                                photoTitle: 'Chữ ký Người Làm Chứng',
+                                initialMode: 'REPLACE',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Đổi
+                        </button>
+                        <button
+                          type="button"
+                          title="Xóa chữ ký người làm chứng"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_WITNESS',
+                                targetPhotoId: 'witnessSignatureUrl',
+                                currentPhotoUrl: witnessSignatureUrl,
+                                photoTitle: 'Chữ ký Người Làm Chứng',
+                                initialMode: 'DELETE',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (isAbsentee || Boolean(witnessName)) && isEditMode && onOpenPhotoAction ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 italic">Chưa có chữ ký người làm chứng</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        category: 'SIGNATURE',
+                        targetPhotoType: 'SIGNATURE_WITNESS',
+                        targetPhotoId: 'witnessSignatureUrl',
+                        photoTitle: 'Chữ ký Người Làm Chứng',
+                        initialMode: 'ADD',
+                      })
+                    }
+                    className="text-[10px] font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-2 py-0.5 rounded cursor-pointer"
+                  >
+                    + Tải lên
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -976,46 +1345,103 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </p>
 
             {/* Danh sách lần liên hệ / dán giấy hẹn */}
-            {absenceLogs && absenceLogs.length > 0 ? (
+            {(absenceLogs && absenceLogs.length > 0) || addedAbsenceNoticePhotos.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
                 {absenceLogs.map((log, lIdx) => {
+                  const logRec = log as Record<string, unknown>;
+                  const rawLogPhotoUrl =
+                    log.photoUrl ||
+                    (logRec.photo_url as string | undefined) ||
+                    (logRec.evidence_photo_url as string | undefined);
+                  const logTargetId = log.id || `absence_log_${lIdx}`;
+                  const logPhotoRes = resolveOptimisticPhoto(rawLogPhotoUrl, stagedPhotoActions, {
+                    category: 'ABSENCE_NOTICE',
+                    targetPhotoType: 'ABSENCE_NOTICE',
+                    targetPhotoId: logTargetId,
+                    photoIndex: lIdx,
+                  });
+                  const displayLogPhotoUrl =
+                    logPhotoRes.state === 'DELETED' ? undefined : logPhotoRes.displayUrl || rawLogPhotoUrl;
+                  const attemptNum = log.attemptNumber ?? log.attempt_number ?? lIdx + 1;
+                  const rawAttemptDate =
+                    log.attemptDate ?? (logRec.attempt_date as string | undefined) ?? log.created_at;
+                  const reasonText =
+                    log.reason || log.notes || (logRec.note as string | undefined) || '';
+
                   const absRotKey = `absenceNotice_${lIdx}`;
-                  const absRot = stagedPhotoRotations[absRotKey] ?? (log.photoUrl ? stagedPhotoRotations[log.photoUrl] : undefined) ?? 0;
-                  const absViolation = violationsMap?.get(absRotKey) || (log.photoUrl ? violationsMap?.get(log.photoUrl) : undefined);
+                  const absRot =
+                    stagedPhotoRotations[absRotKey] ??
+                    (displayLogPhotoUrl && absenceLogs.length === 1
+                      ? stagedPhotoRotations[displayLogPhotoUrl]
+                      : undefined) ??
+                    0;
+                  const absViolation =
+                    violationsMap?.get(absRotKey) ||
+                    (displayLogPhotoUrl ? violationsMap?.get(displayLogPhotoUrl) : undefined);
 
                   return (
                     <div
                       key={log.id || lIdx}
                       id={`audit-photo-card-absence-${lIdx}`}
                       className={`p-3 bg-white rounded-xl border space-y-2 shadow-2xs transition-all ${
-                        absViolation ? 'border-amber-400 ring-1 ring-amber-300' : 'border-purple-200'
+                        logPhotoRes.state === 'REPLACED'
+                          ? 'border-sky-400 ring-1 ring-sky-300'
+                          : absViolation
+                          ? 'border-amber-400 ring-1 ring-amber-300'
+                          : 'border-purple-200'
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs font-bold text-purple-900">
-                        <span>Lần liên hệ #{log.attemptNumber || log.attempt_number || (lIdx + 1)}</span>
+                        <span>Lần liên hệ #{attemptNum}</span>
                         <span className="text-[10px] text-slate-500 font-mono">
-                          {log.attemptDate || log.created_at ? new Date(log.attemptDate || log.created_at || '').toLocaleDateString('vi-VN') : ''}
+                          {rawAttemptDate ? new Date(rawAttemptDate).toLocaleDateString('vi-VN') : ''}
                         </span>
                       </div>
-                      {log.reason && (
+                      {reasonText && (
                         <p className="text-[11px] text-slate-600">
-                          <span className="font-semibold text-slate-700">Lý do:</span> {log.reason}
+                          <span className="font-semibold text-slate-700">Lý do / Ghi chú:</span> {reasonText}
                         </p>
                       )}
-                      {log.photoUrl && (
-                        <div className="relative aspect-4/3 rounded-lg overflow-hidden bg-slate-100 group border border-slate-200">
+                      {logPhotoRes.state === 'DELETED' ? (
+                        <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center justify-between">
+                          <span>Đã xóa ảnh giấy báo</span>
+                          {onUndoPhotoAction && logPhotoRes.matchedAction && (
+                            <button
+                              type="button"
+                              onClick={() => onUndoPhotoAction(logPhotoRes.matchedAction!)}
+                              className="text-sky-700 hover:text-sky-900 underline font-black flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <Undo2 className="w-3 h-3" />
+                              <span>Hoàn tác</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : displayLogPhotoUrl ? (
+                        <div className="relative h-[200px] w-full rounded-lg overflow-hidden bg-slate-100 group border border-slate-200 flex items-center justify-center">
                           <img
-                            src={log.photoUrl}
+                            src={displayLogPhotoUrl}
                             alt={`Giấy báo lần ${lIdx + 1}`}
                             style={{ transform: absRot ? `rotate(${absRot}deg)` : undefined }}
-                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                            className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
                           />
                           <div
                             className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"
-                            onClick={() => onOpenPhotoZoom(log.photoUrl!, `Giấy báo lần #${lIdx + 1}`, `ABSENCE_${lIdx + 1}`, absRot)}
+                            onClick={() =>
+                              onOpenPhotoZoom(
+                                displayLogPhotoUrl,
+                                `Giấy báo lần #${attemptNum}`,
+                                absRotKey,
+                                absRot
+                              )
+                            }
                           >
                             <ZoomIn className="w-5 h-5 drop-shadow" />
                           </div>
+                          {logPhotoRes.state === 'REPLACED' && (
+                            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-sky-600 text-white font-bold text-[9px] shadow-xs">
+                              Đã thay ảnh
+                            </span>
+                          )}
                           {absViolation && (
                             <span
                               className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
@@ -1031,6 +1457,19 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                             </span>
                           )}
                           <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                            {onUndoPhotoAction && logPhotoRes.matchedAction && (
+                              <button
+                                type="button"
+                                title="Hoàn tác thay ảnh giấy báo"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUndoPhotoAction(logPhotoRes.matchedAction!);
+                                }}
+                                className="p-1 text-amber-300 hover:text-amber-200 rounded cursor-pointer"
+                              >
+                                <Undo2 className="w-3 h-3" />
+                              </button>
+                            )}
                             {onRotatePhoto && (
                               <button
                                 type="button"
@@ -1044,15 +1483,15 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                                 <RotateCw className="w-3 h-3" />
                               </button>
                             )}
-                            {onOpenPhotoHistory && log.photoUrl && (
+                            {onOpenPhotoHistory && (
                               <button
                                 type="button"
                                 title="Lịch sử ảnh giấy báo"
                                 onClick={() =>
                                   onOpenPhotoHistory({
                                     photoType: 'ABSENCE_NOTICE',
-                                    photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                    currentPhotoUrl: log.photoUrl,
+                                    photoTitle: `Giấy báo vắng mặt lần #${attemptNum}`,
+                                    currentPhotoUrl: displayLogPhotoUrl,
                                   })
                                 }
                                 className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
@@ -1066,14 +1505,14 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                                   type="button"
                                   title="Thay ảnh giấy báo"
                                   onClick={() => {
-                                    if (onOpenPhotoAction && log.photoUrl) {
+                                    if (onOpenPhotoAction) {
                                       onOpenPhotoAction({
                                         category: 'ABSENCE_NOTICE',
                                         targetPhotoType: 'ABSENCE_NOTICE',
-                                        targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                        targetPhotoId: logTargetId,
                                         photoIndex: lIdx,
-                                        currentPhotoUrl: log.photoUrl,
-                                        photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                        currentPhotoUrl: displayLogPhotoUrl,
+                                        photoTitle: `Giấy báo vắng mặt lần #${attemptNum}`,
                                         initialMode: 'REPLACE',
                                       });
                                     }
@@ -1086,14 +1525,14 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                                   type="button"
                                   title="Xóa ảnh giấy báo"
                                   onClick={() => {
-                                    if (onOpenPhotoAction && log.photoUrl) {
+                                    if (onOpenPhotoAction) {
                                       onOpenPhotoAction({
                                         category: 'ABSENCE_NOTICE',
                                         targetPhotoType: 'ABSENCE_NOTICE',
-                                        targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                        targetPhotoId: logTargetId,
                                         photoIndex: lIdx,
-                                        currentPhotoUrl: log.photoUrl,
-                                        photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                        currentPhotoUrl: displayLogPhotoUrl,
+                                        photoTitle: `Giấy báo vắng mặt lần #${attemptNum}`,
                                         initialMode: 'DELETE',
                                       });
                                     }
@@ -1106,7 +1545,80 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                             )}
                           </div>
                         </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {addedAbsenceNoticePhotos.map((addedItem, aIdx) => {
+                  const totalIdx = absenceLogs.length + aIdx;
+                  const absRotKey = `absenceNotice_${totalIdx}`;
+                  const absRot = stagedPhotoRotations[absRotKey] ?? 0;
+                  return (
+                    <div
+                      key={`added-abs-${aIdx}`}
+                      id={`audit-photo-card-absence-${totalIdx}`}
+                      className="p-3 bg-white rounded-xl border border-emerald-400 ring-1 ring-emerald-300 space-y-2 shadow-2xs transition-all"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+                        <span>Giấy báo mới #{totalIdx + 1}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-bold">
+                          Mới thêm
+                        </span>
+                      </div>
+                      {addedItem.matchedAction.reason && (
+                        <p className="text-[11px] text-slate-600">
+                          <span className="font-semibold text-slate-700">Ghi chú:</span> {addedItem.matchedAction.reason}
+                        </p>
                       )}
+                      <div className="relative h-[200px] w-full rounded-lg overflow-hidden bg-slate-100 group border border-slate-200 flex items-center justify-center">
+                        <img
+                          src={addedItem.displayUrl}
+                          alt={`Giấy báo mới ${totalIdx + 1}`}
+                          style={{ transform: absRot ? `rotate(${absRot}deg)` : undefined }}
+                          className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div
+                          className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"
+                          onClick={() =>
+                            onOpenPhotoZoom(
+                              addedItem.displayUrl,
+                              `Giấy báo mới #${totalIdx + 1}`,
+                              absRotKey,
+                              absRot
+                            )
+                          }
+                        >
+                          <ZoomIn className="w-5 h-5 drop-shadow" />
+                        </div>
+                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                          {onUndoPhotoAction && (
+                            <button
+                              type="button"
+                              title="Hoàn tác thêm ảnh giấy báo"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUndoPhotoAction(addedItem.matchedAction);
+                              }}
+                              className="p-1 text-amber-300 hover:text-amber-200 rounded cursor-pointer"
+                            >
+                              <Undo2 className="w-3 h-3" />
+                            </button>
+                          )}
+                          {onRotatePhoto && (
+                            <button
+                              type="button"
+                              title={`Xoay ảnh giấy báo 90° (Hiện tại: ${absRot}°)`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRotatePhoto(absRotKey, (absRot + 90) % 360);
+                              }}
+                              className="p-1 text-white hover:text-amber-300 rounded cursor-pointer"
+                            >
+                              <RotateCw className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -1176,11 +1688,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
             )}
           </div>
-          {isEditMode && handleFieldChange ? (
+          {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
             <textarea
               rows={2}
-              value={ownerFeedback || ''}
-              onChange={(e) => handleFieldChange('ownerFeedback', 'Ý kiến chủ hộ', e.target.value)}
+              value={ownerFeedback}
+              onChange={(e) => updateSigAndRootField('ownerFeedback', 'Ý kiến chủ hộ', e.target.value)}
               placeholder="Nhập ý kiến phản hồi hoặc cam kết của chủ hộ (nếu có)..."
               className="w-full p-2.5 text-xs text-slate-800 bg-white border border-blue-300 rounded-lg focus:outline-sky-500"
             />

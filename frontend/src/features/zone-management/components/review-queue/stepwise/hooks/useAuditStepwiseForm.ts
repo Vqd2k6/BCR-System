@@ -41,27 +41,85 @@ const STEP_1_TO_5_SCORING_KEYS = new Set([
   'metroOffsetDistance',
   'clearanceOffsetDistance',
   'manualMetroDistanceM',
+  'parcelCoordinates',
+  'aboveFloors',
+  'undergroundFloors',
+  'floorsAbove',
+  'basements',
 ]);
+
+interface RecomputeDefectLike {
+  isDeleted?: boolean;
+  is_deleted?: boolean;
+  screeningCategory?: string;
+  defectType?: string;
+  widthMaxMm?: number | string;
+  width_max_mm?: number | string;
+}
+
+interface RecomputeZoneLike {
+  isDeleted?: boolean;
+  is_deleted?: boolean;
+  zoneCode?: string;
+  defects?: RecomputeDefectLike[];
+}
+
+interface RecomputeElementLike {
+  isDeleted?: boolean;
+  is_deleted?: boolean;
+  defects?: RecomputeDefectLike[];
+}
+
+interface RecomputeFloorLike {
+  isDeleted?: boolean;
+  is_deleted?: boolean;
+  zones?: RecomputeZoneLike[];
+  structuralElements?: RecomputeElementLike[];
+}
 
 function recomputeDerivedPhase1State(
   nextState: Record<string, unknown>,
-  changedTopKey: string
+  changedTopKey: string,
+  changedChildKey?: string
 ): Record<string, unknown> {
   const updated = { ...nextState };
 
   // 1. Nếu sửa floors / damageZones -> tự động đồng bộ burlandSummary theo chuẩn Step4_BurlandSummary.tsx
   if (changedTopKey === 'floors' || changedTopKey === 'damageZones') {
-    const floors = Array.isArray(updated.floors) ? (updated.floors as any[]) : [];
+    const floors = Array.isArray(updated.floors) ? (updated.floors as RecomputeFloorLike[]) : [];
+    const damageZones = Array.isArray(updated.damageZones) ? (updated.damageZones as RecomputeZoneLike[]) : [];
     const curBs = ((updated.burlandSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
     let totalDefectsCount = 0;
     const zCrackGrades: Array<{ grade: number; zoneCode: string }> = [];
 
-    floors.forEach((f) => {
-      (f.zones || []).forEach((z: any) => {
+    if (floors.length > 0) {
+      floors.forEach((f) => {
+        if (f.isDeleted || f.is_deleted) return;
+        (f.zones || []).forEach((z) => {
+          if (z.isDeleted || z.is_deleted) return;
+          const activeDefects = (z.defects || []).filter((d) => !d.isDeleted && !d.is_deleted);
+          totalDefectsCount += activeDefects.length;
+          activeDefects.forEach((d) => {
+            if (isCrackRelated(d.screeningCategory, d.defectType)) {
+              zCrackGrades.push({
+                grade: getBurlandGradeFromWidth(Number(d.widthMaxMm ?? d.width_max_mm) || 0),
+                zoneCode: z.zoneCode || 'Z-01',
+              });
+            }
+          });
+        });
+        (f.structuralElements || []).forEach((e) => {
+          if (e.isDeleted || e.is_deleted) return;
+          const activeDefects = (e.defects || []).filter((d) => !d.isDeleted && !d.is_deleted);
+          totalDefectsCount += activeDefects.length;
+        });
+      });
+    } else if (damageZones.length > 0) {
+      damageZones.forEach((z) => {
         if (z.isDeleted || z.is_deleted) return;
-        const activeDefects = (z.defects || []).filter((d: any) => !d.isDeleted && !d.is_deleted);
+        const activeDefects = (z.defects || []).filter((d) => !d.isDeleted && !d.is_deleted);
         totalDefectsCount += activeDefects.length;
-        activeDefects.forEach((d: any) => {
+        activeDefects.forEach((d) => {
           if (isCrackRelated(d.screeningCategory, d.defectType)) {
             zCrackGrades.push({
               grade: getBurlandGradeFromWidth(Number(d.widthMaxMm ?? d.width_max_mm) || 0),
@@ -70,12 +128,7 @@ function recomputeDerivedPhase1State(
           }
         });
       });
-      (f.structuralElements || []).forEach((e: any) => {
-        if (e.isDeleted || e.is_deleted) return;
-        const activeDefects = (e.defects || []).filter((d: any) => !d.isDeleted && !d.is_deleted);
-        totalDefectsCount += activeDefects.length;
-      });
-    });
+    }
 
     if (totalDefectsCount === 0) {
       updated.burlandSummary = {
@@ -111,6 +164,12 @@ function recomputeDerivedPhase1State(
         predominantGrade: inheritedPredominant,
         governingZoneCode,
       };
+    } else {
+      updated.burlandSummary = {
+        ...curBs,
+        localMaxGrade: 0,
+        predominantGrade: 0,
+      };
     }
   }
 
@@ -124,6 +183,7 @@ function recomputeDerivedPhase1State(
           ? rawHi.continuousOperation247
           : Boolean((rawHi.continuousOperation247 as { has?: boolean } | undefined)?.has),
     };
+    const rawCatScore = Number(updated.foundationCatScore);
     const phase1Input: Partial<Phase1SurveyFormData> = {
       ...(updated as unknown as Partial<Phase1SurveyFormData>),
       constructionYear:
@@ -131,9 +191,9 @@ function recomputeDerivedPhase1State(
           ? Number(updated.constructionYear)
           : undefined,
       foundationCatScore:
-        updated.foundationCatScore !== undefined && updated.foundationCatScore !== null && updated.foundationCatScore !== ''
-          ? (Number(updated.foundationCatScore) as 0 | 1 | 2 | 3 | 4 | 5)
-          : 0,
+        !Number.isNaN(rawCatScore) && rawCatScore >= 1 && rawCatScore <= 5
+          ? (rawCatScore as 1 | 2 | 3 | 4 | 5)
+          : 5,
       historyInterview: normalizedHi as unknown as Phase1SurveyFormData['historyInterview'],
     };
 
@@ -155,9 +215,16 @@ function recomputeDerivedPhase1State(
       updated.clearanceOffsetDistance as string,
       (updated.manualMetroDistanceM || updated.metroOffsetDistance) as string
     );
+    const isImpactTriggerKey = [
+      'metroOffsetDistance',
+      'clearanceOffsetDistance',
+      'manualMetroDistanceM',
+      'objectGroup',
+      'parcelCoordinates',
+    ].includes(changedTopKey);
     const curImpactStr = String(curExec.constructionImpactStatus || autoImpact.label);
     const effectiveICode = (
-      ['metroOffsetDistance', 'clearanceOffsetDistance', 'manualMetroDistanceM', 'objectGroup'].includes(changedTopKey)
+      isImpactTriggerKey
         ? autoImpact.code
         : curImpactStr.startsWith('I4')
           ? 'I4'
@@ -179,9 +246,7 @@ function recomputeDerivedPhase1State(
 
     updated.executiveSummary = {
       ...curExec,
-      ...(changedTopKey === 'metroOffsetDistance' || changedTopKey === 'clearanceOffsetDistance' || changedTopKey === 'manualMetroDistanceM'
-        ? { constructionImpactStatus: autoImpact.label }
-        : {}),
+      ...(isImpactTriggerKey ? { constructionImpactStatus: autoImpact.label } : {}),
       braStatus: nextBraStatus,
     };
   } else if (changedTopKey === 'ecs' || changedTopKey === 'vi') {
@@ -263,6 +328,26 @@ function recomputeDerivedPhase1State(
               ? 'MEDIUM'
               : 'LOW',
     };
+  } else if (changedTopKey === 'executiveSummary' && changedChildKey === 'constructionImpactStatus') {
+    const curExec = ((updated.executiveSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const curVi = ((updated.vi as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const viClass = ((curVi.viClass as string) || 'LOW') as 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+    const curImpactStr = String(curExec.constructionImpactStatus || 'I1');
+    const iCode = (
+      curImpactStr.startsWith('I4') ? 'I4' : curImpactStr.startsWith('I3') ? 'I3' : curImpactStr.startsWith('I2') ? 'I2' : 'I1'
+    ) as 'I1' | 'I2' | 'I3' | 'I4';
+    const braRes = calculateBraRisk(viClass, iCode);
+    updated.executiveSummary = {
+      ...curExec,
+      braStatus:
+        braRes.riskLevel === 'Very High'
+          ? 'VERY_HIGH'
+          : braRes.riskLevel === 'High'
+            ? 'HIGH'
+            : braRes.riskLevel === 'Medium'
+              ? 'MEDIUM'
+              : 'LOW',
+    };
   }
 
   return updated;
@@ -299,6 +384,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       ? String(sJson.clearanceOffsetDistance)
       : (data.clearanceOffsetDistance !== undefined && data.clearanceOffsetDistance !== '' ? String(data.clearanceOffsetDistance) : '');
 
+    let fallbackClosestVertex: [number, number] | null = null;
     if (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates) {
       try {
         let pCoords: [number, number][] = [];
@@ -316,6 +402,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
         if (pCoords.length >= 3) {
           const metrics = calculateComprehensiveMetroSpatialMetrics(pCoords);
+          fallbackClosestVertex = metrics.closestCenterVertex || pCoords[0];
           if (!defaultMetroDist) defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
           // Nếu nhà ga cán qua / cắt xén thửa đất, khoảng cách bao ngoài bắt buộc là 0.0m
           if (!defaultClearanceDist || metrics.isStationIntersectsParcel) {
@@ -329,17 +416,35 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
     const rawGps = sJson.gpsCoords || (typeof data.coordinates === 'object' && data.coordinates !== null && !Array.isArray(data.coordinates) ? (data.coordinates as { latitude?: number; lat?: number; longitude?: number; lng?: number; accuracy?: number }) : {});
     const coordArray = Array.isArray(data.coordinates) ? data.coordinates : null;
-    const latInit = rawGps.latitude ?? rawGps.lat ?? (coordArray && typeof coordArray[0] === 'number' ? coordArray[0] : 10.79241);
-    const lngInit = rawGps.longitude ?? rawGps.lng ?? (coordArray && typeof coordArray[1] === 'number' ? coordArray[1] : 106.71152);
-    const accInit = rawGps.accuracy ?? 3.5;
+    const latInit =
+      rawGps.latitude ??
+      rawGps.lat ??
+      (coordArray && typeof coordArray[0] === 'number' ? coordArray[0] : fallbackClosestVertex ? fallbackClosestVertex[0] : null);
+    const lngInit =
+      rawGps.longitude ??
+      rawGps.lng ??
+      (coordArray && typeof coordArray[1] === 'number' ? coordArray[1] : fallbackClosestVertex ? fallbackClosestVertex[1] : null);
+    const accInit = rawGps.accuracy ?? 0;
+
+    const rawInitCatScore = Number(sJson.foundationCatScore);
+    const resolvedInitCatScore =
+      !Number.isNaN(rawInitCatScore) && rawInitCatScore >= 1 && rawInitCatScore <= 5 ? rawInitCatScore : 5;
+
+    const resolvedPileDim =
+      sJson.pileDimensionMm ||
+      sJson.pileDimension ||
+      (sJson.pileWidthMm && sJson.pileLengthMm ? `${sJson.pileWidthMm} x ${sJson.pileLengthMm} mm` : '');
+
+    const sJsonRec = sJson as Record<string, unknown>;
 
     const initial: Record<string, unknown> = {
       // Step 1: Identification & General Specs
       projectParcelCode: data.projectParcelCode || sJson.projectParcelCode || '',
       houseNumber: data.houseNumber || sJson.houseNumber || '',
       street: data.street || sJson.street || '',
-      ward: data.ward || sJson.ward || 'Phường 5',
-      district: data.district || sJson.district || 'Quận Tân Bình',
+      ward: data.ward || sJson.ward || (sJsonRec.wardName as string | undefined) || '',
+      district: data.district || sJson.district || (sJsonRec.districtName as string | undefined) || '',
+      standardizedAddress: sJson.standardizedAddress || null,
       buildingName: sJson.buildingName || data.buildingName || 'Nhà ở dân dụng',
       ownerName: sJson.ownerName || data.ownerName || bSpecs.ownerName || '',
       ownerPhone: sJson.ownerPhone || data.ownerPhone || bSpecs.ownerPhone || '',
@@ -357,7 +462,15 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
       // Survey Case Type & Special Case Notes
       surveyCaseType: sJson.surveyCaseType || (data.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL'),
+      vacantLandCurrentState: sJson.vacantLandCurrentState || (sJsonRec.vacantLandStatus as string | undefined) || '',
       vacantLandNotes: sJson.vacantLandNotes || '',
+      vacantLandPhotos: Array.isArray(sJson.vacantLandPhotos) ? sJson.vacantLandPhotos : [],
+      underConstructionPhotos: Array.isArray(sJson.underConstructionPhotos) ? sJson.underConstructionPhotos : [],
+      absenteeNoticePhotos:
+        sJson.absenteeNoticePhotos ||
+        (sJsonRec.absentNoticePhotos as unknown[] | undefined) ||
+        (sJsonRec.absenteeMinutesPhotos as unknown[] | undefined) ||
+        [],
       constructionStageNotes: sJson.constructionStageNotes || '',
       unitCode: data.unitCode || sJson.unitCode || '',
       unitFloorNumber: data.unitFloorNumber || sJson.unitFloorNumber || '',
@@ -365,7 +478,16 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       managementContactPhone: sJson.managementContactPhone || '',
 
       // Spatial & GPS calculations (Allow manual override)
-      gpsCoords: { lat: Number(latInit), lng: Number(lngInit), accuracy: Number(accInit) },
+      gpsCoords:
+        latInit !== null && lngInit !== null
+          ? {
+              lat: Number(latInit),
+              latitude: Number(latInit),
+              lng: Number(lngInit),
+              longitude: Number(lngInit),
+              accuracy: Number(accInit),
+            }
+          : { lat: null, lng: null, accuracy: 0 },
       parcelCoordinates:
         Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3
           ? sJson.parcelCoordinates
@@ -382,11 +504,12 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       // Step 2: Structure & Foundation & History Interview
       structureSystem: sJson.structureSystem || bSpecs.structuralSystem || bSpecs.structural_system || '',
       foundationType: sJson.foundationType || bSpecs.foundationCategory || bSpecs.foundation_category || '',
-      foundationCatScore: sJson.foundationCatScore !== undefined ? sJson.foundationCatScore : (bSpecs.foundation_category ? 3 : null),
+      foundationCatScore: resolvedInitCatScore,
       foundationDepthM: sJson.foundationDepthM !== undefined ? sJson.foundationDepthM : (bSpecs.foundationDepthM ?? bSpecs.foundation_depth_m ?? ''),
       foundationDensity: sJson.foundationDensity !== undefined ? sJson.foundationDensity : (bSpecs.foundationDensity ?? bSpecs.foundation_density ?? ''),
       foundationSpacingM: sJson.foundationSpacingM !== undefined ? sJson.foundationSpacingM : (bSpecs.foundationSpacingM ?? bSpecs.foundation_spacing_m ?? ''),
-      pileDimensionMm: sJson.pileDimensionMm || (sJson.pileWidthMm && sJson.pileLengthMm ? `${sJson.pileWidthMm} x ${sJson.pileLengthMm} cm` : ''),
+      pileDimensionMm: resolvedPileDim,
+      pileDimension: sJson.pileDimension || resolvedPileDim,
       foundationNotes: sJson.foundationNotes || bSpecs.foundationNotes || bSpecs.foundation_notes || '',
       asBuiltDrawingPhotos: Array.isArray(sJson.asBuiltDrawingPhotos) && sJson.asBuiltDrawingPhotos.length > 0
         ? sJson.asBuiltDrawingPhotos
@@ -421,8 +544,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         },
         buildingTilt: {
           level: sJson.settlementTilt?.buildingTilt?.level ?? defState.building_tilt_level ?? 0,
-          xPermille: sJson.settlementTilt?.buildingTilt?.xPermille ?? defState.tilt_x_permille ?? 0,
-          yPermille: sJson.settlementTilt?.buildingTilt?.yPermille ?? defState.tilt_y_permille ?? 0,
+          xPermille: sJson.settlementTilt?.buildingTilt?.xPermille ?? defState.tilt_x_permille ?? '',
+          yPermille: sJson.settlementTilt?.buildingTilt?.yPermille ?? defState.tilt_y_permille ?? '',
           direction: sJson.settlementTilt?.buildingTilt?.direction || defState.tilt_direction || '',
           photoUrl: sJson.settlementTilt?.buildingTilt?.photoUrl || defState.tilt_photo_url || '',
           photoCode: sJson.settlementTilt?.buildingTilt?.photoCode || defState.tilt_photo_code || 'TILT_01',
@@ -436,10 +559,19 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
           notes: sJson.settlementTilt?.buildingTilt?.notes || defState.tilt_notes || '',
         },
         beamSagging: {
+          ...sJson.settlementTilt?.beamSagging,
           level: sJson.settlementTilt?.beamSagging?.level ?? defState.beam_sagging_level ?? 0,
           sagMm: sJson.settlementTilt?.beamSagging?.sagMm ?? defState.beam_sagging_mm ?? '',
           position: sJson.settlementTilt?.beamSagging?.position || defState.beam_sagging_position || '',
           description: sJson.settlementTilt?.beamSagging?.description || defState.beam_sagging_description || '',
+          photoUrl: sJson.settlementTilt?.beamSagging?.photoUrl || '',
+          photos:
+            Array.isArray(sJson.settlementTilt?.beamSagging?.photos) && sJson.settlementTilt.beamSagging.photos.length > 0
+              ? sJson.settlementTilt.beamSagging.photos
+              : sJson.settlementTilt?.beamSagging?.photoUrl
+              ? [{ url: sJson.settlementTilt.beamSagging.photoUrl, photoCode: 'SAG_01' }]
+              : [],
+          notes: sJson.settlementTilt?.beamSagging?.notes || '',
         },
         abnormalCase: {
           hasAbnormal: Boolean(sJson.settlementTilt?.abnormalCase?.hasAbnormal ?? sJson.settlementTilt?.abnormalCase?.description ?? sJson.settlementTilt?.abnormalCase?.notes ?? defState.abnormal_photo_url),
@@ -515,7 +647,11 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         witnessSignature: sigState.witnessSignature || sJson.witnessSignature || null,
         workingMinutesPhotos: sigState.workingMinutesPhotos || [],
       },
-      absenceLogs: data.leftPane?.absenceLogs || [],
+      absenceLogs:
+        sJson.absenceLogs ||
+        data.leftPane?.absenceLogs ||
+        ((data as Record<string, unknown>).absenceLogs as unknown[] | undefined) ||
+        [],
       photoRotations:
         sJson.photoRotations && typeof sJson.photoRotations === 'object'
           ? { ...(sJson.photoRotations as Record<string, number>) }
@@ -560,20 +696,39 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
   /**
    * Đồng bộ Ranh đất PostGIS & Cự ly Metro (Ràng buộc 02 - /grill-me):
-   * CHỈ cập nhật parcelCoordinates, metroOffsetDistance, clearanceOffsetDistance.
+   * Cập nhật parcelCoordinates, metroOffsetDistance, clearanceOffsetDistance và gpsCoords (đỉnh gần Metro nhất).
    * Tuyệt đối KHÔNG ghi đè landAreaM2, constructionAreaM2, frontageWidth, lotDepth.
    */
   const handleApplySyncedGeometry = (
     newCoords: [number, number][],
     newMetroDist: string,
-    newClearanceDist: string
+    newClearanceDist: string,
+    closestCenterVertex?: [number, number] | null
   ) => {
     if (!isEditMode) {
       setIsEditMode(true);
     }
+    let targetVertex = closestCenterVertex;
+    if (!targetVertex && Array.isArray(newCoords) && newCoords.length >= 3) {
+      try {
+        targetVertex = calculateComprehensiveMetroSpatialMetrics(newCoords).closestCenterVertex;
+      } catch (err) {
+        console.warn('Error computing closestCenterVertex in handleApplySyncedGeometry:', err);
+      }
+    }
     handleFieldChange('parcelCoordinates', 'Tọa độ đa giác ranh thửa (PostGIS GPMB)', newCoords);
     handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro (m)', newMetroDist);
     handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài / mép ga (m)', newClearanceDist);
+    if (targetVertex && targetVertex.length >= 2) {
+      const curAcc = (formState.gpsCoords as { accuracy?: number } | undefined)?.accuracy || 1.5;
+      handleFieldChange('gpsCoords', 'Tọa độ đỉnh ranh gần Metro nhất (PostGIS)', {
+        lat: Number(targetVertex[0]),
+        latitude: Number(targetVertex[0]),
+        lng: Number(targetVertex[1]),
+        longitude: Number(targetVertex[1]),
+        accuracy: Number(curAcc),
+      });
+    }
     if (formState.keepKsvBoundaryConfirmed) {
       handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', false);
     }
@@ -587,13 +742,13 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
       if (childKey.includes('.')) {
         const parts = childKey.split('.');
-        const copy = JSON.parse(JSON.stringify(parentObj));
+        const copy = JSON.parse(JSON.stringify(parentObj)) as Record<string, unknown>;
         let cur = copy;
         for (let i = 0; i < parts.length - 1; i++) {
           if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') {
             cur[parts[i]] = {};
           }
-          cur = cur[parts[i]];
+          cur = cur[parts[i]] as Record<string, unknown>;
         }
         cur[parts[parts.length - 1]] = val;
         updatedParent = copy;
@@ -601,7 +756,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         updatedParent = { ...parentObj, [childKey]: val };
       }
 
-      return recomputeDerivedPhase1State({ ...prev, [parentKey]: updatedParent }, parentKey);
+      return recomputeDerivedPhase1State({ ...prev, [parentKey]: updatedParent }, parentKey, childKey);
     });
 
     const dirtyKey = `${parentKey}.${childKey}`;
@@ -655,26 +810,31 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
       setFormState((prev) => {
         const parentObj = (prev[parentKey] as Record<string, unknown>) || {};
-        const copy = JSON.parse(JSON.stringify(parentObj));
+        const copy = JSON.parse(JSON.stringify(parentObj)) as Record<string, unknown>;
         let cur = copy;
         for (let i = 0; i < childPath.length - 1; i++) {
           if (!cur[childPath[i]] || typeof cur[childPath[i]] !== 'object') {
             cur[childPath[i]] = {};
           }
-          cur = cur[childPath[i]];
+          cur = cur[childPath[i]] as Record<string, unknown>;
         }
         if (origVal === undefined) {
           delete cur[childPath[childPath.length - 1]];
         } else {
           cur[childPath[childPath.length - 1]] = origVal;
         }
-        return { ...prev, [parentKey]: copy };
+        return recomputeDerivedPhase1State({ ...prev, [parentKey]: copy }, parentKey, childPath.join('.'));
       });
     } else {
-      setFormState((prev) => ({
-        ...prev,
-        [fieldKey]: originalState[fieldKey],
-      }));
+      setFormState((prev) =>
+        recomputeDerivedPhase1State(
+          {
+            ...prev,
+            [fieldKey]: originalState[fieldKey],
+          },
+          fieldKey
+        )
+      );
     }
 
     setDirtyFields((prev) => {
@@ -693,13 +853,37 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     }));
 
     const updatesPayload: Record<string, unknown> = {};
+    let hasScoringKeyChanged = false;
+
     Object.keys(dirtyFields).forEach((k) => {
       const topKey = k.includes('.') ? k.split('.')[0] : k;
       updatesPayload[topKey] = formState[topKey];
       if (topKey === 'floors' || topKey === 'damageZones') {
         updatesPayload.burlandSummary = formState.burlandSummary;
       }
+      if (STEP_1_TO_5_SCORING_KEYS.has(topKey) || topKey === 'ecs' || topKey === 'vi' || topKey === 'executiveSummary') {
+        hasScoringKeyChanged = true;
+      }
     });
+
+    // Luôn đính kèm các chỉ số dẫn xuất đã tính lại (burlandSummary, ecs, vi, executiveSummary) nếu có thay đổi
+    const derivedKeys = ['burlandSummary', 'ecs', 'vi', 'executiveSummary'] as const;
+    for (const dKey of derivedKeys) {
+      if (
+        hasScoringKeyChanged ||
+        JSON.stringify(formState[dKey]) !== JSON.stringify(originalState[dKey])
+      ) {
+        updatesPayload[dKey] = formState[dKey];
+      }
+    }
+
+    if (updatesPayload.executiveSummary && typeof updatesPayload.executiveSummary === 'object') {
+      updatesPayload.executiveSummary = {
+        ...(updatesPayload.executiveSummary as Record<string, unknown>),
+        isImpactOverridden: Boolean(dirtyFields['executiveSummary.constructionImpactStatus']),
+        isBraOverridden: Boolean(dirtyFields['executiveSummary.braStatus']),
+      };
+    }
 
     return { diffItems, updatesPayload };
   };

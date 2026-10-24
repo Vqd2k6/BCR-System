@@ -28,13 +28,13 @@ export class Section9ConclusionMapper {
       rawReport.owner_remarks ??
       '';
     const surveyorConclusionText =
-      json.summaryConclusions ??
       json.executiveSummary?.summaryConclusions ??
+      json.summaryConclusions ??
       rawReport.summary_conclusions ??
       '';
     const keyRisksDefectsText = String(
-      json.keyRisksDefectsText ??
       json.executiveSummary?.keyRisksDefectsText ??
+      json.keyRisksDefectsText ??
       ''
     ).trim();
 
@@ -53,8 +53,15 @@ export class Section9ConclusionMapper {
     }
 
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey);
-    const ownerName = json.ownerName || rawReport.owner_name || 'Chủ hộ';
-    const isOwnerSigned = Boolean(rawReport.owner_signature_img || json.signatures?.ownerRepresentative?.signatureImg);
+    const ownerName = json.ownerName || json.signatures?.ownerName || rawReport.owner_name || 'Chủ hộ';
+    const isOwnerSigned = Boolean(
+      rawReport.owner_signature_url ||
+      rawReport.owner_signature_img ||
+      json.signatures?.ownerSignatureUrl ||
+      json.ownerSignatureUrl ||
+      json.signatures?.ownerRepresentative?.signatureImg ||
+      json.signatures?.ownerSignStatus === 'SIGNED'
+    );
 
     let witnessNarrative: BilingualText;
     if (isAbsentee) {
@@ -102,59 +109,65 @@ export class Section9ConclusionMapper {
       });
     }
 
-    const inaccessible = json.accessLimitation?.restrictedAreas ?? json.inaccessibleAreas ?? rawReport.inaccessible_areas;
-    if (inaccessible && inaccessible !== 'NONE' && inaccessible !== 'None' && inaccessible !== 'Không') {
-      let areaItems: string[] = Array.isArray(inaccessible) ? [...inaccessible] : [String(inaccessible)];
+    if (!isFullAccess) {
+      const inaccessible = json.accessLimitation?.restrictedAreas ?? json.inaccessibleAreas ?? rawReport.inaccessible_areas;
+      if (inaccessible && inaccessible !== 'NONE' && inaccessible !== 'None' && inaccessible !== 'Không') {
+        let areaItems: string[] = Array.isArray(inaccessible) ? [...inaccessible] : [String(inaccessible)];
 
-      const customArea = json.accessLimitation?.customRestrictedArea ||
-        (() => {
-          const notesStr = String(json.accessLimitation?.notes || rawReport.accessibility_limitations || '');
-          const match = notesStr.match(/\[Khu vực khác:\s*(.+?)\]/);
-          return match ? match[1].trim() : '';
-        })();
+        const customArea = json.accessLimitation?.customRestrictedArea ||
+          (() => {
+            const notesStr = String(json.accessLimitation?.notes || rawReport.accessibility_limitations || '');
+            const match = notesStr.match(/\[Khu vực khác:\s*(.+?)\]/);
+            return match ? match[1].trim() : '';
+          })();
 
-      areaItems = areaItems.map(item => {
-        if (item.includes('Khác (Nhập chi tiết...)') || item === 'Khác') {
-          if (customArea) {
-            return `Khác (${customArea})`;
-          }
-          const notesStr = (json.accessLimitation?.notes || rawReport.accessibility_limitations || '').trim();
-          if (notesStr && !notesStr.startsWith('[')) {
-            const firstClause = notesStr.split(/[.;\n]/)[0].trim();
-            if (firstClause.length > 0 && firstClause.length <= 60) {
-              return `Khác (${firstClause})`;
+        areaItems = areaItems.map(item => {
+          if (item.includes('Khác (Nhập chi tiết...)') || item === 'Khác') {
+            if (customArea) {
+              return `Khác (${customArea})`;
             }
+            const notesStr = (json.accessLimitation?.notes || rawReport.accessibility_limitations || '').trim();
+            if (notesStr && !notesStr.startsWith('[')) {
+              const firstClause = notesStr.split(/[.;\n]/)[0].trim();
+              if (firstClause.length > 0 && firstClause.length <= 60) {
+                return `Khác (${firstClause})`;
+              }
+            }
+            return 'Khu vực hạn chế khác (Chưa ghi rõ)';
           }
-          return 'Khu vực hạn chế khác (Chưa ghi rõ)';
-        }
-        return item.replace(/\s*\(Nhập chi tiết\.\.\.\)/g, '').trim();
-      }).filter(Boolean);
+          return item.replace(/\s*\(Nhập chi tiết\.\.\.\)/g, '').trim();
+        }).filter(Boolean);
 
-      const areaStr = areaItems.join(', ');
-      if (areaStr.trim()) {
+        const areaStr = areaItems.join(', ');
+        if (areaStr.trim()) {
+          limitationsList.push({
+            vi: `Khu vực chưa tiếp cận khảo sát: ${areaStr.trim()}`,
+            en: `Inaccessible survey areas: ${areaStr.trim()}`,
+          });
+        }
+      }
+
+      const restrictedFloors = json.accessLimitation?.restrictedFloorLevels;
+      if (Array.isArray(restrictedFloors) && restrictedFloors.length > 0) {
+        const flStr = restrictedFloors.join(', ');
         limitationsList.push({
-          vi: `Khu vực chưa tiếp cận khảo sát: ${areaStr.trim()}`,
-          en: `Inaccessible survey areas: ${areaStr.trim()}`,
+          vi: `Tầng không thể tiếp cận: ${flStr}`,
+          en: `Inaccessible floor levels: ${flStr}`,
         });
       }
-    }
 
-    const restrictedFloors = json.accessLimitation?.restrictedFloorLevels;
-    if (Array.isArray(restrictedFloors) && restrictedFloors.length > 0) {
-      const flStr = restrictedFloors.join(', ');
-      limitationsList.push({
-        vi: `Tầng không thể tiếp cận: ${flStr}`,
-        en: `Inaccessible floor levels: ${flStr}`,
-      });
-    }
-
-    let accessNotes = json.accessLimitation?.notes || json.accessLimitation?.mainReason || rawReport.accessibility_limitations;
-    if (accessNotes && typeof accessNotes === 'string') {
-      accessNotes = accessNotes.replace(/\[Khu vực khác:\s*.*?\]/g, '').trim();
-      if (accessNotes) {
+      const mainReason = typeof json.accessLimitation?.mainReason === 'string' ? json.accessLimitation.mainReason.trim() : '';
+      let rawNotes = typeof json.accessLimitation?.notes === 'string'
+        ? json.accessLimitation.notes
+        : (typeof rawReport.accessibility_limitations === 'string' ? rawReport.accessibility_limitations : '');
+      rawNotes = rawNotes.replace(/\[Khu vực khác:\s*.*?\]/g, '').trim();
+      const combinedReason = mainReason && rawNotes && mainReason !== rawNotes
+        ? `${mainReason} (${rawNotes})`
+        : (rawNotes || mainReason);
+      if (combinedReason) {
         limitationsList.push({
-          vi: `Lý do hạn chế tiếp cận: ${accessNotes}`,
-          en: `Access limitation reason: ${accessNotes}`,
+          vi: `Lý do hạn chế tiếp cận: ${combinedReason}`,
+          en: `Access limitation reason: ${combinedReason}`,
         });
       }
     }
@@ -181,6 +194,7 @@ export class Section9ConclusionMapper {
     const recommendations: BilingualText[] = [...(standardText?.recommendations || [])];
     const specificRecommendationsText = String(
       json.executiveSummary?.specificRecommendationsText ??
+      json.specificRecommendationsText ??
       json.engineeringRecommendations ??
       rawReport.engineering_recommendations ??
       ''

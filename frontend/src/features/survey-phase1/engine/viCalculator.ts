@@ -64,7 +64,9 @@ export function calculateViScore(formData: Partial<Phase1SurveyFormData>, curren
 
   // 6. V6: Thiết bị nhạy cảm (Tự động map từ B2.2)
   let v6 = formData.vi?.v6 ?? 1;
-  if (formData.historyInterview?.continuousOperation247) {
+  const rawContOp = formData.historyInterview?.continuousOperation247 as boolean | { has?: boolean } | undefined;
+  const isContOp247 = typeof rawContOp === 'boolean' ? rawContOp : Boolean(rawContOp?.has);
+  if (isContOp247) {
     v6 = 4;
   } else if (formData.historyInterview?.sensitiveEquipment?.has) {
     v6 = 3;

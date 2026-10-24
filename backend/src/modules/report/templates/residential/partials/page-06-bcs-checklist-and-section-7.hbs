@@ -192,6 +192,16 @@
           - Thẩm tra kỹ sư kết cấu: <strong>{{section7.needStructuralReview.vi}}</strong>
         </div>
       </div>
+      {{#if section7.evaluationNotes}}
+        <div style="margin-top: 4px; font-size: var(--fs-c1); color: var(--c-black);">
+          - Đánh giá chuyên môn Burland: {{section7.evaluationNotes}}
+        </div>
+      {{/if}}
+      {{#if section7.engineerReviewNotes}}
+        <div style="margin-top: 2px; font-size: var(--fs-c1); color: var(--c-black);">
+          - Ý kiến thẩm tra Kỹ sư kết cấu: {{section7.engineerReviewNotes}}
+        </div>
+      {{/if}}
     </div>
 
     <div class="page-number-footer">{{tocPageNumbers.section7}}</div>

@@ -244,7 +244,23 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
                 <span className="flex items-center gap-1">
                   <Camera className="w-3 h-3 text-slate-500" />
-                  <span>Ảnh Lún Chênh / Chân Tường ({diffPhotos.length})</span>
+                  <span>
+                    Ảnh Lún Chênh / Chân Tường (
+                    {Math.max(
+                      0,
+                      diffPhotos.length +
+                        (stagedPhotoActions
+                          ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')
+                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                        (stagedPhotoActions?.filter(
+                          (a) =>
+                            a.action === 'DELETE' &&
+                            (a.targetPhotoType === 'SETTLEMENT_DIFF' ||
+                              a.targetPhotoId === 'settlementTilt.diffSettlement.photos')
+                        ).length || 0)
+                    )}
+                    )
+                  </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
                   <button
@@ -276,24 +292,19 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const itemKey = diffPhotos.length > 1 ? `diffSettlement_${pIdx}` : 'diffSettlement';
+                    const itemKey = `diffSettlement_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
-                      stagedPhotoRotations[`diffSettlement_${pIdx}`] ??
                       stagedPhotoRotations[p.photoCode || `SETTLE_${pIdx + 1}`] ??
-                      stagedPhotoRotations['diffSettlement'] ??
-                      stagedPhotoRotations['P-06'] ??
-                      stagedPhotoRotations[p.url] ??
                       0;
                     const orientStatus =
                       violationsMap?.get(itemKey) ||
-                      violationsMap?.get(`diffSettlement_${pIdx}`) ||
-                      violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`) ||
-                      violationsMap?.get('diffSettlement');
+                      violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`);
                     return (
                       <AuditPhotoCard
                         key={pIdx}
                         url={stagedDiff?.newPhotoUrl || p.url}
+                        photoKey={itemKey}
                         photoCode={p.photoCode || `SETTLE_${pIdx + 1}`}
                         title={`Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`}
                         category="SETTLEMENT_TILT"
@@ -321,25 +332,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   {/* Ảnh lún chênh mới thêm (Optimistic ADD) */}
                   {stagedPhotoActions
                     ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')
-                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
-                    .map((addedUrl, addIdx) => (
-                      <AuditPhotoCard
-                        key={`added-diff-${addIdx}`}
-                        url={addedUrl}
-                        photoCode={`Mới`}
-                        title={`Ảnh lún chênh mới thêm`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="SETTLEMENT_DIFF"
-                        targetPhotoId="settlementTilt.diffSettlement.photos"
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="emerald"
-                        optimisticStatus="ADDED"
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
-                    ))}
+                    .flatMap((a) => (a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])).map((u) => ({ url: u, action: a })))
+                    .map((addedItem, addIdx) => {
+                      const addKey = `diffSettlement_added_${addIdx}`;
+                      const addRot = stagedPhotoRotations[addKey] ?? 0;
+                      return (
+                        <AuditPhotoCard
+                          key={`added-diff-${addIdx}`}
+                          url={addedItem.url}
+                          photoKey={addKey}
+                          photoCode={`Mới`}
+                          title={`Ảnh lún chênh mới thêm #${addIdx + 1}`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="SETTLEMENT_DIFF"
+                          targetPhotoId="settlementTilt.diffSettlement.photos"
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="emerald"
+                          rotation={addRot}
+                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                          optimisticStatus="ADDED"
+                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
@@ -407,11 +426,11 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       <input
                         type="number"
                         step="0.1"
-                        value={tilt.xPermille ?? 0}
+                        value={tilt.xPermille ?? ''}
                         onChange={(e) =>
                           handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng X', {
                             ...tilt,
-                            xPermille: Number(e.target.value),
+                            xPermille: e.target.value === '' ? '' : Number(e.target.value),
                           })
                         }
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-xs font-bold font-mono bg-white"
@@ -423,11 +442,11 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       <input
                         type="number"
                         step="0.1"
-                        value={tilt.yPermille ?? 0}
+                        value={tilt.yPermille ?? ''}
                         onChange={(e) =>
                           handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng Y', {
                             ...tilt,
-                            yPermille: Number(e.target.value),
+                            yPermille: e.target.value === '' ? '' : Number(e.target.value),
                           })
                         }
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-xs font-bold font-mono bg-white"
@@ -463,7 +482,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               ) : (
                 <div>
                   <div className="text-xs font-black text-slate-800 font-mono">
-                    X: {tilt.xPermille || '0'} ‰ &bull; Y: {tilt.yPermille || '0'} ‰
+                    X: {tilt.xPermille !== undefined && tilt.xPermille !== '' ? `${tilt.xPermille} ‰` : '---'} &bull; Y: {tilt.yPermille !== undefined && tilt.yPermille !== '' ? `${tilt.yPermille} ‰` : '---'}
                   </div>
                   <div className="text-[11px] text-slate-600 mt-0.5">
                     Hướng: <strong>{tilt.direction || 'Không ghi nhận hướng nghiêng'}</strong>
@@ -481,7 +500,23 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
                 <span className="flex items-center gap-1">
                   <Camera className="w-3 h-3 text-slate-500" />
-                  <span>Ảnh Kiểm Tra Độ Nghiêng ({tiltPhotos.length})</span>
+                  <span>
+                    Ảnh Kiểm Tra Độ Nghiêng (
+                    {Math.max(
+                      0,
+                      tiltPhotos.length +
+                        (stagedPhotoActions
+                          ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')
+                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                        (stagedPhotoActions?.filter(
+                          (a) =>
+                            a.action === 'DELETE' &&
+                            (a.targetPhotoType === 'TILT_ANGLE' ||
+                              a.targetPhotoId === 'settlementTilt.buildingTilt.photos')
+                        ).length || 0)
+                    )}
+                    )
+                  </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
                   <button
@@ -513,24 +548,19 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const itemKey = tiltPhotos.length > 1 ? `buildingTilt_${pIdx}` : 'buildingTilt';
+                    const itemKey = `buildingTilt_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
-                      stagedPhotoRotations[`buildingTilt_${pIdx}`] ??
                       stagedPhotoRotations[p.photoCode || `TILT_${pIdx + 1}`] ??
-                      stagedPhotoRotations['buildingTilt'] ??
-                      stagedPhotoRotations['P-05'] ??
-                      stagedPhotoRotations[p.url] ??
                       0;
                     const orientStatus =
                       violationsMap?.get(itemKey) ||
-                      violationsMap?.get(`buildingTilt_${pIdx}`) ||
-                      violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`) ||
-                      violationsMap?.get('buildingTilt');
+                      violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`);
                     return (
                       <AuditPhotoCard
                         key={pIdx}
                         url={stagedTilt?.newPhotoUrl || p.url}
+                        photoKey={itemKey}
                         photoCode={p.photoCode || `TILT_${pIdx + 1}`}
                         title={`Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`}
                         category="SETTLEMENT_TILT"
@@ -558,25 +588,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   {/* Ảnh độ nghiêng mới thêm (Optimistic ADD) */}
                   {stagedPhotoActions
                     ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')
-                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
-                    .map((addedUrl, addIdx) => (
-                      <AuditPhotoCard
-                        key={`added-tilt-${addIdx}`}
-                        url={addedUrl}
-                        photoCode={`Mới`}
-                        title={`Ảnh độ nghiêng mới thêm`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="TILT_ANGLE"
-                        targetPhotoId="settlementTilt.buildingTilt.photos"
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="emerald"
-                        optimisticStatus="ADDED"
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
-                    ))}
+                    .flatMap((a) => (a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])).map((u) => ({ url: u, action: a })))
+                    .map((addedItem, addIdx) => {
+                      const addKey = `buildingTilt_added_${addIdx}`;
+                      const addRot = stagedPhotoRotations[addKey] ?? 0;
+                      return (
+                        <AuditPhotoCard
+                          key={`added-tilt-${addIdx}`}
+                          url={addedItem.url}
+                          photoKey={addKey}
+                          photoCode={`Mới`}
+                          title={`Ảnh độ nghiêng mới thêm #${addIdx + 1}`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="TILT_ANGLE"
+                          targetPhotoId="settlementTilt.buildingTilt.photos"
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="emerald"
+                          rotation={addRot}
+                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                          optimisticStatus="ADDED"
+                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
@@ -692,7 +730,23 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
                 <span className="flex items-center gap-1">
                   <Camera className="w-3 h-3 text-slate-500" />
-                  <span>Ảnh Kiểm Tra Độ Võng Dầm ({beamPhotos.length})</span>
+                  <span>
+                    Ảnh Kiểm Tra Độ Võng Dầm (
+                    {Math.max(
+                      0,
+                      beamPhotos.length +
+                        (stagedPhotoActions
+                          ?.filter((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')
+                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                        (stagedPhotoActions?.filter(
+                          (a) =>
+                            a.action === 'DELETE' &&
+                            (a.category === 'BEAM_SAGGING' ||
+                              a.targetPhotoId === 'settlementTilt.beamSagging.photos')
+                        ).length || 0)
+                    )}
+                    )
+                  </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
                   <button
@@ -724,23 +778,19 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
-                    const itemKey = beamPhotos.length > 1 ? `beamSagging_${pIdx}` : 'beamSagging';
+                    const itemKey = `beamSagging_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
-                      stagedPhotoRotations[`beamSagging_${pIdx}`] ??
                       stagedPhotoRotations[p.photoCode || `SAG_${pIdx + 1}`] ??
-                      stagedPhotoRotations['beamSagging'] ??
-                      stagedPhotoRotations[p.url] ??
                       0;
                     const orientStatus =
                       violationsMap?.get(itemKey) ||
-                      violationsMap?.get(`beamSagging_${pIdx}`) ||
-                      violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`) ||
-                      violationsMap?.get('beamSagging');
+                      violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`);
                     return (
                       <AuditPhotoCard
                         key={pIdx}
                         url={stagedBeam?.newPhotoUrl || p.url}
+                        photoKey={itemKey}
                         photoCode={p.photoCode || `SAG_${pIdx + 1}`}
                         title={`Ảnh võng dầm (${p.photoCode || `SAG_${pIdx + 1}`})`}
                         category="BEAM_SAGGING"
@@ -768,25 +818,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   {/* Ảnh võng dầm mới thêm (Optimistic ADD) */}
                   {stagedPhotoActions
                     ?.filter((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')
-                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
-                    .map((addedUrl, addIdx) => (
-                      <AuditPhotoCard
-                        key={`added-sag-${addIdx}`}
-                        url={addedUrl}
-                        photoCode={`Mới`}
-                        title={`Ảnh võng dầm mới thêm`}
-                        category="BEAM_SAGGING"
-                        targetPhotoType="BEAM_SAGGING"
-                        targetPhotoId="settlementTilt.beamSagging.photos"
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="emerald"
-                        optimisticStatus="ADDED"
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
-                    ))}
+                    .flatMap((a) => (a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])).map((u) => ({ url: u, action: a })))
+                    .map((addedItem, addIdx) => {
+                      const addKey = `beamSagging_added_${addIdx}`;
+                      const addRot = stagedPhotoRotations[addKey] ?? 0;
+                      return (
+                        <AuditPhotoCard
+                          key={`added-sag-${addIdx}`}
+                          url={addedItem.url}
+                          photoKey={addKey}
+                          photoCode={`Mới`}
+                          title={`Ảnh võng dầm mới thêm #${addIdx + 1}`}
+                          category="BEAM_SAGGING"
+                          targetPhotoType="BEAM_SAGGING"
+                          targetPhotoId="settlementTilt.beamSagging.photos"
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="emerald"
+                          rotation={addRot}
+                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                          optimisticStatus="ADDED"
+                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
@@ -825,7 +883,29 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <span>2.2. Trường Hợp Ngoại LỆ / Hiện Trạng Bất Thường Khác</span>
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-              {abnormalPhotos.length} ảnh minh chứng
+              {Math.max(
+                0,
+                abnormalPhotos.length +
+                  (stagedPhotoActions
+                    ?.filter(
+                      (a) =>
+                        a.action === 'ADD' &&
+                        (a.targetPhotoType === 'ABNORMAL_PHOTO' ||
+                          a.targetPhotoType === 'ABNORMAL_CASE' ||
+                          a.targetPhotoId === 'settlementTilt.abnormalCase.photos' ||
+                          a.targetPhotoId === 'abnormalPhotos')
+                    )
+                    .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                  (stagedPhotoActions?.filter(
+                    (a) =>
+                      a.action === 'DELETE' &&
+                      (a.targetPhotoType === 'ABNORMAL_PHOTO' ||
+                        a.targetPhotoType === 'ABNORMAL_CASE' ||
+                        a.targetPhotoId === 'settlementTilt.abnormalCase.photos' ||
+                        a.targetPhotoId === 'abnormalPhotos')
+                  ).length || 0)
+              )}{' '}
+              ảnh minh chứng
             </span>
           </div>
 
@@ -844,7 +924,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         initialMode: 'ADD',
                         category: 'SETTLEMENT_TILT',
                         targetPhotoType: 'ABNORMAL_PHOTO',
-                        targetPhotoId: 'abnormalPhotos',
+                        targetPhotoId: 'settlementTilt.abnormalCase.photos',
                         photoTitle: 'Bổ sung ảnh hiện trạng bất thường',
                       })
                     }
@@ -856,38 +936,50 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 )}
               </div>
 
-              {abnormalPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && (a.targetPhotoType === 'ABNORMAL_PHOTO' || a.targetPhotoType === 'ABNORMAL_CASE'))) ? (
+              {abnormalPhotos.length > 0 ||
+              stagedPhotoActions?.some(
+                (a) =>
+                  a.action === 'ADD' &&
+                  (a.targetPhotoType === 'ABNORMAL_PHOTO' ||
+                    a.targetPhotoType === 'ABNORMAL_CASE' ||
+                    a.targetPhotoId === 'settlementTilt.abnormalCase.photos' ||
+                    a.targetPhotoId === 'abnormalPhotos')
+              ) ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {abnormalPhotos.map((p, pIdx) => {
-                    const stagedAb = getStagedAction({
-                      category: 'SETTLEMENT_TILT',
-                      targetPhotoId: 'abnormalPhotos',
-                      photoIndex: pIdx,
-                      url: p.url,
-                    });
-                    const itemKey = abnormalPhotos.length > 1 ? `abnormalCase_${pIdx}` : 'abnormalCase';
+                    const stagedAb =
+                      getStagedAction({
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoId: 'settlementTilt.abnormalCase.photos',
+                        photoIndex: pIdx,
+                        url: p.url,
+                      }) ||
+                      getStagedAction({
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoId: 'abnormalPhotos',
+                        photoIndex: pIdx,
+                        url: p.url,
+                      });
+                    const itemKey = `abnormal_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
                       stagedPhotoRotations[`abnormalCase_${pIdx}`] ??
                       stagedPhotoRotations[p.photoCode || `ANOMALY_${pIdx + 1}`] ??
-                      stagedPhotoRotations['abnormalCase'] ??
-                      stagedPhotoRotations['P-07'] ??
-                      stagedPhotoRotations[p.url] ??
                       0;
                     const orientStatus =
                       violationsMap?.get(itemKey) ||
                       violationsMap?.get(`abnormalCase_${pIdx}`) ||
-                      violationsMap?.get(p.photoCode || `ANOMALY_${pIdx + 1}`) ||
-                      violationsMap?.get('abnormalCase');
+                      violationsMap?.get(p.photoCode || `ANOMALY_${pIdx + 1}`);
                     return (
                       <AuditPhotoCard
                         key={pIdx}
                         url={stagedAb?.newPhotoUrl || p.url}
+                        photoKey={itemKey}
                         photoCode={p.photoCode || `ANOMALY_${pIdx + 1}`}
                         title={`Ảnh ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`}
                         category="SETTLEMENT_TILT"
                         targetPhotoType="ABNORMAL_PHOTO"
-                        targetPhotoId="abnormalPhotos"
+                        targetPhotoId="settlementTilt.abnormalCase.photos"
                         photoIndex={pIdx}
                         isEditMode={isEditMode}
                         aspectRatio="aspect-video"
@@ -909,26 +1001,41 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
                   {/* Ảnh ngoại lệ mới thêm (Optimistic ADD) */}
                   {stagedPhotoActions
-                    ?.filter((a) => a.action === 'ADD' && (a.targetPhotoType === 'ABNORMAL_PHOTO' || a.targetPhotoType === 'ABNORMAL_CASE'))
-                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
-                    .map((addedUrl, addIdx) => (
-                      <AuditPhotoCard
-                        key={`added-ab-${addIdx}`}
-                        url={addedUrl}
-                        photoCode={`Mới`}
-                        title={`Ảnh ngoại lệ mới thêm`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="ABNORMAL_PHOTO"
-                        targetPhotoId="abnormalPhotos"
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="emerald"
-                        optimisticStatus="ADDED"
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
-                    ))}
+                    ?.filter(
+                      (a) =>
+                        a.action === 'ADD' &&
+                        (a.targetPhotoType === 'ABNORMAL_PHOTO' ||
+                          a.targetPhotoType === 'ABNORMAL_CASE' ||
+                          a.targetPhotoId === 'settlementTilt.abnormalCase.photos' ||
+                          a.targetPhotoId === 'abnormalPhotos')
+                    )
+                    .flatMap((a) => (a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])).map((u) => ({ url: u, action: a })))
+                    .map((addedItem, addIdx) => {
+                      const addKey = `abnormal_added_${addIdx}`;
+                      const addRot = stagedPhotoRotations[addKey] ?? 0;
+                      return (
+                        <AuditPhotoCard
+                          key={`added-ab-${addIdx}`}
+                          url={addedItem.url}
+                          photoKey={addKey}
+                          photoCode={`Mới`}
+                          title={`Ảnh ngoại lệ mới thêm #${addIdx + 1}`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="ABNORMAL_PHOTO"
+                          targetPhotoId="settlementTilt.abnormalCase.photos"
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="emerald"
+                          rotation={addRot}
+                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                          optimisticStatus="ADDED"
+                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="p-3 rounded-xl bg-white border border-dashed border-slate-200 text-center space-y-1.5">
@@ -966,6 +1073,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     handleNestedFieldChange('settlementTilt', 'abnormalCase', 'Ghi chú ngoại lệ', {
                       ...abnormal,
                       notes: e.target.value,
+                      description: e.target.value,
+                      hasAbnormal: Boolean(e.target.value.trim() || abnormalPhotos.length > 0),
                     })
                   }
                   placeholder="VD: Rễ cây lớn làm nứt vỉa hè, hố ga thoát nước sát móng bị sụt..."

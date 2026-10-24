@@ -147,7 +147,17 @@ export function mapFloorZonesAndElements(
         const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
         const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Surface defect (spalling/dampness)';
 
-        const ctxRot = d.ctxRotation ?? z.ctxRotation ?? rotMap[`${baseZKey}_ctx`] ?? rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[`${baseZKey}_ov_0`] ?? rotMap[zCode] ?? rotMap[ctxUrl] ?? 0;
+        const ctxRot =
+          d.ctxRotation ??
+          z.ctxRotation ??
+          rotMap[`${baseZKey}_ctx`] ??
+          rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ??
+          rotMap[`floor_${fIdx}_${zCode}_ctx`] ??
+          rotMap[`zone_${z.id || zCode}_ctx`] ??
+          rotMap[`${zCode}_ctx`] ??
+          rotMap[zCode] ??
+          rotMap[ctxUrl] ??
+          0;
         const cuRot = d.cuRotation ?? rotMap[`defect_${d.id}_cu`] ?? rotMap[`defect_${d.id}_cu_0`] ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_cu`] ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_cu_0`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_cu`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_cu_0`] ?? rotMap[`defect_${d.id || dCode}_cu`] ?? rotMap[dCode] ?? rotMap[cuUrl] ?? 0;
         const extraCuRot = d.extraCuRotation ?? rotMap[`defect_${d.id}_cu_1`] ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_cu_1`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_cu_1`] ?? rotMap[`defect_f${fIdx}_z${zCode}_${d.id}_extra_cu`] ?? rotMap[`defect_f${fIdx}_z${zCode}_d${dCode}_extra_cu`] ?? rotMap[`defect_${d.id || dCode}_extra_cu`] ?? (extraCuUrl ? rotMap[extraCuUrl] : undefined) ?? 0;
 
@@ -170,11 +180,13 @@ export function mapFloorZonesAndElements(
           contextCaption: { vi: `${typeVi}-${dCode} (bối cảnh / context): Tường ${zCode} ${roomVi}`, en: `${typeEn}-${dCode} (context): Wall ${zCode} ${roomEn}` },
           contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
           contextPhotoCode: z.ctxPhotoCode || `${zCode}_CTX`,
+          contextPhotoRotation: Number(ctxRot) || 0,
           closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
           closeUpPhotoBase64: rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined,
           closeUpCaption: { vi: `${typeVi}-${dCode} (cận cảnh / close-up): ${dimVi}`, en: `${typeEn}-${dCode} (close-up): ${dimEn}` },
           closeUpAlreadyWatermarked: isPhotoAlreadyWatermarked(cuUrl),
           closeUpPhotoCode: cuPhotoCode,
+          closeUpPhotoRotation: Number(cuRot) || 0,
           hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
           wmaxMm: w,
           lengthM: l,
@@ -183,6 +195,7 @@ export function mapFloorZonesAndElements(
           extraCloseUpCaption: extraCuUrl ? { vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`, en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm` } : undefined,
           extraCloseUpAlreadyWatermarked: isPhotoAlreadyWatermarked(extraCuUrl),
           extraCloseUpPhotoCode: extraCuPhotoCode,
+          extraCloseUpPhotoRotation: Number(extraCuRot) || 0,
           hasExtraCloseUp: Boolean(extraCuUrl),
           activityState: actState,
           activityStateDisplay: actStateDisplay,
@@ -204,7 +217,17 @@ export function mapFloorZonesAndElements(
     }
 
     const zPhotoUrl = z.photoUrl || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '';
-    const zPhotoRot = z.photoRotation ?? rotMap[`${baseZKey}_ctx`] ?? rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[`zone_${z.id || zCode}_photo`] ?? rotMap[zCode] ?? rotMap[zPhotoUrl] ?? 0;
+    const zPhotoRot =
+      z.photoRotation ??
+      rotMap[`${baseZKey}_ctx`] ??
+      rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ??
+      rotMap[`floor_${fIdx}_${zCode}_ctx`] ??
+      rotMap[`zone_${z.id || zCode}_ctx`] ??
+      rotMap[`${zCode}_ctx`] ??
+      rotMap[`zone_${z.id || zCode}_photo`] ??
+      rotMap[zCode] ??
+      rotMap[zPhotoUrl] ??
+      0;
     zoneAndElementConditions.push({
       code: zCode,
       location: { vi: roomVi, en: roomEn },
@@ -228,8 +251,35 @@ export function mapFloorZonesAndElements(
       }
     }
 
+    if (z.ctxPhotoUrl) {
+      const cleanZCtx = z.ctxPhotoUrl.trim();
+      const matchingDefectCode = zDefectContextMap.get(cleanZCtx) || (defects.length > 0 ? defects[0]?.defectCode || 'D-01' : undefined);
+      const isDefectPhoto = Boolean(matchingDefectCode);
+      const ctxExplicitRot =
+        z.ctxRotation ??
+        rotMap[`${baseZKey}_ctx`] ??
+        rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ??
+        rotMap[`floor_${fIdx}_${zCode}_ctx`] ??
+        rotMap[`zone_${z.id || zCode}_ctx`] ??
+        rotMap[`${zCode}_ctx`] ??
+        rotMap[cleanZCtx];
+      addPhotoIfUnique(
+        z.ctxPhotoUrl,
+        zCode,
+        roomVi,
+        roomEn,
+        !isDefectPhoto,
+        isDefectPhoto ? `Vị trí bối cảnh khuyết tật [${matchingDefectCode}] - ${roomVi} (${zCode})` : `Hiện trạng bề mặt tường ${roomVi} (${zCode})`,
+        isDefectPhoto ? `Defect context location [${matchingDefectCode}] - ${roomEn} (${zCode})` : `Surface condition of ${roomEn} (${zCode})`,
+        z.ctxPhotoCode,
+        false,
+        isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Bề mặt ổn định', en: 'Intact surface' },
+        z.ctxCapturedAt || z.capturedAt,
+        ctxExplicitRot
+      );
+    }
     if (Array.isArray(z.overviewPhotos)) {
-      z.overviewPhotos.forEach((item: any, idx: number) => {
+      z.overviewPhotos.forEach((item: string | { url?: string; photoCode?: string; capturedAt?: string; shot_at?: string }, idx: number) => {
         const url = typeof item === 'string' ? item : item?.url;
         if (!url) return;
         const cleanUrl = url.trim();
@@ -242,7 +292,13 @@ export function mapFloorZonesAndElements(
         const captionEn = isDefectPhoto
           ? `Defect context location [${matchingDefectCode}] - ${roomEn} (${zCode})`
           : (isFirstOverview ? `Overall space view of ${roomEn} (${zCode})` : `Condition of ${roomEn} (${zCode}) - angle ${idx + 1}`);
-        const ovExplicitRot = rotMap[`${baseZKey}_ov_${idx}`] ?? rotMap[`zone_f${fIdx}_z${zCode}_ov_${idx}`] ?? rotMap[`${baseZKey}_ctx`] ?? rotMap[cleanUrl];
+        const ovExplicitRot =
+          rotMap[`${baseZKey}_ov_${idx}`] ??
+          rotMap[`zone_f${fIdx}_z${zCode}_ov_${idx}`] ??
+          rotMap[`floor_${fIdx}_${zCode}_ov_${idx}`] ??
+          rotMap[`zone_${z.id || zCode}_ov_${idx}`] ??
+          rotMap[`${zCode}_ov_${idx}`] ??
+          rotMap[cleanUrl];
         addPhotoIfUnique(
           url,
           zCode,
@@ -251,33 +307,13 @@ export function mapFloorZonesAndElements(
           !isDefectPhoto,
           captionVi,
           captionEn,
-          item?.photoCode,
+          typeof item === 'object' ? item?.photoCode : undefined,
           false,
           isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Toàn cảnh không gian', en: 'Space overview' },
-          item?.capturedAt || item?.shot_at,
+          typeof item === 'object' ? (item?.capturedAt || item?.shot_at) : undefined,
           ovExplicitRot
         );
       });
-    }
-    if (z.ctxPhotoUrl) {
-      const cleanZCtx = z.ctxPhotoUrl.trim();
-      const matchingDefectCode = zDefectContextMap.get(cleanZCtx) || (defects.length > 0 ? defects[0]?.defectCode || 'D-01' : undefined);
-      const isDefectPhoto = Boolean(matchingDefectCode);
-      const ctxExplicitRot = z.ctxRotation ?? rotMap[`${baseZKey}_ctx`] ?? rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ?? rotMap[`zone_${z.id || zCode}_ctx`] ?? rotMap[cleanZCtx];
-      addPhotoIfUnique(
-        z.ctxPhotoUrl,
-        zCode,
-        roomVi,
-        roomEn,
-        !isDefectPhoto,
-        isDefectPhoto ? `Vị trí bối cảnh khuyết tật [${matchingDefectCode}] - ${roomVi} (${zCode})` : `Hiện trạng bề mặt tường ${roomVi} (${zCode})`,
-        isDefectPhoto ? `Defect context location [${matchingDefectCode}] - ${roomEn} (${zCode})` : `Surface condition of ${roomEn} (${zCode})`,
-        z.ctxPhotoCode,
-        false,
-        isDefectPhoto ? { vi: `Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `Defect context [${matchingDefectCode}]` } : { vi: 'Bề mặt ổn định', en: 'Intact surface' },
-        (z as any).ctxCapturedAt || (z as any).capturedAt,
-        ctxExplicitRot
-      );
     }
   }
 

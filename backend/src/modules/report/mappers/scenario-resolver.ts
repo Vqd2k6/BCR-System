@@ -66,10 +66,19 @@ export class ScenarioResolver {
 
     const deform = json.settlementTilt || rawReport.deformation || {};
     const tilt = deform.buildingTilt || {};
+    const rawTiltX = tilt.xPermille ?? deform.tilt_angle_x;
+    const rawTiltY = tilt.yPermille ?? deform.tilt_angle_y;
+    const hasNonZeroTilt =
+      (rawTiltX !== '' && rawTiltX !== undefined && rawTiltX !== null && Number(rawTiltX) !== 0 && !isNaN(Number(rawTiltX))) ||
+      (rawTiltY !== '' && rawTiltY !== undefined && rawTiltY !== null && Number(rawTiltY) !== 0 && !isNaN(Number(rawTiltY)));
+    const hasExplicitLaserSource = Array.isArray(deform.dataSource)
+      ? deform.dataSource.some((s: unknown) => String(s).toUpperCase().includes('LASER'))
+      : String(deform.dataSource || '').toUpperCase().includes('LASER');
     const hasLaserTilt =
-      (tilt.xPermille !== '' && tilt.xPermille !== undefined && tilt.xPermille !== null && !isNaN(Number(tilt.xPermille))) ||
-      (tilt.yPermille !== '' && tilt.yPermille !== undefined && tilt.yPermille !== null && !isNaN(Number(tilt.yPermille))) ||
-      (deform.tilt_angle_x !== undefined && deform.tilt_angle_x !== null);
+      hasNonZeroTilt ||
+      (hasExplicitLaserSource &&
+        ((rawTiltX !== '' && rawTiltX !== undefined && rawTiltX !== null && !isNaN(Number(rawTiltX))) ||
+         (rawTiltY !== '' && rawTiltY !== undefined && rawTiltY !== null && !isNaN(Number(rawTiltY)))));
 
     const hasStructuralCadMap = appendix2.some((f) => f.hasStructuralCadMap);
 

@@ -1,31 +1,34 @@
 import type { FloorSurveyData } from '../../../../../survey-phase1/types/phase1.types';
-import type { GisParcel, SplitChildData } from '../../../../../../components/gis/shared/types';
+import type { GisParcel } from '../../../../../../components/gis/shared/types';
 import React, { useState, useMemo } from 'react';
 import {
   MapPin,
   ShieldCheck,
   AlertTriangle,
   Building,
-  Home,
   CheckCircle2,
   Split,
-  Merge,
   ArrowRightLeft,
   Navigation,
-  FileText,
-  Image as ImageIcon,
-  Edit3,
   Ruler,
   Layers,
   Move,
+  RefreshCw,
 } from 'lucide-react';
 import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
+import { computePolygonAreaM2 } from '../../../../../../components/gis/shared/geoMath';
 
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseAccessLimitation, StepwiseGisMutationConfirmed } from '../types';
+
+const isSoftDeleted = (item: unknown): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  const rec = item as Record<string, unknown>;
+  return Boolean(rec.isDeleted || rec.is_deleted);
+};
 
 interface Props {
   isEditMode: boolean;
@@ -68,7 +71,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   handleNestedFieldChange,
   handleFieldChange,
   handleApplySyncedGeometry,
-  onOpenPhotoZoom,
   onRefresh,
   isFieldDirty,
 }) => {
@@ -79,16 +81,54 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 
   const access: StepwiseAccessLimitation = formState.accessLimitation || {};
   const mutation: StepwiseGisMutationConfirmed = formState.gisMutationConfirmed || {};
-  const floors = formState.floors || [];
-  const coords = (formState.gpsLocation || (typeof formState.coordinates === 'object' ? formState.coordinates : {}) || {}) as {
-    lat?: number;
-    lng?: number;
-    latitude?: number;
-    longitude?: number;
-    accuracy?: number;
-  };
+  const activeFloors = useMemo(
+    () => (formState.floors || []).filter((fl) => !isSoftDeleted(fl)),
+    [formState.floors]
+  );
 
-  // Kích thước hình học thửa đất
+  // Giải quyết tọa độ GPS thực địa (ưu tiên formState.gpsCoords đã chuẩn hóa từ hook hoặc chuỗi "lat, lng")
+  const parsedGpsCoords = useMemo<{ lat: number; lng: number; accuracy?: number }>(() => {
+    const rawGps = formState.gpsCoords as unknown;
+    if (typeof rawGps === 'string' && rawGps.includes(',')) {
+      const parts = rawGps.split(',').map((s) => parseFloat(s.trim()));
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== 0 && parts[1] !== 0) {
+        return { lat: parts[0], lng: parts[1] };
+      }
+    } else if (rawGps && typeof rawGps === 'object') {
+      const obj = rawGps as { lat?: number; lng?: number; latitude?: number; longitude?: number; accuracy?: number };
+      const lat = Number(obj.lat ?? obj.latitude);
+      const lng = Number(obj.lng ?? obj.longitude);
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        return { lat, lng, accuracy: obj.accuracy };
+      }
+    }
+
+    const loc = (formState.gpsLocation ||
+      (typeof formState.coordinates === 'object' && !Array.isArray(formState.coordinates) ? formState.coordinates : {}) ||
+      data?.surveyJson?.gpsCoords ||
+      {}) as {
+      lat?: number;
+      lng?: number;
+      latitude?: number;
+      longitude?: number;
+      accuracy?: number;
+    };
+    const lat = Number(loc.lat ?? loc.latitude ?? 10.79241);
+    const lng = Number(loc.lng ?? loc.longitude ?? 106.71152);
+    return {
+      lat: !isNaN(lat) && lat !== 0 ? lat : 10.79241,
+      lng: !isNaN(lng) && lng !== 0 ? lng : 106.71152,
+      accuracy: loc.accuracy,
+    };
+  }, [formState.gpsCoords, formState.gpsLocation, formState.coordinates, data?.surveyJson?.gpsCoords]);
+
+  // Kích thước hình học thửa đất & Định danh ưu tiên formState
+  const effectiveParcelCode = formState.projectParcelCode ?? data?.projectParcelCode ?? '';
+  const effectiveOfficialCode = formState.officialCadastralCode ?? data?.officialCadastralCode ?? '';
+  const effectiveHouseNumber = formState.houseNumber ?? data?.houseNumber ?? '';
+  const effectiveStreet = (formState.streetName as string | undefined) ?? formState.street ?? data?.street ?? '';
+  const effectiveOwnerName = formState.ownerName ?? data?.ownerName ?? '';
+
   const frontageWidth = formState.frontageWidth ?? data?.buildingSpecs?.frontageWidth ?? (data?.activeParcel as GisParcel | undefined)?.frontage_width;
   const lotDepth = formState.lotDepth ?? data?.buildingSpecs?.lotDepth ?? (data?.activeParcel as GisParcel | undefined)?.lot_depth;
   const landAreaM2 = formState.landAreaM2 ?? formState.landArea ?? data?.buildingSpecs?.landAreaM2 ?? (data?.activeParcel as GisParcel | undefined)?.land_area_m2;
@@ -96,15 +136,15 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   const splitChildren = Array.isArray(mutationDetails.splitChildren) ? mutationDetails.splitChildren : [];
   const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
 
-  // Trích xuất tọa độ Polygon thửa đất (ưu tiên PostGIS GeoJSON mới nhất hoặc formState đã đồng bộ)
-  const parcelCoords = useMemo<[number, number][]>(() => {
-    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
-      return formState.parcelCoordinates;
-    }
+  // Trích xuất tọa độ Polygon từ PostGIS GeoJSON (ranh mới nhất trên DB sau khi cắt GPMB / nắn ranh)
+  const postgisPolygon = useMemo<[number, number][]>(() => {
     const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
     if (rawGeojson) {
       try {
-        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : (rawGeojson as { type?: string; coordinates?: [number, number][][] });
+        const parsed =
+          typeof rawGeojson === 'string'
+            ? (JSON.parse(rawGeojson) as { type?: string; coordinates?: [number, number][][] })
+            : (rawGeojson as { type?: string; coordinates?: [number, number][][] });
         if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
           return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
         }
@@ -112,44 +152,154 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
         console.warn('Failed to parse cadastralGeojson in AuditStep6:', e);
       }
     }
-    const rawCoords = data?.coordinates as [number, number][] | undefined;
-    if (Array.isArray(rawCoords) && rawCoords.length >= 3) {
-      return rawCoords;
+    return [];
+  }, [data?.cadastralGeojson, data?.cadastral_geojson]);
+
+  // Tọa độ ranh khảo sát gốc ban đầu (để đối chiếu nét đứt khi đã cắt GPMB / nắn ranh)
+  const initialSurveyPolygon = useMemo<[number, number][]>(() => {
+    const sJson = data?.surveyJson || data?.survey_data_json;
+    if (Array.isArray(sJson?.parcelCoordinates) && sJson.parcelCoordinates.length >= 3) {
+      return sJson.parcelCoordinates;
+    }
+    if (Array.isArray(sJson?.polygonCoords) && sJson.polygonCoords.length >= 3) {
+      return sJson.polygonCoords;
     }
     if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
       return data.parcelCoordinates;
     }
+    const rawCoords = data?.coordinates as [number, number][] | undefined;
+    if (Array.isArray(rawCoords) && rawCoords.length >= 3 && Array.isArray(rawCoords[0])) {
+      return rawCoords;
+    }
     return [];
-  }, [formState.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson, data?.coordinates, data?.parcelCoordinates]);
+  }, [data?.surveyJson, data?.survey_data_json, data?.parcelCoordinates, data?.coordinates]);
+
+  // Trích xuất tọa độ Polygon thửa đất hiện hành
+  const parcelCoords = useMemo<[number, number][]>(() => {
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return formState.parcelCoordinates;
+    }
+    if (postgisPolygon.length >= 3) {
+      return postgisPolygon;
+    }
+    if (initialSurveyPolygon.length >= 3) {
+      return initialSurveyPolygon;
+    }
+    return [];
+  }, [formState.parcelCoordinates, postgisPolygon, initialSurveyPolygon]);
+
+  // Kiểm tra xem ranh PostGIS mới nhất trong DB có khác với ranh đang lưu trong snapshot formState hay không
+  const hasPostgisDiff = useMemo<boolean>(() => {
+    if (postgisPolygon.length < 3 || !Array.isArray(formState.parcelCoordinates) || formState.parcelCoordinates.length < 3) {
+      return false;
+    }
+    if (postgisPolygon.length !== formState.parcelCoordinates.length) return true;
+    const areaPostgis = computePolygonAreaM2(postgisPolygon);
+    const areaCurrent = computePolygonAreaM2(formState.parcelCoordinates);
+    if (Math.abs(areaPostgis - areaCurrent) > 0.5) return true;
+    return postgisPolygon.some((pt, idx) => {
+      const curPt = formState.parcelCoordinates?.[idx];
+      if (!curPt) return true;
+      return Math.hypot(pt[0] - curPt[0], pt[1] - curPt[1]) > 0.00001;
+    });
+  }, [postgisPolygon, formState.parcelCoordinates]);
+
+  // Kiểm tra xem thửa đất đã được điều chỉnh ranh / cắt GPMB hay chưa
+  const isBoundaryAdjusted = useMemo<boolean>(() => {
+    if (mutation.type === 'BOUNDARY_ADJUST' || mutation.mutationType === 'BOUNDARY_ADJUST') return true;
+    if (hasPostgisDiff) return true;
+    if (initialSurveyPolygon.length >= 3 && parcelCoords.length >= 3) {
+      if (initialSurveyPolygon.length !== parcelCoords.length) return true;
+      if (Math.abs(computePolygonAreaM2(parcelCoords) - computePolygonAreaM2(initialSurveyPolygon)) > 0.5) return true;
+      return parcelCoords.some((pt, idx) => {
+        const initPt = initialSurveyPolygon[idx];
+        if (!initPt) return true;
+        return Math.hypot(pt[0] - initPt[0], pt[1] - initPt[1]) > 0.00001;
+      });
+    }
+    return false;
+  }, [mutation.type, mutation.mutationType, hasPostgisDiff, initialSurveyPolygon, parcelCoords]);
+
+  const handleSyncPostgisPolygon = () => {
+    if (postgisPolygon.length < 3) return;
+    const metrics = calculateComprehensiveMetroSpatialMetrics(postgisPolygon);
+    const newMetro =
+      metrics.distanceToCenterlineMeters !== undefined ? `${metrics.distanceToCenterlineMeters.toFixed(1)}m` : '0.0m';
+    const newClearance =
+      metrics.outerBoundaryType === 'STATION_OUTLINE' && metrics.distanceToOuterBoundaryMeters !== null
+        ? `${metrics.distanceToOuterBoundaryMeters.toFixed(1)}m`
+        : 'Không có ga trong khu vực';
+    const newArea = computePolygonAreaM2(postgisPolygon);
+    const [cLat, cLng] = metrics.closestCenterVertex;
+
+    if (handleApplySyncedGeometry) {
+      handleApplySyncedGeometry(postgisPolygon, newMetro, newClearance);
+    } else if (handleFieldChange) {
+      handleFieldChange('parcelCoordinates', 'Tọa độ đa giác ranh PostGIS mới', postgisPolygon);
+      handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', newMetro);
+      handleFieldChange('clearanceOffsetDistance', 'Cự ly mép ga / biên GPMB', newClearance);
+    }
+    handleFieldChange?.('landAreaM2', 'Diện tích đất sau cắt GPMB', newArea);
+    handleFieldChange?.('gpsCoords', 'Tọa độ GPS đỉnh gần Metro nhất', {
+      lat: Number(cLat.toFixed(6)),
+      lng: Number(cLng.toFixed(6)),
+    });
+    if (mutation.type !== 'SPLIT' && mutation.type !== 'MERGE') {
+      handleNestedFieldChange('gisMutationConfirmed', 'type', 'Loại biến động ranh GIS', 'BOUNDARY_ADJUST');
+    }
+    showToast(`Đã đồng bộ đa giác PostGIS mới (${newArea} m²) và cập nhật cự ly Metro (${newMetro}).`);
+  };
 
   const reshapeParcel = useMemo<GisParcel | null>(() => {
-    const pId = data?.parcelId || formState.parcelId || (data?.activeParcel as GisParcel | undefined)?.id;
+    const pId = formState.parcelId ?? data?.parcelId ?? (data?.activeParcel as GisParcel | undefined)?.id;
     if (!pId) return null;
     return {
       id: pId,
-      projectParcelCode: data?.projectParcelCode || formState.projectParcelCode || '',
-      officialCadastralCode: data?.officialCadastralCode || formState.officialCadastralCode || '',
-      houseNumber: data?.houseNumber || formState.houseNumber || '',
-      street: data?.street || formState.street || '',
-      ownerName: data?.ownerName || formState.ownerName || '',
-      surveyStatus: (data?.surveyStatus || formState.surveyStatus || 'SUBMITTED') as GisParcel['surveyStatus'],
+      projectParcelCode: effectiveParcelCode,
+      officialCadastralCode: effectiveOfficialCode,
+      houseNumber: effectiveHouseNumber,
+      street: effectiveStreet,
+      ownerName: effectiveOwnerName,
+      surveyStatus: (formState.surveyStatus ?? data?.surveyStatus ?? 'SUBMITTED') as GisParcel['surveyStatus'],
       coordinates: parcelCoords,
       landArea: Number(landAreaM2 || 0),
-      constructionArea: Number(data?.buildingSpecs?.constructionAreaM2 || landAreaM2 || 0),
-      floorCount: Number(data?.buildingSpecs?.floorCount || 1),
-      buildingType: (data?.buildingSpecs?.buildingType || 'STANDALONE') as GisParcel['buildingType'],
-      zoneId: data?.zoneId || formState.zoneId || 'ZONE_01',
+      constructionArea: Number(formState.constructionAreaM2 ?? data?.buildingSpecs?.constructionAreaM2 ?? landAreaM2 ?? 0),
+      floorCount: Number(formState.aboveFloors ?? data?.buildingSpecs?.floorCount ?? 1),
+      buildingType: (formState.buildingType ?? data?.buildingSpecs?.buildingType ?? 'STANDALONE') as GisParcel['buildingType'],
+      zoneId: formState.zoneId ?? data?.zoneId ?? 'ZONE_01',
     };
-  }, [data, formState, parcelCoords, landAreaM2]);
+  }, [
+    data,
+    formState,
+    parcelCoords,
+    landAreaM2,
+    effectiveParcelCode,
+    effectiveOfficialCode,
+    effectiveHouseNumber,
+    effectiveStreet,
+    effectiveOwnerName,
+  ]);
 
-  // Tính khoảng cách tim hầm Metro
-  const metroDistance = formState.metroDistanceM ?? formState.distanceToMetroCenterlineM ?? 15.2;
+  // Tính khoảng cách tim hầm Metro & mép ga (giải quyết chuỗi có hậu tố "m")
+  const rawMetroDist =
+    formState.metroOffsetDistance ??
+    formState.clearanceOffsetDistance ??
+    formState.metroDistanceM ??
+    formState.distanceToMetroCenterlineM ??
+    data?.metroOffsetDistance ??
+    data?.surveyJson?.metroOffsetDistance ??
+    15.2;
+  const parsedMetroNum = parseFloat(String(rawMetroDist).replace(/[^0-9.-]/g, ''));
+  const metroDistance = !isNaN(parsedMetroNum) ? parsedMetroNum : 15.2;
   const manualDistance = formState.manualMetroDistanceM;
+  const parsedManualNum =
+    manualDistance !== undefined && manualDistance !== ''
+      ? parseFloat(String(manualDistance).replace(/[^0-9.-]/g, ''))
+      : NaN;
 
   const showToast = (msg: string) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(''), 4000);
-    if (onRefresh) onRefresh();
   };
 
   const getRiskZoneBadge = (dist: number) => {
@@ -163,8 +313,26 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     return { label: 'Ngoài phạm vi ảnh hưởng (>50m)', color: 'bg-slate-100 text-slate-700 border-slate-300' };
   };
 
-  const currentDist = manualDistance !== undefined && manualDistance !== '' ? Number(manualDistance) : Number(metroDistance);
+  const currentDist = !isNaN(parsedManualNum) ? parsedManualNum : metroDistance;
   const riskBadge = getRiskZoneBadge(currentDist);
+
+  const hasUnsavedChanges = Boolean(
+    isEditMode &&
+      isFieldDirty &&
+      ['houseNumber', 'street', 'ownerName', 'landAreaM2', 'accessLimitation', 'gisMutationConfirmed', 'parcelCoordinates'].some((k) =>
+        isFieldDirty(k)
+      )
+  );
+
+  const handleOpenGisModal = (openFn: () => void) => {
+    if (hasUnsavedChanges) {
+      const ok = window.confirm(
+        'Bạn đang có các chỉnh sửa chưa lưu trên biểu mẫu. Thao tác trên công cụ GIS sẽ làm mới dữ liệu từ máy chủ. Bạn có muốn tiếp tục mở công cụ GIS?'
+      );
+      if (!ok) return;
+    }
+    openFn();
+  };
 
   return (
     <section id="step-6" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -209,7 +377,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.1. Không Gian Đã Khảo Sát ({floors.length} tầng)
+                6.1. Không Gian Đã Khảo Sát ({activeFloors.length} tầng)
               </span>
             </div>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -218,21 +386,24 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {floors.map((fl: FloorSurveyData, idx: number) => (
-              <div
-                key={fl.id || idx}
-                className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                  <Building className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{fl.floorName || `Tầng ${idx + 1}`}</span>
+            {activeFloors.map((fl: FloorSurveyData, idx: number) => {
+              const activeZonesCount = (fl.zones || []).filter((z) => !isSoftDeleted(z)).length;
+              return (
+                <div
+                  key={fl.id || idx}
+                  className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <Building className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{fl.floorName || `Tầng ${idx + 1}`}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    {activeZonesCount} vùng Z
+                  </span>
                 </div>
-                <span className="text-[10px] text-slate-500 font-semibold">
-                  {fl.zones?.length || 0} vùng Z
-                </span>
-              </div>
-            ))}
-            {floors.length === 0 && (
+              );
+            })}
+            {activeFloors.length === 0 && (
               <div className="col-span-full text-xs text-slate-400 italic p-2 bg-white rounded border border-dashed border-slate-200">
                 Chưa ghi nhận danh sách tầng phân rã.
               </div>
@@ -258,9 +429,16 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
               {isEditMode ? (
                 <select
                   value={access.type || 'FULL_100'}
-                  onChange={(e) =>
-                    handleNestedFieldChange('accessLimitation', 'type', 'Mức độ tiếp cận', e.target.value)
-                  }
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    handleNestedFieldChange('accessLimitation', 'type', 'Mức độ tiếp cận', nextType);
+                    if (nextType === 'FULL_100') {
+                      handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', '');
+                      handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', []);
+                      handleNestedFieldChange('accessLimitation', 'restrictedFloorLevels', 'Tầng hạn chế', []);
+                      handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú hạn chế', '');
+                    }
+                  }}
                   className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
                 >
                   <option value="FULL_100">1. Không có hạn chế (Tiếp cận 100%)</option>
@@ -389,7 +567,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                     : [];
                   return isEditMode ? (
                     <div className="flex flex-wrap gap-2">
-                      {floors.map((fl: FloorSurveyData | { floorId?: string; floorName?: string }, fIdx: number) => {
+                      {activeFloors.map((fl: FloorSurveyData | { floorId?: string; floorName?: string }, fIdx: number) => {
                         const floorName = fl.floorName || `Tầng ${fIdx + 1}`;
                         const isSelected = restrictedFloors.includes(floorName);
                         return (
@@ -466,17 +644,25 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+              <span
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                  mutation.type === 'SPLIT' || mutation.type === 'BOUNDARY_ADJUST' || isBoundaryAdjusted
+                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}
+              >
                 {mutation.type === 'SPLIT'
                   ? 'Đã Tách Thửa (Căn A/B)'
                   : mutation.type === 'MERGE'
                   ? 'Đã Gộp Thửa (Khuôn viên chung)'
+                  : mutation.type === 'BOUNDARY_ADJUST' || isBoundaryAdjusted
+                  ? 'Đã Điều Chỉnh Ranh / Cắt GPMB'
                   : 'Nguyên Trạng (Khớp ranh)'}
               </span>
 
               <button
                 type="button"
-                onClick={() => setIsReassignModalOpen(true)}
+                onClick={() => handleOpenGisModal(() => setIsReassignModalOpen(true))}
                 className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
               >
@@ -486,7 +672,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 
               <button
                 type="button"
-                onClick={() => setIsMutationModalOpen(true)}
+                onClick={() => handleOpenGisModal(() => setIsMutationModalOpen(true))}
                 className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 title="Thực thi tách thửa hoặc gộp thửa trực tiếp trên GIS"
               >
@@ -496,7 +682,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 
               <button
                 type="button"
-                onClick={() => setIsReshapeModalOpen(true)}
+                onClick={() => handleOpenGisModal(() => setIsReshapeModalOpen(true))}
                 className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 title="Kéo thả mốc đỉnh để nắn chỉnh đa giác ranh thửa đất khớp ảnh vệ tinh"
               >
@@ -506,33 +692,84 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Bản đồ trực quan đa giác ranh thửa đất (Khớp ranh, Tách căn A/B, Gộp khuôn viên) */}
+          {/* Cảnh báo đồng bộ ranh PostGIS mới khi đa giác PostGIS trên DB đã bị cắt GPMB / nắn ranh so với snapshot */}
+          {hasPostgisDiff && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div className="flex items-start gap-2 text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">
+                    Phát hiện ranh giới PostGIS mới ({computePolygonAreaM2(postgisPolygon)} m²) khác với ranh lưu trong hồ sơ ({computePolygonAreaM2(parcelCoords)} m²).
+                  </span>
+                  <span className="text-[11px] text-amber-800">
+                    Thửa đất đã được cắt xén hành lang GPMB hoặc nắn chỉnh trên lớp bản đồ địa chính PostGIS.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncPostgisPolygon}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Đồng bộ ranh PostGIS mới</span>
+              </button>
+            </div>
+          )}
+
+          {/* Bản đồ trực quan đa giác ranh thửa đất (Khớp ranh, Tách căn A/B, Gộp khuôn viên, Cắt GPMB) */}
           <AuditCadastralMutationVisualMap
             parcelCoordinates={parcelCoords}
-            projectParcelCode={data?.projectParcelCode || formState.projectParcelCode}
-            mutationType={mutation.type || 'MATCH'}
+            initialSurveyPolygon={initialSurveyPolygon.length >= 3 ? initialSurveyPolygon : postgisPolygon}
+            isBoundaryAdjusted={isBoundaryAdjusted}
+            projectParcelCode={effectiveParcelCode || '---'}
+            mutationType={mutation.type || (isBoundaryAdjusted ? 'BOUNDARY_ADJUST' : 'MATCH')}
             mutationDetails={mutation.details || {}}
             landAreaM2={landAreaM2}
             frontageWidth={frontageWidth}
             lotDepth={lotDepth}
-            gpsLocation={{
-              lat: Number(coords.lat || coords.latitude || 10.79241),
-              lng: Number(coords.lng || coords.longitude || 106.71152),
-              accuracy: coords.accuracy,
-            }}
-            onOpenEditorModal={() => setIsMutationModalOpen(true)}
+            gpsLocation={parsedGpsCoords}
+            onOpenEditorModal={() => handleOpenGisModal(() => setIsMutationModalOpen(true))}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3 bg-white rounded-xl border border-slate-200">
               <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1">
                 Thửa Đất Hiện Hành
               </span>
               <div className="font-bold text-slate-800 font-mono">
-                Mã Thửa: [{data?.projectParcelCode || formState.projectParcelCode || '---'}]
+                Mã Thửa: [{effectiveParcelCode || '---'}]
               </div>
               <div className="text-slate-600 text-[11px] mt-0.5">
-                {data?.houseNumber || formState.houseNumber} {data?.street || formState.street}
+                {effectiveHouseNumber} {effectiveStreet}
+              </div>
+              {effectiveOwnerName && (
+                <div className="text-slate-500 text-[11px] mt-0.5">
+                  Chủ hộ: <strong className="text-slate-700">{effectiveOwnerName}</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                Tọa Độ Thực Địa & Cự Ly Tuyến Metro
+              </span>
+              <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700">
+                <Navigation className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span>
+                  GPS: <strong>{parsedGpsCoords.lat.toFixed(6)}, {parsedGpsCoords.lng.toFixed(6)}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                <Ruler className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span>
+                  Cách tim hầm: <strong className="font-mono text-indigo-900">{currentDist.toFixed(1)}m</strong>
+                </span>
+              </div>
+              <div className="pt-0.5">
+                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${riskBadge.color}`}>
+                  {riskBadge.label}
+                </span>
               </div>
             </div>
 
@@ -592,12 +829,12 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
         <UnifiedGisMutationModal
           isOpen={isMutationModalOpen}
           role="ZONE_ADMIN"
-          parcelId={data?.parcelId || formState.parcelId || ''}
-          parcelCode={data?.projectParcelCode || formState.projectParcelCode}
-          houseNumber={data?.houseNumber || formState.houseNumber}
-          street={data?.street || formState.street}
-          currentAreaM2={Number(data?.buildingSpecs?.landAreaM2 || formState.landAreaM2 || 0)}
-          initialZoneId={data?.zoneId || formState.zoneId}
+          parcelId={formState.parcelId ?? data?.parcelId ?? ''}
+          parcelCode={effectiveParcelCode}
+          houseNumber={effectiveHouseNumber}
+          street={effectiveStreet}
+          currentAreaM2={Number(formState.landAreaM2 ?? data?.buildingSpecs?.landAreaM2 ?? 0)}
+          initialZoneId={formState.zoneId ?? data?.zoneId}
           reportId={reportId || (data?.reportId as string | undefined)}
           onClose={() => setIsMutationModalOpen(false)}
           onSuccess={(msg: string) => {
@@ -612,12 +849,12 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
         <AdminReassignParcelModal
           isOpen={isReassignModalOpen}
           reportId={reportId || (data?.reportId as string | undefined) || ''}
-          currentParcelCode={data?.projectParcelCode || formState.projectParcelCode || ''}
-          currentParcelId={data?.parcelId || formState.parcelId || ''}
-          currentHouseNumber={data?.houseNumber || formState.houseNumber}
-          currentStreet={data?.street || formState.street}
-          surveyorName={data?.surveyorName || formState.surveyorName}
-          zoneId={String(data?.zoneId || formState?.zoneId || data?.zone_id || 'ZONE_01')}
+          currentParcelCode={effectiveParcelCode}
+          currentParcelId={formState.parcelId ?? data?.parcelId ?? ''}
+          currentHouseNumber={effectiveHouseNumber}
+          currentStreet={effectiveStreet}
+          surveyorName={formState.surveyorName ?? data?.surveyorName}
+          zoneId={String(formState.zoneId ?? data?.zoneId ?? data?.zone_id ?? 'ZONE_01')}
           onClose={() => setIsReassignModalOpen(false)}
           onSuccess={(msg: string) => {
             showToast(msg);
@@ -635,14 +872,27 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           onSuccess={(res) => {
             showToast(res?.message || 'Đã nắn chỉnh ranh giới thửa đất thành công.');
             const newCoords = Array.isArray(res?.newCoordinates) ? (res.newCoordinates as [number, number][]) : [];
-            if (newCoords.length >= 3 && handleApplySyncedGeometry) {
+            if (newCoords.length >= 3) {
               const metrics = calculateComprehensiveMetroSpatialMetrics(newCoords);
-              const newMetro = metrics.distanceToCenterlineMeters !== undefined ? metrics.distanceToCenterlineMeters.toFixed(1) : '0.0';
+              const newMetro = metrics.distanceToCenterlineMeters !== undefined ? `${metrics.distanceToCenterlineMeters.toFixed(1)}m` : '0.0m';
               const newClearance =
                 metrics.outerBoundaryType === 'STATION_OUTLINE' && metrics.distanceToOuterBoundaryMeters !== null
-                  ? metrics.distanceToOuterBoundaryMeters.toFixed(1)
+                  ? `${metrics.distanceToOuterBoundaryMeters.toFixed(1)}m`
                   : 'Không có ga trong khu vực';
-              handleApplySyncedGeometry(newCoords, newMetro, newClearance);
+              const newArea = computePolygonAreaM2(newCoords);
+              const [cLat, cLng] = metrics.closestCenterVertex;
+
+              if (handleApplySyncedGeometry) {
+                handleApplySyncedGeometry(newCoords, newMetro, newClearance);
+              }
+              handleFieldChange?.('landAreaM2', 'Diện tích đất sau nắn ranh', newArea);
+              handleFieldChange?.('gpsCoords', 'Tọa độ GPS đỉnh gần Metro nhất', {
+                lat: Number(cLat.toFixed(6)),
+                lng: Number(cLng.toFixed(6)),
+              });
+              if (mutation.type !== 'SPLIT' && mutation.type !== 'MERGE') {
+                handleNestedFieldChange('gisMutationConfirmed', 'type', 'Loại biến động ranh GIS', 'BOUNDARY_ADJUST');
+              }
             }
             if (onRefresh) onRefresh();
           }}

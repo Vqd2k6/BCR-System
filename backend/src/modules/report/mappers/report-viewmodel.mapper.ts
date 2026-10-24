@@ -23,6 +23,44 @@ import type { ReportContentConfig } from '../../report_config/report-config.type
 
 export { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime };
 
+function parseSavedGpsCoords(
+  gpsRaw: unknown,
+  fallbackLatRaw: unknown,
+  fallbackLngRaw: unknown
+): { lat: number; lng: number } {
+  if (gpsRaw && typeof gpsRaw === 'object' && !Array.isArray(gpsRaw)) {
+    const obj = gpsRaw as Record<string, unknown>;
+    const lat = Number(obj.lat ?? obj.latitude);
+    const lng = Number(obj.lng ?? obj.lon ?? obj.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+      return { lat, lng };
+    }
+  } else if (Array.isArray(gpsRaw) && gpsRaw.length >= 2) {
+    const lat = Number(gpsRaw[0]);
+    const lng = Number(gpsRaw[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+      return { lat, lng };
+    }
+  } else if (typeof gpsRaw === 'string' && gpsRaw.trim() !== '') {
+    const match = gpsRaw.match(/(-?\d+(?:\.\d+)?)\s*[,;/\s]\s*(-?\d+(?:\.\d+)?)/);
+    if (match) {
+      const lat = Number(match[1]);
+      const lng = Number(match[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+        return { lat, lng };
+      }
+    }
+  }
+
+  const fbLat = Number(fallbackLatRaw);
+  const fbLng = Number(fallbackLngRaw);
+  if (Number.isFinite(fbLat) && Number.isFinite(fbLng) && fbLat !== 0 && fbLng !== 0) {
+    return { lat: fbLat, lng: fbLng };
+  }
+
+  return { lat: 10.7769, lng: 106.7009 };
+}
+
 export class ReportViewModelMapper {
   public static buildViewModel(rawReport: any, overrides?: any, config?: ReportContentConfig): ReportViewModel {
     const json = rawReport.survey_data_json || {};
@@ -30,8 +68,13 @@ export class ReportViewModelMapper {
     const deform = { ...(rawReport.deformation || {}), ...(json.settlementTilt || {}) };
     const identPhotos = rawReport.identificationPhotos || [];
 
-    const defaultLat = json.gpsCoords?.lat ? Number(json.gpsCoords.lat) : 10.7769;
-    const defaultLng = json.gpsCoords?.lng ? Number(json.gpsCoords.lng) : 106.7009;
+    const parsedGps = parseSavedGpsCoords(
+      json.gpsCoords,
+      rawReport.parcel_lat ?? rawReport.latitude,
+      rawReport.parcel_lng ?? rawReport.longitude
+    );
+    const defaultLat = parsedGps.lat;
+    const defaultLng = parsedGps.lng;
 
     const rawSurveyDate =
       json.surveyDate ||

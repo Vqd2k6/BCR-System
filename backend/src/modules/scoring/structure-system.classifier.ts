@@ -14,20 +14,18 @@ function normalize(raw: unknown): string {
 export function classifyStructureSystem(raw: unknown): StructureClass {
   const s = normalize(raw);
   if (!s) return 'UNKNOWN';
-  // 1. Hệ khung BTCT tường gạch tự chèn hoặc RC frame
-  if (/^rc\b/.test(s) || s.includes('khung bê tông') || s.includes('khung_btct') || s.includes('khung btct')) return 'RC';
-  // 2. Kết cấu hỗn hợp
-  if (s.startsWith('mixed') || s.includes('hỗn hợp') || s.includes('hon_hop')) return 'MIXED';
-  // 3. Tường gạch chịu lực (kể cả có ghi kết hợp sàn BTCT)
-  if (s.startsWith('masonry') || s.includes('tường gạch') || s.includes('tuong_gach') || s.includes('gạch chịu lực')) return 'MASONRY';
-  // 4. Bê tông cốt thép còn lại
-  if (s.includes('btct') || s.includes('bê tông cốt thép')) return 'RC';
+  // 1. Kết cấu hỗn hợp hoặc khung BTCT tường gạch tự chèn (RC_INFILL -> 2 điểm đồng bộ viCalculator.ts)
+  if (s.startsWith('mixed') || s.includes('hỗn hợp') || s.includes('hon_hop') || s.includes('tự chèn') || s.includes('tu_chen') || s.includes('infill')) return 'MIXED';
+  // 2. Tường gạch chịu lực (kể cả có ghi kết hợp sàn BTCT)
+  if (s.startsWith('masonry') || s.includes('masonry') || s.includes('tường gạch') || s.includes('tuong_gach') || s.includes('gạch chịu lực')) return 'MASONRY';
+  // 3. Tạm / kém ổn định
+  if (s.includes('kém ổn định') || s.includes('kem_on_dinh') || s.includes('tạm') || s.includes('substandard') || s.includes('weak') || s.includes('temporary')) return 'SUBSTANDARD';
+  // 4. Hệ khung BTCT toàn khối (RC)
+  if (/^rc\b/.test(s) || s.includes('(rc)') || s.includes('rc_frame') || s.includes('toàn khối') || s.includes('toan_khoi') || s.includes('khung bê tông') || s.includes('khung_btct') || s.includes('khung btct') || s.includes('btct') || s.includes('bê tông cốt thép')) return 'RC';
   // 5. Gạch còn lại
   if (s.includes('gạch')) return 'MASONRY';
   // 6. Kết cấu thép
   if (s.startsWith('steel') || s.includes('thép') || s.includes('ket_cau_thep')) return 'STEEL';
-  // 7. Tạm / kém ổn định
-  if (s.includes('kém ổn định') || s.includes('tạm') || s.includes('substandard')) return 'SUBSTANDARD';
   return 'OTHER';
 }
 

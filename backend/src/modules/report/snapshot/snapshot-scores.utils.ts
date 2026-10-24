@@ -32,6 +32,7 @@ export interface RiskCardRow {
   v4_age_score?: number | null;
   v5_ecs_score?: number | null;
   v6_sensitivity_score?: number | null;
+  total_vi_score?: number | null;
   avg_vi_score?: number | null;
   vi_class?: string | null;
   impact_grade?: string | null;
@@ -104,23 +105,24 @@ export function resolveFrozenScores(
       }
     : { e1: null, e2: null, e3: null, e4: null, e5: null, e6: null };
 
+  const isJudgementApplied = Boolean(card?.is_engineering_judgement_applied);
   const e = {} as Record<(typeof eKeys)[number], number | null>;
   for (const k of eKeys) {
     e[k] = asNumber(ecsJson[k]) ?? cardE[k];
   }
-  if (card?.overridden_burland_grade !== null && card?.overridden_burland_grade !== undefined) {
+  if (isJudgementApplied && card?.overridden_burland_grade !== null && card?.overridden_burland_grade !== undefined) {
     e.e1 = asNumber(card.overridden_burland_grade) ?? e.e1;
   }
 
   const hasEcsJson = eKeys.some((k) => asNumber(ecsJson[k]) !== null);
-  const overrideTotal = asNumber(card?.overridden_total_ecs);
+  const overrideTotal = isJudgementApplied ? asNumber(card?.overridden_total_ecs) : null;
   const totalEcs =
     overrideTotal ??
     asNumber(ecsJson.totalEcs ?? ecsJson.totalScore ?? ecsJson.total) ??
     asNumber(card?.total_ecs_score);
 
   const ecsClass: EcsClass | null =
-    normalizeEcsClass(card?.overridden_ecs_class) ??
+    (isJudgementApplied ? normalizeEcsClass(card?.overridden_ecs_class) : null) ??
     normalizeEcsClass((ecsJson.ecsClass ?? ecsJson.classification) as string | undefined) ??
     normalizeEcsClass(card?.ecs_class);
 
@@ -138,20 +140,26 @@ export function resolveFrozenScores(
         : 'UNASSESSED',
   };
 
-  const v1 = asNumber(card?.overridden_importance_score) ?? asNumber(viJson.v1) ?? asNumber(card?.v1_importance_score);
+  const v1 = (isJudgementApplied ? asNumber(card?.overridden_importance_score) : null) ?? asNumber(viJson.v1) ?? asNumber(card?.v1_importance_score);
   const v2 = asNumber(viJson.v2) ?? asNumber(card?.v2_structure_score);
   const v3 = asNumber(viJson.v3) ?? asNumber(card?.v3_foundation_score);
   const v4 = asNumber(viJson.v4) ?? asNumber(card?.v4_age_score);
   const v5 = asNumber(viJson.v5) ?? asNumber(card?.v5_ecs_score);
   const v6 = asNumber(viJson.v6) ?? asNumber(card?.v6_sensitivity_score);
 
-  const overrideAvg = asNumber(card?.overridden_avg_vi);
-  const overrideViClass = normalizeViClass(card?.overridden_vi_class);
+  const overrideAvg = isJudgementApplied ? asNumber(card?.overridden_avg_vi) : null;
+  const overrideViClass = isJudgementApplied ? normalizeViClass(card?.overridden_vi_class) : null;
+  const allViScored = [v1, v2, v3, v4, v5, v6].every((v): v is number => v !== null);
+  const computedViTotal = allViScored ? (Number(v1) + Number(v2) + Number(v3) + Number(v4) + Number(v5) + Number(v6)) : null;
+  const totalVi =
+    asNumber(viJson.totalVi ?? viJson.totalScore ?? viJson.total) ??
+    asNumber(card?.total_vi_score) ??
+    computedViTotal;
   const avg =
     overrideAvg ??
     asNumber(viJson.viAvg ?? viJson.avgVi ?? viJson.averageScore ?? viJson.avg) ??
-    asNumber(card?.avg_vi_score);
-  const totalVi = asNumber(viJson.totalVi ?? viJson.totalScore ?? viJson.total);
+    asNumber(card?.avg_vi_score) ??
+    (totalVi !== null ? parseFloat((totalVi / 6).toFixed(2)) : null);
   const viClass =
     overrideViClass ??
     normalizeViClass((viJson.viClass ?? viJson.classification) as string | undefined) ??
@@ -213,6 +221,11 @@ export function computeDeepLegalHash(
         ),
     })),
     deformationMeasurements: sJson.settlementTilt || sJson.deformation || {},
+    burlandSummary: sJson.burlandSummary || {},
+    executiveSummary: sJson.executiveSummary || {},
+    impactAssessment: sJson.impactAssessment || {},
+    braAssessment: sJson.braAssessment || {},
+    accessLimitation: sJson.accessLimitation || {},
     photoRotations: sJson.photoRotations || {},
     signatures: {
       surveyor: sJson.signatures?.surveyorSignatureUrl || sJson.surveyorSignatureUrl || null,

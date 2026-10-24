@@ -55,7 +55,32 @@ export const CondoUnitAuditStudioView: React.FC<Props> = ({
   const [showAbsenteeConfirm, setShowAbsenteeConfirm] = useState(false);
 
   // In-place edit state
-  const surveyJsonInit = (data.surveyJson || data.survey_data_json || {}) as Record<string, any>;
+  interface CondoUnitSurveyJsonInit {
+    displayCode?: string;
+    unitAreaM2?: number | string;
+    ownerIdCard?: string;
+    residentStatus?: string;
+    ownerName?: string;
+    doorJammingStatus?: string;
+    upperFloorWaterLeakage?: {
+      has?: boolean;
+      description?: string;
+      location?: string;
+      leakageItems?: Array<{ description?: string }>;
+      [key: string]: unknown;
+    };
+    beamSagging?: {
+      hasSagging?: boolean;
+      sagMm?: number | string;
+      spanM?: number | string;
+      [key: string]: unknown;
+    };
+    summaryConclusions?: string;
+    ownerFeedback?: string;
+    ownerRemarks?: string;
+    [key: string]: unknown;
+  }
+  const surveyJsonInit = (data.surveyJson || data.survey_data_json || {}) as CondoUnitSurveyJsonInit;
   const [isEditing, setIsEditing] = useState(false);
   const [editDisplayCode, setEditDisplayCode] = useState(
     String(surveyJsonInit.displayCode || data.unitInfo?.display_code || data.unitInfo?.unit_code || '')

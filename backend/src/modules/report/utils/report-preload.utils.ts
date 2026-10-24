@@ -96,7 +96,7 @@ export function buildPreloadRotationItems(
     addRot(u, rotMap[idx === 0 ? 'beamSagging' : `beamSagging_${idx}`] ?? rotMap[`beamSagging_${idx}`] ?? rotMap[u]);
   });
   extractDeformUrls(st.abnormalCase).forEach((u, idx) => {
-    addRot(u, rotMap[idx === 0 ? 'abnormalCase' : `abnormalCase_${idx}`] ?? rotMap[`abnormalCase_${idx}`] ?? rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[u]);
+    addRot(u, rotMap[idx === 0 ? 'abnormalCase' : `abnormalCase_${idx}`] ?? rotMap[`abnormalCase_${idx}`] ?? rotMap[`abnormal_${idx}`] ?? rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[u]);
   });
 
   const asBuiltList = json.asBuiltDrawingPhotos || json.asBuiltDrawingFiles || json.asBuiltDrawings || activeReport?.as_built_drawings || [];
@@ -145,7 +145,9 @@ export function buildPreloadRotationItems(
           z?.ctxRotation ??
             rotMap[`${baseZKey}_ctx`] ??
             rotMap[`zone_f${fIdx}_z${zCode}_ctx`] ??
+            rotMap[`floor_${fIdx}_${zCode}_ctx`] ??
             rotMap[`zone_${z?.id || zCode}_ctx`] ??
+            rotMap[`${zCode}_ctx`] ??
             rotMap[`zone_${z?.id || zCode}_photo`] ??
             rotMap[zCode] ??
             rotMap[zCtx]
@@ -153,7 +155,15 @@ export function buildPreloadRotationItems(
         if (Array.isArray(z?.overviewPhotos)) {
           z.overviewPhotos.forEach((ovItem: any, ovIdx: number) => {
             const ovUrl = typeof ovItem === 'string' ? ovItem : ovItem?.url;
-            addRot(ovUrl, rotMap[`${baseZKey}_ov_${ovIdx}`] ?? rotMap[`zone_f${fIdx}_z${zCode}_ov_${ovIdx}`] ?? rotMap[`${baseZKey}_ctx`] ?? rotMap[ovUrl]);
+            addRot(
+              ovUrl,
+              rotMap[`${baseZKey}_ov_${ovIdx}`] ??
+                rotMap[`zone_f${fIdx}_z${zCode}_ov_${ovIdx}`] ??
+                rotMap[`floor_${fIdx}_${zCode}_ov_${ovIdx}`] ??
+                rotMap[`zone_${z?.id || zCode}_ov_${ovIdx}`] ??
+                rotMap[`${zCode}_ov_${ovIdx}`] ??
+                rotMap[ovUrl]
+            );
           });
         }
         const defects = Array.isArray(z?.defects) ? z.defects : [];
@@ -201,7 +211,10 @@ export function buildPreloadRotationItems(
             rotMap[`${baseEKey}_ctx`] ??
             rotMap[`elem_f${fIdx}_e${eCode}_ctx`] ??
             rotMap[`element_f${fIdx}_e${eCode}_ctx`] ??
+            rotMap[`floor_${fIdx}_${eCode}_ctx`] ??
             rotMap[`element_${e?.id || eCode}_ctx`] ??
+            rotMap[`elem_${e?.id || eCode}_ctx`] ??
+            rotMap[`${eCode}_ctx`] ??
             rotMap[`element_${e?.id || eCode}_photo`] ??
             rotMap[eCode] ??
             rotMap[eCtx]
@@ -209,7 +222,17 @@ export function buildPreloadRotationItems(
         if (Array.isArray(e?.overviewPhotos)) {
           e.overviewPhotos.forEach((ovItem: any, ovIdx: number) => {
             const ovUrl = typeof ovItem === 'string' ? ovItem : ovItem?.url;
-            addRot(ovUrl, rotMap[`${baseEKey}_ov_${ovIdx}`] ?? rotMap[`elem_f${fIdx}_e${eCode}_ov_${ovIdx}`] ?? rotMap[`${baseEKey}_ctx`] ?? rotMap[ovUrl]);
+            addRot(
+              ovUrl,
+              rotMap[`${baseEKey}_ov_${ovIdx}`] ??
+                rotMap[`elem_f${fIdx}_e${eCode}_ov_${ovIdx}`] ??
+                rotMap[`element_f${fIdx}_e${eCode}_ov_${ovIdx}`] ??
+                rotMap[`floor_${fIdx}_${eCode}_ov_${ovIdx}`] ??
+                rotMap[`element_${e?.id || eCode}_ov_${ovIdx}`] ??
+                rotMap[`elem_${e?.id || eCode}_ov_${ovIdx}`] ??
+                rotMap[`${eCode}_ov_${ovIdx}`] ??
+                rotMap[ovUrl]
+            );
           });
         }
         const eDefects = Array.isArray(e?.defects) ? e.defects : [];
@@ -247,18 +270,30 @@ export function buildPreloadRotationItems(
     });
   }
 
-  const minutesList = json.signatures?.workingMinutesPhotos || json.workingMinutesPhotos || [];
-  if (Array.isArray(minutesList)) {
-    minutesList.forEach((m: any, idx: number) => {
-      const u = typeof m === 'string' ? m : m?.url || m?.photoUrl;
-      addRot(u, rotMap[`minutes_${idx}`] ?? rotMap[`MINUTES-${idx + 1}`] ?? rotMap[u]);
+  const rootMinutes = Array.isArray(json.workingMinutesPhotos) ? json.workingMinutesPhotos : [];
+  const sigMinutes = Array.isArray(json.signatures?.workingMinutesPhotos) ? json.signatures.workingMinutesPhotos : [];
+  const minutesList: unknown[] = [...rootMinutes, ...sigMinutes];
+  minutesList.forEach((m: unknown, idx: number) => {
+    const mRec = m && typeof m === 'object' ? (m as Record<string, unknown>) : null;
+    const u = typeof m === 'string' ? m : String(mRec?.url || mRec?.photoUrl || '');
+    addRot(u, rotMap[`minutes_${idx}`] ?? rotMap[`workingMinutesPhotos_${idx}`] ?? rotMap[`MINUTES-${idx + 1}`] ?? rotMap[u]);
+  });
+
+  const absNoticePhotos = json.absenteeNoticePhotos || json.absentNoticePhotos || json.absenteeMinutesPhotos || [];
+  if (Array.isArray(absNoticePhotos)) {
+    absNoticePhotos.forEach((item: unknown, idx: number) => {
+      const itemRec = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+      const u = typeof item === 'string' ? item : String(itemRec?.url || itemRec?.photoUrl || '');
+      addRot(u, rotMap[`absenceNotice_${idx}`] ?? rotMap[`ABSENCE-${idx + 1}`] ?? rotMap[u]);
     });
   }
+
   const absLogs = json.absenceLogs || [];
   if (Array.isArray(absLogs)) {
-    absLogs.forEach((log: any, idx: number) => {
-      const u = log?.photoUrl || log?.url;
-      addRot(u, rotMap[`absenceNotice_${idx}`] ?? rotMap[u]);
+    absLogs.forEach((log: unknown, idx: number) => {
+      const logRec = log && typeof log === 'object' ? (log as Record<string, unknown>) : null;
+      const u = String(logRec?.evidencePhotoUrl || logRec?.evidence_photo_url || logRec?.photoUrl || logRec?.url || '');
+      addRot(u, rotMap[`absenceNotice_${idx}`] ?? rotMap[`ABSENCE-${idx + 1}`] ?? rotMap[u]);
     });
   }
 

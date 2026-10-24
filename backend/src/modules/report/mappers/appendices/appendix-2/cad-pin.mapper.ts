@@ -67,8 +67,8 @@ export function extractFloorCadPins(
   if (Array.isArray(fl.cadZonePins)) {
     for (const p of fl.cadZonePins) {
       if (!p || p.isDeleted || p.is_deleted) continue;
-      const pX = p.pinX ?? p.pin_x;
-      const pY = p.pinY ?? p.pin_y;
+      const pX = p.pinX ?? p.pin_x ?? p.x;
+      const pY = p.pinY ?? p.pin_y ?? p.y;
       if (pX !== undefined && pY !== undefined) {
         const code = p.zoneCode || p.zone_code || p.label || 'Z';
         if (deletedZoneCodes.has(code)) continue;
@@ -89,8 +89,8 @@ export function extractFloorCadPins(
 
   for (const [zCode, z] of activeZonesByCode.entries()) {
     if (!seenCadZoneCodes.has(zCode)) {
-      const zX = z.pinX ?? z.pin_x;
-      const zY = z.pinY ?? z.pin_y;
+      const zX = z.pinX ?? z.pin_x ?? z.x;
+      const zY = z.pinY ?? z.pin_y ?? z.y;
       if (zX !== undefined && zY !== undefined && zX !== null && zY !== null) {
         cadPins.push({
           id: z.id || `pin-${zCode}`,
@@ -110,8 +110,8 @@ export function extractFloorCadPins(
   if (Array.isArray(fl.cadElementPins)) {
     for (const p of fl.cadElementPins) {
       if (!p || p.isDeleted || p.is_deleted) continue;
-      const pX = p.pinX ?? p.pin_x;
-      const pY = p.pinY ?? p.pin_y;
+      const pX = p.pinX ?? p.pin_x ?? p.x;
+      const pY = p.pinY ?? p.pin_y ?? p.y;
       if (pX !== undefined && pY !== undefined) {
         const code = p.zoneCode || p.zone_code || p.elementCode || p.element_code || p.label || 'E';
         if (deletedElemCodes.has(code)) continue;
@@ -136,8 +136,8 @@ export function extractFloorCadPins(
 
   for (const [elCode, el] of activeElemsByCode.entries()) {
     if (!seenCadElemCodes.has(elCode)) {
-      const eX = el.pinX ?? el.pin_x;
-      const eY = el.pinY ?? el.pin_y;
+      const eX = el.pinX ?? el.pin_x ?? el.x;
+      const eY = el.pinY ?? el.pin_y ?? el.y;
       if (eX !== undefined && eY !== undefined && eX !== null && eY !== null) {
         const item: CadPinOverlayItem = {
           id: el.id || `pin-${elCode}`,

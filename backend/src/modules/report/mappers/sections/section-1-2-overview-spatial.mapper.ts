@@ -109,7 +109,9 @@ export class Section1And2Mapper {
       }
     }
 
-    const candidateOwner = (json.ownerName || rawReport.owner_name || '').trim();
+    const candidateOwner = String(
+      json.ownerName ?? json.signatures?.ownerName ?? rawReport.owner_name ?? ''
+    ).trim();
     const repFullName = (json.signatures?.ownerRepresentative?.fullName || '').trim();
     const isCadastralPlaceholder = !repFullName || /chủ\s*hộ\s*thửa/i.test(repFullName) || /tờ\s*bản\s*đồ/i.test(repFullName);
 
@@ -130,7 +132,10 @@ export class Section1And2Mapper {
       .replace(/[\u0300-\u036f]/g, '');
 
     const rawSegType = (rawReport.segment_type || rawReport.metro_construction_type || 'C&C').toUpperCase();
-    const metroType: 'C&C' | 'POR' | 'ELV' | 'DEP' = ['C&C', 'POR', 'ELV', 'DEP'].includes(rawSegType) ? (rawSegType as any) : 'C&C';
+    const metroType: 'C&C' | 'POR' | 'ELV' | 'DEP' =
+      rawSegType === 'C&C' || rawSegType === 'POR' || rawSegType === 'ELV' || rawSegType === 'DEP'
+        ? rawSegType
+        : 'C&C';
     const relatedMetroWorks: RelatedMetroWorks = {
       type: metroType,
       isCutCover: metroType === 'C&C',
@@ -140,8 +145,48 @@ export class Section1And2Mapper {
     };
 
     const rawHouse = json.houseNumber ?? rawReport.house_number;
-    const rawStreet = json.street ?? rawReport.street;
-    const rawWard = json.ward ?? rawReport.ward;
+    const rawStreet = json.streetName ?? json.street ?? rawReport.street_name ?? rawReport.street;
+    const rawWard = json.wardName ?? json.ward ?? rawReport.ward_name ?? rawReport.ward;
+    const ownerPhone = String(
+      json.ownerPhone ?? json.signatures?.ownerPhone ?? rawReport.owner_phone ?? ''
+    ).trim();
+
+    let stdAddrVi = '';
+    let stdAddrEn = '';
+    const rawStd = json.standardizedAddress;
+    if (typeof rawStd === 'string' && rawStd.trim() !== '') {
+      stdAddrVi = rawStd.trim();
+    } else if (rawStd && typeof rawStd === 'object') {
+      const stdObj = rawStd as Record<string, unknown>;
+      const fullStd = String(stdObj.fullStandardized ?? '').trim();
+      if (fullStd) {
+        stdAddrVi = fullStd;
+      } else {
+        const stdParts = [stdObj.street, stdObj.wardNew, stdObj.cityNew]
+          .map((p) => String(p ?? '').trim())
+          .filter(Boolean);
+        if (stdParts.length > 0) {
+          stdAddrVi = stdParts.join(', ');
+        }
+      }
+    }
+    if (stdAddrVi) {
+      stdAddrEn = stdAddrVi
+        .replace(/Phường\s+/gi, 'Ward ')
+        .replace(/Đường\s+/gi, 'St. ')
+        .replace(/Số\s+/gi, 'No. ')
+        .replace(/TP\.\s*Hồ\s*Chí\s*Minh/gi, 'Ho Chi Minh City');
+    }
+
+    const fallbackAddr = rawReport.address_combined ?? rawReport.survey_address ?? json.address ?? json.surveyAddress;
+    const baseAddressVi = formatSavedAddressVi(rawHouse, rawStreet, rawWard, fallbackAddr);
+    const baseAddressEn = formatSavedAddressEn(rawHouse, rawStreet, rawWard, fallbackAddr);
+    const addressVi = stdAddrVi && stdAddrVi !== baseAddressVi
+      ? (baseAddressVi !== '--' ? `${baseAddressVi} (Theo NQ 1685: ${stdAddrVi})` : `Theo NQ 1685: ${stdAddrVi}`)
+      : baseAddressVi;
+    const addressEn = stdAddrEn && stdAddrEn !== baseAddressEn
+      ? (baseAddressEn !== '--' ? `${baseAddressEn} (Res. 1685: ${stdAddrEn})` : `Res. 1685: ${stdAddrEn}`)
+      : baseAddressEn;
 
     const section1: Section1GeneralInfo = {
       projectTitleVi: metadata.projectTitleVi,
@@ -151,18 +196,24 @@ export class Section1And2Mapper {
       reportNo,
       buildingName: { vi: bldgNameVi, en: bldgNameEn },
       address: {
-        vi: formatSavedAddressVi(rawHouse, rawStreet, rawWard, rawReport.address_combined),
-        en: formatSavedAddressEn(rawHouse, rawStreet, rawWard, rawReport.address_combined),
+        vi: addressVi,
+        en: addressEn,
       },
       cadastralCode,
       ownerOccupant: { vi: ownerVi, en: ownerEn },
       ownerName: ownerVi,
-      contactPhone: json.ownerPhone || rawReport.owner_phone || '--',
+      contactPhone: ownerPhone || '--',
       surveyConsultant: { vi: 'Liên danh CRLG – CRSRI – TT', en: 'CRLG – CRSRI – TT Joint Venture' },
       epcContractor: 'THACO - CREC',
       sectionZone: { vi: zoneNameVi, en: zoneNameEn },
       relatedMetroWorks,
-      gpsCoords: { lat: defaultLat, lng: defaultLng, formatted: `${defaultLat}, ${defaultLng}` },
+      gpsCoords: {
+        lat: defaultLat,
+        lng: defaultLng,
+        latitude: String(defaultLat),
+        longitude: String(defaultLng),
+        formatted: `${defaultLat}, ${defaultLng}`,
+      },
       surveyDate: surveyDateWithTime,
     };
 
@@ -259,7 +310,7 @@ export class Section1And2Mapper {
     let vacantLandStatus: BilingualText | undefined = undefined;
     let vacantLandNotes: BilingualText | undefined = undefined;
     if (isVacantLand) {
-      const st = json.vacantLandStatus || 'Đất trống chưa xây dựng';
+      const st = json.vacantLandCurrentState || json.vacantLandStatus || 'Đất trống chưa xây dựng';
       vacantLandStatus = { vi: `Hiện trạng: ${st}`, en: `Status: ${st}` };
       if (json.vacantLandNotes && String(json.vacantLandNotes).trim()) {
         const notes = String(json.vacantLandNotes).trim();
@@ -276,13 +327,86 @@ export class Section1And2Mapper {
 
     let gisMergedInfo: BilingualText | undefined = undefined;
     const gisDetails = json.gisMutationConfirmed?.details || {};
-    if (json.gisMutationConfirmed?.type === 'MERGE' || rawReport.gis_mutation_type === 'MERGE' || json.gisMutationType === 'MERGED' || json.gisMutationType === 'MERGE') {
-      const mergeCodes = (gisDetails.selectedMergeCodes || json.mergedParcelCodes || []).join(', ') || '--';
+    const rawGisMutationType = String(
+      json.gisMutationConfirmed?.type ||
+      rawReport.gis_mutation_type ||
+      json.gisMutationType ||
+      json.gisMigrationType ||
+      json.gis_mutation_type ||
+      ''
+    ).toUpperCase();
+    const gisChangeNote = String(
+      gisDetails.fieldChangeNote ||
+      json.gisMutationConfirmed?.fieldChangeNote ||
+      json.gisMutationConfirmed?.surveyorNotes ||
+      json.gisMutationConfirmed?.adminNotes ||
+      json.gisModificationNotes ||
+      json.gisChangeNote ||
+      ''
+    ).trim();
+
+    if (rawGisMutationType === 'MERGE' || rawGisMutationType === 'MERGED') {
+      const rawMergeList =
+        gisDetails.selectedMergeCodes ||
+        json.gisMutationConfirmed?.mergedParcels ||
+        json.mergedParcels ||
+        json.mergedParcelCodes ||
+        [];
+      const mergeCodes = Array.isArray(rawMergeList) && rawMergeList.length > 0
+        ? rawMergeList
+            .map((item: unknown) => {
+              if (typeof item === 'string') return item.trim();
+              if (item && typeof item === 'object') {
+                const obj = item as Record<string, unknown>;
+                const sheetNo = String(obj.sheetNo ?? obj.mapSheet ?? '').trim();
+                const parcelNo = String(obj.parcelNo ?? obj.plotNo ?? '').trim();
+                const code = String(obj.code ?? obj.parcelCode ?? '').trim();
+                if (sheetNo && parcelNo) return `Tờ ${sheetNo} - Thửa ${parcelNo}`;
+                if (code) return code;
+                if (parcelNo) return `Thửa ${parcelNo}`;
+              }
+              return '';
+            })
+            .filter(Boolean)
+            .join(', ')
+        : '--';
       const bldgArea = gisDetails.mergeBuildingAreaM2 || json.surveyedParcelAreaM2 || totalFloorAreaM2 || '--';
       const residArea = gisDetails.mergeResidualAreaM2 ?? '--';
       gisMergedInfo = {
-        vi: `Thửa gộp từ: ${mergeCodes} | Diện tích XD thực tế: ${bldgArea} m² | Diện tích đất dư: ${residArea} m²`,
-        en: `Merged from: ${mergeCodes} | Actual building footprint: ${bldgArea} m² | Residual land area: ${residArea} m²`,
+        vi: `Hợp thửa từ: ${mergeCodes} | Diện tích XD thực tế: ${bldgArea} m² | Diện tích đất dư: ${residArea} m²${gisChangeNote ? ` | Ghi chú: ${gisChangeNote}` : ''}`,
+        en: `Merged from: ${mergeCodes} | Actual building footprint: ${bldgArea} m² | Residual land area: ${residArea} m²${gisChangeNote ? ` | Note: ${gisChangeNote}` : ''}`,
+      };
+    } else if (rawGisMutationType === 'SPLIT') {
+      const splitList = gisDetails.splitChildren || json.gisMutationConfirmed?.splitChildren || json.splitChildren || [];
+      const splitCodes = Array.isArray(splitList) && splitList.length > 0
+        ? splitList
+            .map((item: unknown) => {
+              if (typeof item === 'string') return item.trim();
+              if (item && typeof item === 'object') {
+                const obj = item as Record<string, unknown>;
+                const code = String(obj.code ?? obj.parcelCode ?? obj.childCode ?? '').trim();
+                const area = obj.areaM2 ?? obj.landAreaM2 ?? obj.area;
+                return code ? (area !== undefined && area !== null && area !== '' ? `${code} (${area} m²)` : code) : (area ? `${area} m²` : '');
+              }
+              return '';
+            })
+            .filter(Boolean)
+            .join(', ')
+        : '--';
+      gisMergedInfo = {
+        vi: `Tách thành các thửa con: ${splitCodes}${gisChangeNote ? ` | Ghi chú: ${gisChangeNote}` : ''}`,
+        en: `Split into parcels: ${splitCodes}${gisChangeNote ? ` | Note: ${gisChangeNote}` : ''}`,
+      };
+    } else if (
+      rawGisMutationType === 'BOUNDARY_ADJUST' ||
+      rawGisMutationType === 'ADJUSTED' ||
+      Boolean(gisChangeNote)
+    ) {
+      const noteDisplay = gisChangeNote || 'Đã điều chỉnh ranh giới / cắt ranh GPMB theo thực địa';
+      const areaDisplay = landAreaM2 || '--';
+      gisMergedInfo = {
+        vi: `Chỉnh lý ranh giới / cắt ranh GPMB: ${noteDisplay} | Diện tích đất hiện tại: ${areaDisplay} m²`,
+        en: `GIS boundary adjustment / clearance: ${noteDisplay} | Current land area: ${areaDisplay} m²`,
       };
     }
 

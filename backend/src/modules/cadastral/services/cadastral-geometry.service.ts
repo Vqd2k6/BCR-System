@@ -149,7 +149,39 @@ export class CadastralGeometryService {
     clientIp?: string,
     user?: { userId: string; role: string; assignedZoneId?: string | null }
   ) {
-    return Database.transaction(async (client) => {
+    // M6-02: Bảo đảm khởi tạo v0 (ORIGINAL_SUBMISSION) trước khi hoán đổi hình học không gian GIS
+    try {
+      const preSwapReports = await Database.query<{ id: string; surveyor_id: string | null }>(
+        `SELECT r.id, r.surveyor_id
+         FROM base_survey_reports r
+         JOIN parcels p ON r.parcel_id = p.id
+         WHERE (p.id::text = $1 OR p.project_parcel_code = $1 OR p.official_cadastral_code = $1
+             OR p.id::text = $2 OR p.project_parcel_code = $2 OR p.official_cadastral_code = $2)
+           AND r.deleted_at IS NULL
+           AND r.status != 'APPROVED';`,
+        [parcelAIdent, parcelBIdent]
+      );
+      for (const r of preSwapReports.rows) {
+        const vCnt = await Database.query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM survey_report_versions WHERE report_id = $1;`,
+          [r.id]
+        );
+        if (Number(vCnt.rows[0]?.cnt || 0) === 0) {
+          const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+          await AuditVersionService.createSnapshot(r.id, {
+            versionNumber: 0,
+            versionTag: 'ORIGINAL_SUBMISSION',
+            title: 'Bản nộp thực địa ban đầu',
+            editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi hoán đổi hình học GIS',
+            userId: r.surveyor_id || undefined,
+          });
+        }
+      }
+    } catch (seedErr) {
+      console.error('[swapParcelGeometries] Lỗi khởi tạo snapshot v0:', seedErr);
+    }
+
+    const txResult = await Database.transaction(async (client) => {
       // 1. Tìm thông tin thửa A và B
       const pRes = await client.query<{
         id: string;
@@ -367,12 +399,14 @@ export class CadastralGeometryService {
         ]
       );
 
-      // 2.1. Đồng bộ tọa độ đa giác & khoảng cách Metro vào base_survey_reports.survey_data_json (bảo toàn 100% dữ liệu khảo sát thực địa)
+      // 2.1. Đồng bộ tọa độ đa giác, gpsCoords & khoảng cách Metro vào base_survey_reports.survey_data_json (bảo toàn 100% dữ liệu khảo sát thực địa)
+      const swappedReportIds: string[] = [];
       const syncParcelReportsAfterSwap = async (
         targetParcelId: string,
         newCoords: [number, number][],
         centerlineDist: number | null | undefined,
-        outerBoundaryDist: number | null | undefined
+        outerBoundaryDist: number | null | undefined,
+        closestCenterVertex?: [number, number] | null
       ) => {
         const parcelReports = reportsCheckRes.rows.filter((r) => r.parcel_id === targetParcelId);
         for (const rep of parcelReports) {
@@ -389,6 +423,7 @@ export class CadastralGeometryService {
             outerBoundaryDist !== null && outerBoundaryDist !== undefined
               ? `${Number(outerBoundaryDist).toFixed(1)}m`
               : undefined;
+          const bestPt = closestCenterVertex || newCoords[0] || null;
 
           const updatedJson: Record<string, unknown> = {
             ...rawJson,
@@ -397,6 +432,9 @@ export class CadastralGeometryService {
           if (newCoords.length >= 3) {
             updatedJson.parcelCoordinates = newCoords;
             updatedJson.polygonCoords = newCoords;
+          }
+          if (bestPt && Array.isArray(bestPt) && bestPt.length >= 2) {
+            updatedJson.gpsCoords = { lat: Number(bestPt[0]), lng: Number(bestPt[1]) };
           }
           if (metroOffsetStr) {
             updatedJson.metroOffsetDistance = metroOffsetStr;
@@ -421,6 +459,7 @@ export class CadastralGeometryService {
              WHERE id = $2::uuid;`,
             [JSON.stringify(updatedJson), rep.id]
           );
+          swappedReportIds.push(rep.id);
         }
       };
 
@@ -428,13 +467,15 @@ export class CadastralGeometryService {
         parcelA.id,
         coordsForAFromB,
         nextDistA,
-        metricsForA?.outerBoundaryDist
+        metricsForA?.outerBoundaryDist,
+        coordsForAFromB?.[0] ?? null
       );
       await syncParcelReportsAfterSwap(
         parcelB.id,
         coordsForBFromA,
         nextDistB,
-        metricsForB?.outerBoundaryDist
+        metricsForB?.outerBoundaryDist,
+        coordsForBFromA?.[0] ?? null
       );
 
       // 3. Ghi log sự kiện biến động (Mutation Event)
@@ -515,6 +556,7 @@ export class CadastralGeometryService {
         success: true,
         swapEventId: mutRes.rows[0].id,
         swapEventCode,
+        swappedReportIds,
         message: `Đã hoán đổi không gian GIS thành công giữa [${parcelA.project_parcel_code}] và [${parcelB.project_parcel_code}]. Toàn bộ số nhà, chủ hộ, hồ sơ khảo sát và watermark ảnh được bảo toàn 100%.`,
         parcelA: {
           id: parcelA.id,
@@ -530,6 +572,25 @@ export class CadastralGeometryService {
         },
       };
     });
+
+    if (txResult.swappedReportIds && txResult.swappedReportIds.length > 0) {
+      try {
+        const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+        for (const repId of txResult.swappedReportIds) {
+          await AuditVersionService.createSnapshot(repId, {
+            versionTag: 'PARCEL_SWAP',
+            title: `Hoán đổi không gian GIS giữa [${txResult.parcelA.projectParcelCode}] và [${txResult.parcelB.projectParcelCode}]`,
+            editReason: reason,
+            userId: adminId,
+            clientIp,
+          });
+        }
+      } catch (snapErr) {
+        console.error('[swapParcelGeometries] Không thể tạo snapshot sau hoán đổi GIS:', snapErr);
+      }
+    }
+
+    return txResult;
   }
 
   /**
@@ -556,7 +617,33 @@ export class CadastralGeometryService {
       throw new BadRequestError('Vui lòng nhập lý do nắn chỉnh ranh giới thửa đất.');
     }
 
-    return Database.transaction(async (client) => {
+    // M6-02: Bảo đảm khởi tạo v0 (ORIGINAL_SUBMISSION) trước khi nắn chỉnh ranh giới GIS
+    try {
+      const preReports = await Database.query<{ id: string; surveyor_id: string | null }>(
+        `SELECT id, surveyor_id FROM base_survey_reports WHERE parcel_id = $1 AND deleted_at IS NULL AND status != 'APPROVED';`,
+        [parcelId]
+      );
+      for (const r of preReports.rows) {
+        const vCnt = await Database.query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM survey_report_versions WHERE report_id = $1;`,
+          [r.id]
+        );
+        if (Number(vCnt.rows[0]?.cnt || 0) === 0) {
+          const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+          await AuditVersionService.createSnapshot(r.id, {
+            versionNumber: 0,
+            versionTag: 'ORIGINAL_SUBMISSION',
+            title: 'Bản nộp thực địa ban đầu',
+            editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi nắn chỉnh ranh giới GIS',
+            userId: r.surveyor_id || undefined,
+          });
+        }
+      }
+    } catch (seedErr) {
+      console.error('[reshapeParcelGeometry] Lỗi khởi tạo snapshot v0:', seedErr);
+    }
+
+    const txResult = await Database.transaction(async (client) => {
       // 1. Kiểm tra thửa đất hiện tại
       const parcelRes = await client.query<{
         id: string;
@@ -638,10 +725,11 @@ export class CadastralGeometryService {
       const deltaAreaM2 = Math.round((newAreaM2 - oldAreaM2) * 100) / 100;
       const reshapeMutationCode = `RESHAPE-GIS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
-      // 4. Tự động tính toán lại cự ly trắc địa tới Tim Hầm & Mép Ga Metro 2 (Q2)
+      // 4. Tự động tính toán lại cự ly trắc địa tới Tim Hầm & Mép Ga Metro 2 (Q2) và đỉnh gần nhất (Comment 2)
       const metroMetrics = calculateDistancesFromPolygon(newCoordinates);
       const newCenterlineDist = metroMetrics.centerlineDist;
       const newOuterBoundaryDist = metroMetrics.outerBoundaryDist;
+      const closestVertex = newCoordinates[0];
 
       // 5. Tạo bản ghi biến động parcel_mutation_events
       const mutRes = await client.query<{ id: string }>(
@@ -668,7 +756,7 @@ export class CadastralGeometryService {
           `UPDATE parcels
            SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
                footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+               location_geom = ST_PointOnSurface(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
                land_area_m2 = $2,
                construction_area_m2 = $2,
                distance_to_centerline_m = $3,
@@ -682,7 +770,7 @@ export class CadastralGeometryService {
         await client.query(
           `UPDATE parcels
            SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+               location_geom = ST_PointOnSurface(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
                land_area_m2 = $2,
                distance_to_centerline_m = $3,
                mutation_type = 'REDRAW',
@@ -693,13 +781,14 @@ export class CadastralGeometryService {
         );
       }
 
-      // 7. Đồng bộ 2 chiều sang base_survey_reports.survey_data_json (Q1, Q2, Q3)
-      // Tự động cập nhật toạ độ và cự ly mới cho các hồ sơ chưa APPROVED, giữ nguyên chữ ký chủ hộ và giữ nguyên trạng thái hồ sơ SUBMITTED
+      // 7. Đồng bộ 2 chiều sang base_survey_reports.survey_data_json (Q1, Q2, Q3 & M6-02)
+      // Tự động cập nhật toạ độ, gpsCoords, gisMutationConfirmed và cự ly mới cho các hồ sơ chưa APPROVED
       const reportsRes = await client.query<{ id: string; survey_data_json: any; status: string }>(
         `SELECT id, survey_data_json, status FROM base_survey_reports WHERE parcel_id = $1 AND deleted_at IS NULL AND status != 'APPROVED';`,
         [parcelId]
       );
 
+      const updatedReportIds: string[] = [];
       for (const rep of reportsRes.rows) {
         const existingJson = typeof rep.survey_data_json === 'string'
           ? JSON.parse(rep.survey_data_json)
@@ -720,11 +809,28 @@ export class CadastralGeometryService {
           ...existingJson,
           parcelCoordinates: newCoordinates,
           polygonCoords: newCoordinates,
+          gpsCoords:
+            closestVertex && Array.isArray(closestVertex) && closestVertex.length >= 2
+              ? { lat: Number(closestVertex[0]), lng: Number(closestVertex[1]) }
+              : existingJson.gpsCoords,
           landAreaM2: preservedLandAreaM2,
           constructionAreaM2: preservedConstructionAreaM2,
           metroOffsetDistance: newCenterlineDist !== null ? `${newCenterlineDist.toFixed(1)}m` : existingJson.metroOffsetDistance,
           clearanceOffsetDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : 'Không có ga trong khu vực',
           stationEdgeDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : existingJson.stationEdgeDistance,
+          gisMutationConfirmed: {
+            ...(existingJson.gisMutationConfirmed && typeof existingJson.gisMutationConfirmed === 'object'
+              ? existingJson.gisMutationConfirmed
+              : {}),
+            type: 'BOUNDARY_ADJUST',
+            isConfirmed: true,
+            confirmedByAdminId: userId,
+            confirmedAt: new Date().toISOString(),
+            oldAreaM2,
+            newAreaM2,
+            deltaAreaM2,
+            notes: reason.trim(),
+          },
           _lastGeometryReshape: {
             mutationCode: reshapeMutationCode,
             userId,
@@ -744,6 +850,7 @@ export class CadastralGeometryService {
            WHERE id = $2;`,
           [JSON.stringify(updatedSurveyJson), rep.id]
         );
+        updatedReportIds.push(rep.id);
       }
 
       // 8. Ghi log kiểm toán toàn trình
@@ -789,8 +896,33 @@ export class CadastralGeometryService {
         newCenterlineDist,
         newOuterBoundaryDist,
         newGeoJson: geoJsonPolygon,
+        updatedReportIds,
         message: `Đã nắn chỉnh ranh giới thửa đất [${parcel.project_parcel_code}] thành công. Diện tích mới: ${newAreaM2} m² (${deltaAreaM2 >= 0 ? '+' : ''}${deltaAreaM2} m²). Cự ly Metro: ${newCenterlineDist !== null ? newCenterlineDist.toFixed(1) + 'm' : 'N/A'}.`,
       };
     });
+
+    // M6-02: Lưu snapshot version sau khi nắn chỉnh ranh giới GIS
+    if (txResult.updatedReportIds && txResult.updatedReportIds.length > 0) {
+      try {
+        const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+        for (const repId of txResult.updatedReportIds) {
+          await AuditVersionService.createSnapshot(repId, {
+            versionTag: 'ADMIN_DIFF_SAVE',
+            title: `Nắn chỉnh ranh giới GIS [${txResult.projectParcelCode}] (${txResult.oldAreaM2}m² → ${txResult.newAreaM2}m²)`,
+            editReason: reason.trim(),
+            userId,
+            clientIp,
+            diffSummary: [
+              { field: 'parcelCoordinates', label: 'Đa giác ranh giới GIS', oldValue: `${txResult.oldAreaM2} m²`, newValue: `${txResult.newAreaM2} m²` },
+              { field: 'metroOffsetDistance', label: 'Khoảng cách tới Metro', newValue: txResult.newCenterlineDist !== null ? `${txResult.newCenterlineDist.toFixed(1)}m` : null },
+            ],
+          });
+        }
+      } catch (snapErr) {
+        console.error('[reshapeParcelGeometry] Không thể tạo snapshot sau nắn chỉnh GIS:', snapErr);
+      }
+    }
+
+    return txResult;
   }
 }

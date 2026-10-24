@@ -24,11 +24,11 @@ export interface ViCalculatorInput {
   isVacantLand?: boolean | null;
   objectGroup?: string | null;
   structureSystem?: string | null;
-  /** CAT móng 1..5; null/undefined = chưa xác định */
+  /** CAT móng 1..5; 0/null/undefined chuẩn hóa về 5 (v3 = 3) */
   foundationCatScore?: number | null;
   constructionYear?: number | null;
   renovationLoad?: number | null;
-  continuousOperation247?: boolean | null;
+  continuousOperation247?: boolean | { has?: boolean } | null;
   hasSensitiveEquipment?: boolean | null;
   ecsClass?: EcsClass | null;
   /** Điểm V1..V6 do Admin chốt (nếu có) – ưu tiên hơn giá trị tự tính */
@@ -40,25 +40,24 @@ export interface ViCalculatorInput {
 export interface ViCalculatorResult {
   v1: number;
   v2: number;
-  /** null khi chưa có CAT */
-  v3: number | null;
-  /** null khi chưa có năm xây dựng và không có cơi nới nặng */
-  v4: number | null;
+  v3: number;
+  v4: number;
   v5: number;
   v6: number;
-  /** null nếu thiếu V3 hoặc V4 (chưa đủ dữ liệu để kết luận) */
-  totalVi: number | null;
-  viAvg: number | null;
-  viClass: ViClass | null;
+  totalVi: number;
+  viAvg: number;
+  viClass: ViClass;
 }
 
-/** V3 từ CAT móng. CAT ngoài 1..5 hoặc null → null (không đoán). */
-export function v3FromCat(cat: number | null | undefined): number | null {
-  if (cat === null || cat === undefined || !Number.isInteger(cat) || cat < 1 || cat > 5) return null;
-  if (cat <= 2) return 1;
-  if (cat === 3) return 2;
-  if (cat === 4) return 3;
-  return 4;
+/** V3 từ CAT móng (1..2 -> 1, 3 -> 2, 4..5 -> 3; nếu 0/null/ngoài 1..5 chuẩn hóa về CAT 5 -> 3). */
+export function v3FromCat(cat: number | null | undefined): number {
+  const normalizedCat =
+    cat !== null && cat !== undefined && Number.isFinite(cat) && cat >= 1 && cat <= 5
+      ? Math.round(cat)
+      : 5;
+  if (normalizedCat <= 2) return 1;
+  if (normalizedCat === 3) return 2;
+  return 3;
 }
 
 /** V4 từ tuổi công trình. */
@@ -83,7 +82,7 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
     input.surveyCaseType === 'VACANT_LAND' || input.isVacantLand === true || input.usageFunction === 'Đất trống';
   let v1 = 2;
   if (input.adminOverrides?.v1 !== undefined && input.adminOverrides.v1 !== null) {
-    v1 = input.adminOverrides.v1;
+    v1 = Math.round(input.adminOverrides.v1);
   } else if (isAbandoned || isVacant) {
     v1 = 0;
   } else if (input.objectGroup === 'CRITICAL') {
@@ -95,7 +94,7 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
   // V2: ưu tiên adminOverrides.v2; nếu không có thì phân loại chuẩn (RC_INFILL = 2, RC_FRAME = 1, MASONRY = 3, WEAK = 4)
   let v2: number;
   if (input.adminOverrides?.v2 !== undefined && input.adminOverrides.v2 !== null) {
-    v2 = input.adminOverrides.v2;
+    v2 = Math.round(input.adminOverrides.v2);
   } else {
     const sys = (input.structureSystem || '').trim();
     if (!sys) {
@@ -107,22 +106,23 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
     }
   }
 
-  // V3: ưu tiên adminOverrides.v3; nếu không có thì tính từ CAT móng
+  // V3: ưu tiên adminOverrides.v3; nếu không có thì tính từ CAT móng (luôn là số nguyên 1..4)
   const v3 =
     input.adminOverrides?.v3 !== undefined && input.adminOverrides.v3 !== null
-      ? input.adminOverrides.v3
+      ? Math.round(input.adminOverrides.v3)
       : v3FromCat(input.foundationCatScore);
 
-  // V4: ưu tiên adminOverrides.v4; nếu không có thì tính từ tuổi công trình & cải tạo nâng tầng
-  let v4: number | null =
-    input.adminOverrides?.v4 !== undefined && input.adminOverrides.v4 !== null
-      ? input.adminOverrides.v4
-      : null;
-  if (v4 === null) {
+  // V4: ưu tiên adminOverrides.v4; nếu không có thì tính từ tuổi công trình (mặc định 1999 -> v4 = 3 nếu thiếu) & cải tạo nâng tầng
+  let v4: number;
+  if (input.adminOverrides?.v4 !== undefined && input.adminOverrides.v4 !== null) {
+    v4 = Math.round(input.adminOverrides.v4);
+  } else {
     const year = input.currentYear ?? new Date().getFullYear();
-    if (typeof input.constructionYear === 'number' && input.constructionYear > 1900) {
-      v4 = v4FromAge(year - input.constructionYear);
-    }
+    const effectiveConstructionYear =
+      typeof input.constructionYear === 'number' && input.constructionYear > 1900
+        ? input.constructionYear
+        : 1999;
+    v4 = v4FromAge(year - effectiveConstructionYear);
     if ((input.renovationLoad ?? 0) >= 3) v4 = 4;
   }
 
@@ -130,7 +130,7 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
   const ecsClass = input.ecsClass || 'GOOD';
   const v5 =
     input.adminOverrides?.v5 !== undefined && input.adminOverrides.v5 !== null
-      ? input.adminOverrides.v5
+      ? Math.round(input.adminOverrides.v5)
       : ecsClass === 'CRITICAL'
         ? 4
         : ecsClass === 'DEFICIENT'
@@ -139,11 +139,15 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
             ? 2
             : 1;
 
-  // V6: ưu tiên adminOverrides.v6; nếu không có thì tính từ chế độ vận hành / thiết bị nhạy cảm
+  // V6: ưu tiên adminOverrides.v6; nếu không có thì tính từ chế độ vận hành (hỗ trợ cả boolean & { has: true }) / thiết bị nhạy cảm
+  const isContOp247 =
+    typeof input.continuousOperation247 === 'boolean'
+      ? input.continuousOperation247
+      : Boolean(input.continuousOperation247?.has);
   let v6: number;
   if (input.adminOverrides?.v6 !== undefined && input.adminOverrides.v6 !== null) {
-    v6 = input.adminOverrides.v6;
-  } else if (input.continuousOperation247) {
+    v6 = Math.round(input.adminOverrides.v6);
+  } else if (isContOp247) {
     v6 = 4;
   } else if (input.hasSensitiveEquipment) {
     v6 = 3;
@@ -151,9 +155,6 @@ export function calculateVi(input: ViCalculatorInput): ViCalculatorResult {
     v6 = 1;
   }
 
-  if (v3 === null || v4 === null) {
-    return { v1, v2, v3, v4, v5, v6, totalVi: null, viAvg: null, viClass: null };
-  }
   const totalVi = v1 + v2 + v3 + v4 + v5 + v6;
   const viAvg = Number((totalVi / 6).toFixed(2));
   return { v1, v2, v3, v4, v5, v6, totalVi, viAvg, viClass: viClassFromAvg(viAvg) };

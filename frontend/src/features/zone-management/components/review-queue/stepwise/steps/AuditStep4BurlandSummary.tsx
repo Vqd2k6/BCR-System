@@ -1,8 +1,16 @@
 import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary, PhotoReplaceParams, AuditPhotoHistoryParams } from '../types';
+import type {
+  AuditStepwiseFormState,
+  AuditStepwiseData,
+  StepwiseBurlandSummary,
+  PhotoReplaceParams,
+  AuditPhotoHistoryParams,
+  PhotoActionPayload,
+} from '../types';
 import React from 'react';
-import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass, RefreshCw, History, Navigation } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Sparkles, Maximize2, BarChart2, Eye, RefreshCw, History, Navigation, CheckCircle2 } from 'lucide-react';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
+import { resolveOptimisticPhoto } from '../utils/optimisticPhotoResolver';
 
 const getBurlandGradeFromWidth = (w: number): number => {
   if (w <= 0.1) return 0;
@@ -13,16 +21,24 @@ const getBurlandGradeFromWidth = (w: number): number => {
   return 5;
 };
 
+const isSoftDeleted = (item: unknown): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  const rec = item as Record<string, unknown>;
+  return Boolean(rec.isDeleted || rec.is_deleted);
+};
+
 interface Props {
   isEditMode: boolean;
   formState: AuditStepwiseFormState;
   data?: AuditStepwiseData;
   handleFieldChange?: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
+  stagedPhotoRotations?: Record<string, number>;
 }
 
 const BURLAND_GRADES = [
@@ -45,20 +61,26 @@ const STRUCTURAL_FLAG_LEVELS = [
 export const AuditStep4BurlandSummary: React.FC<Props> = ({
   isEditMode,
   formState,
-  data,
   handleNestedFieldChange,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoHistory,
-  isFieldDirty,
+  stagedPhotoActions = [],
+  stagedPhotoRotations = {},
 }) => {
   const burland: StepwiseBurlandSummary = formState.burlandSummary || {};
-  const riskCard = data?.leftPane?.riskScoreCard || {};
-
-  const maxGrade = Number(burland.localMaxGrade ?? riskCard.e1_burland_score ?? 0);
-  const predGrade = Number(burland.predominantGrade ?? (maxGrade > 1 ? maxGrade - 1 : maxGrade));
   const flagLevel = burland.structuralFlagLevel || 'NONE';
   const flagItem = STRUCTURAL_FLAG_LEVELS.find((f) => f.value === flagLevel) || STRUCTURAL_FLAG_LEVELS[0];
+
+  const isDefectStagedDeleted = (d: DefectItem): boolean => {
+    const dCode = d.defectCode || d.defect_code || '';
+    return stagedPhotoActions.some(
+      (a) =>
+        a.action === 'DELETE' &&
+        Boolean(a.deleteDefectItem) &&
+        ((d.id && a.defectId === d.id) || (dCode && (a.targetPhotoId === dCode || a.defectCode === dCode)))
+    );
+  };
 
   // Thu thập toàn bộ vết nứt mảng tường Z để tính Histogram Burland và tìm Vết nứt khống chế (Spotlight)
   interface StructuralElementAuditItem {
@@ -86,30 +108,36 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
 
   if (Array.isArray(formState.floors)) {
     (formState.floors as FloorSurveyData[]).forEach((fl: FloorSurveyData) => {
+      if (isSoftDeleted(fl)) return;
       (fl.zones || []).forEach((z: DamageZoneData) => {
-        if ((z as any).isDeleted || (z as any).is_deleted) return;
+        if (isSoftDeleted(z)) return;
         const zCode = z.zoneCode || z.id;
         if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
         (z.defects || []).forEach((d: DefectItem) => {
-          if ((d as any).isDeleted || (d as any).is_deleted) return;
+          if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
           if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
-          const computedGrade = getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0);
+          const dRec = d as unknown as Record<string, unknown>;
+          const widthVal = Number(d.widthMaxMm ?? dRec.width_max_mm) || 0;
+          const computedGrade = getBurlandGradeFromWidth(widthVal);
           allDefects.push({
             ...d,
-            burlandGrade: d.burlandGrade ?? (d as any).burland_grade ?? computedGrade,
+            burlandGrade:
+              widthVal > 0
+                ? computedGrade
+                : (d.burlandGrade ?? (typeof dRec.burland_grade === 'number' ? dRec.burland_grade : undefined) ?? computedGrade),
             floorName: fl.floorName,
             zoneCode: z.zoneCode,
           });
         });
       });
       ((fl.structuralElements || []) as StructuralElementAuditItem[]).forEach((elem: StructuralElementAuditItem) => {
-        if ((elem as any).isDeleted || (elem as any).is_deleted) return;
+        if (isSoftDeleted(elem)) return;
         allStructuralElements.push({
           ...elem,
           floorName: fl.floorName,
         });
         (elem.defects || []).forEach((d: DefectItem) => {
-          if ((d as any).isDeleted || (d as any).is_deleted) return;
+          if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
           allStructuralDefects.push({
             ...d,
             elementCode: elem.elementCode || elem.id,
@@ -124,16 +152,21 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     });
   } else if (Array.isArray(formState.damageZones)) {
     (formState.damageZones as DamageZoneData[]).forEach((z: DamageZoneData) => {
-      if ((z as any).isDeleted || (z as any).is_deleted) return;
+      if (isSoftDeleted(z)) return;
       const zCode = z.zoneCode || z.id;
       if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
       (z.defects || []).forEach((d: DefectItem) => {
-        if ((d as any).isDeleted || (d as any).is_deleted) return;
+        if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
         if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
-        const computedGrade = getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0);
+        const dRec = d as unknown as Record<string, unknown>;
+        const widthVal = Number(d.widthMaxMm ?? dRec.width_max_mm) || 0;
+        const computedGrade = getBurlandGradeFromWidth(widthVal);
         allDefects.push({
           ...d,
-          burlandGrade: d.burlandGrade ?? (d as any).burland_grade ?? computedGrade,
+          burlandGrade:
+            widthVal > 0
+              ? computedGrade
+              : (d.burlandGrade ?? (typeof dRec.burland_grade === 'number' ? dRec.burland_grade : undefined) ?? computedGrade),
           floorName: 'Tầng khảo sát',
           zoneCode: z.zoneCode,
         });
@@ -146,20 +179,44 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   // Đếm tần suất theo cấp Burland 0-5 (chỉ dành cho vết nứt tường gạch Z)
   const gradeCounts = [0, 0, 0, 0, 0, 0];
   allDefects.forEach((d) => {
-    const g = Number(d.burlandGrade ?? d.burland_grade ?? getBurlandGradeFromWidth(Number(d.widthMaxMm ?? (d as any).width_max_mm) || 0));
+    const dRec = d as unknown as Record<string, unknown>;
+    const g = Number(
+      d.burlandGrade ?? d.burland_grade ?? getBurlandGradeFromWidth(Number(d.widthMaxMm ?? dRec.width_max_mm) || 0)
+    );
     if (g >= 0 && g <= 5) gradeCounts[g]++;
   });
+
+  const calculatedMaxGrade = allDefects.reduce((maxG, d) => {
+    const g = Number(d.burlandGrade ?? d.burland_grade ?? 0);
+    return g > maxG ? g : maxG;
+  }, 0);
+
+  let calculatedPredominantGrade = 0;
+  if (allDefects.length > 0) {
+    let maxFreq = -1;
+    gradeCounts.forEach((count, g) => {
+      if (count > maxFreq || (count === maxFreq && g > calculatedPredominantGrade)) {
+        maxFreq = count;
+        calculatedPredominantGrade = g;
+      }
+    });
+  }
+
+  const maxGrade = Number(burland.localMaxGrade ?? calculatedMaxGrade);
+  const predGrade = Number(burland.predominantGrade ?? calculatedPredominantGrade);
 
   // Tìm vết nứt đại diện nặng nhất (Governing Defect)
   const governingDefect = allDefects.reduce((maxD, curr) => {
     const currGrade = Number(curr.burlandGrade ?? curr.burland_grade ?? 0);
     const maxGradeVal = maxD ? Number(maxD.burlandGrade ?? maxD.burland_grade ?? 0) : -1;
-    const currWidth = Number(curr.widthMaxMm ?? (curr as any).width_max_mm ?? 0);
-    const maxWidth = maxD ? Number(maxD.widthMaxMm ?? (maxD as any).width_max_mm ?? 0) : -1;
+    const currRec = curr as unknown as Record<string, unknown>;
+    const maxRec = maxD ? (maxD as unknown as Record<string, unknown>) : undefined;
+    const currWidth = Number(curr.widthMaxMm ?? currRec.width_max_mm ?? 0);
+    const maxWidth = maxD ? Number(maxD.widthMaxMm ?? maxRec?.width_max_mm ?? 0) : -1;
     return currGrade > maxGradeVal || (currGrade === maxGradeVal && currWidth > maxWidth) ? curr : maxD;
   }, null as DefectItem | null);
 
-  const govPhotoUrl =
+  const rawGovPhotoUrl =
     governingDefect?.cuPhotoUrl ||
     governingDefect?.cu_photo_url ||
     governingDefect?.cuPhotos?.[0] ||
@@ -168,6 +225,22 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     governingDefect?.photoUrl ||
     '';
   const govCode = governingDefect?.defectCode || governingDefect?.defect_code || 'D-??';
+  const govResolved = resolveOptimisticPhoto(rawGovPhotoUrl, stagedPhotoActions, {
+    category: 'DEFECT_CU',
+    defectId: governingDefect?.id,
+    targetPhotoId: govCode,
+    photoIndex: 0,
+    url: rawGovPhotoUrl,
+  });
+  const govPhotoUrl = govResolved.status === 'DELETED' ? '' : govResolved.displayUrl;
+  const govRot =
+    (governingDefect?.id
+      ? stagedPhotoRotations[`defect_${governingDefect.id}_cu_0`] ??
+        stagedPhotoRotations[`defect_${governingDefect.id}_cu`]
+      : undefined) ??
+    stagedPhotoRotations[`${govCode}-CU`] ??
+    (govPhotoUrl ? stagedPhotoRotations[govPhotoUrl] : undefined) ??
+    0;
   const govWidth = governingDefect?.widthMaxMm ?? governingDefect?.width_max_mm ?? 0;
 
   return (
@@ -198,11 +271,11 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* PHẦN 4.1: VẾT NỨT TƯỜNG XÂY GẠCH THEO CHUẨN BURLAND 1977 (VÙNG Z) */}
+        {/* PHẦN 5.1: VẾT NỨT TƯỜNG XÂY GẠCH THEO CHUẨN BURLAND 1977 (VÙNG Z) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono text-xs">Mục 4.1</span>
+              <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono text-xs">Mục 5.1</span>
               Phân Bố Vết Nứt Tường Xây Gạch Theo Chuẩn Burland 1977 (Chỉ Áp Dụng Cho Mảng Tường Z)
             </span>
             <span className="text-[11px] text-slate-500 font-mono font-bold">
@@ -230,13 +303,21 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                     className="w-24 h-20 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative group cursor-pointer shrink-0"
                     onClick={() => {
                       if (onOpenPhotoZoom && govPhotoUrl) {
-                        onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode} (Rộng ${govWidth}mm)`, govCode);
+                        onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode} (Rộng ${govWidth}mm)`, govCode, govRot);
                       }
                     }}
                   >
                     {govPhotoUrl ? (
                       <>
-                        <img src={govPhotoUrl} alt={govCode} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <img
+                          src={govPhotoUrl}
+                          alt={govCode}
+                          style={{
+                            transform: govRot ? `rotate(${govRot}deg)` : undefined,
+                            transition: 'transform 0.3s ease',
+                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                           <Maximize2 className="w-4 h-4 drop-shadow-md" />
                         </div>
@@ -265,7 +346,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                       {onOpenPhotoZoom && govPhotoUrl && (
                         <button
                           type="button"
-                          onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode)}
+                          onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode, govRot)}
                           className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -487,11 +568,11 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* PHẦN 4.2: BẢNG TỔNG HỢP KHUYẾT TẬT TRÊN CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT, DẦM, SÀN E) */}
+        {/* PHẦN 5.2: BẢNG TỔNG HỢP KHUYẾT TẬT TRÊN CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT, DẦM, SÀN E) */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs sm:text-sm font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono text-xs">Mục 4.2</span>
+              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono text-xs">Mục 5.2</span>
               Bảng Tổng Hợp Khuyết Tật Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn BTCT E)
             </span>
             <span className="text-[11px] text-amber-800 font-mono font-bold">
@@ -521,7 +602,9 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                 <tbody className="divide-y divide-amber-100">
                   {allStructuralElements.map((elem: StructuralElementAuditItem, idx: number) => {
                     const eCode = elem.elementCode || `E-${idx + 1}`;
-                    const eDefs = Array.isArray(elem.defects) ? elem.defects : [];
+                    const eDefs = (Array.isArray(elem.defects) ? elem.defects : []).filter(
+                      (d: DefectItem) => !isSoftDeleted(d) && !isDefectStagedDeleted(d)
+                    );
                     const maxDefWidth = eDefs.reduce((max: number, d: DefectItem) => {
                       const dRec = d as unknown as Record<string, unknown>;
                       const w = Number(d.widthMaxMm ?? dRec.width_max_mm ?? 0);
@@ -589,11 +672,11 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
           )}
         </div>
 
-        {/* PHẦN 4.3: CỜ CẢNH BÁO KẾT CẤU & THẨM TRA KỸ SƯ */}
+        {/* PHẦN 5.3: CỜ CẢNH BÁO KẾT CẤU & THẨM TRA KỸ SƯ */}
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-xs">Mục 4.3</span>
+              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-xs">Mục 5.3</span>
               Cờ Cảnh Báo Kết Cấu & Thẩm Tra Chuyên Môn Kỹ Sư Trưởng
             </span>
           </div>

@@ -208,6 +208,42 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     );
   }
 
+  // Trường hợp Đã Xóa (Optimistic UI): Ẩn hẳn ảnh gốc, chỉ hiển thị thanh chip Hoàn tác gọn gàng
+  if (optimisticStatus === 'DELETED') {
+    const finalDeletedDomId = domId || (photoCode ? `audit-photo-card-${photoCode}` : undefined);
+    return (
+      <div
+        id={finalDeletedDomId}
+        onClick={(e) => e.stopPropagation()}
+        className={`rounded-xl border border-dashed border-rose-300 bg-rose-50/80 px-3 py-2.5 flex items-center justify-between gap-2 shadow-2xs select-none ${className}`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {photoCode && (
+            <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] bg-rose-200 text-rose-800 shrink-0">
+              {photoCode}
+            </span>
+          )}
+          <span className="text-[11px] font-bold text-rose-700 truncate">
+            Đã xóa ảnh ({title}) • Chờ lưu
+          </span>
+        </div>
+        {onUndoDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndoDelete();
+            }}
+            className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+          >
+            <Undo2 className="w-3 h-3 text-rose-600" />
+            <span>Hoàn tác</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
   // Trường hợp Chưa Có Ảnh
   if (!hasUrl) {
     return (
@@ -279,9 +315,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   }
 
   // Border & Glow styling theo trạng thái Optimistic hoặc Orientation Mismatch (Line vàng hổ phách)
-  const statusBorderClass = optimisticStatus === 'DELETED'
-    ? 'border-2 border-rose-500 opacity-60'
-    : optimisticStatus === 'REPLACED'
+  const statusBorderClass = optimisticStatus === 'REPLACED'
     ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
     : optimisticStatus === 'ADDED'
     ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
@@ -300,18 +334,20 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
       onClick={handleZoom}
       className={`group relative rounded-xl bg-slate-900 overflow-hidden cursor-pointer shadow-2xs hover:shadow-md transition-all select-none ${aspectRatio} ${statusBorderClass} ${className}`}
     >
-      <img
-        src={url}
-        alt={title}
-        style={{
-          transform: rotation ? `rotate(${rotation}deg)` : undefined,
-          transition: 'transform 0.3s ease',
-        }}
-        className={`w-full h-full ${
-          rotation && rotation % 180 !== 0 ? 'object-contain' : 'object-cover'
-        } group-hover:scale-105 transition-transform duration-300`}
-        loading="lazy"
-      />
+      <div className="w-full h-full flex items-center justify-center overflow-hidden bg-slate-950">
+        <img
+          src={url}
+          alt={title}
+          style={{
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
+            transition: 'transform 0.3s ease',
+          }}
+          className={`w-full h-full ${
+            rotation && rotation % 180 !== 0 ? 'object-contain max-h-full max-w-full' : 'object-cover'
+          } group-hover:scale-105 transition-transform duration-300`}
+          loading="lazy"
+        />
+      </div>
 
       {/* Top Bar: Mã ảnh bên trái & Cụm Icon tinh gọn bên phải */}
       <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 z-10">
@@ -363,7 +399,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all"
         >
-          {onRotate && isEditMode && optimisticStatus !== 'DELETED' && (
+          {onRotate && isEditMode && (
             <>
               <button
                 type="button"
@@ -420,7 +456,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             </button>
           )}
 
-          {isEditMode && onOpenPhotoAction && optimisticStatus !== 'DELETED' && (
+          {isEditMode && onOpenPhotoAction && (
             <>
               <button
                 type="button"
@@ -443,31 +479,6 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
           )}
         </div>
       </div>
-
-      {/* Trạng thái Optimistic UI Overlay khi ĐÃ XÓA */}
-      {optimisticStatus === 'DELETED' && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 p-2 z-30"
-        >
-          <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px] shadow-sm animate-pulse">
-            Đã đánh dấu Xóa • Chờ lưu
-          </span>
-          {onUndoDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onUndoDelete();
-              }}
-              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-rose-800 rounded-lg text-[10px] font-black shadow-md flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
-            >
-              <Undo2 className="w-3 h-3 text-rose-600" />
-              <span>Hoàn tác (Undo)</span>
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Badges trạng thái Optimistic UI ở góc dưới */}
       <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-end justify-between gap-1 pointer-events-none z-10">

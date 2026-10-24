@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileCheck2, Compass, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Compass, TrendingUp } from 'lucide-react';
 import { BRA_MATRIX_LOOKUP, calculateConstructionImpact, calculateBraRisk } from '../../../../../survey-phase1/engine/braEngine';
 import type { AuditStepwiseFormState, StepwiseExecutiveSummary } from '../types';
 import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
@@ -16,7 +16,6 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   isEditMode,
   formState,
   handleNestedFieldChange,
-  handleFieldChange,
   isFieldDirty,
 }) => {
   const checkDirty = (fieldKey: string, subKey?: string) => {
@@ -40,17 +39,40 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
     return null;
   };
   const exec: StepwiseExecutiveSummary = formState.executiveSummary || {};
-  const currentBra = (exec.braStatus || 'LOW').toUpperCase();
+  const objectGroup = (formState.objectGroup as string) || 'GENERAL';
+  const isSpecialGroup = objectGroup === 'IMPORTANT' || objectGroup === 'CRITICAL';
+  const objectGroupLabel =
+    objectGroup === 'CRITICAL'
+      ? 'Critical (Công trình đặc biệt)'
+      : objectGroup === 'IMPORTANT'
+      ? 'Important (Công trình quan trọng)'
+      : 'General (Nhà dân thông thường)';
 
   // Tính toán gợi ý tự động từ khoảng cách mép ga / tim hầm theo chuẩn kỹ thuật braEngine
   const autoImpact = calculateConstructionImpact(
-    (formState.objectGroup as string) || 'GENERAL',
-    formState.clearanceOffsetDistance as string,
-    formState.metroOffsetDistance as string
+    objectGroup,
+    (formState.clearanceOffsetDistance as string | number | undefined) ?? undefined,
+    (formState.metroOffsetDistance as string | number | undefined) ??
+      (formState.metroDistanceM as string | number | undefined) ??
+      (formState.distanceToMetroCenterlineM as string | number | undefined)
   );
 
-  const currentImpactStr = exec.constructionImpactStatus || autoImpact.label || 'I1 (Tác động rất nhẹ)';
-  const impactCode = (currentImpactStr.startsWith('I4') ? 'I4' : currentImpactStr.startsWith('I3') ? 'I3' : currentImpactStr.startsWith('I2') ? 'I2' : 'I1') as 'I1' | 'I2' | 'I3' | 'I4';
+  const IMPACT_LABELS: Record<'I1' | 'I2' | 'I3' | 'I4', string> = {
+    I1: 'I1 (Tác động rất nhẹ)',
+    I2: 'I2 (Tác động nhẹ)',
+    I3: 'I3 (Tác động trung bình)',
+    I4: 'I4 (Tác động nghiêm trọng)',
+  };
+
+  const rawImpactStr = String(exec.constructionImpactStatus || autoImpact.code || 'I1').trim();
+  const impactCode: 'I1' | 'I2' | 'I3' | 'I4' = rawImpactStr.startsWith('I4')
+    ? 'I4'
+    : rawImpactStr.startsWith('I3')
+    ? 'I3'
+    : rawImpactStr.startsWith('I2')
+    ? 'I2'
+    : 'I1';
+  const currentImpactStr = IMPACT_LABELS[impactCode];
   const isImpactOverridden = impactCode !== autoImpact.code || Boolean(exec.impactOverrideReason);
   const overrideReason: string = (exec.impactOverrideReason as string) || '';
   const isReasonValid = !isImpactOverridden || overrideReason.trim().length >= 5;
@@ -63,9 +85,11 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
     (rawViAvg > 3.25 ? 'VERY_HIGH' : rawViAvg > 2.5 ? 'HIGH' : rawViAvg > 1.5 ? 'MEDIUM' : 'LOW');
   const braMatrixEval = calculateBraRisk(derivedViClass, impactCode);
   const vCode: 'V1' | 'V2' | 'V3' | 'V4' = braMatrixEval.vCode;
+  const computedBraCode = braMatrixEval.riskLevel.toUpperCase().replace(/\s+/g, '_');
+  const currentBra = (exec.braStatus || computedBraCode || 'LOW').toUpperCase().replace(/\s+/g, '_');
 
-  const summaryConclusions = formState.summaryConclusions || exec.summaryConclusions || '';
-  const keyRisksDefectsText = formState.keyRisksDefectsText || exec.keyRisksDefectsText || '';
+  const summaryConclusions = exec.summaryConclusions ?? formState.summaryConclusions ?? '';
+  const keyRisksDefectsText = exec.keyRisksDefectsText ?? formState.keyRisksDefectsText ?? '';
 
   return (
     <section id="step-8" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -104,11 +128,11 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
             </div>
             {isEditMode ? (
               <select
-                value={exec.braStatus || 'LOW'}
+                value={currentBra}
                 onChange={(e) =>
                   handleNestedFieldChange('executiveSummary', 'braStatus', 'Trạng thái BRA', e.target.value)
                 }
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 cursor-pointer"
               >
                 <option value="LOW">LOW - Nguy cơ rủi ro thấp (An toàn)</option>
                 <option value="MEDIUM">MEDIUM - Nguy cơ rủi ro trung bình</option>
@@ -117,23 +141,26 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
               </select>
             ) : (
               <div className="text-base font-black text-slate-900">
-                {exec.braStatus || 'LOW'}
+                {currentBra}
               </div>
             )}
             <p className="text-[11px] text-slate-500">
-              Mức rủi ro tổng hợp dựa trên tính tổn thương công trình (VI) và tác động thi công tuyến Metro.
+              Mức rủi ro tổng hợp dựa trên tính tổn thương công trình (VI: {vCode}) và tác động thi công tuyến Metro ({impactCode}) &rarr; Gợi ý ma trận: <strong className="text-slate-700">{computedBraCode}</strong>.
             </p>
           </div>
 
           <div className={`p-3.5 bg-slate-50 rounded-xl border space-y-2 transition-all ${
             isImpactOverridden ? 'border-purple-300 bg-purple-50/20' : 'border-slate-200'
           }`}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-1">
               <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
                 <Compass className="w-4 h-4 text-sky-600" />
                 Phân Cấp Tác Động Thi Công Metro (Impact):
               </span>
               <div className="flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200 font-bold text-[10px]">
+                  Nhóm: {objectGroupLabel}
+                </span>
                 {isImpactOverridden ? (
                   <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200 font-bold text-[10px]">
                     [Đã can thiệp thủ công]
@@ -149,16 +176,32 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
 
             {isEditMode ? (
               <select
-                value={currentImpactStr}
-                onChange={(e) =>
-                  handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', e.target.value)
-                }
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                value={impactCode}
+                onChange={(e) => {
+                  const newICode = e.target.value as 'I1' | 'I2' | 'I3' | 'I4';
+                  const newLabel = IMPACT_LABELS[newICode] || newICode;
+                  handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', newLabel);
+                  const newBra = calculateBraRisk(derivedViClass, newICode);
+                  const newBraCode = newBra.riskLevel.toUpperCase().replace(/\s+/g, '_');
+                  handleNestedFieldChange('executiveSummary', 'braStatus', 'Trạng thái BRA', newBraCode);
+                }}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 cursor-pointer"
               >
-                <option value="I1 (Tác động rất nhẹ)">I1 - Rất nhẹ (Khoảng cách mép ga d &ge; 20m)</option>
-                <option value="I2 (Tác động nhẹ)">I2 - Nhẹ (10m &le; d &lt; 20m)</option>
-                <option value="I3 (Tác động trung bình)">I3 - Trung bình (5m &le; d &lt; 10m)</option>
-                <option value="I4 (Tác động nghiêm trọng)">I4 - Nghiêm trọng (d &lt; 5m hoặc cắt qua ga)</option>
+                {isSpecialGroup ? (
+                  <>
+                    <option value="I1">I1 - Rất nhẹ (Nhóm Important/Critical: d &ge; 30m)</option>
+                    <option value="I2">I2 - Nhẹ (Nhóm Important/Critical: 20m &le; d &lt; 30m)</option>
+                    <option value="I3">I3 - Trung bình (Nhóm Important/Critical: 10m &le; d &lt; 20m)</option>
+                    <option value="I4">I4 - Nghiêm trọng (Nhóm Important/Critical: d &lt; 10m hoặc cắt qua ga)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="I1">I1 - Rất nhẹ (Nhóm General: d &ge; 20m)</option>
+                    <option value="I2">I2 - Nhẹ (Nhóm General: 10m &le; d &lt; 20m)</option>
+                    <option value="I3">I3 - Trung bình (Nhóm General: 5m &le; d &lt; 10m)</option>
+                    <option value="I4">I4 - Nghiêm trọng (Nhóm General: d &lt; 5m hoặc cắt qua ga)</option>
+                  </>
+                )}
               </select>
             ) : (
               <div className="text-base font-black text-sky-800">
@@ -176,6 +219,9 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
                       onClick={() => {
                         handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', autoImpact.label);
                         handleNestedFieldChange('executiveSummary', 'impactOverrideReason', 'Lý do can thiệp Impact', '');
+                        const revertedBra = calculateBraRisk(derivedViClass, autoImpact.code);
+                        const revertedBraCode = revertedBra.riskLevel.toUpperCase().replace(/\s+/g, '_');
+                        handleNestedFieldChange('executiveSummary', 'braStatus', 'Trạng thái BRA', revertedBraCode);
                       }}
                       className="text-[10px] text-purple-700 hover:text-purple-900 underline font-semibold cursor-pointer"
                     >
@@ -217,15 +263,15 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
 
             <div className="text-[11px] text-slate-500 space-y-0.5">
               <p>
-                Phân cấp theo khoảng cách từ ranh công trình tới <strong>mép ga / biên hố đào Metro</strong>:
+                Phân cấp theo khoảng cách từ ranh công trình tới <strong>mép ga / biên hố đào Metro</strong> ({isSpecialGroup ? 'Quy tắc ngưỡng: 30m / 20m / 10m' : 'Quy tắc ngưỡng: 20m / 10m / 5m'}):
               </p>
               {autoImpact.hasStationEdge ? (
                 <p className="font-semibold text-sky-700">
-                  Cự ly mép ga: {autoImpact.distance}m &bull; Tự động: {autoImpact.code} ({autoImpact.conditionFormula})
+                  Cự ly mép ga: d = {autoImpact.distance}m &bull; Tự động: {autoImpact.code} ({autoImpact.conditionFormula})
                 </p>
               ) : (
                 <p className="font-semibold text-amber-700">
-                  ⚠️ {autoImpact.stationNote} (Fallback theo tim: {autoImpact.distance}m &rarr; {autoImpact.code})
+                  ⚠️ {autoImpact.stationNote} (Fallback theo tim: d = {autoImpact.distance}m &rarr; {autoImpact.code}: {autoImpact.conditionFormula})
                 </p>
               )}
             </div>
@@ -289,26 +335,37 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
               </tbody>
             </table>
           </div>
+
+          <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-[11px] text-slate-600 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <span className="font-bold text-slate-700">Thông số đầu vào ma trận:</span>{' '}
+              Nhóm đối tượng: <strong className="text-sky-800">{objectGroupLabel}</strong> &bull;{' '}
+              Khoảng cách <strong>d = {autoImpact.distance}m</strong> ({autoImpact.hasStationEdge ? 'mép ga/hố đào' : 'tim tuyến'}) &bull;{' '}
+              Ngưỡng phân cấp: <span className="font-mono text-slate-800">{autoImpact.conditionFormula}</span>
+            </div>
+            <div className="font-bold text-sky-900">
+              Khuyến nghị hệ thống: {braMatrixEval.recommendation}
+            </div>
+          </div>
         </div>
 
         {/* Khối 3: Tổng hợp khuyết tật chính & Rủi ro */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-            Tổng Hợp Khuyết Tật & Nguy Cơ Kết Cấu Chính Ghi Nhận {renderDirtyBadge('keyRisksDefectsText') || renderDirtyBadge('executiveSummary', 'keyRisksDefectsText')}
+            Tổng Hợp Khuyết Tật & Nguy Cơ Kết Cấu Chính Ghi Nhận {renderDirtyBadge('executiveSummary', 'keyRisksDefectsText') || renderDirtyBadge('keyRisksDefectsText')}
           </label>
           {isEditMode ? (
             <textarea
               rows={2}
               value={keyRisksDefectsText}
               onChange={(e) => {
-                if (handleFieldChange) handleFieldChange('keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
                 handleNestedFieldChange('executiveSummary', 'keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
               }}
-              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('keyRisksDefectsText') || getDirtyClass('executiveSummary', 'keyRisksDefectsText') || 'bg-amber-50/50 border border-amber-300'}`}
+              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('executiveSummary', 'keyRisksDefectsText') || getDirtyClass('keyRisksDefectsText') || 'bg-amber-50/50 border border-amber-300'}`}
               placeholder="Tóm tắt các khuyết tật đáng lưu ý (vết nứt lớn, võng dầm, lún lệch chân tường...)"
             />
           ) : (
-            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('keyRisksDefectsText') || getDirtyClass('executiveSummary', 'keyRisksDefectsText') || 'bg-slate-50 border border-slate-200'}`}>
+            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('executiveSummary', 'keyRisksDefectsText') || getDirtyClass('keyRisksDefectsText') || 'bg-slate-50 border border-slate-200'}`}>
               {keyRisksDefectsText || 'Không'}
             </div>
           )}
@@ -317,21 +374,20 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
         {/* Khối 4: Kết luận tóm tắt tổng thể hiện trạng */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-            Kết Luận Tóm Tắt Hiện Trạng Toàn Diện {renderDirtyBadge('summaryConclusions') || renderDirtyBadge('executiveSummary', 'summaryConclusions')}
+            Kết Luận Tóm Tắt Hiện Trạng Toàn Diện {renderDirtyBadge('executiveSummary', 'summaryConclusions') || renderDirtyBadge('summaryConclusions')}
           </label>
           {isEditMode ? (
             <textarea
               rows={2}
               value={summaryConclusions}
               onChange={(e) => {
-                if (handleFieldChange) handleFieldChange('summaryConclusions', 'Kết luận tổng thể', e.target.value);
                 handleNestedFieldChange('executiveSummary', 'summaryConclusions', 'Kết luận tổng thể', e.target.value);
               }}
-              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('summaryConclusions') || getDirtyClass('executiveSummary', 'summaryConclusions') || 'bg-amber-50/50 border border-amber-300'}`}
+              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('executiveSummary', 'summaryConclusions') || getDirtyClass('summaryConclusions') || 'bg-amber-50/50 border border-amber-300'}`}
               placeholder="Kết luận tổng quan về hiện trạng công trình trước khi thi công tuyến Metro..."
             />
           ) : (
-            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('summaryConclusions') || getDirtyClass('executiveSummary', 'summaryConclusions') || 'bg-slate-50 border border-slate-200'}`}>
+            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('executiveSummary', 'summaryConclusions') || getDirtyClass('summaryConclusions') || 'bg-slate-50 border border-slate-200'}`}>
               {summaryConclusions || 'Không'}
             </div>
           )}

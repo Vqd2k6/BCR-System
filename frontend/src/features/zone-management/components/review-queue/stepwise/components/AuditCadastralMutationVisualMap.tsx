@@ -34,8 +34,10 @@ export interface MutationDetails {
 
 interface Props {
   parcelCoordinates?: [number, number][];
+  initialSurveyPolygon?: [number, number][];
+  isBoundaryAdjusted?: boolean;
   projectParcelCode?: string;
-  mutationType?: 'MATCH' | 'SPLIT' | 'MERGE' | 'ORIGINAL' | string;
+  mutationType?: 'MATCH' | 'SPLIT' | 'MERGE' | 'BOUNDARY_ADJUST' | 'ORIGINAL' | string;
   mutationDetails?: MutationDetails;
   landAreaM2?: number | string;
   frontageWidth?: number | string;
@@ -69,6 +71,8 @@ const MapAutoBounds: React.FC<{
 
 export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
   parcelCoordinates,
+  initialSurveyPolygon,
+  isBoundaryAdjusted = false,
   projectParcelCode = '---',
   mutationType = 'MATCH',
   mutationDetails = {},
@@ -106,13 +110,57 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
     return [latSum / basePolygon.length, lngSum / basePolygon.length];
   }, [basePolygon]);
 
-  // Tính diện tích thửa gốc
+  // Diện tích hình học thực tế từ tọa độ đa giác hiện hành & đa giác gốc ban đầu
+  const actualGeometricArea = useMemo(() => computePolygonAreaM2(basePolygon), [basePolygon]);
+  const initialGeometricArea = useMemo(() => {
+    if (Array.isArray(initialSurveyPolygon) && initialSurveyPolygon.length >= 3) {
+      return computePolygonAreaM2(initialSurveyPolygon);
+    }
+    return null;
+  }, [initialSurveyPolygon]);
+
+  // Phát hiện xem đa giác đã bị điều chỉnh ranh / cắt xén GPMB so với ranh gốc ban đầu hay chưa
+  const effectiveIsAdjusted = useMemo(() => {
+    if (isBoundaryAdjusted || mutationType === 'BOUNDARY_ADJUST') return true;
+    if (Array.isArray(initialSurveyPolygon) && initialSurveyPolygon.length >= 3) {
+      if (initialSurveyPolygon.length !== basePolygon.length) return true;
+      if (initialGeometricArea !== null && Math.abs(actualGeometricArea - initialGeometricArea) > 0.5) return true;
+      const hasVertexShift = basePolygon.some((pt, i) => {
+        const initPt = initialSurveyPolygon[i];
+        if (!initPt) return true;
+        return Math.hypot(pt[0] - initPt[0], pt[1] - initPt[1]) > 0.00001;
+      });
+      if (hasVertexShift) return true;
+    }
+    return false;
+  }, [isBoundaryAdjusted, mutationType, initialSurveyPolygon, basePolygon, actualGeometricArea, initialGeometricArea]);
+
+  // Tính diện tích hiển thị: Nếu đã nắn ranh / cắt xén GPMB thì luôn ưu tiên diện tích hình học thực tế của đa giác mới
   const computedBaseArea = useMemo(() => {
+    if (effectiveIsAdjusted) {
+      return actualGeometricArea;
+    }
     if (landAreaM2 !== undefined && landAreaM2 !== '' && !isNaN(Number(landAreaM2))) {
       return Number(landAreaM2);
     }
-    return computePolygonAreaM2(basePolygon);
-  }, [landAreaM2, basePolygon]);
+    return actualGeometricArea;
+  }, [effectiveIsAdjusted, landAreaM2, actualGeometricArea]);
+
+  const originalAreaDisplay = useMemo<number | null>(() => {
+    if (!effectiveIsAdjusted) return null;
+    if (
+      landAreaM2 !== undefined &&
+      landAreaM2 !== '' &&
+      !isNaN(Number(landAreaM2)) &&
+      Math.abs(Number(landAreaM2) - actualGeometricArea) > 0.5
+    ) {
+      return Number(landAreaM2);
+    }
+    if (initialGeometricArea !== null && Math.abs(initialGeometricArea - actualGeometricArea) > 0.5) {
+      return initialGeometricArea;
+    }
+    return initialGeometricArea;
+  }, [effectiveIsAdjusted, landAreaM2, actualGeometricArea, initialGeometricArea]);
 
   // Chuẩn bị đa giác con A và B cho trường hợp SPLIT (Tách thửa)
   const splitPolygons = useMemo(() => {
@@ -175,14 +223,16 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
 
   // Toàn bộ các điểm cần fitBounds
   const allFitPoints = useMemo<[number, number][]>(() => {
+    const pts = [...basePolygon];
     if (mutationType === 'SPLIT' && splitPolygons) {
-      const pts = [...basePolygon];
       if (splitPolygons.polyA.length >= 3) pts.push(...splitPolygons.polyA);
       if (splitPolygons.polyB.length >= 3) pts.push(...splitPolygons.polyB);
-      return pts;
     }
-    return basePolygon;
-  }, [basePolygon, mutationType, splitPolygons]);
+    if (effectiveIsAdjusted && Array.isArray(initialSurveyPolygon) && initialSurveyPolygon.length >= 3) {
+      pts.push(...initialSurveyPolygon);
+    }
+    return pts;
+  }, [basePolygon, mutationType, splitPolygons, effectiveIsAdjusted, initialSurveyPolygon]);
 
   const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
   const mergeTargetCode = mutationDetails.mergeTargetCode || projectParcelCode;
@@ -191,7 +241,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
     <div className="w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700/60 shadow-lg relative flex flex-col">
       {/* 1. Header Toolbar trên bản đồ */}
       <div className="px-4 py-2.5 bg-slate-800/90 backdrop-blur-md border-b border-slate-700/60 flex items-center justify-between flex-wrap gap-2.5 z-10">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {mutationType === 'SPLIT' ? (
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold font-mono">
               <Split className="w-3.5 h-3.5" />
@@ -202,6 +252,11 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
               <Merge className="w-3.5 h-3.5" />
               GỘP THỬA GIS (Đích: {mergeTargetCode})
             </span>
+          ) : effectiveIsAdjusted ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950 text-amber-300 border border-amber-700 text-xs font-bold font-mono">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              ĐÃ ĐIỀU CHỈNH RANH / CẮT GPMB
+            </span>
           ) : (
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold font-mono">
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -210,7 +265,10 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
           )}
 
           <span className="text-xs text-slate-300 font-mono font-bold">
-            Mã: [{projectParcelCode}] • {computedBaseArea} m²
+            Mã: [{projectParcelCode}] • {effectiveIsAdjusted ? `DT mới: ${computedBaseArea} m²` : `${computedBaseArea} m²`}
+            {effectiveIsAdjusted && originalAreaDisplay !== null && Math.abs(originalAreaDisplay - computedBaseArea) > 0.5 && (
+              <span className="text-slate-400 ml-1">(Gốc: {originalAreaDisplay} m²)</span>
+            )}
           </span>
         </div>
 
@@ -220,7 +278,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setTileMode('satellite')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                 tileMode === 'satellite'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-300 hover:text-white'
@@ -231,7 +289,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setTileMode('street')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                 tileMode === 'street'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-300 hover:text-white'
@@ -399,33 +457,67 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
             </Polygon>
           )}
 
-          {/* TRƯỜNG HỢP 3: NGUYÊN TRẠNG / KHỚP RANH 100% (MATCH HOẶC ORIGINAL) */}
+          {/* TRƯỜNG HỢP 3: NGUYÊN TRẠNG HOẶC ĐÃ ĐIỀU CHỈNH RANH / CẮT GPMB */}
           {mutationType !== 'SPLIT' && mutationType !== 'MERGE' && (
-            <Polygon
-              positions={basePolygon}
-              pathOptions={{
-                color: '#16a34a',
-                weight: 3.5,
-                fillColor: '#22c55e',
-                fillOpacity: 0.35,
-              }}
-            >
-              <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95}>
-                <div className="text-center font-sans p-1">
-                  <div className="font-black text-xs text-emerald-950 font-mono">
-                    {projectParcelCode}
-                  </div>
-                  <div className="text-[10px] font-bold text-emerald-800">
-                    Khớp ranh: {computedBaseArea} m²
-                  </div>
-                  {(frontageWidth || lotDepth) && (
-                    <div className="text-[9px] text-slate-600 font-mono mt-0.5">
-                      Rộng {frontageWidth || '?'}m × Sâu {lotDepth || '?'}m
+            <>
+              {effectiveIsAdjusted && Array.isArray(initialSurveyPolygon) && initialSurveyPolygon.length >= 3 && (
+                <Polygon
+                  positions={initialSurveyPolygon}
+                  pathOptions={{
+                    color: '#94a3b8',
+                    weight: 2,
+                    dashArray: '6, 4',
+                    fillColor: '#64748b',
+                    fillOpacity: 0.08,
+                  }}
+                >
+                  <Tooltip direction="center" opacity={0.9}>
+                    <div className="font-mono text-xs font-bold text-slate-800">
+                      Ranh gốc ban đầu: [{projectParcelCode}]{originalAreaDisplay !== null ? ` (${originalAreaDisplay} m²)` : ''}
                     </div>
-                  )}
-                </div>
-              </Tooltip>
-            </Polygon>
+                  </Tooltip>
+                </Polygon>
+              )}
+              <Polygon
+                positions={basePolygon}
+                pathOptions={
+                  effectiveIsAdjusted
+                    ? {
+                        color: '#f59e0b',
+                        weight: 3.5,
+                        fillColor: '#fbbf24',
+                        fillOpacity: 0.4,
+                      }
+                    : {
+                        color: '#16a34a',
+                        weight: 3.5,
+                        fillColor: '#22c55e',
+                        fillOpacity: 0.35,
+                      }
+                }
+              >
+                <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95}>
+                  <div className="text-center font-sans p-1">
+                    <div className={`font-black text-xs font-mono ${effectiveIsAdjusted ? 'text-amber-950' : 'text-emerald-950'}`}>
+                      {projectParcelCode}
+                    </div>
+                    <div className={`text-[10px] font-bold ${effectiveIsAdjusted ? 'text-amber-800' : 'text-emerald-800'}`}>
+                      {effectiveIsAdjusted ? `Sau cắt/nắn: ${computedBaseArea} m²` : `Khớp ranh: ${computedBaseArea} m²`}
+                    </div>
+                    {effectiveIsAdjusted && originalAreaDisplay !== null && Math.abs(originalAreaDisplay - computedBaseArea) > 0.5 && (
+                      <div className="text-[9px] text-slate-600 font-mono mt-0.5">
+                        DT gốc: {originalAreaDisplay} m²
+                      </div>
+                    )}
+                    {(frontageWidth || lotDepth) && (
+                      <div className="text-[9px] text-slate-600 font-mono mt-0.5">
+                        Rộng {frontageWidth || '?'}m × Sâu {lotDepth || '?'}m
+                      </div>
+                    )}
+                  </div>
+                </Tooltip>
+              </Polygon>
+            </>
           )}
         </MapContainer>
 
@@ -466,6 +558,21 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
               <div className="text-[10px] text-slate-400">
                 Gồm {selectedMergeCodes.length > 0 ? selectedMergeCodes.length : 1} thửa liền kề hợp khối
               </div>
+            </div>
+          ) : effectiveIsAdjusted ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3 rounded bg-amber-400 border border-amber-500 inline-block shadow-xs" />
+                <span className="text-amber-300 font-bold">
+                  Ranh sau cắt GPMB / Nắn chỉnh ({computedBaseArea} m²)
+                </span>
+              </div>
+              {originalAreaDisplay !== null && (
+                <div className="flex items-center gap-2">
+                  <span className="w-3.5 h-1 border-t-2 border-dashed border-slate-400 inline-block" />
+                  <span className="text-slate-400 text-[10px]">Ranh gốc ban đầu ({originalAreaDisplay} m²)</span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-1">

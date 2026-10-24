@@ -43,6 +43,12 @@
         <td class="label-col">Thiết bị nhạy cảm rung động<br><span class="text-muted">Sensitive equipment</span></td>
         <td class="val-col">{{section3.sensitiveEquipment.vi}}{{#if section3.sensitiveEquipment.en}}<br><span class="text-muted">{{section3.sensitiveEquipment.en}}</span>{{/if}}</td>
       </tr>
+      {{#if section3.continuousOperation.vi}}
+      <tr>
+        <td class="label-col">Vận hành liên tục 24/7<br><span class="text-muted">24/7 Continuous operation</span></td>
+        <td class="val-col">{{section3.continuousOperation.vi}}{{#if section3.continuousOperation.en}}<br><span class="text-muted">{{section3.continuousOperation.en}}</span>{{/if}}</td>
+      </tr>
+      {{/if}}
       <tr>
         <td class="label-col">Hư hại do công trình lân cận<br><span class="text-muted">Damage by adjacent works</span></td>
         <td class="val-col">{{section3.damageByAdjacentWorks.vi}}{{#if section3.damageByAdjacentWorks.en}}<br><span class="text-muted">{{section3.damageByAdjacentWorks.en}}</span>{{/if}}</td>

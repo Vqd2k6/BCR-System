@@ -881,12 +881,23 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
-    if (!formData.constructionYear) {
+    if (!formData.constructionYear || Number(formData.constructionYear) <= 1800) {
       missing.push({
         fieldId: 'input-constructionYear',
-        label: '2.1. Năm xây dựng',
+        label: '2.1. Năm xây dựng *',
         step: 2,
         description: 'Vui lòng nhập năm xây dựng (hoặc ước tính).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.foundationCatScore || formData.foundationCatScore < 1 || formData.foundationCatScore > 5) {
+      missing.push({
+        fieldId: 'input-foundationCatScore',
+        label: '2.1. Phân hạng độ tin cậy dữ liệu móng (CAT 1–5) *',
+        step: 2,
+        description: 'Vui lòng chọn phân hạng CAT móng (từ CAT 1 đến CAT 5).',
+        isBlocking: true,
       });
     }
 

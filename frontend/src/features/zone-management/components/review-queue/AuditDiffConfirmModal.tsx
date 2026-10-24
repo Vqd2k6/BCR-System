@@ -81,10 +81,29 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  // Lỗi chặn pháp lý: CAT 1/2 thiếu bản vẽ hoàn công
-  const catScore = Number(updatesPayload.foundationCatScore ?? formState?.foundationCatScore ?? 0);
-  const drawings = (updatesPayload.asBuiltDrawingPhotos ?? formState?.asBuiltDrawingPhotos) as string[] | undefined;
-  const hasCatBlocker = (catScore === 1 || catScore === 2) && (!Array.isArray(drawings) || drawings.length === 0);
+  // Lỗi chặn pháp lý: CAT 1/2 thiếu bản vẽ hoàn công (kết hợp cả ảnh sẵn có và photoActions đang staged)
+  const catScore = Number(updatesPayload.foundationCatScore ?? formState?.foundationCatScore ?? 5);
+  const rawDrawings = (updatesPayload.asBuiltDrawingPhotos ?? formState?.asBuiltDrawingPhotos) as unknown[] | undefined;
+  const fallbackSingleDwg = (updatesPayload.asBuiltDrawingPhotoUrl ?? formState?.asBuiltDrawingPhotoUrl) as string | undefined;
+  const baseDrawingsCount = Array.isArray(rawDrawings) && rawDrawings.length > 0
+    ? rawDrawings.length
+    : (fallbackSingleDwg && fallbackSingleDwg.trim() !== '' ? 1 : 0);
+
+  const asBuiltPhotoActions = photoActions.filter(
+    (a) =>
+      a.category === 'AS_BUILT' ||
+      a.targetPhotoType === 'AS_BUILT' ||
+      a.targetPhotoId === 'asBuiltDrawingPhotos'
+  );
+  const addedAsBuiltCount = asBuiltPhotoActions.reduce((acc, a) => {
+    if (a.action !== 'ADD') return acc;
+    const count = Array.isArray(a.newPhotoUrls) && a.newPhotoUrls.length > 0 ? a.newPhotoUrls.length : (a.newPhotoUrl ? 1 : 0);
+    return acc + count;
+  }, 0);
+  const deletedAsBuiltCount = asBuiltPhotoActions.filter((a) => a.action === 'DELETE').length;
+  const effectiveDrawingsCount = Math.max(0, baseDrawingsCount + addedAsBuiltCount - deletedAsBuiltCount);
+
+  const hasCatBlocker = (catScore === 1 || catScore === 2) && effectiveDrawingsCount === 0;
 
   const blockingErrorsCount = hasCatBlocker ? 1 : 0;
   const warningCount = 0;

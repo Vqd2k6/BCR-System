@@ -7,12 +7,19 @@ import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOpti
 import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
-import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem } from '../types';
+import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem, PhotoActionPayload } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 import { SmartAddressSuggestionCard } from '../components/SmartAddressSuggestionCard';
 import { evaluateAddressStandard, formatStandardizedAddress168 } from '../utils/residentialAddressStandards';
 
-interface Props extends AuditStepBaseProps {}
+interface Props extends Omit<AuditStepBaseProps, 'handleApplySyncedGeometry'> {
+  handleApplySyncedGeometry?: (
+    newCoords: [number, number][],
+    newMetroDist: string,
+    newClearanceDist: string,
+    closestCenterVertex?: [number, number] | null
+  ) => void;
+}
 
 interface AdjacentSide {
   details?: string;
@@ -46,6 +53,8 @@ interface DynamicPhotoItem {
   tag?: string;
   isExtra?: boolean;
   extraIndex?: number;
+  isOptimisticAdded?: boolean;
+  optimisticAction?: PhotoActionPayload;
   historyCount?: number;
   hasHistory?: boolean;
 }
@@ -207,6 +216,18 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const p04IsNa = Boolean(p04Raw.notApplicable ?? p04Raw.isNotApplicable);
   const p04Url = p04IsNa ? '' : (p04Raw.url || p04Raw.photoUrl || p04Raw.raw_photo_url || p04Raw.annotated_photo_url || '');
 
+  // Các ảnh P-03 bổ sung mới thêm trong phiên (Optimistic ADD)
+  const optimisticP03Extra = [
+    ...getOptimisticAddedPhotos(stagedPhotoActions, {
+      category: 'IDENTIFICATION',
+      targetPhotoType: 'P03_EXTRA',
+    }),
+    ...getOptimisticAddedPhotos(stagedPhotoActions, {
+      category: 'IDENTIFICATION',
+      targetPhotoId: 'identificationPhotos.photoP03.additionalPhotos',
+    }),
+  ].filter((item, idx, self) => self.findIndex((t) => t.url === item.url && t.action === item.action) === idx);
+
   // Danh sách ảnh định danh ngoại quan linh hoạt (tối thiểu 4 ảnh, tối đa 6 ảnh)
   const dynamicPhotoList: DynamicPhotoItem[] = [
     {
@@ -262,6 +283,22 @@ export const AuditStep1Identification: React.FC<Props> = ({
         hasHistory: extraObj.hasHistory,
       };
     }),
+    ...optimisticP03Extra.map((added, addIdx): DynamicPhotoItem => {
+      const idx = p03AdditionalPhotos.length + addIdx;
+      return {
+        key: `photoP03_extra_added_${addIdx}`,
+        code: `P-03_${idx + 2}`,
+        label: `Mặt bên / sau (Mới thêm #${addIdx + 1})`,
+        url: added.url,
+        photoCode: `P03_EXTRA_${idx + 1}`,
+        tag: `Mới thêm ${addIdx + 1}`,
+        notApplicable: false,
+        isExtra: true,
+        extraIndex: idx,
+        isOptimisticAdded: true,
+        optimisticAction: added.action,
+      };
+    }),
     {
       key: 'photoP04',
       code: 'P-04',
@@ -275,9 +312,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
     },
   ];
 
-  // Các ảnh đặc thù theo loại hình khảo sát
-  const vacantLandPhotos = (sJson.vacantLandPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
-  const underConstructionPhotos = (sJson.underConstructionPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
+  // Các ảnh đặc thù theo loại hình khảo sát (ưu tiên đọc từ formState trước sJson)
+  const vacantLandPhotos = ((formState.vacantLandPhotos as unknown[] | undefined) || sJson.vacantLandPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
+  const underConstructionPhotos = ((formState.underConstructionPhotos as unknown[] | undefined) || sJson.underConstructionPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
 
   // Tọa độ GPS & Sai số
   const gpsCoords = (formState.gpsCoords || sJson.gpsCoords || formState.gpsLocation || {}) as {
@@ -359,6 +396,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
     return {
       targetCoords,
+      closestCenterVertex: newMetrics.closestCenterVertex,
       oldVertexCount: surveyPolygonCoords.length || parcelCoords.length,
       newVertexCount: targetCoords.length,
       oldMetroDisplay: oldMetroStr,
@@ -421,15 +459,24 @@ export const AuditStep1Identification: React.FC<Props> = ({
     setShowDistanceDiffPopover(true);
   };
 
-  // Xác nhận áp dụng Ranh đất PostGIS & Cự ly mới (Ràng buộc 02: CHỈ cập nhật tọa độ & cự ly, bảo toàn diện tích & mặt tiền)
+  // Xác nhận áp dụng Ranh đất PostGIS & Cự ly mới (Ràng buộc 02: cập nhật tọa độ ranh, cự ly & đỉnh gần Metro nhất, bảo toàn diện tích & mặt tiền)
   const handleConfirmApplySyncedGeometry = () => {
-    const { targetCoords, newMetroValue, newClearanceValue } = distanceDiffPreview;
+    const { targetCoords, closestCenterVertex, newMetroValue, newClearanceValue } = distanceDiffPreview;
     if (handleApplySyncedGeometry) {
-      handleApplySyncedGeometry(targetCoords, newMetroValue, newClearanceValue);
+      handleApplySyncedGeometry(targetCoords, newMetroValue, newClearanceValue, closestCenterVertex);
     } else {
       handleFieldChange('parcelCoordinates', 'Tọa độ đa giác ranh thửa (PostGIS GPMB)', targetCoords);
       handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro (m)', newMetroValue);
       handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài / mép ga (m)', newClearanceValue);
+      if (closestCenterVertex && closestCenterVertex.length >= 2) {
+        handleFieldChange('gpsCoords', 'Tọa độ đỉnh ranh gần Metro nhất (PostGIS)', {
+          lat: Number(closestCenterVertex[0]),
+          latitude: Number(closestCenterVertex[0]),
+          lng: Number(closestCenterVertex[1]),
+          longitude: Number(closestCenterVertex[1]),
+          accuracy: accuracyDisplay || 1.5,
+        });
+      }
       if (formState.keepKsvBoundaryConfirmed) {
         handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', false);
       }
@@ -545,29 +592,86 @@ export const AuditStep1Identification: React.FC<Props> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-black uppercase text-slate-700 flex items-center gap-1.5">
               <Camera className="w-4 h-4 text-sky-600" />
-              <span>1.1. Bộ Ảnh Định Danh Hiện Trường (Gồm {dynamicPhotoList.length} ảnh)</span>
+              <span>
+                1.1. Bộ Ảnh Định Danh Hiện Trường (Gồm{' '}
+                {
+                  dynamicPhotoList.filter((item) => {
+                    if (item.isOptimisticAdded) return true;
+                    const optRes = resolveOptimisticPhoto(item.url, stagedPhotoActions, {
+                      category: 'IDENTIFICATION',
+                      targetPhotoType: item.code.replace('-', ''),
+                      targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                      photoIndex: item.isExtra ? item.extraIndex : undefined,
+                    });
+                    return optRes.status !== 'DELETED' && Boolean(optRes.displayUrl);
+                  }).length
+                }{' '}
+                ảnh hiệu lực)
+              </span>
             </span>
             <span className="text-[11px] text-slate-400">Click để soi ảnh &bull; Di chuột để đổi ảnh</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {dynamicPhotoList.map((item) => {
-              const optResult = resolveOptimisticPhoto(item.url, stagedPhotoActions, {
-                category: 'IDENTIFICATION',
-                targetPhotoType: item.code.replace('-', ''),
-                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
-                photoIndex: item.isExtra ? item.extraIndex : undefined,
-              });
-              const url = optResult.displayUrl;
+              const optResult = item.isOptimisticAdded
+                ? {
+                    displayUrl: item.url,
+                    isStaged: true,
+                    stagedAction: item.optimisticAction || null,
+                    status: 'ADDED' as const,
+                  }
+                : resolveOptimisticPhoto(item.url, stagedPhotoActions, {
+                    category: 'IDENTIFICATION',
+                    targetPhotoType: item.code.replace('-', ''),
+                    targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                    photoIndex: item.isExtra ? item.extraIndex : undefined,
+                  });
+              const isStagedDeleted = optResult.status === 'DELETED';
+              const isEffectiveNa = Boolean(item.notApplicable || (!item.isExtra && isStagedDeleted));
+              const effectiveNaReason =
+                (isStagedDeleted ? (optResult.stagedAction?.naReason || optResult.stagedAction?.reason) : undefined) ||
+                item.naReason ||
+                'Đã loại khỏi hồ sơ thẩm định';
+              const url = isStagedDeleted ? '' : optResult.displayUrl;
               const isStaged = optResult.isStaged;
               const stagedAction = optResult.stagedAction;
-              const isStagedDeleted = optResult.status === 'DELETED';
               const isStagedReplaced = optResult.status === 'REPLACED' || optResult.status === 'ADDED';
               const hasPolygon = item.key === 'photoP02' && item.polygonPoints && Array.isArray(item.polygonPoints) && item.polygonPoints.length >= 3;
               const rotation = stagedPhotoRotations[item.key] ?? stagedPhotoRotations[item.code] ?? 0;
               const violation = violationsMap?.get(item.key) || violationsMap?.get(item.code);
-              const isMismatched = Boolean(violation);
+              const isMismatched = Boolean(violation) && !isStagedDeleted;
               const isStrict = violation?.isStrict ?? false;
+
+              if (item.isExtra && isStagedDeleted) {
+                return (
+                  <div
+                    key={item.key}
+                    id={`audit-photo-card-${item.code}`}
+                    className="rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 h-48 shadow-2xs"
+                  >
+                    <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-rose-200 text-rose-800">
+                      {item.code}
+                    </span>
+                    <span className="text-[11px] font-bold text-rose-700">
+                      Đã xóa ảnh bổ sung • Chờ lưu
+                    </span>
+                    {onUndoPhotoAction && stagedAction && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUndoPhotoAction(stagedAction);
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-lg text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Undo2 className="w-3 h-3 text-rose-600" />
+                        <span>Hoàn tác</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              }
 
               return (
                 <div
@@ -575,7 +679,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   id={`audit-photo-card-${item.code}`}
                   className={`group relative rounded-xl bg-slate-100 overflow-hidden flex flex-col h-48 shadow-xs transition-all ${
                     isStagedDeleted
-                      ? 'border-2 border-rose-500 opacity-60'
+                      ? 'border-2 border-amber-400 bg-amber-50/40'
                       : isStagedReplaced
                       ? 'ring-2 ring-amber-400 border-2 border-amber-500 shadow-md'
                       : isMismatched
@@ -592,7 +696,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         const zoomTitle = isStagedReplaced
                           ? `${item.code} - ${item.label} (Chờ lưu Diff)`
                           : `${item.code} - ${item.label}`;
-                        onOpenPhotoZoom(url, zoomTitle, item.code, rotation);
+                        onOpenPhotoZoom(url, zoomTitle, item.key, rotation);
                       }
                     }}
                   >
@@ -620,17 +724,31 @@ export const AuditStep1Identification: React.FC<Props> = ({
                           </svg>
                         )}
                       </>
-                    ) : item.notApplicable ? (
+                    ) : isEffectiveNa ? (
                       <div className="p-3 text-center text-slate-500 flex flex-col items-center justify-center gap-1.5 w-full h-full bg-slate-50 border border-dashed border-amber-300 rounded-lg">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs">
-                          N/A - Không Áp Dụng
+                          N/A - Không Áp Dụng {isStagedDeleted ? '(Chờ lưu)' : ''}
                         </span>
                         <p className="text-[11px] text-slate-700 font-medium line-clamp-2 px-2 text-center">
-                          {item.naReason || 'Đã loại khỏi hồ sơ thẩm định'}
+                          {effectiveNaReason}
                         </p>
-                        <span className="text-[9px] text-slate-400">
-                          ● Vị trí ảnh này đã được đánh dấu N/A
-                        </span>
+                        {isStagedDeleted && onUndoPhotoAction && stagedAction ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUndoPhotoAction(stagedAction);
+                            }}
+                            className="mt-1 px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <Undo2 className="w-2.5 h-2.5 text-amber-700" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        ) : (
+                          <span className="text-[9px] text-slate-400">
+                            ● Vị trí ảnh này đã được đánh dấu N/A
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <span className="text-xs text-slate-400 italic">Chưa có ảnh</span>
@@ -643,7 +761,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     </div>
 
                     {/* Badge Góc xoay nếu khác 0° */}
-                    {rotation !== 0 && (
+                    {rotation !== 0 && url && (
                       <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs flex items-center gap-0.5">
                         <RotateCw className="w-2.5 h-2.5" />
                         <span>{rotation}°</span>
@@ -671,7 +789,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     {/* Badge Optimistic Staged Action chờ Lưu Diff */}
                     {isStaged && isStagedReplaced && (
                       <div className="absolute top-8 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                        <span>⚡ Chờ lưu Diff</span>
+                        <span>{item.isOptimisticAdded ? '⚡ Mới thêm' : '⚡ Chờ lưu Diff'}</span>
                         {onUndoPhotoAction && stagedAction && (
                           <button
                             type="button"
@@ -683,31 +801,6 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             title="Hoàn tác thay đổi"
                           >
                             <Undo2 className="w-2.5 h-2.5" /> Hoàn tác
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Overlay Optimistic Deleted */}
-                    {isStaged && isStagedDeleted && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1.5 p-2 z-30"
-                      >
-                        <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                          Đã đánh dấu Xóa • Chờ lưu
-                        </span>
-                        {onUndoPhotoAction && stagedAction && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onUndoPhotoAction(stagedAction);
-                            }}
-                            className="px-2 py-0.5 bg-white hover:bg-slate-100 text-rose-800 rounded text-[9px] font-black shadow-md flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
-                          >
-                            <Undo2 className="w-2.5 h-2.5 text-rose-600" />
-                            <span>Hoàn tác</span>
                           </button>
                         )}
                       </div>
@@ -726,7 +819,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             const zoomTitle = isStagedReplaced
                               ? `${item.code} - ${item.label} (Chờ lưu Diff)`
                               : `${item.code} - ${item.label}`;
-                            onOpenPhotoZoom(url, zoomTitle, item.code, rotation);
+                            onOpenPhotoZoom(url, zoomTitle, item.key, rotation);
                           }}
                           className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
                           title="Phóng to soi chi tiết"
@@ -849,7 +942,22 @@ export const AuditStep1Identification: React.FC<Props> = ({
           <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase text-amber-900 block">
-                Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh hiện trường)
+                Hiện Trạng Đất Trống (
+                {Math.max(
+                  0,
+                  vacantLandPhotos.length +
+                    getOptimisticAddedPhotos(stagedPhotoActions, {
+                      category: 'OVERVIEW',
+                      targetPhotoType: 'VACANT_LAND',
+                      targetPhotoId: 'vacantLandPhotos',
+                    }).length -
+                    (stagedPhotoActions || []).filter(
+                      (a) =>
+                        a.action === 'DELETE' &&
+                        (a.targetPhotoType === 'VACANT_LAND' || a.targetPhotoId === 'vacantLandPhotos')
+                    ).length
+                )}{' '}
+                ảnh hiện trường)
               </span>
               <div className="flex items-center gap-2">
                 {onOpenPhotoHistory && (
@@ -957,23 +1065,48 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     const isReplaced = optResult.status === 'REPLACED';
 
                     const vKey = `vacantLand_${idx}`;
-                    const vRot = stagedPhotoRotations[vKey] ?? stagedPhotoRotations[vUrl] ?? 0;
+                    const vRot = stagedPhotoRotations[vKey] ?? 0;
                     const vViolation = violationsMap?.get(vKey);
+
+                    if (isDeleted) {
+                      return (
+                        <div
+                          key={idx}
+                          id={`audit-photo-card-vacant-land-${idx}`}
+                          className="rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5 aspect-4/3"
+                        >
+                          <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
+                            Đã xóa ảnh #{idx + 1} • Chờ lưu
+                          </span>
+                          {onUndoPhotoAction && stagedAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUndoPhotoAction(stagedAction);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 rounded text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Undo2 className="w-3 h-3 text-rose-600" />
+                              <span>Hoàn tác</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
                         key={idx}
                         id={`audit-photo-card-vacant-land-${idx}`}
                         className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
-                          isDeleted
-                            ? 'border-2 border-rose-500 opacity-60'
-                            : isReplaced
+                          isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
                             : vViolation
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-amber-200 hover:shadow-md'
                         }`}
-                        onClick={() => onOpenPhotoZoom(vUrl, isReplaced ? `Ảnh đất trống ${idx + 1} (Chờ lưu Diff)` : `Ảnh đất trống ${idx + 1}`, `VACANT_${idx + 1}`, vRot)}
+                        onClick={() => onOpenPhotoZoom(vUrl, isReplaced ? `Ảnh đất trống ${idx + 1} (Chờ lưu Diff)` : `Ảnh đất trống ${idx + 1}`, vKey, vRot)}
                       >
                         <img
                           src={vUrl}
@@ -1160,7 +1293,22 @@ export const AuditStep1Identification: React.FC<Props> = ({
           <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase text-blue-900 block">
-                Hiện Trạng Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh hiện trường)
+                Hiện Trạng Công Trình Đang Xây Dựng (
+                {Math.max(
+                  0,
+                  underConstructionPhotos.length +
+                    getOptimisticAddedPhotos(stagedPhotoActions, {
+                      category: 'OVERVIEW',
+                      targetPhotoType: 'UNDER_CONSTRUCTION',
+                      targetPhotoId: 'underConstructionPhotos',
+                    }).length -
+                    (stagedPhotoActions || []).filter(
+                      (a) =>
+                        a.action === 'DELETE' &&
+                        (a.targetPhotoType === 'UNDER_CONSTRUCTION' || a.targetPhotoId === 'underConstructionPhotos')
+                    ).length
+                )}{' '}
+                ảnh hiện trường)
               </span>
               <div className="flex items-center gap-2">
                 {onOpenPhotoHistory && (
@@ -1268,23 +1416,48 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     const isReplaced = optResult.status === 'REPLACED';
 
                     const uKey = `underConstruction_${idx}`;
-                    const uRot = stagedPhotoRotations[uKey] ?? stagedPhotoRotations[uUrl] ?? 0;
+                    const uRot = stagedPhotoRotations[uKey] ?? 0;
                     const uViolation = violationsMap?.get(uKey);
+
+                    if (isDeleted) {
+                      return (
+                        <div
+                          key={idx}
+                          id={`audit-photo-card-under-construction-${idx}`}
+                          className="rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5 aspect-4/3"
+                        >
+                          <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
+                            Đã xóa ảnh #{idx + 1} • Chờ lưu
+                          </span>
+                          {onUndoPhotoAction && stagedAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUndoPhotoAction(stagedAction);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-800 border border-rose-300 rounded text-[10px] font-black shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Undo2 className="w-3 h-3 text-rose-600" />
+                              <span>Hoàn tác</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
                         key={idx}
                         id={`audit-photo-card-under-construction-${idx}`}
                         className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
-                          isDeleted
-                            ? 'border-2 border-rose-500 opacity-60'
-                            : isReplaced
+                          isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
                             : uViolation
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-blue-200 hover:shadow-md'
                         }`}
-                        onClick={() => onOpenPhotoZoom(uUrl, isReplaced ? `Ảnh xây dựng dở dang ${idx + 1} (Chờ lưu Diff)` : `Ảnh xây dựng dở dang ${idx + 1}`, `UC_${idx + 1}`, uRot)}
+                        onClick={() => onOpenPhotoZoom(uUrl, isReplaced ? `Ảnh xây dựng dở dang ${idx + 1} (Chờ lưu Diff)` : `Ảnh xây dựng dở dang ${idx + 1}`, uKey, uRot)}
                       >
                         <img
                           src={uUrl}
@@ -1639,7 +1812,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 />
               ) : (
                 <div className={`p-1.5 rounded-lg font-semibold text-slate-800 ${getDirtyClass('ward') || 'bg-white border border-slate-200'}`}>
-                  {formState.ward || sJson.ward || data?.ward || 'Phường 5'}
+                  {formState.ward || sJson.ward || data?.ward || '---'}
                 </div>
               )}
             </div>
@@ -1659,7 +1832,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 />
               ) : (
                 <div className={`p-1.5 rounded-lg font-semibold text-slate-800 ${getDirtyClass('district') || 'bg-white border border-slate-200'}`}>
-                  {formState.district || sJson.district || data?.district || 'Quận Tân Bình'}
+                  {formState.district || sJson.district || data?.district || '---'}
                 </div>
               )}
             </div>
@@ -2131,10 +2304,12 @@ export const AuditStep1Identification: React.FC<Props> = ({
               ) : (
                 <>
                   <div className="text-xs font-mono font-bold text-slate-800">
-                    {latDisplay ? `${Number(latDisplay).toFixed(6)}, ${Number(lngDisplay).toFixed(6)}` : '10.792410, 106.711520'}
+                    {latDisplay !== undefined && latDisplay !== null && lngDisplay !== undefined && lngDisplay !== null
+                      ? `${Number(latDisplay).toFixed(6)}, ${Number(lngDisplay).toFixed(6)}`
+                      : 'Chưa ghi nhận tọa độ GPS'}
                   </div>
                   <span className="text-[10px] text-slate-500 block mt-0.5">
-                    Độ chính xác: ±{accuracyDisplay || 3.5}m
+                    Độ chính xác: ±{accuracyDisplay || 0}m
                   </span>
                 </>
               )}

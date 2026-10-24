@@ -5,6 +5,7 @@ import { AuditReviewService } from './audit-review.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
 
 export interface CreateSnapshotParams {
+  versionNumber?: number;
   versionTag: 'ORIGINAL_SUBMISSION' | 'ADMIN_DIFF_SAVE' | 'CHIEF_ENGINEER_OVERRIDE' | 'PHOTO_REPLACEMENT' | 'PHOTO_MODIFICATION' | 'PHOTO_RESTORE' | 'ROLLBACK_RESTORE' | 'REVERT_TO_DRAFT' | 'PARCEL_SWAP';
   title: string;
   editReason?: string;
@@ -35,7 +36,12 @@ export class AuditVersionService {
       [actualReportId]
     );
     const currentMax = maxVerRes.rows[0]?.max_ver;
-    const nextVer = currentMax !== null && currentMax !== undefined ? Number(currentMax) + 1 : 0;
+    const nextVer =
+      params.versionNumber !== undefined && (currentMax === null || currentMax === undefined)
+        ? params.versionNumber
+        : currentMax !== null && currentMax !== undefined
+          ? Number(currentMax) + 1
+          : 0;
 
     // 3. Chuẩn bị dữ liệu snapshot
     let snapshotData = params.customSnapshotData;
@@ -485,23 +491,36 @@ export class AuditVersionService {
           actualReportId,
           toBoolOrNull(hi.renovationLoad ?? hi.extended_or_renovated),
           toBoolOrNull(hi.pastSettlement ?? hi.previous_settlement_or_tilt),
-          toBoolOrNull(hi.fireFloodIncident ?? hi.fire_or_accident),
+          toBoolOrNull(hi.fireFloodHistory ?? hi.fireFloodIncident ?? hi.fire_or_accident),
           toBoolOrNull(hi.sensitiveEquipment ?? hi.sensitive_equipment_present),
-          hi.renovationNotes || hi.majorRepairNotes || hi.details || null,
+          hi.renovationNotes || hi.repairNotes || hi.majorRepairNotes || hi.settlementNotes || hi.pastSettlementNotes || hi.neighborNotes || hi.fireFloodNotes || hi.details || null,
         ]
       );
 
-      // 4.4. Khôi phục deformation_assessments (UPSERT, giữ nguyên đơn vị ‰ không chia 10)
+      // 4.4. Khôi phục deformation_assessments (UPSERT, giữ nguyên đơn vị ‰ không chia 10, đồng bộ M2-07)
       const def = { ...(leftPane.deformation || snap.deformation || {}), ...(sJson.settlementTilt || sJson.deformation || {}) };
       const tilt = def.buildingTilt || def.settlementTilt || def.tiltAssessment || {};
       const beam = def.beamSagging || {};
       const diffSettle = def.diffSettlement || {};
-      const abnormal = def.abnormalObservation || {};
+      const abnormal = def.abnormalCase || def.abnormalObservation || {};
 
       const tiltX = tilt.xPermille ?? tilt.tilt_x_permille ?? def.tilt_angle_x ?? def.tiltAngleX ?? null;
       const tiltY = tilt.yPermille ?? tilt.tilt_y_permille ?? def.tilt_angle_y ?? def.tiltAngleY ?? null;
       const tiltDir = tilt.direction ?? tilt.tilt_direction ?? def.tilt_direction ?? def.tiltDirection ?? null;
       const beamSag = beam.sagMm ?? beam.beam_deflection_mm ?? def.beam_deflection_mm ?? def.beamDeflectionMm ?? null;
+      const e3DeformationScore =
+        sJson.ecs?.e3 !== undefined && sJson.ecs?.e3 !== null
+          ? Number(sJson.ecs.e3)
+          : def.e3_deformation_score !== undefined && def.e3_deformation_score !== null
+            ? Number(def.e3_deformation_score)
+            : Math.min(
+                4,
+                Math.max(
+                  Number(diffSettle.level) || 0,
+                  Number(tilt.level) || 0,
+                  Number(beam.level) || 0
+                )
+              );
       const rawRel = String(def.measurementReliability ?? def.measurement_reliability ?? '').toUpperCase().trim();
       const normRel = rawRel.includes('HIGH') || rawRel.includes('CAO')
         ? 'HIGH'
@@ -514,40 +533,42 @@ export class AuditVersionService {
       const tiltPhotosJson = Array.isArray(tilt.photos) ? JSON.stringify(tilt.photos) : (def.tilt_photos_json ? JSON.stringify(def.tilt_photos_json) : null);
       const abnormalPhotosJson = Array.isArray(abnormal.photos) ? JSON.stringify(abnormal.photos) : (def.abnormal_photos_json ? JSON.stringify(def.abnormal_photos_json) : null);
 
-      if (tiltX !== null || tiltY !== null || tiltDir !== null || beamSag !== null || normRel !== null || diffPhotosJson !== null || tiltPhotosJson !== null || abnormalPhotosJson !== null) {
-        await client.query(
-          `INSERT INTO deformation_assessments (
-             report_id, tilt_angle_x, tilt_angle_y, tilt_direction, beam_deflection_mm,
-             measurement_reliability, diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
-           ) VALUES (
-             $1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0),
-             COALESCE($6::reliability_enum, 'HIGH'::reliability_enum),
-             COALESCE($7::jsonb, '[]'::jsonb), COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb)
-           )
-           ON CONFLICT (report_id) DO UPDATE SET
-             tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x),
-             tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y),
-             tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
-             beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm),
-             measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
-             diff_settlement_photos_json = COALESCE($7::jsonb, deformation_assessments.diff_settlement_photos_json),
-             tilt_photos_json = COALESCE($8::jsonb, deformation_assessments.tilt_photos_json),
-             abnormal_photos_json = COALESCE($9::jsonb, deformation_assessments.abnormal_photos_json);`,
-          [
-            actualReportId,
-            tiltX !== null && tiltX !== undefined ? Number(tiltX) : null,
-            tiltY !== null && tiltY !== undefined ? Number(tiltY) : null,
-            tiltDir || null,
-            beamSag !== null && beamSag !== undefined ? Number(beamSag) : null,
-            normRel,
-            diffPhotosJson,
-            tiltPhotosJson,
-            abnormalPhotosJson,
-          ]
-        );
-      }
+      await client.query(
+        `INSERT INTO deformation_assessments (
+           report_id, tilt_angle_x, tilt_angle_y, tilt_direction, beam_deflection_mm,
+           measurement_reliability, diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json,
+           e3_deformation_score
+         ) VALUES (
+           $1, $2, $3, $4, $5,
+           COALESCE($6::reliability_enum, 'HIGH'::reliability_enum),
+           COALESCE($7::jsonb, '[]'::jsonb), COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb),
+           $10
+         )
+         ON CONFLICT (report_id) DO UPDATE SET
+           tilt_angle_x = $2,
+           tilt_angle_y = $3,
+           tilt_direction = $4,
+           beam_deflection_mm = $5,
+           measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
+           diff_settlement_photos_json = COALESCE($7::jsonb, deformation_assessments.diff_settlement_photos_json),
+           tilt_photos_json = COALESCE($8::jsonb, deformation_assessments.tilt_photos_json),
+           abnormal_photos_json = COALESCE($9::jsonb, deformation_assessments.abnormal_photos_json),
+           e3_deformation_score = COALESCE($10, deformation_assessments.e3_deformation_score);`,
+        [
+          actualReportId,
+          tiltX !== null && tiltX !== undefined && tiltX !== '' ? Number(tiltX) : null,
+          tiltY !== null && tiltY !== undefined && tiltY !== '' ? Number(tiltY) : null,
+          tiltDir || null,
+          beamSag !== null && beamSag !== undefined && beamSag !== '' ? Number(beamSag) : null,
+          normRel,
+          diffPhotosJson,
+          tiltPhotosJson,
+          abnormalPhotosJson,
+          Number.isFinite(e3DeformationScore) ? e3DeformationScore : 0,
+        ]
+      );
 
-      // 4.5. Khôi phục risk_score_cards phòng thủ động (Defensive Dynamic Update, bao gồm cả sJson.ecs/vi)
+      // 4.5. Khôi phục risk_score_cards phòng thủ động (Defensive Dynamic Update, bao gồm cả sJson.ecs/vi & M7-05/M8-04)
       const rc = rightPane.riskCard || snap.riskCard || leftPane.riskScoreCard || snap.riskScoreCard || {};
       const snapEcs = sJson.ecs || {};
       const snapVi = sJson.vi || {};
@@ -601,32 +622,81 @@ export class AuditVersionService {
         addCoalesceField('e6_overall_function_score', e6Val !== undefined && e6Val !== null ? Number(e6Val) : null);
         addCoalesceField('total_ecs_score', totalEcsVal !== undefined && totalEcsVal !== null ? Number(totalEcsVal) : null);
         addCoalesceField('ecs_class', ecsClassVal, '::ecs_class_enum');
-        addCoalesceField('v1_importance_score', v1Val !== undefined && v1Val !== null ? Number(v1Val) : null);
-        addCoalesceField('v2_structure_score', v2Val !== undefined && v2Val !== null ? Number(v2Val) : null);
-        addCoalesceField('v3_foundation_score', v3Val !== undefined && v3Val !== null ? Number(v3Val) : null);
-        addCoalesceField('v4_age_score', v4Val !== undefined && v4Val !== null ? Number(v4Val) : null);
-        addCoalesceField('v5_ecs_score', v5Val !== undefined && v5Val !== null ? Number(v5Val) : null);
-        addCoalesceField('v6_sensitivity_score', v6Val !== undefined && v6Val !== null ? Number(v6Val) : null);
+        addCoalesceField('v1_importance_score', v1Val !== undefined && v1Val !== null ? Math.round(Number(v1Val)) : null);
+        addCoalesceField('v2_structure_score', v2Val !== undefined && v2Val !== null ? Math.round(Number(v2Val)) : null);
+        addCoalesceField('v3_foundation_score', v3Val !== undefined && v3Val !== null ? Math.round(Number(v3Val)) : null);
+        addCoalesceField('v4_age_score', v4Val !== undefined && v4Val !== null ? Math.round(Number(v4Val)) : null);
+        addCoalesceField('v5_ecs_score', v5Val !== undefined && v5Val !== null ? Math.round(Number(v5Val)) : null);
+        addCoalesceField('v6_sensitivity_score', v6Val !== undefined && v6Val !== null ? Math.round(Number(v6Val)) : null);
         addCoalesceField('avg_vi_score', avgViVal !== undefined && avgViVal !== null ? Number(avgViVal) : null);
         addCoalesceField('vi_class', viClassVal, '::vi_class_enum');
-        addCoalesceField('building_risk_assessment_bra', rc.building_risk_assessment_bra || rc.bra || rc.bra_score || null);
-        addCoalesceField('construction_impact_level_i', (rc.construction_impact_level_i ?? rc.impact_level) !== undefined ? Number(rc.construction_impact_level_i ?? rc.impact_level) : null);
-        addCoalesceField('is_engineering_judgement_applied', rc.is_engineering_judgement_applied !== undefined ? Boolean(rc.is_engineering_judgement_applied) : null);
-        addCoalesceField('engineering_judgement_action', rc.engineering_judgement_action || null);
-        addCoalesceField('engineering_judgement_reason', rc.engineering_judgement_reason || null);
+        addCoalesceField('building_risk_assessment_bra', rc.building_risk_assessment_bra || rc.preliminary_bra_classification || rc.bra || rc.bra_score || null);
+        addCoalesceField('preliminary_bra_classification', rc.preliminary_bra_classification || sJson.executiveSummary?.braStatus || sJson.braAssessment?.braStatus || null);
+        addCoalesceField('construction_impact_level_i', (rc.construction_impact_level_i ?? rc.impact_level_i ?? rc.impact_level) !== undefined ? Number(rc.construction_impact_level_i ?? rc.impact_level_i ?? rc.impact_level) : null);
+        addCoalesceField('impact_level_i', (rc.impact_level_i ?? rc.construction_impact_level_i) !== undefined ? Number(rc.impact_level_i ?? rc.construction_impact_level_i) : null);
 
+        const isEjApplied =
+          rc.is_engineering_judgement_applied !== undefined
+            ? Boolean(rc.is_engineering_judgement_applied)
+            : Boolean(snapEcs.isOverrideLocked || snapEcs.engineeringJudgement?.isOverridden || snapVi.isOverrideLocked || snapVi.engineeringJudgement?.isOverridden);
+        const ejAction =
+          rc.engineering_judgement_action ||
+          snapEcs.engineeringJudgement?.action ||
+          snapVi.engineeringJudgement?.action ||
+          null;
+        const ejReason =
+          rc.engineering_judgement_reason ||
+          snapEcs.overrideReason ||
+          snapEcs.engineeringJudgement?.reason ||
+          snapVi.overrideReason ||
+          snapVi.engineeringJudgement?.reason ||
+          null;
+
+        addField('is_engineering_judgement_applied', isEjApplied);
+        addField('engineering_judgement_action', ejAction);
+        addField('engineering_judgement_reason', ejReason);
+
+        // M8-04: Chỉ khôi phục overridden_impact_level_i khi bản chụp thực sự có đánh dấu ghi đè Impact
+        const isImpactExplicitlyOverridden =
+          sJson.executiveSummary?.isImpactOverridden === true ||
+          Boolean(sJson.executiveSummary?.impactOverrideReason && String(sJson.executiveSummary.impactOverrideReason).trim()) ||
+          sJson.impactAssessment?.isOverridden === true ||
+          (rc.overridden_impact_level_i !== undefined && rc.overridden_impact_level_i !== null);
         const rawSnapImpact = String(sJson.impactAssessment?.iCode || sJson.executiveSummary?.constructionImpactStatus || '').toUpperCase();
         const snapImpactMatch = rawSnapImpact.match(/\bI([1-4])\b/);
-        const snapImpactNum = snapImpactMatch ? Number(snapImpactMatch[1]) : (rc.overridden_impact_level_i !== undefined && rc.overridden_impact_level_i !== null ? Number(rc.overridden_impact_level_i) : null);
-        const snapBraOverride = sJson.braAssessment?.braStatus || sJson.executiveSummary?.braStatus || rc.overridden_bra || null;
+        const snapImpactNum = isImpactExplicitlyOverridden
+          ? (rc.overridden_impact_level_i !== undefined && rc.overridden_impact_level_i !== null
+              ? Number(rc.overridden_impact_level_i)
+              : snapImpactMatch
+                ? Number(snapImpactMatch[1])
+                : null)
+          : null;
 
-        // Các cột override phán quyết kỹ thuật (chỉ update nếu bảng CSDL có cột)
-        addField('overridden_burland_grade', rc.overridden_burland_grade !== undefined ? (rc.overridden_burland_grade !== null ? Number(rc.overridden_burland_grade) : null) : null);
-        addField('overridden_total_ecs', rc.overridden_total_ecs !== undefined ? (rc.overridden_total_ecs !== null ? Number(rc.overridden_total_ecs) : null) : null);
-        addField('overridden_ecs_class', rc.overridden_ecs_class || null);
-        addField('overridden_importance_score', rc.overridden_importance_score !== undefined ? (rc.overridden_importance_score !== null ? Number(rc.overridden_importance_score) : null) : null);
-        addField('overridden_avg_vi', rc.overridden_avg_vi !== undefined ? (rc.overridden_avg_vi !== null ? Number(rc.overridden_avg_vi) : null) : null);
-        addField('overridden_vi_class', rc.overridden_vi_class || null);
+        const isBraExplicitlyOverridden =
+          sJson.executiveSummary?.isBraOverridden === true ||
+          sJson.braAssessment?.isOverridden === true ||
+          (rc.overridden_bra !== undefined && rc.overridden_bra !== null);
+        const snapBraOverride = isBraExplicitlyOverridden
+          ? (rc.overridden_bra || sJson.braAssessment?.braStatus || sJson.executiveSummary?.braStatus || null)
+          : null;
+
+        // Các cột override phán quyết kỹ thuật (M7-05: khôi phục đầy đủ 7 cột overridden_*)
+        addField('overridden_burland_grade', rc.overridden_burland_grade !== undefined && rc.overridden_burland_grade !== null ? Number(rc.overridden_burland_grade) : null);
+        addField(
+          'overridden_total_ecs',
+          rc.overridden_total_ecs !== undefined && rc.overridden_total_ecs !== null
+            ? Number(rc.overridden_total_ecs)
+            : (snapEcs.isOverrideLocked && totalEcsVal !== undefined && totalEcsVal !== null ? Number(totalEcsVal) : null)
+        );
+        addField('overridden_ecs_class', rc.overridden_ecs_class || (snapEcs.isOverrideLocked ? ecsClassVal : null));
+        addField('overridden_importance_score', rc.overridden_importance_score !== undefined && rc.overridden_importance_score !== null ? Number(rc.overridden_importance_score) : null);
+        addField(
+          'overridden_avg_vi',
+          rc.overridden_avg_vi !== undefined && rc.overridden_avg_vi !== null
+            ? Number(rc.overridden_avg_vi)
+            : (snapVi.isOverrideLocked && avgViVal !== undefined && avgViVal !== null ? Number(avgViVal) : null)
+        );
+        addField('overridden_vi_class', rc.overridden_vi_class || (snapVi.isOverrideLocked ? viClassVal : null));
         addField('overridden_impact_level_i', snapImpactNum);
         addField('overridden_bra', snapBraOverride);
         addField('judgement_engineer_name', rc.judgement_engineer_name || null);
@@ -641,15 +711,16 @@ export class AuditVersionService {
         }
       }
 
-      // 4.6. Khôi phục bảng parcels
+      // 4.6. Khôi phục bảng parcels (M1-06: bỏ chặn houseNumber||ownerName cho đất trống, bỏ COALESCE trên các cột nullable, khôi phục hình học & cự ly)
       const parcelRestoreData = snap.frozenParcel || snap.parcel || leftPane.parcel || snap.parcelInfo || {
-        houseNumber: snap.houseNumber || sJson.houseNumber,
-        street: snap.street || sJson.street,
-        ward: snap.ward || sJson.ward,
-        district: snap.district || sJson.district,
-        ownerName: snap.ownerName || sJson.ownerName,
-        ownerPhone: snap.ownerPhone || sJson.ownerPhone,
-        officialCadastralCode: snap.officialCadastralCode || sJson.officialCadastralCode,
+        projectParcelCode: snap.projectParcelCode || sJson.projectParcelCode,
+        houseNumber: snap.houseNumber ?? sJson.houseNumber,
+        street: snap.street ?? sJson.street,
+        ward: snap.ward ?? sJson.ward,
+        district: snap.district ?? sJson.district,
+        ownerName: snap.ownerName ?? sJson.ownerName,
+        ownerPhone: snap.ownerPhone ?? sJson.ownerPhone,
+        officialCadastralCode: snap.officialCadastralCode ?? sJson.officialCadastralCode,
         frontageWidth: snap.frontageWidth ?? sJson.frontageWidth,
         lotDepth: snap.lotDepth ?? sJson.lotDepth,
         landAreaM2: snap.landAreaM2 ?? sJson.landAreaM2,
@@ -657,37 +728,106 @@ export class AuditVersionService {
         floorCount: snap.floorCount ?? sJson.floorCount ?? sJson.aboveFloors,
       };
 
-      if (parcelRestoreData && (parcelRestoreData.houseNumber || parcelRestoreData.house_number || parcelRestoreData.ownerName || parcelRestoreData.owner_name)) {
+      if (parcelRestoreData) {
+        const rawDist =
+          snap.distanceToCenterlineM ??
+          snap.distance_to_centerline_m ??
+          parcelRestoreData.distanceToCenterlineM ??
+          parcelRestoreData.distance_to_centerline_m ??
+          (sJson.metroOffsetDistance !== undefined && sJson.metroOffsetDistance !== null
+            ? Number(String(sJson.metroOffsetDistance).replace(/[^\d.-]/g, ''))
+            : null);
+        const restoredDistM = rawDist !== null && rawDist !== undefined && Number.isFinite(Number(rawDist)) ? Number(rawDist) : null;
+
+        let restoredLocGeoJsonStr: string | null = null;
+        if (sJson.gpsCoords && Number.isFinite(Number(sJson.gpsCoords.lat)) && Number.isFinite(Number(sJson.gpsCoords.lng))) {
+          restoredLocGeoJsonStr = JSON.stringify({
+            type: 'Point',
+            coordinates: [Number(sJson.gpsCoords.lng), Number(sJson.gpsCoords.lat)],
+          });
+        } else if (snap.locationGeojson) {
+          restoredLocGeoJsonStr =
+            typeof snap.locationGeojson === 'string'
+              ? snap.locationGeojson
+              : JSON.stringify(snap.locationGeojson);
+        }
+
+        let restoredCadGeoJsonStr: string | null = null;
+        const snapCoords = Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3
+          ? sJson.parcelCoordinates
+          : Array.isArray(sJson.polygonCoords) && sJson.polygonCoords.length >= 3
+            ? sJson.polygonCoords
+            : null;
+        if (snapCoords) {
+          const ring: [number, number][] = snapCoords
+            .filter((pt: any) => Array.isArray(pt) && pt.length >= 2 && Number.isFinite(Number(pt[0])) && Number.isFinite(Number(pt[1])))
+            .map((pt: any) => [Number(pt[1]), Number(pt[0])]);
+          if (ring.length >= 3) {
+            const firstPt = ring[0];
+            const lastPt = ring[ring.length - 1];
+            if (firstPt[0] !== lastPt[0] || firstPt[1] !== lastPt[1]) {
+              ring.push([firstPt[0], firstPt[1]]);
+            }
+            restoredCadGeoJsonStr = JSON.stringify({ type: 'Polygon', coordinates: [ring] });
+          }
+        } else if (snap.cadastralGeojson || snap.cadastral_geojson) {
+          const rawCad = snap.cadastralGeojson || snap.cadastral_geojson;
+          restoredCadGeoJsonStr = typeof rawCad === 'string' ? rawCad : JSON.stringify(rawCad);
+        }
+
+        const restoredProjectCode =
+          parcelRestoreData.projectParcelCode ||
+          parcelRestoreData.project_parcel_code ||
+          snap.projectParcelCode ||
+          sJson.projectParcelCode ||
+          null;
+        const restoredBuildingType =
+          parcelRestoreData.buildingType ||
+          parcelRestoreData.building_type ||
+          snap.parentBuildingInfo?.buildingType ||
+          sJson.buildingType ||
+          null;
+
         await client.query(
           `UPDATE parcels SET
-             house_number = COALESCE($1, house_number),
-             street = COALESCE($2, street),
-             ward = COALESCE($3, ward),
-             district = COALESCE($4, district),
-             owner_name = COALESCE($5, owner_name),
-             owner_phone = COALESCE($6, owner_phone),
-             official_cadastral_code = COALESCE($7, official_cadastral_code),
-             frontage_width = COALESCE($8, frontage_width),
-             lot_depth = COALESCE($9, lot_depth),
+             house_number = $1,
+             street = $2,
+             ward = $3,
+             district = $4,
+             owner_name = $5,
+             owner_phone = $6,
+             official_cadastral_code = $7,
+             frontage_width = $8,
+             lot_depth = $9,
              land_area_m2 = COALESCE($10, land_area_m2),
-             construction_area_m2 = COALESCE($11, construction_area_m2),
+             construction_area_m2 = $11,
              floor_count = COALESCE($12, floor_count),
+             project_parcel_code = COALESCE($13, project_parcel_code),
+             building_type = COALESCE($14, building_type),
+             distance_to_centerline_m = COALESCE($15, distance_to_centerline_m),
+             location_geom = CASE WHEN $16::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($16::text), 4326) ELSE location_geom END,
+             cadastral_polygon_geom = CASE WHEN $17::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($17::text), 4326) ELSE cadastral_polygon_geom END,
              survey_status = 'SUBMITTED',
              updated_at = NOW()
-           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $13);`,
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $18);`,
           [
-            parcelRestoreData.houseNumber || parcelRestoreData.house_number || null,
-            parcelRestoreData.street || null,
-            parcelRestoreData.ward || null,
-            parcelRestoreData.district || null,
-            parcelRestoreData.ownerName || parcelRestoreData.owner_name || null,
-            parcelRestoreData.ownerPhone || parcelRestoreData.owner_phone || null,
-            parcelRestoreData.officialCadastralCode || parcelRestoreData.official_cadastral_code || null,
-            parcelRestoreData.frontageWidth !== undefined && parcelRestoreData.frontageWidth !== '' ? Number(parcelRestoreData.frontageWidth) : null,
-            parcelRestoreData.lotDepth !== undefined && parcelRestoreData.lotDepth !== '' ? Number(parcelRestoreData.lotDepth) : null,
-            parcelRestoreData.landAreaM2 !== undefined && parcelRestoreData.landAreaM2 !== '' ? Number(parcelRestoreData.landAreaM2) : null,
-            parcelRestoreData.constructionAreaM2 !== undefined && parcelRestoreData.constructionAreaM2 !== '' ? Number(parcelRestoreData.constructionAreaM2) : null,
-            (parcelRestoreData.floorCount !== undefined && parcelRestoreData.floorCount !== '') ? Number(parcelRestoreData.floorCount) : ((parcelRestoreData.aboveFloors !== undefined && parcelRestoreData.aboveFloors !== '') ? Number(parcelRestoreData.aboveFloors) : null),
+            parcelRestoreData.houseNumber ?? parcelRestoreData.house_number ?? null,
+            parcelRestoreData.street ?? null,
+            parcelRestoreData.ward ?? null,
+            parcelRestoreData.district ?? null,
+            parcelRestoreData.ownerName ?? parcelRestoreData.owner_name ?? null,
+            parcelRestoreData.ownerPhone ?? parcelRestoreData.owner_phone ?? null,
+            parcelRestoreData.officialCadastralCode ?? parcelRestoreData.official_cadastral_code ?? null,
+            parcelRestoreData.frontageWidth !== undefined && parcelRestoreData.frontageWidth !== null && parcelRestoreData.frontageWidth !== '' ? Number(parcelRestoreData.frontageWidth) : null,
+            parcelRestoreData.lotDepth !== undefined && parcelRestoreData.lotDepth !== null && parcelRestoreData.lotDepth !== '' ? Number(parcelRestoreData.lotDepth) : null,
+            parcelRestoreData.landAreaM2 !== undefined && parcelRestoreData.landAreaM2 !== null && parcelRestoreData.landAreaM2 !== '' ? Number(parcelRestoreData.landAreaM2) : null,
+            parcelRestoreData.constructionAreaM2 !== undefined && parcelRestoreData.constructionAreaM2 !== null && parcelRestoreData.constructionAreaM2 !== '' ? Number(parcelRestoreData.constructionAreaM2) : null,
+            (parcelRestoreData.floorCount !== undefined && parcelRestoreData.floorCount !== null && parcelRestoreData.floorCount !== '') ? Number(parcelRestoreData.floorCount) : ((parcelRestoreData.aboveFloors !== undefined && parcelRestoreData.aboveFloors !== null && parcelRestoreData.aboveFloors !== '') ? Number(parcelRestoreData.aboveFloors) : null),
+            restoredProjectCode,
+            restoredBuildingType,
+            restoredDistM,
+            restoredLocGeoJsonStr,
+            restoredCadGeoJsonStr,
             actualReportId,
           ]
         );
@@ -1188,8 +1328,8 @@ export class AuditVersionService {
           });
         }
 
-        // Lún nghiêng & võng dầm Step 5
-        const snapSt = snap.settlementTilt || leftPane.settlementTilt || sJson.settlementTilt || {};
+        // Lún nghiêng & võng dầm Step 5 (kèm abnormalCase.photos M2-07)
+        const snapSt = snap.settlementTilt || leftPane.settlementTilt || sJson.settlementTilt || sJson.deformation || {};
         if (Array.isArray(snapSt.beamSagging?.photos)) {
           snapSt.beamSagging.photos.forEach((p: any) => collectUrl(typeof p === 'string' ? p : p?.url));
         }
@@ -1198,6 +1338,10 @@ export class AuditVersionService {
         }
         if (Array.isArray(snapSt.buildingTilt?.photos)) {
           snapSt.buildingTilt.photos.forEach((p: any) => collectUrl(typeof p === 'string' ? p : p?.url));
+        }
+        const snapAbnormal = snapSt.abnormalCase || snapSt.abnormalObservation || {};
+        if (Array.isArray(snapAbnormal.photos)) {
+          snapAbnormal.photos.forEach((p: any) => collectUrl(typeof p === 'string' ? p : p?.url));
         }
 
         // Đất trống & công trình dở dang

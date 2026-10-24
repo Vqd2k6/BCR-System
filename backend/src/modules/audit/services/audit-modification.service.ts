@@ -80,6 +80,28 @@ function setDeepProp(obj: any, path: string, value: any): boolean {
   return true;
 }
 
+function isShortEntityId(targetId?: string): boolean {
+  if (!targetId) return false;
+  const s = targetId.trim();
+  return (
+    /^[DZE]-\d+/i.test(s) ||
+    /^floor_\d+/i.test(s) ||
+    /^(defect|zone|elem|floor)[_-]/i.test(s) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s)
+  );
+}
+
+function parseMeters(val: unknown): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  const s = String(val).trim();
+  if (!s || /không có ga/i.test(s)) return null;
+  const match = s.replace(/,/g, '.').match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
 function mutateSurveyJsonPhoto(
   surveyJson: any,
   targetPath: string,
@@ -89,7 +111,7 @@ function mutateSurveyJsonPhoto(
   oldUrl?: string,
   extra?: { photoCode?: string; caption?: string; addedAt?: string }
 ) {
-  if (!surveyJson || !targetPath) return;
+  if (!surveyJson || !targetPath || isShortEntityId(targetPath)) return;
 
   const currentVal = getDeepProp(surveyJson, targetPath);
 
@@ -249,24 +271,63 @@ export class AuditModificationService {
       ? uUpdates.parcelCoordinates
       : (Array.isArray(uUpdates.polygonCoords) && uUpdates.polygonCoords.length >= 3 ? uUpdates.polygonCoords : null);
 
+    const existingPolyCoords = Array.isArray(existingJson.parcelCoordinates) && existingJson.parcelCoordinates.length >= 3
+      ? existingJson.parcelCoordinates
+      : (Array.isArray(existingJson.polygonCoords) && existingJson.polygonCoords.length >= 3 ? existingJson.polygonCoords : null);
+    const didPolygonCoordsChange = Boolean(
+      candidateCoords &&
+      (!existingPolyCoords || JSON.stringify(candidateCoords) !== JSON.stringify(existingPolyCoords))
+    );
+
     let recalculatedCenterlineM: number | null = null;
     let recalculatedOuterM: number | null = null;
     let newCadastralGeoJsonStr: string | null = null;
 
     if (candidateCoords) {
       const metroRes = calculateDistancesFromPolygon(candidateCoords);
-      recalculatedCenterlineM = metroRes.centerlineDist;
-      recalculatedOuterM = metroRes.outerBoundaryDist;
+      const manualCenterlineM = parseMeters(uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM);
+      const manualOuterM = parseMeters(uUpdates.clearanceOffsetDistance ?? uUpdates.stationEdgeDistance);
 
-      if (recalculatedCenterlineM !== null) {
-        mergedJson.metroOffsetDistance = `${recalculatedCenterlineM.toFixed(1)}m`;
-      }
-      if (recalculatedOuterM !== null) {
-        mergedJson.clearanceOffsetDistance = `${recalculatedOuterM.toFixed(1)}m`;
-        mergedJson.stationEdgeDistance = `${recalculatedOuterM.toFixed(1)}m`;
+      if (!didPolygonCoordsChange && manualCenterlineM !== null) {
+        recalculatedCenterlineM = manualCenterlineM;
+        mergedJson.metroOffsetDistance = String(uUpdates.metroOffsetDistance ?? `${manualCenterlineM.toFixed(1)}m`);
       } else {
-        mergedJson.clearanceOffsetDistance = 'Không có ga trong khu vực';
+        recalculatedCenterlineM = metroRes.centerlineDist;
+        if (recalculatedCenterlineM !== null) {
+          mergedJson.metroOffsetDistance = `${recalculatedCenterlineM.toFixed(1)}m`;
+        }
       }
+
+      if (!didPolygonCoordsChange && manualOuterM !== null) {
+        recalculatedOuterM = manualOuterM;
+        mergedJson.clearanceOffsetDistance = String(uUpdates.clearanceOffsetDistance ?? `${manualOuterM.toFixed(1)}m`);
+        mergedJson.stationEdgeDistance = String(uUpdates.stationEdgeDistance ?? mergedJson.clearanceOffsetDistance);
+      } else {
+        recalculatedOuterM = metroRes.outerBoundaryDist;
+        if (recalculatedOuterM !== null) {
+          mergedJson.clearanceOffsetDistance = `${recalculatedOuterM.toFixed(1)}m`;
+          mergedJson.stationEdgeDistance = `${recalculatedOuterM.toFixed(1)}m`;
+        } else {
+          mergedJson.clearanceOffsetDistance = 'Không có ga trong khu vực';
+        }
+      }
+
+      const explicitGpsChanged = Boolean(
+        uUpdates.gpsCoords &&
+        (!existingJson.gpsCoords ||
+          Number(uUpdates.gpsCoords.lat ?? uUpdates.gpsCoords.latitude) !== Number(existingJson.gpsCoords.lat ?? existingJson.gpsCoords.latitude) ||
+          Number(uUpdates.gpsCoords.lng ?? uUpdates.gpsCoords.longitude) !== Number(existingJson.gpsCoords.lng ?? existingJson.gpsCoords.longitude))
+      );
+      if (!explicitGpsChanged || didPolygonCoordsChange) {
+        const bestPt = candidateCoords[0];
+        if (Array.isArray(bestPt) && bestPt.length >= 2) {
+          mergedJson.gpsCoords = {
+            lat: Number(Number(bestPt[0]).toFixed(6)),
+            lng: Number(Number(bestPt[1]).toFixed(6)),
+          };
+        }
+      }
+
       mergedJson.parcelCoordinates = candidateCoords;
       mergedJson.polygonCoords = candidateCoords;
 
@@ -280,6 +341,14 @@ export class AuditModificationService {
         type: 'Polygon',
         coordinates: [ringCoords],
       });
+    } else if (
+      uUpdates.metroOffsetDistance !== undefined ||
+      uUpdates.manualMetroDistanceM !== undefined ||
+      uUpdates.distanceToMetroM !== undefined
+    ) {
+      recalculatedCenterlineM = parseMeters(
+        uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM
+      );
     }
 
     // 3.1. Gatekeeper CAT 1/2: Bắt buộc phải có ít nhất 1 bản vẽ hoàn công
@@ -351,12 +420,13 @@ export class AuditModificationService {
       // 4.1. Cập nhật parcels đầy đủ các trường (Bảo vệ toạ độ WGS84 và cập nhật đa giác/cự ly Metro nếu có)
       let latVal: number | null = null;
       let lngVal: number | null = null;
-      if (u.gpsCoords?.lat !== undefined && u.gpsCoords?.lng !== undefined) {
-        latVal = Number(u.gpsCoords.lat);
-        lngVal = Number(u.gpsCoords.lng);
-      } else if (u.gpsCoords?.latitude !== undefined && u.gpsCoords?.longitude !== undefined) {
-        latVal = Number(u.gpsCoords.latitude);
-        lngVal = Number(u.gpsCoords.longitude);
+      const gpsSrc = (didPolygonCoordsChange && mergedJson.gpsCoords) ? mergedJson.gpsCoords : (u.gpsCoords || mergedJson.gpsCoords);
+      if (gpsSrc?.lat !== undefined && gpsSrc?.lng !== undefined) {
+        latVal = Number(gpsSrc.lat);
+        lngVal = Number(gpsSrc.lng);
+      } else if (gpsSrc?.latitude !== undefined && gpsSrc?.longitude !== undefined) {
+        latVal = Number(gpsSrc.latitude);
+        lngVal = Number(gpsSrc.longitude);
       } else if (Array.isArray(u.coordinates) && u.coordinates.length >= 2) {
         const c0 = Number(u.coordinates[0]);
         const c1 = Number(u.coordinates[1]);
@@ -386,7 +456,9 @@ export class AuditModificationService {
              floor_count = COALESCE($12, floor_count),
              location_geom = CASE 
                WHEN $13::float IS NOT NULL AND $14::float IS NOT NULL 
-               THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326) 
+               THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326)
+               WHEN $17::text IS NOT NULL
+               THEN ST_PointOnSurface(ST_SetSRID(ST_GeomFromGeoJSON($17), 4326))
                ELSE location_geom 
              END,
              distance_to_centerline_m = COALESCE($16, distance_to_centerline_m),
@@ -505,26 +577,45 @@ export class AuditModificationService {
 
       if (u.accessLimitation || u.surveyScope || u.inaccessibleAreas !== undefined || u.accessibilityLimitations !== undefined) {
         const accLim = mergedJson.accessLimitation || {};
-        const accType = accLim.type || u.accessLimitation?.type;
+        const accType = accLim.type || u.accessLimitation?.type || u.surveyScope;
+        const isFull100 = accType === 'FULL_100' || accType === 'TOAN_BO';
         let coverage: 'TOAN_BO' | 'MOT_PHAN' | 'KHONG_THE_TIEP_CAN' = 'TOAN_BO';
-        if (accType === 'LIMITED' || accType === 'PARTIAL') coverage = 'MOT_PHAN';
-        else if (accType === 'ABSENT_REFUSED' || accType === 'REFUSED' || accType === 'ABSENTEE' || mergedJson.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
+        if (accType === 'LIMITED' || accType === 'PARTIAL' || accType === 'EXTERNAL_ONLY' || accType === 'CHI_NGOAI_VI') {
+          coverage = 'MOT_PHAN';
+        } else if (accType === 'ABSENT_REFUSED' || accType === 'REFUSED' || accType === 'ABSENTEE' || mergedJson.isAbsenteeSurvey) {
+          coverage = 'KHONG_THE_TIEP_CAN';
+        }
 
-        const inaccessibleStr = Array.isArray(accLim.restrictedAreas) && accLim.restrictedAreas.length > 0
-          ? accLim.restrictedAreas.join(', ')
-          : (u.inaccessibleAreas !== undefined ? u.inaccessibleAreas : null);
-        const limitationNotes = accLim.notes !== undefined
-          ? accLim.notes
-          : (accLim.mainReason !== undefined ? accLim.mainReason : (u.accessibilityLimitations !== undefined ? u.accessibilityLimitations : null));
+        if (isFull100 && mergedJson.accessLimitation && typeof mergedJson.accessLimitation === 'object') {
+          mergedJson.accessLimitation.mainReason = '';
+          mergedJson.accessLimitation.notes = '';
+          mergedJson.accessLimitation.restrictedAreas = [];
+          mergedJson.accessLimitation.scopeStatus = 'TOAN_BO';
+        } else if (accType === 'EXTERNAL_ONLY' && mergedJson.accessLimitation && typeof mergedJson.accessLimitation === 'object') {
+          mergedJson.accessLimitation.scopeStatus = 'CHI_NGOAI_VI';
+        }
+
+        const inaccessibleStr = isFull100
+          ? null
+          : (Array.isArray(accLim.restrictedAreas) && accLim.restrictedAreas.length > 0
+              ? accLim.restrictedAreas.join(', ')
+              : (u.inaccessibleAreas !== undefined ? u.inaccessibleAreas : null));
+        const limitationNotes = isFull100
+          ? null
+          : (accLim.notes !== undefined && accLim.notes !== ''
+              ? accLim.notes
+              : (accLim.mainReason !== undefined && accLim.mainReason !== ''
+                  ? accLim.mainReason
+                  : (u.accessibilityLimitations !== undefined ? u.accessibilityLimitations : null)));
 
         await client.query(
           `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (report_id) DO UPDATE SET
              survey_coverage = EXCLUDED.survey_coverage,
-             inaccessible_areas = COALESCE($3, survey_scopes.inaccessible_areas),
-             accessibility_limitations = COALESCE($4, survey_scopes.accessibility_limitations);`,
-          [actualReportId, coverage, inaccessibleStr, limitationNotes]
+             inaccessible_areas = CASE WHEN $5::boolean THEN NULL ELSE COALESCE($3, survey_scopes.inaccessible_areas) END,
+             accessibility_limitations = CASE WHEN $5::boolean THEN NULL ELSE COALESCE($4, survey_scopes.accessibility_limitations) END;`,
+          [actualReportId, coverage, inaccessibleStr, limitationNotes, isFull100]
         );
       }
 
@@ -596,12 +687,24 @@ export class AuditModificationService {
       // 4.4. Cập nhật historical_sensitivities (UPSERT)
       const hi = u.historyInterview;
       if (hi) {
+        const neighborVal = hi.neighborImpact ?? hi.neighborDamage;
+        const fireFloodVal = hi.fireFloodHistory ?? hi.fireFloodIncident;
+        if (mergedJson.historyInterview && typeof mergedJson.historyInterview === 'object') {
+          if (neighborVal !== undefined) {
+            mergedJson.historyInterview.neighborImpact = neighborVal;
+            mergedJson.historyInterview.neighborDamage = neighborVal;
+          }
+          if (fireFloodVal !== undefined) {
+            mergedJson.historyInterview.fireFloodHistory = fireFloodVal;
+            mergedJson.historyInterview.fireFloodIncident = fireFloodVal;
+          }
+        }
         const qScores = [
           hi.renovationLoad ?? 0,
           hi.majorRepair ?? 0,
           hi.pastSettlement ?? 0,
-          hi.neighborDamage ?? 0,
-          hi.fireFloodIncident ?? 0,
+          neighborVal ?? 0,
+          fireFloodVal ?? 0,
         ];
         const maxQ = Math.max(...qScores.map(Number));
         const countHigh = qScores.filter((s) => Number(s) > 2).length;
@@ -620,11 +723,15 @@ export class AuditModificationService {
              details = COALESCE($5, historical_sensitivities.details),
              e5_history_score = COALESCE($6, historical_sensitivities.e5_history_score);`,
           [
-            hi.renovationLoad !== undefined ? Number(hi.renovationLoad) > 0 : null,
-            hi.pastSettlement !== undefined ? Number(hi.pastSettlement) > 0 : null,
-            hi.fireFloodIncident !== undefined ? Number(hi.fireFloodIncident) > 0 : null,
+            (hi.renovationLoad !== undefined || hi.majorRepair !== undefined)
+              ? (Number(hi.renovationLoad ?? 0) > 0 || Number(hi.majorRepair ?? 0) > 0)
+              : null,
+            (hi.pastSettlement !== undefined || neighborVal !== undefined)
+              ? (Number(hi.pastSettlement ?? 0) > 0 || Number(neighborVal ?? 0) > 0)
+              : null,
+            fireFloodVal !== undefined ? Number(fireFloodVal) > 0 : null,
             hi.sensitiveEquipment?.has !== undefined ? Boolean(hi.sensitiveEquipment.has) : null,
-            hi.renovationNotes || hi.majorRepairNotes || hi.pastSettlementNotes || JSON.stringify(hi),
+            hi.renovationNotes || hi.repairNotes || hi.majorRepairNotes || hi.settlementNotes || hi.pastSettlementNotes || hi.neighborNotes || hi.fireFloodNotes || JSON.stringify(hi),
             e5Score,
             actualReportId,
           ]
@@ -637,16 +744,32 @@ export class AuditModificationService {
         const tilt = st.buildingTilt || st.tiltAssessment || {};
         const beam = st.beamSagging || {};
         const diff = st.diffSettlement || {};
-        const abn = st.abnormalCase || {};
+        const abn = st.abnormalCase || st.abnormalObservation || {};
         const lDiff = Number(diff.level) || 0;
         const lTilt = Number(tilt.level) || 0;
         const lSag = Number(beam.level) || 0;
         const e3Score = Math.min(4, Math.max(lDiff, lTilt, lSag));
 
-        const tiltX = tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) : (tilt.tilt_x_permille !== undefined ? Number(tilt.tilt_x_permille) : null);
-        const tiltY = tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) : (tilt.tilt_y_permille !== undefined ? Number(tilt.tilt_y_permille) : null);
+        const rawTiltX = tilt.xPermille !== undefined ? tilt.xPermille : tilt.tilt_x_permille;
+        const rawTiltY = tilt.yPermille !== undefined ? tilt.yPermille : tilt.tilt_y_permille;
+        const tiltX = rawTiltX !== undefined && rawTiltX !== null && String(rawTiltX).trim() !== '' && Number.isFinite(Number(rawTiltX))
+          ? Number(rawTiltX)
+          : null;
+        const tiltY = rawTiltY !== undefined && rawTiltY !== null && String(rawTiltY).trim() !== '' && Number.isFinite(Number(rawTiltY))
+          ? Number(rawTiltY)
+          : null;
+        if (mergedJson.settlementTilt?.buildingTilt && typeof mergedJson.settlementTilt.buildingTilt === 'object') {
+          if (rawTiltX === '' || rawTiltX === null) {
+            mergedJson.settlementTilt.buildingTilt.xPermille = null;
+          }
+          if (rawTiltY === '' || rawTiltY === null) {
+            mergedJson.settlementTilt.buildingTilt.yPermille = null;
+          }
+        }
         const tiltDir = tilt.direction || tilt.tilt_direction || null;
-        const beamSag = beam.sagMm !== undefined && beam.sagMm !== '' ? Number(beam.sagMm) : null;
+        const beamSag = beam.sagMm !== undefined && beam.sagMm !== null && String(beam.sagMm).trim() !== '' && Number.isFinite(Number(beam.sagMm))
+          ? Number(beam.sagMm)
+          : null;
         const rawRel = String(st.reliability || '').toUpperCase();
         const normReliability = ['HIGH', 'MEDIUM', 'LOW'].includes(rawRel)
           ? rawRel
@@ -662,15 +785,15 @@ export class AuditModificationService {
              measurement_reliability, e3_deformation_score,
              diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
            ) VALUES (
-             $1, COALESCE($2, 0.0), COALESCE($3, 0.0), $4, COALESCE($5, 0.0),
+             $1, $2, $3, $4, $5,
              COALESCE($6::reliability_enum, 'HIGH'), COALESCE($7, 0),
              COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb), COALESCE($10::jsonb, '[]'::jsonb)
            )
            ON CONFLICT (report_id) DO UPDATE SET
-             tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x),
-             tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y),
+             tilt_angle_x = $2,
+             tilt_angle_y = $3,
              tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
-             beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm),
+             beam_deflection_mm = $5,
              measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
              e3_deformation_score = COALESCE($7, deformation_assessments.e3_deformation_score),
              diff_settlement_photos_json = COALESCE($8::jsonb, deformation_assessments.diff_settlement_photos_json),
@@ -1431,63 +1554,151 @@ export class AuditModificationService {
       const ecsClass: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' =
         totalEcs <= 5 ? 'GOOD' : totalEcs <= 10 ? 'MEDIUM' : totalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
 
-      const v1 = uVi?.v1 !== undefined ? Number(uVi.v1) : (hasViInputUpdate ? (calcScores?.v1 ?? Number(curVi.v1 ?? 2)) : Number(curVi.v1 ?? calcScores?.v1 ?? 2));
-      const v2 = uVi?.v2 !== undefined ? Number(uVi.v2) : (hasViInputUpdate ? (calcScores?.v2 ?? Number(curVi.v2 ?? 2)) : Number(curVi.v2 ?? calcScores?.v2 ?? 2));
-      const v3 = uVi?.v3 !== undefined ? Number(uVi.v3) : (hasViInputUpdate ? (calcScores?.v3 ?? (curVi.v3 !== undefined ? Number(curVi.v3) : null)) : (curVi.v3 !== undefined ? Number(curVi.v3) : (calcScores?.v3 ?? null)));
-      const v4 = uVi?.v4 !== undefined ? Number(uVi.v4) : (hasViInputUpdate ? (calcScores?.v4 ?? (curVi.v4 !== undefined ? Number(curVi.v4) : null)) : (curVi.v4 !== undefined ? Number(curVi.v4) : (calcScores?.v4 ?? null)));
-      const v5 = uVi?.v5 !== undefined ? Number(uVi.v5) : (ecsClass === 'CRITICAL' ? 4 : ecsClass === 'DEFICIENT' ? 3 : ecsClass === 'MEDIUM' ? 2 : 1);
-      const v6 = uVi?.v6 !== undefined ? Number(uVi.v6) : (hasViInputUpdate ? (calcScores?.v6 ?? Number(curVi.v6 ?? 1)) : Number(curVi.v6 ?? calcScores?.v6 ?? 1));
+      const rawV1 = uVi?.v1 !== undefined && uVi.v1 !== null ? Number(uVi.v1) : (hasViInputUpdate ? (calcScores?.v1 ?? Number(curVi.v1 ?? 2)) : Number(curVi.v1 ?? calcScores?.v1 ?? 2));
+      const rawV2 = uVi?.v2 !== undefined && uVi.v2 !== null ? Number(uVi.v2) : (hasViInputUpdate ? (calcScores?.v2 ?? Number(curVi.v2 ?? 2)) : Number(curVi.v2 ?? calcScores?.v2 ?? 2));
+      const rawV3 = uVi?.v3 !== undefined && uVi.v3 !== null ? Number(uVi.v3) : (hasViInputUpdate ? (calcScores?.v3 ?? Number(curVi.v3 ?? 3)) : Number(curVi.v3 ?? calcScores?.v3 ?? 3));
+      const rawV4 = uVi?.v4 !== undefined && uVi.v4 !== null ? Number(uVi.v4) : (hasViInputUpdate ? (calcScores?.v4 ?? Number(curVi.v4 ?? 3)) : Number(curVi.v4 ?? calcScores?.v4 ?? 3));
+      const rawV5 = uVi?.v5 !== undefined && uVi.v5 !== null ? Number(uVi.v5) : (ecsClass === 'CRITICAL' ? 4 : ecsClass === 'DEFICIENT' ? 3 : ecsClass === 'MEDIUM' ? 2 : 1);
+      const rawV6 = uVi?.v6 !== undefined && uVi.v6 !== null ? Number(uVi.v6) : (hasViInputUpdate ? (calcScores?.v6 ?? Number(curVi.v6 ?? 1)) : Number(curVi.v6 ?? calcScores?.v6 ?? 1));
 
-      const hasAllV = v3 !== null && v4 !== null && Number.isFinite(v3) && Number.isFinite(v4);
-      const totalVi = hasAllV ? (v1 + v2 + Number(v3) + Number(v4) + v5 + v6) : null;
-      const avgVi = totalVi !== null ? Number((totalVi / 6).toFixed(2)) : null;
-      const viClass = avgVi === null ? null : (avgVi > 3.25 ? 'VERY_HIGH' : avgVi > 2.5 ? 'HIGH' : avgVi > 1.5 ? 'MEDIUM' : 'LOW');
+      const v1 = Number.isFinite(rawV1) ? Math.round(rawV1) : 2;
+      const v2 = Number.isFinite(rawV2) ? Math.round(rawV2) : 2;
+      const v3 = Number.isFinite(rawV3) ? Math.round(rawV3) : 3;
+      const v4 = Number.isFinite(rawV4) ? Math.round(rawV4) : 3;
+      const v5 = Number.isFinite(rawV5) ? Math.round(rawV5) : 1;
+      const v6 = Number.isFinite(rawV6) ? Math.round(rawV6) : 1;
+
+      const totalVi = v1 + v2 + v3 + v4 + v5 + v6;
+      const avgVi = Number((totalVi / 6).toFixed(2));
+      const viClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
+        avgVi > 3.25 ? 'VERY_HIGH' : avgVi > 2.5 ? 'HIGH' : avgVi > 1.5 ? 'MEDIUM' : 'LOW';
+
+      // Tự động tính toán Impact (I1..I4) từ objectGroup + cự ly Metro (clearanceOffsetDistance / metroOffsetDistance)
+      let effectiveDistM: number | null = null;
+      if (uObj.clearanceOffsetDistance !== undefined || uObj.stationEdgeDistance !== undefined) {
+        effectiveDistM = parseMeters(uObj.clearanceOffsetDistance ?? uObj.stationEdgeDistance);
+      }
+      if (
+        effectiveDistM === null &&
+        (uObj.manualMetroDistanceM !== undefined || uObj.distanceToMetroM !== undefined || uObj.metroOffsetDistance !== undefined)
+      ) {
+        effectiveDistM = parseMeters(uObj.manualMetroDistanceM ?? uObj.distanceToMetroM ?? uObj.metroOffsetDistance);
+      }
+      if (effectiveDistM === null) {
+        effectiveDistM =
+          parseMeters(mergedJson.clearanceOffsetDistance) ??
+          parseMeters(mergedJson.stationEdgeDistance) ??
+          parseMeters(mergedJson.manualMetroDistanceM) ??
+          parseMeters(mergedJson.distanceToMetroM) ??
+          parseMeters(mergedJson.metroOffsetDistance) ??
+          recalculatedCenterlineM ??
+          15;
+      }
+
+      const rawObjGroup = String(
+        uObj.objectGroup ??
+        mergedJson.objectGroup ??
+        mergedJson.buildingSpecs?.building_grade ??
+        'GENERAL'
+      ).toUpperCase();
+      const isHighImportanceGroup = rawObjGroup === 'IMPORTANT' || rawObjGroup === 'CRITICAL';
+      const autoImpactNum: 1 | 2 | 3 | 4 = isHighImportanceGroup
+        ? (effectiveDistM > 30 ? 1 : effectiveDistM > 20 ? 2 : effectiveDistM > 10 ? 3 : 4)
+        : (effectiveDistM > 20 ? 1 : effectiveDistM > 10 ? 2 : effectiveDistM > 5 ? 3 : 4);
+      const IMPACT_LABELS: Record<'I1' | 'I2' | 'I3' | 'I4', { vi: string; en: string }> = {
+        I1: { vi: 'I1 - Ảnh hưởng không đáng kể', en: 'I1 - Negligible Impact' },
+        I2: { vi: 'I2 - Ảnh hưởng nhẹ', en: 'I2 - Slight Impact' },
+        I3: { vi: 'I3 - Ảnh hưởng trung bình', en: 'I3 - Moderate Impact' },
+        I4: { vi: 'I4 - Ảnh hưởng nghiêm trọng', en: 'I4 - Severe Impact' },
+      };
 
       // Đồng bộ chỉnh sửa Impact (I1..I4) và BRA (LOW/MEDIUM/HIGH/VERY_HIGH) từ Bước 8 (executiveSummary)
       const uExec = (payload.updates?.executiveSummary && typeof payload.updates.executiveSummary === 'object')
         ? payload.updates.executiveSummary
         : null;
-      const rawExecImpact = String(uExec?.constructionImpactStatus || mergedJson.executiveSummary?.constructionImpactStatus || '').toUpperCase();
+      const curExec = (mergedJson.executiveSummary && typeof mergedJson.executiveSummary === 'object')
+        ? mergedJson.executiveSummary
+        : {};
+
+      const isImpactOverridden = Boolean(
+        uExec?.isImpactOverridden !== undefined
+          ? uExec.isImpactOverridden
+          : (uExec?.impactOverrideReason && String(uExec.impactOverrideReason).trim() !== '')
+            ? true
+            : Boolean(curExec.isImpactOverridden && curExec.impactOverrideReason && String(curExec.impactOverrideReason).trim() !== '')
+      );
+      const rawExecImpact = String(uExec?.constructionImpactStatus || curExec.constructionImpactStatus || '').toUpperCase();
       const execImpactMatch = rawExecImpact.match(/\b(I[1-4])\b/);
-      const explicitICode = execImpactMatch ? execImpactMatch[1] : null;
-      if (uExec?.constructionImpactStatus && explicitICode) {
-        mergedJson.impactAssessment = {
-          ...(mergedJson.impactAssessment && typeof mergedJson.impactAssessment === 'object' ? mergedJson.impactAssessment : {}),
-          iCode: explicitICode,
-          code: explicitICode,
-        };
-      }
+      const explicitICode = (isImpactOverridden && execImpactMatch) ? (execImpactMatch[1] as 'I1' | 'I2' | 'I3' | 'I4') : null;
+      const explicitImpactNum = explicitICode ? (Number(explicitICode.replace('I', '')) as 1 | 2 | 3 | 4) : null;
+      const finalImpactNum: 1 | 2 | 3 | 4 = explicitImpactNum ?? autoImpactNum;
+      const finalImpactCode = `I${finalImpactNum}` as 'I1' | 'I2' | 'I3' | 'I4';
 
-      const rawExecBra = String(uExec?.braStatus || '').toUpperCase();
-      let explicitBraPair: { code: string; vi: string; en: string } | null = null;
+      mergedJson.impactAssessment = {
+        ...(mergedJson.impactAssessment && typeof mergedJson.impactAssessment === 'object' ? mergedJson.impactAssessment : {}),
+        iCode: finalImpactCode,
+        code: finalImpactCode,
+        level: finalImpactNum,
+        labelVi: IMPACT_LABELS[finalImpactCode].vi,
+        labelEn: IMPACT_LABELS[finalImpactCode].en,
+        distanceToMetroM: effectiveDistM,
+      };
+
+      const BRA_MATRIX: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH', Record<1 | 2 | 3 | 4, 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH'>> = {
+        LOW: { 1: 'LOW', 2: 'LOW', 3: 'MEDIUM', 4: 'HIGH' },
+        MEDIUM: { 1: 'LOW', 2: 'MEDIUM', 3: 'HIGH', 4: 'HIGH' },
+        HIGH: { 1: 'MEDIUM', 2: 'HIGH', 3: 'HIGH', 4: 'VERY_HIGH' },
+        VERY_HIGH: { 1: 'HIGH', 2: 'HIGH', 3: 'VERY_HIGH', 4: 'VERY_HIGH' },
+      };
+      const BRA_LABELS: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH', { code: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH'; vi: string; en: string }> = {
+        LOW: { code: 'LOW', vi: 'Rủi ro thấp', en: 'Low Risk' },
+        MEDIUM: { code: 'MEDIUM', vi: 'Rủi ro trung bình', en: 'Medium Risk' },
+        HIGH: { code: 'HIGH', vi: 'Rủi ro cao', en: 'High Risk' },
+        VERY_HIGH: { code: 'VERY_HIGH', vi: 'Rủi ro rất cao', en: 'Very High Risk' },
+      };
+
+      const effectiveViClassForBra: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
+        ((uVi?.overriddenViClass || curVi?.overriddenViClass || viClass) as 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH');
+      const autoBraCode: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
+        BRA_MATRIX[effectiveViClassForBra]?.[finalImpactNum] || 'MEDIUM';
+
+      const isBraOverridden = Boolean(
+        uExec?.isBraOverridden !== undefined
+          ? uExec.isBraOverridden
+          : Boolean(curExec.isBraOverridden && curExec.braOverrideReason && String(curExec.braOverrideReason).trim() !== '')
+      );
+      const rawExecBra = isBraOverridden
+        ? String(uExec?.braStatus || curExec.braStatus || '').toUpperCase()
+        : '';
+      let explicitBraPair: { code: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH'; vi: string; en: string } | null = null;
       if (rawExecBra === 'LOW' || rawExecBra === 'VERY_LOW') {
-        explicitBraPair = { code: 'LOW', vi: 'Rủi ro thấp', en: 'Low Risk' };
+        explicitBraPair = BRA_LABELS.LOW;
       } else if (rawExecBra === 'MEDIUM' || rawExecBra === 'MODERATE') {
-        explicitBraPair = { code: 'MEDIUM', vi: 'Rủi ro trung bình', en: 'Medium Risk' };
+        explicitBraPair = BRA_LABELS.MEDIUM;
       } else if (rawExecBra === 'HIGH') {
-        explicitBraPair = { code: 'HIGH', vi: 'Rủi ro cao', en: 'High Risk' };
+        explicitBraPair = BRA_LABELS.HIGH;
       } else if (rawExecBra === 'VERY_HIGH' || rawExecBra === 'CRITICAL') {
-        explicitBraPair = { code: 'VERY_HIGH', vi: 'Rủi ro rất cao', en: 'Very High Risk' };
+        explicitBraPair = BRA_LABELS.VERY_HIGH;
       }
 
-      if (explicitBraPair) {
-        mergedJson.braAssessment = {
-          ...(mergedJson.braAssessment && typeof mergedJson.braAssessment === 'object' ? mergedJson.braAssessment : {}),
-          finalRiskLevelVi: explicitBraPair.vi,
-          finalRiskLevelEn: explicitBraPair.en,
-          riskLevelVi: explicitBraPair.vi,
-          riskLevelEn: explicitBraPair.en,
-          braStatus: explicitBraPair.code,
-        };
-      } else if (uVi || uEcs) {
-        // Nếu chỉ sửa điểm thành phần ở Bước 7 mà không ép cứng BRA ở Bước 8, xóa cache braAssessment cũ để tính lại theo ma trận V × I
-        delete mergedJson.braAssessment;
-        if (mergedJson.executiveSummary && typeof mergedJson.executiveSummary === 'object') {
-          delete mergedJson.executiveSummary.braStatus;
-        }
-      }
-
-      const explicitImpactNum = explicitICode ? Number(explicitICode.replace('I', '')) : null;
+      const finalBraPair = explicitBraPair || BRA_LABELS[autoBraCode];
+      mergedJson.braAssessment = {
+        ...(mergedJson.braAssessment && typeof mergedJson.braAssessment === 'object' ? mergedJson.braAssessment : {}),
+        finalRiskLevelVi: finalBraPair.vi,
+        finalRiskLevelEn: finalBraPair.en,
+        riskLevelVi: finalBraPair.vi,
+        riskLevelEn: finalBraPair.en,
+        braStatus: finalBraPair.code,
+      };
+      mergedJson.executiveSummary = {
+        ...curExec,
+        ...(uExec || {}),
+        constructionImpactStatus: finalImpactCode,
+        braStatus: finalBraPair.code,
+        isImpactOverridden,
+        isBraOverridden,
+        ...(isImpactOverridden ? {} : { impactOverrideReason: '' }),
+      };
 
       await Database.query(
         `UPDATE risk_score_cards SET
@@ -1507,8 +1718,10 @@ export class AuditModificationService {
            v6_sensitivity_score = $15,
            avg_vi_score = $16,
            vi_class = $17,
-           overridden_impact_level_i = COALESCE($18, overridden_impact_level_i),
-           overridden_bra = COALESCE($19, overridden_bra)
+           impact_level_i = $18,
+           preliminary_bra_classification = $19,
+           overridden_impact_level_i = $20,
+           overridden_bra = $21
          WHERE report_id = $1;`,
         [
           actualReportId,
@@ -1516,6 +1729,8 @@ export class AuditModificationService {
           totalEcs, ecsClass,
           v1, v2, v3, v4, v5, v6,
           avgVi, viClass,
+          autoImpactNum,
+          autoBraCode,
           explicitImpactNum,
           explicitBraPair?.code || null,
         ]
@@ -1530,9 +1745,10 @@ export class AuditModificationService {
       mergedJson.vi = {
         ...curVi,
         v1, v2, v3, v4, v5, v6,
-        ...(totalVi !== null ? { totalVi } : {}),
-        ...(avgVi !== null ? { viAvg: avgVi, avgVi } : {}),
-        ...(viClass !== null ? { viClass } : {}),
+        totalVi,
+        viAvg: avgVi,
+        avgVi,
+        viClass,
       };
       await Database.query(
         `UPDATE base_survey_reports SET survey_data_json = $1 WHERE id = $2;`,
@@ -1819,6 +2035,12 @@ export class AuditModificationService {
           photoItem
         );
       }
+
+      // 3.5. Ghi lại survey_data_json sau khi hoàn tất các thao tác ảnh (ORCH-06)
+      await client.query(
+        `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
+        [JSON.stringify(mergedJson), actualReportId]
+      );
     });
 
     // 4. Tạo snapshot bất biến v(n+1)
@@ -2386,11 +2608,36 @@ export class AuditModificationService {
     const stdName = pa.standardizedFilename || `M2__${Date.now()}.jpg`;
     const hash = pa.sha256Hash || computeSha256(pa.newPhotoUrl || pa.oldPhotoUrl || Date.now().toString());
 
+    const isP03Extra =
+      type.toUpperCase().includes('P03_EXTRA') ||
+      type.toUpperCase().includes('SUPPLEMENTARY') ||
+      Boolean(pa.targetPhotoId && pa.targetPhotoId.includes('additionalPhotos'));
+    const SKIP_MUTATE_CATEGORIES = new Set([
+      'DEFECT_CU',
+      'ZONE_CTX',
+      'CAD_FLOOR',
+      'ELEMENT_CTX',
+      'ELEMENT_OVERVIEW',
+      'BEAM_SAGGING',
+      'AS_BUILT',
+      'MINUTES',
+      'ABSENCE_NOTICE',
+      'IDENTIFICATION',
+      'SIGNATURE',
+      'OVERVIEW',
+    ]);
+
     if (action === 'ROTATE') {
       const rawAngle = Number(pa.rotation ?? pa.metadata?.rotation ?? 0);
       const normalizedAngle = ((rawAngle % 360) + 360) % 360;
+      const targetUrl = pa.oldPhotoUrl || pa.newPhotoUrl || '';
+      const isSingleIdentSlot =
+        !isP03Extra &&
+        ['P01', 'P02', 'P03', 'P04', 'P01_HOUSE_NUMBER', 'P02_MAIN_FACADE', 'P03_SIDE_REAR', 'P03_SIDE_OR_REAR', 'P04_CONTEXT_STREET'].includes(
+          type.toUpperCase()
+        );
 
-      // 1. Cập nhật survey_data_json.photoRotations
+      // 1. Cập nhật survey_data_json.photoRotations theo định danh ảnh cụ thể (ORCH-05)
       if (!surveyJson.photoRotations || typeof surveyJson.photoRotations !== 'object') {
         surveyJson.photoRotations = {};
       }
@@ -2400,13 +2647,30 @@ export class AuditModificationService {
       if (pa.targetPhotoId) {
         surveyJson.photoRotations[pa.targetPhotoId] = normalizedAngle;
       }
-      if (pa.targetPhotoType) {
+      if (targetUrl) {
+        surveyJson.photoRotations[targetUrl] = normalizedAngle;
+      }
+      if (isSingleIdentSlot && pa.targetPhotoType) {
         surveyJson.photoRotations[pa.targetPhotoType] = normalizedAngle;
+      } else if (pa.targetPhotoType && !isSingleIdentSlot) {
+        delete surveyJson.photoRotations[pa.targetPhotoType];
       }
 
       // 2. Ghi trực tiếp thuộc tính rotation vào đối tượng ảnh trong survey_data_json nếu khớp
-      if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
-        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
+      if (isP03Extra) {
+        const extraIdx = Number(pa.photoIndex);
+        const addPhotos = surveyJson.photoP03?.additionalPhotos;
+        if (Array.isArray(addPhotos) && !isNaN(extraIdx) && extraIdx >= 0 && extraIdx < addPhotos.length) {
+          const item = addPhotos[extraIdx];
+          if (typeof item === 'object' && item !== null) {
+            item.rotation = normalizedAngle;
+          } else if (typeof item === 'string' && item) {
+            surveyJson.photoRotations[item] = normalizedAngle;
+          }
+          surveyJson.photoRotations[`P03_EXTRA_${extraIdx}`] = normalizedAngle;
+        }
+      } else if (cat === 'IDENTIFICATION' || isSingleIdentSlot) {
+        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '').slice(0, 3)}`;
         if (surveyJson[camelKey] && typeof surveyJson[camelKey] === 'object') {
           surveyJson[camelKey].rotation = normalizedAngle;
         }
@@ -2415,14 +2679,26 @@ export class AuditModificationService {
         }
       }
 
-      // 3. Cập nhật metadata_json trong survey_photo_registry nếu tồn tại
+      // 3. Cập nhật metadata_json trong survey_photo_registry theo đúng photo_code hoặc photo_url (ORCH-05)
       try {
-        await client.query(
-          `UPDATE survey_photo_registry 
-           SET metadata_json = jsonb_set(COALESCE(metadata_json, '{}'::jsonb), '{rotation}', $1::jsonb)
-           WHERE report_id = $2 AND (photo_code = $3 OR photo_type = $4 OR photo_url = $5);`,
-          [JSON.stringify(normalizedAngle), reportId, pa.photoCode || null, type, pa.oldPhotoUrl || pa.newPhotoUrl || null]
-        );
+        if (pa.photoCode || targetUrl) {
+          await client.query(
+            `UPDATE survey_photo_registry 
+             SET metadata_json = jsonb_set(COALESCE(metadata_json, '{}'::jsonb), '{rotation}', $1::jsonb)
+             WHERE report_id = $2 AND (
+               ($3::text IS NOT NULL AND photo_code = $3) OR
+               ($4::text IS NOT NULL AND photo_url = $4)
+             );`,
+            [JSON.stringify(normalizedAngle), reportId, pa.photoCode || null, targetUrl || null]
+          );
+        } else if (isSingleIdentSlot) {
+          await client.query(
+            `UPDATE survey_photo_registry 
+             SET metadata_json = jsonb_set(COALESCE(metadata_json, '{}'::jsonb), '{rotation}', $1::jsonb)
+             WHERE report_id = $2 AND photo_type = $3;`,
+            [JSON.stringify(normalizedAngle), reportId, type]
+          );
+        }
       } catch (regErr) {
         // Fallback an toàn nếu bảng hoặc bản ghi chưa tồn tại
       }
@@ -2434,7 +2710,7 @@ export class AuditModificationService {
       const newUrl = pa.newPhotoUrl || '';
       const oldUrl = pa.oldPhotoUrl || '';
 
-      // 1. Cập nhật bảng quan hệ
+      // 1. Cập nhật bảng quan hệ và đồng bộ surveyJson (M4-02, M1-04, M9-03, M9-04)
       if (cat === 'DEFECT_CU' || type === 'DEFECT_CU' || type === 'CU') {
         const dRes = await client.query(
           `SELECT d.id, d.cu_photo_url, d.cu_photos_json 
@@ -2445,7 +2721,7 @@ export class AuditModificationService {
         );
         if (dRes.rows[0]) {
           const dItem = dRes.rows[0];
-          const photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
+          const photos = Array.isArray(dItem.cu_photos_json) ? [...dItem.cu_photos_json] : [];
           const idx = Number(pa.photoIndex) || 0;
           if (photos.length > idx) {
             photos[idx] = newUrl;
@@ -2453,15 +2729,73 @@ export class AuditModificationService {
             photos.push(newUrl);
           }
           await client.query(
-            `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2 WHERE id = $3;`,
-            [idx === 0 || !dItem.cu_photo_url ? newUrl : dItem.cu_photo_url, JSON.stringify(photos), dItem.id]
+            `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2, is_deleted = false WHERE id = $3;`,
+            [idx === 0 || !dItem.cu_photo_url || dItem.cu_photo_url === oldUrl ? newUrl : dItem.cu_photo_url, JSON.stringify(photos), dItem.id]
           );
+        }
+        if (Array.isArray(surveyJson.floors)) {
+          const idx = Number(pa.photoIndex) || 0;
+          const matchAndUpdateDefect = (df: any) => {
+            const matched =
+              df.id === pa.targetPhotoId ||
+              df.defectCode === pa.targetPhotoId ||
+              df.defectCode === pa.defectCode ||
+              df.defectCode === photoCode ||
+              (oldUrl && (df.cuPhotoUrl === oldUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(oldUrl))));
+            if (!matched) return;
+            df.isDeleted = false;
+            if (!Array.isArray(df.cuPhotos)) {
+              df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
+            }
+            if (oldUrl && df.cuPhotos.includes(oldUrl)) {
+              df.cuPhotos = df.cuPhotos.map((u: string) => (u === oldUrl ? newUrl : u));
+            } else if (df.cuPhotos.length > idx) {
+              df.cuPhotos[idx] = newUrl;
+            } else {
+              df.cuPhotos.push(newUrl);
+            }
+            if (idx === 0 || !df.cuPhotoUrl || df.cuPhotoUrl === oldUrl) {
+              df.cuPhotoUrl = newUrl;
+            }
+          };
+          for (const fl of surveyJson.floors) {
+            if (Array.isArray(fl.zones)) {
+              for (const zn of fl.zones) {
+                if (Array.isArray(zn.defects)) {
+                  for (const df of zn.defects) matchAndUpdateDefect(df);
+                }
+              }
+            }
+            if (Array.isArray(fl.structuralElements)) {
+              for (const el of fl.structuralElements) {
+                if (Array.isArray(el.defects)) {
+                  for (const df of el.defects) matchAndUpdateDefect(df);
+                }
+              }
+            }
+          }
         }
       } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
         await client.query(
-          `UPDATE damage_zones SET ctx_photo_url = $1 WHERE report_id = $4 AND (id::text = $2 OR zone_code = $3);`,
+          `UPDATE damage_zones SET ctx_photo_url = $1, is_deleted = false WHERE report_id = $4 AND (id::text = $2 OR zone_code = $3);`,
           [newUrl, pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
         );
+        if (Array.isArray(surveyJson.floors)) {
+          for (const fl of surveyJson.floors) {
+            if (Array.isArray(fl.zones)) {
+              for (const zn of fl.zones) {
+                if (
+                  zn.id === pa.targetPhotoId ||
+                  zn.zoneCode === pa.targetPhotoId ||
+                  zn.zone_code === pa.targetPhotoId ||
+                  (oldUrl && zn.ctxPhotoUrl === oldUrl)
+                ) {
+                  zn.ctxPhotoUrl = newUrl;
+                }
+              }
+            }
+          }
+        }
       } else if (cat === 'CAD_FLOOR' || type === 'FLOOR_CAD' || type === 'CAD') {
         const floorNum = Number(pa.photoIndex) || 1;
         await client.query(
@@ -2470,11 +2804,20 @@ export class AuditModificationService {
         );
         if (Array.isArray(surveyJson.floors)) {
           for (const fl of surveyJson.floors) {
-            if (fl.id === pa.targetPhotoId || fl.floorNumber === floorNum) {
+            if (
+              fl.id === pa.targetPhotoId ||
+              fl.floorCode === pa.targetPhotoId ||
+              fl.floorNumber === floorNum ||
+              (oldUrl &&
+                (fl.cadSketchPhotoUrl === oldUrl ||
+                  fl.cadArchitecturalSketchPhotoUrl === oldUrl ||
+                  fl.cadStructuralSketchPhotoUrl === oldUrl))
+            ) {
               if (type.includes('STRUCT')) {
                 fl.cadStructuralSketchPhotoUrl = newUrl;
               } else {
                 fl.cadArchitecturalSketchPhotoUrl = newUrl;
+                fl.cadSketchPhotoUrl = newUrl;
               }
             }
           }
@@ -2484,13 +2827,20 @@ export class AuditModificationService {
           for (const fl of surveyJson.floors) {
             if (Array.isArray(fl.structuralElements)) {
               for (const el of fl.structuralElements) {
-                if (el.id === pa.targetPhotoId || el.elementCode === pa.targetPhotoId || el.elementCode === pa.defectCode) {
+                if (
+                  el.id === pa.targetPhotoId ||
+                  el.elementCode === pa.targetPhotoId ||
+                  el.elementCode === pa.defectCode ||
+                  (oldUrl && (el.ctxPhotoUrl === oldUrl || (Array.isArray(el.overviewPhotos) && el.overviewPhotos.includes(oldUrl))))
+                ) {
                   if (cat === 'ELEMENT_CTX' || type === 'CTX') {
                     el.ctxPhotoUrl = newUrl;
                   } else {
                     if (!Array.isArray(el.overviewPhotos)) el.overviewPhotos = [];
                     const pIdx = Number(pa.photoIndex) || 0;
-                    if (el.overviewPhotos.length > pIdx) {
+                    if (oldUrl && el.overviewPhotos.includes(oldUrl)) {
+                      el.overviewPhotos = el.overviewPhotos.map((u: string) => (u === oldUrl ? newUrl : u));
+                    } else if (el.overviewPhotos.length > pIdx) {
                       el.overviewPhotos[pIdx] = newUrl;
                     } else {
                       el.overviewPhotos.push(newUrl);
@@ -2515,6 +2865,30 @@ export class AuditModificationService {
           surveyJson.settlementTilt.beamSagging.photos.push({ url: newUrl, photoCode });
         }
         surveyJson.settlementTilt.beamSagging.photoUrl = newUrl;
+      } else if (isP03Extra) {
+        if (!surveyJson.photoP03 || typeof surveyJson.photoP03 !== 'object') {
+          surveyJson.photoP03 = {};
+        }
+        if (!Array.isArray(surveyJson.photoP03.additionalPhotos)) {
+          surveyJson.photoP03.additionalPhotos = [];
+        }
+        const addList = surveyJson.photoP03.additionalPhotos;
+        const pIdx = Number(pa.photoIndex);
+        if (!isNaN(pIdx) && pIdx >= 0 && pIdx < addList.length) {
+          addList[pIdx] = newUrl;
+        } else if (oldUrl) {
+          const foundIdx = addList.findIndex((item: any) => (typeof item === 'string' ? item === oldUrl : item?.url === oldUrl));
+          if (foundIdx >= 0) {
+            addList[foundIdx] = newUrl;
+          } else {
+            addList.push(newUrl);
+          }
+        } else {
+          addList.push(newUrl);
+        }
+        if (surveyJson.identificationPhotos?.photoP03 && typeof surveyJson.identificationPhotos.photoP03 === 'object') {
+          surveyJson.identificationPhotos.photoP03.additionalPhotos = [...addList];
+        }
       } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
         const equivTypes = getEquivalentIdentPhotoTypes(type);
         await client.query(
@@ -2523,7 +2897,7 @@ export class AuditModificationService {
            WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
           [newUrl, reportId, equivTypes]
         );
-        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
+        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '').slice(0, 3)}`;
         if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
         surveyJson[camelKey].url = newUrl;
         surveyJson[camelKey].notApplicable = false;
@@ -2569,10 +2943,40 @@ export class AuditModificationService {
         if (surveyJson.signatures?.workingMinutesPhotos) {
           replaceInList(surveyJson.signatures.workingMinutesPhotos);
         }
+      } else if (cat === 'ABSENCE_NOTICE' || type === 'ABSENCE_NOTICE') {
+        const replaceNoticeList = (list: any[]) => {
+          if (!Array.isArray(list)) return;
+          const idx = Number(pa.photoIndex);
+          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
+            if (typeof list[idx] === 'string') {
+              list[idx] = newUrl;
+            } else {
+              list[idx] = { ...list[idx], url: newUrl, photoCode: photoCode || list[idx].photoCode };
+            }
+          } else if (oldUrl) {
+            for (let i = 0; i < list.length; i++) {
+              if ((typeof list[i] === 'string' && list[i] === oldUrl) || list[i]?.url === oldUrl) {
+                if (typeof list[i] === 'string') {
+                  list[i] = newUrl;
+                } else {
+                  list[i] = { ...list[i], url: newUrl };
+                }
+                break;
+              }
+            }
+          }
+        };
+        if (Array.isArray(surveyJson.absenteeNoticePhotos)) {
+          replaceNoticeList(surveyJson.absenteeNoticePhotos);
+          surveyJson.absentNoticePhotos = [...surveyJson.absenteeNoticePhotos];
+        } else if (Array.isArray(surveyJson.absentNoticePhotos)) {
+          replaceNoticeList(surveyJson.absentNoticePhotos);
+          surveyJson.absenteeNoticePhotos = [...surveyJson.absentNoticePhotos];
+        }
       }
 
-      // 2. Cập nhật survey_data_json nếu có path targetPhotoId
-      if (pa.targetPhotoId) {
+      // 2. Cập nhật survey_data_json nếu có path targetPhotoId hợp lệ
+      if (pa.targetPhotoId && !isShortEntityId(pa.targetPhotoId) && !SKIP_MUTATE_CATEGORIES.has(cat) && !isP03Extra) {
         mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'REPLACE', newUrl, oldUrl, {
           photoCode,
           caption: pa.caption,
@@ -2634,104 +3038,223 @@ export class AuditModificationService {
         const itemFilename = urlsToAdd.length > 1 ? stdName.replace(/\.jpg$/, `_${i + 1}.jpg`) : stdName;
         const itemHash = computeSha256(url);
 
-        // 1. Cập nhật quan hệ
+        // 1. Cập nhật quan hệ và survey_data_json (M4-02, M1-04, M9-03, M9-04)
         if (cat === 'DEFECT_CU' || type === 'DEFECT_CU' || type === 'CU') {
+          const targetDefKey = pa.targetPhotoId || pa.defectCode || null;
           const dRes = await client.query(
-            `SELECT id, cu_photo_url, cu_photos_json FROM defect_items WHERE id::text = $1 OR defect_code = $2;`,
-            [pa.targetPhotoId || null, pa.targetPhotoId || null]
+            `SELECT d.id, d.cu_photo_url, d.cu_photos_json
+             FROM defect_items d
+             JOIN damage_zones z ON d.zone_id = z.id
+             WHERE z.report_id = $3 AND (d.id::text = $1 OR d.defect_code = $2);`,
+            [targetDefKey, targetDefKey, reportId]
           );
           if (dRes.rows[0]) {
             const dItem = dRes.rows[0];
-            const photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
-            photos.push(url);
+            const photos = Array.isArray(dItem.cu_photos_json) ? [...dItem.cu_photos_json] : [];
+            if (!photos.includes(url)) {
+              photos.push(url);
+            }
+            const primaryCu = dItem.cu_photo_url || url;
             await client.query(
-              `UPDATE defect_items SET cu_photos_json = $1 WHERE id = $2;`,
-              [JSON.stringify(photos), dItem.id]
+              `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2, is_deleted = false WHERE id = $3;`,
+              [primaryCu, JSON.stringify(photos), dItem.id]
             );
-          } else {
-            // Tạo mới defect_item liên kết với zone_id kèm tọa độ ghim pin_x, pin_y
-            const zCode = pa.metadata?.zoneCode || pa.targetPhotoId;
-            let targetZoneId = null;
-            if (zCode) {
-              const zRes = await client.query(
-                `SELECT id FROM damage_zones WHERE report_id = $1 AND (zone_code = $2 OR id::text = $2) LIMIT 1;`,
-                [reportId, zCode]
-              );
-              targetZoneId = zRes.rows[0]?.id || null;
-            }
-            if (!targetZoneId) {
-              const zResDefault = await client.query(
-                `SELECT id FROM damage_zones WHERE report_id = $1 ORDER BY id ASC LIMIT 1;`,
-                [reportId]
-              );
-              targetZoneId = zResDefault.rows[0]?.id || null;
-            }
-
-            const pX = Number(pa.pinX ?? pa.metadata?.pinX ?? 50);
-            const pY = Number(pa.pinY ?? pa.metadata?.pinY ?? 50);
-            const dCode = pa.defectCode || pa.targetPhotoId || `D-${String(Date.now()).slice(-3)}`;
-            const wMm = Number(pa.metadata?.widthMaxMm ?? pa.widthMaxMm ?? 0);
-            const lMm = Number(pa.metadata?.lengthMm ?? pa.lengthMm ?? 0);
-            const scrCat = pa.metadata?.screeningCategory || 'CRACK';
-            const defType = pa.metadata?.defectType || 'HAIRLINE';
-            const actState = pa.metadata?.activityState || 'U';
-
-            if (targetZoneId) {
-              await client.query(
-                `INSERT INTO defect_items (
-                   zone_id, defect_code, pin_x, pin_y, cu_photo_url, cu_photos_json,
-                   screening_category, defect_type, activity_state,
-                   width_max_mm, length_mm, material_degradation_e4, structural_significance_e2,
-                   has_scale_card, is_structural_critical, pin_color
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0, true, false, '#ef4444');`,
-                [targetZoneId, dCode, pX, pY, url, JSON.stringify([url]), scrCat, defType, actState, wMm, lMm]
-              );
-            }
-
-            // Đồng bộ vào survey_data_json (cả fl.zones và fl.structuralElements)
             if (Array.isArray(surveyJson.floors)) {
+              const appendToExistingJsonDefect = (df: any) => {
+                if (
+                  df.id === targetDefKey ||
+                  df.defectCode === targetDefKey ||
+                  df.defectCode === pa.defectCode ||
+                  df.defectCode === photoCode
+                ) {
+                  if (!Array.isArray(df.cuPhotos)) {
+                    df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
+                  }
+                  if (!df.cuPhotos.includes(url)) {
+                    df.cuPhotos.push(url);
+                  }
+                  if (!df.cuPhotoUrl) {
+                    df.cuPhotoUrl = url;
+                  }
+                  df.isDeleted = false;
+                }
+              };
               for (const fl of surveyJson.floors) {
                 if (Array.isArray(fl.zones)) {
                   for (const zn of fl.zones) {
-                    if (zn.zoneCode === zCode || zn.zone_code === zCode || !zCode) {
-                      if (!Array.isArray(zn.defects)) zn.defects = [];
-                      zn.defects.push({
-                        id: `defect_${Date.now()}`,
-                        defectCode: dCode,
-                        pinX: pX,
-                        pinY: pY,
-                        widthMaxMm: wMm,
-                        lengthMm: lMm,
-                        cuPhotoUrl: url,
-                        cuPhotos: [url],
-                        screeningCategory: scrCat,
-                        defectType: defType,
-                        activityState: actState,
-                      });
-                      break;
+                    if (Array.isArray(zn.defects)) {
+                      for (const df of zn.defects) appendToExistingJsonDefect(df);
                     }
                   }
                 }
                 if (Array.isArray(fl.structuralElements)) {
                   for (const el of fl.structuralElements) {
-                    if (el.elementCode === zCode || el.id === zCode) {
-                      if (!Array.isArray(el.defects)) el.defects = [];
-                      el.defects.push({
-                        id: `defect_${Date.now()}`,
-                        defectCode: dCode,
-                        pinX: pX,
-                        pinY: pY,
-                        widthMaxMm: wMm,
-                        lengthMm: lMm,
-                        cuPhotoUrl: url,
-                        cuPhotos: [url],
-                        screeningCategory: scrCat,
-                        defectType: defType,
-                        activityState: actState,
-                      });
-                      break;
+                    if (Array.isArray(el.defects)) {
+                      for (const df of el.defects) appendToExistingJsonDefect(df);
                     }
                   }
+                }
+              }
+            }
+          } else {
+            // Kiểm tra xem defectCode đã tồn tại trong surveyJson.floors chưa trước khi tạo mới
+            let updatedInJsonOnly = false;
+            if (targetDefKey && Array.isArray(surveyJson.floors)) {
+              for (const fl of surveyJson.floors) {
+                if (Array.isArray(fl.zones)) {
+                  for (const zn of fl.zones) {
+                    if (Array.isArray(zn.defects)) {
+                      for (const df of zn.defects) {
+                        if (df.id === targetDefKey || df.defectCode === targetDefKey) {
+                          if (!Array.isArray(df.cuPhotos)) {
+                            df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
+                          }
+                          if (!df.cuPhotos.includes(url)) df.cuPhotos.push(url);
+                          if (!df.cuPhotoUrl) df.cuPhotoUrl = url;
+                          updatedInJsonOnly = true;
+                        }
+                      }
+                    }
+                  }
+                }
+                if (Array.isArray(fl.structuralElements)) {
+                  for (const el of fl.structuralElements) {
+                    if (Array.isArray(el.defects)) {
+                      for (const df of el.defects) {
+                        if (df.id === targetDefKey || df.defectCode === targetDefKey) {
+                          if (!Array.isArray(df.cuPhotos)) {
+                            df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
+                          }
+                          if (!df.cuPhotos.includes(url)) df.cuPhotos.push(url);
+                          if (!df.cuPhotoUrl) df.cuPhotoUrl = url;
+                          updatedInJsonOnly = true;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            if (!updatedInJsonOnly) {
+              // Tạo mới defect_item liên kết với zone_id kèm tọa độ ghim pin_x, pin_y
+              const zCode = pa.metadata?.zoneCode || pa.targetPhotoId;
+              let targetZoneId = null;
+              if (zCode) {
+                const zRes = await client.query(
+                  `SELECT id FROM damage_zones WHERE report_id = $1 AND (zone_code = $2 OR id::text = $2) LIMIT 1;`,
+                  [reportId, zCode]
+                );
+                targetZoneId = zRes.rows[0]?.id || null;
+              }
+              if (!targetZoneId) {
+                const zResDefault = await client.query(
+                  `SELECT id FROM damage_zones WHERE report_id = $1 ORDER BY id ASC LIMIT 1;`,
+                  [reportId]
+                );
+                targetZoneId = zResDefault.rows[0]?.id || null;
+              }
+
+              const pX = Number(pa.pinX ?? pa.metadata?.pinX ?? 50);
+              const pY = Number(pa.pinY ?? pa.metadata?.pinY ?? 50);
+              const dCode = pa.defectCode || pa.targetPhotoId || `D-${String(Date.now()).slice(-3)}`;
+              const wMm = Number(pa.metadata?.widthMaxMm ?? pa.widthMaxMm ?? 0);
+              const lMm = Number(pa.metadata?.lengthMm ?? pa.lengthMm ?? 0);
+              const scrCat = pa.metadata?.screeningCategory || 'CRACK';
+              const defType = pa.metadata?.defectType || 'HAIRLINE';
+              const actState = pa.metadata?.activityState || 'U';
+
+              if (targetZoneId) {
+                await client.query(
+                  `INSERT INTO defect_items (
+                     zone_id, defect_code, pin_x, pin_y, cu_photo_url, cu_photos_json,
+                     screening_category, defect_type, activity_state,
+                     width_max_mm, length_mm, material_degradation_e4, structural_significance_e2,
+                     has_scale_card, is_structural_critical, pin_color
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0, true, false, '#ef4444');`,
+                  [targetZoneId, dCode, pX, pY, url, JSON.stringify([url]), scrCat, defType, actState, wMm, lMm]
+                );
+              }
+
+              // Đồng bộ vào survey_data_json (cả fl.zones và fl.structuralElements)
+              if (Array.isArray(surveyJson.floors)) {
+                for (const fl of surveyJson.floors) {
+                  if (Array.isArray(fl.zones)) {
+                    for (const zn of fl.zones) {
+                      if (zn.zoneCode === zCode || zn.zone_code === zCode || !zCode) {
+                        if (!Array.isArray(zn.defects)) zn.defects = [];
+                        zn.defects.push({
+                          id: `defect_${Date.now()}`,
+                          defectCode: dCode,
+                          pinX: pX,
+                          pinY: pY,
+                          widthMaxMm: wMm,
+                          lengthMm: lMm,
+                          cuPhotoUrl: url,
+                          cuPhotos: [url],
+                          screeningCategory: scrCat,
+                          defectType: defType,
+                          activityState: actState,
+                        });
+                        break;
+                      }
+                    }
+                  }
+                  if (Array.isArray(fl.structuralElements)) {
+                    for (const el of fl.structuralElements) {
+                      if (el.elementCode === zCode || el.id === zCode) {
+                        if (!Array.isArray(el.defects)) el.defects = [];
+                        el.defects.push({
+                          id: `defect_${Date.now()}`,
+                          defectCode: dCode,
+                          pinX: pX,
+                          pinY: pY,
+                          widthMaxMm: wMm,
+                          lengthMm: lMm,
+                          cuPhotoUrl: url,
+                          cuPhotos: [url],
+                          screeningCategory: scrCat,
+                          defectType: defType,
+                          activityState: actState,
+                        });
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
+          await client.query(
+            `UPDATE damage_zones SET ctx_photo_url = $1, is_deleted = false WHERE report_id = $4 AND (id::text = $2 OR zone_code = $3);`,
+            [url, pa.targetPhotoId || null, pa.targetPhotoId || null, reportId]
+          );
+          if (Array.isArray(surveyJson.floors)) {
+            for (const fl of surveyJson.floors) {
+              if (Array.isArray(fl.zones)) {
+                for (const zn of fl.zones) {
+                  if (zn.id === pa.targetPhotoId || zn.zoneCode === pa.targetPhotoId || zn.zone_code === pa.targetPhotoId) {
+                    zn.ctxPhotoUrl = url;
+                  }
+                }
+              }
+            }
+          }
+        } else if (cat === 'CAD_FLOOR' || type === 'FLOOR_CAD' || type === 'CAD') {
+          const floorNum = Number(pa.photoIndex) || 1;
+          await client.query(
+            `UPDATE building_floor_plans SET cad_photo_url = $1, updated_at = NOW() WHERE id::text = $2 OR (parcel_id = $3 AND floor_number = $4);`,
+            [url, pa.targetPhotoId || null, parcelId, floorNum]
+          );
+          if (Array.isArray(surveyJson.floors)) {
+            for (const fl of surveyJson.floors) {
+              if (fl.id === pa.targetPhotoId || fl.floorCode === pa.targetPhotoId || fl.floorNumber === floorNum) {
+                if (type.includes('STRUCT')) {
+                  fl.cadStructuralSketchPhotoUrl = url;
+                } else {
+                  fl.cadArchitecturalSketchPhotoUrl = url;
+                  fl.cadSketchPhotoUrl = url;
                 }
               }
             }
@@ -2743,14 +3266,24 @@ export class AuditModificationService {
             cur.push({ url, caption: pa.caption || 'Bản vẽ bổ sung', uploadedAt: new Date().toISOString() });
             await client.query(`UPDATE building_specifications SET as_built_drawing_photos_json = $1 WHERE report_id = $2;`, [JSON.stringify(cur), reportId]);
           }
+          if (!Array.isArray(surveyJson.asBuiltDrawings)) {
+            surveyJson.asBuiltDrawings = [];
+          }
+          surveyJson.asBuiltDrawings.push({ url, caption: pa.caption || 'Bản vẽ bổ sung', uploadedAt: new Date().toISOString() });
         } else if (cat === 'ELEMENT_OVERVIEW' || cat === 'ELEMENT_CTX') {
           if (Array.isArray(surveyJson.floors)) {
             for (const fl of surveyJson.floors) {
               if (Array.isArray(fl.structuralElements)) {
                 for (const el of fl.structuralElements) {
                   if (el.id === pa.targetPhotoId || el.elementCode === pa.targetPhotoId) {
-                    if (!Array.isArray(el.overviewPhotos)) el.overviewPhotos = [];
-                    el.overviewPhotos.push(url);
+                    if (cat === 'ELEMENT_CTX' || type === 'CTX') {
+                      el.ctxPhotoUrl = url;
+                    } else {
+                      if (!Array.isArray(el.overviewPhotos)) el.overviewPhotos = [];
+                      if (!el.overviewPhotos.includes(url)) {
+                        el.overviewPhotos.push(url);
+                      }
+                    }
                     break;
                   }
                 }
@@ -2769,9 +3302,29 @@ export class AuditModificationService {
           if (!Array.isArray(surveyJson.signatures.workingMinutesPhotos)) {
             surveyJson.signatures.workingMinutesPhotos = Array.isArray(surveyJson.workingMinutesPhotos) ? [...surveyJson.workingMinutesPhotos] : [];
           }
-          const newMin = { url, photoCode: itemCode, caption: pa.caption || `Trang biên bản ${surveyJson.signatures.workingMinutesPhotos.length + 1}` };
+          const newMin = { url, photoCode: itemCode, caption: pa.caption || `Trang biên bản ${surveyJson.signatures.workingMinutesPhotos.length + 1}`, addedAt: new Date().toISOString() };
           surveyJson.signatures.workingMinutesPhotos.push(newMin);
           surveyJson.workingMinutesPhotos = [...surveyJson.signatures.workingMinutesPhotos];
+        } else if (cat === 'ABSENCE_NOTICE' || type === 'ABSENCE_NOTICE') {
+          if (!Array.isArray(surveyJson.absenteeNoticePhotos)) {
+            surveyJson.absenteeNoticePhotos = Array.isArray(surveyJson.absentNoticePhotos) ? [...surveyJson.absentNoticePhotos] : [];
+          }
+          const newNotice = { url, photoCode: itemCode, caption: pa.caption || 'Ảnh giấy hẹn dán cửa', addedAt: new Date().toISOString() };
+          surveyJson.absenteeNoticePhotos.push(newNotice);
+          surveyJson.absentNoticePhotos = [...surveyJson.absenteeNoticePhotos];
+        } else if (isP03Extra) {
+          if (!surveyJson.photoP03 || typeof surveyJson.photoP03 !== 'object') {
+            surveyJson.photoP03 = {};
+          }
+          if (!Array.isArray(surveyJson.photoP03.additionalPhotos)) {
+            surveyJson.photoP03.additionalPhotos = [];
+          }
+          if (!surveyJson.photoP03.additionalPhotos.includes(url)) {
+            surveyJson.photoP03.additionalPhotos.push(url);
+          }
+          if (surveyJson.identificationPhotos?.photoP03 && typeof surveyJson.identificationPhotos.photoP03 === 'object') {
+            surveyJson.identificationPhotos.photoP03.additionalPhotos = [...surveyJson.photoP03.additionalPhotos];
+          }
         } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase()) || type.startsWith('P0')) {
           const equivTypes = getEquivalentIdentPhotoTypes(type);
           await client.query(
@@ -2785,28 +3338,11 @@ export class AuditModificationService {
           surveyJson[camelKey].url = url;
           surveyJson[camelKey].notApplicable = false;
           surveyJson[camelKey].naReason = null;
-
-          if (type.includes('SUPPLEMENTARY') || pa.photoIndex !== undefined) {
-            if (!surveyJson.photoP03) surveyJson.photoP03 = {};
-            if (!Array.isArray(surveyJson.photoP03.additionalPhotos)) {
-              surveyJson.photoP03.additionalPhotos = [];
-            }
-            surveyJson.photoP03.additionalPhotos.push(url);
-          }
-        }
-
-        // 2. Cập nhật survey_data_json
-        if (cat === 'OVERVIEW' && !pa.targetPhotoId) {
+        } else if (cat === 'OVERVIEW') {
           if (!surveyJson.overviewPhotos) surveyJson.overviewPhotos = {};
           if (!Array.isArray(surveyJson.overviewPhotos.otherOverviewPhotos)) surveyJson.overviewPhotos.otherOverviewPhotos = [];
           surveyJson.overviewPhotos.otherOverviewPhotos.push({ url, caption: pa.caption || 'Ảnh toàn cảnh bổ sung', addedAt: new Date().toISOString() });
-        } else if (cat === 'MINUTES' && !pa.targetPhotoId) {
-          if (!Array.isArray(surveyJson.workingMinutesPhotos)) surveyJson.workingMinutesPhotos = [];
-          surveyJson.workingMinutesPhotos.push({ url, caption: pa.caption || `Trang biên bản ${surveyJson.workingMinutesPhotos.length + 1}`, addedAt: new Date().toISOString() });
-        } else if (cat === 'ABSENCE_NOTICE' && !pa.targetPhotoId) {
-          if (!Array.isArray(surveyJson.absenteeNoticePhotos)) surveyJson.absenteeNoticePhotos = [];
-          surveyJson.absenteeNoticePhotos.push({ url, caption: pa.caption || 'Ảnh giấy hẹn dán cửa', addedAt: new Date().toISOString() });
-        } else if (pa.targetPhotoId) {
+        } else if (pa.targetPhotoId && !isShortEntityId(pa.targetPhotoId) && !SKIP_MUTATE_CATEGORIES.has(cat)) {
           mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'ADD', url, undefined, {
             photoCode: itemCode,
             caption: pa.caption,
@@ -2860,28 +3396,36 @@ export class AuditModificationService {
           }
         }
         if (Array.isArray(surveyJson.floors)) {
+          const deleteFromJsonDefect = (df: any) => {
+            if (
+              df.id === pa.targetPhotoId ||
+              df.defectCode === pa.targetPhotoId ||
+              df.defectCode === photoCode ||
+              df.defectCode === pa.defectCode ||
+              (targetUrl && (df.cuPhotoUrl === targetUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(targetUrl))))
+            ) {
+              if (pa.deleteDefectItem) {
+                df.isDeleted = true;
+              } else if (Array.isArray(df.cuPhotos)) {
+                df.cuPhotos = df.cuPhotos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
+                df.cuPhotoUrl = df.cuPhotos.length > 0 ? (typeof df.cuPhotos[0] === 'string' ? df.cuPhotos[0] : df.cuPhotos[0]?.url) : null;
+              } else if (df.cuPhotoUrl === targetUrl) {
+                df.cuPhotoUrl = null;
+              }
+            }
+          };
           for (const fl of surveyJson.floors) {
             if (Array.isArray(fl.zones)) {
               for (const zn of fl.zones) {
                 if (Array.isArray(zn.defects)) {
-                  for (const df of zn.defects) {
-                    if (
-                      df.id === pa.targetPhotoId ||
-                      df.defectCode === pa.targetPhotoId ||
-                      df.defectCode === photoCode ||
-                      df.defectCode === pa.defectCode ||
-                      (targetUrl && (df.cuPhotoUrl === targetUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(targetUrl))))
-                    ) {
-                      if (pa.deleteDefectItem) {
-                        df.isDeleted = true;
-                      } else if (Array.isArray(df.cuPhotos)) {
-                        df.cuPhotos = df.cuPhotos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
-                        df.cuPhotoUrl = df.cuPhotos.length > 0 ? (typeof df.cuPhotos[0] === 'string' ? df.cuPhotos[0] : df.cuPhotos[0]?.url) : null;
-                      } else if (df.cuPhotoUrl === targetUrl) {
-                        df.cuPhotoUrl = null;
-                      }
-                    }
-                  }
+                  for (const df of zn.defects) deleteFromJsonDefect(df);
+                }
+              }
+            }
+            if (Array.isArray(fl.structuralElements)) {
+              for (const el of fl.structuralElements) {
+                if (Array.isArray(el.defects)) {
+                  for (const df of el.defects) deleteFromJsonDefect(df);
                 }
               }
             }
@@ -2900,6 +3444,7 @@ export class AuditModificationService {
                 if (
                   zn.id === pa.targetPhotoId ||
                   zn.zoneCode === pa.targetPhotoId ||
+                  zn.zone_code === pa.targetPhotoId ||
                   zn.zoneCode === photoCode ||
                   (targetUrl && zn.ctxPhotoUrl === targetUrl)
                 ) {
@@ -2917,11 +3462,12 @@ export class AuditModificationService {
         );
         if (Array.isArray(surveyJson.floors)) {
           for (const fl of surveyJson.floors) {
-            if (fl.id === pa.targetPhotoId || fl.floorNumber === floorNum) {
+            if (fl.id === pa.targetPhotoId || fl.floorCode === pa.targetPhotoId || fl.floorNumber === floorNum) {
               if (type.includes('STRUCT')) {
                 fl.cadStructuralSketchPhotoUrl = null;
               } else {
                 fl.cadArchitecturalSketchPhotoUrl = null;
+                fl.cadSketchPhotoUrl = null;
               }
             }
           }
@@ -2955,6 +3501,20 @@ export class AuditModificationService {
             surveyJson.settlementTilt.beamSagging.photos = surveyJson.settlementTilt.beamSagging.photos.filter((p: any) => (typeof p === 'string' ? p : p.url) !== targetUrl);
           }
         }
+      } else if (isP03Extra) {
+        if (Array.isArray(surveyJson.photoP03?.additionalPhotos)) {
+          const pIdx = Number(pa.photoIndex);
+          if (targetUrl) {
+            surveyJson.photoP03.additionalPhotos = surveyJson.photoP03.additionalPhotos.filter(
+              (item: any) => (typeof item === 'string' ? item !== targetUrl : item?.url !== targetUrl)
+            );
+          } else if (!isNaN(pIdx) && pIdx >= 0 && pIdx < surveyJson.photoP03.additionalPhotos.length) {
+            surveyJson.photoP03.additionalPhotos.splice(pIdx, 1);
+          }
+          if (surveyJson.identificationPhotos?.photoP03 && typeof surveyJson.identificationPhotos.photoP03 === 'object') {
+            surveyJson.identificationPhotos.photoP03.additionalPhotos = [...surveyJson.photoP03.additionalPhotos];
+          }
+        }
       } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
         const equivTypes = getEquivalentIdentPhotoTypes(type);
         const naReason = pa.naReason || pa.reason || 'Không áp dụng theo xác nhận của Quản trị viên';
@@ -2964,7 +3524,7 @@ export class AuditModificationService {
            WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
           [naReason, reportId, equivTypes]
         );
-        const cleanType = type.toUpperCase().replace(/[^P0-9]/g, '');
+        const cleanType = type.toUpperCase().replace(/[^P0-9]/g, '').slice(0, 3);
         const pKey = cleanType.toLowerCase();
         const camelKey = `photo${cleanType}`;
 
@@ -2997,11 +3557,11 @@ export class AuditModificationService {
         const deleteFromList = (list: any[]) => {
           if (!Array.isArray(list)) return list;
           const idx = Number(pa.photoIndex);
-          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
+          if (targetUrl) {
+            return list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
+          } else if (!isNaN(idx) && idx >= 0 && idx < list.length) {
             list.splice(idx, 1);
             return list;
-          } else if (targetUrl) {
-            return list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
           }
           return list;
         };
@@ -3021,24 +3581,16 @@ export class AuditModificationService {
           if (surveyJson.signatures) surveyJson.signatures.ownerSignatureUrl = null;
           surveyJson.ownerSignatureUrl = null;
         }
-      } else if (cat === 'ABSENCE_NOTICE') {
+      } else if (cat === 'ABSENCE_NOTICE' || type === 'ABSENCE_NOTICE') {
+        const filterNotice = (list: any[]) =>
+          list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
         if (Array.isArray(surveyJson.absenteeNoticePhotos)) {
-          surveyJson.absenteeNoticePhotos = surveyJson.absenteeNoticePhotos.filter(
-            (p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl)
-          );
+          surveyJson.absenteeNoticePhotos = filterNotice(surveyJson.absenteeNoticePhotos);
         }
-      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
-        const removeFromList = (list: any[]) => {
-          if (!Array.isArray(list)) return list;
-          return list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
-        };
-        if (surveyJson.workingMinutesPhotos) {
-          surveyJson.workingMinutesPhotos = removeFromList(surveyJson.workingMinutesPhotos);
+        if (Array.isArray(surveyJson.absentNoticePhotos)) {
+          surveyJson.absentNoticePhotos = filterNotice(surveyJson.absentNoticePhotos);
         }
-        if (surveyJson.signatures?.workingMinutesPhotos) {
-          surveyJson.signatures.workingMinutesPhotos = removeFromList(surveyJson.signatures.workingMinutesPhotos);
-        }
-      } else if (pa.targetPhotoId) {
+      } else if (pa.targetPhotoId && !isShortEntityId(pa.targetPhotoId) && !SKIP_MUTATE_CATEGORIES.has(cat) && !isP03Extra) {
         mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'DELETE', undefined, targetUrl);
       }
 
@@ -3063,133 +3615,6 @@ export class AuditModificationService {
           ]
         );
       }
-    } else if (action === 'RESTORE') {
-      const restoredUrl = pa.newPhotoUrl || pa.oldPhotoUrl || '';
-      if (!restoredUrl) {
-        throw new BadRequestError('Không tìm thấy URL ảnh để thực hiện khôi phục (RESTORE).');
-      }
-
-      // 1. Cập nhật các bảng quan hệ nghiệp vụ
-      if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
-        const equivTypes = getEquivalentIdentPhotoTypes(type);
-        await client.query(
-          `UPDATE survey_identification_photos 
-           SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = false, na_reason = null 
-           WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
-          [restoredUrl, reportId, equivTypes]
-        );
-        const pKey = type.toLowerCase();
-        if (surveyJson[pKey]) {
-          surveyJson[pKey].url = restoredUrl;
-          surveyJson[pKey].isNotApplicable = false;
-          surveyJson[pKey].naReason = null;
-        }
-        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
-        if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
-        surveyJson[camelKey].url = restoredUrl;
-        surveyJson[camelKey].notApplicable = false;
-        surveyJson[camelKey].naReason = null;
-      } else if (cat === 'DEFECT_CU' || type === 'CU') {
-        const defectId = pa.defectId || pa.defectCode || pa.targetPhotoId;
-        if (defectId) {
-          await client.query(
-            `UPDATE defect_items 
-             SET cu_photo_url = $1, is_deleted = false 
-             WHERE id::text = $2 OR defect_code = $2;`,
-            [restoredUrl, defectId]
-          );
-        }
-      } else if (cat === 'ZONE_CTX' || type === 'CTX') {
-        const zoneId = pa.metadata?.zone_id || pa.targetPhotoId;
-        if (zoneId) {
-          await client.query(
-            `UPDATE damage_zones 
-             SET ctx_photo_url = $1, is_deleted = false 
-             WHERE id::text = $2 OR zone_code = $2;`,
-            [restoredUrl, zoneId]
-          );
-        }
-      } else if (cat === 'CAD_FLOOR' || type === 'CAD') {
-        const floorPlanId = pa.metadata?.floor_plan_id || pa.targetPhotoId;
-        if (floorPlanId) {
-          await client.query(
-            `UPDATE building_floor_plans 
-             SET cad_photo_url = $1, updated_at = NOW() 
-             WHERE id::text = $2;`,
-            [restoredUrl, floorPlanId]
-          );
-        }
-      } else if (cat === 'SIGNATURE') {
-        if (type.includes('SURVEYOR') || pa.targetPhotoId?.toLowerCase().includes('surveyor')) {
-          await client.query(`UPDATE base_survey_reports SET surveyor_signature_url = $1 WHERE id = $2;`, [restoredUrl, reportId]);
-          if (!surveyJson.signatures) surveyJson.signatures = {};
-          surveyJson.signatures.surveyorSignatureUrl = restoredUrl;
-          surveyJson.surveyorSignatureUrl = restoredUrl;
-        } else if (type.includes('OWNER') || pa.targetPhotoId?.toLowerCase().includes('owner')) {
-          await client.query(`UPDATE base_survey_reports SET owner_signature_url = $1 WHERE id = $2;`, [restoredUrl, reportId]);
-          if (!surveyJson.signatures) surveyJson.signatures = {};
-          surveyJson.signatures.ownerSignatureUrl = restoredUrl;
-          surveyJson.ownerSignatureUrl = restoredUrl;
-        }
-      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
-        const restoreInList = (list: any[]) => {
-          if (!Array.isArray(list)) return;
-          const idx = Number(pa.photoIndex);
-          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
-            if (typeof list[idx] === 'string') {
-              list[idx] = restoredUrl;
-            } else {
-              list[idx] = { ...list[idx], url: restoredUrl };
-            }
-          } else {
-            list.push({ url: restoredUrl, photoCode });
-          }
-        };
-        if (!surveyJson.workingMinutesPhotos) surveyJson.workingMinutesPhotos = [];
-        restoreInList(surveyJson.workingMinutesPhotos);
-        if (surveyJson.signatures?.workingMinutesPhotos) {
-          restoreInList(surveyJson.signatures.workingMinutesPhotos);
-        }
-      }
-
-      // 2. Cập nhật survey_data_json nếu có targetPhotoId
-      if (pa.targetPhotoId) {
-        mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'RESTORE', restoredUrl, undefined, {
-          photoCode,
-          caption: pa.caption,
-        });
-      }
-
-      // 3. Đánh dấu bản ghi ACTIVE hiện tại của photoCode thành SUPERSEDED
-      let prevActiveUrl = '';
-      const curActiveRes = await client.query(
-        `SELECT id, photo_url FROM survey_photo_registry 
-         WHERE report_id = $1 AND photo_code = $2 AND status = 'ACTIVE' LIMIT 1;`,
-        [reportId, photoCode]
-      );
-      if (curActiveRes.rows[0]) {
-        prevActiveUrl = curActiveRes.rows[0].photo_url;
-        await client.query(
-          `UPDATE survey_photo_registry 
-           SET status = 'SUPERSEDED', superseded_by_url = $1, updated_at = NOW() 
-           WHERE id = $2;`,
-          [restoredUrl, curActiveRes.rows[0].id]
-        );
-      }
-
-      // 4. Thêm bản ghi mới trong survey_photo_registry với status = 'ACTIVE' và action_type = 'RESTORE'
-      await client.query(
-        `INSERT INTO survey_photo_registry (
-           report_id, parcel_id, photo_category, photo_type, photo_code, photo_url,
-           standardized_filename, sha256_hash, status, replacement_for_url, is_deleted,
-           action_type, action_reason, actor_id, actor_role, metadata_json
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, false, 'RESTORE', $10, $11, 'ZONE_ADMIN', $12);`,
-        [
-          reportId, parcelId, cat, type, photoCode, restoredUrl,
-          stdName, hash, prevActiveUrl || null, pa.reason, adminId,
-          JSON.stringify({ restoredAt: new Date().toISOString(), ...pa.metadata })
-        ]
-      );
     }
 
     // Đồng bộ ngược mảng ảnh trong surveyJson.settlementTilt sang bảng deformation_assessments (nếu có)
@@ -3819,8 +4244,21 @@ export class AuditModificationService {
         : (report.survey_data_json || {});
 
       const meta = typeof targetPhoto.metadata_json === 'object' ? targetPhoto.metadata_json : {};
+      const isP03ExtraRestore =
+        type.toUpperCase().includes('P03_EXTRA') ||
+        type.toUpperCase().includes('SUPPLEMENTARY') ||
+        Boolean(meta?.targetPhotoId && String(meta.targetPhotoId).includes('additionalPhotos'));
 
-      if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
+      if (isP03ExtraRestore) {
+        if (!sData.photoP03 || typeof sData.photoP03 !== 'object') sData.photoP03 = {};
+        if (!Array.isArray(sData.photoP03.additionalPhotos)) sData.photoP03.additionalPhotos = [];
+        if (!sData.photoP03.additionalPhotos.includes(restoredUrl)) {
+          sData.photoP03.additionalPhotos.push(restoredUrl);
+        }
+        if (sData.identificationPhotos?.photoP03 && typeof sData.identificationPhotos.photoP03 === 'object') {
+          sData.identificationPhotos.photoP03.additionalPhotos = [...sData.photoP03.additionalPhotos];
+        }
+      } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
         const equivTypes = getEquivalentIdentPhotoTypes(type);
         await client.query(
           `UPDATE survey_identification_photos 
@@ -3829,7 +4267,7 @@ export class AuditModificationService {
           [restoredUrl, actualReportId, equivTypes]
         );
 
-        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
+        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '').slice(0, 3)}`;
         if (!sData[camelKey]) sData[camelKey] = {};
         sData[camelKey].url = restoredUrl;
         sData[camelKey].notApplicable = false;
@@ -3837,12 +4275,41 @@ export class AuditModificationService {
       } else if (cat === 'DEFECT_CU' || type === 'CU') {
         const defectId = meta?.defect_id || meta?.targetPhotoId;
         if (defectId) {
-          await client.query(
-            `UPDATE defect_items 
-             SET cu_photo_url = $1, is_deleted = false 
-             WHERE id::text = $2 OR defect_code = $2;`,
-            [restoredUrl, defectId]
+          const dRes = await client.query(
+            `SELECT d.id, d.cu_photos_json
+             FROM defect_items d
+             JOIN damage_zones z ON d.zone_id = z.id
+             WHERE z.report_id = $1 AND (d.id::text = $2 OR d.defect_code = $2);`,
+            [actualReportId, defectId]
           );
+          if (dRes.rows[0]) {
+            const curPhotos = Array.isArray(dRes.rows[0].cu_photos_json) ? [...dRes.rows[0].cu_photos_json] : [];
+            if (!curPhotos.includes(restoredUrl)) curPhotos.push(restoredUrl);
+            await client.query(
+              `UPDATE defect_items 
+               SET cu_photo_url = $1, cu_photos_json = $2, is_deleted = false 
+               WHERE id = $3;`,
+              [restoredUrl, JSON.stringify(curPhotos), dRes.rows[0].id]
+            );
+          }
+          if (Array.isArray(sData.floors)) {
+            for (const fl of sData.floors) {
+              if (Array.isArray(fl.zones)) {
+                for (const zn of fl.zones) {
+                  if (Array.isArray(zn.defects)) {
+                    for (const df of zn.defects) {
+                      if (df.id === defectId || df.defectCode === defectId) {
+                        df.isDeleted = false;
+                        df.cuPhotoUrl = restoredUrl;
+                        if (!Array.isArray(df.cuPhotos)) df.cuPhotos = [];
+                        if (!df.cuPhotos.includes(restoredUrl)) df.cuPhotos.push(restoredUrl);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       } else if (cat === 'ZONE_CTX' || type === 'CTX') {
         const zoneId = meta?.zone_id || meta?.targetPhotoId;
@@ -3850,9 +4317,20 @@ export class AuditModificationService {
           await client.query(
             `UPDATE damage_zones 
              SET ctx_photo_url = $1, is_deleted = false 
-             WHERE id::text = $2 OR zone_code = $2;`,
-            [restoredUrl, zoneId]
+             WHERE report_id = $3 AND (id::text = $2 OR zone_code = $2);`,
+            [restoredUrl, zoneId, actualReportId]
           );
+          if (Array.isArray(sData.floors)) {
+            for (const fl of sData.floors) {
+              if (Array.isArray(fl.zones)) {
+                for (const zn of fl.zones) {
+                  if (zn.id === zoneId || zn.zoneCode === zoneId || zn.zone_code === zoneId) {
+                    zn.ctxPhotoUrl = restoredUrl;
+                  }
+                }
+              }
+            }
+          }
         }
       } else if (cat === 'CAD_FLOOR' || type === 'CAD') {
         const floorPlanId = meta?.floor_plan_id || meta?.targetPhotoId;
@@ -3866,7 +4344,7 @@ export class AuditModificationService {
         }
       }
 
-      if (meta?.targetPhotoId) {
+      if (meta?.targetPhotoId && !isShortEntityId(meta.targetPhotoId) && !isP03ExtraRestore) {
         mutateSurveyJsonPhoto(sData, meta.targetPhotoId, meta.photoIndex, 'RESTORE', restoredUrl);
       }
 

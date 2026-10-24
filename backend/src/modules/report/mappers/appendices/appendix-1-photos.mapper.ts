@@ -43,18 +43,51 @@ export class Appendix1PhotoMapper {
     const getPhotoEntryUrl = (entry: any): string | undefined => typeof entry === 'string' ? entry : entry?.url;
 
     const hasExplicitTiltPhotos = Array.isArray(json.settlementTilt?.buildingTilt?.photos);
-    const tiltPhotoObj = hasExplicitTiltPhotos ? json.settlementTilt.buildingTilt.photos[0] : (deform.buildingTilt?.photos?.[0] || rawReport.deformation?.tilt_photos_json?.[0]);
-    const p05Url = json.photoP05?.url || (typeof json.photoP05 === 'string' ? json.photoP05 : undefined) || json.photos?.p05 || json.step1Photos?.p05TiltCheckUrl || getPhotoEntryUrl(tiltPhotoObj) || (!hasExplicitTiltPhotos ? (deform.buildingTilt?.photoUrl || json.settlementTilt?.buildingTilt?.photoUrl || findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT'])) : '');
+    const tiltPhotosList: unknown[] = hasExplicitTiltPhotos
+      ? json.settlementTilt.buildingTilt.photos
+      : Array.isArray(deform.buildingTilt?.photos)
+        ? deform.buildingTilt.photos
+        : Array.isArray(rawReport.deformation?.tilt_photos_json)
+          ? rawReport.deformation.tilt_photos_json
+          : [];
+    const tiltPhotoObj = tiltPhotosList[0];
+    const p05Url =
+      getPhotoEntryUrl(tiltPhotoObj) ||
+      (!hasExplicitTiltPhotos
+        ? (json.photoP05?.url ||
+           (typeof json.photoP05 === 'string' ? json.photoP05 : undefined) ||
+           json.photos?.p05 ||
+           json.step1Photos?.p05TiltCheckUrl ||
+           deform.buildingTilt?.photoUrl ||
+           json.settlementTilt?.buildingTilt?.photoUrl ||
+           findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT']))
+        : '');
 
     const hasExplicitSettlePhotos = Array.isArray(json.settlementTilt?.diffSettlement?.photos);
-    const settlePhotoObj = hasExplicitSettlePhotos ? json.settlementTilt.diffSettlement.photos[0] : (deform.diffSettlement?.photos?.[0] || rawReport.deformation?.diff_settlement_photos_json?.[0]);
-    const p06Url = json.photoP06?.url || (typeof json.photoP06 === 'string' ? json.photoP06 : undefined) || json.photos?.p06 || getPhotoEntryUrl(settlePhotoObj) || (!hasExplicitSettlePhotos ? (deform.diffSettlement?.photoUrl || json.settlementTilt?.diffSettlement?.photoUrl || findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06'])) : '');
+    const settlePhotosList: unknown[] = hasExplicitSettlePhotos
+      ? json.settlementTilt.diffSettlement.photos
+      : Array.isArray(deform.diffSettlement?.photos)
+        ? deform.diffSettlement.photos
+        : Array.isArray(rawReport.deformation?.diff_settlement_photos_json)
+          ? rawReport.deformation.diff_settlement_photos_json
+          : [];
+    const settlePhotoObj = settlePhotosList[0];
+    const p06Url =
+      getPhotoEntryUrl(settlePhotoObj) ||
+      (!hasExplicitSettlePhotos
+        ? (json.photoP06?.url ||
+           (typeof json.photoP06 === 'string' ? json.photoP06 : undefined) ||
+           json.photos?.p06 ||
+           deform.diffSettlement?.photoUrl ||
+           json.settlementTilt?.diffSettlement?.photoUrl ||
+           findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06']))
+        : '');
 
     const appendix1: Appendix1PhotoItem[] = [];
     const rotMap = json.photoRotations || rawReport.photoRotations || {};
     const gpsCoords = `${defaultLat}, ${defaultLng}`;
 
-    const pushPhoto = (photoCode: string, vi: string, en: string, url: string, rot: number, origTag: string, shotAt?: any) => {
+    const pushPhoto = (photoCode: string, vi: string, en: string, url: string, rot: number, origTag: string, shotAt?: unknown) => {
       appendix1.push({
         photoCode,
         name: { vi, en },
@@ -90,13 +123,23 @@ export class Appendix1PhotoMapper {
     const explicitP03Url = json.photoP03?.url || (typeof json.photoP03 === 'string' ? json.photoP03 : undefined) || json.photos?.p03 || json.step1Photos?.p03SideRearUrl;
     const singleP03Url = isP03NA ? '' : (explicitP03Url || findPhoto(['P03_SIDE_OR_REAR', 'P03_SIDE_REAR']));
 
-    const jsonP03Items: Array<{ url: string; tag?: string }> = [];
-    if (!isP03NA && explicitP03Url) {
-      jsonP03Items.push({ url: explicitP03Url, tag: json.photoP03?.tag || 'P03_SIDE' });
+    const jsonP03Items: Array<{ url: string; tag?: string; isExtra?: boolean; extraIdx?: number }> = [];
+    if (!isP03NA) {
+      if (explicitP03Url) {
+        jsonP03Items.push({ url: explicitP03Url, tag: json.photoP03?.tag || 'P03_SIDE', isExtra: false });
+      }
       if (Array.isArray(json.photoP03?.additionalPhotos)) {
-        json.photoP03.additionalPhotos.forEach((addItem: any, idx: number) => {
-          const addUrl = typeof addItem === 'string' ? addItem : addItem?.url;
-          if (addUrl) jsonP03Items.push({ url: addUrl, tag: addItem?.tag || `P03_0${idx + 2}` });
+        json.photoP03.additionalPhotos.forEach((addItem: unknown, idx: number) => {
+          const addObj = addItem && typeof addItem === 'object' ? (addItem as Record<string, unknown>) : null;
+          const addUrl = typeof addItem === 'string' ? addItem : String(addObj?.url ?? '');
+          if (addUrl) {
+            jsonP03Items.push({
+              url: addUrl,
+              tag: String(addObj?.tag || `P03_0${idx + 2}`),
+              isExtra: true,
+              extraIdx: idx,
+            });
+          }
         });
       }
     }
@@ -113,8 +156,9 @@ export class Appendix1PhotoMapper {
                       rawTag.includes('TRI') || rawTag.toLowerCase().includes('trái') ? 'Side facade (left)' :
                       rawTag.includes('SAU') || rawTag.toLowerCase().includes('sau') ? 'Rear facade' : `Side facade #${idx + 1}`;
         const origTag = rawTag || `P03_0${idx + 1}`;
-        const rotP03 = idx > 0
-          ? (rotMap[`photoP03_extra_${idx - 1}`] ?? rotMap[`P-03-EXTRA-${idx}`] ?? rotMap[origTag] ?? rotMap[u] ?? rotMap['P-03'] ?? rotMap['photoP03'] ?? 0)
+        const extraIdx = item.extraIdx ?? Math.max(0, idx - 1);
+        const rotP03 = (item.isExtra || idx > 0)
+          ? (rotMap[`photoP03_extra_${extraIdx}`] ?? rotMap[`P-03-EXTRA-${extraIdx + 1}`] ?? rotMap[u] ?? 0)
           : (rotMap[origTag] ?? rotMap['P-03'] ?? rotMap['photoP03'] ?? rotMap[u] ?? 0);
         pushPhoto('P-03', `Mặt bên (${tag})`, tagEn, u, rotP03, origTag, null);
       });
@@ -125,7 +169,7 @@ export class Appendix1PhotoMapper {
         const tag = item.photo_code?.includes('PHI') ? 'Bên hông phải' : item.photo_code?.includes('TRI') ? 'Bên hông trái' : item.photo_code?.includes('SAU') ? 'Phía sau' : `Mặt bên #${idx + 1}`;
         const tagEn = item.photo_code?.includes('PHI') ? 'Side facade (right)' : item.photo_code?.includes('TRI') ? 'Side facade (left)' : item.photo_code?.includes('SAU') ? 'Rear facade' : `Side facade #${idx + 1}`;
         const origTag = item.photo_code || `P03_0${idx + 1}`;
-        const rotP03 = item?.rotation ?? rotMap[item?.photo_code] ?? rotMap['P-03'] ?? rotMap[u] ?? 0;
+        const rotP03 = item?.rotation ?? rotMap[item?.photo_code] ?? (idx === 0 ? rotMap['P-03'] : undefined) ?? rotMap[u] ?? 0;
         pushPhoto('P-03', `Mặt bên (${tag})`, tagEn, u, rotP03, origTag, item.shot_at || item.created_at);
       });
     } else if (singleP03Url) {
@@ -139,25 +183,169 @@ export class Appendix1PhotoMapper {
       pushPhoto('P-04', 'Bối cảnh đường phố & tuyến Metro', 'Street context & Metro alignment', p04Url, rotMap['P-04'] ?? rotMap['photoP04'] ?? rotMap[p04Url] ?? 0, 'P04_CONT', null);
     }
 
-    // 5. P-05: Kiểm tra độ nghiêng công trình
-    if (p05Url) {
-      const tiltTag = (typeof tiltPhotoObj === 'object' ? tiltPhotoObj?.photoCode : undefined) || 'EXT_TILT_01';
-      pushPhoto('P-05', 'Kiểm tra độ nghiêng công trình', 'Building inclination check', p05Url, rotMap['P-05'] ?? rotMap['photoP05'] ?? rotMap['buildingTilt'] ?? rotMap['buildingTilt_0'] ?? rotMap[p05Url] ?? 0, tiltTag, typeof tiltPhotoObj === 'object' ? tiltPhotoObj?.shot_at : null);
+    // 4b. Ảnh hiện trạng đất trống / công trình đang thi công (nếu có)
+    if (Array.isArray(json.vacantLandPhotos)) {
+      json.vacantLandPhotos.forEach((entry: unknown, idx: number) => {
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const u = typeof entry === 'string' ? entry : String(entryObj?.url ?? entryObj?.photoUrl ?? '');
+        if (!u) return;
+        const rot = Number(rotMap[`vacantLand_${idx}`] ?? rotMap[u] ?? 0);
+        const code = String(entryObj?.photoCode || `P-VL-0${idx + 1}`);
+        const origTag = String(entryObj?.tag || `VACANT_LAND_0${idx + 1}`);
+        pushPhoto(
+          code,
+          `Hiện trạng khu đất trống #${idx + 1}`,
+          `Vacant land condition #${idx + 1}`,
+          u,
+          rot,
+          origTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
     }
 
-    // 6. P-06: Khảo sát lún móng & nền công trình
-    if (p06Url) {
-      const settleTag = (typeof settlePhotoObj === 'object' ? settlePhotoObj?.photoCode : undefined) || 'FOUND_SETTLE_01';
-      pushPhoto('P-06', 'Khảo sát lún móng & nền công trình', 'Foundation & settlement survey', p06Url, rotMap['P-06'] ?? rotMap['photoP06'] ?? rotMap['diffSettlement'] ?? rotMap['diffSettlement_0'] ?? rotMap[p06Url] ?? 0, settleTag, typeof settlePhotoObj === 'object' ? settlePhotoObj?.shot_at : null);
+    if (Array.isArray(json.underConstructionPhotos)) {
+      json.underConstructionPhotos.forEach((entry: unknown, idx: number) => {
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const u = typeof entry === 'string' ? entry : String(entryObj?.url ?? entryObj?.photoUrl ?? '');
+        if (!u) return;
+        const rot = Number(rotMap[`underConstruction_${idx}`] ?? rotMap[u] ?? 0);
+        const code = String(entryObj?.photoCode || `P-UC-0${idx + 1}`);
+        const origTag = String(entryObj?.tag || `UNDER_CONST_0${idx + 1}`);
+        pushPhoto(
+          code,
+          `Hiện trạng công trình đang thi công #${idx + 1}`,
+          `Building under construction #${idx + 1}`,
+          u,
+          rot,
+          origTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
     }
 
-    // 7. P-07: Dấu hiệu bất thường ngoại quan
+    // 5. P-05: Kiểm tra độ nghiêng công trình (hỗ trợ đầy đủ photos[0..3])
+    if (tiltPhotosList.length > 0) {
+      tiltPhotosList.forEach((entry: unknown, idx: number) => {
+        const u = getPhotoEntryUrl(entry);
+        if (!u) return;
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const tiltTag = String(entryObj?.photoCode || `EXT_TILT_0${idx + 1}`);
+        const rot = idx === 0
+          ? Number(rotMap['buildingTilt_0'] ?? rotMap['buildingTilt'] ?? rotMap['P-05'] ?? rotMap['photoP05'] ?? rotMap[u] ?? 0)
+          : Number(rotMap[`buildingTilt_${idx}`] ?? rotMap[u] ?? 0);
+        const code = idx === 0 ? 'P-05' : `P-05-${idx + 1}`;
+        const labelSuffixVi = tiltPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        const labelSuffixEn = tiltPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        pushPhoto(
+          code,
+          `Kiểm tra độ nghiêng công trình${labelSuffixVi}`,
+          `Building inclination check${labelSuffixEn}`,
+          u,
+          rot,
+          tiltTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
+    } else if (p05Url) {
+      const tiltTag = (typeof tiltPhotoObj === 'object' ? (tiltPhotoObj as Record<string, unknown>)?.photoCode : undefined) || 'EXT_TILT_01';
+      pushPhoto('P-05', 'Kiểm tra độ nghiêng công trình', 'Building inclination check', p05Url, rotMap['buildingTilt_0'] ?? rotMap['buildingTilt'] ?? rotMap['P-05'] ?? rotMap['photoP05'] ?? rotMap[p05Url] ?? 0, String(tiltTag), typeof tiltPhotoObj === 'object' ? (tiltPhotoObj as Record<string, unknown>)?.shot_at : null);
+    }
+
+    // 6. P-06: Khảo sát lún móng & nền công trình (hỗ trợ đầy đủ photos[0..3])
+    if (settlePhotosList.length > 0) {
+      settlePhotosList.forEach((entry: unknown, idx: number) => {
+        const u = getPhotoEntryUrl(entry);
+        if (!u) return;
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const settleTag = String(entryObj?.photoCode || `FOUND_SETTLE_0${idx + 1}`);
+        const rot = idx === 0
+          ? Number(rotMap['diffSettlement_0'] ?? rotMap['diffSettlement'] ?? rotMap['P-06'] ?? rotMap['photoP06'] ?? rotMap[u] ?? 0)
+          : Number(rotMap[`diffSettlement_${idx}`] ?? rotMap[u] ?? 0);
+        const code = idx === 0 ? 'P-06' : `P-06-${idx + 1}`;
+        const labelSuffixVi = settlePhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        const labelSuffixEn = settlePhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        pushPhoto(
+          code,
+          `Khảo sát lún móng & nền công trình${labelSuffixVi}`,
+          `Foundation & settlement survey${labelSuffixEn}`,
+          u,
+          rot,
+          settleTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
+    } else if (p06Url) {
+      const settleTag = (typeof settlePhotoObj === 'object' ? (settlePhotoObj as Record<string, unknown>)?.photoCode : undefined) || 'FOUND_SETTLE_01';
+      pushPhoto('P-06', 'Khảo sát lún móng & nền công trình', 'Foundation & settlement survey', p06Url, rotMap['diffSettlement_0'] ?? rotMap['diffSettlement'] ?? rotMap['P-06'] ?? rotMap['photoP06'] ?? rotMap[p06Url] ?? 0, String(settleTag), typeof settlePhotoObj === 'object' ? (settlePhotoObj as Record<string, unknown>)?.shot_at : null);
+    }
+
+    // 6b. Ảnh kiểm tra độ võng dầm / bản sàn (beamSagging.photos)
+    const sagPhotosList: unknown[] = Array.isArray(json.settlementTilt?.beamSagging?.photos)
+      ? json.settlementTilt.beamSagging.photos
+      : Array.isArray(deform.beamSagging?.photos)
+        ? deform.beamSagging.photos
+        : [];
+    if (sagPhotosList.length > 0) {
+      sagPhotosList.forEach((entry: unknown, idx: number) => {
+        const u = getPhotoEntryUrl(entry);
+        if (!u) return;
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const sagTag = String(entryObj?.photoCode || `BEAM_SAG_0${idx + 1}`);
+        const rot = idx === 0
+          ? Number(rotMap['beamSagging_0'] ?? rotMap['beamSagging'] ?? rotMap[u] ?? 0)
+          : Number(rotMap[`beamSagging_${idx}`] ?? rotMap[u] ?? 0);
+        const code = sagPhotosList.length === 1 ? 'P-06B' : `P-06B-${idx + 1}`;
+        const labelSuffixVi = sagPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        const labelSuffixEn = sagPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        pushPhoto(
+          code,
+          `Kiểm tra độ võng dầm / bản sàn${labelSuffixVi}`,
+          `Beam / slab deflection check${labelSuffixEn}`,
+          u,
+          rot,
+          sagTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
+    }
+
+    // 7. P-07: Dấu hiệu bất thường ngoại quan (hỗ trợ đầy đủ photos[0..3])
     const hasExplicitAbnPhotos = Array.isArray(json.settlementTilt?.abnormalCase?.photos);
-    const anomalyPhotoObj = hasExplicitAbnPhotos ? json.settlementTilt.abnormalCase.photos[0] : (deform.abnormalCase?.photos?.[0] || rawReport.deformation?.abnormal_photos_json?.[0]);
+    const abnPhotosList: unknown[] = hasExplicitAbnPhotos
+      ? json.settlementTilt.abnormalCase.photos
+      : Array.isArray(deform.abnormalCase?.photos)
+        ? deform.abnormalCase.photos
+        : Array.isArray(rawReport.deformation?.abnormal_photos_json)
+          ? rawReport.deformation.abnormal_photos_json
+          : [];
+    const anomalyPhotoObj = abnPhotosList[0];
     const p07Url = getPhotoEntryUrl(anomalyPhotoObj) || (!hasExplicitAbnPhotos ? (deform.abnormalCase?.photoUrl || findPhoto(['EXT_ANOMALY', 'ANOMALY', 'P07', 'P-07'])) : '');
-    if (p07Url) {
-      const anomalyTag = (typeof anomalyPhotoObj === 'object' ? anomalyPhotoObj?.photoCode : undefined) || 'EXT_ANOMALY_01';
-      pushPhoto('P-07', 'Dấu hiệu bất thường ngoại quan', 'Exterior visual anomaly check', p07Url, rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap['abnormalCase'] ?? rotMap['abnormalCase_0'] ?? rotMap[p07Url] ?? 0, anomalyTag, typeof anomalyPhotoObj === 'object' ? anomalyPhotoObj?.shot_at : null);
+    if (abnPhotosList.length > 0) {
+      abnPhotosList.forEach((entry: unknown, idx: number) => {
+        const u = getPhotoEntryUrl(entry);
+        if (!u) return;
+        const entryObj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
+        const anomalyTag = String(entryObj?.photoCode || `EXT_ANOMALY_0${idx + 1}`);
+        const rot = idx === 0
+          ? Number(rotMap['abnormal_0'] ?? rotMap['abnormalCase_0'] ?? rotMap['abnormalCase'] ?? rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[u] ?? 0)
+          : Number(rotMap[`abnormal_${idx}`] ?? rotMap[`abnormalCase_${idx}`] ?? rotMap[u] ?? 0);
+        const code = idx === 0 ? 'P-07' : `P-07-${idx + 1}`;
+        const labelSuffixVi = abnPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        const labelSuffixEn = abnPhotosList.length > 1 ? ` (#${idx + 1})` : '';
+        pushPhoto(
+          code,
+          `Dấu hiệu bất thường ngoại quan${labelSuffixVi}`,
+          `Exterior visual anomaly check${labelSuffixEn}`,
+          u,
+          rot,
+          anomalyTag,
+          entryObj?.shot_at ?? entryObj?.capturedAt ?? null
+        );
+      });
+    } else if (p07Url) {
+      const anomalyTag = (typeof anomalyPhotoObj === 'object' ? (anomalyPhotoObj as Record<string, unknown>)?.photoCode : undefined) || 'EXT_ANOMALY_01';
+      pushPhoto('P-07', 'Dấu hiệu bất thường ngoại quan', 'Exterior visual anomaly check', p07Url, rotMap['abnormal_0'] ?? rotMap['abnormalCase_0'] ?? rotMap['abnormalCase'] ?? rotMap['P-07'] ?? rotMap['photoP07'] ?? rotMap[p07Url] ?? 0, String(anomalyTag), typeof anomalyPhotoObj === 'object' ? (anomalyPhotoObj as Record<string, unknown>)?.shot_at : null);
     }
 
     const sortedAppendix1 = [...appendix1].sort((a, b) => (a.photoCode || '').localeCompare(b.photoCode || '', undefined, { numeric: true, sensitivity: 'base' }));

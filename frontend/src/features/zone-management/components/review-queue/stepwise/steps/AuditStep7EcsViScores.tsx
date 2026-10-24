@@ -1,10 +1,25 @@
 import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseEcs, StepwiseVi, RiskCardData } from '../types';
+import type {
+  AuditStepwiseFormState,
+  AuditStepwiseData,
+  StepwiseEcs,
+  StepwiseVi,
+  RiskCardData,
+  PhotoActionPayload,
+  StepwiseIdentificationPhotoItem,
+} from '../types';
 import { getErrorMessage } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Scale, Undo2 } from 'lucide-react';
 import { api } from '../../../../../../services/api';
 import { ScoreExplanationPopover, type MetricType } from '../components/ScoreExplanationPopover';
+import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
+
+const isSoftDeleted = (item: unknown): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  const rec = item as Record<string, unknown>;
+  return Boolean(rec.isDeleted || rec.is_deleted);
+};
 
 interface Props {
   isEditMode?: boolean;
@@ -16,6 +31,7 @@ interface Props {
   onRefresh?: () => void;
   onOpenEngineeringJudgement: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
 }
 
 export const AuditStep7EcsViScores: React.FC<Props> = ({
@@ -28,6 +44,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
   onRefresh,
   onOpenEngineeringJudgement,
   isFieldDirty,
+  stagedPhotoActions = [],
 }) => {
   const sJson = data?.surveyJson || data?.survey_data_json || {};
   const riskCard: RiskCardData = data?.leftPane?.riskScoreCard || {};
@@ -48,20 +65,56 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
     return cls;
   };
 
-  // Baseline values (Ưu tiên điểm formState đang chỉnh sửa / tính lại trực tiếp theo công thức FE Phase 1, fallback riskCard)
-  const baselineBurland = Number(ecs.e1 ?? riskCard?.e1_burland_score ?? 0);
-  const baselineTotalEcs = Number(ecs.totalEcs ?? riskCard?.total_ecs_score ?? 0);
+  // Tính toán trực tiếp E1..E6 từ formState.ecs (hoặc riskCard) để khi sửa inline sẽ cập nhật ngay Tổng điểm ECS & Hạng ECS
+  const e1Val = Number(ecs.e1 ?? riskCard?.e1_burland_score ?? 0);
+  const e2Val = Number(ecs.e2 ?? riskCard?.e2_structure_score ?? 0);
+  const e3Val = Number(ecs.e3 ?? riskCard?.e3_deformation_score ?? 0);
+  const e4Val = Number(ecs.e4 ?? riskCard?.e4_material_score ?? 0);
+  const e5Val = Number(ecs.e5 ?? riskCard?.e5_history_score ?? 0);
+  const e6Val = Number(ecs.e6 ?? riskCard?.e6_overall_function_score ?? 0);
+  const hasInlineEcsComponents =
+    ecs.e1 !== undefined ||
+    ecs.e2 !== undefined ||
+    ecs.e3 !== undefined ||
+    ecs.e4 !== undefined ||
+    ecs.e5 !== undefined ||
+    ecs.e6 !== undefined;
+  const computedTotalEcs = e1Val + e2Val + e3Val + e4Val + e5Val + e6Val;
+
+  const baselineBurland = e1Val;
+  const baselineTotalEcs = hasInlineEcsComponents
+    ? computedTotalEcs
+    : Number(ecs.totalEcs ?? riskCard?.total_ecs_score ?? computedTotalEcs);
+  const derivedEcsCode =
+    baselineTotalEcs <= 5 ? 'GOOD' : baselineTotalEcs <= 10 ? 'MEDIUM' : baselineTotalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
   const baselineEcsClass = toVietnameseRiskClass(
-    ecs.ecsClass ||
-      riskCard?.ecs_class ||
-      (baselineTotalEcs <= 5 ? 'GOOD' : baselineTotalEcs <= 10 ? 'MEDIUM' : baselineTotalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL')
+    hasInlineEcsComponents ? derivedEcsCode : ecs.ecsClass || riskCard?.ecs_class || derivedEcsCode
   );
-  const baselineImportance = Number(vi.v1 ?? riskCard?.v1_importance_score ?? 2.0);
-  const baselineAvgVi = Number(vi.viAvg ?? vi.avgVi ?? riskCard?.avg_vi_score ?? vi.totalVi ?? 1.0);
+
+  // Tính toán trực tiếp V1..V6 từ formState.vi (hoặc riskCard) để khi sửa inline sẽ cập nhật ngay VI trung bình & Hạng VI
+  const v1Val = Number(vi.v1 ?? riskCard?.v1_importance_score ?? 2);
+  const v2Val = Number(vi.v2 ?? riskCard?.v2_structure_score ?? 2);
+  const v3Val = Number(vi.v3 ?? riskCard?.v3_foundation_score ?? 2);
+  const v4Val = Number(vi.v4 ?? riskCard?.v4_age_score ?? 2);
+  const v5Val = Number(vi.v5 ?? riskCard?.v5_ecs_score ?? 1);
+  const v6Val = Number(vi.v6 ?? riskCard?.v6_sensitivity_score ?? 1);
+  const hasInlineViComponents =
+    vi.v1 !== undefined ||
+    vi.v2 !== undefined ||
+    vi.v3 !== undefined ||
+    vi.v4 !== undefined ||
+    vi.v5 !== undefined ||
+    vi.v6 !== undefined;
+  const computedAvgVi = Number(((v1Val + v2Val + v3Val + v4Val + v5Val + v6Val) / 6).toFixed(2));
+
+  const baselineImportance = v1Val;
+  const baselineAvgVi = hasInlineViComponents
+    ? computedAvgVi
+    : Number(vi.viAvg ?? vi.avgVi ?? riskCard?.avg_vi_score ?? vi.totalVi ?? computedAvgVi);
+  const derivedViCode =
+    baselineAvgVi <= 1.5 ? 'LOW' : baselineAvgVi <= 2.5 ? 'MEDIUM' : baselineAvgVi <= 3.25 ? 'HIGH' : 'VERY_HIGH';
   const baselineViClass = toVietnameseRiskClass(
-    vi.viClass ||
-      riskCard?.vi_class ||
-      (baselineAvgVi <= 1.50 ? 'LOW' : baselineAvgVi <= 2.50 ? 'MEDIUM' : baselineAvgVi <= 3.25 ? 'HIGH' : 'VERY_HIGH')
+    hasInlineViComponents ? derivedViCode : vi.viClass || riskCard?.vi_class || derivedViCode
   );
 
   // Lớp Can thiệp chuyên gia (Overrides)
@@ -106,7 +159,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'E2',
       key: 'e2',
       name: 'Nguy Cơ Kết Cấu Chịu Lực',
-      score: Number(ecs.e2 ?? riskCard?.e2_structure_score ?? 0),
+      score: e2Val,
       max: 4,
       standard: 'Mức độ hư hại và nứt vỡ trên các cấu kiện chịu lực chính (cột, dầm, sàn BTCT)',
       isOverridden: false,
@@ -115,7 +168,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'E3',
       key: 'e3',
       name: 'Đo Biến Dạng, Lún & Võng Dầm',
-      score: Number(ecs.e3 ?? 0),
+      score: e3Val,
       max: 4,
       standard: 'Độ nghiêng tổng thể 2 phương X/Y, đo độ chênh lún móng và độ võng dầm kết cấu',
       isOverridden: false,
@@ -124,7 +177,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'E4',
       key: 'e4',
       name: 'Thoái Hóa Vật Liệu & Độ Ẩm',
-      score: Number(ecs.e4 ?? 0),
+      score: e4Val,
       max: 4,
       standard: 'Mức độ rỉ sét cốt thép, cacbonat hóa bê tông, ẩm mốc, bong tróc vữa trát',
       isOverridden: false,
@@ -133,7 +186,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'E5',
       key: 'e5',
       name: 'Lịch Sử Cải Tạo & Quá Khứ',
-      score: Number(ecs.e5 ?? 0),
+      score: e5Val,
       max: 4,
       standard: 'Dấu vết cơi nới, nâng tầng, sửa chữa kết cấu không đồng bộ hoặc lún tích lũy',
       isOverridden: false,
@@ -142,7 +195,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'E6',
       key: 'e6',
       name: 'Suy Giảm Công Năng Khai Thác',
-      score: Number(ecs.e6 ?? 0),
+      score: e6Val,
       max: 4,
       standard: 'Mức độ ảnh hưởng đến khả năng đóng mở cửa sổ/cửa đi, an toàn sử dụng của hộ dân',
       isOverridden: false,
@@ -164,7 +217,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'V2',
       key: 'v2',
       name: 'Hệ Kết Cấu Chịu Lực Chính',
-      score: Number(vi.v2 ?? riskCard?.v2_structure_score ?? 2),
+      score: v2Val,
       max: 4,
       definition: 'Khung BTCT toàn khối (1đ), Kết cấu hỗn hợp/thép (2đ), Tường gạch chịu lực (3đ), Kết cấu tạm/kém ổn định (4đ)',
       isOverridden: false,
@@ -173,7 +226,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'V3',
       key: 'v3',
       name: 'Loại Móng & Hồ Sơ CAT Móng',
-      score: Number(vi.v3 ?? riskCard?.v3_foundation_score ?? 2),
+      score: v3Val,
       max: 4,
       definition: 'Ánh xạ từ phân loại hồ sơ CAT móng: CAT 1-2 (1đ), CAT 3 (2đ), CAT 4 (3đ), CAT 5 (4đ)',
       isOverridden: false,
@@ -182,7 +235,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'V4',
       key: 'v4',
       name: 'Tuổi Đời Công Trình & Cơi Nới',
-      score: Number(vi.v4 ?? riskCard?.v4_age_score ?? 2),
+      score: v4Val,
       max: 4,
       definition: 'Tuổi công trình <10 năm (1đ), 10-25 năm (2đ), 26-40 năm (3đ), >40 năm hoặc có cơi nới tải trọng nặng ≥3đ (4đ)',
       isOverridden: false,
@@ -191,7 +244,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'V5',
       key: 'v5',
       name: 'Hiện Trạng Kỹ Thuật (Từ Hạng ECS)',
-      score: Number(vi.v5 ?? riskCard?.v5_ecs_score ?? 1),
+      score: v5Val,
       max: 4,
       definition: 'Tự động ánh xạ từ hạng hiện trạng kỹ thuật ECS: GOOD (1đ), MEDIUM (2đ), DEFICIENT (3đ), CRITICAL (4đ)',
       isOverridden: false,
@@ -200,49 +253,183 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       code: 'V6',
       key: 'v6',
       name: 'Thiết Bị Nhạy Cảm & Vận Hành 24/7',
-      score: Number(vi.v6 ?? riskCard?.v6_sensitivity_score ?? 1),
+      score: v6Val,
       max: 4,
       definition: 'Sinh hoạt bình thường (1đ), Có thiết bị máy móc nhạy cảm rung chấn (3đ), Vận hành liên tục 24/7 (4đ)',
       isOverridden: false,
     },
   ];
 
-  // Thu thập và kiểm tra thực tế dữ liệu vết nứt có thước đo mm
-  const rawFloors: FloorSurveyData[] = Array.isArray(sJson.floors) ? sJson.floors : [];
-  const rawZones: DamageZoneData[] = Array.isArray(sJson.damageZones) ? sJson.damageZones : [];
-  const allDefectsList: DefectItem[] = [];
-  rawFloors.forEach((fl: FloorSurveyData) => {
-    (fl.zones || []).forEach((z: DamageZoneData) => {
-      (z.defects || []).forEach((d: DefectItem) => allDefectsList.push(d));
+  // Kiểm tra trực tiếp dữ liệu live từ formState + stagedPhotoActions cho 6 tiêu chí Data Completeness Gate
+  const extractPhotoItemUrl = (item: StepwiseIdentificationPhotoItem | string | undefined): string => {
+    if (!item) return '';
+    if (typeof item === 'string') return item.trim();
+    return (item.url || item.photoUrl || item.raw_photo_url || item.annotated_photo_url || '').trim();
+  };
+
+  const resolveGateIdentPhoto = (slotCode: 'P-01' | 'P-02' | 'P-03' | 'P-04', rawItem: StepwiseIdentificationPhotoItem | string | undefined, fallbackUrl?: unknown): string => {
+    const baseUrl = extractPhotoItemUrl(rawItem) || (typeof fallbackUrl === 'string' ? fallbackUrl.trim() : '');
+    const compactCode = slotCode.replace('-', ''); // 'P01' .. 'P04'
+    const slotKey = `photo${compactCode}`; // 'photoP01' .. 'photoP04'
+    const resolved = resolveOptimisticPhoto(baseUrl, stagedPhotoActions, {
+      category: 'IDENTIFICATION',
+      targetPhotoType: compactCode,
+      targetPhotoId: slotKey,
+      url: baseUrl || undefined,
     });
-  });
-  rawZones.forEach((z: DamageZoneData) => {
-    (z.defects || []).forEach((d: DefectItem) => allDefectsList.push(d));
-  });
+    if (resolved.status === 'DELETED') return '';
+    if (resolved.displayUrl && resolved.isStaged) return resolved.displayUrl;
+    const resolvedByDashCode = resolveOptimisticPhoto(baseUrl, stagedPhotoActions, {
+      targetPhotoType: slotCode,
+      targetPhotoId: slotCode,
+      url: baseUrl || undefined,
+    });
+    if (resolvedByDashCode.status === 'DELETED') return '';
+    if (resolvedByDashCode.displayUrl) return resolvedByDashCode.displayUrl;
+    const added = [
+      ...getOptimisticAddedPhotos(stagedPhotoActions, {
+        category: 'IDENTIFICATION',
+        targetPhotoType: compactCode,
+      }),
+      ...getOptimisticAddedPhotos(stagedPhotoActions, {
+        targetPhotoType: slotCode,
+      }),
+    ];
+    return added[0]?.url || '';
+  };
+
+  const identPhotos = formState.identificationPhotos || sJson.identificationPhotos || {};
+  const liveP01Url = resolveGateIdentPhoto('P-01', formState.photoP01 ?? identPhotos.photoP01 ?? identPhotos.p01 ?? sJson.photoP01, (sJson as Record<string, unknown>).p01PhotoUrl);
+  const liveP02Url = resolveGateIdentPhoto('P-02', formState.photoP02 ?? identPhotos.photoP02 ?? identPhotos.p02 ?? sJson.photoP02, (sJson as Record<string, unknown>).p02PhotoUrl);
+  const liveP03Url = resolveGateIdentPhoto('P-03', formState.photoP03 ?? identPhotos.photoP03 ?? identPhotos.p03 ?? sJson.photoP03, (sJson as Record<string, unknown>).p03PhotoUrl);
+  const liveP04Url = resolveGateIdentPhoto('P-04', formState.photoP04 ?? identPhotos.photoP04 ?? identPhotos.p04 ?? sJson.photoP04, (sJson as Record<string, unknown>).p04PhotoUrl);
+  const validIdentPhotosCount = [liveP01Url, liveP02Url, liveP03Url, liveP04Url].filter(Boolean).length;
+
+  const liveHouseNumber = formState.houseNumber ?? data?.houseNumber ?? sJson.houseNumber;
+  const liveMetroDist = formState.metroOffsetDistance ?? formState.metroDistanceM ?? data?.metroOffsetDistance ?? sJson.metroOffsetDistance;
+
+  const liveFoundationType = formState.foundationType ?? sJson.foundationType ?? data?.buildingSpecs?.foundationCategory;
+  const liveFoundationCatScore = formState.foundationCatScore ?? sJson.foundationCatScore ?? data?.buildingSpecs?.foundationCatScore;
+
+  // Thu thập danh sách tầng hoạt động (!isDeleted) và khuyết tật hoạt động
+  const rawFloorsSource: FloorSurveyData[] = Array.isArray(formState.floors)
+    ? formState.floors
+    : Array.isArray(sJson.floors)
+    ? sJson.floors
+    : [];
+  const activeFloors = rawFloorsSource.filter((fl) => !isSoftDeleted(fl));
+  const rawZonesSource: DamageZoneData[] = Array.isArray(formState.damageZones)
+    ? formState.damageZones
+    : Array.isArray(sJson.damageZones)
+    ? sJson.damageZones
+    : [];
+
+  const isDefectStagedDeleted = (d: DefectItem): boolean => {
+    if (!stagedPhotoActions || stagedPhotoActions.length === 0) return false;
+    const dRecord = d as unknown as Record<string, unknown>;
+    const dId = String(d.id || d.defectCode || dRecord.defect_code || '');
+    const dCode = String(d.defectCode || dRecord.defect_code || d.id || '');
+    return stagedPhotoActions.some(
+      (a) =>
+        Boolean(a.deleteDefectItem) &&
+        ((dId && (a.defectId === dId || a.targetPhotoId === dId)) ||
+          (dCode && (a.defectCode === dCode || a.defectId === dCode || a.targetPhotoId === dCode)))
+    );
+  };
+
+  const allDefectsList: DefectItem[] = [];
+  if (activeFloors.length > 0) {
+    activeFloors.forEach((fl: FloorSurveyData) => {
+      (fl.zones || []).forEach((z: DamageZoneData) => {
+        if (isSoftDeleted(z)) return;
+        (z.defects || []).forEach((d: DefectItem) => {
+          if (!isSoftDeleted(d) && !isDefectStagedDeleted(d)) {
+            allDefectsList.push(d);
+          }
+        });
+      });
+      const structElems = ((fl as unknown as Record<string, unknown>).structuralElements || []) as Array<{
+        defects?: DefectItem[];
+        [key: string]: unknown;
+      }>;
+      structElems.forEach((el) => {
+        if (isSoftDeleted(el)) return;
+        (el.defects || []).forEach((d: DefectItem) => {
+          if (!isSoftDeleted(d) && !isDefectStagedDeleted(d)) {
+            allDefectsList.push(d);
+          }
+        });
+      });
+    });
+  } else {
+    rawZonesSource.forEach((z: DamageZoneData) => {
+      if (isSoftDeleted(z)) return;
+      (z.defects || []).forEach((d: DefectItem) => {
+        if (!isSoftDeleted(d) && !isDefectStagedDeleted(d)) {
+          allDefectsList.push(d);
+        }
+      });
+    });
+  }
 
   const totalDefectsCount = allDefectsList.length;
   const defectsWithScale = allDefectsList.filter((d) => Boolean(d.hasScaleCard ?? d.has_scale_card)).length;
   const isScaleValid = totalDefectsCount === 0 || defectsWithScale === totalDefectsCount;
+  const liveSettlement = formState.settlementTilt ?? sJson.settlementTilt ?? data?.deformation;
 
-  // 6 Data Completeness Gate Criteria
+  // 6 Data Completeness Gate Criteria (Live from formState + stagedPhotoActions)
   const gateCriteria = [
-    { title: '1. Định Danh & Cự Ly Tim Hầm', valid: Boolean(data?.houseNumber || sJson.houseNumber), note: 'Đầy đủ biển số & GPS' },
-    { title: '2. Ngoại Quan Mặt Tiền P-01..P-04', valid: Boolean(sJson.p01PhotoUrl && sJson.p02PhotoUrl), note: 'Đủ 4 góc chụp ngoại quan' },
-    { title: '3. Phân Loại Móng CAT', valid: Boolean(sJson.foundationType && sJson.foundationCatScore !== undefined), note: `CAT ${sJson.foundationCatScore || 3}/5` },
-    { title: '4. Sơ Đồ Mặt Bằng CAD Tầng', valid: Array.isArray(sJson.floors) ? sJson.floors.length > 0 : true, note: 'Khảo sát đầy đủ tầng' },
+    {
+      title: '1. Định Danh & Cự Ly Tim Hầm',
+      valid: Boolean(liveHouseNumber),
+      note: liveHouseNumber ? `Số nhà ${liveHouseNumber}${liveMetroDist ? ` • ${liveMetroDist}` : ' • Đủ GPS'}` : 'Thiếu biển số nhà',
+    },
+    {
+      title: '2. Ngoại Quan Mặt Tiền P-01..P-04',
+      valid: Boolean(liveP01Url && liveP02Url),
+      note: validIdentPhotosCount >= 2 ? `Đủ ${validIdentPhotosCount}/4 góc chụp ngoại quan` : `⚠️ Thiếu ảnh P-01/P-02 (${validIdentPhotosCount}/4)`,
+    },
+    {
+      title: '3. Phân Loại Móng CAT',
+      valid: Boolean(liveFoundationType && liveFoundationCatScore !== undefined && liveFoundationCatScore !== null),
+      note: `CAT ${liveFoundationCatScore ?? 3}/5`,
+    },
+    {
+      title: '4. Sơ Đồ Mặt Bằng CAD Tầng',
+      valid: activeFloors.length > 0,
+      note: activeFloors.length > 0 ? `Khảo sát đầy đủ (${activeFloors.length} tầng)` : 'Chưa có dữ liệu tầng hoạt động',
+    },
     {
       title: '5. Thước Đo Tỷ Lệ mm Khuyết Tật',
       valid: isScaleValid,
-      note: totalDefectsCount === 0
-        ? 'Không có vết nứt'
-        : isScaleValid
-        ? `100% đạt chuẩn (${defectsWithScale}/${totalDefectsCount} vết)`
-        : `⚠️ ${totalDefectsCount - defectsWithScale}/${totalDefectsCount} vết thiếu thước đo`,
+      note:
+        totalDefectsCount === 0
+          ? 'Không có vết nứt'
+          : isScaleValid
+          ? `100% đạt chuẩn (${defectsWithScale}/${totalDefectsCount} vết)`
+          : `⚠️ ${totalDefectsCount - defectsWithScale}/${totalDefectsCount} vết thiếu thước đo`,
     },
-    { title: '6. Biến Dạng, Lún Nghiêng & Quan Trắc', valid: Boolean(sJson.settlementTilt), note: 'Đo lường độ nghiêng & lún' },
+    {
+      title: '6. Biến Dạng, Lún Nghiêng & Quan Trắc',
+      valid: Boolean(liveSettlement),
+      note: liveSettlement ? 'Đo lường độ nghiêng & lún' : 'Chưa có dữ liệu biến dạng',
+    },
   ];
 
   const isAllGateValid = gateCriteria.every((c) => c.valid);
+
+  // Chuẩn hóa gateDecision (hỗ trợ cả string hoặc object { decision, reason }) và gateNotes
+  const normalizedGateDecision =
+    typeof formState.gateDecision === 'string'
+      ? formState.gateDecision
+      : formState.gateDecision?.decision ||
+        (typeof sJson.gateDecision === 'string' ? sJson.gateDecision : sJson.gateDecision?.decision) ||
+        (isAllGateValid ? 'ALLOW' : 'CONDITIONAL');
+  const normalizedGateNotes =
+    formState.gateNotes ??
+    (typeof formState.gateDecision === 'object' ? formState.gateDecision?.reason : undefined) ??
+    (typeof sJson.gateDecision === 'object' ? sJson.gateDecision?.reason : undefined) ??
+    '';
 
   const handleRevertToBaseline = async () => {
     if (!reportId) return;
@@ -323,7 +510,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold text-slate-700">Quyết định Cổng:</label>
                 <select
-                  value={typeof formState.gateDecision === 'string' ? formState.gateDecision : formState.gateDecision?.decision || (isAllGateValid ? 'ALLOW' : 'CONDITIONAL')}
+                  value={normalizedGateDecision}
                   onChange={(e) => handleFieldChange && handleFieldChange('gateDecision', 'Quyết định Cổng', e.target.value)}
                   className="p-1 text-xs font-bold bg-white border border-slate-300 rounded"
                 >
@@ -333,20 +520,29 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                 </select>
               </div>
             ) : (
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
-                isAllGateValid
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                  : 'bg-amber-100 text-amber-900 border-amber-300'
-              }`}>
-                {isAllGateValid ? (
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
+                  normalizedGateDecision === 'ALLOW' && isAllGateValid
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : normalizedGateDecision === 'REJECT'
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-amber-100 text-amber-900 border-amber-300'
+                }`}
+              >
+                {normalizedGateDecision === 'ALLOW' && isAllGateValid ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>ĐỦ ĐIỀU KIỆN PHÊ DUYỆT</span>
                   </>
+                ) : normalizedGateDecision === 'REJECT' ? (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>TỪ CHỐI / YÊU CẦU KHẢO SÁT LẠI</span>
+                  </>
                 ) : (
                   <>
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                    <span>⚠️ CẦN RÀ SOÁT DỮ LIỆU</span>
+                    <span>⚠️ CẦN RÀ SOÁT / PHÊ DUYỆT CÓ ĐIỀU KIỆN</span>
                   </>
                 )}
               </span>
@@ -369,18 +565,23 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
             ))}
           </div>
 
-          {isEditMode && (
+          {isEditMode ? (
             <div className="pt-2">
               <label className="text-[11px] font-bold text-slate-700 block mb-1">Ghi chú điều kiện / Cổng dữ liệu:</label>
               <input
                 type="text"
-                value={formState.gateNotes || ''}
+                value={normalizedGateNotes}
                 onChange={(e) => handleFieldChange && handleFieldChange('gateNotes', 'Ghi chú Cổng dữ liệu', e.target.value)}
                 placeholder="Ghi chú điều kiện phê duyệt hoặc yêu cầu bổ sung hồ sơ..."
                 className="w-full p-1.5 text-xs bg-white border border-slate-300 rounded-lg"
               />
             </div>
-          )}
+          ) : normalizedGateNotes ? (
+            <div className="pt-2 border-t border-sky-200/60 text-xs text-slate-700">
+              <span className="font-bold text-sky-900">Ghi chú Cổng dữ liệu: </span>
+              <span className="italic">{normalizedGateNotes}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* 2. KHỐI TỔNG ĐIỂM TỔNG HỢP ECS & VI (HIỂN THỊ ĐỐI CHIẾU 2 CỘT SONG SONG GỐC VS CAN THIỆP) */}
@@ -609,12 +810,40 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                           <div className="flex items-center justify-center gap-1">
                             <input
                               type="number"
+                              step="1"
                               min={0}
                               max={item.max}
                               value={Number(ecs[eKey] ?? item.score)}
-                              onChange={(e) =>
-                                handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, Number(e.target.value))
-                              }
+                              onChange={(e) => {
+                                const clampedVal = Math.max(0, Math.min(item.max, Math.round(Number(e.target.value) || 0)));
+                                const nextScores: Record<string, number> = {
+                                  e1: e1Val,
+                                  e2: e2Val,
+                                  e3: e3Val,
+                                  e4: e4Val,
+                                  e5: e5Val,
+                                  e6: e6Val,
+                                  [eKey]: clampedVal,
+                                };
+                                const nextTotal =
+                                  nextScores.e1 +
+                                  nextScores.e2 +
+                                  nextScores.e3 +
+                                  nextScores.e4 +
+                                  nextScores.e5 +
+                                  nextScores.e6;
+                                const nextClass =
+                                  nextTotal <= 5
+                                    ? 'GOOD'
+                                    : nextTotal <= 10
+                                    ? 'MEDIUM'
+                                    : nextTotal <= 16
+                                    ? 'DEFICIENT'
+                                    : 'CRITICAL';
+                                handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, clampedVal);
+                                handleNestedFieldChange('ecs', 'totalEcs', 'Tổng điểm ECS', nextTotal);
+                                handleNestedFieldChange('ecs', 'ecsClass', 'Phân hạng ECS', nextClass);
+                              }}
                               className={`w-16 p-1 text-center font-mono font-bold text-xs bg-white rounded border focus:outline-sky-500 ${
                                 isDirty ? 'border-amber-400 ring-1 ring-amber-300 bg-amber-50' : 'border-slate-300'
                               }`}
@@ -702,20 +931,52 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                         {item.definition}
                       </td>
                       <td className="p-3 text-center font-mono text-slate-500">
-                        0 &rarr; {item.max}.0
+                        1 &rarr; {item.max}
                       </td>
                       <td className="p-3 text-center">
                         {isEditMode && handleNestedFieldChange ? (
                           <div className="flex items-center justify-center gap-1">
                             <input
                               type="number"
-                              step="0.5"
-                              min={0}
+                              step="1"
+                              min={1}
                               max={item.max}
-                              value={Number(vi[vKey] ?? item.score)}
-                              onChange={(e) =>
-                                handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, Number(e.target.value))
-                              }
+                              value={Math.round(Number(vi[vKey] ?? item.score))}
+                              onChange={(e) => {
+                                const clampedVal = Math.max(1, Math.min(item.max, Math.round(Number(e.target.value) || 1)));
+                                const nextScores: Record<string, number> = {
+                                  v1: v1Val,
+                                  v2: v2Val,
+                                  v3: v3Val,
+                                  v4: v4Val,
+                                  v5: v5Val,
+                                  v6: v6Val,
+                                  [vKey]: clampedVal,
+                                };
+                                const nextAvg = Number(
+                                  (
+                                    (nextScores.v1 +
+                                      nextScores.v2 +
+                                      nextScores.v3 +
+                                      nextScores.v4 +
+                                      nextScores.v5 +
+                                      nextScores.v6) /
+                                    6
+                                  ).toFixed(2)
+                                );
+                                const nextClass =
+                                  nextAvg <= 1.5
+                                    ? 'LOW'
+                                    : nextAvg <= 2.5
+                                    ? 'MEDIUM'
+                                    : nextAvg <= 3.25
+                                    ? 'HIGH'
+                                    : 'VERY_HIGH';
+                                handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, clampedVal);
+                                handleNestedFieldChange('vi', 'avgVi', 'Chỉ số VI trung bình', nextAvg);
+                                handleNestedFieldChange('vi', 'viAvg', 'Chỉ số VI trung bình', nextAvg);
+                                handleNestedFieldChange('vi', 'viClass', 'Phân hạng VI', nextClass);
+                              }}
                               className={`w-16 p-1 text-center font-mono font-bold text-xs bg-white rounded border focus:outline-purple-500 ${
                                 isDirty ? 'border-amber-400 ring-1 ring-amber-300 bg-amber-50' : 'border-slate-300'
                               }`}
@@ -735,7 +996,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                                   : 'bg-slate-100 text-slate-800'
                               }`}
                             >
-                              {Number(item.score).toFixed(1)} đ
+                              {Math.round(Number(item.score))} đ
                             </span>
                             {isDirty && (
                               <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>

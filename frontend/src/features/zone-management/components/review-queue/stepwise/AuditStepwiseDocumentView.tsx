@@ -47,6 +47,7 @@ export interface AuditStepwiseDocumentViewProps {
   }) => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  onDiscardAllStagedPhotos?: () => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onOrientationAuditChange?: (status: {
     hasMismatched: boolean;
@@ -54,6 +55,7 @@ export interface AuditStepwiseDocumentViewProps {
     mismatchedCount: number;
     violations: PhotoOrientationViolation[];
     stagedPhotoRotations: Record<string, number>;
+    rotatePhoto?: (photoKey: string, rotationDeg: number, photoUrl?: string) => void;
   }) => void;
 }
 
@@ -70,6 +72,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   onDirtyChange,
   stagedPhotoActions = [],
   onUndoPhotoAction,
+  onDiscardAllStagedPhotos,
   onOrientationAuditChange,
 }) => {
   const {
@@ -114,7 +117,6 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
         ...prevRots,
         ...stagedPhotoRotations,
         [photoKey]: norm,
-        ...(photoUrl ? { [photoUrl]: norm } : {}),
       };
       handleFieldChange('photoRotations', 'Góc xoay hướng ảnh chuẩn hóa báo cáo', nextRots);
     },
@@ -130,9 +132,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
         mismatchedCount,
         violations,
         stagedPhotoRotations,
+        rotatePhoto: handleRotatePhoto,
       });
     }
-  }, [hasMismatchedPhotos, hasStrictViolations, mismatchedCount, violations, stagedPhotoRotations, onOrientationAuditChange]);
+  }, [hasMismatchedPhotos, hasStrictViolations, mismatchedCount, violations, stagedPhotoRotations, handleRotatePhoto, onOrientationAuditChange]);
 
   const handleNavigateToPhoto = (v: PhotoOrientationViolation) => {
     scrollToStep(v.stepId);
@@ -244,7 +247,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           </nav>
 
           {/* Thanh công cụ Lưu / Hủy khi có thay đổi - GIỮ BẢO LƯU KHI TẮT CHẾ ĐỘ SỬA */}
-          {dirtyCount > 0 && (
+          {(dirtyCount > 0 || (stagedPhotoActions && stagedPhotoActions.length > 0)) && (
             <div className="pt-3 border-t border-amber-200/80 bg-amber-500/10 -mx-4 -mb-4 p-3.5 rounded-b-2xl space-y-2 border-b border-x border-amber-200/80">
               <div className="text-[11px] font-bold text-amber-950 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -261,7 +264,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleDiscard(false)}
+                  onClick={() => {
+                    handleDiscard(false);
+                    onDiscardAllStagedPhotos?.();
+                  }}
                   className="flex-1 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                 >
                   <Undo2 className="w-3.5 h-3.5" />
@@ -338,6 +344,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          stagedPhotoActions={stagedPhotoActions}
+          onUndoPhotoAction={onUndoPhotoAction}
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
@@ -425,6 +433,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
+          {...({ stagedPhotoActions, onUndoPhotoAction } as Record<string, unknown>)}
         />
       </div>
     </div>

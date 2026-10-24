@@ -69,6 +69,23 @@
             <span class="text-muted">{{section5.beamDeflection.location.en}}</span>
           </td>
         </tr>
+        <tr>
+          <td>Cơ sở xác định &amp; Độ tin cậy<br><span class="text-muted">Basis of determination &amp; Reliability</span></td>
+          <td class="text-center font-bold">{{section5.reliability.vi}}</td>
+          <td>
+            {{section5.basisOfDetermination.vi}}<br>
+            <span class="text-muted">{{section5.basisOfDetermination.en}}</span>
+          </td>
+        </tr>
+        {{#if section5.remarks.vi}}
+        <tr>
+          <td>Nhận xét &amp; Kiến nghị quan trắc<br><span class="text-muted">Remarks &amp; Monitoring Notes</span></td>
+          <td colspan="2">
+            {{section5.remarks.vi}}<br>
+            <span class="text-muted">{{section5.remarks.en}}</span>
+          </td>
+        </tr>
+        {{/if}}
       </tbody>
     </table>
 

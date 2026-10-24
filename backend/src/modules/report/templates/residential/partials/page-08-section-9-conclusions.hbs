@@ -68,6 +68,14 @@
     </div>
     {{/if}}
 
+    {{#if section9.limitations.length}}
+    <div style="margin-bottom: 6px;">
+      {{#each section9.limitations}}
+        <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      {{/each}}
+    </div>
+    {{/if}}
+
     <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>
     {{#each section9.recommendations}}
       <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>

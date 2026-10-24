@@ -81,6 +81,7 @@ export function createOverviewPhotoCollector(
       roomName: { vi: roomVi, en: roomEn },
       url: cleanUrl,
       base64: base64 && !base64.startsWith('blob:') ? base64 : undefined,
+      rotation: Number(photoRot) || 0,
       caption: {
         vi: captionVi || (isStructural ? `Hiện trạng cấu kiện ${roomVi} (${zoneCode})` : `Hiện trạng không gian ${roomVi} (${zoneCode})`),
         en: captionEn || (isStructural ? `Condition of member ${roomEn} (${zoneCode})` : `Condition of ${roomEn} (${zoneCode})`),

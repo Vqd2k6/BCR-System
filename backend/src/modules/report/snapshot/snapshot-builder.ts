@@ -85,8 +85,8 @@ export async function buildApprovedSnapshot(
       if (pr.polygon_geojson) {
         try {
           polyJson = JSON.parse(pr.polygon_geojson);
-        } catch {
-          // ignore
+        } catch (polyErr) {
+          console.warn('[SnapshotBuilder] Không thể parse polygon_geojson:', polyErr);
         }
       }
       frozenParcel = {
@@ -159,6 +159,21 @@ export async function buildApprovedSnapshot(
     [reportId, approvedByUserId]
   );
   const scopesRes = await client.query(`SELECT * FROM survey_scopes WHERE report_id = $1 LIMIT 1;`, [reportId]);
+  let absenceLogsRows: Array<Record<string, unknown>> = [];
+  if (parcelId) {
+    try {
+      const absRes = await client.query<Record<string, unknown>>(
+        `SELECT * FROM parcel_absence_logs WHERE parcel_id = $1 ORDER BY attempt_number ASC, recorded_at ASC;`,
+        [parcelId]
+      );
+      absenceLogsRows = absRes.rows;
+    } catch (absErr) {
+      console.warn('[SnapshotBuilder] Không thể truy vấn parcel_absence_logs khi buildSnapshot:', absErr);
+    }
+  }
+  if (absenceLogsRows.length > 0 && !Array.isArray(frozenSurveyDataJson.absenceLogs)) {
+    frozenSurveyDataJson.absenceLogs = absenceLogsRows;
+  }
 
   const cardRow = cardRes.rows[0] ?? null;
   const edgeDist =
@@ -300,6 +315,8 @@ export async function buildApprovedSnapshot(
     super_admin_name: userNamesRes.rows[0]?.super_admin_name ?? null,
     super_admin_signature_img: userNamesRes.rows[0]?.super_admin_signature_img ?? null,
     report_code: repRow?.report_code ?? null,
+    absenceLogs: absenceLogsRows.length > 0 ? absenceLogsRows : (Array.isArray(frozenSurveyDataJson.absenceLogs) ? frozenSurveyDataJson.absenceLogs : []),
+    absenteeNoticePhotos: frozenSurveyDataJson.absenteeNoticePhotos ?? frozenSurveyDataJson.absentNoticePhotos ?? frozenSurveyDataJson.absenteeMinutesPhotos ?? null,
   };
 
   const snapshotPayload = {

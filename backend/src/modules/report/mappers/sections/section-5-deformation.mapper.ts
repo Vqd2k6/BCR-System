@@ -34,12 +34,15 @@ export class Section5DeformationMapper {
       ? json.settlementTilt.buildingTilt.photos[0]
       : (deform.buildingTilt?.photos?.[0] || rawReport.deformation?.tilt_photos_json?.[0]);
     const p05Url =
-      json.photoP05?.url ||
-      (typeof json.photoP05 === 'string' ? json.photoP05 : undefined) ||
-      json.photos?.p05 ||
-      json.step1Photos?.p05TiltCheckUrl ||
       getPhotoEntryUrl(tiltPhotoObj) ||
-      (!hasExplicitTiltPhotosArray ? (deform.buildingTilt?.photoUrl || findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT'])) : '');
+      (!hasExplicitTiltPhotosArray
+        ? (json.photoP05?.url ||
+           (typeof json.photoP05 === 'string' ? json.photoP05 : undefined) ||
+           json.photos?.p05 ||
+           json.step1Photos?.p05TiltCheckUrl ||
+           deform.buildingTilt?.photoUrl ||
+           findPhoto(['P05_TILT_CHECK', 'P05', 'P-05', 'TILT', 'ELEV_TILT']))
+        : '');
 
     const hasExplicitSettlePhotosArray = Array.isArray(json.settlementTilt?.diffSettlement?.photos);
     const settlePhotoObj = hasExplicitSettlePhotosArray
@@ -47,7 +50,13 @@ export class Section5DeformationMapper {
       : (deform.diffSettlement?.photos?.[0] || rawReport.deformation?.diff_settlement_photos_json?.[0]);
     const p06Url =
       getPhotoEntryUrl(settlePhotoObj) ||
-      (!hasExplicitSettlePhotosArray ? (deform.diffSettlement?.photoUrl || findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06'])) : '');
+      (!hasExplicitSettlePhotosArray
+        ? (json.photoP06?.url ||
+           (typeof json.photoP06 === 'string' ? json.photoP06 : undefined) ||
+           json.photos?.p06 ||
+           deform.diffSettlement?.photoUrl ||
+           findPhoto(['FOUND_SETTLE', 'SETTLE', 'P06', 'P-06']))
+        : '');
 
     const deformObj = { ...(rawReport.deformation || {}), ...(json.settlementTilt || {}) };
     const diffDeform = deformObj.diffSettlement || {};
@@ -69,14 +78,25 @@ export class Section5DeformationMapper {
     const tiltDir = tiltDeform.direction || deformObj.tilt_direction;
     const tiltNotes = tiltDeform.notes?.trim() || '';
     const tiltPhotoCode = tiltDeform.photoCode || deformObj.tilt_photo_code || (p05Url ? 'P-05' : '');
-    const hasNonZeroTilt = (Number(tiltX) !== 0 && !isNaN(Number(tiltX))) || (Number(tiltY) !== 0 && !isNaN(Number(tiltY)));
-    const hasTiltMeas = [tiltX, tiltY].some((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v)));
+    const hasNonZeroTilt =
+      (tiltX !== undefined && tiltX !== null && tiltX !== '' && Number(tiltX) !== 0 && !isNaN(Number(tiltX))) ||
+      (tiltY !== undefined && tiltY !== null && tiltY !== '' && Number(tiltY) !== 0 && !isNaN(Number(tiltY)));
+    const hasExplicitLaserSource = Array.isArray(deformObj.dataSource)
+      ? deformObj.dataSource.some((s: unknown) => String(s).toUpperCase().includes('LASER'))
+      : String(deformObj.dataSource || '').toUpperCase().includes('LASER');
+    const hasTiltMeas =
+      hasNonZeroTilt ||
+      (hasExplicitLaserSource &&
+        [tiltX, tiltY].some((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v))));
+
+    const fmtPermille = (v: unknown): string =>
+      v === undefined || v === null || v === '' || isNaN(Number(v)) ? '--' : `${Number(v).toFixed(3)}‰`;
 
     let measuredTilt = '';
+    const formattedTiltX = hasTiltMeas ? fmtPermille(tiltX) : '--';
+    const formattedTiltY = hasTiltMeas ? fmtPermille(tiltY) : '--';
     if (hasTiltMeas) {
-      const fmtPermille = (v: unknown): string =>
-        v === undefined || v === null || v === '' || isNaN(Number(v)) ? '--' : `${Number(v).toFixed(3)}‰`;
-      measuredTilt = `X = ${fmtPermille(tiltX)} ; Y = ${fmtPermille(tiltY)}`;
+      measuredTilt = `X = ${formattedTiltX} ; Y = ${formattedTiltY}`;
       if (tiltDir) measuredTilt += ` (Hướng: ${tiltDir})`;
     } else {
       measuredTilt = '-- (Quan sát ngoại quan, không đo đạc)';
@@ -182,6 +202,9 @@ export class Section5DeformationMapper {
       },
       floorSlabInclination: { observed: false, measured: '/' },
       beamSlabDeflection: { observed: isSagObserved, measured: measuredSag },
+      hasLaserTilt: hasTiltMeas,
+      tiltX: formattedTiltX,
+      tiltY: formattedTiltY,
       basisOfDetermination: {
         vi: Array.isArray(deformObj.dataSource) && deformObj.dataSource.length > 0
           ? deformObj.dataSource.join(', ')
@@ -208,15 +231,15 @@ export class Section5DeformationMapper {
 
         const abnCase = deformObj.abnormalCase || {};
         const abnDesc = (abnCase.description || abnCase.notes || '').trim();
-        const hasAbnDesc = Boolean((abnCase.hasAbnormal !== false) && abnDesc);
+        const hasAbnDesc = Boolean(abnDesc);
         const abnNoteVi = hasAbnDesc ? ` Ghi nhận bất thường ngoại quan: ${abnDesc}.` : '';
         const abnNoteEn = hasAbnDesc ? ` Exterior anomaly noted: ${abnDesc}.` : '';
 
         const monObj = deformObj.needAdditionalMonitoring || {};
         const monNotes = (monObj.notes || '').trim();
-        const hasMonNotes = Boolean(monObj.required && monNotes);
-        const monNoteVi = hasMonNotes ? ` Kiến nghị quan trắc bổ sung: ${monNotes}.` : '';
-        const monNoteEn = hasMonNotes ? ` Additional monitoring recommendation: ${monNotes}.` : '';
+        const hasMonNotes = Boolean(monObj.required || monNotes);
+        const monNoteVi = hasMonNotes ? ` Kiến nghị quan trắc bổ sung: ${monNotes || 'Yêu cầu gắn mốc quan trắc theo dõi biến dạng'}.` : '';
+        const monNoteEn = hasMonNotes ? ` Additional monitoring recommendation: ${monNotes || 'Additional deformation monitoring required'}.` : '';
 
         if (isTiltObserved || hasDiff || isSagObserved || hasAbnDesc || hasMonNotes) {
           return {

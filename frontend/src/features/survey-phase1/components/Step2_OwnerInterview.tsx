@@ -365,7 +365,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 </ul>
               </InfoPopover>
               <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-600 text-white shadow-sm">
-                CAT Móng: Mức {formData.foundationCatScore}
+                CAT Móng: Mức {formData.foundationCatScore || 5}
               </span>
             </div>
           </div>
@@ -376,9 +376,9 @@ export const Step2_OwnerInterview: React.FC = () => {
               type="button"
               onClick={() => {
                 setHasDrawingOption('HAS_DRAWING');
-                if (formData.foundationCatScore > 2) handleSelectCatScore(1);
+                if (!formData.foundationCatScore || formData.foundationCatScore > 2) handleSelectCatScore(1);
               }}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 hasDrawingOption === 'HAS_DRAWING'
                   ? 'border-emerald-500 bg-white ring-2 ring-emerald-400 font-semibold text-emerald-950 shadow-sm'
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'
@@ -394,11 +394,11 @@ export const Step2_OwnerInterview: React.FC = () => {
               type="button"
               onClick={() => {
                 setHasDrawingOption('NO_DRAWING');
-                if (formData.foundationCatScore <= 2 || formData.foundationCatScore === 5) {
+                if (!formData.foundationCatScore || formData.foundationCatScore <= 2 || formData.foundationCatScore === 5) {
                   handleSelectCatScore(3);
                 }
               }}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 hasDrawingOption === 'NO_DRAWING'
                   ? 'border-emerald-500 bg-white ring-2 ring-emerald-400 font-semibold text-emerald-950 shadow-sm'
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'
@@ -416,7 +416,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 setHasDrawingOption('UNKNOWN');
                 handleSelectCatScore(5);
               }}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 hasDrawingOption === 'UNKNOWN'
                   ? 'border-red-400 bg-white ring-2 ring-red-400 font-semibold text-red-950 shadow-sm'
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'

@@ -201,9 +201,17 @@ export class AuditReviewService {
         r.updated_at,
         r.survey_data_json,
         u.id AS surveyor_id,
-        u.full_name AS surveyor_name,
+        COALESCE(
+          NULLIF(BTRIM(r.survey_data_json->'signatures'->>'surveyorName'), ''),
+          NULLIF(BTRIM(r.survey_data_json->>'surveyorName'), ''),
+          u.full_name
+        ) AS surveyor_name,
         u.surveyor_code,
-        u.phone AS surveyor_phone,
+        COALESCE(
+          NULLIF(BTRIM(r.survey_data_json->'signatures'->>'surveyorPhone'), ''),
+          NULLIF(BTRIM(r.survey_data_json->>'surveyorPhone'), ''),
+          u.phone
+        ) AS surveyor_phone,
         CASE 
           WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 0 THEN 'GRADE_0'
           WHEN COALESCE((r.survey_data_json->'burlandSummary'->>'localMaxGrade')::int, sc.e1_burland_score, 0) = 1 THEN 'GRADE_1'
@@ -554,6 +562,51 @@ export class AuditReviewService {
       ? JSON.parse(report.survey_data_json)
       : (report.survey_data_json || {});
 
+    // ORCH-05: Đồng bộ góc xoay ảnh từ survey_photo_registry chỉ theo photo_code và photo_url định danh riêng biệt
+    // Tuyệt đối KHÔNG gán theo photo_type dùng chung (WORKING_MINUTES, DEFECT_CU, SETTLEMENT_DIFF, v.v.)
+    const sharedPhotoTypes = new Set([
+      'WORKING_MINUTES',
+      'MINUTES',
+      'ABSENCE_NOTICE',
+      'AS_BUILT',
+      'DEFECT_CU',
+      'ZONE_CTX',
+      'ELEMENT_CTX',
+      'ELEMENT_OVERVIEW',
+      'CAD_FLOOR',
+      'SETTLEMENT_DIFF',
+      'TILT_PHOTO',
+      'BEAM_SAGGING',
+      'ABNORMAL_PHOTO',
+      'P03_EXTRA',
+      'P03_SUPPLEMENTARY',
+    ]);
+    const rawPhotoRotations =
+      surveyJson.photoRotations && typeof surveyJson.photoRotations === 'object'
+        ? { ...(surveyJson.photoRotations as Record<string, number>) }
+        : {};
+    for (const k of Object.keys(rawPhotoRotations)) {
+      if (sharedPhotoTypes.has(k.toUpperCase())) {
+        delete rawPhotoRotations[k];
+      }
+    }
+    for (const rRow of photoRegistryRows) {
+      const angle = Number(rRow.rotation_angle);
+      if (Number.isFinite(angle) && angle !== 0) {
+        if (rRow.photo_code && typeof rRow.photo_code === 'string' && !sharedPhotoTypes.has(rRow.photo_code.toUpperCase())) {
+          if (rawPhotoRotations[rRow.photo_code] === undefined) {
+            rawPhotoRotations[rRow.photo_code] = angle;
+          }
+        }
+        if (rRow.photo_url && typeof rRow.photo_url === 'string') {
+          if (rawPhotoRotations[rRow.photo_url] === undefined) {
+            rawPhotoRotations[rRow.photo_url] = angle;
+          }
+        }
+      }
+    }
+    surveyJson.photoRotations = rawPhotoRotations;
+
     // Chuẩn hóa bộ 4 ảnh định danh P-01 -> P-04
     const p01Row = photosRes.rows.find((p: any) => p.photo_type === 'P01_HOUSE_NUMBER');
     const p02Row = photosRes.rows.find((p: any) => p.photo_type === 'P02_MAIN_FACADE');
@@ -768,13 +821,17 @@ export class AuditReviewService {
 
     const sigJson = surveyJson.signatures || {};
     const normalizedSignatures = {
-      surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
-      surveyorSignatureUrl: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
-      surveyorName: report.surveyor_name || sigJson.preparedBy?.fullName || null,
-      ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
-      ownerSignatureUrl: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
-      ownerName: report.owner_name || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || null,
-      ownerFeedback: report.owner_remarks || sigJson.ownerFeedback || sigJson.ownerRemarks || null,
+      surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || sigJson.surveyorSignature || null,
+      surveyorSignatureUrl: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || sigJson.surveyorSignature || null,
+      surveyorName: sigJson.surveyorName || surveyJson.surveyorName || sigJson.preparedBy?.fullName || report.surveyor_name || null,
+      surveyorPhone: sigJson.surveyorPhone || surveyJson.surveyorPhone || sigJson.preparedBy?.phone || report.surveyor_phone || null,
+      witnessName: sigJson.witnessName || surveyJson.witnessName || sigJson.localAuthority?.fullName || null,
+      witnessRole: sigJson.witnessRole || surveyJson.witnessRole || sigJson.localAuthority?.role || null,
+      witnessPhone: sigJson.witnessPhone || surveyJson.witnessPhone || sigJson.localAuthority?.phone || null,
+      ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || sigJson.ownerSignature || null,
+      ownerSignatureUrl: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || sigJson.ownerSignature || null,
+      ownerName: sigJson.ownerName || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || report.owner_name || null,
+      ownerFeedback: sigJson.ownerFeedback || sigJson.ownerRemarks || surveyJson.ownerRemarks || report.owner_remarks || null,
       workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) && sigJson.workingMinutesPhotos.length > 0
         ? sigJson.workingMinutesPhotos
         : (Array.isArray(surveyJson.workingMinutesPhotos) ? surveyJson.workingMinutesPhotos : []),
@@ -973,8 +1030,11 @@ export class AuditReviewService {
         floorCount: report.floor_count !== null && report.floor_count !== undefined ? Number(report.floor_count) : surveyJson.floorCount,
       },
       zoneId: report.zone_id,
-      surveyorName: report.surveyor_name,
-      surveyorPhone: report.surveyor_phone,
+      surveyorName: normalizedSignatures.surveyorName,
+      surveyorPhone: normalizedSignatures.surveyorPhone,
+      witnessName: normalizedSignatures.witnessName,
+      witnessRole: normalizedSignatures.witnessRole,
+      witnessPhone: normalizedSignatures.witnessPhone,
       status: report.status,
       surveyDate: report.survey_date,
       isRefusedOrAbsent: report.is_refused_or_absent,
@@ -1999,15 +2059,42 @@ export class AuditReviewService {
     adminId: string,
     judgementNotes?: string
   ) {
-    return Database.transaction(async (client) => {
+    // M9-05: Bảo đảm khởi tạo v0 (ORIGINAL_SUBMISSION) với toàn bộ dữ liệu gốc trước khi thay đổi trạng thái hồ sơ vắng mặt
+    try {
+      const preCheck = await Database.query<{ id: string; surveyor_id: string | null }>(
+        `SELECT id, surveyor_id FROM base_survey_reports WHERE id = $1 LIMIT 1;`,
+        [reportId]
+      );
+      if (preCheck.rows[0]) {
+        const verCnt = await Database.query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM survey_report_versions WHERE report_id = $1;`,
+          [preCheck.rows[0].id]
+        );
+        if (Number(verCnt.rows[0]?.cnt || 0) === 0) {
+          const { AuditVersionService } = await import('./audit-version.service');
+          await AuditVersionService.createSnapshot(preCheck.rows[0].id, {
+            versionNumber: 0,
+            versionTag: 'ORIGINAL_SUBMISSION',
+            title: 'Bản nộp thực địa ban đầu (Vắng mặt)',
+            editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi xác nhận hồ sơ vắng mặt',
+            userId: preCheck.rows[0].surveyor_id || undefined,
+          });
+        }
+      }
+    } catch (seedErr) {
+      console.error('[approveAbsenteeReport] Lỗi khởi tạo snapshot v0:', seedErr);
+    }
+
+    const txResult = await Database.transaction(async (client) => {
       const repRes = await client.query<{
         id: string;
         parcel_id: string;
         unit_id: string | null;
         report_type: string | null;
         status: string;
+        survey_data_json: Record<string, unknown> | string | null;
       }>(
-        `SELECT id, parcel_id, unit_id, report_type, status
+        `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json
          FROM base_survey_reports
          WHERE id = $1
          FOR UPDATE;`,
@@ -2023,7 +2110,27 @@ export class AuditReviewService {
       const actualParcelId = rep.parcel_id;
       const actualUnitId = rep.unit_id;
 
-      // Cập nhật base_survey_reports
+      let existingJson: Record<string, unknown> = {};
+      if (rep.survey_data_json) {
+        try {
+          existingJson =
+            typeof rep.survey_data_json === 'string'
+              ? (JSON.parse(rep.survey_data_json) as Record<string, unknown>)
+              : { ...rep.survey_data_json };
+        } catch (parseErr) {
+          console.error('[approveAbsenteeReport] Lỗi parse survey_data_json:', parseErr);
+        }
+      }
+
+      const updatedSurveyJson: Record<string, unknown> = {
+        ...existingJson,
+        isRefusedOrAbsent: true,
+        isAbsentee: true,
+        absenteeVerifiedAt: new Date().toISOString(),
+        ...(judgementNotes ? { absenteeVerifiedNotes: judgementNotes } : {}),
+      };
+
+      // Cập nhật base_survey_reports kèm bảo toàn toàn bộ survey_data_json
       await client.query(
         `UPDATE base_survey_reports
          SET status = 'APPROVED',
@@ -2031,9 +2138,15 @@ export class AuditReviewService {
              zone_admin_id = $2,
              approved_at = NOW(),
              engineering_recommendations = COALESCE($3, engineering_recommendations),
+             survey_data_json = $4::jsonb,
              updated_at = NOW()
          WHERE id = $1;`,
-        [actualReportId, adminId, judgementNotes ? `XÁC NHẬN VẮNG MẶT: ${judgementNotes}` : 'Xác nhận hồ sơ vắng mặt hợp lệ']
+        [
+          actualReportId,
+          adminId,
+          judgementNotes ? `XÁC NHẬN VẮNG MẶT: ${judgementNotes}` : 'Xác nhận hồ sơ vắng mặt hợp lệ',
+          JSON.stringify(updatedSurveyJson),
+        ]
       );
 
       // Cập nhật building_units hoặc parcels
@@ -2061,36 +2174,6 @@ export class AuditReviewService {
          SET is_resolved = TRUE, resolved_by_user_id = $2, resolved_at = NOW()
          WHERE report_id = $1;`,
         [actualReportId, adminId]
-      );
-
-      // Xóa bảng điểm rủi ro giả định nếu có (hồ sơ vắng mặt không tính điểm rủi ro)
-      await client.query(`DELETE FROM risk_score_cards WHERE report_id = $1;`, [actualReportId]);
-
-      // Chụp snapshot ABSENTEE_VERIFIED chứng cứ vắng mặt
-      const maxVerRes = await client.query<{ max_ver: number | null }>(
-        `SELECT MAX(version_number) AS max_ver FROM survey_report_versions WHERE report_id = $1;`,
-        [actualReportId]
-      );
-      const nextVer = (maxVerRes.rows[0]?.max_ver ?? -1) + 1;
-      await client.query(
-        `INSERT INTO survey_report_versions (
-           report_id, version_number, version_tag, title, edit_reason, snapshot_data, created_by_user_id
-         ) VALUES ($1, $2, 'ABSENTEE_VERIFIED', $3, $4, $5, $6);`,
-        [
-          actualReportId,
-          nextVer,
-          'Biên bản Xác nhận Vắng mặt / Từ chối Khảo sát',
-          judgementNotes || 'Xác nhận hồ sơ vắng mặt hợp lệ - cơ sở phát hành công văn mời lần 2',
-          JSON.stringify({
-            reportId: actualReportId,
-            parcelId: actualParcelId,
-            status: 'POSTPONED_ABSENT_VERIFIED',
-            reason: judgementNotes || null,
-            isRefusedOrAbsent: true,
-            absenteeVerifiedAt: new Date().toISOString(),
-          }),
-          adminId,
-        ]
       );
 
       // Giải phóng khóa audit session
@@ -2125,6 +2208,21 @@ export class AuditReviewService {
         message: 'Đã xác nhận hồ sơ vắng mặt hợp lệ (POSTPONED_ABSENT_VERIFIED)',
       };
     });
+
+    // M9-05: Tạo snapshot đầy đủ (chứa trọn vẹn survey_data_json & thông tin thửa đất) qua AuditVersionService.createSnapshot
+    try {
+      const { AuditVersionService } = await import('./audit-version.service');
+      await AuditVersionService.createSnapshot(txResult.reportId, {
+        versionTag: 'ADMIN_DIFF_SAVE',
+        title: 'Biên bản Xác nhận Vắng mặt / Từ chối Khảo sát',
+        editReason: judgementNotes || 'Xác nhận hồ sơ vắng mặt hợp lệ - cơ sở phát hành công văn mời lần 2',
+        userId: adminId,
+      });
+    } catch (snapErr) {
+      console.error('[approveAbsenteeReport] Không thể tạo snapshot đầy đủ:', snapErr);
+    }
+
+    return txResult;
   }
 
   /**

@@ -14,18 +14,25 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
   else if (burlandMax === 4) e1Raw = 3;
   else if (burlandMax >= 5) e1Raw = 4;
 
+  // Helper to filter out soft-deleted items
+  const isNotDeleted = (item: unknown): boolean => {
+    if (!item || typeof item !== 'object') return false;
+    const rec = item as { isDeleted?: boolean; is_deleted?: boolean };
+    return !rec.isDeleted && !rec.is_deleted;
+  };
+
   // 2. E2: Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực (Tự động map từ Cờ kết cấu Bước 4 & Ý nghĩa KC Defect D-xx)
   let maxDefectStructural = 0;
-  formData.floors?.forEach((fl) => {
-    fl.zones?.forEach((zn) => {
-      zn.defects?.forEach((df) => {
+  formData.floors?.filter(isNotDeleted).forEach((fl) => {
+    fl.zones?.filter(isNotDeleted).forEach((zn) => {
+      zn.defects?.filter(isNotDeleted).forEach((df) => {
         const rawVal = df.structuralSignificanceE2 ?? 0;
         const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > maxDefectStructural) maxDefectStructural = val;
       });
     });
-    fl.structuralElements?.forEach((el) => {
-      el.defects?.forEach((df) => {
+    fl.structuralElements?.filter(isNotDeleted).forEach((el) => {
+      el.defects?.filter(isNotDeleted).forEach((df) => {
         const rawVal = df.structuralSignificanceE2 ?? 0;
         const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > maxDefectStructural) maxDefectStructural = val;
@@ -35,9 +42,13 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
 
   // Đếm tổng số khuyết tật toàn công trình
   let totalDefectsCount = 0;
-  formData.floors?.forEach((fl) => {
-    fl.zones?.forEach((zn) => { totalDefectsCount += (zn.defects || []).length; });
-    fl.structuralElements?.forEach((el) => { totalDefectsCount += (el.defects || []).length; });
+  formData.floors?.filter(isNotDeleted).forEach((fl) => {
+    fl.zones?.filter(isNotDeleted).forEach((zn) => {
+      totalDefectsCount += (zn.defects || []).filter(isNotDeleted).length;
+    });
+    fl.structuralElements?.filter(isNotDeleted).forEach((el) => {
+      totalDefectsCount += (el.defects || []).filter(isNotDeleted).length;
+    });
   });
   const isZeroDefects = totalDefectsCount === 0;
 
@@ -65,16 +76,16 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
 
   // 4. E4: Suy giảm vật liệu/độ bền (Tự động quét max từ tất cả Defect D-xx Bước 3.3 & 3.4)
   let e4 = 0;
-  formData.floors?.forEach((fl) => {
-    fl.zones?.forEach((zn) => {
-      zn.defects?.forEach((df) => {
+  formData.floors?.filter(isNotDeleted).forEach((fl) => {
+    fl.zones?.filter(isNotDeleted).forEach((zn) => {
+      zn.defects?.filter(isNotDeleted).forEach((df) => {
         const rawVal = df.materialDegradationE4 ?? 0;
         const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > e4) e4 = val;
       });
     });
-    fl.structuralElements?.forEach((el) => {
-      el.defects?.forEach((df) => {
+    fl.structuralElements?.filter(isNotDeleted).forEach((el) => {
+      el.defects?.filter(isNotDeleted).forEach((df) => {
         const rawVal = df.materialDegradationE4 ?? 0;
         const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > e4) e4 = val;
@@ -106,22 +117,24 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
   // 6. E6: Tình trạng chức năng/tổng thể (Tự động quét từ khuyết tật Thấm dột, Kẹt cửa Bước 3.3 & Vùng cần sửa chữa)
   let maxDefectE6 = 0;
   let damagedZoneCount = 0;
-  formData.floors?.forEach((fl) => {
-    fl.zones?.forEach((zn) => {
-      if (zn.functionalImpactRepairNeeded || (zn.burlandGrade && zn.burlandGrade >= 3)) {
+  formData.floors?.filter(isNotDeleted).forEach((fl) => {
+    fl.zones?.filter(isNotDeleted).forEach((zn) => {
+      const activeDefects = (zn.defects || []).filter(isNotDeleted);
+      if (zn.functionalImpactRepairNeeded || (zn.burlandGrade && zn.burlandGrade >= 3 && activeDefects.length > 0)) {
         damagedZoneCount++;
       }
-      zn.defects?.forEach((df) => {
+      activeDefects.forEach((df) => {
         let val = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : 0;
         if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;
       });
     });
-    fl.structuralElements?.forEach((el) => {
-      if (el.hasDamage || (el.defects && el.defects.length > 0)) {
+    fl.structuralElements?.filter(isNotDeleted).forEach((el) => {
+      const activeDefects = (el.defects || []).filter(isNotDeleted);
+      if ((el.hasDamage && activeDefects.length > 0) || activeDefects.length > 0) {
         damagedZoneCount++;
       }
-      el.defects?.forEach((df) => {
+      activeDefects.forEach((df) => {
         let val = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : 0;
         if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;

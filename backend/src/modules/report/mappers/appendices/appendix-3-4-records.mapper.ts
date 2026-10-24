@@ -33,29 +33,79 @@ export class Appendix3And4Mapper {
     rawSurveyDate?: any
   ): Appendix3SignedRecord {
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
-    let minutesPhotos: string[] = [];
-    if (isAbsentee && Array.isArray(json.absenteeMinutesPhotos) && json.absenteeMinutesPhotos.length > 0) {
-      minutesPhotos = json.absenteeMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean);
-    } else if (json.signatures?.workingMinutesPhotos && json.signatures.workingMinutesPhotos.length > 0) {
-      minutesPhotos = json.signatures.workingMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean);
-    } else {
-      minutesPhotos = identPhotos
-        .filter((p: any) => p.photo_type?.includes('DOC') || p.raw_photo_url?.includes('/DOC/'))
-        .map((p: any) => p.raw_photo_url || p.annotated_photo_url)
-        .filter(Boolean);
+    const extractUrl = (p: unknown): string => {
+      if (typeof p === 'string') return p.trim();
+      if (p && typeof p === 'object') {
+        const rec = p as Record<string, unknown>;
+        return String(rec.url || rec.photoUrl || '').trim();
+      }
+      return '';
+    };
+
+    const rawAbsNoticeList =
+      json.absenteeNoticePhotos ||
+      json.absentNoticePhotos ||
+      json.absenteeMinutesPhotos ||
+      rawReport.absenteeNoticePhotos ||
+      [];
+    const absNoticeUrls: string[] = Array.isArray(rawAbsNoticeList)
+      ? rawAbsNoticeList.map(extractUrl).filter(Boolean)
+      : [];
+    const rawAbsLogs = Array.isArray(json.absenceLogs)
+      ? json.absenceLogs
+      : (Array.isArray(rawReport.absenceLogs) ? rawReport.absenceLogs : []);
+    for (const log of rawAbsLogs) {
+      const logUrl = String(log?.evidencePhotoUrl || log?.evidence_photo_url || log?.photoUrl || log?.url || '').trim();
+      if (logUrl && !absNoticeUrls.includes(logUrl)) {
+        absNoticeUrls.push(logUrl);
+      }
     }
 
-    const extraDocs: string[] = [];
-    if (!isAbsentee && Array.isArray(json.absenteeMinutesPhotos) && json.absenteeMinutesPhotos.length > 0) {
-      extraDocs.push(...json.absenteeMinutesPhotos.map((p: any) => typeof p === 'string' ? p : p?.url).filter(Boolean));
+    const rootWorkingMinutes = Array.isArray(json.workingMinutesPhotos)
+      ? json.workingMinutesPhotos.map(extractUrl).filter(Boolean)
+      : [];
+    const sigWorkingMinutes = Array.isArray(json.signatures?.workingMinutesPhotos)
+      ? json.signatures.workingMinutesPhotos.map(extractUrl).filter(Boolean)
+      : [];
+    const mergedWorkingMinutes: string[] = [];
+    for (const u of [...rootWorkingMinutes, ...sigWorkingMinutes]) {
+      if (u && !mergedWorkingMinutes.includes(u)) {
+        mergedWorkingMinutes.push(u);
+      }
     }
-    const allDocPhotos = [...minutesPhotos, ...extraDocs].filter(Boolean);
+    if (mergedWorkingMinutes.length === 0) {
+      const dbDocPhotos = identPhotos
+        .filter((p: Record<string, unknown>) => String(p.photo_type || '').includes('DOC') || String(p.raw_photo_url || '').includes('/DOC/'))
+        .map((p: Record<string, unknown>) => String(p.raw_photo_url || p.annotated_photo_url || '').trim())
+        .filter(Boolean);
+      for (const u of dbDocPhotos) {
+        if (!mergedWorkingMinutes.includes(u)) mergedWorkingMinutes.push(u);
+      }
+    }
+
+    const allDocItems: Array<{ url: string; kind: 'MINUTES' | 'ABSENCE'; kindIdx: number }> = [];
+    const seenDocUrls = new Set<string>();
+    const pushDocGroup = (urls: string[], kind: 'MINUTES' | 'ABSENCE') => {
+      urls.forEach((u, kindIdx) => {
+        if (u && !seenDocUrls.has(u)) {
+          seenDocUrls.add(u);
+          allDocItems.push({ url: u, kind, kindIdx });
+        }
+      });
+    };
+    if (isAbsentee) {
+      pushDocGroup(absNoticeUrls, 'ABSENCE');
+      pushDocGroup(mergedWorkingMinutes, 'MINUTES');
+    } else {
+      pushDocGroup(mergedWorkingMinutes, 'MINUTES');
+      pushDocGroup(absNoticeUrls, 'ABSENCE');
+    }
 
     const ownerFeedbackText = json.signatures?.ownerFeedback ?? json.ownerFeedback ?? json.ownerRemarks ?? rawReport.owner_remarks ?? '';
     const rawRepName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name || '';
     const isRepCadastral = !rawRepName || /chủ\s*hộ\s*thửa/i.test(rawRepName) || /tờ\s*bản\s*đồ/i.test(rawRepName);
     const actualSignerName = isRepCadastral ? '' : rawRepName.trim();
-    const ownerName = (json.ownerName || rawReport.owner_name || '').trim();
+    const ownerName = String(json.ownerName ?? json.signatures?.ownerName ?? rawReport.owner_name ?? '').trim();
     const finalOwnerName = actualSignerName || ownerName || 'Chủ hộ';
     const isOwnerItself = !actualSignerName || actualSignerName === ownerName;
     const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
@@ -106,24 +156,29 @@ export class Appendix3And4Mapper {
           en: `Software export ${reportNo}${refIso ? `, approved/recorded at ${refIso}` : ''}`,
         };
       })(),
-      signedRecordPages: allDocPhotos.map((url: string, idx: number) => {
+      signedRecordPages: allDocItems.map((docItem, idx: number) => {
+        const { url, kind, kindIdx } = docItem;
         const rotMap = json.photoRotations || rawReport.photoRotations || {};
-        const docRot = rotMap[`minutes_${idx}`] ?? rotMap[`MINUTES-${idx + 1}`] ?? rotMap[`absenceNotice_${idx}`] ?? rotMap[url] ?? 0;
-        const docTitleVi = isAbsentee
-          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocPhotos.length || 1}`
-          : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocPhotos.length || 1}`;
-        const docTitleEn = isAbsentee
-          ? `Absentee survey notice / record - page ${idx + 1}/${allDocPhotos.length || 1}`
-          : `Signed site-survey record - page ${idx + 1}/${allDocPhotos.length || 1}`;
+        const docRot = kind === 'ABSENCE'
+          ? (rotMap[`absenceNotice_${kindIdx}`] ?? rotMap[`ABSENCE-${kindIdx + 1}`] ?? rotMap[url] ?? 0)
+          : (rotMap[`minutes_${kindIdx}`] ?? rotMap[`workingMinutesPhotos_${kindIdx}`] ?? rotMap[`MINUTES-${kindIdx + 1}`] ?? rotMap[url] ?? 0);
+        const isAbsPage = isAbsentee || kind === 'ABSENCE';
+        const docTitleVi = isAbsPage
+          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocItems.length || 1}`
+          : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocItems.length || 1}`;
+        const docTitleEn = isAbsPage
+          ? `Absentee survey notice / record - page ${idx + 1}/${allDocItems.length || 1}`
+          : `Signed site-survey record - page ${idx + 1}/${allDocItems.length || 1}`;
 
         return {
           pageIndex: idx + 1,
           title: { vi: docTitleVi, en: docTitleEn },
           url,
           base64: ReportImageResolver.resolveToBase64(url, docRot),
+          rotation: Number(docRot) || 0,
           alreadyWatermarked: isPhotoAlreadyWatermarked(url),
           watermarkDateTime: extractPhotoDateTime(url, null, rawSurveyDate),
-          metroPhotoCode: isAbsentee
+          metroPhotoCode: isAbsPage
             ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_ABSENTEE_${String(idx + 1).padStart(2, '0')}`
             : `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`,
         };
@@ -166,11 +221,15 @@ export class Appendix3And4Mapper {
     const basementNotAccessed = basementCount > 0 && !hasBaseScope;
 
     const hasLimitations = Boolean(
-      rawLimitation.type === 'PARTIAL' ||
-      rawLimitation.type === 'REFUSED' ||
-      roofNotAccessed ||
-      basementNotAccessed ||
-      (Array.isArray(rawLimitation.restrictedAreas) && rawLimitation.restrictedAreas.length > 0)
+      !isFullAccess && (
+        rawLimitation.type === 'LIMITED' ||
+        rawLimitation.type === 'EXTERNAL_ONLY' ||
+        rawLimitation.type === 'PARTIAL' ||
+        rawLimitation.type === 'REFUSED' ||
+        roofNotAccessed ||
+        basementNotAccessed ||
+        (Array.isArray(rawLimitation.restrictedAreas) && rawLimitation.restrictedAreas.length > 0)
+      )
     );
 
     let accessClassVi = 'Không hạn chế (100%).';

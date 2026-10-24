@@ -2,6 +2,7 @@ import { PoolClient } from 'pg';
 import { CadastralRepository } from '../cadastral.repository';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
+import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
 
 export class CadastralMutationService {
   /**
@@ -461,13 +462,145 @@ export class CadastralMutationService {
     },
     clientIp?: string
   ) {
-    return Database.transaction(async (client) => {
-      const mutationCode = `ADM-MUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    data.sourceParcelIds = Array.from(new Set((data.sourceParcelIds || []).filter(Boolean)));
+    if (!data.sourceParcelIds || data.sourceParcelIds.length === 0) {
+      throw new BadRequestError('Danh sách thửa đất nguồn (sourceParcelIds) không được để trống');
+    }
 
-      data.sourceParcelIds = Array.from(new Set((data.sourceParcelIds || []).filter(Boolean)));
-      if (!data.sourceParcelIds || data.sourceParcelIds.length === 0) {
-        throw new BadRequestError('Danh sách thửa đất nguồn (sourceParcelIds) không được để trống');
+    // M6-02: Bảo đảm khởi tạo v0 (ORIGINAL_SUBMISSION) trước khi thực thi biến động Tách / Gộp thửa
+    try {
+      const preMutReports = await Database.query<{ id: string; surveyor_id: string | null }>(
+        `SELECT id, surveyor_id FROM base_survey_reports
+         WHERE (parcel_id = ANY($1::uuid[]) OR ($2::uuid IS NOT NULL AND id = $2::uuid))
+           AND deleted_at IS NULL
+           AND status != 'APPROVED';`,
+        [data.sourceParcelIds, data.transferSurveyReportId || null]
+      );
+      for (const r of preMutReports.rows) {
+        const vCnt = await Database.query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM survey_report_versions WHERE report_id = $1;`,
+          [r.id]
+        );
+        if (Number(vCnt.rows[0]?.cnt || 0) === 0) {
+          const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+          await AuditVersionService.createSnapshot(r.id, {
+            versionNumber: 0,
+            versionTag: 'ORIGINAL_SUBMISSION',
+            title: 'Bản nộp thực địa ban đầu',
+            editReason: `Khởi tạo phiên bản cơ sở tự động trước khi biến động địa chính (${data.mutationType})`,
+            userId: r.surveyor_id || undefined,
+          });
+        }
       }
+    } catch (seedErr) {
+      console.error('[executeAdminMutation] Lỗi khởi tạo snapshot v0:', seedErr);
+    }
+
+    const txResult = await Database.transaction(async (client) => {
+      const mutationCode = `ADM-MUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const updatedReportIds: string[] = [];
+
+      // Helper đồng bộ hình học đa giác mới, gpsCoords (đỉnh gần Metro nhất), metroOffsetDistance và gisMutationConfirmed vào survey_data_json (M6-02)
+      const syncMutationToParcelReports = async (
+        targetParcelId: string,
+        mutationPayload: Record<string, unknown>
+      ) => {
+        const geomRes = await client.query<{ cadastral_geojson: string | null }>(
+          `SELECT ST_AsGeoJSON(cadastral_polygon_geom) AS cadastral_geojson FROM parcels WHERE id = $1 LIMIT 1;`,
+          [targetParcelId]
+        );
+        const geoStr = geomRes.rows[0]?.cadastral_geojson || null;
+        let newCoords: [number, number][] = [];
+        if (geoStr) {
+          try {
+            const parsed = JSON.parse(geoStr) as { type?: string; coordinates?: unknown };
+            if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates) && Array.isArray(parsed.coordinates[0])) {
+              newCoords = (parsed.coordinates[0] as [number, number][]).map((pt) => [Number(pt[1]), Number(pt[0])]);
+            } else if (
+              parsed.type === 'MultiPolygon' &&
+              Array.isArray(parsed.coordinates) &&
+              Array.isArray(parsed.coordinates[0]) &&
+              Array.isArray((parsed.coordinates[0] as unknown[])[0])
+            ) {
+              newCoords = ((parsed.coordinates[0] as unknown[])[0] as [number, number][]).map((pt) => [
+                Number(pt[1]),
+                Number(pt[0]),
+              ]);
+            }
+          } catch (parseErr) {
+            console.warn('[executeAdminMutation] Không thể parse cadastral_geojson:', parseErr);
+          }
+        }
+
+        const metrics = newCoords.length >= 3 ? calculateDistancesFromPolygon(newCoords) : null;
+        const centerlineDist = metrics?.centerlineDist ?? null;
+        const outerBoundaryDist = metrics?.outerBoundaryDist ?? null;
+        const closestVertex = newCoords.length > 0 ? newCoords[0] : null;
+
+        if (centerlineDist !== null) {
+          await client.query(
+            `UPDATE parcels
+             SET distance_to_centerline_m = $1,
+                 location_geom = ST_PointOnSurface(cadastral_polygon_geom),
+                 updated_at = NOW()
+             WHERE id = $2 AND cadastral_polygon_geom IS NOT NULL;`,
+            [centerlineDist, targetParcelId]
+          );
+        }
+
+        const repsRes = await client.query<{ id: string; survey_data_json: Record<string, unknown> | string | null }>(
+          `SELECT id, survey_data_json FROM base_survey_reports
+           WHERE parcel_id = $1 AND deleted_at IS NULL AND status != 'APPROVED';`,
+          [targetParcelId]
+        );
+
+        for (const rep of repsRes.rows) {
+          let existingJson: Record<string, unknown> = {};
+          if (rep.survey_data_json) {
+            try {
+              existingJson =
+                typeof rep.survey_data_json === 'string'
+                  ? (JSON.parse(rep.survey_data_json) as Record<string, unknown>)
+                  : { ...rep.survey_data_json };
+            } catch (jsonErr) {
+              console.warn('[executeAdminMutation] Lỗi parse survey_data_json:', jsonErr);
+            }
+          }
+
+          const existingMut =
+            existingJson.gisMutationConfirmed && typeof existingJson.gisMutationConfirmed === 'object'
+              ? (existingJson.gisMutationConfirmed as Record<string, unknown>)
+              : {};
+
+          const nextJson: Record<string, unknown> = {
+            ...existingJson,
+            ...(newCoords.length >= 3 ? { parcelCoordinates: newCoords, polygonCoords: newCoords } : {}),
+            ...(closestVertex && Array.isArray(closestVertex) && closestVertex.length >= 2
+              ? { gpsCoords: { lat: Number(closestVertex[0]), lng: Number(closestVertex[1]) } }
+              : {}),
+            ...(centerlineDist !== null ? { metroOffsetDistance: `${centerlineDist.toFixed(1)}m` } : {}),
+            ...(outerBoundaryDist !== null
+              ? {
+                  clearanceOffsetDistance: `${outerBoundaryDist.toFixed(1)}m`,
+                  stationEdgeDistance: `${outerBoundaryDist.toFixed(1)}m`,
+                }
+              : {}),
+            gisMutationConfirmed: {
+              ...existingMut,
+              ...mutationPayload,
+            },
+          };
+
+          await client.query(
+            `UPDATE base_survey_reports
+             SET survey_data_json = $1::jsonb,
+                 updated_at = NOW()
+             WHERE id = $2;`,
+            [JSON.stringify(nextJson), rep.id]
+          );
+          updatedReportIds.push(rep.id);
+        }
+      };
 
       // ==========================================
       // NHÁNH 1: GỘP THỬA (MERGE)
@@ -867,6 +1000,17 @@ export class CadastralMutationService {
           );
         }
 
+        // 7.1. Đồng bộ đa giác gộp thửa, gpsCoords, metroOffsetDistance & gisMutationConfirmed vào survey_data_json (M6-02)
+        await syncMutationToParcelReports(primaryParcel.id, {
+          type: 'MERGE',
+          isConfirmed: true,
+          confirmedByAdminId: adminId,
+          confirmedAt: new Date().toISOString(),
+          mergedWithParcels: secondaryParcels.map((p) => p.project_parcel_code),
+          totalMergedAreaM2: finalPrimaryArea,
+          notes: data.adminNotes || `Gộp ${data.sourceParcelIds.length} thửa thành [${primaryParcel.project_parcel_code}]`,
+        });
+
         // 8. Ghi vết parcel_mutation_events
         const mutRes = await client.query<{ id: string }>(
           `INSERT INTO parcel_mutation_events (
@@ -914,8 +1058,9 @@ export class CadastralMutationService {
           success: true,
           mutationEventId: mutRes.rows[0].id,
           mutationCode,
-          mutationType: 'MERGE',
+          mutationType: 'MERGE' as const,
           sourceParcelIds: data.sourceParcelIds,
+          updatedReportIds,
           primaryParcel: {
             id: primaryParcel.id,
             projectParcelCode: primaryParcel.project_parcel_code,
@@ -1356,6 +1501,21 @@ export class CadastralMutationService {
         );
       }
 
+      // 4. Đồng bộ đa giác tách thửa, gpsCoords, metroOffsetDistance & gisMutationConfirmed vào survey_data_json của thửa mẹ (M6-02)
+      await syncMutationToParcelReports(parent.id, {
+        type: 'SPLIT',
+        isConfirmed: true,
+        confirmedByAdminId: adminId,
+        confirmedAt: new Date().toISOString(),
+        splitCount: createdParcels.length,
+        splitChildren: createdParcels.map((c, idx) => ({
+          childCode: c.project_parcel_code,
+          areaM2: Number(data.childParcels?.[idx]?.landAreaM2) || 0,
+          ownerName: data.childParcels?.[idx]?.ownerName || '',
+        })),
+        notes: data.adminNotes || `Tách thửa [${parent.project_parcel_code}] thành ${createdParcels.length} thửa con`,
+      });
+
       // 5. Lưu sự kiện biến động vào parcel_mutation_events
       const mutRes = await client.query<{ id: string }>(
         `INSERT INTO parcel_mutation_events (
@@ -1401,12 +1561,33 @@ export class CadastralMutationService {
         success: true,
         mutationEventId: mutRes.rows[0].id,
         mutationCode,
-        mutationType: 'SPLIT',
+        mutationType: 'SPLIT' as const,
         sourceParcelIds: [parent.id],
+        updatedReportIds,
         generatedParcels: createdParcels,
         status: 'APPROVED',
         message: `Đã thực thi tách thửa [${parent.project_parcel_code}] thành ${createdParcels.length} thửa con (${createdParcels.map((c) => c.project_parcel_code).join(', ')}) thành công`,
       };
     });
+
+    // M6-02: Lưu snapshot version sau khi thực thi biến động địa chính Tách / Gộp thửa
+    if (txResult.updatedReportIds && txResult.updatedReportIds.length > 0) {
+      try {
+        const { AuditVersionService } = await import('../../audit/services/audit-version.service');
+        for (const repId of txResult.updatedReportIds) {
+          await AuditVersionService.createSnapshot(repId, {
+            versionTag: 'ADMIN_DIFF_SAVE',
+            title: `Biến động địa chính GIS (${txResult.mutationType}): ${txResult.message.substring(0, 60)}`,
+            editReason: data.adminNotes || txResult.message,
+            userId: adminId,
+            clientIp,
+          });
+        }
+      } catch (snapErr) {
+        console.error('[executeAdminMutation] Không thể tạo snapshot sau biến động GIS:', snapErr);
+      }
+    }
+
+    return txResult;
   }
 }

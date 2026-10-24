@@ -150,6 +150,7 @@ export const AuditStudioModal: React.FC<Props> = ({
       message: string;
     }>;
     stagedPhotoRotations: Record<string, number>;
+    rotatePhoto?: (photoKey: string, rotationDeg: number, photoUrl?: string) => void;
   }>({
     hasMismatched: false,
     hasStrictViolations: false,
@@ -253,17 +254,35 @@ export const AuditStudioModal: React.FC<Props> = ({
     }
   };
 
+  const getPhotoActionFieldKey = (act: PhotoActionPayload): string => {
+    const base = `photo_action_${act.category || 'GEN'}_${act.targetPhotoId || act.targetPhotoType || act.photoCode || 'photo'}`;
+    if (act.action === 'ADD') {
+      const addId = act.newPhotoUrl || (act.newPhotoUrls && act.newPhotoUrls[0]) || String(Date.now());
+      return `${base}_ADD_${addId}`;
+    }
+    const idxPart = act.photoIndex !== undefined ? `_idx${act.photoIndex}` : '';
+    const urlPart = act.oldPhotoUrl ? `_${act.oldPhotoUrl.slice(-20)}` : '';
+    return `${base}${idxPart}${urlPart}`;
+  };
+
   // Handle Confirm Photo Action from AuditPhotoActionModal with In-Session Coalescence
   const handleConfirmPhotoAction = (action: PhotoActionPayload) => {
-    const targetKey = action.targetPhotoId || action.targetPhotoType || action.photoCode || 'photo';
+    const targetKey = getPhotoActionFieldKey(action);
 
-    // 1. Tự động gộp (Coalesce) thông minh trên stagedPhotoActions
+    // 1. Tự động gộp (Coalesce) thông minh trên stagedPhotoActions (chỉ gộp REPLACE/DELETE trên cùng 1 slot ảnh, KHÔNG gộp ADD)
     setStagedPhotoActions((prev) => {
+      if (action.action === 'ADD') {
+        return [...prev, action];
+      }
+
       const existingIdx = prev.findIndex(
         (a) =>
-          (action.targetPhotoId && a.targetPhotoId === action.targetPhotoId) ||
-          (action.targetPhotoType && a.targetPhotoType === action.targetPhotoType && a.photoIndex === action.photoIndex) ||
-          (action.photoCode && a.photoCode === action.photoCode)
+          a.action !== 'ADD' &&
+          a.category === action.category &&
+          (action.targetPhotoId ? a.targetPhotoId === action.targetPhotoId : true) &&
+          (action.targetPhotoType ? a.targetPhotoType === action.targetPhotoType : true) &&
+          a.photoIndex === action.photoIndex &&
+          (!action.oldPhotoUrl || !a.oldPhotoUrl || a.oldPhotoUrl === action.oldPhotoUrl)
       );
 
       if (existingIdx >= 0) {
@@ -313,14 +332,14 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   // Hoàn tác thao tác ảnh staged
   const handleUndoPhotoAction = (actionToUndo: PhotoActionPayload) => {
-    setStagedPhotoActions((prev) => prev.filter((a) => a !== actionToUndo));
-    setStagedPhotoDiffs((prev) =>
-      prev.filter(
-        (d) =>
-          d.field !== (actionToUndo.targetPhotoId || actionToUndo.targetPhotoType) ||
-          d.oldValue !== (actionToUndo.oldPhotoUrl || '—')
-      )
+    const fieldKeyToUndo = getPhotoActionFieldKey(actionToUndo);
+    setStagedPhotoActions((prev) =>
+      prev.filter((a) => {
+        if (a === actionToUndo) return false;
+        return getPhotoActionFieldKey(a) !== fieldKeyToUndo;
+      })
     );
+    setStagedPhotoDiffs((prev) => prev.filter((d) => d.field !== fieldKeyToUndo));
   };
 
   // E3: Kiểm tra tên chủ hộ thực tế cho hồ sơ khảo sát thường (NORMAL)
@@ -890,6 +909,10 @@ export const AuditStudioModal: React.FC<Props> = ({
                   onDirtyChange={setPendingDirtyData}
                   stagedPhotoActions={stagedPhotoActions}
                   onUndoPhotoAction={handleUndoPhotoAction}
+                  onDiscardAllStagedPhotos={() => {
+                    setStagedPhotoActions([]);
+                    setStagedPhotoDiffs([]);
+                  }}
                 />
               );
             })()}
@@ -1036,15 +1059,19 @@ export const AuditStudioModal: React.FC<Props> = ({
           title={selectedPhotoTitle}
           initialRotation={selectedPhotoRotation}
           onSaveRotation={(deg) => {
-            if (selectedPhotoCode || selectedPhotoUrl) {
-              setOrientationAudit((prev) => ({
-                ...prev,
-                stagedPhotoRotations: {
-                  ...prev.stagedPhotoRotations,
-                  ...(selectedPhotoCode ? { [selectedPhotoCode]: deg } : {}),
-                  ...(selectedPhotoUrl ? { [selectedPhotoUrl]: deg } : {}),
-                },
-              }));
+            const rotKey = selectedPhotoCode || selectedPhotoUrl;
+            if (rotKey) {
+              if (orientationAudit.rotatePhoto) {
+                orientationAudit.rotatePhoto(rotKey, deg, selectedPhotoCode ? undefined : selectedPhotoUrl);
+              } else {
+                setOrientationAudit((prev) => ({
+                  ...prev,
+                  stagedPhotoRotations: {
+                    ...prev.stagedPhotoRotations,
+                    [rotKey]: deg,
+                  },
+                }));
+              }
             }
             setSelectedPhotoRotation(deg);
           }}
@@ -1273,10 +1300,27 @@ export const AuditStudioModal: React.FC<Props> = ({
           parcelCode={data?.projectParcelCode}
           diffItems={diffModalData.diffItems}
           updatesPayload={diffModalData.updates}
-          formState={data?.surveyJson || data?.survey_data_json || {}}
+          formState={{
+            ...((data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>),
+            ...pendingDirtyData.updates,
+          }}
           photoActions={stagedPhotoActions}
           onDiscardDiffItem={(fieldKey: string) => {
-            pendingDirtyData.discardDiffItem?.(fieldKey);
+            if (fieldKey.startsWith('photo_action_')) {
+              setStagedPhotoActions((prev) => prev.filter((a) => getPhotoActionFieldKey(a) !== fieldKey));
+              setStagedPhotoDiffs((prev) => prev.filter((d) => d.field !== fieldKey));
+            } else if (fieldKey === 'photoRotations') {
+              const origRots = ((data?.surveyJson?.photoRotations ||
+                (data?.survey_data_json as Record<string, unknown> | undefined)?.photoRotations ||
+                {}) as Record<string, number>);
+              setOrientationAudit((prev) => ({
+                ...prev,
+                stagedPhotoRotations: { ...origRots },
+              }));
+              pendingDirtyData.discardDiffItem?.(fieldKey);
+            } else {
+              pendingDirtyData.discardDiffItem?.(fieldKey);
+            }
             setDiffModalData((prev) => ({
               ...prev,
               diffItems: prev.diffItems.filter((i) => i.field !== fieldKey),

@@ -201,6 +201,7 @@ export interface StepwiseSignatures {
   witnessPhone?: string;
   witnessSignature?: string | null;
   workingMinutesPhotos?: (string | { url?: string; photoUrl?: string; photoCode?: string })[];
+  absenteeNoticePhotos?: string[];
   [key: string]: unknown;
 }
 
@@ -349,6 +350,7 @@ export interface AuditStepwiseFormState {
   witnessRole?: string;
   witnessPhone?: string;
   witnessSignature?: string | null;
+  absenteeNoticePhotos?: string[];
   [key: string]: unknown;
 }
 
@@ -359,7 +361,12 @@ export interface AuditStepBaseProps {
   reportId?: string;
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
-  handleApplySyncedGeometry?: (newCoords: [number, number][], newMetroDist: string, newClearanceDist: string) => void;
+  handleApplySyncedGeometry?: (
+    newCoords: [number, number][],
+    newMetroDist: string,
+    newClearanceDist: string,
+    newGpsCoords?: { lat: number; lng: number; accuracy?: number }
+  ) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
