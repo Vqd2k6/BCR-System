@@ -24,6 +24,10 @@ export class SurveyDefectsRepository {
         floorSplits: any = null,
         dimensions: any = null
       ) => {
+        const mergedDimensions = {
+          ...(dimensions && typeof dimensions === 'object' ? dimensions : {}),
+          ...(naReason ? { naReason } : {}),
+        };
         if (hasPhotoCode) {
           if (photoType === 'P02_MAIN_FACADE') {
             await client.query(
@@ -38,7 +42,7 @@ export class SurveyDefectsRepository {
                 photoCode,
                 JSON.stringify(facadePoly || []),
                 JSON.stringify(floorSplits || []),
-                JSON.stringify(dimensions || {}),
+                JSON.stringify(mergedDimensions),
                 isNa,
                 naReason,
               ]
@@ -46,15 +50,16 @@ export class SurveyDefectsRepository {
           } else if (photoType === 'P03_SIDE_OR_REAR') {
             await client.query(
               `INSERT INTO survey_identification_photos (
-                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
-               ) VALUES ($1, $2, $3, $4, $5, $6);`,
-              [reportId, photoType, rawUrl, photoCode, JSON.stringify(dimensions || {}), isNa]
+                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+              [reportId, photoType, rawUrl, photoCode, JSON.stringify(mergedDimensions), isNa, naReason]
             );
           } else {
             await client.query(
-              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable, na_reason)
-               VALUES ($1, $2, $3, $4, $5, $6);`,
-              [reportId, photoType, rawUrl, photoCode, isNa, naReason]
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+              [reportId, photoType, rawUrl, photoCode, JSON.stringify(mergedDimensions), isNa, naReason]
             );
           }
         } else {
@@ -71,7 +76,7 @@ export class SurveyDefectsRepository {
                 rawUrl,
                 JSON.stringify(facadePoly || []),
                 JSON.stringify(floorSplits || []),
-                JSON.stringify(dimensions || {}),
+                JSON.stringify(mergedDimensions),
                 isNa,
                 naReason,
               ]
@@ -79,15 +84,16 @@ export class SurveyDefectsRepository {
           } else if (photoType === 'P03_SIDE_OR_REAR') {
             await client.query(
               `INSERT INTO survey_identification_photos (
-                 report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable
-               ) VALUES ($1, $2, $3, $4, $5);`,
-              [reportId, photoType, rawUrl, JSON.stringify(dimensions || {}), isNa]
+                 report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6);`,
+              [reportId, photoType, rawUrl, JSON.stringify(mergedDimensions), isNa, naReason]
             );
           } else {
             await client.query(
-              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
-               VALUES ($1, $2, $3, $4, $5);`,
-              [reportId, photoType, rawUrl, isNa, naReason]
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6);`,
+              [reportId, photoType, rawUrl, JSON.stringify(mergedDimensions), isNa, naReason]
             );
           }
         }
@@ -118,21 +124,21 @@ export class SurveyDefectsRepository {
         );
       }
 
-      // P03 (Chính)
+      // P03 (Chính — đánh dấu tường minh isAdditional: false)
       if (photos.p03SideRearUrl || photos.p03NotApplicable) {
         await safeInsert(
           'P03_SIDE_OR_REAR',
           photos.p03SideRearUrl || null,
           photos.p03PhotoCode || null,
           photos.p03NotApplicable,
+          photos.p03NaReason || null,
           null,
           null,
-          null,
-          { tag: photos.p03Tag || 'Bên hông trái' }
+          { tag: photos.p03Tag || 'Bên hông trái', isAdditional: false }
         );
       }
 
-      // P03 (Bổ sung nếu có)
+      // P03 (Bổ sung nếu có — đánh dấu tường minh isAdditional: true)
       if (Array.isArray(photos.p03AdditionalPhotos) && photos.p03AdditionalPhotos.length > 0) {
         for (const item of photos.p03AdditionalPhotos) {
           if (item?.url) {
@@ -144,7 +150,7 @@ export class SurveyDefectsRepository {
               null,
               null,
               null,
-              { tag: item.tag || 'Bên hông', isAdditional: true }
+              { tag: item.tag || 'Bên hông phải', isAdditional: true }
             );
           }
         }
@@ -157,7 +163,7 @@ export class SurveyDefectsRepository {
           photos.p04ContextStreetUrl || null,
           photos.p04PhotoCode || null,
           photos.p04NotApplicable,
-          null
+          photos.p04NaReason || null
         );
       }
 
@@ -817,8 +823,11 @@ export class SurveyDefectsRepository {
         }
       }
 
+      // [ND-06] Luôn dọn sạch damage_zones cũ của reportId trong Transaction trước khi kiểm tra allZones.length > 0
+      // (Đảm bảo khi KSV xóa hết các vùng Z/E trên giao diện rồi lưu thì DB cũng xóa sạch bản ghi cũ)
+      await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [reportId]);
+
       if (allZones.length > 0) {
-        await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [reportId]);
         for (const z of allZones) {
           const compType = normalizeComponentType(z.componentType || z.customComponentType);
 

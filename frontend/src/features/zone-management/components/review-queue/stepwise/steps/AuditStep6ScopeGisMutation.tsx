@@ -315,7 +315,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   // Tính khoảng cách tim hầm Metro & mép ga (giải quyết chuỗi có hậu tố "m")
   const rawMetroDist =
     formState.metroOffsetDistance ??
-    formState.clearanceOffsetDistance ??
     formState.metroDistanceM ??
     formState.distanceToMetroCenterlineM ??
     data?.metroOffsetDistance ??
@@ -323,6 +322,17 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     15.2;
   const parsedMetroNum = parseFloat(String(rawMetroDist).replace(/[^0-9.-]/g, ''));
   const metroDistance = !isNaN(parsedMetroNum) ? parsedMetroNum : 15.2;
+
+  const rawClearanceDist =
+    formState.clearanceOffsetDistance ??
+    data?.clearanceOffsetDistance ??
+    data?.surveyJson?.clearanceOffsetDistance ??
+    '';
+  const parsedClearanceNum =
+    rawClearanceDist !== '' && !/không có ga/i.test(String(rawClearanceDist))
+      ? parseFloat(String(rawClearanceDist).replace(/[^0-9.-]/g, ''))
+      : NaN;
+
   const manualDistance = formState.manualMetroDistanceM;
   const parsedManualNum =
     manualDistance !== undefined && manualDistance !== ''
@@ -346,7 +356,11 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   };
 
   const currentDist = !isNaN(parsedManualNum) ? parsedManualNum : metroDistance;
-  const riskBadge = getRiskZoneBadge(currentDist);
+  const effectiveBadgeDist =
+    isFieldDirty?.('clearanceOffsetDistance') && !isNaN(parsedClearanceNum)
+      ? parsedClearanceNum
+      : currentDist;
+  const riskBadge = getRiskZoneBadge(effectiveBadgeDist);
 
   const hasUnsavedChanges = Boolean(
     isEditMode &&
@@ -807,6 +821,11 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 <Ruler className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span>
                   Cách tim hầm: <strong className="font-mono text-indigo-900">{currentDist.toFixed(1)}m</strong>
+                  {!isNaN(parsedClearanceNum) && (
+                    <span className="ml-1.5 text-sky-800">
+                      &bull; Mép ga: <strong className="font-mono">{parsedClearanceNum.toFixed(1)}m</strong>
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="pt-0.5">

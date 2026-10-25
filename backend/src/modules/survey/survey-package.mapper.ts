@@ -68,7 +68,7 @@ export class SurveyPackageMapper {
     const p03 = surveyData?.photoP03 || {};
     const p04 = surveyData?.photoP04 || {};
 
-    const resolvedP02Dimensions =
+    const rawP02Dims =
       surveyData?.step1Photos?.p02Dimensions ||
       p02.dimensions ||
       (p02.widthM !== undefined || p02.heightM !== undefined || Array.isArray(p02.freehandStrokes)
@@ -78,6 +78,14 @@ export class SurveyPackageMapper {
             freehandStrokes: Array.isArray(p02.freehandStrokes) ? p02.freehandStrokes : [],
           }
         : undefined);
+    const p02NaReason = surveyData?.step1Photos?.p02NaReason || p02.naReason || undefined;
+    const resolvedP02Dimensions =
+      rawP02Dims || p02NaReason
+        ? {
+            ...(rawP02Dims || {}),
+            ...(p02NaReason ? { naReason: p02NaReason } : {}),
+          }
+        : undefined;
 
     return {
       houseNumber: surveyData?.houseNumber || null,
@@ -92,15 +100,17 @@ export class SurveyPackageMapper {
       p02FloorSplitLines: surveyData?.step1Photos?.p02FloorSplitLines || p02.floorSplits,
       p02Dimensions: resolvedP02Dimensions,
       p02NotApplicable: surveyData?.step1Photos?.p02NotApplicable ?? p02.notApplicable ?? false,
-      p02NaReason: surveyData?.step1Photos?.p02NaReason || p02.naReason,
+      p02NaReason,
       p03SideRearUrl: surveyData?.step1Photos?.p03SideRearUrl || p03.url || null,
       p03PhotoCode: p03.photoCode || 'P-03',
       p03Tag: p03.tag || 'Bên hông trái',
       p03AdditionalPhotos: Array.isArray(p03.additionalPhotos) ? p03.additionalPhotos : [],
       p03NotApplicable: surveyData?.step1Photos?.p03NotApplicable ?? p03.notApplicable ?? false,
+      p03NaReason: surveyData?.step1Photos?.p03NaReason || p03.naReason,
       p04ContextStreetUrl: surveyData?.step1Photos?.p04ContextStreetUrl || p04.url || null,
       p04PhotoCode: surveyData?.step1Photos?.p04PhotoCode || p04.photoCode || 'P-04',
       p04NotApplicable: surveyData?.step1Photos?.p04NotApplicable ?? p04.notApplicable ?? false,
+      p04NaReason: surveyData?.step1Photos?.p04NaReason || p04.naReason,
     };
   }
 
@@ -590,9 +600,12 @@ export class SurveyPackageMapper {
     const spanM = hasSag ? Number(beamSagging.spanM) || 0 : 0;
     const floorSlopeRatio = (sagMm > 0 && spanM > 0) ? (sagMm / (spanM * 1000)) : 0;
 
-    const abnormalPhotos: any[] = [];
+    // [CH-02] Zero Cross-Category Fallback Policy:
+    // Ảnh đo độ võng dầm nội thất căn hộ (SAG-01) CHỈ được lưu vào beamSaggingPhotos,
+    // TUYỆT ĐỐI KHÔNG nhân bản sang abnormalPhotos (ảnh hiện trạng bất thường ngoại quan P-07).
+    const beamSaggingPhotos: Array<{ url: string; photoCode: string; caption: string }> = [];
     if (beamSagging?.photoUrl) {
-      abnormalPhotos.push({
+      beamSaggingPhotos.push({
         url: beamSagging.photoUrl,
         photoCode: beamSagging.photoCode || 'SAG-01',
         caption: `Đo võng dầm/sàn: ${beamSagging.location || ''} (f=${sagMm}mm, nhịp=${spanM}m, tỉ số=${beamSagging.ratioText || 'N/A'})`,
@@ -609,12 +622,12 @@ export class SurveyPackageMapper {
       measurementReliability: 'HIGH',
       diffSettlementPhotoCode: null,
       tiltPhotoCode: null,
-      abnormalPhotoCode: abnormalPhotos.length > 0 ? 'SAG-01' : null,
-      beamSaggingPhotoCode: beamSagging?.photoCode || (abnormalPhotos.length > 0 ? 'SAG-01' : null),
+      abnormalPhotoCode: null,
+      beamSaggingPhotoCode: beamSagging?.photoCode || (beamSaggingPhotos.length > 0 ? 'SAG-01' : null),
       diffSettlementPhotos: [],
       tiltPhotos: [],
-      abnormalPhotos,
-      beamSaggingPhotos: abnormalPhotos,
+      abnormalPhotos: [],
+      beamSaggingPhotos,
       monitoringRequired: false,
       monitoringNotes: null,
       notes: [

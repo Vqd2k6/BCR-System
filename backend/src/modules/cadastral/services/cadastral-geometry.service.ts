@@ -3,6 +3,64 @@ import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../../common/errors/problem-details';
 import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
 
+function recomputeExecutiveSummaryForDistance(
+  existingJson: Record<string, unknown>,
+  centerlineDistM: number | null | undefined,
+  outerBoundaryDistM: number | null | undefined
+): Record<string, unknown> {
+  const curExec =
+    existingJson.executiveSummary && typeof existingJson.executiveSummary === 'object'
+      ? { ...(existingJson.executiveSummary as Record<string, unknown>) }
+      : {};
+  const objGroup = String(existingJson.objectGroup || 'GENERAL').toUpperCase();
+  const isSpecial = objGroup === 'CRITICAL' || objGroup === 'IMPORTANT';
+  const effectiveD =
+    outerBoundaryDistM !== null && outerBoundaryDistM !== undefined && Number.isFinite(Number(outerBoundaryDistM))
+      ? Number(outerBoundaryDistM)
+      : centerlineDistM !== null && centerlineDistM !== undefined && Number.isFinite(Number(centerlineDistM))
+        ? Number(centerlineDistM)
+        : 0;
+
+  let iCode: 'I1' | 'I2' | 'I3' | 'I4' = 'I1';
+  if (isSpecial) {
+    iCode = effectiveD >= 30 ? 'I1' : effectiveD >= 20 ? 'I2' : effectiveD >= 10 ? 'I3' : 'I4';
+  } else {
+    iCode = effectiveD >= 20 ? 'I1' : effectiveD >= 10 ? 'I2' : effectiveD >= 5 ? 'I3' : 'I4';
+  }
+
+  const impactLabels: Record<'I1' | 'I2' | 'I3' | 'I4', string> = {
+    I1: 'I1 (Tác động rất nhẹ)',
+    I2: 'I2 (Tác động nhẹ)',
+    I3: 'I3 (Tác động trung bình)',
+    I4: 'I4 (Tác động nghiêm trọng)',
+  };
+
+  const viObj = (existingJson.vi || {}) as { viClass?: string; viAvg?: number; avgVi?: number };
+  const viAvg = Number(viObj.viAvg ?? viObj.avgVi ?? 0);
+  const rawViClass = String(
+    viObj.viClass || (viAvg > 3.25 ? 'VERY_HIGH' : viAvg > 2.5 ? 'HIGH' : viAvg > 1.5 ? 'MEDIUM' : 'LOW')
+  ).toUpperCase();
+  const vLevel =
+    rawViClass.includes('VERY_HIGH') ? 4 : rawViClass.includes('HIGH') ? 3 : rawViClass.includes('MEDIUM') ? 2 : 1;
+  const iLevel = iCode === 'I4' ? 4 : iCode === 'I3' ? 3 : iCode === 'I2' ? 2 : 1;
+
+  const braMatrix: Record<number, Record<number, string>> = {
+    1: { 1: 'LOW', 2: 'LOW', 3: 'MEDIUM', 4: 'HIGH' },
+    2: { 1: 'LOW', 2: 'MEDIUM', 3: 'HIGH', 4: 'VERY_HIGH' },
+    3: { 1: 'MEDIUM', 2: 'HIGH', 3: 'HIGH', 4: 'VERY_HIGH' },
+    4: { 1: 'HIGH', 2: 'VERY_HIGH', 3: 'VERY_HIGH', 4: 'VERY_HIGH' },
+  };
+
+  return {
+    ...curExec,
+    constructionImpactStatus: impactLabels[iCode],
+    isImpactOverridden: false,
+    impactOverrideReason: '',
+    braStatus: braMatrix[vLevel]?.[iLevel] || 'LOW',
+    isBraOverridden: false,
+  };
+}
+
 export class CadastralGeometryService {
   static async findNearbyParcels(lat: number, lng: number, radius: number = 150) {
     return CadastralRepository.findNearbyParcels(lat, lng, radius);
@@ -450,6 +508,11 @@ export class CadastralGeometryService {
             if (clearanceStr) pInfo.stationEdgeDistance = clearanceStr;
             updatedJson.parentInfo = pInfo;
           }
+          updatedJson.executiveSummary = recomputeExecutiveSummaryForDistance(
+            updatedJson,
+            centerlineDist,
+            outerBoundaryDist
+          );
 
           await client.query(
             `UPDATE base_survey_reports
@@ -818,6 +881,11 @@ export class CadastralGeometryService {
           metroOffsetDistance: newCenterlineDist !== null ? `${newCenterlineDist.toFixed(1)}m` : existingJson.metroOffsetDistance,
           clearanceOffsetDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : 'Không có ga trong khu vực',
           stationEdgeDistance: newOuterBoundaryDist !== null ? `${newOuterBoundaryDist.toFixed(1)}m` : existingJson.stationEdgeDistance,
+          executiveSummary: recomputeExecutiveSummaryForDistance(
+            existingJson,
+            newCenterlineDist,
+            newOuterBoundaryDist
+          ),
           gisMutationConfirmed: {
             ...(existingJson.gisMutationConfirmed && typeof existingJson.gisMutationConfirmed === 'object'
               ? existingJson.gisMutationConfirmed

@@ -193,14 +193,17 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           buildingId,
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_e) {}
+      } catch (storageErr) {
+        console.warn('[Step1_BuildingIdentification] Lỗi lưu override trạng thái cục bộ:', storageErr);
+      }
 
-      // 2. Gửi API máy chủ
+      // 2. Gửi API máy chủ ([ND-01] Zero Cross-Category Fallback: Tuyệt đối không lấy photoP01.url làm photoProofUrl)
       try {
         await api.post(`/parcels/${formData.parcelId}/record-absence`, {
           absenceReason: 'HOMEOWNER_ABSENT',
           notes: healedFormData.absenteeReason === 'Lý do khác' ? (healedFormData.customAbsenteeReason || 'Lý do khác') : (healedFormData.absenteeReason || 'Chủ nhà vắng mặt'),
-          photoProofUrl: healedFormData.absenteeMinutesPhotos?.[0] || healedFormData.photoP01?.url || '',
+          photoProofUrl: healedFormData.absenteeMinutesPhotos?.[0] || '',
+          minutesPhotos: healedFormData.absenteeMinutesPhotos || [],
           ownerName: healedFormData.ownerName || null,
           ownerPhone: healedFormData.ownerPhone || null,
           surveyData: healedFormData,

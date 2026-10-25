@@ -72,14 +72,18 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const flagLevel = burland.structuralFlagLevel || 'NONE';
   const flagItem = STRUCTURAL_FLAG_LEVELS.find((f) => f.value === flagLevel) || STRUCTURAL_FLAG_LEVELS[0];
 
-  const isDefectStagedDeleted = (d: DefectItem): boolean => {
+  const isDefectStagedDeleted = (d: DefectItem, zoneOrElemCode?: string, floorName?: string): boolean => {
     const dCode = d.defectCode || d.defect_code || '';
-    return stagedPhotoActions.some(
-      (a) =>
-        a.action === 'DELETE' &&
-        Boolean(a.deleteDefectItem) &&
-        ((d.id && a.defectId === d.id) || (dCode && (a.targetPhotoId === dCode || a.defectCode === dCode)))
-    );
+    return stagedPhotoActions.some((a) => {
+      if (a.action !== 'DELETE' || !a.deleteDefectItem) return false;
+      if (d.id && a.defectId && d.id !== a.defectId) return false;
+      if (d.id && a.defectId && d.id === a.defectId) return true;
+      const actFloor = a.floorCode || (a.metadata?.floorCode as string | undefined);
+      const actZone = a.zoneCode || (a.metadata?.zoneCode as string | undefined);
+      if (floorName && (!actFloor || actFloor !== floorName)) return false;
+      if (zoneOrElemCode && (!actZone || actZone !== zoneOrElemCode)) return false;
+      return Boolean(dCode && (a.targetPhotoId === dCode || a.defectCode === dCode));
+    });
   };
 
   // Thu thập toàn bộ vết nứt mảng tường Z để tính Histogram Burland và tìm Vết nứt khống chế (Spotlight)
@@ -114,7 +118,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
         const zCode = z.zoneCode || z.id;
         if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
         (z.defects || []).forEach((d: DefectItem) => {
-          if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
+          if (isSoftDeleted(d) || isDefectStagedDeleted(d, z.zoneCode, fl.floorName)) return;
           if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
           const dRec = d as unknown as Record<string, unknown>;
           const widthVal = Number(d.widthMaxMm ?? dRec.width_max_mm) || 0;
@@ -137,7 +141,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
           floorName: fl.floorName,
         });
         (elem.defects || []).forEach((d: DefectItem) => {
-          if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
+          if (isSoftDeleted(d) || isDefectStagedDeleted(d, elem.elementCode || elem.id, fl.floorName)) return;
           allStructuralDefects.push({
             ...d,
             elementCode: elem.elementCode || elem.id,
@@ -156,7 +160,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
       const zCode = z.zoneCode || z.id;
       if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
       (z.defects || []).forEach((d: DefectItem) => {
-        if (isSoftDeleted(d) || isDefectStagedDeleted(d)) return;
+        if (isSoftDeleted(d) || isDefectStagedDeleted(d, z.zoneCode, 'Tầng khảo sát')) return;
         if (!isCrackRelated(d.screeningCategory, d.defectType)) return;
         const dRec = d as unknown as Record<string, unknown>;
         const widthVal = Number(d.widthMaxMm ?? dRec.width_max_mm) || 0;
@@ -228,7 +232,10 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const govResolved = resolveOptimisticPhoto(rawGovPhotoUrl, stagedPhotoActions, {
     category: 'DEFECT_CU',
     defectId: governingDefect?.id,
+    defectCode: govCode,
     targetPhotoId: govCode,
+    zoneCode: governingDefect?.zoneCode,
+    floorCode: governingDefect?.floorName,
     photoIndex: 0,
     url: rawGovPhotoUrl,
   });

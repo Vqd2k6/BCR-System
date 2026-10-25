@@ -75,10 +75,13 @@ export interface StructuralElementData {
 export interface FloorSurveyData {
   id: string;
   floorName: string;
+  floorCode?: string;
   overviewPhotos: { id: string; url: string; caption?: string; photoCode?: string }[];
   cadSketchPhotoUrl: string; // Sơ đồ CAD_01 (Mặt bằng kiến trúc & Mảng tường Vùng Z)
+  cadSketchPhotoCode?: string; // Mã ảnh định danh cho Sơ đồ CAD_01
   cad_drawing_url?: string;
   cadStructuralSketchPhotoUrl?: string; // Sơ đồ CAD_02 (Mặt bằng kết cấu chịu lực Vùng E)
+  cadStructuralSketchPhotoCode?: string; // Mã ảnh định danh cho Sơ đồ CAD_02
   cad_structural_drawing_url?: string;
   cadZonePins: CadZonePin[]; // Ghim Vùng Z (Kiến trúc / Mảng tường trên CAD_01)
   cadElementPins?: CadZonePin[]; // Ghim Vùng E (Kết cấu chịu lực trên CAD_02)
@@ -94,6 +97,7 @@ export interface FloorSurveyData {
     sag_mm?: number;
     description?: string;
     photoUrl?: string;
+    photoCode?: string;
   };
 }
 
@@ -269,11 +273,12 @@ export interface Phase1SurveyFormData {
   };
 
   // Step 1 Photos & Polygon
-  photoP01: { url: string; photoCode?: string; notApplicable: boolean };
+  photoP01: { url: string; photoCode?: string; notApplicable: boolean; naReason?: string };
   photoP02: {
     url: string;
     photoCode?: string;
     notApplicable: boolean;
+    naReason?: string;
     polygonPoints: PolygonPoint[];
     floorSplits: FloorSplitLine[];
     freehandStrokes?: FreehandStroke[];
@@ -284,10 +289,11 @@ export interface Phase1SurveyFormData {
     url: string;
     photoCode?: string;
     notApplicable: boolean;
+    naReason?: string;
     tag?: string;
     additionalPhotos?: P03PhotoItem[];
   };
-  photoP04: { url: string; photoCode?: string; notApplicable: boolean };
+  photoP04: { url: string; photoCode?: string; notApplicable: boolean; naReason?: string };
 
   // Step 2.1 Architecture
   usageFunction: string;

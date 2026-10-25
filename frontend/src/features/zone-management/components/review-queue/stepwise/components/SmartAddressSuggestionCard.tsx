@@ -59,28 +59,57 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
 
   const zKey = (zoneId || 'DEFAULT').toUpperCase();
   const zoneStreets = ZONE_SUGGESTED_STREETS[zKey] || ZONE_SUGGESTED_STREETS['DEFAULT'];
+  const isResolvedClean = isAccepted && !isContaminated;
 
   return (
-    <div className="my-3 rounded-xl border border-amber-300 bg-gradient-to-br from-amber-50/95 via-orange-50/40 to-white p-4 shadow-xs transition-all">
+    <div
+      className={`my-3 rounded-xl border p-4 shadow-xs transition-all ${
+        isResolvedClean
+          ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/90 via-teal-50/30 to-white'
+          : 'border-amber-300 bg-gradient-to-br from-amber-50/95 via-orange-50/40 to-white'
+      }`}
+    >
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 border-b pb-3 ${
+          isResolvedClean ? 'border-emerald-200/80' : 'border-amber-200/80'
+        }`}
+      >
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white shadow-xs">
-            <Sparkles className="h-4 w-4" />
+          <div
+            className={`flex h-8 w-8 items-center justify-center rounded-lg text-white shadow-xs ${
+              isResolvedClean ? 'bg-emerald-600' : 'bg-amber-500'
+            }`}
+          >
+            {isResolvedClean ? <CheckCheck className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h4 className="text-xs font-black tracking-wide text-amber-950 uppercase sm:text-sm">
-                Đề Xuất Chuẩn Hóa Thông Tin Địa Chỉ
+              <h4
+                className={`text-xs font-black tracking-wide uppercase sm:text-sm ${
+                  isResolvedClean ? 'text-emerald-950' : 'text-amber-950'
+                }`}
+              >
+                {isResolvedClean
+                  ? 'Đã Chuẩn Hóa Thông Tin Địa Chỉ Hành Chính'
+                  : 'Đề Xuất Chuẩn Hóa Thông Tin Địa Chỉ'}
               </h4>
-              <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-black border ${
+                  isResolvedClean
+                    ? 'bg-emerald-200/70 text-emerald-900 border-emerald-300'
+                    : 'bg-amber-200/80 text-amber-900 border-amber-300'
+                }`}
+              >
                 Mô hình 168 ĐVHC cấp xã TP.HCM
               </span>
             </div>
-            <p className="text-[11px] font-medium text-amber-800">
-              {anomalyReasons.length > 0
-                ? `Phát hiện ${anomalyReasons.length} điểm cần đồng bộ hành chính & chính tả`
-                : 'Đã chuẩn hóa theo quy chuẩn địa chỉ không còn cấp quận/huyện'}
+            <p className={`text-[11px] font-medium ${isResolvedClean ? 'text-emerald-800' : 'text-amber-800'}`}>
+              {isResolvedClean
+                ? 'Đã xác nhận địa chỉ chuẩn A4 • Dữ liệu gốc KSV tại 4 ô con được khóa bảo lưu'
+                : anomalyReasons.length > 0
+                  ? `Phát hiện ${anomalyReasons.length} điểm cần đồng bộ hành chính & chính tả`
+                  : 'Đã chuẩn hóa theo quy chuẩn địa chỉ không còn cấp quận/huyện'}
             </p>
           </div>
         </div>
@@ -142,7 +171,11 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
       )}
 
       {/* Ô KẾT QUẢ ĐỊA CHỈ DUY NHẤT (SINGLE-TRUTH BOX) & 2 NÚT ACCEPT / EDIT */}
-      <div className="mt-3 p-3 rounded-xl border border-amber-300/80 bg-white/90 shadow-2xs space-y-2.5">
+      <div
+        className={`mt-3 p-3 rounded-xl border bg-white/90 shadow-2xs space-y-2.5 ${
+          isResolvedClean ? 'border-emerald-300/80' : 'border-amber-300/80'
+        }`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="text-[11px] font-black uppercase text-slate-700 flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 text-emerald-600" />
@@ -182,12 +215,12 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
         </div>
 
         {/* Thanh công cụ 2 nút: Chấp Nhận & Điều Chỉnh */}
-        {isEditMode && (
+        {(isEditMode || !isAccepted) && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
             <span className="text-[11px] text-slate-500 italic">
               {isAccepted
                 ? '✓ Bốn ô chi tiết bên dưới đã mờ đi để bảo lưu dữ liệu KSV. Báo cáo PDF A4 sẽ in địa chỉ trên.'
-                : '✎ Bạn có thể sửa trực tiếp ô trên hoặc sửa 4 ô con bên dưới để ô trên tự đồng bộ hai chiều.'}
+                : '✎ Bấm "Chấp Nhận" để áp dụng địa chỉ chuẩn hóa A4 và khóa bảo lưu 4 ô dữ liệu gốc KSV bên dưới.'}
             </span>
 
             <div className="flex items-center gap-2">
@@ -217,8 +250,12 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
 
       {/* Ghi chú gợi ý sáp nhập theo NQ 1685 nếu có */}
       {suggested.mergerNote && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-amber-900">
-          <Info className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+        <div
+          className={`mt-2.5 flex items-center gap-1.5 text-[11px] ${
+            isResolvedClean ? 'text-emerald-800' : 'text-amber-900'
+          }`}
+        >
+          <Info className={`h-3.5 w-3.5 shrink-0 ${isResolvedClean ? 'text-emerald-600' : 'text-amber-700'}`} />
           <span>
             <strong>Ghi chú địa giới:</strong> {suggested.mergerNote}
           </span>

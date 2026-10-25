@@ -5,7 +5,8 @@ import { ImageZoomModal } from '../common/ImageZoomModal';
 import { ImageAnnotationModal } from '../common/ImageAnnotationModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl, saveOfflinePhoto, deleteOfflinePhoto, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, saveOfflinePhoto, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolvePhotoStorageTarget } from '../common/photo-capture/domain/photoIdentityPolicy';
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { base64ToBlob } from '../../features/survey-phase1/utils/photoSyncAudit';
@@ -666,24 +667,38 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       const localUri = `blob:local://${localId}`;
       const effectiveCode = photoCode || `${cur.defectCode}_CU_${targetPIdx + 1}`;
 
+      // [ND-07] Sử dụng Trụ cột 2 (resolvePhotoStorageTarget) để lấy đúng thư mục R2 và metadata chuẩn kebab-case
+      const {
+        targetFolder,
+        selfDescribingFilename: targetFilename,
+        metadata: resolvedMetadata,
+      } = resolvePhotoStorageTarget({
+        watermarkOptions: {
+          ...watermarkOptions,
+          parcelCode: watermarkOptions?.parcelCode || parcelCode,
+          buildingCode: watermarkOptions?.buildingCode || parcelCode,
+          floor: watermarkOptions?.floor || floorName,
+          floorCode: watermarkOptions?.floorCode || floorName,
+          zoneOrRoom: zoneOrElementCode || watermarkOptions?.zoneOrRoom,
+          defectCode: cur.defectCode,
+          photoType: 'CU',
+          photoIndex: targetPIdx + 1,
+        },
+        code: effectiveCode,
+        customCapturedAt: originalTimestamp,
+      });
+
+      const targetMetadata: Record<string, string> = {
+        ...resolvedMetadata,
+        annotated: 'true',
+      };
+
       await saveOfflinePhoto(
         localId,
         blob,
         effectiveCode,
-        {
-          defectCode: cur.defectCode,
-          photoIndex: String(targetPIdx + 1),
-          floor: floorName || '',
-          zoneOrRoom: zoneOrElementCode || '',
-          annotated: 'true',
-          capturedAt: originalTimestamp,
-          annotatedAt: new Date().toISOString(),
-          ...(watermarkOptions?.buildingCode ? { buildingCode: watermarkOptions.buildingCode } : {}),
-          ...(watermarkOptions?.floorCode ? { floorCode: watermarkOptions.floorCode } : {}),
-          ...(watermarkOptions?.unitCode ? { unitCode: watermarkOptions.unitCode } : {}),
-          ...(watermarkOptions?.areaType ? { areaType: watermarkOptions.areaType } : {}),
-        },
-        `${effectiveCode}.jpg`
+        targetMetadata,
+        targetFilename
       );
 
       // 3. Cập nhật mảng ảnh trong defects ngay lập tức với localUri để giao diện cập nhật 0ms
@@ -701,58 +716,6 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       onChange(next);
 
       // 4. Đẩy vào hàng đợi upload ngầm lên Cloudflare R2 / S3
-      let targetFolder = `projects/${parcelCode || 'metro2'}/defects/${cur.defectCode}`;
-      let targetFilename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${originalEpoch}.jpg`;
-      let targetMetadata: Record<string, string> = {
-        defectCode: cur.defectCode,
-        photoCode: effectiveCode,
-        floor: floorName || '',
-        zoneOrRoom: zoneOrElementCode || '',
-        annotated: 'true',
-        'captured-at': originalTimestamp,
-        'annotated-at': new Date().toISOString(),
-      };
-
-      if (watermarkOptions?.areaType === 'MASTER_AREA' || watermarkOptions?.areaType === 'CONDO_UNIT') {
-        const buildingCode = (watermarkOptions.buildingCode || parcelCode || 'GENERAL').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-        const rawFloorCode = watermarkOptions.floorCode || watermarkOptions.floor || floorName || '';
-        const cleanFloorCode = String(rawFloorCode).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-        const cleanUnitCode = String(watermarkOptions.unitCode || '').replace(/[^a-zA-Z0-9_.-]/g, '_').toUpperCase();
-        const subEntity = (zoneOrElementCode || watermarkOptions.zoneOrRoom || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        const areaFolder = watermarkOptions.areaType === 'MASTER_AREA' ? 'master-areas' : 'condo-units';
-
-        targetFolder = `projects/METRO2_HCM/buildings/${buildingCode}/${areaFolder}/${cleanUnitCode || 'general'}/PHOTOS`;
-        const nameParts = ['M2', buildingCode];
-        if (cleanFloorCode) nameParts.push(cleanFloorCode);
-        if (cleanUnitCode) nameParts.push(cleanUnitCode);
-        if (subEntity) nameParts.push(subEntity);
-        nameParts.push(cur.defectCode.replace(/[^a-zA-Z0-9_-]/g, ''));
-        nameParts.push('CU_ANN');
-        nameParts.push(String(originalEpoch));
-        targetFilename = `${nameParts.join('__')}.jpg`;
-
-        targetMetadata = {
-          'photo-code': effectiveCode,
-          'building-code': buildingCode,
-          'floor-code': cleanFloorCode,
-          'unit-code': cleanUnitCode,
-          'sub-entity': subEntity,
-          'defect-code': cur.defectCode,
-          'photo-type': 'CU_ANNOTATED',
-          'area-type': watermarkOptions.areaType,
-          'survey-phase': 'PHASE_1',
-          'project': 'METRO2_HCM',
-          'captured-at': originalTimestamp,
-          'annotated-at': new Date().toISOString(),
-          ...(watermarkOptions.gpsLat !== undefined ? { 'gps-lat': String(watermarkOptions.gpsLat) } : {}),
-          ...(watermarkOptions.gpsLng !== undefined ? { 'gps-lng': String(watermarkOptions.gpsLng) } : {}),
-          ...(watermarkOptions.gpsAccuracy !== undefined ? { 'gps-accuracy': String(watermarkOptions.gpsAccuracy) } : {}),
-          ...(watermarkOptions.gisLat !== undefined ? { 'gis-parcel-lat': String(watermarkOptions.gisLat) } : {}),
-          ...(watermarkOptions.gisLng !== undefined ? { 'gis-parcel-lng': String(watermarkOptions.gisLng) } : {}),
-          annotated: 'true',
-        };
-      }
-
       uploadQueue.enqueue(blob, targetFilename, {
         // id = localId: hàng đợi ghi mapping bền và thay blob:local://{localId} -> URL Cloud
         // trong các store đang mở (luôn dùng state MỚI NHẤT, không dùng closure cũ gây mất chỉnh sửa)
@@ -760,8 +723,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         folder: targetFolder,
         mimeType: 'image/jpeg',
         metadata: targetMetadata,
-        onSuccess: async () => {
-          await deleteOfflinePhoto(localId);
+        onSuccess: async (publicUrl) => {
+          await markOfflinePhotoUploaded(localId, publicUrl);
           revokeManagedBlobUrl(localId);
         },
         onError: (err) => {

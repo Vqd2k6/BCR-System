@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
   Search,
@@ -14,11 +14,22 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Lock,
+  AlertTriangle,
+  Clock,
+  XCircle,
+  Filter,
+  KeyRound,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { PendingSubmissionItem } from '../ZoneAuditReviewQueue';
 import { ReviewQueueTableRow } from '../ReviewQueueTableRow';
+import { CondoMasterSummaryBanner } from './queue/CondoMasterSummaryBanner';
+import { CondoFloorMatrixDrawer } from './queue/CondoFloorMatrixDrawer';
+import { CondoFinalSealModal, type CondoBlockingItem } from './seal/CondoFinalSealModal';
+import type { CondoFloorMatrixRow, CondoParentMasterSummary } from './types/condo-audit.types';
 
 interface Props {
   towerParcelId: string;
@@ -34,7 +45,16 @@ interface Props {
   onStatsNeedRefresh?: () => void;
 }
 
-type TowerUnitTab = 'ALL' | 'MASTER_AREA' | 'CONDO_UNIT' | 'ABSENT' | 'GRADE_0';
+type TowerUnitTab =
+  | 'ALL'
+  | 'MASTER_AREA'
+  | 'CONDO_UNIT'
+  | 'PENDING'
+  | 'CRITICAL'
+  | 'ABSENT'
+  | 'GRADE_0'
+  | 'REJECTED'
+  | 'APPROVED';
 
 export const CondoTowerUnitQueue: React.FC<Props> = ({
   towerParcelId,
@@ -42,10 +62,6 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
   onBackToTowers,
   onOpenStudio,
   onPreviewReport,
-  onOpenRejectModal,
-  onOpenReassignModal,
-  onOpenMutationModal,
-  onOpenReshapeModal,
   onOpenAuditHistory,
   onStatsNeedRefresh,
 }) => {
@@ -62,6 +78,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
     }
     return 'ALL';
   });
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState<string>(() => {
     try {
       const saved = sessionStorage.getItem(queueSessionKey);
@@ -86,13 +103,58 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       // ignore
     }
   }, [queueSessionKey, activeTab, searchInput]);
+
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [isBatchApproving, setIsBatchApproving] = useState(false);
+  const [showBatchApprovePinModal, setShowBatchApprovePinModal] = useState(false);
+  const [generatedBatchPin, setGeneratedBatchPin] = useState('');
+  const [enteredBatchPin, setEnteredBatchPin] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+
+  const generateNewBatchPin = useCallback(() => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedBatchPin(code);
+    setEnteredBatchPin('');
+  }, []);
+
+  const openBatchApprovePinModal = useCallback(() => {
+    if (selectedReportIds.length === 0) return;
+    generateNewBatchPin();
+    setShowBatchApprovePinModal(true);
+  }, [selectedReportIds.length, generateNewBatchPin]);
   const pageSize = 50;
+
+  // Tower Progress & Floor Matrix State
+  const [progressMeta, setProgressMeta] = useState<{
+    masterReportId: string | null;
+    masterReportStatus: string;
+    parentMasterSummary: CondoParentMasterSummary | null;
+    floorPlanCount: number;
+    totalItems: number;
+    completedItems: number;
+    isReadyForFinalSeal: boolean;
+    isLocked: boolean;
+    sealHash: string | null;
+    blockingItems: CondoBlockingItem[];
+    floorMatrix: CondoFloorMatrixRow[];
+  }>({
+    masterReportId: towerItem.report_id || null,
+    masterReportStatus: towerItem.status || 'MISSING',
+    parentMasterSummary: null,
+    floorPlanCount: 0,
+    totalItems: 0,
+    completedItems: 0,
+    isReadyForFinalSeal: false,
+    isLocked: Boolean(towerItem.parent_parcel_is_locked),
+    sealHash: towerItem.parent_parcel_seal_hash || null,
+    blockingItems: [],
+    floorMatrix: [],
+  });
+  const [showFloorMatrixDrawer, setShowFloorMatrixDrawer] = useState(false);
+  const [showFinalSealModal, setShowFinalSealModal] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -105,26 +167,47 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [towerParcelId, activeTab]);
+  }, [towerParcelId, activeTab, selectedFloor]);
 
-  const fetchTowerUnits = async () => {
+  const fetchTowerUnitsAndProgress = useCallback(async () => {
     if (!towerParcelId) return;
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await api.get('/admin/reports/pending-reviews', {
-        params: {
-          parcelId: towerParcelId,
-          limit: 200,
-        },
-      });
+      const [unitsRes, progRes] = await Promise.all([
+        api.get('/admin/reports/pending-reviews', {
+          params: {
+            parcelId: towerParcelId,
+            status: 'ALL',
+            limit: 500,
+          },
+        }),
+        api.get(`/admin/condo/${towerParcelId}/progress-summary`),
+      ]);
 
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setItems(res.data.data);
-      } else if (res.data?.success && Array.isArray(res.data.data?.items)) {
-        setItems(res.data.data.items);
+      if (unitsRes.data?.success && Array.isArray(unitsRes.data.data)) {
+        setItems(unitsRes.data.data);
+      } else if (unitsRes.data?.success && Array.isArray(unitsRes.data.data?.items)) {
+        setItems(unitsRes.data.data.items);
       } else {
         setItems([]);
+      }
+
+      if (progRes.data?.success && progRes.data.data) {
+        const raw = progRes.data.data;
+        setProgressMeta({
+          masterReportId: raw.masterReport?.id || towerItem.report_id || null,
+          masterReportStatus: raw.masterReport?.status || towerItem.status || 'MISSING',
+          parentMasterSummary: raw.parentMasterSummary || null,
+          floorPlanCount: Array.isArray(raw.floorPlans) ? raw.floorPlans.length : 0,
+          totalItems: Number(raw.stats?.totalItems ?? 0),
+          completedItems: Number(raw.stats?.completedItems ?? 0),
+          isReadyForFinalSeal: Boolean(raw.isReadyForFinalSeal),
+          isLocked: Boolean(raw.parcel?.isLocked ?? towerItem.parent_parcel_is_locked),
+          sealHash: raw.parcel?.sealHash || towerItem.parent_parcel_seal_hash || null,
+          blockingItems: Array.isArray(raw.blockingItems) ? raw.blockingItems : [],
+          floorMatrix: Array.isArray(raw.floorMatrix) ? raw.floorMatrix : [],
+        });
       }
     } catch (err: unknown) {
       console.error('[CondoTowerUnitQueue] Lỗi tải danh sách căn của tòa:', err);
@@ -132,21 +215,90 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    towerParcelId,
+    towerItem.report_id,
+    towerItem.status,
+    towerItem.parent_parcel_is_locked,
+    towerItem.parent_parcel_seal_hash,
+  ]);
 
   useEffect(() => {
-    fetchTowerUnits();
-  }, [towerParcelId]);
+    fetchTowerUnitsAndProgress();
+  }, [fetchTowerUnitsAndProgress]);
 
-  // Tab Filtering & Search
+  const isMasterRow = useCallback(
+    (item: PendingSubmissionItem) =>
+      item.report_type === 'CONDO_PARENT_MASTER' ||
+      item.report_type === 'BUILDING_MASTER' ||
+      item.report_type === 'CONDO_MASTER' ||
+      (item.building_type?.includes('CONDO') &&
+        !item.unit_id &&
+        item.parcel_id === towerParcelId &&
+        !item.unit_code),
+    [towerParcelId]
+  );
+
+  const isMasterAreaRow = (item: PendingSubmissionItem) =>
+    item.unit_type === 'MASTER' ||
+    item.unit_type === 'MASTER_AREA' ||
+    Boolean(item.unit_code && (item.unit_code.startsWith('M-') || item.unit_code.startsWith('MA-') || item.unit_code.startsWith('AREA-'))) ||
+    item.report_type === 'MASTER_AREA';
+
+  const isChildUnitRow = (item: PendingSubmissionItem) =>
+    !isMasterAreaRow(item) &&
+    (item.unit_type === 'UNIT' ||
+      item.unit_type === 'APARTMENT' ||
+      Boolean(item.unit_code && item.unit_code.startsWith('U-')) ||
+      item.report_type === 'CONDO_UNIT' ||
+      item.report_type === 'UNIT_CHILD' ||
+      Boolean(item.unit_id));
+
+  const isCriticalRow = (item: PendingSubmissionItem) =>
+    (item.burland_score ?? 0) >= 3 ||
+    ['CAT_3_MODERATE', 'CAT_4_SEVERE', 'CAT_5_VERY_SEVERE'].includes(
+      String(item.burland_damage_category || '')
+    ) ||
+    (item.burland_max_crack_width_mm ?? 0) >= 3.0;
+
+  const isAbsentRow = (item: PendingSubmissionItem) =>
+    Boolean(
+      item.is_refused_or_absent ||
+        item.status === 'POSTPONED_ABSENT' ||
+        item.unit_status === 'POSTPONED_ABSENT' ||
+        item.unit_status === 'POSTPONED_ABSENT_VERIFIED'
+    );
+
+  const isGrade0EligibleRow = (item: PendingSubmissionItem) =>
+    item.status === 'SUBMITTED' &&
+    !item.has_admin_diff &&
+    (item.version_count ?? 0) <= 1 &&
+    Number(item.defect_count) === 0 &&
+    (item.burland_damage_category === 'GRADE_0' ||
+      item.burland_damage_category === 'CAT_0_NEGLIGIBLE' ||
+      !item.burland_damage_category);
+
+  // Available floors for filter dropdown
+  const availableFloors = useMemo(() => {
+    const flSet = new Set<number>();
+    items.forEach((i) => {
+      if (!isMasterRow(i) && i.unit_floor_number !== null && i.unit_floor_number !== undefined) {
+        flSet.add(Number(i.unit_floor_number));
+      }
+    });
+    progressMeta.floorMatrix.forEach((fm) => flSet.add(fm.floorNumber));
+    return Array.from(flSet).sort((a, b) => a - b);
+  }, [items, isMasterRow, progressMeta.floorMatrix]);
+
+  // Tab Filtering, Floor Filtering & Search
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      // Don't show the parent tower row itself in unit list
-      if (item.report_type === 'CONDO_PARENT_MASTER' || (item.building_type === 'CONDOMINIUM' && !item.unit_id && item.parcel_id === towerParcelId && !item.unit_code)) {
+      if (isMasterRow(item)) return false;
+
+      if (selectedFloor !== null && Number(item.unit_floor_number) !== selectedFloor) {
         return false;
       }
 
-      // Search query filter
       if (debouncedSearch.trim()) {
         const q = debouncedSearch.toLowerCase().trim();
         const matchUnitCode = (item.unit_code || '').toLowerCase().includes(q);
@@ -158,45 +310,36 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         }
       }
 
-      // Tab sub-filter
-      if (activeTab === 'MASTER_AREA') {
-        return item.unit_type === 'MASTER' || item.unit_type === 'MASTER_AREA' || (item.unit_code && item.unit_code.startsWith('M-')) || item.report_type === 'MASTER_AREA';
+      if (activeTab === 'MASTER_AREA') return isMasterAreaRow(item);
+      if (activeTab === 'CONDO_UNIT') return isChildUnitRow(item);
+      if (activeTab === 'PENDING') {
+        return item.status === 'SUBMITTED' || item.status === 'UNDER_REVIEW';
       }
-      if (activeTab === 'CONDO_UNIT') {
-        return item.unit_type === 'UNIT' || (item.unit_code && item.unit_code.startsWith('U-')) || item.report_type === 'CONDO_UNIT' || item.report_type === 'UNIT_CHILD';
-      }
-      if (activeTab === 'ABSENT') {
-        return (
-          item.is_refused_or_absent ||
-          item.status === 'POSTPONED_ABSENT' ||
-          item.unit_status === 'POSTPONED_ABSENT' ||
-          item.unit_status === 'POSTPONED_ABSENT_VERIFIED'
-        );
-      }
-      if (activeTab === 'GRADE_0') {
-        return (
-          item.status === 'SUBMITTED' &&
-          !item.has_admin_diff &&
-          (item.version_count ?? 0) <= 1 &&
-          Number(item.defect_count) === 0 &&
-          (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category)
-        );
-      }
+      if (activeTab === 'CRITICAL') return isCriticalRow(item);
+      if (activeTab === 'ABSENT') return isAbsentRow(item);
+      if (activeTab === 'GRADE_0') return isGrade0EligibleRow(item);
+      if (activeTab === 'REJECTED') return item.status === 'REJECTED';
+      if (activeTab === 'APPROVED') return item.status === 'APPROVED';
+
       return true;
     });
-  }, [items, debouncedSearch, activeTab, towerParcelId]);
+  }, [items, debouncedSearch, activeTab, selectedFloor, isMasterRow]);
 
   // Tab Counts
   const tabCounts = useMemo(() => {
-    const unitList = items.filter((item) => !(item.report_type === 'CONDO_PARENT_MASTER' || (item.building_type === 'CONDOMINIUM' && !item.unit_id && item.parcel_id === towerParcelId && !item.unit_code)));
+    const unitList = items.filter((item) => !isMasterRow(item));
     return {
       all: unitList.length,
-      masterArea: unitList.filter((i) => i.unit_type === 'MASTER' || i.unit_type === 'MASTER_AREA' || (i.unit_code && i.unit_code.startsWith('M-')) || i.report_type === 'MASTER_AREA').length,
-      units: unitList.filter((i) => i.unit_type === 'UNIT' || (i.unit_code && i.unit_code.startsWith('U-')) || i.report_type === 'CONDO_UNIT' || i.report_type === 'UNIT_CHILD').length,
-      absent: unitList.filter((i) => i.is_refused_or_absent || i.status === 'POSTPONED_ABSENT' || i.unit_status === 'POSTPONED_ABSENT' || i.unit_status === 'POSTPONED_ABSENT_VERIFIED').length,
-      grade0: unitList.filter((i) => i.status === 'SUBMITTED' && !i.has_admin_diff && (i.version_count ?? 0) <= 1 && Number(i.defect_count) === 0 && (i.burland_damage_category === 'GRADE_0' || !i.burland_damage_category)).length,
+      masterArea: unitList.filter(isMasterAreaRow).length,
+      units: unitList.filter(isChildUnitRow).length,
+      pending: unitList.filter((i) => i.status === 'SUBMITTED' || i.status === 'UNDER_REVIEW').length,
+      critical: unitList.filter(isCriticalRow).length,
+      absent: unitList.filter(isAbsentRow).length,
+      grade0: unitList.filter(isGrade0EligibleRow).length,
+      rejected: unitList.filter((i) => i.status === 'REJECTED').length,
+      approved: unitList.filter((i) => i.status === 'APPROVED').length,
     };
-  }, [items, towerParcelId]);
+  }, [items, isMasterRow]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
@@ -213,15 +356,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
   };
 
   const eligibleBatchItems = useMemo(() => {
-    return filteredItems.filter(
-      (item) =>
-        item.report_id &&
-        item.status === 'SUBMITTED' &&
-        !item.has_admin_diff &&
-        (item.version_count ?? 0) <= 1 &&
-        Number(item.defect_count) === 0 &&
-        (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category)
-    );
+    return filteredItems.filter((item) => item.report_id && isGrade0EligibleRow(item));
   }, [filteredItems]);
 
   const handleSelectAllEligible = (checked: boolean) => {
@@ -241,11 +376,11 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
     try {
       const res = await api.post('/admin/reports/batch-approve', {
         reportIds: selectedReportIds,
-        notes: `Phê duyệt an toàn hàng loạt Grade 0 cho ${towerItem.house_number || towerItem.project_parcel_code}`,
+        judgementNotes: `Phê duyệt an toàn hàng loạt Grade 0 cho ${towerItem.house_number || towerItem.project_parcel_code}`,
       });
       if (res.data?.success) {
         setSelectedReportIds([]);
-        fetchTowerUnits();
+        fetchTowerUnitsAndProgress();
         if (onStatsNeedRefresh) onStatsNeedRefresh();
       }
     } catch (err: unknown) {
@@ -285,7 +420,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
           </div>
         </div>
 
-        {towerItem.parent_parcel_is_locked && (
+        {progressMeta.isLocked && (
           <div className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 flex items-center gap-1.5 w-fit">
             <Lock className="w-3.5 h-3.5 text-emerald-600" />
             <span>TÒA ĐÃ KHÓA SỔ PHÁP LÝ (BẤT BIẾN)</span>
@@ -293,22 +428,73 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Filter Tabs & Search */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm theo mã căn (U-12.04), chủ hộ, KSV..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-          />
+      {/* Building Master Summary Banner (Separates Master 5-Step Studio, Floor Matrix & Final Seal) */}
+      <CondoMasterSummaryBanner
+        towerParcelCode={towerItem.project_parcel_code}
+        towerName={towerItem.house_number || towerItem.project_parcel_code}
+        masterReportId={progressMeta.masterReportId}
+        masterReportStatus={progressMeta.masterReportStatus}
+        parentMasterSummary={progressMeta.parentMasterSummary}
+        floorPlanCount={progressMeta.floorPlanCount}
+        totalItems={progressMeta.totalItems}
+        completedItems={progressMeta.completedItems}
+        isReadyForFinalSeal={progressMeta.isReadyForFinalSeal}
+        isParentLocked={progressMeta.isLocked}
+        sealHash={progressMeta.sealHash}
+        onOpenMasterStudio={(repId) => onOpenStudio(repId)}
+        onPreviewMasterReport={(repId) => onPreviewReport(repId)}
+        onOpenFloorMatrix={() => setShowFloorMatrixDrawer(true)}
+        onOpenFinalSealModal={() => setShowFinalSealModal(true)}
+      />
+
+      {/* Filter Tabs, Floor Selector & Search */}
+      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Search + Floor Filter */}
+          <div className="flex items-center gap-2 flex-1 max-w-xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Tìm theo mã căn (U-12.04), khu chung (MA-B1), chủ hộ, KSV..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              />
+            </div>
+
+            {/* Floor Selector Dropdown */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={selectedFloor === null ? 'ALL' : String(selectedFloor)}
+                onChange={(e) =>
+                  setSelectedFloor(e.target.value === 'ALL' ? null : Number(e.target.value))
+                }
+                className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="ALL">Tất cả các tầng ({availableFloors.length})</option>
+                {availableFloors.map((fl) => (
+                  <option key={fl} value={String(fl)}>
+                    {fl < 0 ? `Hầm B${Math.abs(fl)}` : `Tầng ${fl}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchTowerUnitsAndProgress}
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer shrink-0 self-end md:self-auto"
+            title="Làm mới danh sách căn"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+          </button>
         </div>
 
-        {/* Tab Buttons */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+        {/* Full Status & Entity Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setActiveTab('ALL')}
@@ -352,6 +538,34 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTab('PENDING')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'PENDING'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Chờ duyệt</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.pending}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('CRITICAL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'CRITICAL'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Nguy hiểm (Cấp ≥ 3)</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.critical}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('ABSENT')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'ABSENT'
@@ -374,17 +588,36 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Grade 0 (0 khuyết tật)</span>
+            <span>Grade 0 (Duyệt nhanh)</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.grade0}</span>
           </button>
 
           <button
             type="button"
-            onClick={fetchTowerUnits}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer shrink-0"
-            title="Làm mới danh sách căn"
+            onClick={() => setActiveTab('REJECTED')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'REJECTED'
+                ? 'bg-rose-700 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+            <XCircle className="w-3.5 h-3.5" />
+            <span>Đã trả về</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.rejected}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('APPROVED')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'APPROVED'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Đã phê duyệt</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.approved}</span>
           </button>
         </div>
       </div>
@@ -394,7 +627,10 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         {errorMsg && (
           <div className="p-4 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-b border-red-200 text-xs flex items-center justify-between">
             <span>{errorMsg}</span>
-            <button onClick={fetchTowerUnits} className="font-bold underline cursor-pointer hover:opacity-80">
+            <button
+              onClick={fetchTowerUnitsAndProgress}
+              className="font-bold underline cursor-pointer hover:opacity-80"
+            >
               Thử lại
             </button>
           </div>
@@ -422,11 +658,11 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                   </div>
                 </th>
                 <th className="py-3 px-3">Mã Hạng Mục / Căn Hộ</th>
-                <th className="py-3 px-3">Địa Chỉ & Chủ Hộ</th>
+                <th className="py-3 px-3">Địa Chỉ &amp; Chủ Hộ</th>
                 <th className="py-3 px-3">Kỹ Sư Khảo Sát</th>
                 <th className="py-3 px-3 text-center">Cấp Khuyết Tật (Burland)</th>
-                <th className="py-3 px-3 text-center">Trạng Thái & Người Duyệt</th>
-                <th className="py-3 px-3 text-center">Khuyết Tật & Quy Cách</th>
+                <th className="py-3 px-3 text-center">Trạng Thái &amp; Người Duyệt</th>
+                <th className="py-3 px-3 text-center">Khuyết Tật &amp; Quy Cách</th>
                 <th className="py-3 px-3 text-right">Thao Tác Thẩm Định</th>
               </tr>
             </thead>
@@ -446,18 +682,17 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                     <div className="flex flex-col items-center justify-center gap-2">
                       <DoorOpen className="w-10 h-10 text-slate-300 dark:text-slate-700" />
                       <span className="font-bold text-slate-600 dark:text-slate-400">
-                        Không có căn hộ nào trong danh mục này
+                        Không có căn hộ hoặc khu vực dùng chung nào trong bộ lọc này
                       </span>
                     </div>
                   </td>
                 </tr>
               ) : (
                 paginatedItems.map((item, index) => {
-                  const isSelectable =
-                    item.status === 'SUBMITTED' &&
-                    Number(item.defect_count) === 0 &&
-                    (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category);
-                  const isChecked = Boolean(item.report_id && selectedReportIds.includes(item.report_id));
+                  const isSelectable = isGrade0EligibleRow(item);
+                  const isChecked = Boolean(
+                    item.report_id && selectedReportIds.includes(item.report_id)
+                  );
 
                   return (
                     <ReviewQueueTableRow
@@ -555,7 +790,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             <button
               type="button"
               disabled={isBatchApproving}
-              onClick={handleExecuteBatchApprove}
+              onClick={openBatchApprovePinModal}
               className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
             >
               {isBatchApproving ? (
@@ -568,6 +803,179 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Xác Thực 6 Chữ Số Ngẫu Nhiên Khi Phê Duyệt Hàng Loạt Grade 0 */}
+      {showBatchApprovePinModal && (() => {
+        const isBatchPinMatched =
+          generatedBatchPin.length === 6 && enteredBatchPin.trim() === generatedBatchPin;
+
+        return (
+          <div className="fixed inset-0 z-[105] isolate flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="relative z-[106] bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+              <div className="px-5 py-4 bg-gradient-to-r from-emerald-50/90 via-teal-50/40 to-white border-b border-slate-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
+                      Xác Nhận Phê Duyệt Hàng Loạt ({selectedReportIds.length} căn)
+                    </h3>
+                    <p className="text-xs text-slate-600 truncate">
+                      Tòa: <strong className="font-mono text-emerald-700">{towerItem.house_number || towerItem.project_parcel_code}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchApprovePinModal(false)}
+                  disabled={isBatchApproving}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                  Bạn đang chuẩn bị phê duyệt an toàn hàng loạt <strong className="text-slate-900">{selectedReportIds.length} căn hộ Grade 0</strong>. Hồ sơ sau khi duyệt sẽ được khóa bất biến (APPROVED).
+                </div>
+
+                <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-emerald-700" />
+                      <span className="text-xs font-bold text-emerald-950">
+                        Mã Xác Thực Phê Duyệt (6 chữ số):
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={generateNewBatchPin}
+                      disabled={isBatchApproving}
+                      className="text-[11px] text-emerald-700 hover:text-emerald-900 flex items-center gap-1 font-mono font-bold cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Đổi mã</span>
+                    </button>
+                  </div>
+
+                  <div className="py-2.5 px-3 rounded-xl bg-white border border-emerald-200 flex items-center justify-center gap-2 sm:gap-2.5 shadow-2xs">
+                    {generatedBatchPin.split('').map((digit, idx) => (
+                      <span
+                        key={idx}
+                        className="w-9 h-11 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 font-mono font-black text-xl flex items-center justify-center select-none tracking-wider"
+                      >
+                        {digit}
+                      </span>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 text-center leading-snug">
+                    Nhập chính xác <strong className="text-slate-800">6 chữ số</strong> ở trên vào ô bên dưới để xác nhận phê duyệt:
+                  </p>
+
+                  <div className="max-w-[240px] mx-auto">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      maxLength={6}
+                      value={enteredBatchPin}
+                      onChange={(e) => setEnteredBatchPin(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && isBatchPinMatched && !isBatchApproving) {
+                          e.preventDefault();
+                          setShowBatchApprovePinModal(false);
+                          await handleExecuteBatchApprove();
+                        }
+                      }}
+                      placeholder="Nhập 6 chữ số..."
+                      className={`w-full py-2 px-3 rounded-xl bg-white text-slate-900 font-mono font-black text-center text-lg tracking-widest focus:outline-none border-2 transition-all ${
+                        isBatchPinMatched
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/25'
+                          : enteredBatchPin.length === 6
+                            ? 'border-rose-500 ring-2 ring-rose-500/20'
+                            : 'border-slate-300 focus:border-emerald-500'
+                      }`}
+                    />
+                    {isBatchPinMatched && (
+                      <div className="text-center text-[11px] text-emerald-700 font-bold mt-1.5 flex items-center justify-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Mã xác thực khớp chính xác!</span>
+                      </div>
+                    )}
+                    {enteredBatchPin.length === 6 && !isBatchPinMatched && (
+                      <div className="text-center text-[11px] text-rose-600 font-bold mt-1.5">
+                        Mã xác thực chưa khớp, vui lòng kiểm tra lại.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchApprovePinModal(false)}
+                  disabled={isBatchApproving}
+                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={!isBatchPinMatched || isBatchApproving}
+                  onClick={async () => {
+                    if (!isBatchPinMatched) return;
+                    setShowBatchApprovePinModal(false);
+                    await handleExecuteBatchApprove();
+                  }}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isBatchApproving ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5" />
+                  )}
+                  <span>Xác Nhận Phê Duyệt</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Floor Matrix Drawer */}
+      <CondoFloorMatrixDrawer
+        isOpen={showFloorMatrixDrawer}
+        towerName={towerItem.house_number || towerItem.project_parcel_code}
+        towerParcelCode={towerItem.project_parcel_code}
+        floorMatrix={progressMeta.floorMatrix}
+        onClose={() => setShowFloorMatrixDrawer(false)}
+        onSelectUnitReport={(repId) => onOpenStudio(repId)}
+        onFilterByFloor={(fl) => setSelectedFloor(fl)}
+      />
+
+      {/* Final Seal Modal */}
+      <CondoFinalSealModal
+        isOpen={showFinalSealModal}
+        parcelId={towerParcelId}
+        projectParcelCode={towerItem.project_parcel_code}
+        buildingName={towerItem.house_number || towerItem.project_parcel_code}
+        masterReportId={progressMeta.masterReportId}
+        masterReportStatus={progressMeta.masterReportStatus}
+        totalItems={progressMeta.totalItems}
+        completedItems={progressMeta.completedItems}
+        isReadyForFinalSeal={progressMeta.isReadyForFinalSeal}
+        blockingItems={progressMeta.blockingItems}
+        onClose={() => setShowFinalSealModal(false)}
+        onSuccess={() => {
+          fetchTowerUnitsAndProgress();
+          if (onStatsNeedRefresh) onStatsNeedRefresh();
+        }}
+        onOpenReportStudio={(repId) => onOpenStudio(repId)}
+      />
     </div>
   );
 };

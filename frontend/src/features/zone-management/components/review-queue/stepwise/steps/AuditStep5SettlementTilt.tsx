@@ -14,6 +14,7 @@ import {
   Plus,
   Trash2,
   History,
+  Undo2,
 } from 'lucide-react';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES as PHASE1_DATA_SOURCES } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
@@ -253,27 +254,57 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
             {/* Thư viện ảnh lún chênh (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
             <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <Camera className="w-3.5 h-3.5 text-sky-600" />
-                  <span>
-                    Ảnh Lún Chênh / Chân Tường (
-                    {Math.max(
-                      0,
-                      diffPhotos.length +
-                        (stagedPhotoActions
-                          ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')
-                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
-                        (stagedPhotoActions?.filter(
-                          (a) =>
-                            a.action === 'DELETE' &&
-                            (a.targetPhotoType === 'SETTLEMENT_DIFF' ||
-                              a.targetPhotoId === 'settlementTilt.diffSettlement.photos')
-                        ).length || 0)
-                    )}{' '}
-                    ảnh)
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-sky-600" />
+                    <span>
+                      Ảnh Lún Chênh / Chân Tường (
+                      {Math.max(
+                        0,
+                        diffPhotos.length +
+                          (stagedPhotoActions
+                            ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')
+                            .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                          (stagedPhotoActions?.filter(
+                            (a) =>
+                              a.action === 'DELETE' &&
+                              (a.targetPhotoType === 'SETTLEMENT_DIFF' ||
+                                a.targetPhotoId === 'settlementTilt.diffSettlement.photos')
+                          ).length || 0)
+                      )}{' '}
+                      ảnh)
+                    </span>
                   </span>
-                </span>
+                  {diffPhotos.map((p, pIdx) => {
+                    const stagedDiff = getStagedAction({
+                      category: 'SETTLEMENT_TILT',
+                      targetPhotoType: 'SETTLEMENT_DIFF',
+                      targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    if (stagedDiff?.action !== 'DELETE') return null;
+                    return (
+                      <span
+                        key={`deleted-diff-pill-${pIdx}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                      >
+                        <span>Đã ẩn {p.photoCode || `SETTLE_${pIdx + 1}`} (Chờ lưu Diff)</span>
+                        {onUndoPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() => onUndoPhotoAction(stagedDiff)}
+                            className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                          >
+                            <Undo2 className="w-2.5 h-2.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
                 {isEditMode && onOpenPhotoAction && (
                   <button
                     type="button"
@@ -304,6 +335,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
+                    if (stagedDiff?.action === 'DELETE') {
+                      return null;
+                    }
                     const itemKey = `diffSettlement_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
@@ -332,7 +366,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           expectedOrientation="LANDSCAPE"
                           onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
                           domId={`audit-photo-card-diff-settlement-${pIdx}`}
-                          optimisticStatus={stagedDiff ? (stagedDiff.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          optimisticStatus={stagedDiff ? 'REPLACED' : undefined}
                           onUndoDelete={stagedDiff ? () => onUndoPhotoAction?.(stagedDiff) : undefined}
                           onOpenPhotoZoom={onOpenPhotoZoom}
                           onOpenPhotoAction={onOpenPhotoAction}
@@ -521,27 +555,57 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
             {/* Thư viện ảnh độ nghiêng (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
             <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <Camera className="w-3.5 h-3.5 text-sky-600" />
-                  <span>
-                    Ảnh Kiểm Tra Độ Nghiêng (
-                    {Math.max(
-                      0,
-                      tiltPhotos.length +
-                        (stagedPhotoActions
-                          ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')
-                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
-                        (stagedPhotoActions?.filter(
-                          (a) =>
-                            a.action === 'DELETE' &&
-                            (a.targetPhotoType === 'TILT_ANGLE' ||
-                              a.targetPhotoId === 'settlementTilt.buildingTilt.photos')
-                        ).length || 0)
-                    )}{' '}
-                    ảnh)
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-sky-600" />
+                    <span>
+                      Ảnh Kiểm Tra Độ Nghiêng (
+                      {Math.max(
+                        0,
+                        tiltPhotos.length +
+                          (stagedPhotoActions
+                            ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')
+                            .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                          (stagedPhotoActions?.filter(
+                            (a) =>
+                              a.action === 'DELETE' &&
+                              (a.targetPhotoType === 'TILT_ANGLE' ||
+                                a.targetPhotoId === 'settlementTilt.buildingTilt.photos')
+                          ).length || 0)
+                      )}{' '}
+                      ảnh)
+                    </span>
                   </span>
-                </span>
+                  {tiltPhotos.map((p, pIdx) => {
+                    const stagedTilt = getStagedAction({
+                      category: 'SETTLEMENT_TILT',
+                      targetPhotoType: 'TILT_ANGLE',
+                      targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    if (stagedTilt?.action !== 'DELETE') return null;
+                    return (
+                      <span
+                        key={`deleted-tilt-pill-${pIdx}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                      >
+                        <span>Đã ẩn {p.photoCode || `TILT_${pIdx + 1}`} (Chờ lưu Diff)</span>
+                        {onUndoPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() => onUndoPhotoAction(stagedTilt)}
+                            className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                          >
+                            <Undo2 className="w-2.5 h-2.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
                 {isEditMode && onOpenPhotoAction && (
                   <button
                     type="button"
@@ -572,6 +636,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
+                    if (stagedTilt?.action === 'DELETE') {
+                      return null;
+                    }
                     const itemKey = `buildingTilt_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
@@ -600,7 +667,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           expectedOrientation="PORTRAIT"
                           onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
                           domId={`audit-photo-card-building-tilt-${pIdx}`}
-                          optimisticStatus={stagedTilt ? (stagedTilt.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          optimisticStatus={stagedTilt ? 'REPLACED' : undefined}
                           onUndoDelete={stagedTilt ? () => onUndoPhotoAction?.(stagedTilt) : undefined}
                           onOpenPhotoZoom={onOpenPhotoZoom}
                           onOpenPhotoAction={onOpenPhotoAction}
@@ -768,27 +835,57 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
             {/* Thư viện ảnh độ võng dầm (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
             <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <Camera className="w-3.5 h-3.5 text-sky-600" />
-                  <span>
-                    Ảnh Kiểm Tra Độ Võng Dầm (
-                    {Math.max(
-                      0,
-                      beamPhotos.length +
-                        (stagedPhotoActions
-                          ?.filter((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')
-                          .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
-                        (stagedPhotoActions?.filter(
-                          (a) =>
-                            a.action === 'DELETE' &&
-                            (a.category === 'BEAM_SAGGING' ||
-                              a.targetPhotoId === 'settlementTilt.beamSagging.photos')
-                        ).length || 0)
-                    )}{' '}
-                    ảnh)
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-sky-600" />
+                    <span>
+                      Ảnh Kiểm Tra Độ Võng Dầm (
+                      {Math.max(
+                        0,
+                        beamPhotos.length +
+                          (stagedPhotoActions
+                            ?.filter((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')
+                            .reduce((acc, a) => acc + (a.newPhotoUrls?.length || (a.newPhotoUrl ? 1 : 0)), 0) || 0) -
+                          (stagedPhotoActions?.filter(
+                            (a) =>
+                              a.action === 'DELETE' &&
+                              (a.category === 'BEAM_SAGGING' ||
+                                a.targetPhotoId === 'settlementTilt.beamSagging.photos')
+                          ).length || 0)
+                      )}{' '}
+                      ảnh)
+                    </span>
                   </span>
-                </span>
+                  {beamPhotos.map((p, pIdx) => {
+                    const stagedBeam = getStagedAction({
+                      category: 'BEAM_SAGGING',
+                      targetPhotoType: 'BEAM_SAGGING',
+                      targetPhotoId: 'settlementTilt.beamSagging.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    if (stagedBeam?.action !== 'DELETE') return null;
+                    return (
+                      <span
+                        key={`deleted-sag-pill-${pIdx}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                      >
+                        <span>Đã ẩn {p.photoCode || `SAG_${pIdx + 1}`} (Chờ lưu Diff)</span>
+                        {onUndoPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() => onUndoPhotoAction(stagedBeam)}
+                            className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                          >
+                            <Undo2 className="w-2.5 h-2.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
                 {isEditMode && onOpenPhotoAction && (
                   <button
                     type="button"
@@ -819,6 +916,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       photoIndex: pIdx,
                       url: p.url,
                     });
+                    if (stagedBeam?.action === 'DELETE') {
+                      return null;
+                    }
                     const itemKey = `beamSagging_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
@@ -847,7 +947,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           expectedOrientation="LANDSCAPE"
                           onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
                           domId={`audit-photo-card-beam-sagging-${pIdx}`}
-                          optimisticStatus={stagedBeam ? (stagedBeam.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          optimisticStatus={stagedBeam ? 'REPLACED' : undefined}
                           onUndoDelete={stagedBeam ? () => onUndoPhotoAction?.(stagedBeam) : undefined}
                           onOpenPhotoZoom={onOpenPhotoZoom}
                           onOpenPhotoAction={onOpenPhotoAction}
@@ -983,10 +1083,46 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
 
             {/* Dải ảnh ngoại lệ (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-slate-600 block">
-                  Ảnh hiện trường bất thường (Rễ cây nứt hè, hố ga sụt, vách độc lập...):
-                </span>
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-600 block">
+                    Ảnh hiện trường bất thường (Rễ cây nứt hè, hố ga sụt, vách độc lập...):
+                  </span>
+                  {abnormalPhotos.map((p, pIdx) => {
+                    const stagedAb =
+                      getStagedAction({
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoId: 'settlementTilt.abnormalCase.photos',
+                        photoIndex: pIdx,
+                        url: p.url,
+                      }) ||
+                      getStagedAction({
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoId: 'abnormalPhotos',
+                        photoIndex: pIdx,
+                        url: p.url,
+                      });
+                    if (stagedAb?.action !== 'DELETE') return null;
+                    return (
+                      <span
+                        key={`deleted-ab-pill-${pIdx}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                      >
+                        <span>Đã ẩn {p.photoCode || `ANOMALY_${pIdx + 1}`} (Chờ lưu Diff)</span>
+                        {onUndoPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() => onUndoPhotoAction(stagedAb)}
+                            className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                          >
+                            <Undo2 className="w-2.5 h-2.5" />
+                            <span>Hoàn tác</span>
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
                 {isEditMode && onOpenPhotoAction && (
                   <button
                     type="button"
@@ -1031,6 +1167,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         photoIndex: pIdx,
                         url: p.url,
                       });
+                    if (stagedAb?.action === 'DELETE') {
+                      return null;
+                    }
                     const itemKey = `abnormal_${pIdx}`;
                     const rot =
                       stagedPhotoRotations[itemKey] ??
@@ -1057,7 +1196,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           expectedOrientation="ANY"
                           onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
                           domId={`audit-photo-card-abnormal-${pIdx}`}
-                          optimisticStatus={stagedAb ? (stagedAb.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          optimisticStatus={stagedAb ? 'REPLACED' : undefined}
                           onUndoDelete={stagedAb ? () => onUndoPhotoAction?.(stagedAb) : undefined}
                           onOpenPhotoZoom={onOpenPhotoZoom}
                           onOpenPhotoAction={onOpenPhotoAction}

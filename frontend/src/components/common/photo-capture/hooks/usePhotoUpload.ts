@@ -20,7 +20,13 @@ import {
   resolveOfflinePhotoUrl,
 } from '../../../../core/storage/offlinePhotoStorage';
 import type { UploadStatus, PhotoChangeMeta } from '../types';
+import {
+  resolvePhotoStorageTarget,
+  resolveSurveyScopeFromAreaType,
+} from '../domain/photoIdentityPolicy';
 import { usePhase1SurveyStore } from '../../../../features/survey-phase1/store/usePhase1SurveyStore';
+import { useCondoUnitSurveyStore } from '../../../../features/survey-condo-unit/store/useCondoUnitSurveyStore';
+import { useCondoMasterSurveyStore } from '../../../../features/survey-condo-master/store/useCondoMasterSurveyStore';
 
 interface UsePhotoUploadProps {
   value: string;
@@ -119,318 +125,44 @@ export function usePhotoUpload({
   }, [value]);
 
   // Trích xuất thông tin định danh công trình và phân loại ảnh phục vụ cây thư mục R2 & Custom Metadata
+  // Ủy quyền hoàn toàn cho Trụ cột 2: PhotoIdentityPolicy & ScopedStorageRouter
   const extractPhotoDetails = (code?: string, customCapturedAt?: string) => {
-    let buildingCode = effectiveWatermarkOptions?.parcelCode || '';
-    let pType = effectiveWatermarkOptions?.photoType || '';
-    const fullCode = code || displayPhotoCode || '';
+    const scope = resolveSurveyScopeFromAreaType(effectiveWatermarkOptions?.areaType);
+    let fallbackBuildingCode = '';
+    let activeParcelId: string | null = null;
+    let activeUnitId: string | null = null;
 
-    let filenameEpoch = Date.now();
-    let effectiveCapturedAt = new Date().toISOString();
-    if (customCapturedAt) {
-      const parsedEpoch = new Date(customCapturedAt).getTime();
-      if (!isNaN(parsedEpoch) && parsedEpoch > 1500000000000 && parsedEpoch < 2500000000000) {
-        filenameEpoch = parsedEpoch;
-        effectiveCapturedAt = new Date(parsedEpoch).toISOString();
-      }
-    }
-
-    // Hàm kiểm tra mã công trình hợp lệ: Tuyệt đối không nhận các tiền tố kỹ thuật cấu kiện / CAD làm mã công trình
-    const isInvalidBuildingCode = (c?: string): boolean => {
-      if (!c) return true;
-      const clean = c.replace(/^\[|\]$/g, '').trim().toUpperCase();
-      return (
-        clean.length < 3 ||
-        clean.startsWith('STRUCTURAL') ||
-        clean.startsWith('CAD') ||
-        clean.startsWith('ZONE') ||
-        clean.startsWith('DEFECT') ||
-        clean.startsWith('OVERVIEW') ||
-        clean.startsWith('PHOTO') ||
-        clean.startsWith('CONDO') ||
-        clean.startsWith('PHASE') ||
-        clean.startsWith('KYXACNHAN') ||
-        clean.startsWith('SIGN')
-      );
-    };
-
-    if (isInvalidBuildingCode(buildingCode)) {
-      buildingCode = '';
-    }
-
-    // 1. Trích xuất mã từ fullCode (chuẩn Metro 2 dạng HCM_M2.[PARCEL_CODE]_...)
-    if (!buildingCode && fullCode) {
-      const cleanCode = fullCode.replace(/^HCM_M2[._]/i, '');
-      const bracketMatch = cleanCode.match(/^\[([^\]]+)\]/);
-      if (bracketMatch && !isInvalidBuildingCode(bracketMatch[1])) {
-        buildingCode = bracketMatch[1];
-        const rest = cleanCode.substring(bracketMatch[0].length).replace(/^_+/, '');
-        const parts = rest.split('_');
-        if (!pType && parts.length > 1) {
-          pType = parts[parts.length - 2] || parts[0];
-        }
+    try {
+      if (scope === 'CONDO_UNIT') {
+        const unitState = useCondoUnitSurveyStore.getState()?.formData;
+        fallbackBuildingCode = unitState?.parentInfo?.projectParcelCode || '';
+        activeParcelId = unitState?.parcelId || null;
+        activeUnitId = unitState?.unitId || null;
+      } else if (scope === 'CONDO_MASTER') {
+        const masterState = useCondoMasterSurveyStore.getState()?.formData;
+        fallbackBuildingCode = masterState?.projectParcelCode || '';
+        activeParcelId = masterState?.parcelId || null;
+        activeUnitId = null;
       } else {
-        // Hỗ trợ dạng ngăn cách bằng ký tự '|' (VD: "STRUCTURAL | C&C-05-B-0113")
-        if (cleanCode.includes('|')) {
-          const pipeParts = cleanCode.split('|').map((s) => s.trim());
-          const found = pipeParts.find((s) => !isInvalidBuildingCode(s));
-          if (found) {
-            buildingCode = found;
-          }
-        }
-        // Fallback theo dấu chấm / gạch dưới
-        if (!buildingCode) {
-          const parts = cleanCode.split(/[._]/);
-          if (parts[0] && !isInvalidBuildingCode(parts[0])) {
-            buildingCode = parts[0];
-          }
-        }
+        const p1State = usePhase1SurveyStore.getState();
+        fallbackBuildingCode = p1State?.formData?.projectParcelCode || '';
+        activeParcelId = p1State?.formData?.parcelId || null;
+        activeUnitId = p1State?.currentUnitId || null;
       }
+    } catch (err) {
+      console.warn('[usePhotoUpload] Không thể truy xuất fallback store theo scope:', err);
     }
 
-    // 2. Nếu vẫn thiếu buildingCode, tự động lấy từ Zustand Store của cuộc khảo sát hiện tại
-    if (!buildingCode) {
-      try {
-        const storeParcel = usePhase1SurveyStore.getState()?.formData?.projectParcelCode;
-        if (storeParcel && !isInvalidBuildingCode(storeParcel)) {
-          buildingCode = storeParcel;
-        }
-      } catch (err) {
-        console.warn('[usePhotoUpload] Không thể lấy parcel code từ Phase 1 store:', err);
-      }
-    }
-
-    // 3. Nếu hoàn toàn không xác định được mã công trình, gom vào 'general' thay vì tạo folder rác
-    if (!buildingCode || isInvalidBuildingCode(buildingCode)) {
-      buildingCode = 'general';
-    }
-
-    // Tự động nhận diện loại ảnh pType nếu chưa được khai báo
-    if (!pType && fullCode) {
-      const upper = fullCode.toUpperCase();
-      if (upper.includes('STRUCTURAL') || upper.includes('CAD_STRUCT') || upper.includes('CAD-E')) {
-        pType = 'CAD_STRUCT';
-      } else if (upper.includes('CAD_ARCH') || upper.includes('CAD-Z')) {
-        pType = 'CAD_ARCH';
-      } else if (upper.includes('CTX')) {
-        pType = 'CTX';
-      } else if (upper.includes('CU')) {
-        pType = 'CU';
-      } else if (upper.includes('OVERVIEW')) {
-        pType = 'OVERVIEW';
-      } else if (upper.includes('MINUTES') || upper.includes('DOC') || upper.includes('KÝ XÁC NHẬN')) {
-        pType = 'DOC';
-      }
-    }
-
-    buildingCode = buildingCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-    pType = String(pType).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-
-    // Xác định mã tầng chính thức từ thiết lập CAD (B03, B01, SB, G, MEZZ, F01-F99, TECH, REF, ROOF...)
-    const rawFloorCode = effectiveWatermarkOptions?.floorCode || effectiveWatermarkOptions?.floor || '';
-    const cleanFloorCode = String(rawFloorCode).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-    const cleanUnitCode = String(effectiveWatermarkOptions?.unitCode || '').replace(/[^a-zA-Z0-9_.-]/g, '_').toUpperCase();
-
-    // Trích xuất mã vùng Z hoặc cấu kiện E (ví dụ: Z-01 -> Z01, E1 -> E01)
-    let subEntity = '';
-    if (fullCode) {
-      const matchZ = fullCode.match(/(Z-?\d+)/i);
-      const matchE = fullCode.match(/(E-?\d+)/i);
-      if (matchZ) subEntity = matchZ[1].replace('-', '').toUpperCase();
-      else if (matchE) subEntity = matchE[1].replace('-', '').toUpperCase();
-    }
-    if (!subEntity && effectiveWatermarkOptions?.zoneOrRoom) {
-      subEntity = String(effectiveWatermarkOptions.zoneOrRoom).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    }
-
-    // 4. Xây dựng cây thư mục R2 / Storage phân cấp theo loại hình công trình
-    let targetFolder = 'surveys';
-    let selfDescribingFilename = '';
-
-    const areaType = effectiveWatermarkOptions?.areaType;
-
-    if (areaType === 'GENERAL_TOWER') {
-      // 🏢 1. KHẢO SÁT TỔNG THỂ TÒA NHÀ CHUNG CƯ (GENERAL TOWER)
-      let category = effectiveWatermarkOptions?.category || '';
-      if (!category) {
-        if (['P01', 'P02', 'P03', 'P04'].includes(pType)) {
-          category = 'exterior';
-        } else if (pType === 'SETTLE') {
-          category = 'settlement';
-        } else if (pType === 'TILT') {
-          category = 'tilt';
-        } else if (pType === 'ANOMALY') {
-          category = 'anomalies';
-        } else if (['DRAWING', 'AS_BUILT', 'HOANCONG', 'KETCAU'].includes(pType)) {
-          category = 'foundation-drawings';
-        } else if (pType === 'EQUIPMENT') {
-          category = 'equipment';
-        } else if (['BOUNDARY', 'MUTATION'].includes(pType)) {
-          category = 'boundary';
-        } else if (pType.includes('SIGN') || pType.includes('MINUTES')) {
-          category = 'signatures';
-        } else {
-          category = 'general-photos';
-        }
-      }
-
-      targetFolder = `projects/METRO2_HCM/buildings/${buildingCode || 'GENERAL'}/general/${category}`;
-
-      const nameParts = ['M2', buildingCode || 'GENERAL', 'GENERAL'];
-      nameParts.push(pType || category.toUpperCase());
-      if (effectiveWatermarkOptions?.photoIndex) {
-        nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
-      }
-      nameParts.push(String(filenameEpoch));
-      selfDescribingFilename = `${nameParts.join('__')}.jpg`;
-
-    } else if (areaType === 'CAD_BLUEPRINT') {
-      // 📐 2. BẢN VẼ CAD MẶT BẰNG TẦNG GỐC CỦA TÒA NHÀ (CAD STUDIO)
-      const floor = cleanFloorCode || 'G';
-      targetFolder = `projects/METRO2_HCM/buildings/${buildingCode || 'GENERAL'}/cad-blueprints/floors/${floor}/original`;
-      selfDescribingFilename = `M2__${buildingCode || 'GENERAL'}__${floor}__CAD_BLUEPRINT__${filenameEpoch}.jpg`;
-
-    } else if (areaType === 'MASTER_AREA') {
-      // 🚪 3. KHU VỰC DÙNG CHUNG CỦA CHUNG CƯ
-      const floor = cleanFloorCode || 'G';
-      const folderUnit = cleanUnitCode || 'general';
-      let category = effectiveWatermarkOptions?.category || '';
-
-      if (!category) {
-        if (pType.includes('CAD')) {
-          category = 'cad';
-        } else if (pType === 'OVERVIEW') {
-          category = 'overview';
-        } else if (pType === 'Z_CTX' || (subEntity.startsWith('Z') && pType === 'CTX')) {
-          category = 'zones';
-        } else if (pType === 'E_CTX' || (subEntity.startsWith('E') && pType === 'CTX')) {
-          category = 'elements';
-        } else if (['CU', 'CU_ANN', 'CU_ANNOTATED'].includes(pType) || effectiveWatermarkOptions?.defectCode) {
-          category = 'defects';
-        } else if (pType.includes('SIGN') || pType.includes('MINUTES')) {
-          category = 'signatures';
-        } else {
-          category = 'photos';
-        }
-      }
-
-      targetFolder = `projects/METRO2_HCM/buildings/${buildingCode || 'GENERAL'}/floors/${floor}/master-areas/${folderUnit}/${category}`;
-
-      const nameParts = ['M2', buildingCode || 'GENERAL', floor, folderUnit];
-      if (subEntity) nameParts.push(subEntity);
-      if (effectiveWatermarkOptions?.defectCode) {
-        nameParts.push(String(effectiveWatermarkOptions.defectCode).replace(/[^a-zA-Z0-9_-]/g, ''));
-      }
-      nameParts.push(pType || 'PHOTO');
-      if (effectiveWatermarkOptions?.photoIndex) {
-        nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
-      }
-      nameParts.push(String(filenameEpoch));
-      selfDescribingFilename = `${nameParts.join('__')}.jpg`;
-
-    } else if (areaType === 'CONDO_UNIT') {
-      // 🏠 4. CĂN HỘ CON CỦA CHUNG CƯ
-      const floor = cleanFloorCode || 'F01';
-      const folderUnit = cleanUnitCode || 'general';
-      let category = effectiveWatermarkOptions?.category || '';
-
-      if (!category) {
-        if (['P01', 'P04'].includes(pType)) {
-          category = 'identification';
-        } else if (pType.includes('CAD')) {
-          category = 'cad';
-        } else if (pType === 'WATER_LEAK') {
-          category = 'water-leaks';
-        } else if (pType === 'DOOR_JAM') {
-          category = 'door-jams';
-        } else if (['CU', 'DEFECT'].includes(pType) || effectiveWatermarkOptions?.defectCode) {
-          category = 'defects';
-        } else if (pType.includes('SIGN') || pType.includes('MINUTES')) {
-          category = 'signatures';
-        } else {
-          category = 'photos';
-        }
-      }
-
-      targetFolder = `projects/METRO2_HCM/buildings/${buildingCode || 'GENERAL'}/floors/${floor}/condo-units/${folderUnit}/${category}`;
-
-      const nameParts = ['M2', buildingCode || 'GENERAL', floor, folderUnit];
-      if (effectiveWatermarkOptions?.defectCode) {
-        nameParts.push(String(effectiveWatermarkOptions.defectCode).replace(/[^a-zA-Z0-9_-]/g, ''));
-      }
-      nameParts.push(pType || 'PHOTO');
-      if (effectiveWatermarkOptions?.photoIndex) {
-        nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
-      }
-      nameParts.push(String(filenameEpoch));
-      selfDescribingFilename = `${nameParts.join('__')}.jpg`;
-
-    } else {
-      // 🏡 5. KHẢO SÁT NHÀ DÂN TIÊU CHUẨN (GIỮ NGUYÊN 100% CẤU TRÚC CŨ ĐỂ TƯƠNG THÍCH NGƯỢC)
-      if (buildingCode) {
-        targetFolder = pType ? `surveys/${buildingCode}/${pType}` : `surveys/${buildingCode}`;
-      }
-      const prefix = code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo';
-      selfDescribingFilename = `${prefix}_${filenameEpoch}.jpg`;
-    }
-
-    const metadata: Record<string, string> = {
-      'photo-code': fullCode,
-      'building-code': buildingCode,
-      'photo-type': pType,
-      'survey-phase': 'PHASE_1',
-      'project': 'METRO2_HCM',
-      'captured-at': effectiveCapturedAt,
-      ...(customCapturedAt ? { 'annotated-at': new Date().toISOString() } : {}),
-    };
-
-    if (cleanFloorCode) {
-      metadata['floor-code'] = cleanFloorCode;
-    }
-    if (effectiveWatermarkOptions?.floor) {
-      metadata['floor'] = String(effectiveWatermarkOptions.floor);
-    }
-    if (cleanUnitCode) {
-      metadata['unit-code'] = cleanUnitCode;
-    }
-    if (effectiveWatermarkOptions?.areaType) {
-      metadata['area-type'] = effectiveWatermarkOptions.areaType;
-    }
-    if (effectiveWatermarkOptions?.stationCode) {
-      metadata['station-code'] = effectiveWatermarkOptions.stationCode;
-    }
-    if (label) {
-      metadata['label'] = label;
-    }
-    if (effectiveWatermarkOptions?.defectCode) {
-      metadata['defect-code'] = String(effectiveWatermarkOptions.defectCode);
-    }
-    if (subEntity) {
-      metadata['sub-entity'] = subEntity;
-    }
-    if (effectiveWatermarkOptions?.category) {
-      metadata['category'] = effectiveWatermarkOptions.category;
-    }
-
-    // Tọa độ GPS thực tế từ thiết bị của KSV
-    if (typeof effectiveWatermarkOptions?.gpsLat === 'number') {
-      metadata['gps-lat'] = String(effectiveWatermarkOptions.gpsLat);
-    }
-    if (typeof effectiveWatermarkOptions?.gpsLng === 'number') {
-      metadata['gps-lng'] = String(effectiveWatermarkOptions.gpsLng);
-    }
-    if (typeof effectiveWatermarkOptions?.gpsAccuracy === 'number') {
-      metadata['gps-accuracy'] = String(effectiveWatermarkOptions.gpsAccuracy);
-    }
-
-    // Tọa độ tâm thửa đất quy hoạch GIS
-    if (typeof effectiveWatermarkOptions?.gisLat === 'number') {
-      metadata['gis-parcel-lat'] = String(effectiveWatermarkOptions.gisLat);
-    }
-    if (typeof effectiveWatermarkOptions?.gisLng === 'number') {
-      metadata['gis-parcel-lng'] = String(effectiveWatermarkOptions.gisLng);
-    }
-
-    return { buildingCode, photoType: pType, targetFolder, selfDescribingFilename, metadata };
+    return resolvePhotoStorageTarget({
+      watermarkOptions: effectiveWatermarkOptions,
+      code,
+      displayPhotoCode,
+      label,
+      customCapturedAt,
+      fallbackBuildingCode,
+      activeParcelId,
+      activeUnitId,
+    });
   };
 
   /**

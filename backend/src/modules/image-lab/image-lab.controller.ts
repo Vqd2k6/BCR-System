@@ -18,6 +18,7 @@ import { Database } from '../../database/db';
 const VALID_PRESETS: ImageLabPreset[] = [
   'AUTO_SMART',
   'CRACK_ENHANCE',
+  'CRACK_ISOLATION_MAP',
   'LOW_LIGHT_RESCUE',
   'DEBLOCK_COMPRESSION',
   'XRAY_NEGATIVE',
@@ -78,64 +79,164 @@ export class ImageLabController {
 
   /**
    * GET /api/v1/image-lab/recent-survey-photos
-   * Lấy danh sách ảnh chụp vết nứt (CU) & bối cảnh (CTX) thực tế từ hồ sơ khảo sát
-   * để Admin / Thẩm định viên có thể bấm chọn test nhanh với 1 click.
+   * Thu thập bộ 100 ảnh khảo sát thực tế từ hiện trường (cả ảnh cận cảnh vết nứt CU
+   * và ảnh bối cảnh khu vực CTX), giới hạn nghiêm ngặt tối đa 5 ảnh trên mỗi căn/hộ (parcel)
+   * để Admin / Thẩm định viên kiểm thử đối chứng đa dạng trên nhiều công trình.
    */
-  public static async getRecentSurveyPhotos(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async getRecentSurveyPhotos(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       interface SamplePhotoRow {
         photo_url: string;
         photo_code: string;
         category: string;
+        photo_type: 'CU' | 'CTX';
         parcel_code: string;
+        rank_in_parcel: number;
         created_at: string;
       }
 
+      const rawLimit = Number(req.query?.limit);
+      const totalLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(200, Math.round(rawLimit)) : 100;
+
+      const rawMaxPerParcel = Number(req.query?.maxPerParcel);
+      const maxPerParcel =
+        Number.isFinite(rawMaxPerParcel) && rawMaxPerParcel > 0 ? Math.min(10, Math.round(rawMaxPerParcel)) : 5;
+
       const samples: SamplePhotoRow[] = [];
 
-      // Truy vấn an toàn các ảnh cận cảnh vết nứt (CU) và bối cảnh (CTX) gần nhất
+      // Truy vấn kết hợp defect_items (CU) & damage_zones (CTX), khử trùng lặp URL
+      // và phân vùng theo mã căn (ROW_NUMBER OVER PARTITION BY parcel_code <= 5)
       try {
-        const defectQuery = await Database.query<{
-          cu_photo_url: string | null;
-          cu_photo_code: string | null;
-          defect_code: string | null;
-          project_parcel_code: string | null;
-          created_at: string | null;
-        }>(`
-          SELECT
-            d.cu_photo_url,
-            d.cu_photo_code,
-            d.defect_code,
-            p.project_parcel_code,
-            d.created_at::text AS created_at
-          FROM defect_items d
-          LEFT JOIN damage_zones z ON z.id = d.zone_id
-          LEFT JOIN base_survey_reports r ON r.id = z.report_id
-          LEFT JOIN parcels p ON p.id = r.parcel_id
-          WHERE d.cu_photo_url IS NOT NULL
-            AND d.cu_photo_url <> ''
-            AND d.cu_photo_url NOT LIKE 'blob:%'
-          ORDER BY d.created_at DESC NULLS LAST
-          LIMIT 16;
-        `);
+        const collectedQuery = await Database.query<{
+          photo_url: string;
+          photo_code: string;
+          category: string;
+          photo_type: 'CU' | 'CTX';
+          parcel_code: string;
+          rn_in_parcel: string | number;
+          created_at: string;
+        }>(
+          `
+          WITH combined_photos AS (
+            SELECT
+              d.cu_photo_url AS photo_url,
+              COALESCE(NULLIF(d.cu_photo_code, ''), NULLIF(d.defect_code, ''), 'CU_DEFECT') AS photo_code,
+              'Ảnh cận cảnh vết nứt (CU)' AS category,
+              'CU' AS photo_type,
+              COALESCE(NULLIF(p.project_parcel_code, ''), NULLIF(r.report_code, ''), 'METRO2') AS parcel_code,
+              COALESCE(d.captured_at, r.created_at, NOW()) AS sort_time,
+              1 AS cat_priority
+            FROM defect_items d
+            INNER JOIN damage_zones z ON z.id = d.zone_id AND COALESCE(z.is_deleted, false) = false
+            INNER JOIN base_survey_reports r ON r.id = z.report_id AND r.deleted_at IS NULL
+            LEFT JOIN parcels p ON p.id = r.parcel_id
+            WHERE COALESCE(d.is_deleted, false) = false
+              AND d.cu_photo_url IS NOT NULL
+              AND d.cu_photo_url <> ''
+              AND d.cu_photo_url NOT LIKE 'blob:%'
 
-        for (const row of defectQuery.rows) {
-          if (row.cu_photo_url) {
+            UNION ALL
+
+            SELECT
+              z.ctx_photo_url AS photo_url,
+              COALESCE(NULLIF(z.ctx_photo_code, ''), NULLIF(z.zone_code, ''), 'CTX_ZONE') AS photo_code,
+              'Ảnh bối cảnh khu vực (CTX)' AS category,
+              'CTX' AS photo_type,
+              COALESCE(NULLIF(p.project_parcel_code, ''), NULLIF(r.report_code, ''), 'METRO2') AS parcel_code,
+              COALESCE(r.created_at, NOW()) AS sort_time,
+              2 AS cat_priority
+            FROM damage_zones z
+            INNER JOIN base_survey_reports r ON r.id = z.report_id AND r.deleted_at IS NULL
+            LEFT JOIN parcels p ON p.id = r.parcel_id
+            WHERE COALESCE(z.is_deleted, false) = false
+              AND z.ctx_photo_url IS NOT NULL
+              AND z.ctx_photo_url <> ''
+              AND z.ctx_photo_url NOT LIKE 'blob:%'
+          ),
+          deduped AS (
+            SELECT DISTINCT ON (photo_url)
+              photo_url,
+              photo_code,
+              category,
+              photo_type,
+              parcel_code,
+              sort_time,
+              cat_priority
+            FROM combined_photos
+            ORDER BY photo_url, sort_time DESC
+          ),
+          ranked_by_cat AS (
+            SELECT
+              *,
+              ROW_NUMBER() OVER (
+                PARTITION BY parcel_code, cat_priority
+                ORDER BY sort_time DESC, photo_code ASC
+              ) AS rn_in_cat
+            FROM deduped
+          ),
+          ranked_per_parcel AS (
+            SELECT
+              photo_url,
+              photo_code,
+              category,
+              photo_type,
+              parcel_code,
+              sort_time,
+              sort_time::text AS created_at,
+              MAX(sort_time) OVER (PARTITION BY parcel_code) AS parcel_latest_time,
+              ROW_NUMBER() OVER (
+                PARTITION BY parcel_code
+                ORDER BY
+                  -- Xen kẽ tối đa 3 ảnh CU và 2 ảnh CTX trên mỗi căn để đa dạng góc chụp
+                  CASE
+                    WHEN cat_priority = 1 AND rn_in_cat <= 3 THEN rn_in_cat * 2 - 1
+                    WHEN cat_priority = 2 AND rn_in_cat <= 2 THEN rn_in_cat * 2
+                    ELSE 100 + rn_in_cat
+                  END ASC,
+                  sort_time DESC
+              ) AS rn_in_parcel
+            FROM ranked_by_cat
+          )
+          SELECT
+            photo_url,
+            photo_code,
+            category,
+            photo_type,
+            parcel_code,
+            rn_in_parcel,
+            created_at
+          FROM ranked_per_parcel
+          WHERE rn_in_parcel <= $1
+          ORDER BY parcel_latest_time DESC, parcel_code ASC, rn_in_parcel ASC
+          LIMIT $2;
+          `,
+          [maxPerParcel, totalLimit]
+        );
+
+        for (const row of collectedQuery.rows) {
+          if (row.photo_url) {
             samples.push({
-              photo_url: row.cu_photo_url,
-              photo_code: row.cu_photo_code || row.defect_code || 'CU_DEFECT',
-              category: 'Ảnh cận cảnh vết nứt (CU)',
-              parcel_code: row.project_parcel_code || 'METRO2',
+              photo_url: row.photo_url,
+              photo_code: row.photo_code || 'SURVEY_PHOTO',
+              category: row.category || 'Ảnh khảo sát hiện trạng',
+              photo_type: row.photo_type === 'CTX' ? 'CTX' : 'CU',
+              parcel_code: row.parcel_code || 'METRO2',
+              rank_in_parcel: Number(row.rn_in_parcel) || 1,
               created_at: row.created_at || new Date().toISOString(),
             });
           }
         }
       } catch (dbErr: unknown) {
-        console.warn('[ImageLabController:getRecentSurveyPhotos] Bỏ qua truy vấn defect_items:', dbErr);
+        console.warn('[ImageLabController:getRecentSurveyPhotos] Bỏ qua truy vấn danh sách 100 ảnh khảo sát:', dbErr);
       }
 
       res.status(200).json({
         success: true,
+        meta: {
+          totalCollected: samples.length,
+          maxPerParcel,
+          distinctParcels: new Set(samples.map((s) => s.parcel_code)).size,
+        },
         data: samples,
       });
     } catch (err: unknown) {

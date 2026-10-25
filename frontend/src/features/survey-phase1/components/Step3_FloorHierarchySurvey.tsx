@@ -680,12 +680,16 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         currentFloor={currentFloor}
         activeZoneIndex={activeZoneIndex}
         projectParcelCode={formData.projectParcelCode}
-        onCadPhotoChange={(url) => {
+        onCadPhotoChange={(url, code) => {
           updateFormData((prev) => {
             const updatedFloors = [...prev.floors];
             const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
             if (!cur) return prev;
-            updatedFloors[activeFloorIndex] = { ...cur, cadSketchPhotoUrl: url };
+            updatedFloors[activeFloorIndex] = {
+              ...cur,
+              cadSketchPhotoUrl: url,
+              cadSketchPhotoCode: url ? code || cur.cadSketchPhotoCode : '',
+            };
             return { ...prev, floors: updatedFloors };
           });
         }}
@@ -715,12 +719,16 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         currentFloor={currentFloor}
         activeElementIndex={activeElementIndex}
         projectParcelCode={formData.projectParcelCode}
-        onCadPhotoChange={(url) => {
+        onCadPhotoChange={(url, code) => {
           updateFormData((prev) => {
             const updatedFloors = [...prev.floors];
             const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
             if (!cur) return prev;
-            updatedFloors[activeFloorIndex] = { ...cur, cadStructuralSketchPhotoUrl: url };
+            updatedFloors[activeFloorIndex] = {
+              ...cur,
+              cadStructuralSketchPhotoUrl: url,
+              cadStructuralSketchPhotoCode: url ? code || cur.cadStructuralSketchPhotoCode : '',
+            };
             return { ...prev, floors: updatedFloors };
           });
         }}

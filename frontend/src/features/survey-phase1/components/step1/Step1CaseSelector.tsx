@@ -4,6 +4,7 @@ import { Button } from '../../../../core/components/ui/Button';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
+import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
 import {
   Building2,
   Home,
@@ -326,9 +327,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                 <PhotoCaptureInput
                   label="Thêm ảnh biên bản vắng"
                   value=""
-                  onChange={(url) => {
+                  onChange={(url, _code, meta) => {
                     if (url) {
-                      const updated = [...(formData.absenteeMinutesPhotos || []), url];
+                      const currentList = usePhase1SurveyStore.getState().formData.absenteeMinutesPhotos || formData.absenteeMinutesPhotos || [];
+                      const updated = upsertPhotoUrlList(currentList, url, meta);
                       updateFormData({ absenteeMinutesPhotos: updated });
                     }
                   }}
@@ -476,9 +478,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                 <PhotoCaptureInput
                   label="Thêm ảnh công trình"
                   value=""
-                  onChange={(url) => {
+                  onChange={(url, _code, meta) => {
                     if (url) {
-                      const updated = [...(formData.underConstructionPhotos || []), url];
+                      const currentList = usePhase1SurveyStore.getState().formData.underConstructionPhotos || formData.underConstructionPhotos || [];
+                      const updated = upsertPhotoUrlList(currentList, url, meta);
                       updateFormData({ underConstructionPhotos: updated });
                     }
                   }}
@@ -644,9 +647,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                 <PhotoCaptureInput
                   label="Thêm ảnh đất trống"
                   value=""
-                  onChange={(url) => {
+                  onChange={(url, _code, meta) => {
                     if (url) {
-                      const updated = [...(formData.vacantLandPhotos || []), url];
+                      const currentList = usePhase1SurveyStore.getState().formData.vacantLandPhotos || formData.vacantLandPhotos || [];
+                      const updated = upsertPhotoUrlList(currentList, url, meta);
                       updateFormData({ vacantLandPhotos: updated });
                     }
                   }}

@@ -442,6 +442,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
     return Boolean(formState.standardizedAddress || sJson.standardizedAddress);
   });
 
+  // Đồng bộ trạng thái đã chấp nhận chuẩn hóa địa chỉ khi dữ liệu tải xong hoặc sau khi lưu Diff
+  useEffect(() => {
+    if (formState.standardizedAddress || sJson.standardizedAddress) {
+      setIsAddressAccepted(true);
+    }
+  }, [formState.standardizedAddress, sJson.standardizedAddress]);
+
   const handleAcceptAddress = (formattedAddress: string) => {
     setIsAddressAccepted(true);
     handleFieldChange('standardizedAddress', 'Địa chỉ chuẩn hóa A4 (168 ĐVHC)', formattedAddress);

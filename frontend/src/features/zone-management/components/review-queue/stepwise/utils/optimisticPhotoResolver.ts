@@ -116,10 +116,32 @@ export function resolveOptimisticPhoto(
     const actExt = a as PhotoActionPayload & { zoneCode?: string; floorCode?: string };
     const actZoneCode = actExt.zoneCode || (a.metadata?.zoneCode as string | undefined);
     const actFloorCode = actExt.floorCode || (a.metadata?.floorCode as string | undefined);
+    const hasExactDefectIdMatch = Boolean(filter.defectId && a.defectId && filter.defectId === a.defectId);
     if (filter.defectId && a.defectId && a.defectId !== filter.defectId) return false;
     if (filter.defectCode && a.defectCode && a.defectCode !== filter.defectCode) return false;
-    if (filter.zoneCode && actZoneCode && actZoneCode !== filter.zoneCode) return false;
-    if (filter.floorCode && actFloorCode && actFloorCode !== filter.floorCode) return false;
+    if (filter.zoneCode) {
+      if (actZoneCode && actZoneCode !== filter.zoneCode) return false;
+      if (!actZoneCode && !hasExactDefectIdMatch) return false;
+    }
+    if (filter.floorCode) {
+      if (actFloorCode && actFloorCode !== filter.floorCode) return false;
+      if (!actFloorCode && !hasExactDefectIdMatch) return false;
+    }
+    const sameDefectCode = Boolean(
+      filter.defectCode &&
+        (a.defectCode === filter.defectCode || a.targetPhotoId === filter.defectCode)
+    );
+
+    if (
+      mode === 'DELETE' &&
+      Boolean(a.deleteDefectItem) &&
+      (hasExactDefectIdMatch ||
+        (sameDefectCode &&
+          (!filter.zoneCode || actZoneCode === filter.zoneCode) &&
+          (!filter.floorCode || actFloorCode === filter.floorCode)))
+    ) {
+      return true;
+    }
 
     if (filter.photoIndex !== undefined && a.photoIndex !== undefined) {
       return a.photoIndex === filter.photoIndex;
@@ -203,6 +225,16 @@ export function getOptimisticAddedPhotos(
   if (!stagedActions || stagedActions.length === 0) return [];
   const results: OptimisticAddedPhotoItem[] = [];
 
+  // Tập hợp các URL đã bị đánh dấu DELETE trong phiên để ẩn ngay các ảnh mới thêm nếu bị xóa
+  const deletedUrls = new Set<string>();
+  for (const act of stagedActions) {
+    const rec = act as unknown as { action?: string; actionType?: string };
+    const mode = (rec.action || rec.actionType || '').toUpperCase();
+    if (mode === 'DELETE' && act.oldPhotoUrl) {
+      deletedUrls.add(act.oldPhotoUrl.trim());
+    }
+  }
+
   for (const a of stagedActions) {
     const rec = a as unknown as { action?: string; actionType?: string };
     const mode = (rec.action || rec.actionType || '').toUpperCase();
@@ -222,14 +254,22 @@ export function getOptimisticAddedPhotos(
     const actExt = a as PhotoActionPayload & { zoneCode?: string; floorCode?: string };
     const actZoneCode = actExt.zoneCode || (a.metadata?.zoneCode as string | undefined);
     const actFloorCode = actExt.floorCode || (a.metadata?.floorCode as string | undefined);
+    const hasExactDefectIdMatch = Boolean(filter.defectId && a.defectId && filter.defectId === a.defectId);
     if (filter.defectId && a.defectId && a.defectId !== filter.defectId) continue;
     if (filter.defectCode && a.defectCode && a.defectCode !== filter.defectCode) continue;
-    if (filter.zoneCode && actZoneCode && actZoneCode !== filter.zoneCode) continue;
-    if (filter.floorCode && actFloorCode && actFloorCode !== filter.floorCode) continue;
+    if (filter.defectCode && !a.defectCode && a.targetPhotoId && a.targetPhotoId !== filter.defectCode) continue;
+    if (filter.zoneCode) {
+      if (actZoneCode && actZoneCode !== filter.zoneCode) continue;
+      if (!actZoneCode && !hasExactDefectIdMatch) continue;
+    }
+    if (filter.floorCode) {
+      if (actFloorCode && actFloorCode !== filter.floorCode) continue;
+      if (!actFloorCode && !hasExactDefectIdMatch) continue;
+    }
 
     const urls = a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []);
     for (const u of urls) {
-      if (u) {
+      if (u && !deletedUrls.has(u.trim())) {
         results.push({
           url: u,
           displayUrl: u,

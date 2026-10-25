@@ -227,7 +227,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
       });
     }
 
-    const isZeroOrIntersects = distOuterNumber === 0 || spatialMetrics.isStationIntersectsParcel;
+    const isZeroOrIntersects = distOuterNumber === 0;
     const badgeText = isZeroOrIntersects ? '0.0 m (Ga)' : `${distOuterNumber.toFixed(1)} m (Mép ga)`;
     const bgColor = isZeroOrIntersects ? '#7f1d1d' : 'rgba(12, 74, 110, 0.95)';
     const textColor = isZeroOrIntersects ? '#fecaca' : '#bae6fd';

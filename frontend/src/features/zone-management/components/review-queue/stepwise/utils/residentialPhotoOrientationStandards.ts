@@ -298,6 +298,23 @@ export function getEffectiveResidentialPhotoRule(
 }
 
 /**
+ * Tính toán hướng ảnh hiệu dụng (PORTRAIT | LANDSCAPE | SQUARE) sau khi cộng góc xoay
+ */
+export function computeEffectiveOrientation(
+  naturalWidth: number,
+  naturalHeight: number,
+  rotation: number = 0
+): PhotoOrientationType {
+  const normRot = normalizeRotationAngle(rotation);
+  const isSwapped = normRot === 90 || normRot === 270;
+  const effectiveWidth = isSwapped ? naturalHeight : naturalWidth;
+  const effectiveHeight = isSwapped ? naturalWidth : naturalHeight;
+  if (effectiveWidth > effectiveHeight) return 'LANDSCAPE';
+  if (effectiveHeight > effectiveWidth) return 'PORTRAIT';
+  return 'SQUARE';
+}
+
+/**
  * Đánh giá hướng ảnh hiệu dụng sau khi áp dụng góc xoay
  */
 export function evaluateResidentialOrientation(
@@ -305,23 +322,19 @@ export function evaluateResidentialOrientation(
   naturalHeight: number,
   rotation: number = 0,
   ruleKey: string = 'ANY',
-  houseOrientation: HousePrimaryOrientation = 'PORTRAIT'
+  houseOrientation: HousePrimaryOrientation = 'PORTRAIT',
+  overrideExpected?: ExpectedOrientation,
+  customExpectedReason?: string
 ): OrientationEvaluationResult {
   const normRot = normalizeRotationAngle(rotation);
   const isSwapped = normRot === 90 || normRot === 270;
   const effectiveWidth = isSwapped ? naturalHeight : naturalWidth;
   const effectiveHeight = isSwapped ? naturalWidth : naturalHeight;
+  const currentOrientation = computeEffectiveOrientation(naturalWidth, naturalHeight, normRot);
 
-  let currentOrientation: PhotoOrientationType = 'SQUARE';
-  if (effectiveWidth > effectiveHeight) {
-    currentOrientation = 'LANDSCAPE';
-  } else if (effectiveHeight > effectiveWidth) {
-    currentOrientation = 'PORTRAIT';
-  }
-
-  // Tra cứu quy tắc thích ứng
+  // Tra cứu quy tắc thích ứng (ưu tiên overrideExpected nếu có đồng bộ theo ảnh tổng quan cấu kiện)
   const rule = getEffectiveResidentialPhotoRule(ruleKey, houseOrientation);
-  const expected: ExpectedOrientation = rule ? rule.expected : 'ANY';
+  const expected: ExpectedOrientation = overrideExpected ?? (rule ? rule.expected : 'ANY');
 
   // Nếu quy tắc là ANY hoặc ảnh vuông 1:1 (bỏ ràng buộc ảnh vuông) -> luôn hợp lệ
   if (expected === 'ANY' || currentOrientation === 'SQUARE') {
@@ -347,7 +360,8 @@ export function evaluateResidentialOrientation(
     // Nếu hiện tại là Landscape mà cần Portrait -> xoay thêm 90°
     // Nếu hiện tại là Portrait mà cần Landscape -> xoay thêm 90°
     suggestedRotation = (normRot + 90) % 360;
-    message = `⚠️ Ảnh đang là ${currentOrientation === 'LANDSCAPE' ? 'NGANG' : currentOrientation === 'PORTRAIT' ? 'DỌC' : 'VUÔNG'} • Khuyến nghị ${expected === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}`;
+    const reasonSuffix = customExpectedReason ? ` (${customExpectedReason})` : '';
+    message = `⚠️ Ảnh đang là ${currentOrientation === 'LANDSCAPE' ? 'NGANG' : currentOrientation === 'PORTRAIT' ? 'DỌC' : 'VUÔNG'} • Khuyến nghị ${expected === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}${reasonSuffix}`;
   }
 
   return {

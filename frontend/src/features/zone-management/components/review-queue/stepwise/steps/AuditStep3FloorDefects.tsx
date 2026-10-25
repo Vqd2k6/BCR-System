@@ -355,20 +355,25 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
   // Kiểm tra khuyết tật D có bị đánh dấu xóa cả mục (deleteDefectItem: true) trong stagedPhotoActions không
   const getStagedDefectItemDeletion = useCallback(
-    (d: DefectItem): PhotoActionPayload | undefined => {
+    (d: DefectItem, zoneOrElemCode?: string, floorName?: string): PhotoActionPayload | undefined => {
       const dCode = d.defectCode || d.defect_code || '';
-      return stagedPhotoActions?.find(
-        (a) =>
-          a.action === 'DELETE' &&
-          Boolean(a.deleteDefectItem) &&
-          ((d.id && a.defectId === d.id) || (dCode && (a.targetPhotoId === dCode || a.defectCode === dCode)))
-      );
+      return stagedPhotoActions?.find((a) => {
+        if (a.action !== 'DELETE' || !a.deleteDefectItem) return false;
+        if (d.id && a.defectId && d.id !== a.defectId) return false;
+        if (d.id && a.defectId && d.id === a.defectId) return true;
+        const actFloor = a.floorCode || (a.metadata?.floorCode as string | undefined);
+        const actZone = a.zoneCode || (a.metadata?.zoneCode as string | undefined);
+        if (floorName && (!actFloor || actFloor !== floorName)) return false;
+        if (zoneOrElemCode && (!actZone || actZone !== zoneOrElemCode)) return false;
+        return Boolean(dCode && (a.targetPhotoId === dCode || a.defectCode === dCode));
+      });
     },
     [stagedPhotoActions]
   );
 
   const isDefectActive = useCallback(
-    (d: DefectItem): boolean => !isItemSoftDeleted(d) && !getStagedDefectItemDeletion(d),
+    (d: DefectItem, zoneOrElemCode?: string, floorName?: string): boolean =>
+      !isItemSoftDeleted(d) && !getStagedDefectItemDeletion(d, zoneOrElemCode, floorName),
     [getStagedDefectItemDeletion]
   );
 
@@ -506,13 +511,24 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     if (!floor) return;
     const fId = floor.id ? String(floor.id) : String(floorIdx);
     const baseCadKey = fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`;
+    const legacyCadKey = `floor_${floor.id || floorIdx}_cad`;
     const structCadKey = fId.startsWith('floor_') ? `${fId}_structural_cad` : `floor_${fId}_structural_cad`;
+    const legacyStructCadKey = `${legacyCadKey}_struct`;
     const hasSeparateStructCad = Boolean(floor.cadStructuralSketchPhotoUrl || floor.cad_structural_drawing_url);
     const cadKey = isStruct && hasSeparateStructCad ? structCadKey : baseCadKey;
-    const curRot =
-      stagedPhotoRotations[cadKey] ??
-      stagedPhotoRotations[`floor_${floor.id || floorIdx}_cad`] ??
+    const baseRot =
+      stagedPhotoRotations[baseCadKey] ??
+      stagedPhotoRotations[legacyCadKey] ??
+      stagedPhotoRotations[`floor_${floorIdx}_cad`] ??
       ((floor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
+    const curRot =
+      isStruct && hasSeparateStructCad
+        ? stagedPhotoRotations[structCadKey] ??
+          stagedPhotoRotations[legacyStructCadKey] ??
+          stagedPhotoRotations[`floor_${floorIdx}_structural_cad`] ??
+          ((floor as FloorSurveyData & AuditExtendedMeta & { cadStructuralSketchRotation?: number }).cadStructuralSketchRotation ??
+            baseRot)
+        : baseRot;
     const nextRotation = (curRot + 90) % 360;
     onRotatePhoto?.(cadKey, nextRotation);
 
@@ -567,6 +583,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           cadZonePins: updatedZonePins,
           cadElementPins: updatedElementPins,
           ...(shouldRotateZonePins ? { cadSketchRotation: nextRotation } : {}),
+          ...(isStruct && hasSeparateStructCad ? { cadStructuralSketchRotation: nextRotation } : {}),
         };
       });
       handleFieldChange('floors', `Xoay CAD ${isStruct ? 'Kết cấu' : 'Kiến trúc'} tầng ${floor.floorName || floorIdx + 1} 90°`, updatedFloors);
@@ -831,6 +848,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     setPinningCtxZone(null);
 
     if (onOpenPhotoAction) {
+      const floorObj = floorsList[floorIdx];
+      const resolvedFloorName =
+        floorObj?.floorName ||
+        (floorObj as { floor_name?: string } | undefined)?.floor_name ||
+        `Tầng ${floorIdx + 1}`;
       onOpenPhotoAction({
         initialMode: 'ADD',
         category: 'DEFECT_CU',
@@ -838,7 +860,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         targetPhotoId: nextDCode,
         defectId: newDefectId,
         defectCode: nextDCode,
-        floorCode: floorsList[floorIdx]?.floorName,
+        floorCode: resolvedFloorName,
         zoneCode: zCode,
         initialPinX: pinX,
         initialPinY: pinY,
@@ -906,6 +928,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     setPinningCtxZone(null);
 
     if (onOpenPhotoAction) {
+      const floorObj = floorsList[floorIdx];
+      const resolvedFloorName =
+        floorObj?.floorName ||
+        (floorObj as { floor_name?: string } | undefined)?.floor_name ||
+        `Tầng ${floorIdx + 1}`;
       onOpenPhotoAction({
         initialMode: 'ADD',
         category: 'DEFECT_CU',
@@ -913,7 +940,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         targetPhotoId: nextDCode,
         defectId: newDefectId,
         defectCode: nextDCode,
-        floorCode: floorsList[floorIdx]?.floorName,
+        floorCode: resolvedFloorName,
         zoneCode: eCode,
         initialPinX: pinX,
         initialPinY: pinY,
@@ -1414,8 +1441,14 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 key={fl.id || idx}
                 type="button"
                 onClick={() => {
+                  const container = document.getElementById('audit-studio-scroll-container');
                   const target = document.getElementById(`step-4-floor-${idx}`);
-                  if (target) {
+                  if (container && target) {
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+                    const offsetTop = Math.max(0, targetRect.top - containerRect.top + container.scrollTop - 60);
+                    container.scrollTo({ top: offsetTop, behavior: 'smooth' });
+                  } else if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
                 }}
@@ -1443,6 +1476,22 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           const deletedElements = elements.filter((e) => isItemSoftDeleted(e));
           const displayedElements = showDeletedItems ? elements : activeElements;
 
+          const deletedFloorDefectsCount =
+            zones.reduce(
+              (acc, z) =>
+                acc +
+                (z.defects || []).filter((d) => !isDefectActive(d, z.zoneCode || z.zone_code, floorName)).length,
+              0
+            ) +
+            elements.reduce(
+              (acc, e) =>
+                acc +
+                (e.defects || []).filter((d) => !isDefectActive(d, e.elementCode || e.element_code, floorName)).length,
+              0
+            );
+          const totalDeletedFloorItemsCount =
+            deletedZones.length + deletedElements.length + deletedFloorDefectsCount;
+
           // CAD_Z (Kiến trúc) - Đồng bộ 100% photoKey với usePhotoOrientationAudit
           const fId = fl.id ? String(fl.id) : String(flIdx);
           const baseCadKey = fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`;
@@ -1455,14 +1504,20 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             includeAdd: !cadPhotoUrl,
           });
           const effectiveCad = stagedCad?.action === 'DELETE' ? '' : (stagedCad?.newPhotoUrl || cadPhotoUrl);
-          const cadRotation =
+          const rawCadRotation =
             stagedPhotoRotations[baseCadKey] ??
             stagedPhotoRotations[legacyCadKey] ??
+            stagedPhotoRotations[`floor_${flIdx}_cad`] ??
             ((fl as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
-          const cadViolation =
+          const cadRotation = ((rawCadRotation % 360) + 360) % 360;
+          const rawCadViolation =
             violationsMap?.get(baseCadKey) ||
             violationsMap?.get(legacyCadKey) ||
             (effectiveCad ? violationsMap?.get(effectiveCad) : undefined);
+          const cadViolation =
+            rawCadViolation && ((rawCadViolation.effectiveRotation % 360) + 360) % 360 === cadRotation
+              ? rawCadViolation
+              : undefined;
           const cadZonePins = Array.isArray(fl.cadZonePins) ? fl.cadZonePins : [];
           const displayedCadZonePins = cadZonePins.filter((p) => {
             if (showDeletedItems) return true;
@@ -1483,15 +1538,25 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             includeAdd: !structCadPhotoUrl,
           });
           const effectiveStructCad = stagedStructCad?.action === 'DELETE' ? '' : (stagedStructCad?.newPhotoUrl || structCadPhotoUrl);
-          const structCadRotation =
+          const rawStructCadRotation =
             stagedPhotoRotations[baseStructCadKey] ??
             stagedPhotoRotations[legacyStructCadKey] ??
-            stagedPhotoRotations[baseCadKey] ??
-            cadRotation;
+            stagedPhotoRotations[`floor_${flIdx}_structural_cad`] ??
+            ((fl as FloorSurveyData & AuditExtendedMeta & { cadStructuralSketchRotation?: number }).cadStructuralSketchRotation ??
+              stagedPhotoRotations[baseCadKey] ??
+              stagedPhotoRotations[legacyCadKey] ??
+              cadRotation);
+          const structCadRotation = ((rawStructCadRotation % 360) + 360) % 360;
+          const rawStructCadViolation = effectiveStructCad
+            ? violationsMap?.get(baseStructCadKey) ||
+              violationsMap?.get(legacyStructCadKey) ||
+              violationsMap?.get(`floor_${flIdx}_structural_cad`) ||
+              violationsMap?.get(effectiveStructCad)
+            : cadViolation;
           const structCadViolation =
-            violationsMap?.get(baseStructCadKey) ||
-            violationsMap?.get(legacyStructCadKey) ||
-            (effectiveStructCad ? violationsMap?.get(effectiveStructCad) : cadViolation);
+            rawStructCadViolation && ((rawStructCadViolation.effectiveRotation % 360) + 360) % 360 === structCadRotation
+              ? rawStructCadViolation
+              : undefined;
           const cadElementPins = Array.isArray(fl.cadElementPins) ? fl.cadElementPins : [];
           const displayedCadElementPins = cadElementPins.filter((p) => {
             if (showDeletedItems) return true;
@@ -1521,7 +1586,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {(deletedZones.length > 0 || deletedElements.length > 0) && (
+                  {totalDeletedFloorItemsCount > 0 && (
                     <button
                       type="button"
                       onClick={() => setShowDeletedItems(!showDeletedItems)}
@@ -1532,7 +1597,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       }`}
                     >
                       {showDeletedItems ? <EyeOff className="w-3.5 h-3.5 text-rose-700" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
-                      <span>{showDeletedItems ? 'Ẩn đã xóa' : `Hiện ${deletedZones.length + deletedElements.length} mục đã xóa`}</span>
+                      <span>{showDeletedItems ? 'Ẩn đã xóa' : `Hiện ${totalDeletedFloorItemsCount} mục đã xóa`}</span>
                     </button>
                   )}
                   <button
@@ -1800,7 +1865,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const zCode = z.zoneCode || z.zone_code || 'Z-??';
                     const isZoneDeleted = isItemSoftDeleted(z);
                     const rawDefectsList: DefectItem[] = Array.isArray(z.defects) ? z.defects : [];
-                    const defectsList = showDeletedItems ? rawDefectsList : rawDefectsList.filter((d) => !isItemSoftDeleted(d));
+                    const defectsList = showDeletedItems
+                      ? rawDefectsList
+                      : rawDefectsList.filter((d) => isDefectActive(d, zCode, floorName));
 
                     const rawZoneCtxUrl = z.ctxPhotoUrl || z.ctx_photo_url || '';
                     const stagedCtx = getStagedAction({
@@ -1816,15 +1883,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const legacyZoneKey = z.id ? `zone_${z.id}` : baseZoneKey;
                     const ctxRotKey = `${baseZoneKey}_ctx`;
                     const legacyCtxRotKey = `${legacyZoneKey}_ctx`;
+                    const indexedCtxRotKey = `zone_f${flIdx}_z${zCode}_ctx`;
                     const ctxRot =
                       stagedPhotoRotations[ctxRotKey] ??
                       stagedPhotoRotations[legacyCtxRotKey] ??
+                      stagedPhotoRotations[indexedCtxRotKey] ??
                       stagedPhotoRotations[ctxUrl] ??
                       0;
                     const ctxViolation =
                       violationsMap?.get(ctxRotKey) ||
                       violationsMap?.get(legacyCtxRotKey) ||
-                      (ctxUrl ? violationsMap?.get(ctxUrl) : undefined);
+                      violationsMap?.get(indexedCtxRotKey);
                     const hasZonePinsOrPinning =
                       defectsList.length > 0 ||
                       (pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode);
@@ -1915,17 +1984,55 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             targetPhotoType: 'OVERVIEW',
                             targetPhotoId: z.id || zCode,
                             zoneCode: zCode,
+                            floorCode: floorName,
                           });
-                          const hasAnyZOverviews = rawZOverviews.length > 0 || addedZOverviews.length > 0;
+                          const resolvedZOverviews = rawZOverviews.map((ovUrl: string, ovIdx: number) => ({
+                            ovUrl,
+                            ovIdx,
+                            ovOpt: resolveOptimisticPhoto(ovUrl, stagedPhotoActions, {
+                              category: 'ZONE_OVERVIEW',
+                              targetPhotoType: 'OVERVIEW',
+                              targetPhotoId: z.id || zCode,
+                              zoneCode: zCode,
+                              floorCode: floorName,
+                              photoIndex: ovIdx,
+                              url: ovUrl,
+                            }),
+                          }));
+                          const activeRawZOverviews = resolvedZOverviews.filter((item) => item.ovOpt.status !== 'DELETED');
+                          const deletedRawZOverviews = resolvedZOverviews.filter((item) => item.ovOpt.status === 'DELETED');
+                          const activeZOverviewCount = activeRawZOverviews.length + addedZOverviews.length;
+                          const hasAnyZOverviews =
+                            activeZOverviewCount > 0 || deletedRawZOverviews.length > 0;
 
                           if (!hasAnyZOverviews && !isEditMode) return null;
 
                           return (
                             <div className="space-y-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                                  Ảnh Tổng Quan Vùng {zCode} ({rawZOverviews.length + addedZOverviews.length} ảnh):
-                                </span>
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                    Ảnh Tổng Quan Vùng {zCode} ({activeZOverviewCount} ảnh):
+                                  </span>
+                                  {deletedRawZOverviews.map((delItem) => (
+                                    <span
+                                      key={`del-z-ov-${delItem.ovIdx}`}
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                                    >
+                                      <span>Đã ẩn {zCode}-OV-{delItem.ovIdx + 1} (Chờ lưu Diff)</span>
+                                      {delItem.ovOpt.stagedAction && onUndoPhotoAction && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onUndoPhotoAction(delItem.ovOpt.stagedAction!)}
+                                          className="underline hover:text-rose-900 flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                          <Undo2 className="w-2.5 h-2.5" />
+                                          <span>Hoàn tác</span>
+                                        </button>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
                                 {isEditMode && onOpenPhotoAction && (
                                   <button
                                     type="button"
@@ -1948,18 +2055,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 )}
                               </div>
 
-                              {hasAnyZOverviews && (
+                              {activeZOverviewCount > 0 && (
                                 <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
-                                  {rawZOverviews.map((ovUrl: string, ovIdx: number) => {
-                                    const ovOpt = resolveOptimisticPhoto(ovUrl, stagedPhotoActions, {
-                                      category: 'ZONE_OVERVIEW',
-                                      targetPhotoType: 'OVERVIEW',
-                                      targetPhotoId: z.id || zCode,
-                                      zoneCode: zCode,
-                                      floorCode: floorName,
-                                      photoIndex: ovIdx,
-                                      url: ovUrl,
-                                    });
+                                  {activeRawZOverviews.map(({ ovUrl, ovIdx, ovOpt }) => {
                                     const effectiveOvUrl = ovOpt.displayUrl || ovUrl;
                                     const ovRotKey = `zone_f${flIdx}_z${zCode}_ov_${ovIdx}`;
                                     const legacyOvKey = `${baseZoneKey}_ov_${ovIdx}`;
@@ -1995,9 +2093,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                           expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
                                           onRotate={(newRot) => onRotatePhoto?.(ovRotKey, newRot, effectiveOvUrl)}
                                           optimisticStatus={
-                                            ovOpt.status === 'DELETED'
-                                              ? 'DELETED'
-                                              : ovOpt.status === 'REPLACED'
+                                            ovOpt.status === 'REPLACED'
                                               ? 'REPLACED'
                                               : undefined
                                           }
@@ -2375,9 +2471,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               defectsList.map((d: DefectItem, dIdx: number) => {
                                 const dCode = d.defectCode || d.defect_code || `D-${String(dIdx + 1).padStart(2, '0')}`;
                                 const defectKey = d.id || dCode;
-                                const isDefDeleted = isItemSoftDeleted(d);
+                                const effectiveDefectId = d.id ? String(d.id) : `defect_f${flIdx}_z${zCode}_${dCode}`;
+                                const stagedDefectDel = getStagedDefectItemDeletion(d, zCode, floorName);
+                                const isDefDeleted = isItemSoftDeleted(d) || Boolean(stagedDefectDel);
                                 const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-                                const rawCuPhotos: string[] =
+                                const initialRawCuPhotos: string[] =
                                   Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
                                     ? d.cuPhotos
                                     : d.cuPhotoUrl
@@ -2385,16 +2483,33 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     : d.cu_photo_url
                                     ? [d.cu_photo_url]
                                     : [];
+                                const rawCuPhotos = Array.from(new Set(initialRawCuPhotos.filter(Boolean)));
+                                const rawCuSet = new Set(rawCuPhotos);
                                 const addedCuPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
                                   category: 'DEFECT_CU',
                                   targetPhotoType: 'CU',
                                   targetPhotoId: dCode,
-                                  defectId: d.id,
+                                  defectId: effectiveDefectId,
                                   defectCode: dCode,
                                   zoneCode: zCode,
                                   floorCode: floorName,
-                                });
-                                const totalCuCount = rawCuPhotos.length + addedCuPhotos.length;
+                                }).filter((item) => !rawCuSet.has(item.url) && !rawCuSet.has(item.displayUrl));
+                                const activeRawCuCount = rawCuPhotos.filter((cuUrl: string, cuIdx: number) => {
+                                  const cuOpt = resolveOptimisticPhoto(cuUrl, stagedPhotoActions, {
+                                    category: 'DEFECT_CU',
+                                    targetPhotoType: 'CU',
+                                    targetPhotoId: dCode,
+                                    defectId: effectiveDefectId,
+                                    defectCode: dCode,
+                                    zoneCode: zCode,
+                                    floorCode: floorName,
+                                    photoIndex: cuIdx,
+                                    url: cuUrl,
+                                  });
+                                  return cuOpt.status !== 'DELETED';
+                                }).length;
+                                const activeCuCount = activeRawCuCount + addedCuPhotos.length;
+                                const hasMultipleCuPhotos = activeCuCount > 1;
 
                                 const currentCategory = d.screeningCategory || ARCH_SCREENING_CATEGORIES[0];
                                 const categoryOptions = ARCH_SCREENING_CATEGORIES.includes(currentCategory)
@@ -2424,6 +2539,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-mono font-black text-xs">
                                           {dCode}
                                         </span>
+                                        {isDefDeleted && (
+                                          <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
+                                            Đã ẩn (Chờ lưu Diff)
+                                          </span>
+                                        )}
                                         <span className="text-xs font-bold text-slate-800">
                                           {d.defectType || d.screeningCategory || 'Khuyết tật kiến trúc'}
                                         </span>
@@ -2445,7 +2565,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                           isDefDeleted ? (
                                             <button
                                               type="button"
-                                              onClick={() => handleRestoreDefect(flIdx, z.id || zCode, defectKey)}
+                                              onClick={() => {
+                                                if (stagedDefectDel && onUndoPhotoAction) {
+                                                  onUndoPhotoAction(stagedDefectDel);
+                                                }
+                                                handleRestoreDefect(flIdx, z.id || zCode, defectKey);
+                                              }}
                                               className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
                                             >
                                               <Undo2 className="w-3 h-3" />
@@ -2615,10 +2740,44 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                                     {/* CU Photos Strip - Kích thước 150% (rộng 345-375px, cao 320-360px) + Optimistic ADD/REPLACE/DELETE */}
                                     <div className="space-y-2">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] font-bold text-slate-500 block uppercase">
-                                          Ảnh Cận Cảnh CU ({totalCuCount} ảnh &bull; Kích thước 150%):
-                                        </span>
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[10px] font-bold text-slate-500 block uppercase">
+                                            Ảnh Cận Cảnh CU ({activeCuCount} ảnh &bull; Kích thước 150%):
+                                          </span>
+                                          {rawCuPhotos.map((cuUrl: string, cuIdx: number) => {
+                                            const cuOpt = resolveOptimisticPhoto(cuUrl, stagedPhotoActions, {
+                                              category: 'DEFECT_CU',
+                                              targetPhotoType: 'CU',
+                                              targetPhotoId: dCode,
+                                              defectId: effectiveDefectId,
+                                              defectCode: dCode,
+                                              zoneCode: zCode,
+                                              floorCode: floorName,
+                                              photoIndex: cuIdx,
+                                              url: cuUrl,
+                                            });
+                                            if (cuOpt.status !== 'DELETED' || !cuOpt.matchedAction) return null;
+                                            return (
+                                              <span
+                                                key={`deleted-cu-pill-${cuIdx}`}
+                                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                                              >
+                                                <span>Đã ẩn CU #{cuIdx + 1} (Chờ lưu Diff)</span>
+                                                {onUndoPhotoAction && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => onUndoPhotoAction(cuOpt.matchedAction!)}
+                                                    className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                                                  >
+                                                    <Undo2 className="w-2.5 h-2.5" />
+                                                    <span>Hoàn tác</span>
+                                                  </button>
+                                                )}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
                                         {isEditMode && onOpenPhotoAction && (
                                           <button
                                             type="button"
@@ -2628,8 +2787,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                 category: 'DEFECT_CU',
                                                 targetPhotoType: 'CU',
                                                 targetPhotoId: dCode,
-                                                defectId: d.id,
+                                                defectId: effectiveDefectId,
                                                 defectCode: dCode,
+                                                hasMultiplePhotos: hasMultipleCuPhotos,
                                                 floorCode: floorName,
                                                 zoneCode: zCode,
                                                 photoTitle: `Thêm ảnh CU ${dCode} (${zCode})`,
@@ -2643,7 +2803,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         )}
                                       </div>
 
-                                      {totalCuCount === 0 ? (
+                                      {activeCuCount === 0 ? (
                                         <div className="text-[11px] text-slate-400 italic py-2 px-3 rounded-lg bg-slate-50 border border-dashed border-slate-200">
                                           Chưa có ảnh cận cảnh CU cho {dCode}
                                         </div>
@@ -2654,18 +2814,20 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                               category: 'DEFECT_CU',
                                               targetPhotoType: 'CU',
                                               targetPhotoId: dCode,
-                                              defectId: d.id,
+                                              defectId: effectiveDefectId,
                                               defectCode: dCode,
                                               zoneCode: zCode,
                                               floorCode: floorName,
                                               photoIndex: cuIdx,
                                               url: cuUrl,
                                             });
+                                            if (cuOpt.status === 'DELETED') {
+                                              return null;
+                                            }
                                             const effectiveCuUrl = cuOpt.displayUrl || cuUrl;
                                             const dId = d.id ? String(d.id) : '';
-                                            const isDUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
                                             const indexedRotKey = `defect_f${flIdx}_z${zCode}_${dCode}_cu_${cuIdx}`;
-                                            const uuidRotKey = isDUuid ? `defect_${dId}_cu_${cuIdx}` : '';
+                                            const uuidRotKey = dId ? `defect_${dId}_cu_${cuIdx}` : '';
                                             const legacyRotKey = `defect_f${flIdx}_z${zCode}_${dId || dCode}_cu_${cuIdx}`;
                                             const rot =
                                               stagedPhotoRotations[indexedRotKey] ??
@@ -2688,8 +2850,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                   category="DEFECT_CU"
                                                   targetPhotoType="CU"
                                                   targetPhotoId={dCode}
-                                                  defectId={d.id}
+                                                  defectId={effectiveDefectId}
                                                   defectCode={dCode}
+                                                  hasMultiplePhotos={hasMultipleCuPhotos}
                                                   photoIndex={cuIdx}
                                                   floorCode={floorName}
                                                   zoneCode={zCode}
@@ -2712,9 +2875,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                     }
                                                   }}
                                                   optimisticStatus={
-                                                    cuOpt.status === 'DELETED'
-                                                      ? 'DELETED'
-                                                      : cuOpt.status === 'REPLACED'
+                                                    cuOpt.status === 'REPLACED'
                                                       ? 'REPLACED'
                                                       : undefined
                                                   }
@@ -2745,8 +2906,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                   category="DEFECT_CU"
                                                   targetPhotoType="CU"
                                                   targetPhotoId={dCode}
-                                                  defectId={d.id}
+                                                  defectId={effectiveDefectId}
                                                   defectCode={dCode}
+                                                  hasMultiplePhotos={hasMultipleCuPhotos}
                                                   photoIndex={cuIdx}
                                                   floorCode={floorName}
                                                   zoneCode={zCode}
@@ -2799,12 +2961,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {effectiveStructCad && (
+                    {(effectiveStructCad || effectiveCad) && (
                       <button
                         type="button"
                         onClick={() =>
                           onOpenPhotoZoom(
-                            effectiveStructCad,
+                            effectiveStructCad || effectiveCad,
                             `Sơ đồ CAD Kết cấu (E) - ${floorName}`,
                             `CAD_E_${floorName}`,
                             structCadRotation
@@ -2817,7 +2979,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </button>
                     )}
 
-                    {effectiveStructCad && (isEditMode || onRotatePhoto) && (
+                    {(effectiveStructCad || effectiveCad) && (isEditMode || onRotatePhoto) && (
                       <button
                         type="button"
                         onClick={() => handleRotateCad(flIdx, true)}
@@ -3032,7 +3194,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const eCode = elem.elementCode || elem.element_code || 'E-??';
                     const isElemDeleted = isItemSoftDeleted(elem);
                     const rawDefectsList: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
-                    const defectsList = showDeletedItems ? rawDefectsList : rawDefectsList.filter((d) => !isItemSoftDeleted(d));
+                    const defectsList = showDeletedItems
+                      ? rawDefectsList
+                      : rawDefectsList.filter((d) => isDefectActive(d, eCode, floorName));
 
                     const rawElemCtxUrl = elem.ctxPhotoUrl || (elem as StructuralElementData & { ctx_photo_url?: string }).ctx_photo_url || '';
                     const stagedElemCtx = getStagedAction({
@@ -3045,16 +3209,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     const eIdStr = elem.id ? String(elem.id) : '';
                     const isEUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(eIdStr);
                     const elemCtxKey = `element_f${flIdx}_e${eCode}_ctx`;
+                    const uuidElemCtxKey = eIdStr ? `element_${eIdStr}_ctx` : '';
                     const legacyElemCtxKey = isEUuid ? `elem_${eIdStr}_ctx` : `elem_f${flIdx}_e${eCode}_ctx`;
                     const elemCtxRot =
                       stagedPhotoRotations[elemCtxKey] ??
+                      (uuidElemCtxKey ? stagedPhotoRotations[uuidElemCtxKey] : undefined) ??
                       stagedPhotoRotations[legacyElemCtxKey] ??
                       stagedPhotoRotations[effectiveElemCtxUrl] ??
                       0;
                     const elemCtxViolation =
                       violationsMap?.get(elemCtxKey) ||
-                      violationsMap?.get(legacyElemCtxKey) ||
-                      (effectiveElemCtxUrl ? violationsMap?.get(effectiveElemCtxUrl) : undefined);
+                      (uuidElemCtxKey ? violationsMap?.get(uuidElemCtxKey) : undefined) ||
+                      violationsMap?.get(legacyElemCtxKey);
                     const hasElemPinsOrPinning =
                       defectsList.length > 0 || (pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode);
 
@@ -3066,6 +3232,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       floorCode: floorName,
                       zoneCode: eCode,
                     });
+                    const activeElemOverviewCount =
+                      rawElemOverviewList.filter((rawPhotoUrl, pIdx) => {
+                        const resolvedOv = resolveOptimisticPhoto(rawPhotoUrl, stagedPhotoActions, {
+                          category: 'ELEMENT_OVERVIEW',
+                          targetPhotoType: 'OVERVIEW',
+                          targetPhotoId: elem.id || eCode,
+                          photoIndex: pIdx,
+                          floorCode: floorName,
+                          zoneCode: eCode,
+                        });
+                        return resolvedOv.status !== 'DELETED';
+                      }).length + addedElemOverviewPhotos.length;
 
                     return (
                       <div
@@ -3154,9 +3332,40 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         {(rawElemOverviewList.length > 0 || addedElemOverviewPhotos.length > 0 || isEditMode) && (
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                                Ảnh Tổng Quan Cấu Kiện ({rawElemOverviewList.length + addedElemOverviewPhotos.length} ảnh):
-                              </span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                  Ảnh Tổng Quan Cấu Kiện ({activeElemOverviewCount} ảnh):
+                                </span>
+                                {rawElemOverviewList.map((rawPhotoUrl, pIdx) => {
+                                  const resolvedOv = resolveOptimisticPhoto(rawPhotoUrl, stagedPhotoActions, {
+                                    category: 'ELEMENT_OVERVIEW',
+                                    targetPhotoType: 'OVERVIEW',
+                                    targetPhotoId: elem.id || eCode,
+                                    photoIndex: pIdx,
+                                    floorCode: floorName,
+                                    zoneCode: eCode,
+                                  });
+                                  if (resolvedOv.status !== 'DELETED' || !resolvedOv.matchedAction) return null;
+                                  return (
+                                    <span
+                                      key={`deleted-elem-ov-pill-${pIdx}`}
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                                    >
+                                      <span>Đã ẩn {eCode}-OV-#{pIdx + 1} (Chờ lưu Diff)</span>
+                                      {onUndoPhotoAction && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onUndoPhotoAction(resolvedOv.matchedAction!)}
+                                          className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                                        >
+                                          <Undo2 className="w-2.5 h-2.5" />
+                                          <span>Hoàn tác</span>
+                                        </button>
+                                      )}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                               {isEditMode && onOpenPhotoAction && (
                                 <button
                                   type="button"
@@ -3179,7 +3388,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 </button>
                               )}
                             </div>
-                            {rawElemOverviewList.length === 0 && addedElemOverviewPhotos.length === 0 ? (
+                            {activeElemOverviewCount === 0 ? (
                               <div className="text-[11px] text-slate-400 italic py-1.5 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                                 Chưa có ảnh tổng quan cho cấu kiện {eCode}.
                               </div>
@@ -3194,6 +3403,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     floorCode: floorName,
                                     zoneCode: eCode,
                                   });
+                                  if (resolvedOv.status === 'DELETED') {
+                                    return null;
+                                  }
                                   const photoUrl = resolvedOv.displayUrl;
                                   const elemOvKey = `element_f${flIdx}_e${eCode}_ov_${pIdx}`;
                                   const legacyElemOvKey = isEUuid ? `elem_${eIdStr}_ov_${pIdx}` : `elem_f${flIdx}_e${eCode}_ov_${pIdx}`;
@@ -3234,9 +3446,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         expectedOrientation={elemOvViolation?.expectedOrientation || 'LANDSCAPE'}
                                         onRotate={(newRot) => onRotatePhoto?.(elemOvKey, newRot, photoUrl)}
                                         optimisticStatus={
-                                          resolvedOv.status === 'DELETED'
-                                            ? 'DELETED'
-                                            : resolvedOv.status === 'REPLACED'
+                                          resolvedOv.status === 'REPLACED'
                                             ? 'REPLACED'
                                             : undefined
                                         }
@@ -3428,6 +3638,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 >
                                   {elemCtxViolation && (
                                     <div
+                                      title={elemCtxViolation.message}
                                       className={`absolute top-2.5 left-2.5 z-30 px-2 py-0.5 rounded-md text-[10px] font-black shadow-md flex items-center gap-1 ${
                                         elemCtxViolation.isStrict
                                           ? 'bg-amber-500 text-slate-950'
@@ -3437,12 +3648,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       {elemCtxViolation.isStrict ? (
                                         <>
                                           <AlertTriangle className="w-3 h-3 shrink-0" />
-                                          <span>Cần xoay A4</span>
+                                          <span>Cần xoay {elemCtxViolation.expectedOrientation === 'PORTRAIT' ? 'Dọc' : 'Ngang'}</span>
                                         </>
                                       ) : (
                                         <>
                                           <Lightbulb className="w-3 h-3 shrink-0" />
-                                          <span>Khuyến nghị xoay</span>
+                                          <span>Khuyến nghị {elemCtxViolation.expectedOrientation === 'PORTRAIT' ? 'Dọc' : 'Ngang'}</span>
                                         </>
                                       )}
                                     </div>
@@ -3630,18 +3841,53 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               defectsList.map((def: DefectItem, dIdx: number) => {
                                 const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
                                 const defIdOrCode = def.id || dCode;
+                                const effectiveElemDefectId = def.id ? String(def.id) : `defect_f${flIdx}_e${eCode}_${dCode}`;
                                 const elemIdOrCode = elem.id || eCode;
-                                const isDefDeleted = isItemSoftDeleted(def);
-                                const rawCuPhotos = Array.isArray(def.cuPhotos) ? def.cuPhotos : [];
+                                const stagedDefectDel = getStagedDefectItemDeletion(def, eCode, floorName);
+                                const isDefDeleted = isItemSoftDeleted(def) || Boolean(stagedDefectDel);
+                                const initialRawCuPhotos: Array<string | { url?: string; photoUrl?: string }> =
+                                  Array.isArray(def.cuPhotos) && def.cuPhotos.length > 0
+                                    ? def.cuPhotos
+                                    : def.cuPhotoUrl
+                                    ? [def.cuPhotoUrl]
+                                    : def.cu_photo_url
+                                    ? [def.cu_photo_url]
+                                    : [];
+                                const rawCuUrlSet = new Set<string>();
+                                const rawCuPhotos = initialRawCuPhotos.filter((item) => {
+                                  const u = typeof item === 'string' ? item : item?.url || item?.photoUrl;
+                                  if (!u || rawCuUrlSet.has(u)) return false;
+                                  rawCuUrlSet.add(u);
+                                  return true;
+                                });
                                 const addedCuPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
                                   category: 'DEFECT_CU',
                                   targetPhotoType: 'CU',
                                   targetPhotoId: dCode,
-                                  defectId: def.id,
+                                  defectId: effectiveElemDefectId,
                                   defectCode: dCode,
                                   floorCode: floorName,
                                   zoneCode: eCode,
-                                });
+                                }).filter((item) => !rawCuUrlSet.has(item.url) && !rawCuUrlSet.has(item.displayUrl));
+                                const activeRawCuCount = rawCuPhotos.filter(
+                                  (cuItem: string | { url?: string; photoUrl?: string }, cuIdx: number) => {
+                                    const rawCuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
+                                    if (!rawCuUrl) return false;
+                                    const resolvedCu = resolveOptimisticPhoto(rawCuUrl, stagedPhotoActions, {
+                                      category: 'DEFECT_CU',
+                                      targetPhotoType: 'CU',
+                                      targetPhotoId: dCode,
+                                      defectId: effectiveElemDefectId,
+                                      defectCode: dCode,
+                                      photoIndex: cuIdx,
+                                      floorCode: floorName,
+                                      zoneCode: eCode,
+                                    });
+                                    return resolvedCu.status !== 'DELETED';
+                                  }
+                                ).length;
+                                const activeCuCount = activeRawCuCount + addedCuPhotos.length;
+                                const hasMultipleCuPhotos = activeCuCount > 1;
                                 const currentCategory = def.screeningCategory || 'Nứt kết cấu BTCT (Structural Cracks)';
                                 const categoryTypes: string[] = STRUCT_DEFECT_TYPES;
                                 const showCrackMetrics = isCrackRelated(def.screeningCategory, def.defectType);
@@ -3664,7 +3910,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         </span>
                                         {isDefDeleted && (
                                           <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
-                                            Đã xóa mềm
+                                            Đã ẩn (Chờ lưu Diff)
                                           </span>
                                         )}
                                         {!isEditMode && (
@@ -3689,7 +3935,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                           isDefDeleted ? (
                                             <button
                                               type="button"
-                                              onClick={() => handleRestoreElementDefect(flIdx, elemIdOrCode, defIdOrCode)}
+                                              onClick={() => {
+                                                if (stagedDefectDel && onUndoPhotoAction) {
+                                                  onUndoPhotoAction(stagedDefectDel);
+                                                }
+                                                handleRestoreElementDefect(flIdx, elemIdOrCode, defIdOrCode);
+                                              }}
                                               className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 flex items-center gap-1 cursor-pointer"
                                             >
                                               <RotateCcw className="w-3 h-3" />
@@ -3913,10 +4164,45 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                                     {/* CU Photos of Defect on Element E - Kích thước 150% (w-[345px] sm:w-[375px] h-80) */}
                                     <div className="space-y-2 pt-1.5 border-t border-slate-100">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                          Ảnh Cận Cảnh CU ({rawCuPhotos.length + addedCuPhotos.length} ảnh &bull; Kích thước 150%):
-                                        </span>
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                            Ảnh Cận Cảnh CU ({activeCuCount} ảnh &bull; Kích thước 150%):
+                                          </span>
+                                          {rawCuPhotos.map((cuItem: string | { url?: string; photoUrl?: string }, cuIdx: number) => {
+                                            const rawCuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
+                                            if (!rawCuUrl) return null;
+                                            const resolvedCu = resolveOptimisticPhoto(rawCuUrl, stagedPhotoActions, {
+                                              category: 'DEFECT_CU',
+                                              targetPhotoType: 'CU',
+                                              targetPhotoId: dCode,
+                                              defectId: effectiveElemDefectId,
+                                              defectCode: dCode,
+                                              photoIndex: cuIdx,
+                                              floorCode: floorName,
+                                              zoneCode: eCode,
+                                            });
+                                            if (resolvedCu.status !== 'DELETED' || !resolvedCu.matchedAction) return null;
+                                            return (
+                                              <span
+                                                key={`deleted-elem-cu-pill-${cuIdx}`}
+                                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-[10px] font-bold text-rose-700"
+                                              >
+                                                <span>Đã ẩn CU #{cuIdx + 1} (Chờ lưu Diff)</span>
+                                                {onUndoPhotoAction && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => onUndoPhotoAction(resolvedCu.matchedAction!)}
+                                                    className="underline hover:text-rose-900 cursor-pointer flex items-center gap-0.5"
+                                                  >
+                                                    <Undo2 className="w-2.5 h-2.5" />
+                                                    <span>Hoàn tác</span>
+                                                  </button>
+                                                )}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
                                         {isEditMode && onOpenPhotoAction && (
                                           <button
                                             type="button"
@@ -3926,8 +4212,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                 initialMode: 'ADD',
                                                 targetPhotoType: 'CU',
                                                 targetPhotoId: dCode,
-                                                defectId: def.id,
+                                                defectId: effectiveElemDefectId,
                                                 defectCode: dCode,
+                                                hasMultiplePhotos: hasMultipleCuPhotos,
                                                 photoIndex: rawCuPhotos.length + addedCuPhotos.length,
                                                 floorCode: floorName,
                                                 zoneCode: eCode,
@@ -3942,7 +4229,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         )}
                                       </div>
 
-                                      {rawCuPhotos.length === 0 && addedCuPhotos.length === 0 ? (
+                                      {activeCuCount === 0 ? (
                                         <div className="text-[11px] text-slate-400 italic py-2 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                                           Chưa có ảnh cận cảnh CU cho {dCode}
                                         </div>
@@ -3956,12 +4243,15 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                               category: 'DEFECT_CU',
                                               targetPhotoType: 'CU',
                                               targetPhotoId: dCode,
-                                              defectId: def.id,
+                                              defectId: effectiveElemDefectId,
                                               defectCode: dCode,
                                               photoIndex: cuIdx,
                                               floorCode: floorName,
                                               zoneCode: eCode,
                                             });
+                                            if (resolvedCu.status === 'DELETED') {
+                                              return null;
+                                            }
                                             const cuUrl = resolvedCu.displayUrl;
 
                                             const defIdStr = def.id ? String(def.id) : '';
@@ -3991,8 +4281,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                   category="DEFECT_CU"
                                                   targetPhotoType="CU"
                                                   targetPhotoId={dCode}
-                                                  defectId={def.id}
+                                                  defectId={effectiveElemDefectId}
                                                   defectCode={dCode}
+                                                  hasMultiplePhotos={hasMultipleCuPhotos}
                                                   photoIndex={cuIdx}
                                                   floorCode={floorName}
                                                   zoneCode={eCode}
@@ -4007,9 +4298,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                   expectedOrientation={cuViolation?.expectedOrientation || 'LANDSCAPE'}
                                                   onRotate={(newRot) => onRotatePhoto?.(primaryCuRotKey, newRot, cuUrl)}
                                                   optimisticStatus={
-                                                    resolvedCu.status === 'DELETED'
-                                                      ? 'DELETED'
-                                                      : resolvedCu.status === 'REPLACED'
+                                                    resolvedCu.status === 'REPLACED'
                                                       ? 'REPLACED'
                                                       : undefined
                                                   }
@@ -4045,8 +4334,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                                   category="DEFECT_CU"
                                                   targetPhotoType="CU"
                                                   targetPhotoId={dCode}
-                                                  defectId={def.id}
+                                                  defectId={effectiveElemDefectId}
                                                   defectCode={dCode}
+                                                  hasMultiplePhotos={hasMultipleCuPhotos}
                                                   photoIndex={cuIdx}
                                                   floorCode={floorName}
                                                   zoneCode={eCode}

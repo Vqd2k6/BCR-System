@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Button } from '../../../../core/components/ui/Button';
 import { Badge } from '../../../../core/components/ui/Badge';
@@ -13,14 +13,14 @@ import type { FloorSurveyData, StructuralElementData } from '../../types/phase1.
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
 import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles, RotateCcw } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
-import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
+import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
   activeElementIndex: number;
   projectParcelCode?: string;
-  onCadPhotoChange: (url: string) => void;
+  onCadPhotoChange: (url: string, code?: string) => void;
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin: (pin: CadZonePin) => void;
   onDeletePin?: (pin: CadZonePin, index: number) => void;
@@ -54,7 +54,6 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
   onToggleHasStructuralElements,
 }) => {
   const isReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
-  const lastTempOverviewUriRef = useRef<string | null>(null);
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
   const activeElement = structuralElements[activeElementIndex];
   const hasStructuralElements = currentFloor.hasStructuralElements !== false;
@@ -612,46 +611,21 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     if (url) {
                       const curPhotos = activeElement.overviewPhotos || [];
 
-                      // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
-                      if (curPhotos.includes(url)) {
-                        return;
-                      }
-
-                      let updated = [...curPhotos];
+                      // [ND-04] Sử dụng Trụ cột 1 (upsertPhotoUrlList) thay thế nguyên tử qua meta.replacesUri,
+                      // loại bỏ hoàn toàn biến lastTempOverviewUriRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
                       const replacesUri = meta?.replacesUri;
-                      const prevTemp = lastTempOverviewUriRef.current;
-
-                      // 2. Thăng cấp qua replacesUri
-                      if (replacesUri && updated.includes(replacesUri)) {
-                        updated = updated.map((p) => (p === replacesUri ? url : p));
-                      }
-                      // 3. Fallback theo ref tạm thời
-                      else if (prevTemp && updated.includes(prevTemp)) {
-                        updated = updated.map((p) => (p === prevTemp ? url : p));
-                      }
-                      // 4. Thêm mới hoàn toàn nếu chưa có
-                      else {
-                        updated.push(url);
-                      }
-
-                      if (isLocalBlobUri(url)) {
-                        lastTempOverviewUriRef.current = url;
-                      } else {
-                        lastTempOverviewUriRef.current = null;
-                      }
-
-                      // 5. Tự làm sạch khử trùng lặp bảo vệ dữ liệu vĩnh viễn
-                      updated = Array.from(new Set(updated.filter(Boolean)));
+                      const updated = upsertPhotoUrlList(curPhotos, url, meta);
 
                       // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp
                       let newCtx = activeElement.ctxPhotoUrl;
-                      if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
+                      if (!newCtx || (replacesUri && newCtx === replacesUri)) {
                         newCtx = url;
                       }
 
                       onUpdateElement(activeElementIndex, {
                         overviewPhotos: updated,
                         ctxPhotoUrl: newCtx,
+                        ctxPhotoCode: activeElement.ctxPhotoCode || code,
                       });
                     }
                   }}
@@ -659,7 +633,8 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     parcelCode: projectParcelCode,
                     floor: currentFloor.floorName,
                     zoneOrRoom: activeElement.elementCode,
-                    photoType: 'CTX',
+                    // [ND-05] Tách mã định danh của ảnh tổng quan cấu kiện (OVERVIEW) khỏi ảnh bối cảnh thả ghim (CTX)
+                    photoType: 'OVERVIEW',
                     photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
                   }}
                   height="100px"
@@ -728,6 +703,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                   <PhotoCaptureInput
                     label={`Ảnh bối cảnh cấu kiện để thả ghim cho ${activeElement.elementCode}:`}
                     value={activeElement.ctxPhotoUrl || ''}
+                    photoCode={activeElement.ctxPhotoCode}
                     onChange={(url, code) =>
                       onUpdateElement(activeElementIndex, {
                         ctxPhotoUrl: url,

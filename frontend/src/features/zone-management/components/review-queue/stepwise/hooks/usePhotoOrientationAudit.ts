@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   evaluateResidentialOrientation,
+   computeEffectiveOrientation,
   RESIDENTIAL_PHOTO_RULES,
   getEffectiveResidentialPhotoRule,
   resolveHousePrimaryOrientation,
@@ -43,6 +44,10 @@ export interface AuditedPhotoItem {
   defectCode?: string;
   photoIndex?: number;
   aliases?: string[];
+  rotationFallbackKeys?: string[];
+  fallbackRotation?: number;
+  componentGroupKey?: string;
+  componentRole?: 'OVERVIEW' | 'CTX' | 'CU';
 }
 
 // Global in-memory cache kích thước ảnh để tránh load lại nhiều lần
@@ -120,9 +125,15 @@ export function usePhotoOrientationAudit(
     }));
   }, []);
 
-  // Lấy góc xoay hiện tại của 1 ảnh (hỗ trợ đọc theo photoKey, aliases độc lập)
+  // Lấy góc xoay hiện tại của 1 ảnh (hỗ trợ đọc theo photoKey, aliases và rotationFallbackKeys)
   const getPhotoRotation = useCallback(
-    (photoKey: string, photoUrl?: string, aliases?: string[]): number => {
+    (
+      photoKey: string,
+      photoUrl?: string,
+      aliases?: string[],
+      rotationFallbackKeys?: string[],
+      fallbackRotation?: number
+    ): number => {
       if (photoKey in stagedPhotoRotations) {
         return stagedPhotoRotations[photoKey];
       }
@@ -132,10 +143,6 @@ export function usePhotoOrientationAudit(
             return stagedPhotoRotations[alias];
           }
         }
-      }
-      const isIndexedMultiPhoto = /_\d+$/.test(photoKey);
-      if (!isIndexedMultiPhoto && photoUrl && photoUrl in stagedPhotoRotations) {
-        return stagedPhotoRotations[photoUrl];
       }
       const existingRotations = (surveyJson.photoRotations || {}) as Record<string, number>;
       if (photoKey in existingRotations) {
@@ -148,8 +155,25 @@ export function usePhotoOrientationAudit(
           }
         }
       }
+      if (rotationFallbackKeys) {
+        for (const fbKey of rotationFallbackKeys) {
+          if (fbKey && fbKey in stagedPhotoRotations) {
+            return stagedPhotoRotations[fbKey];
+          }
+          if (fbKey && fbKey in existingRotations) {
+            return existingRotations[fbKey];
+          }
+        }
+      }
+      const isIndexedMultiPhoto = /_\d+$/.test(photoKey);
+      if (!isIndexedMultiPhoto && photoUrl && photoUrl in stagedPhotoRotations) {
+        return stagedPhotoRotations[photoUrl];
+      }
       if (!isIndexedMultiPhoto && photoUrl && photoUrl in existingRotations) {
         return existingRotations[photoUrl];
+      }
+      if (typeof fallbackRotation === 'number' && !Number.isNaN(fallbackRotation)) {
+        return normalizeRotationAngle(fallbackRotation);
       }
       return 0;
     },
@@ -459,10 +483,12 @@ export function usePhotoOrientationAudit(
         const floorName = (f.floorName || `Tầng ${fIdx + 1}`) as string;
         const fId = f.id ? String(f.id) : '';
 
-        // 1. Sơ đồ CAD kiến trúc mặt bằng tầng (CAD_01)
-        const rawCadUrl = (f.cadSketchPhotoUrl || f.damageMapUrl || f.cadPhotoUrl || '') as string;
+        // 1. Sơ đồ CAD kiến trúc mặt bằng tầng (CAD_Z)
+        const rawCadUrl = (f.cadSketchPhotoUrl || f.cad_drawing_url || f.cadDrawingUrl || f.damageMapUrl || f.cadPhotoUrl || '') as string;
         const cadUrl = resolveUrlWithStagedActions(rawCadUrl, `floors[${fIdx}].cadSketchPhotoUrl`);
         const floorCadKey = fId ? (fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`) : `floor_${fIdx}_cad`;
+        const legacyCadKey = `floor_${fId || fIdx}_cad`;
+        const floorCadFallbackRot = Number(f.cadSketchRotation ?? 0);
         if (cadUrl) {
           addCandidate({
             key: floorCadKey,
@@ -471,21 +497,24 @@ export function usePhotoOrientationAudit(
             title: `Sơ đồ mặt bằng kiến trúc ${floorName}`,
             photoUrl: cadUrl,
             stepId: 'step-4',
-            domElementId: `audit-cad-sketch-${fIdx}`,
+            domElementId: `audit-photo-card-f${fIdx}-cad`,
             floorIndex: fIdx,
-            aliases: [`floor_${fIdx}_cad`, `floor_${fIdx + 1}_cad`, `cad_${fId || fIdx + 1}`],
+            aliases: [legacyCadKey, `floor_${fIdx}_cad`, `floor_${fIdx + 1}_cad`, `cad_${fId || fIdx + 1}`],
+            fallbackRotation: floorCadFallbackRot,
           });
         }
 
-        // 2. Sơ đồ CAD kết cấu mặt bằng tầng (CAD_02) nếu có tách riêng
-        const rawStructCadUrl = (f.cadStructuralSketchPhotoUrl || f.structuralMapUrl || '') as string;
+        // 2. Sơ đồ CAD kết cấu mặt bằng tầng (CAD_E) nếu có
+        const rawStructCadUrl = (f.cadStructuralSketchPhotoUrl || f.cad_structural_drawing_url || f.cadStructuralDrawingUrl || f.structuralMapUrl || '') as string;
         const structCadUrl = resolveUrlWithStagedActions(rawStructCadUrl, `floors[${fIdx}].cadStructuralSketchPhotoUrl`);
-        if (structCadUrl && structCadUrl !== cadUrl) {
+        if (structCadUrl) {
           const structCadKey = fId
             ? fId.startsWith('floor_')
               ? `${fId}_structural_cad`
               : `floor_${fId}_structural_cad`
             : `floor_${fIdx}_structural_cad`;
+          const legacyStructCadKey = `${legacyCadKey}_struct`;
+          const structCadFallbackRot = Number(f.cadStructuralSketchRotation ?? f.cadSketchRotation ?? 0);
           addCandidate({
             key: structCadKey,
             ruleKey: 'CAD_SKETCH',
@@ -493,9 +522,11 @@ export function usePhotoOrientationAudit(
             title: `Sơ đồ mặt bằng kết cấu ${floorName}`,
             photoUrl: structCadUrl,
             stepId: 'step-4',
-            domElementId: `audit-cad-struct-sketch-${fIdx}`,
+            domElementId: `audit-photo-card-f${fIdx}-cad-struct`,
             floorIndex: fIdx,
-            aliases: [`floor_${fIdx}_structural_cad`, `floor_${fIdx + 1}_structural_cad`],
+            aliases: [legacyStructCadKey, `floor_${fIdx}_structural_cad`, `floor_${fIdx + 1}_structural_cad`],
+            rotationFallbackKeys: [floorCadKey, legacyCadKey, `floor_${fIdx}_cad`],
+            fallbackRotation: structCadFallbackRot,
           });
         }
 
@@ -509,12 +540,39 @@ export function usePhotoOrientationAudit(
             const ctxUrl = resolveUrlWithStagedActions(rawCtxUrl, `floors[${fIdx}].zones[${zIdx}].ctxPhotoUrl`);
             const zId = z.id ? String(z.id) : '';
             const isZoneUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(zId);
-            const zoneKey =
+            const baseZoneKey =
               zId && isZoneUuid
                 ? zId.startsWith('zone_')
-                  ? `${zId}_ctx`
-                  : `zone_${zId}_ctx`
-                : `zone_f${fIdx}_z${zCode}_ctx`;
+                  ? zId
+                  : `zone_${zId}`
+                : `zone_f${fIdx}_z${zCode}`;
+            const zoneKey = `${baseZoneKey}_ctx`;
+            const componentGroupKey = `f${fIdx}_zone_${zId || zCode}`;
+
+            // Ảnh tổng quan Vùng Z (z.overviewPhotos) — Làm chuẩn hướng cho CTX và CU trong cùng Vùng Z
+            const zOverviews = Array.isArray(z.overviewPhotos) ? z.overviewPhotos : [];
+            zOverviews.forEach((ovRaw, ovIdx) => {
+              const ovInfo = getPhotoInfo(ovRaw);
+              if (!ovInfo.url || ovInfo.isDeleted) return;
+              const ovUrl = resolveUrlWithStagedActions(ovInfo.url, zId || zCode, ovIdx);
+              if (!ovUrl) return;
+              const ovKey = `zone_f${fIdx}_z${zCode}_ov_${ovIdx}`;
+              addCandidate({
+                key: ovKey,
+                ruleKey: 'Z_OV',
+                photoCode: `${zCode}-OV-${ovIdx + 1}`,
+                title: `Ảnh tổng quan ${zCode} #${ovIdx + 1} (${floorName})`,
+                photoUrl: ovUrl,
+                stepId: 'step-4',
+                domElementId: `audit-photo-card-f${fIdx}-zone-${zCode}-ov-${ovIdx}`,
+                floorIndex: fIdx,
+                zoneCode: zCode,
+                photoIndex: ovIdx,
+                aliases: [`${baseZoneKey}_ov_${ovIdx}`, `zone_${zId || zCode}_ov_${ovIdx}`],
+                componentGroupKey,
+                componentRole: 'OVERVIEW',
+              });
+            });
 
             if (ctxUrl) {
               addCandidate({
@@ -528,30 +586,10 @@ export function usePhotoOrientationAudit(
                 floorIndex: fIdx,
                 zoneCode: zCode,
                 aliases: [`zone_f${fIdx}_z${zCode}_ctx`, `zone_${zId || zCode}_ctx`, zCode],
+                componentGroupKey,
+                componentRole: 'CTX',
               });
             }
-
-            // Ảnh tổng quan Vùng Z (z.overviewPhotos)
-            const zOverviews = Array.isArray(z.overviewPhotos) ? z.overviewPhotos : [];
-            zOverviews.forEach((ovRaw, ovIdx) => {
-              const ovInfo = getPhotoInfo(ovRaw);
-              if (!ovInfo.url || ovInfo.isDeleted) return;
-              // Nếu trùng URL với ctxPhotoUrl của chính vùng đó thì bỏ qua để tránh báo 2 lần trên cùng 1 vùng
-              if (ovInfo.url === ctxUrl) return;
-              const ovKey = `zone_f${fIdx}_z${zCode}_ov_${ovIdx}`;
-              addCandidate({
-                key: ovKey,
-                ruleKey: 'Z_OV',
-                photoCode: `${zCode}-OV-${ovIdx + 1}`,
-                title: `Ảnh tổng quan ${zCode} #${ovIdx + 1} (${floorName})`,
-                photoUrl: ovInfo.url,
-                stepId: 'step-4',
-                domElementId: `audit-photo-card-f${fIdx}-zone-${zCode}`,
-                floorIndex: fIdx,
-                zoneCode: zCode,
-                photoIndex: ovIdx,
-              });
-            });
 
             // Khuyết tật D trong Vùng Z
             const zDefects = (z.defects || []) as Array<Record<string, unknown>>;
@@ -586,7 +624,7 @@ export function usePhotoOrientationAudit(
                     title: `Cận cảnh thước đo nứt ${dCode}${cuSuffix} (${floorName} - ${zCode})`,
                     photoUrl: cuUrl,
                     stepId: 'step-4',
-                    domElementId: `audit-photo-card-f${fIdx}-z${zCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`,
+                    domElementId: `audit-photo-card-f${fIdx}-z${zCode}-defect-${dCode}-${cuIdx}`,
                     floorIndex: fIdx,
                     zoneCode: zCode,
                     defectCode: dCode,
@@ -603,6 +641,8 @@ export function usePhotoOrientationAudit(
                       cuIdx === 1 ? `defect_f${fIdx}_z${zCode}_d${dCode}_extra_cu` : '',
                       cuIdx === 1 && dId ? `defect_${dId}_extra_cu` : '',
                     ].filter(Boolean),
+                    componentGroupKey,
+                    componentRole: 'CU',
                   });
                 });
               });
@@ -621,18 +661,41 @@ export function usePhotoOrientationAudit(
               elType === 'BEAM' ? 'E_BEAM' : elType === 'SLAB' || elType === 'CEILING' ? 'E_SLAB' : 'E_COL';
             const elId = el.id ? String(el.id) : '';
             const isElemUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(elId);
+            const componentGroupKey = `f${fIdx}_elem_${elId || eCode}`;
 
             // Ảnh bối cảnh cấu kiện E (chỉ lấy ctxPhotoUrl riêng biệt, không lôi overviewPhotos[0] sang làm CTX)
             const rawElCtx = (el.ctxPhotoUrl || el.ctx_photo_url || '') as string;
             const elOverviews = Array.isArray(el.overviewPhotos) ? el.overviewPhotos : [];
             const elCtxUrl = resolveUrlWithStagedActions(rawElCtx);
 
-            const elemCtxKey =
-              elId && isElemUuid
-                ? elId.startsWith('element_')
-                  ? `${elId}_ctx`
-                  : `element_${elId}_ctx`
-                : `element_f${fIdx}_e${eCode}_ctx`;
+            // Các ảnh tổng quan của Cấu kiện E — Làm chuẩn hướng cho CTX và CU trong cùng Cấu kiện E
+            elOverviews.forEach((ovRaw, ovIdx) => {
+              const ovInfo = getPhotoInfo(ovRaw);
+              if (!ovInfo.url || ovInfo.isDeleted) return;
+              const ovUrl = resolveUrlWithStagedActions(ovInfo.url, elId || eCode, ovIdx);
+              if (!ovUrl) return;
+              addCandidate({
+                key: `element_f${fIdx}_e${eCode}_ov_${ovIdx}`,
+                ruleKey: elemRuleKey,
+                photoCode: `${eCode}-OV-${ovIdx + 1}`,
+                title: `Ảnh tổng quan Cấu kiện ${eCode} #${ovIdx + 1} (${floorName})`,
+                photoUrl: ovUrl,
+                stepId: 'step-4',
+                domElementId: `audit-photo-card-f${fIdx}-elem-${eCode}-ov-${ovIdx}`,
+                floorIndex: fIdx,
+                zoneCode: eCode,
+                photoIndex: ovIdx,
+                aliases: [
+                  `element_${elId || eCode}_ov_${ovIdx}`,
+                  `elem_${elId || eCode}_ov_${ovIdx}`,
+                  `elem_f${fIdx}_e${eCode}_ov_${ovIdx}`,
+                ],
+                componentGroupKey,
+                componentRole: 'OVERVIEW',
+              });
+            });
+
+            const elemCtxKey = `element_f${fIdx}_e${eCode}_ctx`;
 
             if (elCtxUrl) {
               addCandidate({
@@ -642,37 +705,27 @@ export function usePhotoOrientationAudit(
                 title: `Bối cảnh Cấu kiện ${eCode} (${floorName})`,
                 photoUrl: elCtxUrl,
                 stepId: 'step-4',
-                domElementId: `audit-photo-card-f${fIdx}-elem-${eCode}`,
+                domElementId: `audit-photo-card-f${fIdx}-elem-${eCode}-ctx`,
                 floorIndex: fIdx,
                 zoneCode: eCode,
                 aliases: [
                   `element_f${fIdx}_e${eCode}_ctx`,
+                  elId && isElemUuid
+                    ? elId.startsWith('element_')
+                      ? `${elId}_ctx`
+                      : `element_${elId}_ctx`
+                    : '',
                   `element_${elId || eCode}_ctx`,
+                  `elem_${elId || eCode}_ctx`,
+                  `elem_f${fIdx}_e${eCode}_ctx`,
                   `zone_f${fIdx}_z${eCode}_ctx`,
                   `zone_${elId || eCode}_ctx`,
                   eCode,
-                ],
+                ].filter(Boolean),
+                componentGroupKey,
+                componentRole: 'CTX',
               });
             }
-
-            // Các ảnh tổng quan bổ sung của Cấu kiện E
-            elOverviews.forEach((ovRaw, ovIdx) => {
-              const ovInfo = getPhotoInfo(ovRaw);
-              if (!ovInfo.url || ovInfo.isDeleted || ovInfo.url === elCtxUrl) return;
-              addCandidate({
-                key: `element_f${fIdx}_e${eCode}_ov_${ovIdx}`,
-                ruleKey: elemRuleKey,
-                photoCode: `${eCode}-OV-${ovIdx + 1}`,
-                title: `Ảnh tổng quan Cấu kiện ${eCode} #${ovIdx + 1} (${floorName})`,
-                photoUrl: ovInfo.url,
-                stepId: 'step-4',
-                domElementId: `audit-photo-card-f${fIdx}-elem-${eCode}-ov-${ovIdx}`,
-                floorIndex: fIdx,
-                zoneCode: eCode,
-                photoIndex: ovIdx,
-                aliases: [`element_${elId || eCode}_ov_${ovIdx}`],
-              });
-            });
 
             // Khuyết tật D bên trong Cấu kiện E
             const elDefects = (el.defects || []) as Array<Record<string, unknown>>;
@@ -707,7 +760,7 @@ export function usePhotoOrientationAudit(
                     title: `Cận cảnh thước đo nứt ${dCode}${cuSuffix} (${floorName} - ${eCode})`,
                     photoUrl: cuUrl,
                     stepId: 'step-4',
-                    domElementId: `audit-photo-card-f${fIdx}-e${eCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`,
+                    domElementId: `audit-photo-card-f${fIdx}-e${eCode}-defect-${dCode}-${cuIdx}`,
                     floorIndex: fIdx,
                     zoneCode: eCode,
                     defectCode: dCode,
@@ -725,6 +778,8 @@ export function usePhotoOrientationAudit(
                       !hasMultiCu ? `defect_f${fIdx}_e${eCode}_${dCode}_cu` : '',
                       cuIdx === 1 ? `defect_f${fIdx}_z${eCode}_d${dCode}_extra_cu` : '',
                     ].filter(Boolean),
+                    componentGroupKey,
+                    componentRole: 'CU',
                   });
                 });
               });
@@ -740,6 +795,7 @@ export function usePhotoOrientationAudit(
           if (z.isDeleted || z.is_deleted) return;
           const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '') as string;
           const zCode = (z.zone_code || z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`) as string;
+          const componentGroupKey = `flat_zone_${zCode}`;
           if (ctxUrl) {
             addCandidate({
               key: `zone_${z.id || zCode}_ctx`,
@@ -750,6 +806,8 @@ export function usePhotoOrientationAudit(
               stepId: 'step-4',
               domElementId: `audit-photo-card-zone-${zCode}`,
               zoneCode: zCode,
+              componentGroupKey,
+              componentRole: 'CTX',
             });
           }
         });
@@ -761,6 +819,7 @@ export function usePhotoOrientationAudit(
           if (d.isDeleted || d.is_deleted) return;
           const cuUrl = (d.cu_photo_url || d.cuPhotoUrl || '') as string;
           const dCode = (d.defect_code || d.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`) as string;
+          const zCode = (d.zone_code || d.zoneCode || 'Z-01') as string;
           const dId = d.id ? String(d.id) : '';
           const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
           if (cuUrl) {
@@ -772,7 +831,10 @@ export function usePhotoOrientationAudit(
               photoUrl: cuUrl,
               stepId: 'step-4',
               domElementId: `audit-photo-card-defect-${dCode}`,
+              zoneCode: zCode,
               defectCode: dCode,
+              componentGroupKey: `flat_zone_${zCode}`,
+              componentRole: 'CU',
             });
           }
         });
@@ -856,23 +918,103 @@ export function usePhotoOrientationAudit(
   const violations = useMemo<PhotoOrientationViolation[]>(() => {
     const list: PhotoOrientationViolation[] = [];
 
+    // Bước 3a: Xác định hướng chuẩn (Anchor Orientation) cho từng cấu kiện Vùng Z / Cấu kiện E:
+    // - Nếu cấu kiện có ảnh Tổng quan (OVERVIEW) đang ở chiều nào (sau khi cộng góc xoay hiện tại),
+    //   thì ảnh CTX và toàn bộ các ảnh CU của D trong CTX của cấu kiện đó sẽ khuyến nghị theo chiều đó.
+    // - Trường hợp cấu kiện không có ảnh Tổng quan (chỉ có CTX và CU): ảnh CTX sẽ làm chuẩn hướng cho các ảnh CU bên trong nó.
+    const componentGroupAnchorMap = new Map<
+      string,
+      { expectedOrientation: 'PORTRAIT' | 'LANDSCAPE'; anchorKey: string; anchorRole: 'OVERVIEW' | 'CTX' }
+    >();
+
+    photoCandidates.forEach((item) => {
+      if (!item.componentGroupKey || (item.componentRole !== 'OVERVIEW' && item.componentRole !== 'CTX')) {
+        return;
+      }
+      const existing = componentGroupAnchorMap.get(item.componentGroupKey);
+      // Nếu đã có OVERVIEW làm chuẩn thì giữ nguyên OVERVIEW đầu tiên
+      if (existing?.anchorRole === 'OVERVIEW') {
+        return;
+      }
+      // Nếu đang xét CTX nhưng đã có CTX rồi thì bỏ qua
+      if (item.componentRole === 'CTX' && existing) {
+        return;
+      }
+
+      const dims = measuredDimensions[item.photoUrl] || imageDimensionsCache.get(item.photoUrl);
+      if (!dims || dims.width === 0 || dims.height === 0) {
+        return;
+      }
+      const currentRotation = getPhotoRotation(
+        item.key,
+        item.photoUrl,
+        item.aliases,
+        item.rotationFallbackKeys,
+        item.fallbackRotation
+      );
+      const effectiveOrientation = computeEffectiveOrientation(dims.width, dims.height, currentRotation);
+      const resolvedExpected: 'PORTRAIT' | 'LANDSCAPE' =
+        effectiveOrientation === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE';
+
+      componentGroupAnchorMap.set(item.componentGroupKey, {
+        expectedOrientation: resolvedExpected,
+        anchorKey: item.key,
+        anchorRole: item.componentRole,
+      });
+    });
+
     photoCandidates.forEach((item) => {
       const dims = measuredDimensions[item.photoUrl] || imageDimensionsCache.get(item.photoUrl);
       if (!dims || dims.width === 0 || dims.height === 0) {
         return;
       }
 
-      const currentRotation = getPhotoRotation(item.key, item.photoUrl, item.aliases);
+      const currentRotation = getPhotoRotation(
+        item.key,
+        item.photoUrl,
+        item.aliases,
+        item.rotationFallbackKeys,
+        item.fallbackRotation
+      );
+
+      let overrideExpected: ExpectedOrientation | undefined;
+      let customExpectedReason: string | undefined;
+
+      if (item.componentGroupKey) {
+        const groupAnchor = componentGroupAnchorMap.get(item.componentGroupKey);
+        if (groupAnchor) {
+          if (item.key === groupAnchor.anchorKey) {
+            // Ảnh làm chuẩn gốc của cấu kiện (Ảnh tổng quan cấu kiện, hoặc CTX khi không có ảnh tổng quan):
+            // Chiều hiện tại của nó chính là chuẩn tham chiếu nên luôn hợp lệ ('ANY').
+            overrideExpected = 'ANY';
+          } else {
+            // Ảnh CTX (khi có OVERVIEW) và toàn bộ ảnh CU của D trong CTX (hoặc ảnh OVERVIEW thứ 2..n):
+            // Khuyến nghị theo đúng chiều của ảnh làm chuẩn để đảm bảo hướng đồng bộ trong cùng cấu kiện.
+            overrideExpected = groupAnchor.expectedOrientation;
+            const dirLabel = groupAnchor.expectedOrientation === 'PORTRAIT' ? 'Dọc (Portrait)' : 'Ngang (Landscape)';
+            const refLabel =
+              groupAnchor.anchorRole === 'OVERVIEW'
+                ? `ảnh tổng quan cấu kiện (${item.zoneCode || 'Cấu kiện'})`
+                : `ảnh bối cảnh (${item.zoneCode || 'Cấu kiện'})`;
+            customExpectedReason = `Khuyến nghị xoay ${dirLabel} để đồng bộ với chiều của ${refLabel}`;
+          }
+        }
+      }
+
       const evalRes = evaluateResidentialOrientation(
         dims.width,
         dims.height,
         currentRotation,
         item.ruleKey,
-        housePrimaryOrientation
+        housePrimaryOrientation,
+        overrideExpected,
+        customExpectedReason
       );
 
       if (!evalRes.isValid) {
         const ruleDef = getEffectiveResidentialPhotoRule(item.ruleKey, housePrimaryOrientation);
+        // Mọi khuyến nghị đồng bộ theo chiều cấu kiện (OVERVIEW -> CTX -> CU) là khuyến nghị (advisory, isStrict = false)
+        const isStrict = item.componentGroupKey ? false : (ruleDef?.isStrict ?? false);
         list.push({
           key: item.key,
           photoCode: item.photoCode,
@@ -884,7 +1026,7 @@ export function usePhotoOrientationAudit(
           expectedOrientation: evalRes.expected,
           effectiveRotation: evalRes.effectiveRotation,
           suggestedRotation: evalRes.suggestedRotation,
-          isStrict: ruleDef?.isStrict ?? false,
+          isStrict,
           message: evalRes.message,
           floorIndex: item.floorIndex,
           zoneCode: item.zoneCode,

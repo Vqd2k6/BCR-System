@@ -2,8 +2,10 @@ import { AuditAlertsService } from './services/audit-alerts.service';
 import { AuditReviewService } from './services/audit-review.service';
 import { AuditModificationService } from './services/audit-modification.service';
 import { AuditVersionService } from './services/audit-version.service';
+import { CondoAuditFacade } from './condo/condo-audit.facade';
+import { CondoAdminEditPayload, CondoPhotoActionItem } from './condo/condo-audit.types';
 
-export { AuditAlertsService, AuditReviewService, AuditModificationService, AuditVersionService };
+export { AuditAlertsService, AuditReviewService, AuditModificationService, AuditVersionService, CondoAuditFacade };
 
 /**
  * Facade Service cho toàn bộ phân hệ Kiểm Toán & Thẩm Định (Audit & Review)
@@ -26,6 +28,7 @@ export class AuditService {
   // --- NHÓM 2: HÀNG ĐỢI THẨM ĐỊNH & PHÊ DUYỆT BÁO CÁO ---
   static listPendingSubmissions(filters: {
     zoneId?: string;
+    parcelId?: string;
     status?: string;
     buildingType?: string;
     search?: string;
@@ -38,11 +41,15 @@ export class AuditService {
     return AuditReviewService.listPendingSubmissions(filters);
   }
 
-  static getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
-    return AuditReviewService.getSplitPaneAuditView(reportId, options);
+  static async getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
+    const baseView = await AuditReviewService.getSplitPaneAuditView(reportId, options);
+    return CondoAuditFacade.enrichSplitPaneAuditView(reportId, baseView as Record<string, unknown>);
   }
 
-  static approveReport(reportId: string, adminId: string, judgementNotes?: string) {
+  static async approveReport(reportId: string, adminId: string, judgementNotes?: string) {
+    if (await CondoAuditFacade.isCondoReport(reportId)) {
+      return CondoAuditFacade.approveReport(reportId, adminId, judgementNotes);
+    }
     return AuditReviewService.approveReport(reportId, adminId, judgementNotes);
   }
 
@@ -71,15 +78,15 @@ export class AuditService {
   }
 
   static getCondoProgressSummary(parcelId: string) {
-    return AuditReviewService.getCondoProgressSummary(parcelId);
+    return CondoAuditFacade.getCondoProgressSummary(parcelId);
   }
 
   static executeFinalSeal(parcelId: string, adminId: string, sealNotes?: string) {
-    return AuditReviewService.executeFinalSeal(parcelId, adminId, sealNotes);
+    return CondoAuditFacade.executeFinalSeal(parcelId, adminId, sealNotes);
   }
 
   static listCondoTowers(zoneId?: string) {
-    return AuditReviewService.listCondoTowers(zoneId);
+    return CondoAuditFacade.listCondoTowers(zoneId);
   }
 
   static getScopeCounts(zoneId?: string) {
@@ -87,17 +94,26 @@ export class AuditService {
   }
 
   // --- NHÓM 3: ĐIỀU CHỈNH HỒ SƠ, THAY ẢNH BẢO MẬT & HOÁN ĐỔI RANH ĐẤT ---
-  static applyAdminSurveyEdit(
+  static async applyAdminSurveyEdit(
     reportId: string,
     adminId: string,
     payload: {
       adminPassword?: string;
       editReason: string;
-      diffPayload: Array<{ field: string; label: string; oldValue: any; newValue: any }>;
-      updates: Record<string, any>;
+      diffPayload: Array<{ field: string; label: string; oldValue: unknown; newValue: unknown }>;
+      updates: Record<string, unknown>;
+      photoActions?: CondoPhotoActionItem[];
     },
     clientIp?: string
   ) {
+    if (await CondoAuditFacade.isCondoReport(reportId)) {
+      return CondoAuditFacade.applyAdminSurveyEdit(
+        reportId,
+        adminId,
+        payload as CondoAdminEditPayload,
+        clientIp
+      );
+    }
     return AuditModificationService.applyAdminSurveyEdit(reportId, adminId, payload, clientIp);
   }
 
@@ -157,18 +173,35 @@ export class AuditService {
     return AuditVersionService.getVersionSnapshot(reportId, versionNumber);
   }
 
-  static rollbackReportVersion(
+  static async rollbackReportVersion(
     reportId: string,
     versionNumber: number,
     adminId: string,
     payload: { reason: string; password?: string },
     clientIp?: string
   ) {
+    if (await CondoAuditFacade.isCondoReport(reportId)) {
+      return CondoAuditFacade.rollbackReportVersion(
+        reportId,
+        versionNumber,
+        adminId,
+        payload,
+        clientIp
+      );
+    }
     return AuditVersionService.rollbackToVersion(reportId, versionNumber, adminId, payload, clientIp);
   }
 
   // --- NHÓM 5: QUẢN LÝ VÒNG ĐỜI ẢNH (PHOTO LIFECYCLE & REGISTRY) ---
-  static executePhotoAction(reportId: string, adminId: string, photoAction: any, clientIp?: string) {
+  static async executePhotoAction(
+    reportId: string,
+    adminId: string,
+    photoAction: CondoPhotoActionItem,
+    clientIp?: string
+  ) {
+    if (await CondoAuditFacade.isCondoReport(reportId)) {
+      return CondoAuditFacade.executePhotoAction(reportId, adminId, photoAction, clientIp);
+    }
     return AuditModificationService.executePhotoAction(reportId, adminId, photoAction, clientIp);
   }
 

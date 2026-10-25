@@ -59,6 +59,8 @@ export interface PhotoActionPayload {
   targetPhotoId?: string;
   defectId?: string;
   defectCode?: string;
+  floorCode?: string;
+  zoneCode?: string;
   photoIndex?: number;
   oldPhotoUrl?: string;
   newPhotoUrl?: string;
@@ -268,6 +270,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           photoIndex,
           defectId,
           defectCode,
+          floorCode,
+          zoneCode,
           oldPhotoUrl: currentPhotoUrl,
           newPhotoUrl: uploadRes.url,
           photoCode: replaceProcessed.photoCode,
@@ -276,6 +280,15 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           reason,
           pinX: initialPinX,
           pinY: initialPinY,
+          metadata: {
+            floorCode,
+            zoneCode,
+            zoneId: zoneCode,
+            defectId,
+            defectCode,
+            targetPhotoId,
+            photoIndex,
+          },
         });
 
         onClose();
@@ -326,6 +339,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           photoIndex,
           defectId,
           defectCode,
+          floorCode,
+          zoneCode,
           newPhotoUrl: uploadedUrls[0],
           newPhotoUrls: uploadedUrls,
           photoCode: batchProcessed[0].photoCode,
@@ -336,6 +351,15 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           pinY: initialPinY,
           widthMaxMm: isDefectCuPhoto ? Number(defectWidthMaxMm) : undefined,
           lengthMm: isDefectCuPhoto ? Number(defectLengthMm) : undefined,
+          metadata: {
+            floorCode,
+            zoneCode,
+            zoneId: zoneCode,
+            defectId,
+            defectCode,
+            targetPhotoId,
+            photoIndex,
+          },
         });
 
         onClose();
@@ -358,12 +382,23 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
         photoIndex,
         defectId,
         defectCode,
+        floorCode,
+        zoneCode,
         oldPhotoUrl: currentPhotoUrl,
         photoCode: currentPhotoCode,
         reason,
         isNotApplicable: isMandatoryIdentPhoto,
         naReason: naReason.trim() || reason,
         deleteDefectItem,
+        metadata: {
+          floorCode,
+          zoneCode,
+          zoneId: zoneCode,
+          defectId,
+          defectCode,
+          targetPhotoId,
+          photoIndex,
+        },
       });
 
       onClose();

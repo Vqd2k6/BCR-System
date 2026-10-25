@@ -86,8 +86,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     setIsEditMode,
     activeNavStep,
     activeSubNavId,
-    setActiveSubNavId,
     scrollToStep,
+    scrollToSubElement,
     formState,
     dirtyFields,
     dirtyCount,
@@ -107,7 +107,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const sidebarNavRef = React.useRef<HTMLElement | null>(null);
 
-  // Tự động mở cây Bước 04 và tự cuộn thanh sidebar bên trái đuổi theo thao tác cuộn của TDV
+  // Tự động mở cây Bước 04 và tự cuộn nội bộ thanh sidebar bên trái (không dùng scrollIntoView để tránh hủy cuộn mượt của #audit-studio-scroll-container)
   React.useEffect(() => {
     if (activeNavStep === 'step-4') {
       setIsStep4Expanded(true);
@@ -117,7 +117,13 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     const targetNavId = activeSubNavId || activeNavStep;
     const activeBtn = navEl.querySelector<HTMLElement>(`[data-nav-id="${targetNavId}"]`);
     if (activeBtn) {
-      activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const navRect = navEl.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+      if (btnRect.top < navRect.top + 8) {
+        navEl.scrollTop += btnRect.top - navRect.top - 12;
+      } else if (btnRect.bottom > navRect.bottom - 8) {
+        navEl.scrollTop += btnRect.bottom - navRect.bottom + 12;
+      }
     }
   }, [activeNavStep, activeSubNavId]);
 
@@ -171,19 +177,9 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
 
   const scrollToElement = React.useCallback(
     (domId: string) => {
-      setActiveSubNavId(domId);
-      const container = document.getElementById('audit-studio-scroll-container');
-      const target = document.getElementById(domId);
-      if (container && target) {
-        const containerRect = container.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const offsetTop = targetRect.top - containerRect.top + container.scrollTop - 16;
-        container.scrollTo({ top: offsetTop, behavior: 'smooth' });
-      } else if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      scrollToSubElement(domId, 'step-4');
     },
-    [setActiveSubNavId]
+    [scrollToSubElement]
   );
 
   const handleNavigateToPhoto = (v: PhotoOrientationViolation) => {
@@ -252,7 +248,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
       if (v.stepId === 'step-4' && typeof v.floorIndex === 'number') {
         const fIdx = v.floorIndex;
         subSet.add(`step-4-floor-${fIdx}`);
-        if (v.key.startsWith('cad_')) {
+        if (v.key.startsWith('cad_') || v.key.endsWith('_cad') || v.key.endsWith('_structural_cad')) {
           if (v.key.includes('struct')) {
             subSet.add(`step-4-floor-${fIdx}-cad-e`);
           } else {
@@ -267,8 +263,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     });
 
     const warningFlags = (data as Record<string, unknown>)?.auditWarningFlags as Record<string, boolean> | undefined;
-    if (warningFlags) {
-      if (warningFlags.hasAddressStandardizationNotice || warningFlags.missingIdPhotos) {
+    if (warningFlags && !Array.isArray(warningFlags)) {
+      const sJson = (data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>;
+      const isAddrStandardized = Boolean(formState.standardizedAddress || sJson.standardizedAddress);
+      if ((warningFlags.hasAddressStandardizationNotice && !isAddrStandardized) || warningFlags.missingIdPhotos) {
         sSet.add('step-1');
       }
       if (warningFlags.hasGisDrift || warningFlags.hasBoundaryConflict) {
@@ -280,7 +278,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     }
 
     return { stepWarningSet: sSet, subNavWarningSet: subSet };
-  }, [violations, data]);
+  }, [violations, data, formState.standardizedAddress]);
 
   const totalPendingChanges = dirtyCount + (stagedPhotoActions?.length || 0);
 

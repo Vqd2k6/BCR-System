@@ -169,6 +169,7 @@ interface Props {
   parcelCode?: string;
   reportCode?: string;
   currentData: SnapshotDataNode | Record<string, unknown> | null | undefined; // Full AuditStepwiseData
+  initialVersions?: SurveyReportVersionItem[];
   onClose: () => void;
   onRollbackSuccess: () => void;
 }
@@ -179,13 +180,21 @@ export const VersionComparisonModal: React.FC<Props> = ({
   parcelCode,
   reportCode,
   currentData: rawCurrentData,
+  initialVersions = [],
   onClose,
   onRollbackSuccess,
 }) => {
   const currentData = (rawCurrentData || {}) as SnapshotDataNode;
   const [loadingVersions, setLoadingVersions] = useState(false);
-  const [versions, setVersions] = useState<SurveyReportVersionItem[]>([]);
-  const [selectedVerNumber, setSelectedVerNumber] = useState<number | null>(null);
+  const [versions, setVersions] = useState<SurveyReportVersionItem[]>(initialVersions);
+  const [selectedVerNumber, setSelectedVerNumber] = useState<number | null>(() => {
+    if (initialVersions.length > 0) {
+      return initialVersions.length > 1
+        ? initialVersions[1].versionNumber
+        : initialVersions[0].versionNumber;
+    }
+    return null;
+  });
 
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<SelectedSnapshotResponse | null>(null);
@@ -917,20 +926,20 @@ export const VersionComparisonModal: React.FC<Props> = ({
       <div
         className={`py-2 px-3 rounded-lg border text-xs grid grid-cols-2 gap-4 transition-colors ${
           isDifferent
-            ? 'bg-amber-50/80 border-amber-300 text-amber-950 font-medium'
-            : 'bg-white border-slate-100 text-slate-700'
+            ? 'bg-amber-50/80 border-amber-300 text-slate-900 font-medium shadow-2xs'
+            : 'bg-slate-50/60 border-slate-200/70 text-slate-700 hover:bg-slate-50'
         }`}
       >
-        <div className="flex items-start justify-between pr-2 border-r border-slate-200/60">
+        <div className="flex items-start justify-between pr-2 border-r border-slate-200/80">
           <span className="text-slate-500 font-normal shrink-0 mr-2">{label}:</span>
-          <span className="font-semibold text-right break-words">{String(oldVal ?? '---')}</span>
+          <span className="font-semibold text-right break-words text-slate-800">{String(oldVal ?? '---')}</span>
         </div>
         <div className="flex items-start justify-between pl-2">
           <span className="text-slate-500 font-normal shrink-0 mr-2">{label}:</span>
-          <span className={`font-semibold text-right break-words ${isDifferent ? 'text-amber-800' : ''}`}>
+          <span className={`font-semibold text-right break-words ${isDifferent ? 'text-amber-900' : 'text-slate-800'}`}>
             {String(newVal ?? '---')}
             {isDifferent && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[10px] font-bold">
+              <span className="ml-1.5 px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 text-[10px] font-bold">
                 Khác biệt
               </span>
             )}
@@ -942,12 +951,12 @@ export const VersionComparisonModal: React.FC<Props> = ({
 
   // Helper row renderer for full snapshot inspection
   const renderSnapshotField = (label: string, val: unknown, badge?: string) => (
-    <div className="py-2 px-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs flex items-start justify-between gap-2">
-      <span className="text-slate-400 font-normal shrink-0">{label}:</span>
-      <div className="flex items-center gap-1.5 text-right font-semibold text-slate-200">
+    <div className="py-2 px-3 rounded-lg border border-slate-200/80 bg-slate-50/70 text-xs flex items-start justify-between gap-2">
+      <span className="text-slate-500 font-normal shrink-0">{label}:</span>
+      <div className="flex items-center gap-1.5 text-right font-semibold text-slate-800">
         <span className="break-words">{String(val ?? '---')}</span>
         {badge && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
             {badge}
           </span>
         )}
@@ -956,26 +965,30 @@ export const VersionComparisonModal: React.FC<Props> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col w-full max-w-7xl h-[92vh] overflow-hidden text-slate-100">
-        {/* Top Header */}
-        <div className="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col w-full max-w-7xl h-[92vh] overflow-hidden text-slate-800">
+        {/* Top Header (Light Theme synchronized with Audit Studio) */}
+        <div className="px-6 py-4 bg-gradient-to-r from-indigo-50/90 via-white to-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 shadow-2xs">
               <History className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
+                <h2 className="text-base font-black text-slate-900 tracking-tight">
                   So Sánh Phiên Bản & Hoàn Nguyên Thời Gian
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                   Time-Travel Engine
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Thửa đất: <strong className="text-white">{parcelCode || '---'}</strong> • Mã báo cáo:{' '}
-                <strong className="text-slate-300">{reportCode || '---'}</strong>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Thửa đất: <strong className="font-mono text-indigo-700">{parcelCode || '---'}</strong>
+                {reportCode ? (
+                  <>
+                    {' '}• Mã báo cáo: <strong className="font-mono text-slate-700">{reportCode}</strong>
+                  </>
+                ) : null}
               </p>
             </div>
           </div>
@@ -989,7 +1002,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   setRollbackError('');
                   setShowRollbackPrompt(true);
                 }}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-600/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Khôi Phục Về v{selectedVerNumber}</span>
@@ -999,7 +1012,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1007,50 +1020,64 @@ export const VersionComparisonModal: React.FC<Props> = ({
         </div>
 
         {/* Toolbar: Version Picker Carousel & Dual-Mode Tabs */}
-        <div className="px-6 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2 overflow-x-auto min-w-0">
-            <span className="text-xs font-bold text-slate-400 shrink-0 flex items-center gap-1.5">
-              <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-xs font-bold text-slate-600 shrink-0 flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-indigo-600" />
               Phiên bản:
             </span>
 
             <div className="flex items-center gap-2">
-              {versions.map((v) => {
-                const isSelected = v.versionNumber === selectedVerNumber;
-                const isCurrent = v.versionNumber === latestVersionNumber;
-                return (
-                  <button
-                    key={v.id || v.versionNumber}
-                    type="button"
-                    onClick={() => setSelectedVerNumber(v.versionNumber)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <span className="font-mono font-bold">v{v.versionNumber}</span>
-                    {isCurrent && (
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
-                        Hiện tại
-                      </span>
-                    )}
-                    <span className="text-[11px] opacity-80 truncate max-w-[130px]">{v.title}</span>
-                  </button>
-                );
-              })}
+              {loadingVersions && versions.length === 0 ? (
+                <span className="text-xs text-slate-400 italic">Đang tải danh sách phiên bản...</span>
+              ) : versions.length === 0 ? (
+                <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  v0 • Bản gốc hiện trường
+                </span>
+              ) : (
+                versions.map((v) => {
+                  const isSelected = v.versionNumber === selectedVerNumber;
+                  const isCurrent = v.versionNumber === latestVersionNumber;
+                  return (
+                    <button
+                      key={v.id || v.versionNumber}
+                      type="button"
+                      onClick={() => setSelectedVerNumber(v.versionNumber)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <span className="font-mono font-bold">v{v.versionNumber}</span>
+                      {isCurrent && (
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          Hiện tại
+                        </span>
+                      )}
+                      <span className="text-[11px] opacity-85 truncate max-w-[130px]">{v.title}</span>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 
           {/* Dual-Mode Tabs */}
-          <div className="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800 shrink-0">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('DIFF')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'DIFF'
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <GitBranch className="w-3.5 h-3.5" />
@@ -1059,10 +1086,10 @@ export const VersionComparisonModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setViewMode('FULL_SNAPSHOT')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'FULL_SNAPSHOT'
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
@@ -1073,65 +1100,72 @@ export const VersionComparisonModal: React.FC<Props> = ({
 
         {/* Version Metadata Banner */}
         {selectedVerItem && (
-          <div className="px-6 py-2.5 bg-slate-950/50 border-b border-slate-800/80 text-xs flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-6 py-2.5 bg-indigo-50/50 border-b border-indigo-100 text-xs flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3">
-              <span className="font-bold text-indigo-300">
+              <span className="font-bold text-indigo-900">
                 Phiên bản v{selectedVerItem.versionNumber}: {selectedVerItem.title}
               </span>
               {getTagBadge(selectedVerItem.versionTag)}
               {selectedVerItem.editReason && (
-                <span className="text-slate-400 italic">Lý do: &ldquo;{selectedVerItem.editReason}&rdquo;</span>
+                <span className="text-slate-600 italic">Lý do: &ldquo;{selectedVerItem.editReason}&rdquo;</span>
               )}
             </div>
-            <div className="flex items-center gap-3 text-slate-400 text-[11px]">
-              <span className="flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-slate-500" />
+            <div className="flex items-center gap-3 text-slate-600 text-[11px]">
+              <span className="flex items-center gap-1 font-medium">
+                <User className="w-3.5 h-3.5 text-slate-400" />
                 {selectedVerItem.createdByName || 'Hệ thống'} ({selectedVerItem.createdByRole || 'ADMIN'})
               </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-slate-300">•</span>
+              <span className="flex items-center gap-1 font-medium">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
                 {new Date(selectedVerItem.createdAt).toLocaleString('vi-VN')}
               </span>
             </div>
           </div>
         )}
 
+        {errorMsg && (
+          <div className="px-6 py-2.5 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs flex items-center gap-2 shrink-0">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         {/* Comparison Workspace (Diff or Full Snapshot) */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-slate-950/30">
+        <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/70">
           {loadingSnapshot ? (
-            <div className="flex-1 py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-              <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-              <span>Đang tải dữ liệu bản chụp phiên bản v{selectedVerNumber}...</span>
+            <div className="flex-1 py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
+              <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-medium">Đang tải dữ liệu bản chụp phiên bản v{selectedVerNumber ?? 0}...</span>
             </div>
           ) : viewMode === 'DIFF' ? (
             <>
               {/* Header titles for 2 columns */}
-              <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/90 text-xs font-bold text-slate-300 shrink-0">
-                <div className="p-3 border-r border-slate-800 flex items-center justify-between">
+              <div className="grid grid-cols-2 border-b border-slate-200 bg-white text-xs font-bold text-slate-800 shrink-0 shadow-2xs">
+                <div className="p-3 border-r border-slate-200 flex items-center justify-between bg-slate-50/60">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                    <span>Dữ Liệu Bản Chụp: Phiên Bản v{selectedVerNumber}</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                    <span>Dữ Liệu Bản Chụp: Phiên Bản v{selectedVerNumber ?? 0}</span>
                   </div>
                   {selectedVerItem && getTagBadge(selectedVerItem.versionTag)}
                 </div>
-                <div className="p-3 flex items-center justify-between bg-slate-900/60">
+                <div className="p-3 flex items-center justify-between bg-emerald-50/30">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                     <span>Dữ Liệu Hiện Tại: Phiên Bản v{latestVersionNumber} (Active)</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     Đang áp dụng
                   </span>
                 </div>
               </div>
 
               {/* Scrollable comparison lists */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
                 {/* Section 1: Thửa đất & Chủ hộ (Mục 01) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <FileText className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <FileText className="w-4 h-4 text-indigo-600" />
                     <span>1. Thông Tin Định Danh & Thửa Đất (Mục 01)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1161,10 +1195,74 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   </div>
                 </div>
 
+                {/* Section 1B: Đặc thù Phân hệ Chung cư (Khối tháp / Khu vực chung / Căn hộ con) */}
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <Building className="w-4 h-4 text-indigo-600" />
+                    <span>1B. Thông Số Đặc Thù Chung Cư (BQL / Khu Vực Chung / Căn Hộ Con)</span>
+                  </h3>
+                  <div className="space-y-1.5">
+                    {renderCompareRow(
+                      'Tên Ban Quản Lý (BQL)',
+                      getParcelVal(snapLeft, 'managementBoardName', snapData, snapJson),
+                      getParcelVal(curLeft, 'managementBoardName', currentData, curJson)
+                    )}
+                    {renderCompareRow(
+                      'Đại diện BQL / Liên hệ',
+                      `${getParcelVal(snapLeft, 'managementContactName', snapData, snapJson)} (${getParcelVal(snapLeft, 'managementContactPhone', snapData, snapJson)})`,
+                      `${getParcelVal(curLeft, 'managementContactName', currentData, curJson)} (${getParcelVal(curLeft, 'managementContactPhone', currentData, curJson)})`
+                    )}
+                    {renderCompareRow(
+                      'Tên Khu vực dùng chung (MASTER_AREA)',
+                      getNestedSectionVal('areaInfo', 'areaName', snapData, snapLeft, snapJson),
+                      getNestedSectionVal('areaInfo', 'areaName', currentData, curLeft, curJson)
+                    )}
+                    {renderCompareRow(
+                      'Phân loại Khu vực chung & Tiếp cận',
+                      `${getNestedSectionVal('areaInfo', 'areaCategory', snapData, snapLeft, snapJson)} | ${getNestedSectionVal('areaInfo', 'accessStatus', snapData, snapLeft, snapJson)}`,
+                      `${getNestedSectionVal('areaInfo', 'areaCategory', currentData, curLeft, curJson)} | ${getNestedSectionVal('areaInfo', 'accessStatus', currentData, curLeft, curJson)}`
+                    )}
+                    {renderCompareRow(
+                      'Tọa độ khoanh vùng CAD (BBox)',
+                      getNestedSectionVal('areaInfo', 'boundingBox', snapData, snapLeft, snapJson),
+                      getNestedSectionVal('areaInfo', 'boundingBox', currentData, curLeft, curJson)
+                    )}
+                    {renderCompareRow(
+                      'Số cấu kiện chịu lực (E-01..E-n)',
+                      Array.isArray((snapJson as Record<string, unknown>)?.structuralElements)
+                        ? `${((snapJson as Record<string, unknown>).structuralElements as unknown[]).length} cấu kiện`
+                        : '---',
+                      Array.isArray((curJson as Record<string, unknown>)?.structuralElements)
+                        ? `${((curJson as Record<string, unknown>).structuralElements as unknown[]).length} cấu kiện`
+                        : '---'
+                    )}
+                    {renderCompareRow(
+                      'Trạng thái cư trú căn hộ & Vai trò',
+                      `${getParcelVal(snapLeft, 'occupancyStatus', snapData, snapJson)} | ${getParcelVal(snapLeft, 'residentRole', snapData, snapJson)}`,
+                      `${getParcelVal(curLeft, 'occupancyStatus', currentData, curJson)} | ${getParcelVal(curLeft, 'residentRole', currentData, curJson)}`
+                    )}
+                    {renderCompareRow(
+                      'Hiện tượng kẹt cửa căn hộ (Door Jamming)',
+                      formatVal((snapJson as Record<string, unknown>)?.doorJamming),
+                      formatVal((curJson as Record<string, unknown>)?.doorJamming)
+                    )}
+                    {renderCompareRow(
+                      'Thấm nước từ sàn tầng trên (Water Leakage)',
+                      formatVal((snapJson as Record<string, unknown>)?.waterLeakageFromUpperFloor),
+                      formatVal((curJson as Record<string, unknown>)?.waterLeakageFromUpperFloor)
+                    )}
+                    {renderCompareRow(
+                      'Độ võng dầm/sàn nội bộ căn hộ (Beam Sagging)',
+                      formatVal((snapJson as Record<string, unknown>)?.beamSagging),
+                      formatVal((curJson as Record<string, unknown>)?.beamSagging)
+                    )}
+                  </div>
+                </div>
+
                 {/* Section 2: Thông số kỹ thuật & Kết cấu (Mục 02) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <Layers className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <Layers className="w-4 h-4 text-indigo-600" />
                     <span>2. Thông Số Kỹ Thuật & Kết Cấu Công Trình (Mục 02)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1186,9 +1284,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </div>
 
                 {/* Section 2B: Phỏng vấn lịch sử công trình & Tải trọng (Mục 03) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <History className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <History className="w-4 h-4 text-indigo-600" />
                     <span>3. Phỏng Vấn Lịch Sử Công Trình & Tải Trọng (Mục 03)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1204,9 +1302,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </div>
 
                 {/* Section 2C: Tổng hợp Burland & Phạm vi tiếp cận / Biến động GIS (Mục 05 & Mục 06) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <MapPin className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <MapPin className="w-4 h-4 text-indigo-600" />
                     <span>4. Tổng Hợp Burland, Tiếp Cận & Biến Động Địa Chính GIS (Mục 05 & 06)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1228,9 +1326,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </div>
 
                 {/* Section 3: Bảng điểm rủi ro & Phán quyết Kỹ sư trưởng (Mục 07 & 08) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <Shield className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <Shield className="w-4 h-4 text-indigo-600" />
                     <span>5. Bảng Điểm Rủi Ro (ECS / VI / BRA), Gate & Kết Luận (Mục 07 & 08)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1348,9 +1446,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </div>
 
                 {/* Section 4: Chữ ký & Ý kiến hiện trường (Mục 09) */}
-                <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5 shadow-2xs">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                     <span>6. Xác Nhận Chữ Ký, Biên Bản & Vắng Mặt (Mục 09)</span>
                   </h3>
                   <div className="space-y-1.5">
@@ -1650,23 +1748,23 @@ export const VersionComparisonModal: React.FC<Props> = ({
             </>
           ) : (
             /* Full Snapshot View */
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
               {/* Full Snapshot Info Callout */}
-              <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
+              <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 shrink-0 shadow-2xs">
                     <Eye className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-white">
-                        Bản Chụp Toàn Diện Hiện Trạng: Phiên Bản v{selectedVerNumber}
+                      <h4 className="text-sm font-black text-slate-900">
+                        Bản Chụp Toàn Diện Hiện Trạng: Phiên Bản v{selectedVerNumber ?? 0}
                       </h4>
                       {selectedVerItem && getTagBadge(selectedVerItem.versionTag)}
                     </div>
-                    <p className="text-xs text-slate-300 mt-0.5">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       Lưu vết bất biến lúc {selectedVerItem?.createdAt ? new Date(selectedVerItem.createdAt).toLocaleString('vi-VN') : '---'} bởi{' '}
-                      <strong className="text-white">{selectedVerItem?.createdByName || 'Hệ thống'}</strong>
+                      <strong className="text-slate-900">{selectedVerItem?.createdByName || 'Hệ thống'}</strong>
                       {selectedVerItem?.editReason && (
                         <span> — Lý do: &ldquo;{selectedVerItem.editReason}&rdquo;</span>
                       )}
@@ -1680,7 +1778,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                       setRollbackError('');
                       setShowRollbackPrompt(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Khôi Phục Theo Bản Chụp v{selectedVerNumber}</span>
@@ -1689,9 +1787,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
               </div>
 
               {/* Section 1: Thông tin Thửa đất & Chủ sở hữu (Mục 01) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <FileText className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <FileText className="w-4 h-4 text-indigo-600" />
                   <span>1. Thông Tin Định Danh & Thửa Đất (Mục 01)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -1722,9 +1820,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
               </div>
 
               {/* Section 2: Thông số kỹ thuật, Móng & Lịch sử công trình (Mục 02 & 03) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <Layers className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Layers className="w-4 h-4 text-indigo-600" />
                   <span>2. Thông Số Kỹ Thuật, Móng & Lịch Sử Công Trình (Mục 02 & 03)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -1758,13 +1856,13 @@ export const VersionComparisonModal: React.FC<Props> = ({
 
                 {/* As-Built Drawings */}
                 {snapData?.asBuiltDrawings && snapData.asBuiltDrawings.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-800">
-                    <span className="text-xs font-bold text-slate-300 block mb-2">
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-700 block mb-2">
                       Bản vẽ hoàn công đính kèm ({snapData.asBuiltDrawings.length}):
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {snapData.asBuiltDrawings.map((drawing: SnapshotPhotoNode, idx: number) => (
-                        <div key={idx} className="bg-slate-950 rounded-lg p-2 border border-slate-800">
+                        <div key={idx} className="bg-slate-50 rounded-lg p-2 border border-slate-200">
                           {drawing.photoUrl ? (
                             <img
                               src={drawing.photoUrl}
@@ -1772,11 +1870,11 @@ export const VersionComparisonModal: React.FC<Props> = ({
                               className="w-full h-24 object-cover rounded mb-1"
                             />
                           ) : (
-                            <div className="w-full h-24 bg-slate-900 rounded flex items-center justify-center text-slate-600 mb-1">
+                            <div className="w-full h-24 bg-slate-100 rounded flex items-center justify-center text-slate-400 mb-1">
                               <FileText className="w-6 h-6" />
                             </div>
                           )}
-                          <p className="text-[11px] font-medium text-slate-300 truncate">
+                          <p className="text-[11px] font-medium text-slate-700 truncate">
                             {drawing.title || `Bản vẽ ${idx + 1}`}
                           </p>
                         </div>
@@ -1787,9 +1885,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
               </div>
 
               {/* Section 3: Mặt bằng các tầng, Burland & Biến động GIS (Mục 04, 05, 06) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <MapPin className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <MapPin className="w-4 h-4 text-indigo-600" />
                   <span>3. Mặt Bằng Các Tầng, Tổng Hợp Burland & Phạm Vi GIS (Mục 04, 05, 06)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pb-2">
@@ -1820,44 +1918,44 @@ export const VersionComparisonModal: React.FC<Props> = ({
                       {floors.map((floor: SnapshotFloorNode, fIdx: number) => {
                         const zones = floor.damageZones || floor.zones || [];
                         return (
-                          <div key={fIdx} className="bg-slate-950/70 rounded-xl border border-slate-800 p-3.5 space-y-2.5">
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                              <span className="text-xs font-bold text-white flex items-center gap-2">
-                                <Building className="w-4 h-4 text-indigo-400" />
+                          <div key={fIdx} className="bg-slate-50 rounded-xl border border-slate-200 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                              <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                <Building className="w-4 h-4 text-indigo-600" />
                                 <span>{floor.floorName || `Tầng ${floor.floorNumber ?? fIdx + 1}`}</span>
                               </span>
-                              <span className="text-[11px] text-slate-400">
+                              <span className="text-[11px] text-slate-500 font-medium">
                                 {zones.length} Vùng hư hại (Z)
                               </span>
                             </div>
 
                             {zones.length === 0 ? (
-                              <p className="text-xs text-slate-500 italic">Không có vùng hư hại trên tầng này.</p>
+                              <p className="text-xs text-slate-400 italic">Không có vùng hư hại trên tầng này.</p>
                             ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                                 {zones.map((zone: SnapshotZoneNode, zIdx: number) => {
                                   const defects = zone.defects || zone.defectItems || [];
                                   return (
-                                    <div key={zIdx} className="bg-slate-900 rounded-lg p-2.5 border border-slate-800/80 space-y-1.5">
+                                    <div key={zIdx} className="bg-white rounded-lg p-2.5 border border-slate-200 space-y-1.5">
                                       <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-indigo-300">
+                                        <span className="text-xs font-bold text-indigo-700">
                                           {zone.zoneCode || `Z${zIdx + 1}`}: {zone.zoneName || 'Vùng hư hại'}
                                         </span>
                                         {zone.cadPins && (
-                                          <span className="text-[10px] text-slate-400 font-mono">
+                                          <span className="text-[10px] text-slate-500 font-mono">
                                             📍 X: {zone.cadPins.xPercent ?? zone.cadPins.x ?? 0}%, Y: {zone.cadPins.yPercent ?? zone.cadPins.y ?? 0}%
                                           </span>
                                         )}
                                       </div>
                                       {defects.length > 0 && (
-                                        <div className="text-[11px] text-slate-300 space-y-0.5">
+                                        <div className="text-[11px] text-slate-700 space-y-0.5">
                                           {defects.map((def: SnapshotDefectNode, dIdx: number) => (
-                                            <div key={dIdx} className="flex items-center gap-1.5 text-slate-300">
-                                              <span className="text-amber-400 font-bold">•</span>
-                                              <span className="font-mono text-indigo-300">{def.defectCode || `D${dIdx + 1}`}:</span>
+                                            <div key={dIdx} className="flex items-center gap-1.5 text-slate-700">
+                                              <span className="text-amber-500 font-bold">•</span>
+                                              <span className="font-mono font-bold text-indigo-700">{def.defectCode || `D${dIdx + 1}`}:</span>
                                               <span>{def.defectType || def.description || 'Khuyết tật'}</span>
                                               {def.severity && (
-                                                <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold">
                                                   Cấp {def.severity}
                                                 </span>
                                               )}
@@ -1879,9 +1977,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
               </div>
 
               {/* Section 4: Bảng điểm rủi ro (ECS / VI / BRA) & Kết luận (Mục 07 & 08) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <Shield className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Shield className="w-4 h-4 text-indigo-600" />
                   <span>4. Đánh Giá Rủi Ro (ECS / VI / BRA), Gate & Kết Luận (Mục 07 & 08)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -1916,17 +2014,17 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   {renderSnapshotField('Kết luận tóm tắt toàn diện', getNestedSectionVal('executiveSummary', 'summaryConclusions', snapData, snapRight, snapJson))}
                 </div>
                 {snapRight?.riskCard?.is_engineering_judgement_applied && (
-                  <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs space-y-1">
-                    <span className="font-bold text-purple-300">Lý do can thiệp chuyên gia:</span>
-                    <p className="text-slate-300 italic">{snapRight?.riskCard?.engineering_judgement_reason || 'Không có lý do chi tiết'}</p>
+                  <div className="p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs space-y-1">
+                    <span className="font-bold text-purple-800">Lý do can thiệp chuyên gia:</span>
+                    <p className="text-slate-700 italic">{snapRight?.riskCard?.engineering_judgement_reason || 'Không có lý do chi tiết'}</p>
                   </div>
                 )}
               </div>
 
               {/* Section 5: Hồ sơ ảnh & Biên bản (Mục 09) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <Camera className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Camera className="w-4 h-4 text-indigo-600" />
                   <span>5. Hồ Sơ Ảnh Hiện Trường & Chữ Ký Biên Bản (Mục 09)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -1947,9 +2045,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   const snapPhotos = photoDiffItems.filter((item) => Boolean(item.oldUrl));
                   if (snapPhotos.length === 0) return null;
                   return (
-                    <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
-                      <span className="text-xs font-bold text-slate-300 block">
-                        Thư viện ảnh ghi nhận trong Bản chụp v{selectedVerNumber} ({snapPhotos.length} ảnh):
+                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                      <span className="text-xs font-bold text-slate-700 block">
+                        Thư viện ảnh ghi nhận trong Bản chụp v{selectedVerNumber ?? 0} ({snapPhotos.length} ảnh):
                       </span>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {snapPhotos.map((item) => {
@@ -1957,10 +2055,10 @@ export const VersionComparisonModal: React.FC<Props> = ({
                           return (
                             <div
                               key={item.id}
-                              className="bg-slate-950 rounded-xl p-2 border border-slate-800 flex flex-col space-y-1.5 group"
+                              className="bg-slate-50 rounded-xl p-2 border border-slate-200 flex flex-col space-y-1.5 group"
                             >
                               <div
-                                onClick={() => setZoomPhoto({ url: item.oldUrl!, title: `${item.title} (v${selectedVerNumber})`, rotation: oldRot })}
+                                onClick={() => setZoomPhoto({ url: item.oldUrl!, title: `${item.title} (v${selectedVerNumber ?? 0})`, rotation: oldRot })}
                                 className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 cursor-pointer flex items-center justify-center"
                               >
                                 <img
@@ -1974,7 +2072,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                                 </div>
                               </div>
                               <div className="text-[11px] leading-tight">
-                                <span className="font-bold text-indigo-300 block truncate" title={item.title}>
+                                <span className="font-bold text-slate-800 block truncate" title={item.title}>
                                   {item.title} {oldRot ? `(${oldRot}°)` : ''}
                                 </span>
                                 <span className="text-[10px] text-slate-500 block truncate">
@@ -1991,10 +2089,10 @@ export const VersionComparisonModal: React.FC<Props> = ({
               </div>
 
               {/* Section 6: Bản Chụp Dữ Liệu JSON (Raw Snapshot) */}
-              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileCode className="w-4 h-4 text-indigo-400" />
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h3 className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileCode className="w-4 h-4 text-indigo-600" />
                     <span>6. Bản Chụp Dữ Liệu Gốc (Raw Snapshot JSON)</span>
                   </h3>
                   <div className="flex items-center gap-2">
@@ -2005,15 +2103,15 @@ export const VersionComparisonModal: React.FC<Props> = ({
                         setCopiedJson(true);
                         setTimeout(() => setCopiedJson(false), 2000);
                       }}
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 cursor-pointer border border-slate-200"
                     >
-                      {copiedJson ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                      {copiedJson ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                       <span>{copiedJson ? 'Đã sao chép!' : 'Sao chép JSON'}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowRawJson(!showRawJson)}
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 cursor-pointer border border-slate-200"
                     >
                       <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRawJson ? 'rotate-180' : ''}`} />
                       <span>{showRawJson ? 'Thu gọn' : 'Xem chi tiết JSON'}</span>
@@ -2022,7 +2120,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                 </div>
 
                 {showRawJson && (
-                  <pre className="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 max-h-96 overflow-y-auto overflow-x-auto whitespace-pre">
+                  <pre className="p-3 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-800 max-h-96 overflow-y-auto overflow-x-auto whitespace-pre">
                     {JSON.stringify(snapData, null, 2)}
                   </pre>
                 )}
@@ -2032,9 +2130,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
+        <div className="px-6 py-3 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" />
+            <Shield className="w-4 h-4 text-emerald-600" />
             <span>
               Cơ chế bất biến (Immutable Append-Only): Mọi hành động hoàn nguyên đều tạo phiên bản mới v
               {latestVersionNumber + 1} và bảo toàn 100% lịch sử kiểm toán.
@@ -2044,44 +2142,44 @@ export const VersionComparisonModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition-colors cursor-pointer"
           >
             Đóng cửa sổ
           </button>
         </div>
       </div>
 
-      {/* Rollback Confirmation Sub-dialog */}
+      {/* Rollback Confirmation Sub-dialog (Light Theme) */}
       {showRollbackPrompt && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-slate-100 space-y-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-slate-800 space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 mt-0.5">
                 <RotateCcw className="w-5 h-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-base font-black text-slate-900">
                   Xác Nhận Khôi Phục Về Phiên Bản v{selectedVerNumber}
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Dữ liệu đang hoạt động của hồ sơ sẽ được hoàn nguyên về trạng thái của Phiên bản v
                   {selectedVerNumber}. Hành động này sẽ tạo thêm Phiên bản mới{' '}
-                  <strong className="text-indigo-400">v{latestVersionNumber + 1}</strong> để lưu vết và giữ nguyên toàn bộ lịch sử trước đó.
+                  <strong className="text-indigo-700">v{latestVersionNumber + 1}</strong> để lưu vết và giữ nguyên toàn bộ lịch sử trước đó.
                 </p>
               </div>
             </div>
 
             {rollbackError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{rollbackError}</span>
               </div>
             )}
 
             <form onSubmit={handleExecuteRollback} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Lý do kỹ thuật hoàn nguyên <span className="text-rose-400">*</span>:
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Lý do kỹ thuật hoàn nguyên <span className="text-rose-600">*</span>:
                 </label>
                 <textarea
                   value={rollbackReason}
@@ -2089,13 +2187,13 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   placeholder="Ví dụ: Hoàn nguyên lại số liệu kết cấu ban đầu do admin trước tính sai tải trọng cải tạo..."
                   rows={3}
                   required
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Mật khẩu tài khoản Quản trị viên <span className="text-rose-400">*</span>:
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mật khẩu tài khoản Quản trị viên <span className="text-rose-600">*</span>:
                 </label>
                 <div className="relative">
                   <input
@@ -2104,9 +2202,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="Nhập mật khẩu tài khoản đăng nhập của bạn..."
                     required
-                    className="w-full px-3 py-2 pl-9 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full px-3 py-2 pl-9 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                   />
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 </div>
               </div>
 
@@ -2115,14 +2213,14 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   type="button"
                   disabled={isRollingBack}
                   onClick={() => setShowRollbackPrompt(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   disabled={isRollingBack}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isRollingBack ? (
                     <>
@@ -2147,26 +2245,26 @@ export const VersionComparisonModal: React.FC<Props> = ({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-70 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in"
+          className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs p-4 animate-in fade-in"
           onClick={() => setZoomPhoto(null)}
         >
           <div
-            className="relative max-w-5xl w-full max-h-[92vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl"
+            className="relative max-w-5xl w-full max-h-[92vh] flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-950 border-b border-slate-800 text-xs">
-              <span className="font-bold text-white truncate pr-4">
+            <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 text-xs">
+              <span className="font-bold text-slate-800 truncate pr-4">
                 {zoomPhoto.title} {zoomPhoto.rotation ? `(${zoomPhoto.rotation}°)` : ''}
               </span>
               <button
                 type="button"
                 onClick={() => setZoomPhoto(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-200/70 hover:bg-slate-300/70 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 flex items-center justify-center overflow-auto max-h-[82vh] bg-slate-950/60">
+            <div className="p-3 flex items-center justify-center overflow-auto max-h-[82vh] bg-slate-900">
               <img
                 src={zoomPhoto.url}
                 alt={zoomPhoto.title}

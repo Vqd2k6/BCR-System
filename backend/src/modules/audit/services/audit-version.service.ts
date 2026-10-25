@@ -116,7 +116,7 @@ export class AuditVersionService {
               v.client_ip,
               COALESCE(u.full_name, 'Hệ thống') AS created_by_name,
               COALESCE(u.role::text, 'SYSTEM') AS created_by_role,
-              jsonb_array_length(COALESCE(v.diff_summary, '[]'::jsonb)) AS diff_count
+              CASE WHEN jsonb_typeof(v.diff_summary) = 'array' THEN jsonb_array_length(v.diff_summary) ELSE 0 END AS diff_count
        FROM survey_report_versions v
        LEFT JOIN users u ON v.created_by_user_id = u.id
        WHERE v.report_id = $1
@@ -411,6 +411,23 @@ export class AuditVersionService {
       const rawGradeInput = String(specs.buildingGrade || specs.building_grade || specs.importanceCategory || '').toUpperCase().trim();
       const bBuildingGrade = ['CRITICAL', 'IMPORTANT', 'GENERAL'].includes(rawGradeInput) ? rawGradeInput : null;
 
+      const toFiniteNumberOrNull = (val: unknown): number | null => {
+        if (val === undefined || val === null || String(val).trim() === '') return null;
+        const n = Number(val);
+        return Number.isFinite(n) ? n : null;
+      };
+      const toFiniteIntOrNull = (val: unknown): number | null => {
+        const n = toFiniteNumberOrNull(val);
+        return n !== null ? Math.round(n) : null;
+      };
+      const pickFiniteNumberOrZero = (...vals: unknown[]): number => {
+        for (const v of vals) {
+          const n = toFiniteNumberOrNull(v);
+          if (n !== null) return n;
+        }
+        return 0;
+      };
+
       await client.query(
         `INSERT INTO building_specifications (
            report_id, building_name, floor_count, basement_count, land_use_function,
@@ -427,8 +444,8 @@ export class AuditVersionService {
          )
          ON CONFLICT (report_id) DO UPDATE SET
            building_name = COALESCE($2, building_specifications.building_name),
-           floor_count = COALESCE($3, building_specifications.floor_count),
-           basement_count = COALESCE($4, building_specifications.basement_count),
+           floor_count = COALESCE($3, building_specifications.floor_count, 1),
+           basement_count = COALESCE($4, building_specifications.basement_count, 0),
            land_use_function = COALESCE($5, building_specifications.land_use_function),
            year_of_construction = COALESCE($6, building_specifications.year_of_construction),
            is_year_estimated = COALESCE($7, building_specifications.is_year_estimated),
@@ -446,21 +463,21 @@ export class AuditVersionService {
         [
           actualReportId,
           bBuildingName || null,
-          bFloorCount !== undefined && bFloorCount !== null && bFloorCount !== '' ? Number(bFloorCount) : null,
-          bBasementCount !== undefined && bBasementCount !== null && bBasementCount !== '' ? Number(bBasementCount) : null,
+          toFiniteIntOrNull(bFloorCount),
+          toFiniteIntOrNull(bBasementCount),
           bLandUse || null,
-          bYear !== undefined && bYear !== null && bYear !== '' ? Number(bYear) : null,
+          toFiniteIntOrNull(bYear),
           bIsYearEstimated !== undefined && bIsYearEstimated !== null ? Boolean(bIsYearEstimated) : null,
-          bFoundationDepth !== undefined && bFoundationDepth !== null && bFoundationDepth !== '' ? Number(bFoundationDepth) : null,
-          bFoundationDensity !== undefined && bFoundationDensity !== null && bFoundationDensity !== '' ? Number(bFoundationDensity) : null,
-          bFoundationSpacing !== undefined && bFoundationSpacing !== null && bFoundationSpacing !== '' ? Number(bFoundationSpacing) : null,
+          toFiniteNumberOrNull(bFoundationDepth),
+          toFiniteNumberOrNull(bFoundationDensity),
+          toFiniteNumberOrNull(bFoundationSpacing),
           bFoundationNotes || null,
           bStructuralSystem || null,
           bFoundationCat || null,
           bBuildingGrade || null,
           bAdjacentStr,
-          bAreaM2 !== undefined && bAreaM2 !== null && bAreaM2 !== '' ? Number(bAreaM2) : null,
-          bHeightM !== undefined && bHeightM !== null && bHeightM !== '' ? Number(bHeightM) : null,
+          toFiniteNumberOrNull(bAreaM2),
+          toFiniteNumberOrNull(bHeightM),
           bFoundationSource || null,
         ]
       );
@@ -497,30 +514,28 @@ export class AuditVersionService {
         ]
       );
 
-      // 4.4. Khôi phục deformation_assessments (UPSERT, giữ nguyên đơn vị ‰ không chia 10, đồng bộ M2-07)
+      // 4.4. Khôi phục deformation_assessments (UPSERT, giữ nguyên đơn vị ‰ không chia 10, đồng bộ M2-07 & bảo vệ NOT NULL)
       const def = { ...(leftPane.deformation || snap.deformation || {}), ...(sJson.settlementTilt || sJson.deformation || {}) };
       const tilt = def.buildingTilt || def.settlementTilt || def.tiltAssessment || {};
       const beam = def.beamSagging || {};
       const diffSettle = def.diffSettlement || {};
       const abnormal = def.abnormalCase || def.abnormalObservation || {};
 
-      const tiltX = tilt.xPermille ?? tilt.tilt_x_permille ?? def.tilt_angle_x ?? def.tiltAngleX ?? null;
-      const tiltY = tilt.yPermille ?? tilt.tilt_y_permille ?? def.tilt_angle_y ?? def.tiltAngleY ?? null;
+      const safeTiltX = pickFiniteNumberOrZero(tilt.xPermille, tilt.tilt_x_permille, def.tilt_angle_x, def.tiltAngleX);
+      const safeTiltY = pickFiniteNumberOrZero(tilt.yPermille, tilt.tilt_y_permille, def.tilt_angle_y, def.tiltAngleY);
       const tiltDir = tilt.direction ?? tilt.tilt_direction ?? def.tilt_direction ?? def.tiltDirection ?? null;
-      const beamSag = beam.sagMm ?? beam.beam_deflection_mm ?? def.beam_deflection_mm ?? def.beamDeflectionMm ?? null;
-      const e3DeformationScore =
-        sJson.ecs?.e3 !== undefined && sJson.ecs?.e3 !== null
-          ? Number(sJson.ecs.e3)
-          : def.e3_deformation_score !== undefined && def.e3_deformation_score !== null
-            ? Number(def.e3_deformation_score)
-            : Math.min(
-                4,
-                Math.max(
-                  Number(diffSettle.level) || 0,
-                  Number(tilt.level) || 0,
-                  Number(beam.level) || 0
-                )
-              );
+      const safeBeamSag = pickFiniteNumberOrZero(beam.sagMm, beam.beam_deflection_mm, def.beam_deflection_mm, def.beamDeflectionMm);
+      const fallbackE3Level = Math.min(
+        4,
+        Math.max(
+          Number(diffSettle.level) || 0,
+          Number(tilt.level) || 0,
+          Number(beam.level) || 0
+        )
+      );
+      const e3DeformationScore = Math.round(
+        pickFiniteNumberOrZero(sJson.ecs?.e3, def.e3_deformation_score, fallbackE3Level)
+      );
       const rawRel = String(def.measurementReliability ?? def.measurement_reliability ?? '').toUpperCase().trim();
       const normRel = rawRel.includes('HIGH') || rawRel.includes('CAO')
         ? 'HIGH'
@@ -539,32 +554,32 @@ export class AuditVersionService {
            measurement_reliability, diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json,
            e3_deformation_score
          ) VALUES (
-           $1, $2, $3, $4, $5,
+           $1, COALESCE($2, 0), COALESCE($3, 0), $4, COALESCE($5, 0),
            COALESCE($6::reliability_enum, 'HIGH'::reliability_enum),
            COALESCE($7::jsonb, '[]'::jsonb), COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb),
-           $10
+           COALESCE($10, 0)
          )
          ON CONFLICT (report_id) DO UPDATE SET
-           tilt_angle_x = $2,
-           tilt_angle_y = $3,
+           tilt_angle_x = COALESCE($2, 0),
+           tilt_angle_y = COALESCE($3, 0),
            tilt_direction = $4,
-           beam_deflection_mm = $5,
+           beam_deflection_mm = COALESCE($5, 0),
            measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
            diff_settlement_photos_json = COALESCE($7::jsonb, deformation_assessments.diff_settlement_photos_json),
            tilt_photos_json = COALESCE($8::jsonb, deformation_assessments.tilt_photos_json),
            abnormal_photos_json = COALESCE($9::jsonb, deformation_assessments.abnormal_photos_json),
-           e3_deformation_score = COALESCE($10, deformation_assessments.e3_deformation_score);`,
+           e3_deformation_score = COALESCE($10, deformation_assessments.e3_deformation_score, 0);`,
         [
           actualReportId,
-          tiltX !== null && tiltX !== undefined && tiltX !== '' ? Number(tiltX) : null,
-          tiltY !== null && tiltY !== undefined && tiltY !== '' ? Number(tiltY) : null,
+          safeTiltX,
+          safeTiltY,
           tiltDir || null,
-          beamSag !== null && beamSag !== undefined && beamSag !== '' ? Number(beamSag) : null,
+          safeBeamSag,
           normRel,
           diffPhotosJson,
           tiltPhotosJson,
           abnormalPhotosJson,
-          Number.isFinite(e3DeformationScore) ? e3DeformationScore : 0,
+          e3DeformationScore,
         ]
       );
 
@@ -603,7 +618,8 @@ export class AuditVersionService {
         const e5Val = snapEcs.e5 ?? rc.e5_history_score;
         const e6Val = snapEcs.e6 ?? rc.e6_overall_function_score ?? rc.e6_secondary_score;
         const totalEcsVal = snapEcs.totalEcs ?? rc.total_ecs_score ?? rc.total_ecs;
-        const ecsClassVal = snapEcs.ecsClass || rc.ecs_class || rc.ecs_category || null;
+        const rawEcsClass = String(snapEcs.ecsClass || rc.ecs_class || rc.ecs_category || '').toUpperCase().trim();
+        const ecsClassVal = ['GOOD', 'MEDIUM', 'DEFICIENT', 'CRITICAL'].includes(rawEcsClass) ? rawEcsClass : null;
 
         const v1Val = snapVi.v1 ?? rc.v1_importance_score;
         const v2Val = snapVi.v2 ?? rc.v2_structure_score;
@@ -612,28 +628,29 @@ export class AuditVersionService {
         const v5Val = snapVi.v5 ?? rc.v5_ecs_score;
         const v6Val = snapVi.v6 ?? rc.v6_sensitivity_score;
         const avgViVal = snapVi.viAvg ?? snapVi.avgVi ?? rc.avg_vi_score ?? rc.avg_vi;
-        const viClassVal = snapVi.viClass || rc.vi_class || rc.vi_category || null;
+        const rawViClass = String(snapVi.viClass || rc.vi_class || rc.vi_category || '').toUpperCase().trim();
+        const viClassVal = ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'].includes(rawViClass) ? rawViClass : null;
 
-        addCoalesceField('e1_burland_score', e1Val !== undefined && e1Val !== null ? Number(e1Val) : null);
-        addCoalesceField('e2_structure_score', e2Val !== undefined && e2Val !== null ? Number(e2Val) : null);
-        addCoalesceField('e3_deformation_score', e3Val !== undefined && e3Val !== null ? Number(e3Val) : null);
-        addCoalesceField('e4_material_score', e4Val !== undefined && e4Val !== null ? Number(e4Val) : null);
-        addCoalesceField('e5_history_score', e5Val !== undefined && e5Val !== null ? Number(e5Val) : null);
-        addCoalesceField('e6_overall_function_score', e6Val !== undefined && e6Val !== null ? Number(e6Val) : null);
-        addCoalesceField('total_ecs_score', totalEcsVal !== undefined && totalEcsVal !== null ? Number(totalEcsVal) : null);
+        addCoalesceField('e1_burland_score', toFiniteIntOrNull(e1Val));
+        addCoalesceField('e2_structure_score', toFiniteIntOrNull(e2Val));
+        addCoalesceField('e3_deformation_score', toFiniteIntOrNull(e3Val));
+        addCoalesceField('e4_material_score', toFiniteIntOrNull(e4Val));
+        addCoalesceField('e5_history_score', toFiniteIntOrNull(e5Val));
+        addCoalesceField('e6_overall_function_score', toFiniteIntOrNull(e6Val));
+        addCoalesceField('total_ecs_score', toFiniteIntOrNull(totalEcsVal));
         addCoalesceField('ecs_class', ecsClassVal, '::ecs_class_enum');
-        addCoalesceField('v1_importance_score', v1Val !== undefined && v1Val !== null ? Math.round(Number(v1Val)) : null);
-        addCoalesceField('v2_structure_score', v2Val !== undefined && v2Val !== null ? Math.round(Number(v2Val)) : null);
-        addCoalesceField('v3_foundation_score', v3Val !== undefined && v3Val !== null ? Math.round(Number(v3Val)) : null);
-        addCoalesceField('v4_age_score', v4Val !== undefined && v4Val !== null ? Math.round(Number(v4Val)) : null);
-        addCoalesceField('v5_ecs_score', v5Val !== undefined && v5Val !== null ? Math.round(Number(v5Val)) : null);
-        addCoalesceField('v6_sensitivity_score', v6Val !== undefined && v6Val !== null ? Math.round(Number(v6Val)) : null);
-        addCoalesceField('avg_vi_score', avgViVal !== undefined && avgViVal !== null ? Number(avgViVal) : null);
+        addCoalesceField('v1_importance_score', toFiniteIntOrNull(v1Val));
+        addCoalesceField('v2_structure_score', toFiniteIntOrNull(v2Val));
+        addCoalesceField('v3_foundation_score', toFiniteIntOrNull(v3Val));
+        addCoalesceField('v4_age_score', toFiniteIntOrNull(v4Val));
+        addCoalesceField('v5_ecs_score', toFiniteIntOrNull(v5Val));
+        addCoalesceField('v6_sensitivity_score', toFiniteIntOrNull(v6Val));
+        addCoalesceField('avg_vi_score', toFiniteNumberOrNull(avgViVal));
         addCoalesceField('vi_class', viClassVal, '::vi_class_enum');
         addCoalesceField('building_risk_assessment_bra', rc.building_risk_assessment_bra || rc.preliminary_bra_classification || rc.bra || rc.bra_score || null);
         addCoalesceField('preliminary_bra_classification', rc.preliminary_bra_classification || sJson.executiveSummary?.braStatus || sJson.braAssessment?.braStatus || null);
-        addCoalesceField('construction_impact_level_i', (rc.construction_impact_level_i ?? rc.impact_level_i ?? rc.impact_level) !== undefined ? Number(rc.construction_impact_level_i ?? rc.impact_level_i ?? rc.impact_level) : null);
-        addCoalesceField('impact_level_i', (rc.impact_level_i ?? rc.construction_impact_level_i) !== undefined ? Number(rc.impact_level_i ?? rc.construction_impact_level_i) : null);
+        addCoalesceField('construction_impact_level_i', toFiniteIntOrNull(rc.construction_impact_level_i ?? rc.impact_level_i ?? rc.impact_level));
+        addCoalesceField('impact_level_i', toFiniteIntOrNull(rc.impact_level_i ?? rc.construction_impact_level_i));
 
         const isEjApplied =
           rc.is_engineering_judgement_applied !== undefined
@@ -665,11 +682,8 @@ export class AuditVersionService {
         const rawSnapImpact = String(sJson.impactAssessment?.iCode || sJson.executiveSummary?.constructionImpactStatus || '').toUpperCase();
         const snapImpactMatch = rawSnapImpact.match(/\bI([1-4])\b/);
         const snapImpactNum = isImpactExplicitlyOverridden
-          ? (rc.overridden_impact_level_i !== undefined && rc.overridden_impact_level_i !== null
-              ? Number(rc.overridden_impact_level_i)
-              : snapImpactMatch
-                ? Number(snapImpactMatch[1])
-                : null)
+          ? (toFiniteIntOrNull(rc.overridden_impact_level_i) ??
+              (snapImpactMatch ? Number(snapImpactMatch[1]) : null))
           : null;
 
         const isBraExplicitlyOverridden =
@@ -681,20 +695,18 @@ export class AuditVersionService {
           : null;
 
         // Các cột override phán quyết kỹ thuật (M7-05: khôi phục đầy đủ 7 cột overridden_*)
-        addField('overridden_burland_grade', rc.overridden_burland_grade !== undefined && rc.overridden_burland_grade !== null ? Number(rc.overridden_burland_grade) : null);
+        addField('overridden_burland_grade', toFiniteIntOrNull(rc.overridden_burland_grade));
         addField(
           'overridden_total_ecs',
-          rc.overridden_total_ecs !== undefined && rc.overridden_total_ecs !== null
-            ? Number(rc.overridden_total_ecs)
-            : (snapEcs.isOverrideLocked && totalEcsVal !== undefined && totalEcsVal !== null ? Number(totalEcsVal) : null)
+          toFiniteIntOrNull(rc.overridden_total_ecs) ??
+            (snapEcs.isOverrideLocked ? toFiniteIntOrNull(totalEcsVal) : null)
         );
         addField('overridden_ecs_class', rc.overridden_ecs_class || (snapEcs.isOverrideLocked ? ecsClassVal : null));
-        addField('overridden_importance_score', rc.overridden_importance_score !== undefined && rc.overridden_importance_score !== null ? Number(rc.overridden_importance_score) : null);
+        addField('overridden_importance_score', toFiniteNumberOrNull(rc.overridden_importance_score));
         addField(
           'overridden_avg_vi',
-          rc.overridden_avg_vi !== undefined && rc.overridden_avg_vi !== null
-            ? Number(rc.overridden_avg_vi)
-            : (snapVi.isOverrideLocked && avgViVal !== undefined && avgViVal !== null ? Number(avgViVal) : null)
+          toFiniteNumberOrNull(rc.overridden_avg_vi) ??
+            (snapVi.isOverrideLocked ? toFiniteNumberOrNull(avgViVal) : null)
         );
         addField('overridden_vi_class', rc.overridden_vi_class || (snapVi.isOverrideLocked ? viClassVal : null));
         addField('overridden_impact_level_i', snapImpactNum);
@@ -818,11 +830,11 @@ export class AuditVersionService {
             parcelRestoreData.ownerName ?? parcelRestoreData.owner_name ?? null,
             parcelRestoreData.ownerPhone ?? parcelRestoreData.owner_phone ?? null,
             parcelRestoreData.officialCadastralCode ?? parcelRestoreData.official_cadastral_code ?? null,
-            parcelRestoreData.frontageWidth !== undefined && parcelRestoreData.frontageWidth !== null && parcelRestoreData.frontageWidth !== '' ? Number(parcelRestoreData.frontageWidth) : null,
-            parcelRestoreData.lotDepth !== undefined && parcelRestoreData.lotDepth !== null && parcelRestoreData.lotDepth !== '' ? Number(parcelRestoreData.lotDepth) : null,
-            parcelRestoreData.landAreaM2 !== undefined && parcelRestoreData.landAreaM2 !== null && parcelRestoreData.landAreaM2 !== '' ? Number(parcelRestoreData.landAreaM2) : null,
-            parcelRestoreData.constructionAreaM2 !== undefined && parcelRestoreData.constructionAreaM2 !== null && parcelRestoreData.constructionAreaM2 !== '' ? Number(parcelRestoreData.constructionAreaM2) : null,
-            (parcelRestoreData.floorCount !== undefined && parcelRestoreData.floorCount !== null && parcelRestoreData.floorCount !== '') ? Number(parcelRestoreData.floorCount) : ((parcelRestoreData.aboveFloors !== undefined && parcelRestoreData.aboveFloors !== null && parcelRestoreData.aboveFloors !== '') ? Number(parcelRestoreData.aboveFloors) : null),
+            toFiniteNumberOrNull(parcelRestoreData.frontageWidth),
+            toFiniteNumberOrNull(parcelRestoreData.lotDepth),
+            toFiniteNumberOrNull(parcelRestoreData.landAreaM2),
+            toFiniteNumberOrNull(parcelRestoreData.constructionAreaM2),
+            toFiniteIntOrNull(parcelRestoreData.floorCount) ?? toFiniteIntOrNull(parcelRestoreData.aboveFloors),
             restoredProjectCode,
             restoredBuildingType,
             restoredDistM,
@@ -1005,10 +1017,13 @@ export class AuditVersionService {
           claimedZoneIds.add(byFloorAndCode.id);
           return byFloorAndCode.id;
         }
-        const byCode = existingZonesRes.rows.find((r) => !claimedZoneIds.has(r.id) && r.zone_code === code);
-        if (byCode) {
-          claimedZoneIds.add(byCode.id);
-          return byCode.id;
+        // Chỉ fallback theo mã khi bản ghi trong DB chưa từng có floor_name (tránh khớp nhầm Z-01 giữa các tầng)
+        const byEmptyFloorAndCode = existingZonesRes.rows.find(
+          (r) => !claimedZoneIds.has(r.id) && (!r.floor_name || !r.floor_name.trim()) && r.zone_code === code
+        );
+        if (byEmptyFloorAndCode) {
+          claimedZoneIds.add(byEmptyFloorAndCode.id);
+          return byEmptyFloorAndCode.id;
         }
         return null;
       };
@@ -1052,8 +1067,8 @@ export class AuditVersionService {
         const roomName = z.room_name || z.roomName || (z._isElement ? 'Cấu kiện kết cấu' : 'Không gian chính');
         const compType = normalizeComponentType(z.component_type || z.componentType || z.elementType || (z._isElement ? 'COLUMN' : 'WALL'));
         const wallMat = z.wall_material || z.wallMaterial || z.materialType || (z._isElement ? 'BTCT' : null);
-        const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '').trim() || '';
-        const bGrade = z.burland_grade !== undefined ? Number(z.burland_grade) : (z.burlandGrade !== undefined ? Number(z.burlandGrade) : 0);
+        const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '').trim() || '';
+        const bGrade = pickFiniteNumberOrZero(z.burland_grade, z.burlandGrade);
         const funcImpact = Boolean(z.functional_impact_repair_needed ?? z.functionalImpactRepairNeeded ?? z.hasDamage);
 
         const matchedZoneUuid = resolveZoneUuid(z.id, floorName, zCode);

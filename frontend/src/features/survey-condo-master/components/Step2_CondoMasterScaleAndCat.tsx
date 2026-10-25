@@ -7,6 +7,10 @@ import { InfoPopover } from '../../../core/components/ui/InfoPopover';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
 import type { EvidencePhotoItem } from '../../survey-phase1/types/phase1.types';
 import {
+  removePhotoObjectAtIndex,
+  syncPrimaryPhotoUrl,
+} from '../../../components/common/photo-capture/domain/photoCollectionMutator';
+import {
   USAGE_OPTIONS,
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -620,8 +624,15 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              const updated = (formData.asBuiltDrawingPhotos || []).filter((_, i) => i !== idx);
-                              updateFormData({ asBuiltDrawingPhotos: updated });
+                              // [CC-02] Đồng bộ asBuiltDrawingPhotoUrl khi xóa trang bản vẽ hoàn công
+                              const { updatedList, primaryUrl } = removePhotoObjectAtIndex(
+                                formData.asBuiltDrawingPhotos,
+                                idx
+                              );
+                              updateFormData({
+                                asBuiltDrawingPhotos: updatedList,
+                                asBuiltDrawingPhotoUrl: primaryUrl,
+                              });
                             }}
                             className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
                           >
@@ -646,7 +657,10 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                         onChange={(url: string, code?: string) => {
                           const updated = [...(formData.asBuiltDrawingPhotos || [])];
                           updated[idx] = { ...updated[idx], url, photoCode: code };
-                          updateFormData({ asBuiltDrawingPhotos: updated });
+                          updateFormData({
+                            asBuiltDrawingPhotos: updated,
+                            asBuiltDrawingPhotoUrl: syncPrimaryPhotoUrl(updated),
+                          });
                         }}
                       />
                       <Input

@@ -170,26 +170,26 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
   const isPinMatched = enteredPin.trim() === generatedPin && generatedPin.length === 6;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/85 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        {/* Header (Light Theme synchronized with Audit Studio) */}
+        <div className="px-5 py-4 bg-gradient-to-r from-sky-50/90 via-white to-slate-50 text-slate-800 flex items-center justify-between border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center">
               <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
                 <span>Thay Thế Ảnh Hiện Trường &bull; Kiểm Soát Bảo Mật</span>
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 {photoTitle} &bull; Yêu cầu xác thực mã 6 số ngẫu nhiên cho từng ảnh được điều chỉnh.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -284,17 +284,17 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
             />
           </div>
 
-          {/* Khối bảo mật sinh mã 6 số ngẫu nhiên */}
-          <div className="p-4 rounded-xl bg-slate-900 text-white space-y-3 shadow-inner">
+          {/* Khối bảo mật sinh mã 6 số ngẫu nhiên (Light Theme) */}
+          <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-slate-800 space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-slate-200">Mã Xác Thực Ngẫu Nhiên 6 Số (Mỗi ảnh 1 lần):</span>
+                <KeyRound className="w-4 h-4 text-amber-700" />
+                <span className="text-xs font-bold text-amber-900">Mã Xác Thực Ngẫu Nhiên 6 Số (Mỗi ảnh 1 lần):</span>
               </div>
               <button
                 type="button"
                 onClick={generateNewRandomPin}
-                className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-mono"
+                className="text-[11px] text-sky-700 hover:text-sky-800 flex items-center gap-1 font-mono font-semibold cursor-pointer"
                 title="Đổi mã ngẫu nhiên khác"
               >
                 <RefreshCw className="w-3 h-3" /> Đổi mã khác
@@ -302,18 +302,18 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
             </div>
 
             {/* Khung hiển thị mã ngẫu nhiên to rõ */}
-            <div className="py-2.5 px-4 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center gap-3">
+            <div className="py-2.5 px-4 rounded-xl bg-white/90 border border-amber-200 flex items-center justify-center gap-3">
               {generatedPin.split('').map((digit, i) => (
                 <span
                   key={i}
-                  className="w-9 h-11 rounded-lg bg-slate-950 border border-amber-500/40 text-amber-400 font-mono font-black text-xl flex items-center justify-center shadow-md select-none tracking-wider"
+                  className="w-9 h-11 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 font-mono font-black text-xl flex items-center justify-center shadow-2xs select-none tracking-wider"
                 >
                   {digit}
                 </span>
               ))}
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+            <p className="text-[11px] text-amber-800 leading-relaxed text-center">
               Nhập chính xác 6 chữ số trên vào ô bên dưới để chứng thực bạn đã kiểm tra kỹ lưỡng trước khi thay thế chứng cứ hiện trường:
             </p>
 
@@ -329,11 +329,11 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
                     ? 'border-emerald-500 ring-2 ring-emerald-500/30'
                     : enteredPin.length === 6
                       ? 'border-red-500'
-                      : 'border-slate-300 focus:border-amber-400'
+                      : 'border-amber-300 focus:border-amber-500'
                   }`}
               />
               {isPinMatched && (
-                <div className="text-center text-[11px] text-emerald-400 font-bold mt-1 flex items-center justify-center gap-1">
+                <div className="text-center text-[11px] text-emerald-700 font-bold mt-1 flex items-center justify-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Mã bảo mật chính xác!
                 </div>
               )}

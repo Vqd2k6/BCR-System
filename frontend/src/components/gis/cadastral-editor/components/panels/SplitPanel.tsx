@@ -879,7 +879,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                   borderRadius: '0.35rem',
                   fontSize: '0.675rem',
                   fontWeight: 700,
-                  backgroundColor: showNeighbors ? '#475569' : 'rgb(var(--bg-white))',
+                  backgroundColor: showNeighbors ? 'rgb(var(--text-slate-600))' : 'rgb(var(--bg-white))',
                   color: showNeighbors ? '#ffffff' : 'rgb(var(--text-slate-600))',
                   border: '1px solid rgb(var(--border-slate-300))',
                   cursor: 'pointer',
@@ -970,7 +970,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                     }}
                   >
                     <Tooltip direction="center" opacity={0.92}>
-                      <div style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: '#1e293b', backgroundColor: 'rgba(255,255,255,0.92)', padding: '2px 4px', borderRadius: '3px', border: '1px solid #cbd5e1' }}>
+                      <div style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: 'rgb(var(--text-slate-800))', backgroundColor: 'rgba(255,255,255,0.92)', padding: '2px 4px', borderRadius: '3px', border: '1px solid rgb(var(--border-slate-300))' }}>
                         {nb.projectParcelCode || nb.houseNumber}
                       </div>
                     </Tooltip>

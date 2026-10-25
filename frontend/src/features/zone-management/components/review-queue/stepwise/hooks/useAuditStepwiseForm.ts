@@ -77,10 +77,18 @@ interface RecomputeFloorLike {
   structuralElements?: RecomputeElementLike[];
 }
 
+const IMPACT_LABELS_MAP: Record<'I1' | 'I2' | 'I3' | 'I4', string> = {
+  I1: 'I1 (Tác động rất nhẹ)',
+  I2: 'I2 (Tác động nhẹ)',
+  I3: 'I3 (Tác động trung bình)',
+  I4: 'I4 (Tác động nghiêm trọng)',
+};
+
 function recomputeDerivedPhase1State(
   nextState: Record<string, unknown>,
   changedTopKey: string,
-  changedChildKey?: string
+  changedChildKey?: string,
+  dirtyKeys?: Set<string>
 ): Record<string, unknown> {
   const updated = { ...nextState };
 
@@ -210,9 +218,30 @@ function recomputeDerivedPhase1State(
     };
 
     const curExec = ((updated.executiveSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+    // Nếu Admin sửa trực tiếp cự ly tim hầm (metroOffsetDistance / manualMetroDistanceM) ở Bước 1 mà chưa sửa riêng clearanceOffsetDistance,
+    // đồng bộ luôn cự ly đường bao ngoài để Bước 8 tính toán Impact theo đúng thông số vừa cập nhật ở trên (không bị kẹt ở 0m cũ).
+    if (
+      (changedTopKey === 'metroOffsetDistance' || changedTopKey === 'manualMetroDistanceM') &&
+      !dirtyKeys?.has('clearanceOffsetDistance')
+    ) {
+      const curClearanceStr = String(updated.clearanceOffsetDistance ?? '').trim();
+      if (!/không có ga/i.test(curClearanceStr)) {
+        const nextDistVal = String(updated[changedTopKey] ?? '').trim();
+        if (nextDistVal !== '') {
+          updated.clearanceOffsetDistance = nextDistVal;
+        }
+      }
+    }
+
+    const effectiveClearanceForImpact =
+      (changedTopKey === 'metroOffsetDistance' || changedTopKey === 'manualMetroDistanceM') &&
+      !dirtyKeys?.has('clearanceOffsetDistance')
+        ? ((updated.manualMetroDistanceM || updated.metroOffsetDistance) as string)
+        : (updated.clearanceOffsetDistance as string);
+
     const autoImpact = calculateConstructionImpact(
       (updated.objectGroup as string) || 'GENERAL',
-      updated.clearanceOffsetDistance as string,
+      effectiveClearanceForImpact,
       (updated.manualMetroDistanceM || updated.metroOffsetDistance) as string
     );
     const isImpactTriggerKey = [
@@ -222,7 +251,11 @@ function recomputeDerivedPhase1State(
       'objectGroup',
       'parcelCoordinates',
     ].includes(changedTopKey);
-    const curImpactStr = String(curExec.constructionImpactStatus || autoImpact.label);
+    const rawCurImpactStr = String(curExec.constructionImpactStatus || '').trim();
+    const curImpactStr =
+      !rawCurImpactStr || rawCurImpactStr.toUpperCase() === 'PENDING'
+        ? IMPACT_LABELS_MAP[autoImpact.code]
+        : rawCurImpactStr;
     const effectiveICode = (
       isImpactTriggerKey
         ? autoImpact.code
@@ -232,7 +265,9 @@ function recomputeDerivedPhase1State(
             ? 'I3'
             : curImpactStr.startsWith('I2')
               ? 'I2'
-              : 'I1'
+              : curImpactStr.startsWith('I1')
+                ? 'I1'
+                : autoImpact.code
     ) as 'I1' | 'I2' | 'I3' | 'I4';
     const braRes = calculateBraRisk(nextVi.viClass, effectiveICode);
     const nextBraStatus =
@@ -246,7 +281,14 @@ function recomputeDerivedPhase1State(
 
     updated.executiveSummary = {
       ...curExec,
-      ...(isImpactTriggerKey ? { constructionImpactStatus: autoImpact.label } : {}),
+      ...(isImpactTriggerKey
+        ? {
+            constructionImpactStatus: IMPACT_LABELS_MAP[autoImpact.code],
+            impactOverrideReason: '',
+            isImpactOverridden: false,
+            isBraOverridden: false,
+          }
+        : {}),
       braStatus: nextBraStatus,
     };
   } else if (changedTopKey === 'ecs' || changedTopKey === 'vi') {
@@ -396,11 +438,22 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       : (data.clearanceOffsetDistance !== undefined && data.clearanceOffsetDistance !== '' ? String(data.clearanceOffsetDistance) : '');
 
     let fallbackClosestVertex: [number, number] | null = null;
-    if (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates) {
+    if (
+      Array.isArray(sJson.parcelCoordinates) ||
+      Array.isArray(sJson.polygonCoords) ||
+      data.cadastralGeojson ||
+      data.cadastral_geojson ||
+      data.coordinates ||
+      data.parcelCoordinates
+    ) {
       try {
         let pCoords: [number, number][] = [];
         const rawGeo = data.cadastralGeojson || data.cadastral_geojson;
-        if (rawGeo) {
+        if (Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3) {
+          pCoords = sJson.parcelCoordinates;
+        } else if (Array.isArray(sJson.polygonCoords) && sJson.polygonCoords.length >= 3) {
+          pCoords = sJson.polygonCoords;
+        } else if (rawGeo) {
           const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : (rawGeo as { type?: string; coordinates?: [number, number][][] });
           if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
             pCoords = parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
@@ -414,10 +467,14 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         if (pCoords.length >= 3) {
           const metrics = calculateComprehensiveMetroSpatialMetrics(pCoords);
           fallbackClosestVertex = metrics.closestCenterVertex || pCoords[0];
-          if (!defaultMetroDist) defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
-          // Nếu nhà ga cán qua / cắt xén thửa đất, khoảng cách bao ngoài bắt buộc là 0.0m
-          if (!defaultClearanceDist || metrics.isStationIntersectsParcel) {
-            defaultClearanceDist = metrics.distanceToOuterBoundaryMeters.toFixed(1);
+          if (!defaultMetroDist) {
+            defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
+          }
+          if (!defaultClearanceDist) {
+            defaultClearanceDist =
+              metrics.outerBoundaryType === 'STATION_OUTLINE'
+                ? metrics.distanceToOuterBoundaryMeters.toFixed(1)
+                : 'Không có ga trong khu vực';
           }
         }
       } catch (e) {
@@ -631,14 +688,56 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       vi: sJson.vi || {},
       gateDecision: sJson.gateDecision || { decision: 'ALLOW', reason: '' },
 
-      // Step 8: Conclusions & BRA
-      executiveSummary: sJson.executiveSummary || {
-        braStatus: data.braStatus || 'LOW',
-        constructionImpactStatus: 'I1 (Tác động rất nhẹ)',
-        keyRisksDefectsText: '',
-        specificRecommendationsText: data.engineeringRecommendations || '',
-        summaryConclusions: data.summaryConclusions || '',
-      },
+      // Step 8: Conclusions & BRA (Chuẩn hóa PENDING / tự động tính theo cự ly hiện hành)
+      executiveSummary: (() => {
+        const rawExec = (sJson.executiveSummary || {}) as Record<string, unknown>;
+        const initObjGroup = String(sJson.objectGroup || bSpecs.buildingGrade || bSpecs.building_grade || 'GENERAL');
+        const initAutoImpact = calculateConstructionImpact(
+          initObjGroup,
+          defaultClearanceDist || undefined,
+          (sJson.manualMetroDistanceM ?? data.manualMetroDistanceM ?? defaultMetroDist) || undefined
+        );
+        const rawImpact = String(rawExec.constructionImpactStatus || '').trim();
+        const hasValidSavedOverride =
+          /^I[1-4]/i.test(rawImpact) &&
+          Boolean(rawExec.isImpactOverridden) &&
+          Boolean(rawExec.impactOverrideReason && String(rawExec.impactOverrideReason).trim().length >= 5);
+        const resolvedImpactLabel = hasValidSavedOverride
+          ? rawImpact
+          : IMPACT_LABELS_MAP[initAutoImpact.code];
+        const resolvedICode = (
+          resolvedImpactLabel.startsWith('I4')
+            ? 'I4'
+            : resolvedImpactLabel.startsWith('I3')
+              ? 'I3'
+              : resolvedImpactLabel.startsWith('I2')
+                ? 'I2'
+                : 'I1'
+        ) as 'I1' | 'I2' | 'I3' | 'I4';
+        const initViObj = (sJson.vi || {}) as { viClass?: string; viAvg?: number; avgVi?: number };
+        const initViAvg = Number(initViObj.viAvg ?? initViObj.avgVi ?? 0);
+        const initViClass =
+          initViObj.viClass ||
+          (initViAvg > 3.25 ? 'VERY_HIGH' : initViAvg > 2.5 ? 'HIGH' : initViAvg > 1.5 ? 'MEDIUM' : 'LOW');
+        const initBraEval = calculateBraRisk(initViClass, resolvedICode);
+        const computedBraCode = initBraEval.riskLevel.toUpperCase().replace(/\s+/g, '_');
+        const rawBra = String(rawExec.braStatus || data.braStatus || '').trim().toUpperCase().replace(/\s+/g, '_');
+        const resolvedBra =
+          rawBra && rawBra !== 'PENDING' && Boolean(rawExec.isBraOverridden)
+            ? rawBra
+            : computedBraCode;
+
+        return {
+          ...rawExec,
+          braStatus: resolvedBra,
+          constructionImpactStatus: resolvedImpactLabel,
+          isImpactOverridden: hasValidSavedOverride,
+          impactOverrideReason: hasValidSavedOverride ? String(rawExec.impactOverrideReason || '') : '',
+          keyRisksDefectsText: String(rawExec.keyRisksDefectsText ?? ''),
+          specificRecommendationsText: String(rawExec.specificRecommendationsText ?? data.engineeringRecommendations ?? ''),
+          summaryConclusions: String(rawExec.summaryConclusions ?? data.summaryConclusions ?? ''),
+        };
+      })(),
       summaryConclusions: sJson.summaryConclusions || data.summaryConclusions || '',
 
       // Step 9: Signatures & Absence
@@ -684,7 +783,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
   // Handle direct field change
   const handleFieldChange = useCallback((fieldKey: string, label: string, val: unknown) => {
-    setFormState((prev) => recomputeDerivedPhase1State({ ...prev, [fieldKey]: val }, fieldKey));
+    const activeDirtyKeys = new Set(Object.keys(dirtyFieldsRef.current));
+    setFormState((prev) => recomputeDerivedPhase1State({ ...prev, [fieldKey]: val }, fieldKey, undefined, activeDirtyKeys));
 
     const originalVal = originalStateRef.current[fieldKey];
     if (JSON.stringify(originalVal) === JSON.stringify(val)) {
@@ -1247,6 +1347,9 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       if (topKey === 'floors' || topKey === 'damageZones') {
         updatesPayload.burlandSummary = formStateRef.current.burlandSummary;
       }
+      if (topKey === 'metroOffsetDistance' || topKey === 'manualMetroDistanceM') {
+        updatesPayload.clearanceOffsetDistance = formStateRef.current.clearanceOffsetDistance;
+      }
       if (STEP_1_TO_5_SCORING_KEYS.has(topKey) || topKey === 'ecs' || topKey === 'vi' || topKey === 'executiveSummary') {
         hasScoringKeyChanged = true;
       }
@@ -1280,19 +1383,42 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     onOpenDiffModal(diffItems, updatesPayload);
   };
 
-  const scrollToStep = (id: string) => {
+  const programmaticScrollLockUntilRef = useRef<number>(0);
+
+  const scrollToStep = useCallback((id: string) => {
+    programmaticScrollLockUntilRef.current = Date.now() + 900;
     setActiveNavStep(id);
+    if (id !== 'step-4') {
+      setActiveSubNavId('');
+    }
     const container = document.getElementById('audit-studio-scroll-container');
     const element = document.getElementById(id);
     if (container && element) {
       const containerRect = container.getBoundingClientRect();
       const elementRect = element.getBoundingClientRect();
-      const offsetTop = elementRect.top - containerRect.top + container.scrollTop - 16;
+      const offsetTop = Math.max(0, elementRect.top - containerRect.top + container.scrollTop - 16);
       container.scrollTo({ top: offsetTop, behavior: 'smooth' });
     } else if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  };
+  }, []);
+
+  const scrollToSubElement = useCallback((domId: string, parentStepId: string = 'step-4') => {
+    programmaticScrollLockUntilRef.current = Date.now() + 900;
+    setActiveNavStep(parentStepId);
+    setActiveSubNavId(domId);
+    const container = document.getElementById('audit-studio-scroll-container');
+    const target = document.getElementById(domId);
+    if (container && target) {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const stickyOffset = parentStepId === 'step-4' ? 60 : 16;
+      const offsetTop = Math.max(0, targetRect.top - containerRect.top + container.scrollTop - stickyOffset);
+      container.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    } else if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   // Scrollspy 2 cấp: Tự động highlight cả Step chính (step-1..9) và Mục con Bước 4 (CAD_Z, Z, CAD_E, E)
   useEffect(() => {
@@ -1313,8 +1439,15 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
     let ticking = false;
     const handleScroll = () => {
+      if (Date.now() < programmaticScrollLockUntilRef.current) {
+        return;
+      }
       if (!ticking) {
         window.requestAnimationFrame(() => {
+          if (Date.now() < programmaticScrollLockUntilRef.current) {
+            ticking = false;
+            return;
+          }
           const containerRect = container.getBoundingClientRect();
           let currentStep = stepIds[0];
 
@@ -1365,6 +1498,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     activeSubNavId,
     setActiveSubNavId,
     scrollToStep,
+    scrollToSubElement,
     formState,
     dirtyFields,
     dirtyCount,

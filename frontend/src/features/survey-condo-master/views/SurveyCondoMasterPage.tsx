@@ -19,6 +19,13 @@ import { CloudPhotoSyncModal } from '../../survey-phase1/components/CloudPhotoSy
 import { auditSurveyPhotos } from '../../survey-phase1/utils/photoSyncAudit';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
+import {
+  rehydrateIdentificationPhotos,
+  rehydrateDeformationAssessment,
+  type BackendIdentificationPhotoRow,
+  type BackendDeformationRow,
+} from '../../survey-phase1/mappers/surveyRehydration.adapter';
+import type { EvidencePhotoItem, Phase1SurveyFormData } from '../../survey-phase1/types/phase1.types';
 
 export interface SurveyCondoMasterPageProps {
   parcel?: GisParcel | null;
@@ -159,48 +166,59 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
               if (s.structural_system && !updates.structureSystem) updates.structureSystem = String(s.structural_system);
               if (s.construction_area_m2 && !updates.constructionAreaM2) updates.constructionAreaM2 = Number(s.construction_area_m2);
               if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = Number(s.building_height_m);
-            }
 
-            // Bảo toàn ảnh định danh P01 - P04 từ bảng survey_identification_photos
-            if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
-              (rep.identificationPhotos as Array<Record<string, unknown>>).forEach((p) => {
-                const rawUrl = String(p.raw_photo_url || '');
-                const isNotApp = Boolean(p.is_not_applicable);
-
-                if (p.photo_type === 'P01_HOUSE_NUMBER') {
-                  const cur = updates.photoP01 as { url?: string } | undefined;
-                  if (!cur?.url && rawUrl) {
-                    updates.photoP01 = { url: rawUrl, notApplicable: isNotApp };
-                  }
-                } else if (p.photo_type === 'P02_MAIN_FACADE') {
-                  const cur = updates.photoP02 as { url?: string; polygonPoints?: unknown[]; floorSplits?: unknown[]; widthM?: string; heightM?: string } | undefined;
-                  if (!cur?.url && rawUrl) {
-                    updates.photoP02 = {
-                      url: rawUrl,
-                      notApplicable: isNotApp,
-                      polygonPoints: (p.facade_polygon_points_json as { x: number; y: number }[]) || cur?.polygonPoints || [],
-                      floorSplits: p.floor_split_lines_json || cur?.floorSplits || [],
-                      widthM: cur?.widthM || '',
-                      heightM: cur?.heightM || '',
-                    };
-                  }
-                } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
-                  const cur = updates.photoP03 as { url?: string; tag?: string } | undefined;
-                  if (!cur?.url && rawUrl) {
-                    const dim = p.dimensions_json as { tag?: string } | undefined;
-                    updates.photoP03 = {
-                      url: rawUrl,
-                      notApplicable: isNotApp,
-                      tag: dim?.tag || cur?.tag || 'Bên hông trái',
-                    };
-                  }
-                } else if (p.photo_type === 'P04_CONTEXT_STREET') {
-                  const cur = updates.photoP04 as { url?: string } | undefined;
-                  if (!cur?.url && rawUrl) {
-                    updates.photoP04 = { url: rawUrl, notApplicable: isNotApp };
+              // [CC-01] Khôi phục đầy đủ danh sách ảnh bản vẽ hoàn công asBuiltDrawingPhotos
+              const rawAsBuilt = s.as_built_drawing_photos_json ?? s.as_built_drawing_photos;
+              if (
+                (!Array.isArray(updates.asBuiltDrawingPhotos) || updates.asBuiltDrawingPhotos.length === 0) &&
+                rawAsBuilt
+              ) {
+                const parsedAsBuilt =
+                  typeof rawAsBuilt === 'string'
+                    ? (() => {
+                        try {
+                          return JSON.parse(rawAsBuilt) as EvidencePhotoItem[];
+                        } catch {
+                          return [];
+                        }
+                      })()
+                    : Array.isArray(rawAsBuilt)
+                    ? (rawAsBuilt as EvidencePhotoItem[])
+                    : [];
+                if (parsedAsBuilt.length > 0) {
+                  updates.asBuiltDrawingPhotos = parsedAsBuilt;
+                  if (!updates.asBuiltDrawingPhotoUrl) {
+                    updates.asBuiltDrawingPhotoUrl = parsedAsBuilt[0]?.url || '';
                   }
                 }
-              });
+              }
+            }
+
+            // [CC-01] Bảo toàn ảnh định danh P01 - P04 (bao gồm photoCode, freehandStrokes và P03 additionalPhotos) qua Trụ cột 3
+            if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
+              const rehydratedPhotos = rehydrateIdentificationPhotos(
+                rep.identificationPhotos as BackendIdentificationPhotoRow[],
+                {
+                  photoP01: updates.photoP01 as Phase1SurveyFormData['photoP01'] | undefined,
+                  photoP02: updates.photoP02 as Phase1SurveyFormData['photoP02'] | undefined,
+                  photoP03: updates.photoP03 as Phase1SurveyFormData['photoP03'] | undefined,
+                  photoP04: updates.photoP04 as Phase1SurveyFormData['photoP04'] | undefined,
+                }
+              );
+              if (rehydratedPhotos.photoP01) updates.photoP01 = rehydratedPhotos.photoP01;
+              if (rehydratedPhotos.photoP02) updates.photoP02 = rehydratedPhotos.photoP02;
+              if (rehydratedPhotos.photoP03) updates.photoP03 = rehydratedPhotos.photoP03;
+              if (rehydratedPhotos.photoP04) updates.photoP04 = rehydratedPhotos.photoP04;
+            }
+
+            // [CC-01] Khôi phục dữ liệu biến dạng Lún / Nghiêng của Tòa nhà mẹ nếu thiếu trong JSON
+            if (!updates.settlementTilt && rep.deformation) {
+              const rehydratedDeform = rehydrateDeformationAssessment(
+                rep.deformation as BackendDeformationRow
+              );
+              if (rehydratedDeform) {
+                updates.settlementTilt = rehydratedDeform;
+              }
             }
 
             if (Object.keys(updates).length > 0) {

@@ -498,9 +498,10 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
                   : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}
               title={
-                isStrictOrientation
+                orientationRecommendation ||
+                (isStrictOrientation
                   ? `Quy chuẩn A4 bắt buộc: Ảnh cần xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}.`
-                  : `Khuyến nghị: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'}.`
+                  : `Khuyến nghị: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'}.`)
               }
             >
               {isStrictOrientation ? (
@@ -511,7 +512,13 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               ) : (
                 <>
                   <Lightbulb className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                  <span>Gợi ý xoay</span>
+                  <span>
+                    {expectedOrientation === 'PORTRAIT'
+                      ? 'Khuyến nghị Dọc'
+                      : expectedOrientation === 'LANDSCAPE'
+                        ? 'Khuyến nghị Ngang'
+                        : 'Gợi ý xoay'}
+                  </span>
                 </>
               )}
             </span>

@@ -4,6 +4,8 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { createCondoUnitPhotoOptions } from '../../../components/common/photo-capture/domain/photoIdentityPolicy';
+import { upsertPhotoUrlList } from '../../../components/common/photo-capture/domain/photoCollectionMutator';
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
@@ -236,6 +238,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           'parcel-code': parcelCode,
           'unit-code': unitCode,
           'photo-code': photoCode,
+          'survey-parcel-id': formData.parcelId || '',
+          'unit-id': formData.unitId || '',
+          'area-type': 'CONDO_UNIT',
         },
         filename
       );
@@ -258,6 +263,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           'parcel-code': parcelCode,
           'unit-code': unitCode,
           'photo-code': photoCode,
+          'survey-parcel-id': formData.parcelId || '',
+          'unit-id': formData.unitId || '',
+          'area-type': 'CONDO_UNIT',
         },
         onSuccess: async (publicUrl) => {
           await markOfflinePhotoUploaded(localId, publicUrl);
@@ -341,7 +349,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 break;
               }
             }
-          } catch (_) {}
+          } catch (_fpErr) {
+            console.warn('[CondoUnit] Bỏ qua tầng không khả dụng khi dò mặt bằng:', _fpErr);
+          }
         }
       }
 
@@ -517,7 +527,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   break;
                 }
               }
-            } catch (_) {}
+            } catch (_fpErr) {
+            console.warn('[CondoUnit] Bỏ qua tầng không khả dụng khi dò mặt bằng:', _fpErr);
+          }
           }
         }
       }
@@ -1023,11 +1035,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     onChange={(url) => {
                       if (url) void importCadWithStorageAndQueue(url, null, 'ZONE');
                     }}
-                    watermarkOptions={{
-                      parcelCode: bCode,
+                    watermarkOptions={createCondoUnitPhotoOptions({
+                      buildingCode: bCode,
+                      unitCode: formData.unitCode,
+                      floorCode,
                       floor: `Tầng ${formData.floorNumber}`,
                       zoneOrRoom: formData.displayCode || formData.unitCode,
-                    }}
+                      photoType: 'CAD_ARCH',
+                      photoIndex: 1,
+                    })}
                     photoCode={`CAD_ARCH_${formData.unitCode}`}
                     allowPdf={true}
                     pdfFloorName={`Tầng ${formData.floorNumber}`}
@@ -1054,10 +1070,19 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               }}
               mode="ZONE"
               floorName={`Căn hộ ${formData.unitCode}`}
-              parcelCode={formData.unitCode}
+              parcelCode={bCode}
               cadTitle={`Sơ đồ mặt bằng kiến trúc CAD_01 (Căn ${formData.unitCode}):`}
               readOnly={isReadOnly}
               isCadLocked={isCadHardLocked}
+              watermarkOptions={createCondoUnitPhotoOptions({
+                buildingCode: bCode,
+                unitCode: formData.unitCode,
+                floorCode,
+                floor: `Tầng ${formData.floorNumber}`,
+                zoneOrRoom: formData.displayCode || formData.unitCode,
+                photoType: 'CAD_ARCH',
+                photoIndex: 1,
+              })}
             />
           </Card>
 
@@ -1234,21 +1259,19 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         if (url) {
                           const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
                           const curPhotos: string[] = curZone?.overviewPhotos || [];
-                          if (curPhotos.includes(url)) return;
-                          const base = meta?.replacesUri
-                            ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
-                            : curPhotos;
-                          const updated = Array.from(new Set(base.includes(url) ? base : [...base, url]));
+                          const updated = upsertPhotoUrlList(curPhotos, url, meta);
                           updateZone(activeZoneIndex, { overviewPhotos: updated });
                         }
                       }}
-                      watermarkOptions={{
-                        parcelCode: bCode,
+                      watermarkOptions={createCondoUnitPhotoOptions({
+                        buildingCode: bCode,
+                        unitCode: formData.unitCode,
+                        floorCode,
                         floor: `Tầng ${formData.floorNumber}`,
                         zoneOrRoom: activeZone.zoneCode,
                         photoType: 'OVERVIEW',
                         photoIndex: (activeZone.overviewPhotos?.length || 0) + 1,
-                      }}
+                      })}
                       height="96px"
                     />
                   )}
@@ -1331,13 +1354,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       }
                       recommendedOrientation="landscape"
                       orientationHint="Chụp ảnh NGANG (4:3) bao quát mảng tường hoặc trần cần ghi sổ"
-                      watermarkOptions={{
-                        parcelCode: bCode,
+                      watermarkOptions={createCondoUnitPhotoOptions({
+                        buildingCode: bCode,
+                        unitCode: formData.unitCode,
+                        floorCode,
                         floor: `Tầng ${formData.floorNumber}`,
                         zoneOrRoom: activeZone.zoneCode,
                         photoType: 'CTX',
                         photoIndex: 1,
-                      }}
+                      })}
                       height="120px"
                     />
 
@@ -1567,11 +1592,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         onChange={(url) => {
                           if (url) void importCadWithStorageAndQueue(url, null, 'STRUCTURAL');
                         }}
-                        watermarkOptions={{
-                          parcelCode: bCode,
+                        watermarkOptions={createCondoUnitPhotoOptions({
+                          buildingCode: bCode,
+                          unitCode: formData.unitCode,
+                          floorCode,
                           floor: `Tầng ${formData.floorNumber}`,
                           zoneOrRoom: formData.displayCode || formData.unitCode,
-                        }}
+                          photoType: 'CAD_STRUCT',
+                          photoIndex: 1,
+                        })}
                         photoCode={`CAD_STRUCT_${formData.unitCode}`}
                         allowPdf={true}
                         pdfFloorName={`Tầng ${formData.floorNumber}`}
@@ -1598,10 +1627,19 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   }}
                   mode="STRUCTURAL"
                   floorName={`Căn hộ ${formData.displayCode || formData.unitCode}`}
-                  parcelCode={formData.unitCode}
+                  parcelCode={bCode}
                   cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (Căn ${formData.displayCode || formData.unitCode}):`}
                   readOnly={isReadOnly}
                   isCadLocked={isCadHardLocked}
+                  watermarkOptions={createCondoUnitPhotoOptions({
+                    buildingCode: bCode,
+                    unitCode: formData.unitCode,
+                    floorCode,
+                    floor: `Tầng ${formData.floorNumber}`,
+                    zoneOrRoom: formData.displayCode || formData.unitCode,
+                    photoType: 'CAD_STRUCT',
+                    photoIndex: 1,
+                  })}
                 />
               </Card>
 
@@ -1781,11 +1819,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             if (url) {
                               const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
                               const curPhotos: string[] = curElem?.overviewPhotos || [];
-                              if (curPhotos.includes(url)) return;
-                              const base = meta?.replacesUri
-                                ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
-                                : curPhotos;
-                              const updated = Array.from(new Set(base.includes(url) ? base : [...base, url]));
+                              const updated = upsertPhotoUrlList(curPhotos, url, meta);
                               const curCtx = curElem?.ctxPhotoUrl;
                               const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
                               updateElement(activeElementIndex, {
@@ -1794,13 +1828,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                               });
                             }
                           }}
-                          watermarkOptions={{
-                            parcelCode: bCode,
+                          watermarkOptions={createCondoUnitPhotoOptions({
+                            buildingCode: bCode,
+                            unitCode: formData.unitCode,
+                            floorCode,
                             floor: `Tầng ${formData.floorNumber}`,
                             zoneOrRoom: activeElement.elementCode,
                             photoType: 'OVERVIEW',
                             photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
-                          }}
+                          })}
                           height="96px"
                         />
                       )}
@@ -1882,13 +1918,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             })
                           }
                           recommendedOrientation="landscape"
-                          watermarkOptions={{
-                            parcelCode: bCode,
+                          watermarkOptions={createCondoUnitPhotoOptions({
+                            buildingCode: bCode,
+                            unitCode: formData.unitCode,
+                            floorCode,
                             floor: `Tầng ${formData.floorNumber}`,
                             zoneOrRoom: activeElement.elementCode,
                             photoType: 'CTX',
                             photoIndex: 1,
-                          }}
+                          })}
                           height="120px"
                         />
 
@@ -2058,17 +2096,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 value={beamSagging.photoUrl || ''}
                 readOnly={isReadOnly}
                 onChange={(url) => handleUpdateBeamSagging(undefined, undefined, undefined, url)}
-                watermarkOptions={{
-                  parcelCode: bCode,
+                watermarkOptions={createCondoUnitPhotoOptions({
                   buildingCode: bCode,
+                  unitCode: formData.unitCode,
                   floorCode,
                   floor: floorCode,
-                  unitCode: formData.unitCode,
-                  areaType: 'CONDO_UNIT',
                   category: 'deformation',
-                  photoType: 'DEFORMATION',
+                  photoType: 'SAGGING',
                   zoneOrRoom: beamSagging.location || undefined,
-                }}
+                })}
                 height="100px"
               />
             </div>
@@ -2112,11 +2148,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           }}
           onClose={() => setPinningModalState(null)}
           readOnly={isReadOnly}
-          watermarkOptions={{
-            parcelCode: bCode,
+          watermarkOptions={createCondoUnitPhotoOptions({
+            buildingCode: bCode,
+            unitCode: formData.unitCode,
+            floorCode,
             floor: `Tầng ${formData.floorNumber}`,
             zoneOrRoom: pinningModalState.code,
-          }}
+          })}
         />
       )}
 

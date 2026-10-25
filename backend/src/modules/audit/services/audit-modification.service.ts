@@ -29,6 +29,8 @@ export interface PhotoActionItem {
   metadata?: Record<string, any>;
   defectCode?: string;
   defectId?: string;
+  zoneCode?: string;
+  floorCode?: string;
   deleteDefectItem?: boolean;
   pinX?: number;
   pinY?: number;
@@ -188,9 +190,26 @@ export class AuditModificationService {
     if (!payload.adminPassword || !payload.adminPassword.trim()) {
       throw new UnauthorizedError('Bắt buộc nhập mật khẩu Zone Admin để xác thực quyền sửa đổi.');
     }
-    if (!payload.editReason || !payload.editReason.trim()) {
-      throw new BadRequestError('Bắt buộc phải chọn hoặc nhập lý do chỉnh sửa kiểm toán (editReason) trước khi lưu.');
+
+    // Tự động tổng hợp mô tả kiểm toán (Auto-Summary) nếu client không truyền editReason thủ công
+    const autoSummaryParts: string[] = [];
+    if (Array.isArray(payload.diffPayload) && payload.diffPayload.length > 0) {
+      const sampleLabels = payload.diffPayload
+        .slice(0, 4)
+        .map((d) => d.label || d.field)
+        .join('; ');
+      autoSummaryParts.push(
+        `Chuẩn hóa ${payload.diffPayload.length} trường (${sampleLabels}${payload.diffPayload.length > 4 ? ` +${payload.diffPayload.length - 4} mục` : ''})`
+      );
     }
+    if (Array.isArray(payload.photoActions) && payload.photoActions.length > 0) {
+      autoSummaryParts.push(`${payload.photoActions.length} thao tác ảnh hiện trường`);
+    }
+    const resolvedEditReason =
+      (payload.editReason && payload.editReason.trim()) ||
+      autoSummaryParts.join(' • ') ||
+      'Cập nhật chuẩn hóa dữ liệu thẩm định kỹ thuật';
+    payload.editReason = resolvedEditReason;
 
     // 1. Kiểm tra mật khẩu tài khoản Admin
     const userRes = await Database.query<{ password_hash: string; role: string; full_name: string }>(
@@ -288,7 +307,7 @@ export class AuditModificationService {
       const manualCenterlineM = parseMeters(uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM);
       const manualOuterM = parseMeters(uUpdates.clearanceOffsetDistance ?? uUpdates.stationEdgeDistance);
 
-      if (!didPolygonCoordsChange && manualCenterlineM !== null) {
+      if (manualCenterlineM !== null && (!didPolygonCoordsChange || String(uUpdates.metroOffsetDistance ?? '') !== String(existingJson.metroOffsetDistance ?? ''))) {
         recalculatedCenterlineM = manualCenterlineM;
         mergedJson.metroOffsetDistance = String(uUpdates.metroOffsetDistance ?? `${manualCenterlineM.toFixed(1)}m`);
       } else {
@@ -298,7 +317,7 @@ export class AuditModificationService {
         }
       }
 
-      if (!didPolygonCoordsChange && manualOuterM !== null) {
+      if (manualOuterM !== null && (!didPolygonCoordsChange || String(uUpdates.clearanceOffsetDistance ?? '') !== String(existingJson.clearanceOffsetDistance ?? ''))) {
         recalculatedOuterM = manualOuterM;
         mergedJson.clearanceOffsetDistance = String(uUpdates.clearanceOffsetDistance ?? `${manualOuterM.toFixed(1)}m`);
         mergedJson.stationEdgeDistance = String(uUpdates.stationEdgeDistance ?? mergedJson.clearanceOffsetDistance);
@@ -343,12 +362,24 @@ export class AuditModificationService {
       });
     } else if (
       uUpdates.metroOffsetDistance !== undefined ||
+      uUpdates.clearanceOffsetDistance !== undefined ||
       uUpdates.manualMetroDistanceM !== undefined ||
       uUpdates.distanceToMetroM !== undefined
     ) {
-      recalculatedCenterlineM = parseMeters(
-        uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM
-      );
+      if (
+        uUpdates.metroOffsetDistance !== undefined ||
+        uUpdates.manualMetroDistanceM !== undefined ||
+        uUpdates.distanceToMetroM !== undefined
+      ) {
+        recalculatedCenterlineM = parseMeters(
+          uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM
+        );
+      }
+      if (uUpdates.clearanceOffsetDistance !== undefined) {
+        recalculatedOuterM = parseMeters(uUpdates.clearanceOffsetDistance);
+        mergedJson.clearanceOffsetDistance = String(uUpdates.clearanceOffsetDistance);
+        mergedJson.stationEdgeDistance = String(uUpdates.clearanceOffsetDistance);
+      }
     }
 
     // 3.1. Gatekeeper CAT 1/2: Bắt buộc phải có ít nhất 1 bản vẽ hoàn công
@@ -877,6 +908,7 @@ export class AuditModificationService {
       }
 
       // 4.6. Đồng bộ floor_surveys, damage_zones & defect_items nếu floors hoặc damageZones thay đổi (Reconciliation & Soft-Delete)
+      const clientDefectIdToUuid = new Map<string, string>();
       if (u.floors || u.damageZones) {
         const floorsToSync = Array.isArray(u.floors) && u.floors.length > 0
           ? u.floors
@@ -1172,6 +1204,10 @@ export class AuditModificationService {
                     defectId = dRes.rows[0].id;
                     claimedDefectIds.add(defectId);
                   }
+                  if (d.id && String(d.id) !== defectId) {
+                    clientDefectIdToUuid.set(String(d.id), defectId);
+                  }
+                  clientDefectIdToUuid.set(`defect_f${fIdx}_z${zCode}_${dCode}`, defectId);
                   d.id = defectId;
                   if (!isDefectDeleted) {
                     activeDefectIds.add(defectId);
@@ -1376,6 +1412,10 @@ export class AuditModificationService {
                     defectId = dRes.rows[0].id;
                     claimedDefectIds.add(defectId);
                   }
+                  if (d.id && String(d.id) !== defectId) {
+                    clientDefectIdToUuid.set(String(d.id), defectId);
+                  }
+                  clientDefectIdToUuid.set(`defect_f${fIdx}_e${elCode}_${dCode}`, defectId);
                   d.id = defectId;
                   if (!isDefectDeleted) {
                     activeDefectIds.add(defectId);
@@ -1468,6 +1508,14 @@ export class AuditModificationService {
       // 4.7. Xử lý các thao tác hình ảnh (Thêm, Xóa, Thay thế) nếu có trong payload Diff
       if (Array.isArray(payload.photoActions) && payload.photoActions.length > 0) {
         for (const pa of payload.photoActions) {
+          const rawPaDefectId = (pa as any).defectId || pa.metadata?.defectId;
+          if (rawPaDefectId && clientDefectIdToUuid.has(String(rawPaDefectId))) {
+            const mappedUuid = clientDefectIdToUuid.get(String(rawPaDefectId))!;
+            (pa as any).defectId = mappedUuid;
+            if (pa.metadata && typeof pa.metadata === 'object') {
+              pa.metadata.defectId = mappedUuid;
+            }
+          }
           await AuditModificationService.applySinglePhotoActionInTx(
             client,
             actualReportId,
@@ -1475,6 +1523,15 @@ export class AuditModificationService {
             adminId,
             mergedJson,
             pa
+          );
+        }
+        // Đồng bộ lại damageZones từ floors nếu có thay đổi trong floors
+        if (Array.isArray(mergedJson.floors)) {
+          mergedJson.damageZones = mergedJson.floors.flatMap((fl: any) =>
+            (Array.isArray(fl.zones) ? fl.zones : []).map((z: any) => ({
+              ...z,
+              floorName: z.floorName || fl.floorName,
+            }))
           );
         }
         // Cập nhật lại survey_data_json sau khi photoActions cập nhật các mảng ảnh trong mergedJson
@@ -2007,15 +2064,22 @@ export class AuditModificationService {
 
       // 3.4. Thực thi photo actions
       for (const pa of params.stagedPhotoActions || []) {
+        const paRec = pa as unknown as Record<string, unknown>;
         const photoItem: PhotoActionItem = {
           action: pa.action,
           category: pa.category as any,
           targetPhotoType: pa.photoType,
           newPhotoUrl: pa.photoUrl,
-          oldPhotoUrl: undefined,
+          oldPhotoUrl: typeof paRec.oldPhotoUrl === 'string' ? paRec.oldPhotoUrl : undefined,
           targetPhotoId: pa.targetPhotoId,
+          defectId: typeof paRec.defectId === 'string' ? paRec.defectId : undefined,
+          defectCode: typeof paRec.defectCode === 'string' ? paRec.defectCode : undefined,
+          zoneCode: typeof paRec.zoneCode === 'string' ? paRec.zoneCode : undefined,
+          floorCode: typeof paRec.floorCode === 'string' ? paRec.floorCode : undefined,
+          photoIndex: typeof paRec.photoIndex === 'number' ? paRec.photoIndex : undefined,
           caption: pa.photoTitle || pa.caption,
           reason: pa.editReason || pa.reason || params.editReason,
+          metadata: (typeof paRec.metadata === 'object' && paRec.metadata !== null ? paRec.metadata : undefined) as Record<string, any> | undefined,
         };
         await AuditModificationService.applySinglePhotoActionInTx(
           client,
@@ -2718,12 +2782,15 @@ export class AuditModificationService {
                d.id::text = $1
                OR (
                  d.defect_code = $2
-                 AND ($4::text IS NULL OR z.zone_code = $4 OR z.id::text = $4)
+                 AND ($4::text IS NOT NULL AND (z.zone_code = $4 OR z.id::text = $4))
                  AND ($5::text IS NULL OR z.floor_name = $5)
                )
-             );`,
+             )
+           ORDER BY CASE WHEN d.id::text = $1 THEN 0 ELSE 1 END
+           LIMIT 1;`,
           [targetDefId, targetDefCode, reportId, paZoneCode, paFloorCode]
         );
+        const resolvedDefectUuid = dRes.rows[0]?.id ? String(dRes.rows[0].id) : null;
         if (dRes.rows[0]) {
           const dItem = dRes.rows[0];
           const photos = Array.isArray(dItem.cu_photos_json) ? [...dItem.cu_photos_json] : [];
@@ -2740,17 +2807,7 @@ export class AuditModificationService {
         }
         if (Array.isArray(surveyJson.floors)) {
           const idx = Number(pa.photoIndex) || 0;
-          const matchAndUpdateDefect = (df: any, ownerCode?: string, flName?: string) => {
-            if (paFloorCode && flName && flName !== paFloorCode) return;
-            if (paZoneCode && ownerCode && ownerCode !== paZoneCode) return;
-            const matched =
-              (paDefectId && df.id === paDefectId) ||
-              df.id === pa.targetPhotoId ||
-              df.defectCode === pa.targetPhotoId ||
-              df.defectCode === pa.defectCode ||
-              df.defectCode === photoCode ||
-              (oldUrl && (df.cuPhotoUrl === oldUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(oldUrl))));
-            if (!matched) return;
+          const applyReplaceToDefectObj = (df: any) => {
             df.isDeleted = false;
             if (!Array.isArray(df.cuPhotos)) {
               df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
@@ -2766,23 +2823,60 @@ export class AuditModificationService {
               df.cuPhotoUrl = newUrl;
             }
           };
+
+          let matchedById = false;
           for (const fl of surveyJson.floors) {
-            const flName = fl.floorName || fl.floor_name || '';
-            if (Array.isArray(fl.zones)) {
-              for (const zn of fl.zones) {
-                const znCode = zn.zoneCode || zn.zone_code || '';
-                if (Array.isArray(zn.defects)) {
-                  for (const df of zn.defects) matchAndUpdateDefect(df, znCode, flName);
+            const allGroups = [...(Array.isArray(fl.zones) ? fl.zones : []), ...(Array.isArray(fl.structuralElements) ? fl.structuralElements : [])];
+            for (const grp of allGroups) {
+              if (!Array.isArray(grp.defects)) continue;
+              for (const df of grp.defects) {
+                if (
+                  (resolvedDefectUuid && df.id === resolvedDefectUuid) ||
+                  (paDefectId && df.id === paDefectId)
+                ) {
+                  applyReplaceToDefectObj(df);
+                  matchedById = true;
+                  break;
                 }
               }
+              if (matchedById) break;
             }
-            if (Array.isArray(fl.structuralElements)) {
-              for (const el of fl.structuralElements) {
-                const elCode = el.elementCode || el.element_code || '';
-                if (Array.isArray(el.defects)) {
-                  for (const df of el.defects) matchAndUpdateDefect(df, elCode, flName);
+            if (matchedById) break;
+          }
+
+          if (!matchedById) {
+            let matchedFallback = false;
+            for (const fl of surveyJson.floors) {
+              const flName = fl.floorName || fl.floor_name || '';
+              if (paFloorCode && flName && flName !== paFloorCode) continue;
+              const checkGroup = (items: any[], getCode: (g: any) => string) => {
+                for (const grp of items) {
+                  const ownerCode = getCode(grp);
+                  if (paZoneCode && ownerCode !== paZoneCode) continue;
+                  if (!Array.isArray(grp.defects)) continue;
+                  for (const df of grp.defects) {
+                    const dfCode = df.defectCode || df.defect_code;
+                    const isCodeMatch =
+                      Boolean(paZoneCode) &&
+                      (dfCode === targetDefCode || dfCode === pa.defectCode || dfCode === pa.targetPhotoId);
+                    const isOldUrlMatch = Boolean(
+                      oldUrl && (df.cuPhotoUrl === oldUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(oldUrl)))
+                    );
+                    if (isCodeMatch || isOldUrlMatch) {
+                      applyReplaceToDefectObj(df);
+                      matchedFallback = true;
+                      return;
+                    }
+                  }
                 }
+              };
+              if (Array.isArray(fl.zones)) {
+                checkGroup(fl.zones, (zn) => zn.zoneCode || zn.zone_code || '');
               }
+              if (!matchedFallback && Array.isArray(fl.structuralElements)) {
+                checkGroup(fl.structuralElements, (el) => el.elementCode || el.element_code || '');
+              }
+              if (matchedFallback) break;
             }
           }
         }
@@ -3096,12 +3190,70 @@ export class AuditModificationService {
                  d.id::text = $1
                  OR (
                    d.defect_code = $2
-                   AND ($4::text IS NULL OR z.zone_code = $4 OR z.id::text = $4)
+                   AND ($4::text IS NOT NULL AND (z.zone_code = $4 OR z.id::text = $4))
                    AND ($5::text IS NULL OR z.floor_name = $5)
                  )
-               );`,
+               )
+             ORDER BY CASE WHEN d.id::text = $1 THEN 0 ELSE 1 END
+             LIMIT 1;`,
             [targetDefId, targetDefCode, reportId, paZoneCode, paFloorCode]
           );
+
+          const appendCuUrlToDefectObj = (df: any) => {
+            if (!Array.isArray(df.cuPhotos)) {
+              df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
+            }
+            if (!df.cuPhotos.includes(url)) {
+              df.cuPhotos.push(url);
+            }
+            if (!df.cuPhotoUrl) {
+              df.cuPhotoUrl = url;
+            }
+            df.isDeleted = false;
+          };
+
+          const updateSingleJsonDefectForAdd = (resolvedUuid?: string | null): boolean => {
+            if (!Array.isArray(surveyJson.floors)) return false;
+            // Pass 1: Match strictly by defect UUID / paDefectId
+            for (const fl of surveyJson.floors) {
+              const allGroups = [...(Array.isArray(fl.zones) ? fl.zones : []), ...(Array.isArray(fl.structuralElements) ? fl.structuralElements : [])];
+              for (const grp of allGroups) {
+                if (!Array.isArray(grp.defects)) continue;
+                for (const df of grp.defects) {
+                  if (
+                    (resolvedUuid && df.id === resolvedUuid) ||
+                    (paDefectId && df.id === paDefectId)
+                  ) {
+                    appendCuUrlToDefectObj(df);
+                    return true;
+                  }
+                }
+              }
+            }
+            // Pass 2: Fallback by (floorCode, zoneCode, defectCode) ONLY when paZoneCode is provided
+            if (!paZoneCode) return false;
+            for (const fl of surveyJson.floors) {
+              const flName = fl.floorName || fl.floor_name || '';
+              if (paFloorCode && flName && flName !== paFloorCode) continue;
+              const allGroups = [
+                ...(Array.isArray(fl.zones) ? fl.zones.map((zn: any) => ({ grp: zn, code: zn.zoneCode || zn.zone_code || '' })) : []),
+                ...(Array.isArray(fl.structuralElements) ? fl.structuralElements.map((el: any) => ({ grp: el, code: el.elementCode || el.element_code || '' })) : []),
+              ];
+              for (const { grp, code } of allGroups) {
+                if (code !== paZoneCode) continue;
+                if (!Array.isArray(grp.defects)) continue;
+                for (const df of grp.defects) {
+                  const dfCode = df.defectCode || df.defect_code;
+                  if (dfCode && (dfCode === targetDefCode || dfCode === pa.defectCode || dfCode === pa.targetPhotoId)) {
+                    appendCuUrlToDefectObj(df);
+                    return true;
+                  }
+                }
+              }
+            }
+            return false;
+          };
+
           if (dRes.rows[0]) {
             const dItem = dRes.rows[0];
             const photos = Array.isArray(dItem.cu_photos_json) ? [...dItem.cu_photos_json] : [];
@@ -3113,102 +3265,10 @@ export class AuditModificationService {
               `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2, is_deleted = false WHERE id = $3;`,
               [primaryCu, JSON.stringify(photos), dItem.id]
             );
-            if (Array.isArray(surveyJson.floors)) {
-              const appendToExistingJsonDefect = (df: any, ownerCode?: string, flName?: string) => {
-                if (paFloorCode && flName && flName !== paFloorCode) return;
-                if (paZoneCode && ownerCode && ownerCode !== paZoneCode) return;
-                if (
-                  (paDefectId && df.id === paDefectId) ||
-                  df.id === targetDefId ||
-                  df.defectCode === targetDefCode ||
-                  df.defectCode === pa.defectCode ||
-                  df.defectCode === photoCode
-                ) {
-                  if (!Array.isArray(df.cuPhotos)) {
-                    df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
-                  }
-                  if (!df.cuPhotos.includes(url)) {
-                    df.cuPhotos.push(url);
-                  }
-                  if (!df.cuPhotoUrl) {
-                    df.cuPhotoUrl = url;
-                  }
-                  df.isDeleted = false;
-                }
-              };
-              for (const fl of surveyJson.floors) {
-                const flName = fl.floorName || fl.floor_name || '';
-                if (Array.isArray(fl.zones)) {
-                  for (const zn of fl.zones) {
-                    const znCode = zn.zoneCode || zn.zone_code || '';
-                    if (Array.isArray(zn.defects)) {
-                      for (const df of zn.defects) appendToExistingJsonDefect(df, znCode, flName);
-                    }
-                  }
-                }
-                if (Array.isArray(fl.structuralElements)) {
-                  for (const el of fl.structuralElements) {
-                    const elCode = el.elementCode || el.element_code || '';
-                    if (Array.isArray(el.defects)) {
-                      for (const df of el.defects) appendToExistingJsonDefect(df, elCode, flName);
-                    }
-                  }
-                }
-              }
-            }
+            updateSingleJsonDefectForAdd(String(dItem.id));
           } else {
-            // Kiểm tra xem defectCode đã tồn tại trong surveyJson.floors chưa trước khi tạo mới
-            let updatedInJsonOnly = false;
-            if ((targetDefId || targetDefCode) && Array.isArray(surveyJson.floors)) {
-              for (const fl of surveyJson.floors) {
-                const flName = fl.floorName || fl.floor_name || '';
-                if (paFloorCode && flName && flName !== paFloorCode) continue;
-                if (Array.isArray(fl.zones)) {
-                  for (const zn of fl.zones) {
-                    const znCode = zn.zoneCode || zn.zone_code || '';
-                    if (paZoneCode && znCode && znCode !== paZoneCode) continue;
-                    if (Array.isArray(zn.defects)) {
-                      for (const df of zn.defects) {
-                        if (
-                          (paDefectId && df.id === paDefectId) ||
-                          df.id === targetDefId ||
-                          df.defectCode === targetDefCode
-                        ) {
-                          if (!Array.isArray(df.cuPhotos)) {
-                            df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
-                          }
-                          if (!df.cuPhotos.includes(url)) df.cuPhotos.push(url);
-                          if (!df.cuPhotoUrl) df.cuPhotoUrl = url;
-                          updatedInJsonOnly = true;
-                        }
-                      }
-                    }
-                  }
-                }
-                if (Array.isArray(fl.structuralElements)) {
-                  for (const el of fl.structuralElements) {
-                    const elCode = el.elementCode || el.element_code || '';
-                    if (paZoneCode && elCode && elCode !== paZoneCode) continue;
-                    if (Array.isArray(el.defects)) {
-                      for (const df of el.defects) {
-                        if (
-                          (paDefectId && df.id === paDefectId) ||
-                          df.id === targetDefId ||
-                          df.defectCode === targetDefCode
-                        ) {
-                          if (!Array.isArray(df.cuPhotos)) {
-                            df.cuPhotos = df.cuPhotoUrl ? [df.cuPhotoUrl] : [];
-                          }
-                          if (!df.cuPhotos.includes(url)) df.cuPhotos.push(url);
-                          if (!df.cuPhotoUrl) df.cuPhotoUrl = url;
-                          updatedInJsonOnly = true;
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            // Kiểm tra xem defect đã tồn tại trong surveyJson.floors chưa trước khi tạo mới
+            const updatedInJsonOnly = updateSingleJsonDefectForAdd(null);
 
             if (!updatedInJsonOnly) {
               // Tạo mới defect_item liên kết với zone_id kèm tọa độ ghim pin_x, pin_y
@@ -3242,20 +3302,26 @@ export class AuditModificationService {
               const defType = pa.metadata?.defectType || 'HAIRLINE';
               const actState = pa.metadata?.activityState || 'U';
 
+              let newInsertedDefectId = `defect_${Date.now()}`;
               if (targetZoneId) {
-                await client.query(
+                const insDefRes = await client.query(
                   `INSERT INTO defect_items (
                      zone_id, defect_code, pin_x, pin_y, cu_photo_url, cu_photos_json,
                      screening_category, defect_type, activity_state,
                      width_max_mm, length_mm, material_degradation_e4, structural_significance_e2,
                      has_scale_card, is_structural_critical, pin_color
-                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0, true, false, '#ef4444');`,
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0, true, false, '#ef4444')
+                   RETURNING id;`,
                   [targetZoneId, dCode, pX, pY, url, JSON.stringify([url]), scrCat, defType, actState, wMm, lMm]
                 );
+                if (insDefRes.rows[0]?.id) {
+                  newInsertedDefectId = String(insDefRes.rows[0].id);
+                }
               }
 
-              // Đồng bộ vào survey_data_json (cả fl.zones và fl.structuralElements)
+              // Đồng bộ vào survey_data_json (cả fl.zones và fl.structuralElements) - chỉ chèn vào đúng 1 zone/element khớp
               if (Array.isArray(surveyJson.floors)) {
+                let insertedIntoJson = false;
                 for (const fl of surveyJson.floors) {
                   const flName = fl.floorName || fl.floor_name || '';
                   if (paFloorCode && flName && flName !== paFloorCode) continue;
@@ -3264,7 +3330,7 @@ export class AuditModificationService {
                       if (zn.zoneCode === zCode || zn.zone_code === zCode || !zCode) {
                         if (!Array.isArray(zn.defects)) zn.defects = [];
                         zn.defects.push({
-                          id: `defect_${Date.now()}`,
+                          id: newInsertedDefectId,
                           defectCode: dCode,
                           pinX: pX,
                           pinY: pY,
@@ -3276,16 +3342,17 @@ export class AuditModificationService {
                           defectType: defType,
                           activityState: actState,
                         });
+                        insertedIntoJson = true;
                         break;
                       }
                     }
                   }
-                  if (Array.isArray(fl.structuralElements)) {
+                  if (!insertedIntoJson && Array.isArray(fl.structuralElements)) {
                     for (const el of fl.structuralElements) {
                       if (el.elementCode === zCode || el.id === zCode) {
                         if (!Array.isArray(el.defects)) el.defects = [];
                         el.defects.push({
-                          id: `defect_${Date.now()}`,
+                          id: newInsertedDefectId,
                           defectCode: dCode,
                           pinX: pX,
                           pinY: pY,
@@ -3297,10 +3364,12 @@ export class AuditModificationService {
                           defectType: defType,
                           activityState: actState,
                         });
+                        insertedIntoJson = true;
                         break;
                       }
                     }
                   }
+                  if (insertedIntoJson) break;
                 }
               }
             }
@@ -3481,18 +3550,31 @@ export class AuditModificationService {
       if (cat === 'DEFECT_CU' || type === 'DEFECT_CU' || type === 'CU') {
         const targetDefId = paDefectId || pa.targetPhotoId || null;
         const targetDefCode = pa.defectCode || pa.targetPhotoId || null;
+        let resolvedDelDefectUuid: string | null = null;
         if (pa.deleteDefectItem) {
-          await client.query(
+          const delRes = await client.query(
             `UPDATE defect_items SET is_deleted = true 
-             WHERE zone_id IN (
-               SELECT id FROM damage_zones
-               WHERE report_id = $3
-                 AND ($4::text IS NULL OR zone_code = $4 OR id::text = $4)
-                 AND ($5::text IS NULL OR floor_name = $5)
+             WHERE id IN (
+               SELECT d.id FROM defect_items d
+               JOIN damage_zones z ON d.zone_id = z.id
+               WHERE z.report_id = $3
+                 AND (
+                   d.id::text = $1
+                   OR (
+                     d.defect_code = $2
+                     AND ($4::text IS NOT NULL AND (z.zone_code = $4 OR z.id::text = $4))
+                     AND ($5::text IS NULL OR z.floor_name = $5)
+                   )
+                 )
+               ORDER BY CASE WHEN d.id::text = $1 THEN 0 ELSE 1 END
+               LIMIT 1
              )
-               AND (id::text = $1 OR defect_code = $2);`,
+             RETURNING id;`,
             [targetDefId, targetDefCode, reportId, paZoneCode, paFloorCode]
           );
+          if (delRes.rows[0]?.id) {
+            resolvedDelDefectUuid = String(delRes.rows[0].id);
+          }
         } else {
           const dRes = await client.query(
             `SELECT d.id, d.cu_photo_url, d.cu_photos_json 
@@ -3503,17 +3585,39 @@ export class AuditModificationService {
                  d.id::text = $1
                  OR (
                    d.defect_code = $2
-                   AND ($4::text IS NULL OR z.zone_code = $4 OR z.id::text = $4)
+                   AND ($4::text IS NOT NULL AND (z.zone_code = $4 OR z.id::text = $4))
                    AND ($5::text IS NULL OR z.floor_name = $5)
                  )
-               );`,
+               )
+             ORDER BY CASE WHEN d.id::text = $1 THEN 0 ELSE 1 END
+             LIMIT 1;`,
             [targetDefId, targetDefCode, reportId, paZoneCode, paFloorCode]
           );
           if (dRes.rows[0]) {
             const dItem = dRes.rows[0];
-            let photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
+            resolvedDelDefectUuid = String(dItem.id);
+            let photos: any[] =
+              Array.isArray(dItem.cu_photos_json) && dItem.cu_photos_json.length > 0
+                ? [...dItem.cu_photos_json]
+                : dItem.cu_photo_url
+                ? [dItem.cu_photo_url]
+                : [];
+            const prevLen = photos.length;
             photos = photos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
-            const newPrimary = photos.length > 0 ? (typeof photos[0] === 'string' ? photos[0] : photos[0]?.url) : '';
+            if (
+              photos.length === prevLen &&
+              typeof pa.photoIndex === 'number' &&
+              pa.photoIndex >= 0 &&
+              pa.photoIndex < photos.length
+            ) {
+              photos.splice(pa.photoIndex, 1);
+            }
+            const newPrimary =
+              photos.length > 0
+                ? typeof photos[0] === 'string'
+                  ? photos[0]
+                  : photos[0]?.url || null
+                : null;
             await client.query(
               `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2 WHERE id = $3;`,
               [newPrimary, JSON.stringify(photos), dItem.id]
@@ -3521,44 +3625,93 @@ export class AuditModificationService {
           }
         }
         if (Array.isArray(surveyJson.floors)) {
-          const deleteFromJsonDefect = (df: any, ownerCode?: string, flName?: string) => {
-            if (paFloorCode && flName && flName !== paFloorCode) return;
-            if (paZoneCode && ownerCode && ownerCode !== paZoneCode) return;
-            if (
-              (paDefectId && df.id === paDefectId) ||
-              df.id === pa.targetPhotoId ||
-              df.defectCode === pa.targetPhotoId ||
-              df.defectCode === photoCode ||
-              df.defectCode === pa.defectCode ||
-              (targetUrl && (df.cuPhotoUrl === targetUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(targetUrl))))
-            ) {
-              if (pa.deleteDefectItem) {
-                df.isDeleted = true;
-              } else if (Array.isArray(df.cuPhotos)) {
-                df.cuPhotos = df.cuPhotos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
-                df.cuPhotoUrl = df.cuPhotos.length > 0 ? (typeof df.cuPhotos[0] === 'string' ? df.cuPhotos[0] : df.cuPhotos[0]?.url) : null;
-              } else if (df.cuPhotoUrl === targetUrl) {
-                df.cuPhotoUrl = null;
+          const applyDeleteOnJsonDefect = (df: any) => {
+            if (pa.deleteDefectItem) {
+              df.isDeleted = true;
+              df.is_deleted = true;
+            } else {
+              const existingCuList: any[] =
+                Array.isArray(df.cuPhotos) && df.cuPhotos.length > 0
+                  ? [...df.cuPhotos]
+                  : df.cuPhotoUrl
+                  ? [df.cuPhotoUrl]
+                  : df.cu_photo_url
+                  ? [df.cu_photo_url]
+                  : [];
+              const prevLen = existingCuList.length;
+              const nextCuList = existingCuList.filter((p: any) =>
+                typeof p === 'string' ? p !== targetUrl : (p?.url || p?.photoUrl) !== targetUrl
+              );
+              if (
+                nextCuList.length === prevLen &&
+                typeof pa.photoIndex === 'number' &&
+                pa.photoIndex >= 0 &&
+                pa.photoIndex < nextCuList.length
+              ) {
+                nextCuList.splice(pa.photoIndex, 1);
               }
+              const nextPrimary =
+                nextCuList.length > 0
+                  ? typeof nextCuList[0] === 'string'
+                    ? nextCuList[0]
+                    : nextCuList[0]?.url || nextCuList[0]?.photoUrl || null
+                  : null;
+              df.cuPhotos = nextCuList;
+              df.cuPhotoUrl = nextPrimary;
+              df.cu_photo_url = nextPrimary;
             }
           };
+
+          let matchedDelById = false;
           for (const fl of surveyJson.floors) {
-            const flName = fl.floorName || fl.floor_name || '';
-            if (Array.isArray(fl.zones)) {
-              for (const zn of fl.zones) {
-                const znCode = zn.zoneCode || zn.zone_code || '';
-                if (Array.isArray(zn.defects)) {
-                  for (const df of zn.defects) deleteFromJsonDefect(df, znCode, flName);
+            const allGroups = [...(Array.isArray(fl.zones) ? fl.zones : []), ...(Array.isArray(fl.structuralElements) ? fl.structuralElements : [])];
+            for (const grp of allGroups) {
+              if (!Array.isArray(grp.defects)) continue;
+              for (const df of grp.defects) {
+                if (
+                  (resolvedDelDefectUuid && df.id === resolvedDelDefectUuid) ||
+                  (paDefectId && df.id === paDefectId)
+                ) {
+                  applyDeleteOnJsonDefect(df);
+                  matchedDelById = true;
+                  break;
                 }
               }
+              if (matchedDelById) break;
             }
-            if (Array.isArray(fl.structuralElements)) {
-              for (const el of fl.structuralElements) {
-                const elCode = el.elementCode || el.element_code || '';
-                if (Array.isArray(el.defects)) {
-                  for (const df of el.defects) deleteFromJsonDefect(df, elCode, flName);
+            if (matchedDelById) break;
+          }
+
+          if (!matchedDelById) {
+            let matchedDelFallback = false;
+            for (const fl of surveyJson.floors) {
+              const flName = fl.floorName || fl.floor_name || '';
+              if (paFloorCode && flName && flName !== paFloorCode) continue;
+              const allGroups = [
+                ...(Array.isArray(fl.zones) ? fl.zones.map((zn: any) => ({ grp: zn, code: zn.zoneCode || zn.zone_code || '' })) : []),
+                ...(Array.isArray(fl.structuralElements) ? fl.structuralElements.map((el: any) => ({ grp: el, code: el.elementCode || el.element_code || '' })) : []),
+              ];
+              for (const { grp, code } of allGroups) {
+                if (paZoneCode && code !== paZoneCode) continue;
+                if (!Array.isArray(grp.defects)) continue;
+                for (const df of grp.defects) {
+                  const dfCode = df.defectCode || df.defect_code;
+                  const isCodeMatch = Boolean(paZoneCode) && (dfCode === targetDefCode || dfCode === pa.defectCode || dfCode === pa.targetPhotoId);
+                  const isUrlMatch = Boolean(
+                    targetUrl &&
+                      (df.cuPhotoUrl === targetUrl ||
+                        df.cu_photo_url === targetUrl ||
+                        (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(targetUrl)))
+                  );
+                  if (isCodeMatch || isUrlMatch) {
+                    applyDeleteOnJsonDefect(df);
+                    matchedDelFallback = true;
+                    break;
+                  }
                 }
+                if (matchedDelFallback) break;
               }
+              if (matchedDelFallback) break;
             }
           }
         }

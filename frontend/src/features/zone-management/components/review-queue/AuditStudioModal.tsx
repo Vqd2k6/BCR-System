@@ -19,6 +19,8 @@ import {
   MapPin,
   Loader2,
   MoreVertical,
+  KeyRound,
+  Lock,
 } from 'lucide-react';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
@@ -27,9 +29,10 @@ import { RejectReportModal } from './RejectReportModal';
 import { EngineeringJudgementModal } from './EngineeringJudgementModal';
 import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
 import { AuditStepwiseDocumentView } from './stepwise/AuditStepwiseDocumentView';
-import { CondoUnitAuditStudioView } from './condo/CondoUnitAuditStudioView';
-import { CondoMasterAreaAuditStudioView } from './condo/CondoMasterAreaAuditStudioView';
-import { CondoMasterAuditStudioView } from './condo/CondoMasterAuditStudioView';
+import {
+  CondoAuditStudioEntry,
+  resolveCondoEntityKind,
+} from './condo/CondoAuditStudioEntry';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActionModal';
@@ -168,10 +171,36 @@ export const AuditStudioModal: React.FC<Props> = ({
   const [selectedPhotoRotation, setSelectedPhotoRotation] = useState<number>(0);
   const [selectedPhotoCode, setSelectedPhotoCode] = useState<string>('');
 
+  // Modal xác thực 6 chữ số ngẫu nhiên bắt buộc trước khi Phê Duyệt Hồ Sơ (Approve)
+  const [showApproveConfirmModal, setShowApproveConfirmModal] = useState(false);
+  const [generatedApprovePin, setGeneratedApprovePin] = useState<string>('');
+  const [enteredApprovePin, setEnteredApprovePin] = useState<string>('');
+
+  const generateNewApprovePin = () => {
+    const random = Math.floor(100000 + Math.random() * 900000);
+    setGeneratedApprovePin(String(random));
+    setEnteredApprovePin('');
+  };
+
+  const openApprovePinModal = () => {
+    generateNewApprovePin();
+    setShowApproveConfirmModal(true);
+  };
+
   // Đánh giá chuẩn hóa thông tin địa chỉ thửa đất theo NQ 1685
+  // Nếu Admin đã chấp nhận địa chỉ chuẩn hóa A4 (standardizedAddress) và khóa 4 ô con gốc KSV thì ghi nhận đã chuẩn hóa hợp lệ.
   const currentAddressEval = React.useMemo(() => {
     if (!data) return null;
     const sJson = data.surveyJson || data.survey_data_json || {};
+    const acceptedStandardizedAddress =
+      pendingDirtyData.updates.standardizedAddress !== undefined
+        ? String(pendingDirtyData.updates.standardizedAddress || '').trim()
+        : String(
+            sJson.standardizedAddress ||
+              (data as Record<string, unknown>).standardizedAddress ||
+              ''
+          ).trim();
+
     const rawHn = pendingDirtyData.updates.houseNumber !== undefined
       ? String(pendingDirtyData.updates.houseNumber)
       : (typeof sJson.houseNumber === 'string' ? sJson.houseNumber : typeof data.houseNumber === 'string' ? data.houseNumber : undefined);
@@ -186,7 +215,19 @@ export const AuditStudioModal: React.FC<Props> = ({
       : (typeof sJson.district === 'string' ? sJson.district : typeof data.district === 'string' ? data.district : undefined);
     const zoneId = data.zoneId || data.zone_id || (typeof sJson.zoneId === 'string' ? sJson.zoneId : undefined);
 
-    return evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+    const evalResult = evaluateAddressStandard(rawHn, rawStreet, rawWard, rawDistrict, zoneId);
+    if (acceptedStandardizedAddress.length > 0) {
+      return {
+        ...evalResult,
+        isCompliant: true,
+        hasAnomalies: false,
+        isContaminated: false,
+        anomalyReasons: [],
+        diffCount: 0,
+      };
+    }
+
+    return evalResult;
   }, [data, pendingDirtyData.updates]);
 
   const fetchAuditData = async () => {
@@ -257,7 +298,8 @@ export const AuditStudioModal: React.FC<Props> = ({
   };
 
   const getPhotoActionFieldKey = (act: PhotoActionPayload): string => {
-    const base = `photo_action_${act.category || 'GEN'}_${act.targetPhotoId || act.targetPhotoType || act.photoCode || 'photo'}`;
+    const scopePart = [act.floorCode, act.zoneCode, act.defectId].filter(Boolean).join('_');
+    const base = `photo_action_${act.category || 'GEN'}_${scopePart ? `${scopePart}_` : ''}${act.targetPhotoId || act.targetPhotoType || act.photoCode || 'photo'}`;
     if (act.action === 'ADD') {
       const addId = act.newPhotoUrl || (act.newPhotoUrls && act.newPhotoUrls[0]) || String(Date.now());
       return `${base}_ADD_${addId}`;
@@ -269,6 +311,51 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   // Handle Confirm Photo Action from AuditPhotoActionModal with In-Session Coalescence
   const handleConfirmPhotoAction = (action: PhotoActionPayload) => {
+    // 0. Nếu người dùng bấm XÓA một ảnh vừa mới THÊM (Optimistic ADD) trong cùng phiên (và không chọn xóa cả mục D):
+    // Tự động gỡ bỏ ảnh đó khỏi hành động ADD (và gỡ khỏi stagedPhotoDiffs) để ảnh ẩn ngay lập tức khỏi giao diện!
+    if (action.action === 'DELETE' && action.oldPhotoUrl && !action.deleteDefectItem) {
+      const targetDelUrl = action.oldPhotoUrl.trim();
+      const matchingAddAction = stagedPhotoActions.find((a) => {
+        if (a.action !== 'ADD') return false;
+        const urls = a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []);
+        return urls.some((u) => u.trim() === targetDelUrl);
+      });
+
+      if (matchingAddAction) {
+        const oldAddKey = getPhotoActionFieldKey(matchingAddAction);
+        const existingUrls =
+          matchingAddAction.newPhotoUrls || (matchingAddAction.newPhotoUrl ? [matchingAddAction.newPhotoUrl] : []);
+        const remainingUrls = existingUrls.filter((u) => u.trim() !== targetDelUrl);
+
+        if (remainingUrls.length === 0) {
+          setStagedPhotoActions((prev) => prev.filter((a) => a !== matchingAddAction));
+          setStagedPhotoDiffs((prev) => prev.filter((d) => d.field !== oldAddKey));
+        } else {
+          const updatedAddAction: PhotoActionPayload = {
+            ...matchingAddAction,
+            newPhotoUrl: remainingUrls[0],
+            newPhotoUrls: remainingUrls,
+          };
+          const newAddKey = getPhotoActionFieldKey(updatedAddAction);
+          setStagedPhotoActions((prev) => prev.map((a) => (a === matchingAddAction ? updatedAddAction : a)));
+          setStagedPhotoDiffs((prev) =>
+            prev.map((d) =>
+              d.field === oldAddKey
+                ? {
+                    ...d,
+                    field: newAddKey,
+                    label: `[Ảnh Bổ Sung] ${updatedAddAction.photoCode || updatedAddAction.targetPhotoType || 'Ảnh'} (${remainingUrls.length} ảnh)`,
+                    newValue: remainingUrls[0],
+                  }
+                : d
+            )
+          );
+        }
+        setPhotoActionData((prev) => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
     const targetKey = getPhotoActionFieldKey(action);
 
     // 1. Tự động gộp (Coalesce) thông minh trên stagedPhotoActions (chỉ gộp REPLACE/DELETE trên cùng 1 slot ảnh, KHÔNG gộp ADD)
@@ -281,6 +368,9 @@ export const AuditStudioModal: React.FC<Props> = ({
         (a) =>
           a.action !== 'ADD' &&
           a.category === action.category &&
+          (action.floorCode && a.floorCode ? a.floorCode === action.floorCode : true) &&
+          (action.zoneCode && a.zoneCode ? a.zoneCode === action.zoneCode : true) &&
+          (action.defectId && a.defectId ? a.defectId === action.defectId : true) &&
           (action.targetPhotoId ? a.targetPhotoId === action.targetPhotoId : true) &&
           (action.targetPhotoType ? a.targetPhotoType === action.targetPhotoType : true) &&
           a.photoIndex === action.photoIndex &&
@@ -342,6 +432,63 @@ export const AuditStudioModal: React.FC<Props> = ({
       })
     );
     setStagedPhotoDiffs((prev) => prev.filter((d) => d.field !== fieldKeyToUndo));
+  };
+
+  // Lớp bảo vệ thứ 2: Tự động xác định khuyết tật D có nhiều hơn 1 ảnh CU hiệu lực hay không (phòng trường hợp caller thiếu hasMultiplePhotos)
+  const resolveHasMultipleCuPhotos = (params: Partial<AuditPhotoActionParams>): boolean | undefined => {
+    if (params.hasMultiplePhotos !== undefined) return params.hasMultiplePhotos;
+    const isCu =
+      params.category === 'DEFECT_CU' ||
+      params.targetPhotoType === 'CU' ||
+      Boolean(params.targetPhotoType?.includes('DEFECT'));
+    if (!isCu) return undefined;
+
+    const sJson = (data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>;
+    const rawFloors = (pendingDirtyData.updates.floors || sJson.floors || []) as Array<Record<string, unknown>>;
+    const targetDefectId = params.defectId ? String(params.defectId) : '';
+    const targetDefectCode = String(params.defectCode || params.targetPhotoId || '');
+    const targetZoneCode = params.zoneCode ? String(params.zoneCode) : '';
+
+    for (const fl of rawFloors) {
+      const zones = (Array.isArray(fl.zones) ? fl.zones : []) as Array<Record<string, unknown>>;
+      const elements = (Array.isArray(fl.structuralElements) ? fl.structuralElements : []) as Array<Record<string, unknown>>;
+      const containers = [
+        ...zones.map((z) => ({ code: String(z.zoneCode || z.id || ''), defects: (Array.isArray(z.defects) ? z.defects : []) as Array<Record<string, unknown>> })),
+        ...elements.map((e) => ({ code: String(e.elementCode || e.id || ''), defects: (Array.isArray(e.defects) ? e.defects : []) as Array<Record<string, unknown>> })),
+      ];
+
+      for (const c of containers) {
+        if (targetZoneCode && c.code && c.code !== targetZoneCode) continue;
+        for (const def of c.defects) {
+          const dId = def.id ? String(def.id) : '';
+          const dCode = String(def.defectCode || def.defect_code || '');
+          const matched = (targetDefectId && dId === targetDefectId) || (targetDefectCode && dCode === targetDefectCode);
+          if (!matched) continue;
+
+          const cuArr = Array.isArray(def.cuPhotos) && def.cuPhotos.length > 0
+            ? def.cuPhotos
+            : def.cuPhotoUrl
+              ? [def.cuPhotoUrl]
+              : def.cu_photo_url
+                ? [def.cu_photo_url]
+                : [];
+          const matchStaged = (a: PhotoActionPayload) =>
+            (a.category === 'DEFECT_CU' || a.targetPhotoType === 'CU') &&
+            ((targetDefectId && a.defectId === targetDefectId) ||
+              (targetDefectCode && (a.defectCode === targetDefectCode || a.targetPhotoId === targetDefectCode))) &&
+            (!targetZoneCode || !a.zoneCode || a.zoneCode === targetZoneCode);
+
+          const deletedCount = stagedPhotoActions.filter((a) => a.action === 'DELETE' && matchStaged(a)).length;
+          const addedCount = stagedPhotoActions
+            .filter((a) => a.action === 'ADD' && matchStaged(a))
+            .reduce((sum, a) => sum + (Array.isArray(a.newPhotoUrls) && a.newPhotoUrls.length > 0 ? a.newPhotoUrls.length : a.newPhotoUrl ? 1 : 0), 0);
+
+          const activeCount = Math.max(0, cuArr.length - deletedCount) + addedCount;
+          return activeCount > 1;
+        }
+      }
+    }
+    return false;
   };
 
   // E3: Kiểm tra tên chủ hộ thực tế cho hồ sơ khảo sát thường (NORMAL)
@@ -408,18 +555,15 @@ export const AuditStudioModal: React.FC<Props> = ({
       return;
     }
 
-    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
-    if (!window.confirm(confirmMsg)) return;
-
-    await executeApprove();
+    openApprovePinModal();
   };
 
-  const handleDiscardAndApprove = async () => {
+  const handleDiscardAndApprove = () => {
     setShowUnsavedChangesWarning(false);
     setStagedPhotoActions([]);
     setStagedPhotoDiffs([]);
     pendingDirtyData.discardAll(true);
-    await executeApprove();
+    openApprovePinModal();
   };
 
   const handleSaveDiffFirst = () => {
@@ -736,46 +880,60 @@ export const AuditStudioModal: React.FC<Props> = ({
         ) : (
           <div id="audit-studio-scroll-container" className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 max-w-full px-3 sm:px-5 pt-2.5 pb-6 bg-slate-100/70">
             {(() => {
-              const isCondoUnit = Boolean(
-                data?.unitInfo?.unit_type === 'UNIT' ||
-                data?.reportType === 'CONDO_UNIT' ||
-                data?.reportType === 'UNIT_CHILD' ||
-                data?.unitInfo?.unit_code?.startsWith('U-')
-              );
+              const condoEntityKind = resolveCondoEntityKind(data);
 
-              const isMasterArea = Boolean(
-                data?.unitInfo?.unit_type === 'MASTER' ||
-                data?.reportType === 'MASTER_AREA' ||
-                data?.unitInfo?.unit_code?.startsWith('M-')
-              );
-
-              const isCondoMaster = Boolean(
-                (data?.buildingType?.includes('CONDO') || data?.parentBuildingInfo?.buildingType?.includes('CONDO')) &&
-                !data?.unitId &&
-                (data?.reportType === 'CONDO_MASTER' || data?.reportType === 'BUILDING_MASTER' || !data?.reportType)
-              );
-
-              if (isCondoUnit) {
+              if (condoEntityKind) {
                 return (
-                  <CondoUnitAuditStudioView
+                  <CondoAuditStudioEntry
                     data={data || {}}
                     reportId={reportId}
                     onRefresh={fetchAuditData}
-                    onOpenPhotoZoom={(url, title) => {
+                    onOpenPhotoZoom={(url, title, photoCode, rotation) => {
                       setSelectedPhotoUrl(url);
-                      setSelectedPhotoTitle(title || 'Ảnh Căn Hộ');
+                      setSelectedPhotoTitle(title || 'Ảnh Thẩm Định Chung Cư');
+                      setSelectedPhotoCode(photoCode || '');
+                      setSelectedPhotoRotation(rotation || 0);
                       setShowImageZoom(true);
                     }}
                     onOpenPhotoReplace={(params) => {
-                      setPhotoReplaceData({
+                      const resolvedCategory = params.targetPhotoType.includes('DEFECT')
+                        ? 'DEFECT_CU'
+                        : params.targetPhotoType.includes('ZONE')
+                          ? 'ZONE_CTX'
+                          : params.targetPhotoType.includes('FLOOR')
+                            ? 'CAD_FLOOR'
+                            : 'IDENTIFICATION';
+                      setPhotoActionData({
                         isOpen: true,
+                        initialMode: 'REPLACE',
+                        category: resolvedCategory,
                         targetPhotoType: params.targetPhotoType,
                         targetPhotoId: params.targetPhotoId,
                         defectId: params.defectId,
-                        zoneId: params.zoneId,
+                        zoneCode: params.zoneId,
                         photoIndex: params.photoIndex,
                         currentPhotoUrl: params.currentPhotoUrl,
                         photoTitle: params.photoTitle,
+                        hasMultiplePhotos: resolveHasMultipleCuPhotos({
+                          category: resolvedCategory,
+                          targetPhotoType: params.targetPhotoType,
+                          targetPhotoId: params.targetPhotoId,
+                          defectId: params.defectId,
+                          zoneCode: params.zoneId,
+                        }),
+                      });
+                    }}
+                    onOpenPhotoAction={(params) => {
+                      setPhotoActionData({
+                        isOpen: true,
+                        ...params,
+                        hasMultiplePhotos: resolveHasMultipleCuPhotos(params),
+                      });
+                    }}
+                    onOpenPhotoHistory={(params) => {
+                      setPhotoHistoryData({
+                        isOpen: true,
+                        ...params,
                       });
                     }}
                     onOpenDiffModal={(diffItems, updates) => {
@@ -787,81 +945,13 @@ export const AuditStudioModal: React.FC<Props> = ({
                     }}
                     onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
                     onOpenRejectModal={() => setShowRejectModal(true)}
-                    onClose={onClose}
-                  />
-                );
-              }
-
-              if (isMasterArea) {
-                return (
-                  <CondoMasterAreaAuditStudioView
-                    data={data || {}}
-                    reportId={reportId}
-                    onRefresh={fetchAuditData}
-                    onOpenPhotoZoom={(url, title) => {
-                      setSelectedPhotoUrl(url);
-                      setSelectedPhotoTitle(title || 'Ảnh Khu Vực Dùng Chung');
-                      setShowImageZoom(true);
+                    onDirtyChange={setPendingDirtyData}
+                    stagedPhotoActions={stagedPhotoActions}
+                    onUndoPhotoAction={handleUndoPhotoAction}
+                    onDiscardAllStagedPhotos={() => {
+                      setStagedPhotoActions([]);
+                      setStagedPhotoDiffs([]);
                     }}
-                    onOpenPhotoReplace={(params) => {
-                      setPhotoReplaceData({
-                        isOpen: true,
-                        targetPhotoType: params.targetPhotoType,
-                        targetPhotoId: params.targetPhotoId,
-                        defectId: params.defectId,
-                        zoneId: params.zoneId,
-                        photoIndex: params.photoIndex,
-                        currentPhotoUrl: params.currentPhotoUrl,
-                        photoTitle: params.photoTitle,
-                      });
-                    }}
-                    onOpenDiffModal={(diffItems, updates) => {
-                      setDiffModalData({
-                        isOpen: true,
-                        diffItems: [...diffItems, ...stagedPhotoDiffs],
-                        updates,
-                      });
-                    }}
-                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
-                    onOpenRejectModal={() => setShowRejectModal(true)}
-                    onClose={onClose}
-                  />
-                );
-              }
-
-              if (isCondoMaster) {
-                return (
-                  <CondoMasterAuditStudioView
-                    data={data || {}}
-                    reportId={reportId}
-                    onRefresh={fetchAuditData}
-                    onOpenPhotoZoom={(url, title) => {
-                      setSelectedPhotoUrl(url);
-                      setSelectedPhotoTitle(title || 'Ảnh Tòa Mẹ');
-                      setShowImageZoom(true);
-                    }}
-                    onOpenPhotoReplace={(params) => {
-                      setPhotoReplaceData({
-                        isOpen: true,
-                        targetPhotoType: params.targetPhotoType,
-                        targetPhotoId: params.targetPhotoId,
-                        defectId: params.defectId,
-                        zoneId: params.zoneId,
-                        photoIndex: params.photoIndex,
-                        currentPhotoUrl: params.currentPhotoUrl,
-                        photoTitle: params.photoTitle,
-                      });
-                    }}
-                    onOpenDiffModal={(diffItems, updates) => {
-                      setDiffModalData({
-                        isOpen: true,
-                        diffItems: [...diffItems, ...stagedPhotoDiffs],
-                        updates,
-                      });
-                    }}
-                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
-                    onOpenRejectModal={() => setShowRejectModal(true)}
-                    onClose={onClose}
                   />
                 );
               }
@@ -880,16 +970,17 @@ export const AuditStudioModal: React.FC<Props> = ({
                   }}
                   onOrientationAuditChange={setOrientationAudit}
                   onOpenPhotoReplace={(params) => {
+                    const resolvedCategory = params.targetPhotoType.includes('DEFECT')
+                      ? 'DEFECT_CU'
+                      : params.targetPhotoType.includes('ZONE')
+                        ? 'ZONE_CTX'
+                        : params.targetPhotoType.includes('FLOOR')
+                          ? 'CAD_FLOOR'
+                          : 'IDENTIFICATION';
                     setPhotoActionData({
                       isOpen: true,
                       initialMode: 'REPLACE',
-                      category: params.targetPhotoType.includes('DEFECT')
-                        ? 'DEFECT_CU'
-                        : params.targetPhotoType.includes('ZONE')
-                          ? 'ZONE_CTX'
-                          : params.targetPhotoType.includes('FLOOR')
-                            ? 'CAD_FLOOR'
-                            : 'IDENTIFICATION',
+                      category: resolvedCategory,
                       targetPhotoType: params.targetPhotoType,
                       targetPhotoId: params.targetPhotoId,
                       defectId: params.defectId,
@@ -897,12 +988,20 @@ export const AuditStudioModal: React.FC<Props> = ({
                       photoIndex: params.photoIndex,
                       currentPhotoUrl: params.currentPhotoUrl,
                       photoTitle: params.photoTitle,
+                      hasMultiplePhotos: resolveHasMultipleCuPhotos({
+                        category: resolvedCategory,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneCode: params.zoneId,
+                      }),
                     });
                   }}
                   onOpenPhotoAction={(params) => {
                     setPhotoActionData({
                       isOpen: true,
                       ...params,
+                      hasMultiplePhotos: resolveHasMultipleCuPhotos(params),
                     });
                   }}
                   onOpenPhotoHistory={(params) => {
@@ -1066,7 +1165,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={async () => {
+                  onClick={() => {
                     console.warn('[AuditStudioModal] Admin bypassed orientation violation for strict photos:', strictViolations.map(v => v.photoCode || v.key));
                     setShowOrientationWarning(false);
                     // Chaining Gatekeeper: Tiếp tục kiểm tra chốt chặn Địa chỉ NQ 1685 nếu có
@@ -1074,9 +1173,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                       setShowAddressWarning(true);
                       return;
                     }
-                    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode || ''}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
-                    if (!window.confirm(confirmMsg)) return;
-                    await executeApprove();
+                    openApprovePinModal();
                   }}
                   className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
                 >
@@ -1139,11 +1236,9 @@ export const AuditStudioModal: React.FC<Props> = ({
               </button>
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   setShowAddressWarning(false);
-                  const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data?.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
-                  if (!window.confirm(confirmMsg)) return;
-                  await executeApprove();
+                  openApprovePinModal();
                 }}
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
               >
@@ -1153,6 +1248,155 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Xác Thực 6 Chữ Số Ngẫu Nhiên Bắt Buộc Khi Xác Nhận Phê Duyệt Hồ Sơ */}
+      {showApproveConfirmModal && (() => {
+        const isApprovePinMatched =
+          generatedApprovePin.length === 6 && enteredApprovePin.trim() === generatedApprovePin;
+
+        return (
+          <div className="fixed inset-0 z-[105] isolate flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="relative z-[106] bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+              {/* Header */}
+              <div className="px-5 py-4 bg-gradient-to-r from-emerald-50/90 via-teal-50/40 to-white border-b border-slate-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
+                      Xác Nhận Phê Duyệt Hồ Sơ
+                    </h3>
+                    <p className="text-xs text-slate-600 truncate">
+                      Mã thửa: <strong className="font-mono text-emerald-700">{data?.projectParcelCode || reportId}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowApproveConfirmModal(false)}
+                  disabled={isApproving}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-4">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                  Hồ sơ sau khi phê duyệt sẽ được <strong className="text-slate-900">khóa bất biến (APPROVED)</strong>, đóng dấu chữ ký số của Zone Admin và kết xuất bản chụp (Snapshot) báo cáo chuẩn A4.
+                </div>
+
+                {/* Khối sinh mã 6 chữ số ngẫu nhiên */}
+                <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-emerald-700" />
+                      <span className="text-xs font-bold text-emerald-950">
+                        Mã Xác Thực Phê Duyệt (6 chữ số):
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={generateNewApprovePin}
+                      disabled={isApproving}
+                      className="text-[11px] text-emerald-700 hover:text-emerald-900 flex items-center gap-1 font-mono font-bold cursor-pointer"
+                      title="Sinh mã 6 số ngẫu nhiên mới"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Đổi mã</span>
+                    </button>
+                  </div>
+
+                  {/* Hiển thị 6 chữ số */}
+                  <div className="py-2.5 px-3 rounded-xl bg-white border border-emerald-200 flex items-center justify-center gap-2 sm:gap-2.5 shadow-2xs">
+                    {generatedApprovePin.split('').map((digit, idx) => (
+                      <span
+                        key={idx}
+                        className="w-9 h-11 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 font-mono font-black text-xl flex items-center justify-center select-none tracking-wider"
+                      >
+                        {digit}
+                      </span>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 text-center leading-snug">
+                    Nhập chính xác <strong className="text-slate-800">6 chữ số</strong> ở trên vào ô bên dưới để xác nhận phê duyệt:
+                  </p>
+
+                  {/* Ô nhập 6 chữ số */}
+                  <div className="max-w-[240px] mx-auto">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      maxLength={6}
+                      value={enteredApprovePin}
+                      onChange={(e) => setEnteredApprovePin(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && isApprovePinMatched && !isApproving) {
+                          e.preventDefault();
+                          setShowApproveConfirmModal(false);
+                          await executeApprove();
+                        }
+                      }}
+                      placeholder="Nhập 6 chữ số..."
+                      className={`w-full py-2 px-3 rounded-xl bg-white text-slate-900 font-mono font-black text-center text-lg tracking-widest focus:outline-none border-2 transition-all ${
+                        isApprovePinMatched
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/25'
+                          : enteredApprovePin.length === 6
+                            ? 'border-rose-500 ring-2 ring-rose-500/20'
+                            : 'border-slate-300 focus:border-emerald-500'
+                      }`}
+                    />
+                    {isApprovePinMatched && (
+                      <div className="text-center text-[11px] text-emerald-700 font-bold mt-1.5 flex items-center justify-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Mã xác thực khớp chính xác!</span>
+                      </div>
+                    )}
+                    {enteredApprovePin.length === 6 && !isApprovePinMatched && (
+                      <div className="text-center text-[11px] text-rose-600 font-bold mt-1.5">
+                        Mã xác thực chưa khớp, vui lòng kiểm tra lại.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApproveConfirmModal(false)}
+                  disabled={isApproving}
+                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={!isApprovePinMatched || isApproving}
+                  onClick={async () => {
+                    if (!isApprovePinMatched) return;
+                    setShowApproveConfirmModal(false);
+                    await executeApprove();
+                  }}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isApproving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5" />
+                  )}
+                  <span>Xác Nhận Phê Duyệt</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Yêu Cầu Giải Trình Chuyên Môn Kỹ Sư Trưởng (Chốt chặn ECS ≥ 11 & BRA Thấp) */}
       {showJudgementNotesModal && (
@@ -1349,6 +1593,7 @@ export const AuditStudioModal: React.FC<Props> = ({
           parcelCode={data?.projectParcelCode || ''}
           reportCode={data?.reportCode || ''}
           currentData={data}
+          initialVersions={versions}
           onClose={() => setShowVersionComparison(false)}
           onRollbackSuccess={() => {
             fetchAuditData();

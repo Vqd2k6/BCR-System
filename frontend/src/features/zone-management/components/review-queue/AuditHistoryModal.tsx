@@ -191,32 +191,32 @@ export const AuditHistoryModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0">
+        {/* Header (Light Theme synchronized with Audit Studio) */}
+        <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-sky-50/90 via-white to-slate-50 text-slate-800 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30">
+            <div className="p-2 bg-sky-100 text-sky-700 rounded-xl border border-sky-200">
               <History className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-base text-white">
+                <h3 className="font-black text-base text-slate-900">
                   Nhật Ký Kiểm Toán & Truy Vết Chỉnh Sửa
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                   Append-Only
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Hồ sơ: <strong className="text-sky-300">{reportCode || parcelCode || 'Hồ sơ khảo sát'}</strong> • Tổng cộng {logs.length} lượt can thiệp được ghi nhận
+              <p className="text-xs text-slate-500 mt-0.5">
+                Hồ sơ: <strong className="text-sky-700">{reportCode || parcelCode || 'Hồ sơ khảo sát'}</strong> • Tổng cộng {logs.length} lượt can thiệp được ghi nhận
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -493,7 +493,7 @@ export const AuditHistoryModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>Tất cả các bản ghi kiểm toán đều được mã hóa và lưu trữ bất biến.</span>
@@ -501,7 +501,7 @@ export const AuditHistoryModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
             Đóng
           </button>

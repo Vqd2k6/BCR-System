@@ -17,6 +17,7 @@ import {
 } from '../storage/offlinePhotoStorage';
 import { replaceLocalUriInIdbDrafts } from '../utils/idbDraftStorage';
 import { surveyDraftService } from '../../features/survey-phase1/services/surveyDraftService';
+import { resolveOfflineTargetFolderFromMetadata } from '../../components/common/photo-capture/domain/photoIdentityPolicy';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
 
@@ -80,9 +81,7 @@ class UploadQueueService {
           (t) => t.id === item.id && (t.status === 'QUEUED' || t.status === 'UPLOADING')
         );
         if (inFlight) continue;
-        const targetFolder = item.metadata?.['building-code']
-          ? (item.metadata?.['photo-type'] ? `surveys/${item.metadata['building-code']}/${item.metadata['photo-type']}` : `surveys/${item.metadata['building-code']}`)
-          : 'surveys';
+        const targetFolder = resolveOfflineTargetFolderFromMetadata(item.metadata);
         this.enqueue(item.blob, item.filename, {
           id: item.id,
           folder: targetFolder,
@@ -118,49 +117,57 @@ class UploadQueueService {
     // 0.1. Cập nhật bền vững vào IndexedDB Drafts (không phụ thuộc vào hạn mức localStorage)
     void replaceLocalUriInIdbDrafts(localId, publicUrl);
 
-    let activeParcelId: string | null = null;
-    let activeUnitId: string | null = null;
+    let activeParcelId: string | null = metadata?.['survey-parcel-id'] || null;
+    let activeUnitId: string | null = metadata?.['unit-id'] || null;
+    const targetUri = `blob:local://${localId}`;
 
-    // 1. Thăng cấp trong Phase 1 Store
+    // 1. Thăng cấp trong Phase 1 Store (chỉ khi store thực sự chứa targetUri để chống nhiễm chéo)
     try {
       const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
       const p1Store = usePhase1SurveyStore.getState();
-      if (p1Store && p1Store.formData) {
-        if (p1Store.formData.parcelId) {
+      if (p1Store && p1Store.formData && JSON.stringify(p1Store.formData).includes(targetUri)) {
+        if (!activeParcelId && p1Store.formData.parcelId) {
           activeParcelId = p1Store.formData.parcelId;
           activeUnitId = p1Store.currentUnitId || null;
         }
         const updated = replaceLocalUriInObject(p1Store.formData, localId, publicUrl);
         p1Store.updateFormData(updated);
       }
-    } catch (_err) {}
+    } catch (_err) {
+      console.warn('[UploadQueue] Lỗi thăng cấp URL trong Phase 1 Store:', _err);
+    }
 
-    // 2. Thăng cấp trong Condo Unit Store
+    // 2. Thăng cấp trong Condo Unit Store (chỉ khi store thực sự chứa targetUri)
     try {
       const { useCondoUnitSurveyStore } = await import('../../features/survey-condo-unit/store/useCondoUnitSurveyStore');
       const unitStore = useCondoUnitSurveyStore.getState();
-      if (unitStore && unitStore.formData) {
-        if (unitStore.formData.parcelId) {
+      if (unitStore && unitStore.formData && JSON.stringify(unitStore.formData).includes(targetUri)) {
+        if (!activeParcelId && unitStore.formData.parcelId) {
           activeParcelId = unitStore.formData.parcelId;
           activeUnitId = unitStore.formData.unitId || null;
         }
         const updated = replaceLocalUriInObject(unitStore.formData, localId, publicUrl);
         unitStore.updateFormData(updated);
       }
-    } catch (_err) {}
+    } catch (_err) {
+      console.warn('[UploadQueue] Lỗi thăng cấp URL trong Condo Unit Store:', _err);
+    }
 
-    // 3. Thăng cấp trong Condo Master Store
+    // 3. Thăng cấp trong Condo Master Store (chỉ khi store thực sự chứa targetUri)
     try {
       const { useCondoMasterSurveyStore } = await import('../../features/survey-condo-master/store/useCondoMasterSurveyStore');
       const masterStore = useCondoMasterSurveyStore.getState();
-      if (masterStore && masterStore.formData) {
-        if (masterStore.formData.parcelId) {
+      if (masterStore && masterStore.formData && JSON.stringify(masterStore.formData).includes(targetUri)) {
+        if (!activeParcelId && masterStore.formData.parcelId) {
           activeParcelId = masterStore.formData.parcelId;
+          activeUnitId = null;
         }
         const updated = replaceLocalUriInObject(masterStore.formData, localId, publicUrl);
         masterStore.updateFormData(updated);
       }
-    } catch (_err) {}
+    } catch (_err) {
+      console.warn('[UploadQueue] Lỗi thăng cấp URL trong Condo Master Store:', _err);
+    }
 
     // Nếu KSV đang ở ngoài trang chủ / danh sách (chưa mở store), trích xuất parcelId từ metadata ảnh
     if (!activeParcelId && metadata) {
@@ -172,7 +179,6 @@ class UploadQueueService {
     // (Bảo vệ trường hợp KSV vừa chụp ảnh ở Căn hộ A xong chuyển sang Căn hộ B hoặc về Hub)
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const targetUri = `blob:local://${localId}`;
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
           if (k && k.startsWith('metro2_') && k.includes('_draft_')) {
@@ -182,11 +188,15 @@ class UploadQueueService {
                 const parsed = JSON.parse(raw);
                 const updated = replaceLocalUriInObject(parsed, localId, publicUrl);
                 localStorage.setItem(k, JSON.stringify(updated));
-              } catch (_e) {}
+              } catch (_e) {
+                console.warn('[UploadQueue] Lỗi parse draft localStorage khi promote URL:', _e);
+              }
             }
           }
         }
-      } catch (_storageErr) {}
+      } catch (_storageErr) {
+        console.warn('[UploadQueue] Lỗi quét localStorage khi promote URL:', _storageErr);
+      }
     }
 
     // 5. Phát sự kiện toàn cục ra Window

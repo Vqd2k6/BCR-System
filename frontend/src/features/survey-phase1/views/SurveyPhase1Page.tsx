@@ -20,8 +20,6 @@ import type {
   FloorSurveyData,
   DamageZoneData,
   DefectItem,
-  PolygonPoint,
-  FloorSplitLine,
 } from '../types/phase1.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
@@ -37,15 +35,14 @@ import { AlertOctagon, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
+import {
+  rehydrateIdentificationPhotos,
+  rehydrateFloorSurveysByCanonicalKey,
+  rehydrateDeformationAssessment,
+  type BackendIdentificationPhotoRow,
+} from '../mappers/surveyRehydration.adapter';
 
-interface IdentificationPhotoBackend {
-  photo_type: string;
-  photo_code?: string;
-  raw_photo_url?: string;
-  is_not_applicable?: boolean;
-  facade_polygon_points_json?: PolygonPoint[];
-  floor_split_lines_json?: FloorSplitLine[];
-}
+type IdentificationPhotoBackend = BackendIdentificationPhotoRow;
 
 interface BackendDefectRecord {
   id: string;
@@ -548,48 +545,16 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 }
               }
               if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
-                rep.identificationPhotos.forEach((p) => {
-                  if (p.photo_type === 'P01_HOUSE_NUMBER') {
-                    updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
-                  } else if (p.photo_type === 'P02_MAIN_FACADE') {
-                    updates.photoP02 = {
-                      ...(updates.photoP02 || {}),
-                      url: p.raw_photo_url || '',
-                      notApplicable: Boolean(p.is_not_applicable),
-                      polygonPoints: p.facade_polygon_points_json || updates.photoP02?.polygonPoints || [],
-                      floorSplits: p.floor_split_lines_json || updates.photoP02?.floorSplits || [],
-                      widthM: updates.photoP02?.widthM || '',
-                      heightM: updates.photoP02?.heightM || '',
-                    };
-                  } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
-                    const existingP03 = updates.photoP03 || { url: '', notApplicable: false, additionalPhotos: [] };
-                    if (!existingP03.url && !existingP03.notApplicable) {
-                      updates.photoP03 = {
-                        ...existingP03,
-                        url: p.raw_photo_url || '',
-                        notApplicable: Boolean(p.is_not_applicable),
-                      };
-                    } else if (p.raw_photo_url) {
-                      const prevAdd = Array.isArray(existingP03.additionalPhotos) ? existingP03.additionalPhotos : [];
-                      if (!prevAdd.some((ap) => ap.url === p.raw_photo_url) && existingP03.url !== p.raw_photo_url) {
-                        updates.photoP03 = {
-                          ...existingP03,
-                          additionalPhotos: [
-                            ...prevAdd,
-                            {
-                              id: `p03_add_${prevAdd.length + 1}`,
-                              url: p.raw_photo_url,
-                              tag: 'Bên hông',
-                              photoCode: p.photo_code || `P-03-${prevAdd.length + 2}`,
-                            },
-                          ],
-                        };
-                      }
-                    }
-                  } else if (p.photo_type === 'P04_CONTEXT_STREET') {
-                    updates.photoP04 = { ...(updates.photoP04 || {}), url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
-                  }
+                const rehydratedPhotos = rehydrateIdentificationPhotos(rep.identificationPhotos, {
+                  photoP01: updates.photoP01,
+                  photoP02: updates.photoP02,
+                  photoP03: updates.photoP03,
+                  photoP04: updates.photoP04,
                 });
+                if (rehydratedPhotos.photoP01) updates.photoP01 = rehydratedPhotos.photoP01;
+                if (rehydratedPhotos.photoP02) updates.photoP02 = rehydratedPhotos.photoP02;
+                if (rehydratedPhotos.photoP03) updates.photoP03 = rehydratedPhotos.photoP03;
+                if (rehydratedPhotos.photoP04) updates.photoP04 = rehydratedPhotos.photoP04;
               }
               if (rep.historicalSensitivity) {
                 const h = rep.historicalSensitivity;
@@ -618,38 +583,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 };
               }
               if (updates.floors && Array.isArray(updates.floors) && updates.floors.length > 0) {
-                // Đã khôi phục từ snapshot survey_data_json -> Chuẩn hóa ảnh (bảo toàn photoCode) và dữ liệu zones, pins, CAD
-                updates.floors = updates.floors.map((fl, idx) => {
-                  const beFloor = rep.floorSurveys?.[idx];
-                  const rawPhotos = fl.overviewPhotos && fl.overviewPhotos.length > 0 
-                    ? fl.overviewPhotos 
-                    : (beFloor?.overview_photos_json || beFloor?.overview_photos || []);
-                  
-                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p, pIdx) => {
-                    if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
-                    const pObj = p as { id?: string; url?: string; caption?: string; photoCode?: string; photo_code?: string };
-                    return {
-                      id: pObj.id || `fl_ov_${pIdx}`,
-                      url: pObj.url || '',
-                      caption: pObj.caption || '',
-                      ...(pObj.photoCode || pObj.photo_code ? { photoCode: pObj.photoCode || pObj.photo_code } : {}),
-                    };
-                  });
-
-                  return {
-                    ...fl,
-                    overviewPhotos: normalizedPhotos,
-                    cadSketchPhotoUrl: fl.cadSketchPhotoUrl || beFloor?.cad_drawing_url || beFloor?.cad_sketch_photo_url || '',
-                    cadStructuralSketchPhotoUrl: fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || beFloor?.cad_structural_drawing_url || '',
-                    cadZonePins: (fl.cadZonePins || beFloor?.cad_zone_pins_json || beFloor?.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
-                    cadElementPins: (fl.cadElementPins || beFloor?.cad_element_pins_json || beFloor?.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
-                    hasStructuralElements: fl.hasStructuralElements ?? beFloor?.has_structural_elements ?? true,
-                    noStructuralElementsReason: fl.noStructuralElementsReason || beFloor?.no_structural_elements_reason || '',
-                    beamSagging: fl.beamSagging || (beFloor?.beam_sagging_json as FloorSurveyData['beamSagging']),
-                    zones: fl.zones || [],
-                    structuralElements: fl.structuralElements || [],
-                  };
-                });
+                // [ND-06] Khớp tầng theo khóa định danh chuẩn (floor_name / floorCode), bảo toàn photoCode và CAD_01/CAD_02
+                updates.floors = rehydrateFloorSurveysByCanonicalKey(updates.floors, rep.floorSurveys);
               } else if (rep.floorSurveys && rep.floorSurveys.length > 0) {
                 // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones (tách Z-xx và E-xx)
                 const elementsByFloor: Record<string, FloorSurveyData['structuralElements']> = {};
@@ -771,46 +706,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 });
               }
               if (!updates.settlementTilt && rep.deformation) {
-                const def = rep.deformation;
-                const tx = Number(def.tilt_angle_x) || 0;
-                const ty = Number(def.tilt_angle_y) || 0;
-                const maxTilt = Math.max(Math.abs(tx), Math.abs(ty));
-                const tiltLvl = (maxTilt > 10 ? 4 : maxTilt > 5 ? 3 : maxTilt > 2 ? 2 : maxTilt > 0 ? 1 : 0) as 0 | 1 | 2 | 3 | 4;
-                const sagMm = Number(def.beam_deflection_mm) || 0;
-                const sagLvl = (sagMm > 20 ? 4 : sagMm > 10 ? 2 : 0) as 0 | 2 | 4;
-                const e3Lvl = (Math.min(4, Math.max(0, Number(def.e3_deformation_score) || 0))) as 0 | 1 | 2 | 3 | 4;
-                updates.settlementTilt = {
-                  diffSettlement: (def.diff_settlement_json as unknown as Phase1SurveyFormData['settlementTilt']['diffSettlement']) || {
-                    level: Math.max(e3Lvl, 0) as 0 | 1 | 2 | 3 | 4,
-                    position: '',
-                    photoUrl: '',
-                  },
-                  buildingTilt: (def.building_tilt_json as unknown as Phase1SurveyFormData['settlementTilt']['buildingTilt']) || {
-                    level: tiltLvl,
-                    xPermille: tx,
-                    yPermille: ty,
-                    direction: (def.tilt_direction || '') as Phase1SurveyFormData['settlementTilt']['buildingTilt']['direction'],
-                    photoUrl: '',
-                  },
-                  beamSagging: (def.beam_sagging_json as unknown as Phase1SurveyFormData['settlementTilt']['beamSagging']) || {
-                    level: sagLvl,
-                    position: '',
-                    sagMm,
-                    photoUrl: '',
-                  },
-                  abnormalCase: (def.abnormal_case_json as unknown as Phase1SurveyFormData['settlementTilt']['abnormalCase']) || {
-                    photoUrl: '',
-                    notes: '',
-                  },
-                  needAdditionalMonitoring: {
-                    required: e3Lvl >= 2 || tiltLvl >= 2 || Boolean(def.monitoring_notes),
-                    notes: def.monitoring_notes || '',
-                  },
-                  dataSource: def.measurement_method
-                    ? def.measurement_method.split(',').map((s) => s.trim()).filter(Boolean)
-                    : [],
-                  reliability: def.measurement_reliability || 'HIGH',
-                };
+                const rehydratedDeform = rehydrateDeformationAssessment(rep.deformation);
+                if (rehydratedDeform) {
+                  updates.settlementTilt = rehydratedDeform;
+                }
               }
               if (!updates.surveyScope && rep.surveyScope) {
                 const sc = rep.surveyScope;

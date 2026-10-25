@@ -205,18 +205,13 @@ export class SurveyBaseRepository {
       [actualReportId]
     );
 
-    let identificationPhotos = photosRes.rows;
+    const identificationPhotos = photosRes.rows;
     let buildingSpecs = specsRes.rows[0] || null;
 
-    // Kế thừa P01-P04 và Specs từ Parent Report nếu là UNIT_CHILD
+    // [CH-01] Ranh giới kế thừa Cha-Con (Inheritance Boundary Rule):
+    // Căn hộ con (UNIT_CHILD / CONDO_UNIT) CHỈ kế thừa thông số kỹ thuật tòa nhà mẹ (building_specifications),
+    // TUYỆT ĐỐI KHÔNG kế thừa ảnh định danh P01-P04 (survey_identification_photos) của tòa nhà mẹ.
     if (base.parent_report_id) {
-      if (identificationPhotos.length === 0) {
-        const parentPhotosRes = await Database.query(
-          `SELECT * FROM survey_identification_photos WHERE report_id = $1;`,
-          [base.parent_report_id]
-        );
-        identificationPhotos = parentPhotosRes.rows;
-      }
       if (!buildingSpecs) {
         const parentSpecsRes = await Database.query(
           `SELECT * FROM building_specifications WHERE report_id = $1;`,
@@ -548,34 +543,43 @@ export class SurveyBaseRepository {
         }
       }
 
-      // Kiểm tra tính hợp lệ của targetReportId nếu tìm thấy
+      // Kiểm tra tính hợp lệ của targetReportId nếu tìm thấy (kèm chốt chặn Scope unit_id)
       if (targetReportId) {
         let verifyQuery = `SELECT id FROM base_survey_reports WHERE id = $1 AND phase = 'PHASE_1'`;
         const verifyParams: unknown[] = [targetReportId];
+        if (options?.unitId) {
+          verifyParams.push(options.unitId);
+          verifyQuery += ` AND unit_id = $${verifyParams.length}`;
+        } else {
+          verifyQuery += ` AND unit_id IS NULL`;
+        }
         if (options?.reportType) {
           verifyParams.push(options.reportType);
           verifyQuery += ` AND report_type = $${verifyParams.length}`;
         }
         const verifyRes = await Database.query<{ id: string }>(verifyQuery, verifyParams);
         if (!verifyRes.rows[0]) {
-          targetReportId = null; // ID không tồn tại hoặc sai report_type -> fallback
+          targetReportId = null; // ID không tồn tại hoặc sai scope/report_type -> fallback
         }
       }
     }
 
-    // 2. Nếu chưa tìm được ID mục tiêu, thực hiện tìm kiếm linh hoạt theo thứ tự ưu tiên an toàn
+    // 2. Nếu chưa tìm được ID mục tiêu, thực hiện tìm kiếm linh hoạt theo thứ tự ưu tiên an toàn (BackendScopeGuard)
     if (!targetReportId) {
       let reportQuery = `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND phase = 'PHASE_1'`;
       const reportParams: unknown[] = [resolvedParcelId];
 
+      // [CC-01] Bắt buộc phân tách cứng giữa Căn hộ con (unit_id = $X) và Tòa nhà mẹ / Nhà dân (unit_id IS NULL)
       if (options?.unitId) {
         reportParams.push(options.unitId);
         reportQuery += ` AND unit_id = $${reportParams.length}`;
-      } else if (options?.reportType) {
+      } else {
+        reportQuery += ` AND unit_id IS NULL`;
+      }
+
+      if (options?.reportType) {
         reportParams.push(options.reportType);
         reportQuery += ` AND report_type = $${reportParams.length}`;
-      } else if (options?.unitId === null) {
-        reportQuery += ` AND unit_id IS NULL`;
       }
 
       if (options?.status) {
@@ -616,12 +620,20 @@ export class SurveyBaseRepository {
       report = await SurveyBaseRepository.findReportById(targetReportId);
     }
 
-    const absenceRes = await Database.query(
-      `SELECT * FROM survey_absence_logs
-       WHERE parcel_id = $1
-       ORDER BY recorded_at DESC;`,
-      [resolvedParcelId]
-    );
+    // [CH-04] Cô lập lịch sử và ảnh bằng chứng báo vắng theo đúng Scope (unit_id = $2 vs unit_id IS NULL)
+    const absenceRes = options?.unitId
+      ? await Database.query(
+          `SELECT * FROM survey_absence_logs
+           WHERE parcel_id = $1 AND unit_id = $2
+           ORDER BY recorded_at DESC;`,
+          [resolvedParcelId, options.unitId]
+        )
+      : await Database.query(
+          `SELECT * FROM survey_absence_logs
+           WHERE parcel_id = $1 AND unit_id IS NULL
+           ORDER BY recorded_at DESC;`,
+          [resolvedParcelId]
+        );
 
     const parcelRes = await Database.query(
       `SELECT * FROM parcels WHERE id = $1 LIMIT 1;`,

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff, Camera, RefreshCw, ZoomIn, Move, RotateCcw } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
+import type { MetroWatermarkOptions } from '../../utils/watermarkEngine';
 import { ImageZoomModal } from '../common/ImageZoomModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
@@ -72,7 +73,7 @@ export const getNextMonotonicPinCode = getNextAvailablePinCode;
 
 interface Props {
   cadPhotoUrl: string;
-  onCadPhotoChange: (url: string) => void;
+  onCadPhotoChange: (url: string, code?: string) => void;
   pins: CadZonePin[];
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin?: (pin: CadZonePin) => void;
@@ -85,6 +86,7 @@ interface Props {
   cadTitle?: string;
   readOnly?: boolean;
   isCadLocked?: boolean;
+  watermarkOptions?: Partial<MetroWatermarkOptions>;
 }
 
 export const FloorCadPinningCanvas: React.FC<Props> = ({
@@ -102,6 +104,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   cadTitle,
   readOnly = false,
   isCadLocked = false,
+  watermarkOptions,
 }) => {
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
@@ -291,7 +294,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
       : `Bạn có chắc muốn ${actionText} cho ${floorName} không?`;
 
     if (window.confirm(confirmMsg)) {
-      onCadPhotoChange('');
+      onCadPhotoChange('', '');
     }
   };
 
@@ -302,12 +305,13 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
         <PhotoCaptureInput
           label={cadTitle || defaultCadTitle}
           value={cadPhotoUrl}
-          onChange={onCadPhotoChange}
+          onChange={(url, code) => onCadPhotoChange(url, code)}
           watermarkOptions={{
             parcelCode,
             floor: floorName,
             photoType: isStructural ? 'CAD_STRUCT' : 'CAD_ARCH',
             photoIndex: 1,
+            ...watermarkOptions,
           }}
           height="160px"
           allowPdf={true}

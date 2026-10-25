@@ -49,12 +49,25 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
       : 'General (Nhà dân thông thường)';
 
   // Tính toán gợi ý tự động từ khoảng cách mép ga / tim hầm theo chuẩn kỹ thuật braEngine
+  // Nếu Thẩm định viên vừa cập nhật cự ly tim hầm ở Bước 1 mà chưa sửa riêng cự ly bao ngoài, ưu tiên lấy theo thông số vừa cập nhật ở trên
+  const isMetroDistRecentlyEdited =
+    Boolean(isFieldDirty?.('metroOffsetDistance') || isFieldDirty?.('manualMetroDistanceM')) &&
+    !isFieldDirty?.('clearanceOffsetDistance');
+
+  const effectiveCenterlineDist =
+    (formState.manualMetroDistanceM as string | number | undefined) ||
+    (formState.metroOffsetDistance as string | number | undefined) ||
+    (formState.metroDistanceM as string | number | undefined) ||
+    (formState.distanceToMetroCenterlineM as string | number | undefined);
+
+  const effectiveStationEdgeDist = isMetroDistRecentlyEdited
+    ? effectiveCenterlineDist
+    : ((formState.clearanceOffsetDistance as string | number | undefined) ?? undefined);
+
   const autoImpact = calculateConstructionImpact(
     objectGroup,
-    (formState.clearanceOffsetDistance as string | number | undefined) ?? undefined,
-    (formState.metroOffsetDistance as string | number | undefined) ??
-      (formState.metroDistanceM as string | number | undefined) ??
-      (formState.distanceToMetroCenterlineM as string | number | undefined)
+    effectiveStationEdgeDist,
+    effectiveCenterlineDist
   );
 
   const IMPACT_LABELS: Record<'I1' | 'I2' | 'I3' | 'I4', string> = {
@@ -64,17 +77,35 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
     I4: 'I4 (Tác động nghiêm trọng)',
   };
 
-  const rawImpactStr = String(exec.constructionImpactStatus || autoImpact.code || 'I1').trim();
+  const isDistanceOrGroupDirty = Boolean(
+    isFieldDirty?.('metroOffsetDistance') ||
+      isFieldDirty?.('clearanceOffsetDistance') ||
+      isFieldDirty?.('manualMetroDistanceM') ||
+      isFieldDirty?.('objectGroup') ||
+      isFieldDirty?.('parcelCoordinates')
+  );
+  const isImpactDirtyInStep8 = Boolean(isFieldDirty?.('executiveSummary', 'constructionImpactStatus'));
+
+  const rawExecImpact = String(exec.constructionImpactStatus || '').trim();
+  const isValidExecImpact = /^I[1-4]/i.test(rawExecImpact);
+  const rawImpactStr =
+    (isDistanceOrGroupDirty && !isImpactDirtyInStep8) || !isValidExecImpact
+      ? autoImpact.code
+      : rawExecImpact;
+
   const impactCode: 'I1' | 'I2' | 'I3' | 'I4' = rawImpactStr.startsWith('I4')
     ? 'I4'
     : rawImpactStr.startsWith('I3')
     ? 'I3'
     : rawImpactStr.startsWith('I2')
     ? 'I2'
-    : 'I1';
+    : rawImpactStr.startsWith('I1')
+    ? 'I1'
+    : autoImpact.code;
   const currentImpactStr = IMPACT_LABELS[impactCode];
-  const isImpactOverridden = impactCode !== autoImpact.code || Boolean(exec.impactOverrideReason);
-  const overrideReason: string = (exec.impactOverrideReason as string) || '';
+  const overrideReason: string =
+    isDistanceOrGroupDirty && !isImpactDirtyInStep8 ? '' : ((exec.impactOverrideReason as string) || '');
+  const isImpactOverridden = impactCode !== autoImpact.code || Boolean(overrideReason.trim());
   const isReasonValid = !isImpactOverridden || overrideReason.trim().length >= 5;
 
   // Xác định hàng vCode (V1..V4) từ phân hạng tổn thương VI (vi.viClass) theo đúng chuẩn braEngine.ts của FE Phase 1
@@ -86,7 +117,12 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   const braMatrixEval = calculateBraRisk(derivedViClass, impactCode);
   const vCode: 'V1' | 'V2' | 'V3' | 'V4' = braMatrixEval.vCode;
   const computedBraCode = braMatrixEval.riskLevel.toUpperCase().replace(/\s+/g, '_');
-  const currentBra = (exec.braStatus || computedBraCode || 'LOW').toUpperCase().replace(/\s+/g, '_');
+  const rawBraStr = String(exec.braStatus || '').trim().toUpperCase().replace(/\s+/g, '_');
+  const isBraDirtyInStep8 = Boolean(isFieldDirty?.('executiveSummary', 'braStatus'));
+  const currentBra =
+    !rawBraStr || rawBraStr === 'PENDING' || (isDistanceOrGroupDirty && !isBraDirtyInStep8)
+      ? computedBraCode
+      : rawBraStr;
 
   const summaryConclusions = exec.summaryConclusions ?? formState.summaryConclusions ?? '';
   const keyRisksDefectsText = exec.keyRisksDefectsText ?? formState.keyRisksDefectsText ?? '';

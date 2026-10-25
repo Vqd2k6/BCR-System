@@ -10,13 +10,6 @@ import {
   CheckCircle2,
   FileDiff,
   KeyRound,
-  MapPin,
-  Camera,
-  Layers,
-  Scale,
-  Sparkles,
-  Check,
-  Plus,
   RotateCcw,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
@@ -74,7 +67,6 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
 }) => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [editReason, setEditReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [activeDiffTab, setActiveDiffTab] = useState<'ALL' | 'GENERAL' | 'CAD_PINS' | 'PHOTOS' | 'SCORES'>('ALL');
@@ -107,21 +99,6 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
 
   const blockingErrorsCount = hasCatBlocker ? 1 : 0;
   const warningCount = 0;
-
-  const handleTogglePresetReason = (text: string) => {
-    setEditReason((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return text;
-      if (trimmed === text) return '';
-      if (trimmed.includes(text)) {
-        return trimmed
-          .replace(new RegExp(`(?:;\\s*|\\s*,\\s*)?${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), '')
-          .replace(/^[;,\s]+|[;,\s]+$/g, '')
-          .trim();
-      }
-      return `${trimmed}; ${text}`;
-    });
-  };
 
   // Phân loại hạng mục diff theo 4 nhóm
   const categorizeDiffItem = (item: DiffItem): 'GENERAL' | 'CAD_PINS' | 'PHOTOS' | 'SCORES' => {
@@ -168,10 +145,19 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
       setErrorMsg('Vui lòng nhập mật khẩu tài khoản Zone Admin của bạn.');
       return;
     }
-    if (!editReason.trim()) {
-      setErrorMsg('Vui lòng nhập lý do điều chỉnh hồ sơ để ghi nhận vào nhật ký kiểm toán.');
-      return;
+
+    // Tự động tổng hợp mô tả kiểm toán (Auto-Summary) từ danh sách các trường thay đổi và thao tác ảnh
+    const autoSummaryParts: string[] = [];
+    if (diffItems.length > 0) {
+      const sampleLabels = diffItems.slice(0, 4).map((d) => d.label).join('; ');
+      autoSummaryParts.push(
+        `Chuẩn hóa ${diffItems.length} trường (${sampleLabels}${diffItems.length > 4 ? ` +${diffItems.length - 4} mục` : ''})`
+      );
     }
+    if (photoActions.length > 0) {
+      autoSummaryParts.push(`${photoActions.length} thao tác ảnh hiện trường`);
+    }
+    const autoEditReason = autoSummaryParts.join(' • ') || 'Cập nhật chuẩn hóa dữ liệu thẩm định kỹ thuật';
 
     setIsSubmitting(true);
     setErrorMsg('');
@@ -179,7 +165,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
     try {
       const res = await api.put(`/admin/reports/${reportId}/audit-edit`, {
         adminPassword: adminPassword.trim(),
-        editReason: editReason.trim(),
+        editReason: autoEditReason,
         diffPayload: diffItems,
         updates: updatesPayload,
         photoActions: photoActions || [],
@@ -265,31 +251,31 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[94vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        {/* Header (Light Theme synchronized with Audit Studio) */}
+        <div className="px-5 py-4 bg-gradient-to-r from-sky-50/90 via-white to-slate-50 text-slate-800 flex items-center justify-between border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center">
               <FileDiff className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
                 <span>Đối Chiếu Sai Khác & Xác Thực Mật Khẩu</span>
                 {parcelCode && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-sky-400 font-mono font-normal">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-mono font-bold">
                     {parcelCode}
                   </span>
                 )}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 Rà soát các trường thông tin thay đổi so với dữ liệu gốc của Khảo Sát Viên trước khi ghi nhận pháp lý.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -390,7 +376,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               type="button"
               onClick={() => setActiveDiffTab('ALL')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
                 }`}
             >
@@ -438,8 +424,8 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             </button>
           </div>
 
-          {/* Diff Table (scrollable max-h-[38vh]) */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs max-h-[38vh] overflow-y-auto">
+          {/* Diff Table (scrollable max-h-[52vh]) */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs max-h-[52vh] overflow-y-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200 text-[11px] sticky top-0 z-10 shadow-2xs">
                 <tr>
@@ -510,90 +496,6 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Reason Input (Preset Reasons Dropdown + Chips + Textarea - TC-UI-02) */}
-          <div className="space-y-2 pt-1">
-            <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-              <span>Danh mục Lý do điều chỉnh kỹ thuật chuẩn hóa <span className="text-red-500">*</span></span>
-              <span className="text-[11px] text-slate-400 font-normal">Bắt buộc chọn hoặc nhập để ghi nhận vào system_audit_logs</span>
-            </label>
-
-            <select
-              value={PRESET_AUDIT_DIFF_REASONS.find((r) => editReason.startsWith(r)) || ''}
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleTogglePresetReason(e.target.value);
-                }
-              }}
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
-            >
-              <option value="">--- Chọn nhanh lý do kỹ thuật từ danh mục chuẩn hóa ---</option>
-              {PRESET_AUDIT_DIFF_REASONS.map((preset, idx) => (
-                <option key={idx} value={preset}>
-                  {preset}
-                </option>
-              ))}
-            </select>
-
-            <textarea
-              rows={2}
-              value={editReason}
-              onChange={(e) => setEditReason(e.target.value)}
-              placeholder="Chọn lý do từ danh mục trên và/hoặc gõ thêm ghi chú giải trình chi tiết..."
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
-            />
-            {!editReason.trim() && (
-              <p className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Vui lòng chọn hoặc nhập lý do chỉnh sửa kỹ thuật để kích hoạt nút Lưu.</span>
-              </p>
-            )}
-
-            {/* Gợi ý lý do nhanh (Bấm để thêm vào nội dung) */}
-            <div className="space-y-1.5 pt-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>Gợi ý lý do nhanh (Bấm để tự thêm vào nội dung):</span>
-                </span>
-                {editReason.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setEditReason('')}
-                    className="text-[10px] font-semibold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Xóa trắng nội dung lý do"
-                  >
-                    <RotateCcw className="w-2.5 h-2.5" />
-                    <span>Xóa trắng</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {PRESET_AUDIT_DIFF_REASONS.map((preset, idx) => {
-                  const isSelected = editReason.includes(preset);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleTogglePresetReason(preset)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-left select-none ${isSelected
-                          ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-800 dark:text-sky-200 font-medium shadow-xs ring-1 ring-sky-300/50'
-                          : 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-700/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                        }`}
-                    >
-                      <span>{preset}</span>
-                      {isSelected ? (
-                        <Check className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0 ml-0.5" />
-                      ) : (
-                        <Plus className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500 shrink-0 ml-0.5 opacity-60" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           {/* Admin Password Input */}
           <div className="space-y-1.5 p-4 rounded-xl bg-amber-50/60 border border-amber-200">
             <label className="text-xs font-black text-amber-900 flex items-center gap-1.5">
@@ -658,12 +560,10 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || (diffItems.length === 0 && photoActions.length === 0) || hasCatBlocker || !editReason.trim()}
+              disabled={isSubmitting || (diffItems.length === 0 && photoActions.length === 0) || hasCatBlocker}
               title={
                 hasCatBlocker
                   ? 'Không thể lưu do có lỗi chặn pháp lý móng CAT 1/2'
-                  : !editReason.trim()
-                  ? 'Vui lòng chọn hoặc nhập lý do chỉnh sửa'
                   : undefined
               }
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"

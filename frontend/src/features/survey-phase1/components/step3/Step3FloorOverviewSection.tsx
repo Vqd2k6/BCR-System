@@ -1,11 +1,11 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import type { FloorSurveyData } from '../../types/phase1.types';
-import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
+import { upsertPhotoObjectList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
 
 interface Step3FloorOverviewSectionProps {
   currentFloor: FloorSurveyData;
@@ -20,7 +20,6 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
   projectParcelCode,
   onUpdateOverviewPhotos,
 }) => {
-  const lastTempPhotoIdRef = useRef<string | null>(null);
   const rawPhotos = currentFloor.overviewPhotos || [];
   const normalizedPhotos = rawPhotos.map((p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
     if (typeof p === 'string') {
@@ -48,62 +47,30 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
   const handleAddPhoto = (url: string, code?: string, meta?: PhotoChangeMeta) => {
     if (!url) return;
 
-    // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
-    if (photos.some((p) => p.url === url)) {
-      return;
-    }
-
-    // 2. Thăng cấp từ ảnh tạm offline blob:local:// sang Cloudflare R2 qua replacesUri
-    const replacesUri = meta?.replacesUri;
-    if (replacesUri) {
-      const foundIdx = photos.findIndex((p) => p.url === replacesUri);
-      if (foundIdx >= 0) {
-        const updated = [...photos];
-        updated[foundIdx] = {
-          ...updated[foundIdx],
-          url,
-          photoCode: code || updated[foundIdx].photoCode,
-        };
-        lastTempPhotoIdRef.current = null;
-        onUpdateOverviewPhotos(updated);
-        return;
-      }
-    }
-
-    // 3. Fallback theo ID tạm thời (nếu có)
-    const prevTempId = lastTempPhotoIdRef.current;
-    if (prevTempId && photos.some((p) => p.id === prevTempId)) {
-      const updated = photos.map((p) =>
-        p.id === prevTempId ? { ...p, url, photoCode: code || p.photoCode } : p
-      );
-      lastTempPhotoIdRef.current = null;
-      onUpdateOverviewPhotos(updated);
-      return;
-    }
-
-    // 4. Kiểm tra photoCode: nếu trùng photoCode thì cập nhật URL thay vì tạo card mới
-    if (code) {
-      const codeIdx = photos.findIndex((p) => p.photoCode === code);
+    // [ND-04] Sử dụng Trụ cột 1 (PhotoCollectionMutator) thay thế nguyên tử qua meta.replacesUri,
+    // loại bỏ hoàn toàn biến lastTempPhotoIdRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
+    if (!meta?.replacesUri && code) {
+      const codeIdx = photos.findIndex((p) => p.photoCode && p.photoCode === code);
       if (codeIdx >= 0) {
-        const updated = [...photos];
-        updated[codeIdx] = { ...updated[codeIdx], url };
-        onUpdateOverviewPhotos(updated);
+        const updatedByCode = [...photos];
+        updatedByCode[codeIdx] = { ...updatedByCode[codeIdx], url };
+        onUpdateOverviewPhotos(updatedByCode);
         return;
       }
     }
 
-    // 5. Thêm mới ảnh hợp lệ
-    const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-    if (isLocalBlobUri(url)) {
-      lastTempPhotoIdRef.current = newId;
-    }
-    const newPhoto = {
-      id: newId,
-      url,
-      caption: '',
-      photoCode: code || '',
-    };
-    onUpdateOverviewPhotos([...photos, newPhoto]);
+    const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const updated = upsertPhotoObjectList(
+      photos,
+      {
+        id: newId,
+        url,
+        caption: '',
+        photoCode: code || '',
+      },
+      meta
+    );
+    onUpdateOverviewPhotos(updated);
   };
 
   const handleRemovePhoto = (photoId: string) => {

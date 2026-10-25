@@ -132,16 +132,13 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
 
   // Determine initial scope from URL query parameter or externalFilterCategory
   const getInitialScope = (): ReviewScope => {
-    if (isProdScopeLocked) {
-      return 'RESIDENTIAL';
-    }
     const params = new URLSearchParams(window.location.search);
     const scopeParam = params.get('scope')?.toUpperCase();
     if (scopeParam === 'CONDO') return 'CONDO';
-    if (scopeParam === 'URGENT') return 'URGENT';
+    if (scopeParam === 'URGENT' && !isProdScopeLocked) return 'URGENT';
     if (scopeParam === 'RESIDENTIAL') return 'RESIDENTIAL';
 
-    if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
+    if ((externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') && !isProdScopeLocked) {
       return 'URGENT';
     }
     if (externalFilterCategory === 'CONDO' || externalFilterCategory === 'CONDO_SEARCH') {
@@ -149,7 +146,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     }
     try {
       const savedScope = sessionStorage.getItem('ksqh_review_active_scope');
-      if (savedScope === 'CONDO' || savedScope === 'URGENT' || savedScope === 'RESIDENTIAL') {
+      if (savedScope === 'CONDO' || savedScope === 'RESIDENTIAL' || (savedScope === 'URGENT' && !isProdScopeLocked)) {
         return savedScope;
       }
     } catch {
@@ -162,16 +159,16 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
 
   // Sync active scope when externalFilterCategory changes
   useEffect(() => {
-    if (isProdScopeLocked) {
-      setActiveScope('RESIDENTIAL');
-      return;
-    }
-    if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
-      setActiveScope('URGENT');
-    } else if (externalFilterCategory === 'CONDO' || externalFilterCategory === 'CONDO_SEARCH') {
+    if (externalFilterCategory === 'CONDO' || externalFilterCategory === 'CONDO_SEARCH') {
       setActiveScope('CONDO');
     } else if (externalFilterCategory === 'SEARCH') {
       setActiveScope('RESIDENTIAL');
+    } else if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
+      if (isProdScopeLocked) {
+        setActiveScope('RESIDENTIAL');
+      } else {
+        setActiveScope('URGENT');
+      }
     }
   }, [externalFilterCategory, isProdScopeLocked]);
 
@@ -185,9 +182,8 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
 
   // Update URL search param on scope change
   const handleScopeChange = (newScope: ReviewScope) => {
-    if (isProdScopeLocked && newScope !== 'RESIDENTIAL') {
+    if (isProdScopeLocked && newScope === 'URGENT') {
       setLockedScopeNotice(newScope);
-      setActiveScope('RESIDENTIAL');
       return;
     }
     setLockedScopeNotice(null);
@@ -396,41 +392,24 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => handleScopeChange('CONDO')}
-            aria-disabled={isProdScopeLocked}
-            title={
-              isProdScopeLocked
-                ? 'Đang phát triển — Tạm khóa trên môi trường Production'
-                : 'Không gian thẩm định Dự Án Chung Cư'
-            }
+            title="Không gian thẩm định Dự Án Chung Cư"
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              isProdScopeLocked
-                ? 'text-slate-400 dark:text-slate-500 opacity-80 hover:opacity-100'
-                : activeScope === 'CONDO'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              activeScope === 'CONDO'
+                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            {isProdScopeLocked ? (
-              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            ) : (
-              <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
-            )}
+            <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>Dự Án Chung Cư</span>
-            {isProdScopeLocked ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                Đang phát triển
-              </span>
-            ) : (
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  activeScope === 'CONDO'
-                    ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                {scopeCounts.condoTowers} Tòa
-              </span>
-            )}
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                activeScope === 'CONDO'
+                  ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {scopeCounts.condoTowers} Tòa
+            </span>
           </button>
 
           {/* Space 3: Urgent */}
@@ -502,7 +481,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       )}
 
       {/* Render Space Components */}
-      {(activeScope === 'RESIDENTIAL' || isProdScopeLocked) && (
+      {activeScope === 'RESIDENTIAL' && (
         <ResidentialReviewQueue
           selectedZone={selectedZone}
           externalSearchQuery={
@@ -551,7 +530,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
         />
       )}
 
-      {!isProdScopeLocked && activeScope === 'CONDO' && (
+      {activeScope === 'CONDO' && (
         <CondoProjectsReviewQueue
           selectedZone={selectedZone}
           externalSearchQuery={
