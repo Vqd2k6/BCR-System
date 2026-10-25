@@ -12,9 +12,11 @@ import {
   AlertTriangle,
   Lightbulb,
   Sparkles,
+  Check,
 } from 'lucide-react';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 import { RotatableImageFrame } from './RotatableImageFrame';
+import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface AuditPhotoCardProps {
   url?: string;
@@ -93,12 +95,31 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   onOpenPhotoHistory,
   className = '',
 }) => {
+  const studioCtx = useAuditStudioImgOptional();
   const hasUrl = Boolean(url && url.trim().length > 0);
+  const effectiveUrl = studioCtx && hasUrl ? studioCtx.resolveEffectiveStudioUrl(url!) : url || '';
+  const isSelectedInStudio = Boolean(
+    studioCtx && hasUrl && (studioCtx.isPhotoSelected(url!) || studioCtx.isPhotoSelected(effectiveUrl))
+  );
+  const studioEnhancedInfo =
+    studioCtx && hasUrl
+      ? studioCtx.getStudioEnhancedInfo(effectiveUrl) || studioCtx.getStudioEnhancedInfo(url!)
+      : null;
 
   const handleZoom = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (studioCtx?.isHoldingSKey && hasUrl) {
+      e.preventDefault();
+      studioCtx.toggleSelectPhoto({
+        url: effectiveUrl,
+        title,
+        photoCode: photoCode || photoKey,
+        rotation,
+      });
+      return;
+    }
     if (hasUrl && onOpenPhotoZoom) {
-      onOpenPhotoZoom(url!, title, photoKey || photoCode, rotation);
+      onOpenPhotoZoom(effectiveUrl, title, photoKey || photoCode, rotation);
     }
   };
 
@@ -535,6 +556,23 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-[9px] shrink-0 animate-pulse flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5" />
               <span>Mới thêm</span>
+            </span>
+          )}
+
+          {studioEnhancedInfo && (
+            <span
+              className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-[9px] shrink-0 flex items-center gap-1"
+              title={`Đã hiệu chỉnh qua Studio Img (${studioEnhancedInfo.presetUsed}) • Ảnh gốc KSV lưu riêng`}
+            >
+              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+              <span>Đã qua Studio</span>
+            </span>
+          )}
+
+          {isSelectedInStudio && (
+            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-300 font-bold text-[9px] shrink-0 flex items-center gap-1">
+              <Check className="w-2.5 h-2.5 text-indigo-600" />
+              <span>Đã chọn Studio Img</span>
             </span>
           )}
 

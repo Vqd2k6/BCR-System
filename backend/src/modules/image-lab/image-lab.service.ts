@@ -24,14 +24,38 @@
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Database } from '../../database/db';
+import { StorageService } from '../../common/services/storage.service';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/problem-details';
+
+export interface StudioCommitItemInput {
+  originalUrl: string;
+  currentUrl: string;
+  enhancedBase64: string;
+  photoCode?: string;
+  title?: string;
+  presetUsed: ImageLabPreset;
+  appliedParams: ImageEnhancementParams;
+}
+
+export interface StudioCommittedPhotoInfo {
+  originalUrl: string;
+  previousUrl: string;
+  enhancedUrl: string;
+  photoCode: string;
+  title: string;
+  presetUsed: ImageLabPreset;
+  appliedParams: ImageEnhancementParams;
+  updatedAt: string;
+  updatedBy: string;
+}
 
 export type ImageLabPreset =
   | 'AUTO_SMART'
+  | 'CRACK_ENHANCE_V1'
+  | 'CRACK_ENHANCE_V2'
   | 'CRACK_ENHANCE'
-  | 'CRACK_ISOLATION_MAP'
   | 'LOW_LIGHT_RESCUE'
-  | 'DEBLOCK_COMPRESSION'
-  | 'XRAY_NEGATIVE'
   | 'CUSTOM';
 
 export interface ImageEnhancementParams {
@@ -396,69 +420,11 @@ export class ImageLabService {
 
         params = {
           enableClahe: true,
-          // Lưới CLAHE lớn (160px) với độ dốc êm (2) giúp tăng độ trong trẻo mà KHÔNG gây viền Halo quanh chữ THACO/vệt nắng và KHÔNG làm nổi hạt bẩn JPEG trên tường trắng
           claheTileSize: 160,
           claheMaxSlope: 2,
           gamma: isVeryDark ? 2.05 : isBacklit ? 1.68 : hasDarkShadows ? 1.48 : 1.25,
           brightness: isVeryDark ? 1.14 : isBacklit ? 1.06 : 1.04,
           saturation: 0.98,
-          crackValleyBoost: 0.0, // Không chạy Bottom-Hat ở chế độ tự động để giữ mặt tường phẳng mịn sạch 100%
-          medianSize: 0,
-          sharpenSigma: 1.15,
-          sharpenFlatM1: 0.0,    // m1 = 0.0: Không làm nét vùng tường phẳng, triệt tiêu hoàn toàn hạt nhiễu khối JPEG
-          sharpenJaggedM2: 2.6,  // Làm sắc nét rõ rệt các biên cấu trúc, chữ viết, vân gạch và vết nứt
-          normalizeHistogram: true,
-          invertNegative: false,
-        };
-        break;
-      }
-
-      case 'CRACK_ENHANCE': {
-        params = {
-          enableClahe: true,
-          claheTileSize: 96, // Ô 96px đủ nhỏ để tách vết nứt nhưng không gây Halo gắt quanh vạch thước/chữ
-          claheMaxSlope: 3,
-          gamma: beforeMetrics.meanLuminance < 110 || beforeMetrics.darkPixelRatio >= 15 ? 1.52 : 1.25,
-          brightness: 1.05,
-          saturation: 0.90,
-          crackValleyBoost: 0.95, // Trích xuất rãnh nứt có lọc hướng tuyến tính (không làm bẩn tường)
-          medianSize: 0,
-          sharpenSigma: 1.25,
-          sharpenFlatM1: 0.0,
-          sharpenJaggedM2: 3.4,
-          normalizeHistogram: true,
-          invertNegative: false,
-        };
-        break;
-      }
-
-      case 'CRACK_ISOLATION_MAP': {
-        params = {
-          enableClahe: true,
-          claheTileSize: 64,
-          claheMaxSlope: 3,
-          gamma: beforeMetrics.meanLuminance < 110 ? 1.55 : 1.25,
-          brightness: 1.05,
-          saturation: 0.0,
-          crackValleyBoost: 1.85,
-          medianSize: 0,
-          sharpenSigma: 1.2,
-          sharpenFlatM1: 0.0,
-          sharpenJaggedM2: 3.8,
-          normalizeHistogram: true,
-          invertNegative: false,
-        };
-        break;
-      }
-
-      case 'LOW_LIGHT_RESCUE': {
-        params = {
-          enableClahe: true,
-          claheTileSize: 160,
-          claheMaxSlope: 2,
-          gamma: 2.15,
-          brightness: 1.15,
-          saturation: 0.95,
           crackValleyBoost: 0.0,
           medianSize: 0,
           sharpenSigma: 1.15,
@@ -470,40 +436,63 @@ export class ImageLabService {
         break;
       }
 
-      case 'DEBLOCK_COMPRESSION': {
+      case 'CRACK_ENHANCE_V1': {
+        // v1: Dịu nhẹ, tự nhiên, giữ tường & gờ chỉ phẳng mịn tuyệt đối, không rải điểm đen
         params = {
           enableClahe: true,
-          claheTileSize: 160,
+          claheTileSize: 128,
           claheMaxSlope: 2,
-          gamma: 1.38,
+          gamma: beforeMetrics.meanLuminance < 110 || beforeMetrics.darkPixelRatio >= 15 ? 1.45 : 1.20,
           brightness: 1.04,
-          saturation: 0.98,
-          crackValleyBoost: 0.0,
-          medianSize: 3, // Làm mượt khối vuông 8x8 JPEG trước khi khôi phục biên sắc nét
-          sharpenSigma: 1.15,
+          saturation: 0.95,
+          crackValleyBoost: 0.30,
+          medianSize: 0,
+          sharpenSigma: 1.10,
           sharpenFlatM1: 0.0,
-          sharpenJaggedM2: 3.2,
+          sharpenJaggedM2: 2.0,
           normalizeHistogram: true,
           invertNegative: false,
         };
         break;
       }
 
-      case 'XRAY_NEGATIVE': {
+      case 'CRACK_ENHANCE_V2':
+      case 'CRACK_ENHANCE': {
+        // v2: Tương phản cao hơn cho vết nứt mảnh/mờ, đã khắc phục triệt để lỗi tự dao động Ziczac
         params = {
           enableClahe: true,
-          claheTileSize: 64,
+          claheTileSize: 96,
           claheMaxSlope: 3,
-          gamma: 1.45,
-          brightness: 1.04,
-          saturation: 0.0,
-          crackValleyBoost: 1.4,
+          gamma: beforeMetrics.meanLuminance < 110 || beforeMetrics.darkPixelRatio >= 15 ? 1.50 : 1.22,
+          brightness: 1.05,
+          saturation: 0.92,
+          crackValleyBoost: 0.65,
           medianSize: 0,
-          sharpenSigma: 1.25,
+          sharpenSigma: 1.20,
           sharpenFlatM1: 0.0,
-          sharpenJaggedM2: 3.5,
+          sharpenJaggedM2: 2.8,
           normalizeHistogram: true,
-          invertNegative: true,
+          invertNegative: false,
+        };
+        break;
+      }
+
+      case 'LOW_LIGHT_RESCUE': {
+        // Cứu ảnh thiếu sáng sâu: Nâng sáng góc tối có khống chế đạo hàm chân tối & bảo vệ vùng sáng
+        params = {
+          enableClahe: true,
+          claheTileSize: 160,
+          claheMaxSlope: 2,
+          gamma: 2.15,
+          brightness: 1.15,
+          saturation: 0.95,
+          crackValleyBoost: 0.0,
+          medianSize: 0,
+          sharpenSigma: 1.15,
+          sharpenFlatM1: 0.0,
+          sharpenJaggedM2: 2.3,
+          normalizeHistogram: true,
+          invertNegative: false,
         };
         break;
       }
@@ -588,8 +577,11 @@ export class ImageLabService {
 
   /**
    * Phép toán Hình thái học Đáy Mũ Có Lọc Hướng Tuyến Tính (Anisotropic Morphological Bottom-Hat)
-   * Chỉ làm đậm các rãnh tối có tính liên kết thành đường (vết nứt, vân gạch, vạch thước),
-   * bỏ qua các đốm nhiễu rời rạc hoặc ô vuông nén JPEG trên tường phẳng.
+   * Khắc phục triệt để lỗi tự kích dao động Ziczac (\/\/\/\/) và rải chấm đen:
+   * 1. Tuyệt đối không đọc mảng bị biến đổi in-place: Tạo bản sao origLum để toàn bộ
+   *    phép kiểm tra lân cận 4 hướng đọc trên dữ liệu gốc bất biến.
+   * 2. Sử dụng bản đồ độ sâu rãnh valleyMap trung gian kèm làm mượt khuếch tán 3x3
+   *    giúp bờ rãnh nứt liền mạch, không bị đứt đoạn hay rải hạt đen.
    */
   private static applyMorphologicalBottomHatValleyBoost(
     lum: Uint8Array,
@@ -602,6 +594,7 @@ export class ImageLabService {
     if (crackValleyBoost <= 0.01 || width < 5 || height < 5) return;
 
     const total = width * height;
+    const origLum = new Uint8Array(lum); // Bản sao bất biến: Khử 100% dao động Ziczac
     const temp = new Uint8Array(total);
     const closed = new Uint8Array(total);
     const r = Math.max(1, Math.min(2, radius));
@@ -614,7 +607,7 @@ export class ImageLabService {
         const xStart = Math.max(0, x - r);
         const xEnd = Math.min(width - 1, x + r);
         for (let kx = xStart; kx <= xEnd; kx++) {
-          const val = lum[rowOffset + kx];
+          const val = origLum[rowOffset + kx];
           if (val > maxVal) maxVal = val;
         }
         temp[rowOffset + x] = maxVal;
@@ -650,8 +643,9 @@ export class ImageLabService {
       }
     }
 
-    // Ngưỡng cắt nhiễu cao (>= 6.5 mức xám) để không làm bẩn các mảng tường nén JPEG
-    const noiseGate = Math.max(6.5, Math.min(16.0, 2.4 * noiseSigma));
+    // Ngưỡng lọc nhiễu thích nghi theo độ nhiễu nền
+    const noiseGate = Math.max(7.0, Math.min(18.0, 2.5 * noiseSigma));
+    const rawValleyMap = new Float32Array(total);
 
     for (let y = 1; y < height - 1; y++) {
       const yStart = Math.max(0, y - r);
@@ -665,28 +659,42 @@ export class ImageLabService {
         }
 
         const idx = rowOffset + x;
-        const origL = lum[idx];
+        const origL = origLum[idx];
         const valleyDepth = closedVal - origL;
 
         if (valleyDepth > noiseGate) {
-          // Kiểm tra tính liên kết tuyến tính: Điểm đang xét phải cùng tối với ít nhất 2 điểm lân cận đối xứng
-          // theo 1 trong 4 hướng (Ngang, Dọc, Chéo chính, Chéo phụ) -> Loại bỏ hạt nhiễu cô lập
-          const tol = Math.max(8, Math.round(valleyDepth * 0.6));
+          // Kiểm tra tính liên kết tuyến tính trên bản sao origLum (không bị lệch pha bởi điểm lân cận bị trừ trước)
+          const tol = Math.max(8, Math.round(valleyDepth * 0.65));
           const isHoriz =
-            Math.abs(lum[idx - 1] - origL) <= tol && Math.abs(lum[idx + 1] - origL) <= tol;
+            Math.abs(origLum[idx - 1] - origL) <= tol && Math.abs(origLum[idx + 1] - origL) <= tol;
           const isVert =
-            Math.abs(lum[idx - width] - origL) <= tol && Math.abs(lum[idx + width] - origL) <= tol;
+            Math.abs(origLum[idx - width] - origL) <= tol && Math.abs(origLum[idx + width] - origL) <= tol;
           const isDiag1 =
-            Math.abs(lum[idx - width - 1] - origL) <= tol &&
-            Math.abs(lum[idx + width + 1] - origL) <= tol;
+            Math.abs(origLum[idx - width - 1] - origL) <= tol &&
+            Math.abs(origLum[idx + width + 1] - origL) <= tol;
           const isDiag2 =
-            Math.abs(lum[idx - width + 1] - origL) <= tol &&
-            Math.abs(lum[idx + width - 1] - origL) <= tol;
+            Math.abs(origLum[idx - width + 1] - origL) <= tol &&
+            Math.abs(origLum[idx + width - 1] - origL) <= tol;
 
           if (isHoriz || isVert || isDiag1 || isDiag2) {
-            const effectiveDepth = Math.min(36, (valleyDepth - noiseGate) * crackValleyBoost);
-            lum[idx] = Math.max(0, Math.round(origL - effectiveDepth));
+            rawValleyMap[idx] = Math.min(32, (valleyDepth - noiseGate) * crackValleyBoost);
           }
+        }
+      }
+    }
+
+    // Bước 3: Làm mượt nhẹ 3x3 trên bản đồ rãnh nứt trước khi trừ vào lum (khử tuyệt đối điểm đen rời rạc)
+    for (let y = 1; y < height - 1; y++) {
+      const rowOffset = y * width;
+      for (let x = 1; x < width - 1; x++) {
+        const idx = rowOffset + x;
+        const centerDepth = rawValleyMap[idx];
+        if (centerDepth > 0) {
+          // Lọc khuếch tán 3x3 làm êm bờ rãnh nứt
+          const smoothedDepth =
+            0.5 * centerDepth +
+            0.125 * (rawValleyMap[idx - 1] + rawValleyMap[idx + 1] + rawValleyMap[idx - width] + rawValleyMap[idx + width]);
+          lum[idx] = Math.max(0, Math.round(origLum[idx] - smoothedDepth));
         }
       }
     }
@@ -839,7 +847,8 @@ export class ImageLabService {
 
     if (appliedParams.sharpenFlatM1 > 0 || appliedParams.sharpenJaggedM2 > 0) {
       // Ngưỡng x1 thích nghi: Đảm bảo cao hơn biên độ khối nén JPEG 8x8 (x1 >= 5.5) để không làm bẩn tường phẳng
-      const minCleanX1 = preset === 'CRACK_ENHANCE' || preset === 'CRACK_ISOLATION_MAP' ? 5.2 : 6.8;
+      const minCleanX1 =
+        preset === 'CRACK_ENHANCE_V1' || preset === 'CRACK_ENHANCE_V2' || preset === 'CRACK_ENHANCE' ? 5.5 : 6.8;
       const adaptiveX1 = Math.max(
         minCleanX1,
         Math.min(16.0, Number((2.5 * beforeMetrics.noiseSigma).toFixed(2)))
@@ -1049,5 +1058,358 @@ export class ImageLabService {
     }
 
     throw new Error('Đường dẫn ảnh không hợp lệ hoặc không tìm thấy file.');
+  }
+
+  /**
+   * Đệ quy thay thế đường dẫn ảnh cũ bằng đường dẫn ảnh Studio mới trong cây JSON,
+   * ngoại trừ các nhánh lưu trữ đối chiếu gốc (studioEnhancedPhotos & studioEnhancedByOriginal).
+   */
+  private static deepReplaceUrlInJson(
+    node: unknown,
+    urlMap: Map<string, string>,
+    skipKeys: Set<string> = new Set(['studioEnhancedPhotos', 'studioEnhancedByOriginal'])
+  ): unknown {
+    if (typeof node === 'string') {
+      const trimmed = node.trim();
+      if (urlMap.has(trimmed)) {
+        return urlMap.get(trimmed)!;
+      }
+      if (urlMap.has(node)) {
+        return urlMap.get(node)!;
+      }
+      return node;
+    }
+    if (Array.isArray(node)) {
+      return node.map((item) => this.deepReplaceUrlInJson(item, urlMap, skipKeys));
+    }
+    if (node !== null && typeof node === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if (skipKeys.has(k)) {
+          out[k] = v;
+        } else {
+          out[k] = this.deepReplaceUrlInJson(v, urlMap, skipKeys);
+        }
+      }
+      return out;
+    }
+    return node;
+  }
+
+  /**
+   * Lưu chính thức các ảnh đã điều chỉnh từ Studio Img cho phiên thẩm định:
+   * - Tạo file ảnh mới hoàn toàn độc lập với ảnh gốc KSV (lưu vào thư mục studio-img)
+   * - Bảo toàn 100% ảnh gốc KSV và ánh xạ originalUrl <-> enhancedUrl
+   * - Cập nhật phiên thẩm định hiện tại & đồng bộ cho xuất Báo cáo PDF
+   */
+  public static async commitStudioSession(
+    reportId: string,
+    adminId: string,
+    items: StudioCommitItemInput[],
+    clientIp?: string
+  ): Promise<{
+    reportId: string;
+    committedItems: StudioCommittedPhotoInfo[];
+    studioEnhancedPhotos: Record<string, StudioCommittedPhotoInfo>;
+    studioEnhancedByOriginal: Record<string, string>;
+  }> {
+    if (!reportId || !reportId.trim()) {
+      throw new BadRequestError('Thiếu mã hồ sơ thẩm định (reportId).');
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestError('Chưa có ảnh nào được điều chỉnh để lưu trong Studio Img.');
+    }
+
+    const repRes = await Database.query<{
+      id: string;
+      parcel_id: string;
+      status: string;
+      surveyor_id: string | null;
+      survey_data_json: Record<string, unknown> | string | null;
+    }>(
+      `SELECT id, parcel_id, status, surveyor_id, survey_data_json
+       FROM base_survey_reports
+       WHERE (id::text = $1 OR parcel_id::text = $1) AND deleted_at IS NULL
+       ORDER BY created_at DESC LIMIT 1;`,
+      [reportId.trim()]
+    );
+
+    if (!repRes.rows[0]) {
+      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với mã: ${reportId}`);
+    }
+
+    const report = repRes.rows[0];
+    if (String(report.status || '').toUpperCase() === 'APPROVED') {
+      throw new ForbiddenError('Hồ sơ đã được phê duyệt chính thức và khóa bất biến, không thể lưu ảnh Studio mới.');
+    }
+
+    const actualReportId = report.id;
+    const existingJson: Record<string, unknown> =
+      typeof report.survey_data_json === 'string'
+        ? (JSON.parse(report.survey_data_json || '{}') as Record<string, unknown>)
+        : { ...(report.survey_data_json || {}) };
+
+    // Khởi tạo phiên bản gốc v0 nếu chưa có trước khi ghi nhận ảnh Studio
+    try {
+      const verCountRes = await Database.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      if (Number(verCountRes.rows[0]?.count || 0) === 0) {
+        const { AuditVersionService } = await import('../audit/services/audit-version.service');
+        await AuditVersionService.createSnapshot(actualReportId, {
+          versionTag: 'ORIGINAL_SUBMISSION',
+          title: 'Bản nộp thực địa ban đầu',
+          editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi lưu Studio Img lần đầu (Auto-Seed Baseline v0)',
+          userId: report.surveyor_id || adminId,
+        });
+      }
+    } catch (seedErr: unknown) {
+      console.warn('[ImageLabService.commitStudioSession] Bỏ qua seed v0:', seedErr);
+    }
+
+    const existingEnhancedMap =
+      existingJson.studioEnhancedPhotos && typeof existingJson.studioEnhancedPhotos === 'object'
+        ? { ...(existingJson.studioEnhancedPhotos as Record<string, StudioCommittedPhotoInfo>) }
+        : {};
+    const existingByOriginalMap =
+      existingJson.studioEnhancedByOriginal && typeof existingJson.studioEnhancedByOriginal === 'object'
+        ? { ...(existingJson.studioEnhancedByOriginal as Record<string, string>) }
+        : {};
+
+    const nowIso = new Date().toISOString();
+    const committedItems: StudioCommittedPhotoInfo[] = [];
+    const urlReplaceMap = new Map<string, string>();
+    const diffSummary: Array<{ field: string; label: string; oldValue: string; newValue: string }> = [];
+
+    // 1. Tạo file ảnh mới riêng biệt cho từng bức ảnh đã chỉnh trong Studio Img
+    for (const item of items) {
+      if (!item.enhancedBase64 || !item.enhancedBase64.startsWith('data:image/')) {
+        continue;
+      }
+      const rawCurrentUrl = (item.currentUrl || item.originalUrl || '').trim();
+      const rawOriginalUrl = (item.originalUrl || rawCurrentUrl).trim();
+      if (!rawCurrentUrl) continue;
+
+      // Nếu ảnh trước đó đã từng qua Studio, truy ngược về URL gốc KSV thực sự
+      const priorInfo = existingEnhancedMap[rawCurrentUrl] || existingEnhancedMap[rawOriginalUrl];
+      const trueOriginalKsvUrl = priorInfo?.originalUrl || rawOriginalUrl;
+
+      const safeCode = (item.photoCode || 'photo').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const uploadRes = await StorageService.uploadBase64(
+        item.enhancedBase64,
+        `studio_${safeCode}`,
+        'studio-img',
+        {
+          reportId: actualReportId,
+          originalKsvUrl: trueOriginalKsvUrl,
+          presetUsed: item.presetUsed,
+          source: 'AUDIT_STUDIO_IMG',
+        }
+      );
+
+      const newEnhancedUrl = uploadRes.url;
+      const info: StudioCommittedPhotoInfo = {
+        originalUrl: trueOriginalKsvUrl,
+        previousUrl: rawCurrentUrl,
+        enhancedUrl: newEnhancedUrl,
+        photoCode: item.photoCode || 'STUDIO_IMG',
+        title: item.title || item.photoCode || 'Ảnh hiệu chỉnh Studio',
+        presetUsed: item.presetUsed,
+        appliedParams: item.appliedParams,
+        updatedAt: nowIso,
+        updatedBy: adminId,
+      };
+
+      committedItems.push(info);
+      existingEnhancedMap[newEnhancedUrl] = info;
+      existingByOriginalMap[trueOriginalKsvUrl] = newEnhancedUrl;
+      existingByOriginalMap[rawCurrentUrl] = newEnhancedUrl;
+
+      urlReplaceMap.set(rawCurrentUrl, newEnhancedUrl);
+      urlReplaceMap.set(trueOriginalKsvUrl, newEnhancedUrl);
+
+      diffSummary.push({
+        field: `studio_img_${safeCode}`,
+        label: `[Studio Img • ${item.presetUsed}] ${info.title}`,
+        oldValue: trueOriginalKsvUrl,
+        newValue: newEnhancedUrl,
+      });
+    }
+
+    if (committedItems.length === 0) {
+      throw new BadRequestError('Không có dữ liệu ảnh hợp lệ để tạo mới.');
+    }
+
+    // 2. Cập nhật survey_data_json và các bảng quan hệ trong Transaction
+    const updatedSurveyJson = this.deepReplaceUrlInJson(existingJson, urlReplaceMap) as Record<string, unknown>;
+    updatedSurveyJson.studioEnhancedPhotos = existingEnhancedMap;
+    updatedSurveyJson.studioEnhancedByOriginal = existingByOriginalMap;
+
+    await Database.transaction(async (client) => {
+      await client.query(
+        `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
+        [JSON.stringify(updatedSurveyJson), actualReportId]
+      );
+
+      for (const committed of committedItems) {
+        const targetUrls = Array.from(new Set([committed.originalUrl, committed.previousUrl].filter(Boolean)));
+        if (targetUrls.length === 0) continue;
+
+        // 2.1. Đồng bộ bảng survey_identification_photos
+        await client.query(
+          `UPDATE survey_identification_photos
+           SET raw_photo_url = CASE WHEN raw_photo_url = ANY($2::text[]) THEN $1 ELSE raw_photo_url END,
+               annotated_photo_url = CASE WHEN annotated_photo_url = ANY($2::text[]) THEN $1 ELSE annotated_photo_url END
+           WHERE report_id = $3
+             AND (raw_photo_url = ANY($2::text[]) OR annotated_photo_url = ANY($2::text[]));`,
+          [committed.enhancedUrl, targetUrls, actualReportId]
+        );
+
+        // 2.2. Đồng bộ bảng damage_zones (CTX photos)
+        await client.query(
+          `UPDATE damage_zones
+           SET ctx_photo_url = $1
+           WHERE report_id = $3 AND ctx_photo_url = ANY($2::text[]);`,
+          [committed.enhancedUrl, targetUrls, actualReportId]
+        );
+
+        // 2.3. Đồng bộ bảng defect_items (CU photos + cu_photos_json)
+        const matchingDefects = await client.query<{
+          id: string;
+          cu_photo_url: string | null;
+          extra_photo_url: string | null;
+          cu_photos_json: unknown;
+        }>(
+          `SELECT d.id, d.cu_photo_url, d.extra_photo_url, d.cu_photos_json
+           FROM defect_items d
+           INNER JOIN damage_zones z ON z.id = d.zone_id
+           WHERE z.report_id = $1;`,
+          [actualReportId]
+        );
+
+        for (const dRow of matchingDefects.rows) {
+          let changed = false;
+          let nextCuUrl = dRow.cu_photo_url;
+          let nextExtraUrl = dRow.extra_photo_url;
+          let nextCuList = Array.isArray(dRow.cu_photos_json) ? [...dRow.cu_photos_json] : null;
+
+          if (nextCuUrl && targetUrls.includes(nextCuUrl.trim())) {
+            nextCuUrl = committed.enhancedUrl;
+            changed = true;
+          }
+          if (nextExtraUrl && targetUrls.includes(nextExtraUrl.trim())) {
+            nextExtraUrl = committed.enhancedUrl;
+            changed = true;
+          }
+          if (nextCuList) {
+            nextCuList = nextCuList.map((entry: unknown) => {
+              if (typeof entry === 'string' && targetUrls.includes(entry.trim())) {
+                changed = true;
+                return committed.enhancedUrl;
+              }
+              if (entry && typeof entry === 'object' && 'url' in entry) {
+                const u = String((entry as { url?: unknown }).url || '').trim();
+                if (targetUrls.includes(u)) {
+                  changed = true;
+                  return { ...(entry as Record<string, unknown>), url: committed.enhancedUrl };
+                }
+              }
+              return entry;
+            });
+          }
+
+          if (changed) {
+            await client.query(
+              `UPDATE defect_items
+               SET cu_photo_url = $1,
+                   extra_photo_url = $2,
+                   cu_photos_json = COALESCE($3::jsonb, cu_photos_json)
+               WHERE id = $4;`,
+              [
+                nextCuUrl,
+                nextExtraUrl,
+                nextCuList ? JSON.stringify(nextCuList) : null,
+                dRow.id,
+              ]
+            );
+          }
+        }
+
+        // 2.4. Đồng bộ bảng deformation_assessments (nếu có ảnh lún/nghiêng)
+        const defRes = await client.query<{
+          diff_settlement_photos_json: unknown;
+          tilt_photos_json: unknown;
+          abnormal_photos_json: unknown;
+        }>(
+          `SELECT diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
+           FROM deformation_assessments
+           WHERE report_id = $1;`,
+          [actualReportId]
+        );
+        if (defRes.rows[0]) {
+          const singleMap = new Map<string, string>();
+          for (const tUrl of targetUrls) singleMap.set(tUrl, committed.enhancedUrl);
+          const nextDiffJson = this.deepReplaceUrlInJson(defRes.rows[0].diff_settlement_photos_json, singleMap);
+          const nextTiltJson = this.deepReplaceUrlInJson(defRes.rows[0].tilt_photos_json, singleMap);
+          const nextAbnJson = this.deepReplaceUrlInJson(defRes.rows[0].abnormal_photos_json, singleMap);
+          await client.query(
+            `UPDATE deformation_assessments
+             SET diff_settlement_photos_json = COALESCE($1::jsonb, diff_settlement_photos_json),
+                 tilt_photos_json = COALESCE($2::jsonb, tilt_photos_json),
+                 abnormal_photos_json = COALESCE($3::jsonb, abnormal_photos_json)
+             WHERE report_id = $4;`,
+            [
+              nextDiffJson ? JSON.stringify(nextDiffJson) : null,
+              nextTiltJson ? JSON.stringify(nextTiltJson) : null,
+              nextAbnJson ? JSON.stringify(nextAbnJson) : null,
+              actualReportId,
+            ]
+          );
+        }
+      }
+
+      // 2.5. Ghi nhật ký kiểm toán Append-Only
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'STUDIO_IMG_ENHANCE',
+          adminId,
+          JSON.stringify({
+            editReason: `Hiệu chỉnh ${committedItems.length} ảnh hiện trường qua Studio Img (Lưu bản mới độc lập với ảnh gốc KSV)`,
+            committedCount: committedItems.length,
+            items: committedItems,
+            timestamp: nowIso,
+          }),
+          clientIp || null,
+        ]
+      );
+    });
+
+    // 3. Tạo Snapshot phiên bản thẩm định mới
+    try {
+      const { AuditVersionService } = await import('../audit/services/audit-version.service');
+      await AuditVersionService.createSnapshot(actualReportId, {
+        versionTag: 'ADMIN_DIFF_SAVE',
+        title: `Studio Img: Hiệu chỉnh chất lượng ${committedItems.length} ảnh hiện trường`,
+        editReason: `Tạo bản ảnh hiệu chỉnh Studio Img cho ${committedItems.length} ảnh (${committedItems.map((i) => i.photoCode).join(', ')})`,
+        userId: adminId,
+        clientIp: clientIp || '127.0.0.1',
+        diffSummary,
+      });
+    } catch (snapErr: unknown) {
+      console.warn('[ImageLabService.commitStudioSession] Không thể tạo version snapshot:', snapErr);
+    }
+
+    return {
+      reportId: actualReportId,
+      committedItems,
+      studioEnhancedPhotos: existingEnhancedMap,
+      studioEnhancedByOriginal: existingByOriginalMap,
+    };
   }
 }

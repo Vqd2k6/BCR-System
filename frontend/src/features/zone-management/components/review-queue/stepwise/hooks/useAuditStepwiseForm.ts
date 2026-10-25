@@ -1298,7 +1298,19 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     };
 
     Object.entries(dirtyFieldsRef.current).forEach(([k, v]) => {
-      if (k === 'photoRotations') {
+      if (k === 'studioEnhancedPhotos' || k === 'studioEnhancedByOriginal') {
+        const enhancedMap = (v.newValue && typeof v.newValue === 'object' ? v.newValue : {}) as Record<string, any>;
+        Object.values(enhancedMap).forEach((info: any) => {
+          if (!info || !info.enhancedUrl) return;
+          diffItems.push({
+            field: `studio_${info.photoCode || 'photo'}_${info.enhancedUrl.slice(-12)}`,
+            label: `[Studio Img • ${info.presetUsed || 'Hiệu chỉnh'}] ${info.title || info.photoCode || 'Ảnh hiện trường'}`,
+            oldValue: info.originalUrl || info.previousUrl || 'Ảnh gốc KSV',
+            newValue: info.enhancedUrl,
+            isPhoto: true,
+          });
+        });
+      } else if (k === 'photoRotations') {
         const oldRots = (v.oldValue && typeof v.oldValue === 'object' ? v.oldValue : {}) as Record<string, number>;
         const newRots = (v.newValue && typeof v.newValue === 'object' ? v.newValue : {}) as Record<string, number>;
         const allKeys = Array.from(new Set([...Object.keys(oldRots), ...Object.keys(newRots)]));

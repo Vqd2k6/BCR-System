@@ -77,12 +77,55 @@ export function deepMergeOverride(target: any, source: any): any {
   return output;
 }
 
+function replaceStudioUrlsDeep(
+  node: any,
+  studioMap: Record<string, string>,
+  skipKeys: Set<string> = new Set(['studioEnhancedPhotos', 'studioEnhancedByOriginal'])
+): any {
+  if (typeof node === 'string') {
+    const trimmed = node.trim();
+    if (studioMap[trimmed]) return studioMap[trimmed];
+    if (studioMap[node]) return studioMap[node];
+    return node;
+  }
+  if (Array.isArray(node)) {
+    return node.map((item) => replaceStudioUrlsDeep(item, studioMap, skipKeys));
+  }
+  if (node !== null && typeof node === 'object') {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(node)) {
+      out[k] = skipKeys.has(k) ? v : replaceStudioUrlsDeep(v, studioMap, skipKeys);
+    }
+    return out;
+  }
+  return node;
+}
+
 export function applyOverridesToReport(rawReport: any, overrides?: any): any {
+  const rawJsonObj =
+    typeof rawReport?.survey_data_json === 'string'
+      ? JSON.parse(rawReport.survey_data_json || '{}')
+      : rawReport?.survey_data_json || {};
+  const studioByOrig =
+    rawJsonObj?.studioEnhancedByOriginal && typeof rawJsonObj.studioEnhancedByOriginal === 'object'
+      ? (rawJsonObj.studioEnhancedByOriginal as Record<string, string>)
+      : null;
+
   if (!overrides || typeof overrides !== 'object' || Object.keys(overrides).length === 0) {
+    if (studioByOrig && Object.keys(studioByOrig).length > 0) {
+      const clonedWithStudio = replaceStudioUrlsDeep(JSON.parse(JSON.stringify(rawReport)), studioByOrig);
+      if (typeof clonedWithStudio.survey_data_json === 'string') {
+        clonedWithStudio.survey_data_json = JSON.stringify(replaceStudioUrlsDeep(rawJsonObj, studioByOrig));
+      }
+      return clonedWithStudio;
+    }
     return rawReport;
   }
 
-  const cloned = JSON.parse(JSON.stringify(rawReport));
+  let cloned = JSON.parse(JSON.stringify(rawReport));
+  if (studioByOrig && Object.keys(studioByOrig).length > 0) {
+    cloned = replaceStudioUrlsDeep(cloned, studioByOrig);
+  }
   const baseJson =
     typeof cloned.survey_data_json === 'string'
       ? JSON.parse(cloned.survey_data_json || '{}')

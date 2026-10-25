@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Sparkles, Check } from 'lucide-react';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../../../../../core/storage/offlinePhotoStorage';
+import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface RotatableImageFrameProps {
   src?: string;
@@ -49,7 +51,9 @@ export const RotatableImageFrame: React.FC<RotatableImageFrameProps> = ({
   onClick,
   children,
 }) => {
-  const effectiveSrc = src || url || '';
+  const studioCtx = useAuditStudioImgOptional();
+  const rawSrc = src || url || '';
+  const effectiveSrc = studioCtx && rawSrc ? studioCtx.resolveEffectiveStudioUrl(rawSrc) : rawSrc;
   const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(effectiveSrc));
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({ w: 4, h: 3 });
 
@@ -85,16 +89,58 @@ export const RotatableImageFrame: React.FC<RotatableImageFrameProps> = ({
   const computedMaxWidthPx = Math.max(120, Math.round(maxHeightPx * effectiveAspect));
   const handleStageClick = onStageClick || stageOnClick || onClick;
 
+  const isSelectedInStudio = Boolean(
+    studioCtx &&
+      rawSrc &&
+      (studioCtx.isPhotoSelected(rawSrc) || studioCtx.isPhotoSelected(effectiveSrc))
+  );
+  const studioEnhancedInfo =
+    studioCtx && rawSrc
+      ? studioCtx.getStudioEnhancedInfo(effectiveSrc) || studioCtx.getStudioEnhancedInfo(rawSrc)
+      : null;
+  const isHoldingS = Boolean(studioCtx?.isHoldingSKey && rawSrc);
+
+  const handleInterceptedClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (studioCtx?.isHoldingSKey && effectiveSrc) {
+      e.preventDefault();
+      e.stopPropagation();
+      studioCtx.toggleSelectPhoto({
+        url: effectiveSrc,
+        title: alt || 'Ảnh hiện trường',
+        rotation: normRot,
+      });
+      return;
+    }
+    handleStageClick?.(e);
+  };
+
   return (
-    <div className={`w-full flex items-center justify-center select-none ${wrapperClassName} ${className}`}>
+    <div
+      onClickCapture={(e) => {
+        if (studioCtx?.isHoldingSKey && effectiveSrc) {
+          e.preventDefault();
+          e.stopPropagation();
+          studioCtx.toggleSelectPhoto({
+            url: effectiveSrc,
+            title: alt || 'Ảnh hiện trường',
+            rotation: normRot,
+          });
+        }
+      }}
+      className={`w-full flex items-center justify-center select-none ${
+        isHoldingS ? 'cursor-copy' : ''
+      } ${wrapperClassName} ${className}`}
+    >
       <div
-        onClick={handleStageClick}
+        onClick={handleInterceptedClick}
         style={{
           aspectRatio: `${stageW} / ${stageH}`,
           width: '100%',
           maxWidth: `${computedMaxWidthPx}px`,
         }}
-        className={`relative overflow-hidden mx-auto leading-none ${stageClassName}`}
+        className={`relative overflow-hidden mx-auto leading-none ${
+          isSelectedInStudio ? 'ring-3 ring-indigo-500 ring-inset rounded-md' : ''
+        } ${stageClassName}`}
       >
         {displayUrl && (
           <img
@@ -130,6 +176,38 @@ export const RotatableImageFrame: React.FC<RotatableImageFrameProps> = ({
             className="block pointer-events-none select-none object-fill"
           />
         )}
+
+        {/* Nhãn "Đã qua Studio" khi ảnh đã được hiệu chỉnh & lưu từ Studio Img */}
+        {studioEnhancedInfo && (
+          <div
+            className="absolute bottom-2 left-2 z-20 px-2 py-0.5 rounded-md bg-emerald-600/95 text-white font-bold text-[10px] shadow-md flex items-center gap-1 pointer-events-none border border-emerald-400/60"
+            title={`Đã hiệu chỉnh qua Studio Img (${studioEnhancedInfo.presetUsed}) • Ảnh gốc KSV được bảo toàn riêng`}
+          >
+            <Sparkles className="w-3 h-3 shrink-0" />
+            <span>Đã qua Studio</span>
+          </div>
+        )}
+
+        {/* Nhãn khi ảnh đang được chọn vào danh sách Studio Img (S + Click) */}
+        {isSelectedInStudio && (
+          <div className="absolute bottom-2 right-2 z-20 px-2 py-0.5 rounded-md bg-indigo-600/95 text-white font-bold text-[10px] shadow-md flex items-center gap-1 pointer-events-none border border-indigo-400/60">
+            <Check className="w-3 h-3 shrink-0" />
+            <span>Studio Img</span>
+          </div>
+        )}
+
+        {/* Chỉ báo trực quan khi đang nhấn giữ phím S */}
+        {isHoldingS && (
+          <div className="absolute inset-0 z-30 bg-indigo-950/20 hover:bg-indigo-900/35 transition-colors flex items-center justify-center pointer-events-none">
+            <span className="px-2.5 py-1 rounded-full bg-indigo-600/95 text-white text-[10px] font-black shadow-lg border border-white/40 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              <span>
+                {isSelectedInStudio ? 'S + Click: Bỏ khỏi Studio Img' : 'S + Click: Chọn vào Studio Img'}
+              </span>
+            </span>
+          </div>
+        )}
+
         {children}
       </div>
     </div>

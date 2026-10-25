@@ -31,11 +31,9 @@ import { getErrorMessage } from '@/utils/errorUtils';
 
 export type ImageLabPreset =
   | 'AUTO_SMART'
-  | 'CRACK_ENHANCE'
-  | 'CRACK_ISOLATION_MAP'
+  | 'CRACK_ENHANCE_V1'
+  | 'CRACK_ENHANCE_V2'
   | 'LOW_LIGHT_RESCUE'
-  | 'DEBLOCK_COMPRESSION'
-  | 'XRAY_NEGATIVE'
   | 'CUSTOM';
 
 export interface ImageEnhancementParams {
@@ -130,39 +128,27 @@ const PRESET_LIST: Array<{
 }> = [
   {
     id: 'AUTO_SMART',
-    label: 'Tự Động Chẩn Đoán (Auto Forensic v2)',
-    desc: 'Đo độ tối, độ mờ & nhiễu nền MAD trên kênh L để tự nội suy Bottom-Hat + CLAHE + Adaptive USM.',
+    label: 'Tự Động Chẩn Đoán',
+    desc: 'Đo độ tối, độ mờ & tương phản để tự cân bằng sáng và làm sắc nét biên cấu trúc.',
     badge: 'Khuyên dùng',
   },
   {
-    id: 'CRACK_ENHANCE',
-    label: 'Làm Nổi Vết Nứt & Thước Đo (Bottom-Hat + CLAHE)',
-    desc: 'Trích xuất rãnh tối 1-5px bằng Hình thái học Đáy Mũ, giữ nguyên màu vết thấm và làm sắc vạch thước.',
-    badge: 'Soi nứt 0.1mm',
+    id: 'CRACK_ENHANCE_V1',
+    label: 'Làm Nổi Vết Nứt & Thước Đo v1',
+    desc: 'Làm rõ vết nứt & vạch thước đo ở mức dịu nhẹ, tự nhiên, giữ mặt tường phẳng mịn sạch 100%.',
+    badge: 'Dịu nhẹ • Mịn sạch',
   },
   {
-    id: 'CRACK_ISOLATION_MAP',
-    label: 'Bản Đồ Tách Lớp Rãnh Nứt (Crack Isolation)',
-    desc: 'Cô lập hình học rãnh nứt trên phổ đơn sắc tương phản cực đại (crackValleyBoost = 2.2x).',
-    badge: 'Mới v2.0',
+    id: 'CRACK_ENHANCE_V2',
+    label: 'Làm Nổi Vết Nứt & Thước Đo v2',
+    desc: 'Tăng cường độ sâu rãnh nứt và tương phản cao hơn cho vết nứt mảnh (đã triệt tiêu lỗi ziczac).',
+    badge: 'Tương phản cao',
   },
   {
     id: 'LOW_LIGHT_RESCUE',
-    label: 'Cứu Ảnh Thiếu Sáng Sâu (Toe-Limited Curve)',
-    desc: 'Nâng sáng góc tối có khống chế đạo hàm chân tối (≤ 3.3x), không làm nổ hạt nhiễu màu ISO.',
-    badge: 'Bù sáng sạch',
-  },
-  {
-    id: 'DEBLOCK_COMPRESSION',
-    label: 'Khử Mờ Nén Ảnh (Deblock & Edge Restore)',
-    desc: 'Làm mượt khối vuông 8x8 do nén JPEG/Zalo và tái tạo biên chữ số sắc nét chuẩn 4:4:4.',
-    badge: 'Khử nén',
-  },
-  {
-    id: 'XRAY_NEGATIVE',
-    label: 'Bản Âm X-Ray (Soi Nứt Chân Chim)',
-    desc: 'Đảo phổ âm bản trên kênh độ chói kết hợp Bottom-Hat giúp vết nứt mảnh phát sáng trắng.',
-    badge: 'X-Ray',
+    label: 'Cứu Ảnh Thiếu Sáng Sâu',
+    desc: 'Nâng sáng góc tối khuất đèn với đường cong chân tối có khống chế nhiễu hạt cảm biến ISO.',
+    badge: 'Nâng sáng sạch',
   },
 ];
 
@@ -334,8 +320,9 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [activePreset, setActivePreset] = useState<ImageLabPreset>('AUTO_SMART');
-  const [customParams, setCustomParams] = useState<ImageEnhancementParams>(DEFAULT_PARAMS);
-  const [showAdvancedSliders, setShowAdvancedSliders] = useState<boolean>(false);
+  // Cụm tham số điều chỉnh thủ công trực quan: Tăng/giảm sáng & Tăng nét
+  const [brightnessSlider, setBrightnessSlider] = useState<number>(1.0); // 0.50 -> 1.80
+  const [sharpnessSlider, setSharpnessSlider] = useState<number>(2.4);  // 0.0 -> 6.0
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -491,8 +478,9 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }
 
         setResult(data);
-        if (presetToRun !== 'CUSTOM' && data.appliedParams) {
-          setCustomParams(data.appliedParams);
+        if (data.appliedParams) {
+          setBrightnessSlider(data.appliedParams.brightness || 1.0);
+          setSharpnessSlider(data.appliedParams.sharpenJaggedM2 ?? 2.4);
         }
       } catch (err: unknown) {
         console.error('[ForensicImageLabModal:executeProcessing] Lỗi xử lý ảnh:', err);
@@ -504,16 +492,37 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
     []
   );
 
-  // Tự động đồng bộ trạng thái sang CUSTOM ngay khi người dùng chỉnh bất kỳ thanh trượt nào (Khắc phục Lỗi UI #3)
-  const updateCustomParam = <K extends keyof ImageEnhancementParams>(
-    key: K,
-    value: ImageEnhancementParams[K]
-  ) => {
+  // Xây dựng params từ 2 thanh trượt trực quan Tăng/Giảm sáng và Tăng nét
+  const buildCustomParams = useCallback(
+    (b: number, s: number): ImageEnhancementParams => {
+      const isBrighter = b > 1.0;
+      return {
+        ...DEFAULT_PARAMS,
+        brightness: Number(b.toFixed(2)),
+        // Tăng sáng tự động nâng kèm gamma để kéo sáng góc tối, giảm sáng giữ gamma mượt
+        gamma: isBrighter ? Number((1.2 + (b - 1.0) * 1.1).toFixed(2)) : 1.0,
+        sharpenFlatM1: 0.0, // Luôn giữ m1 = 0.0 để không bẩn tường
+        sharpenJaggedM2: Number(s.toFixed(1)),
+      };
+    },
+    []
+  );
+
+  const handleApplySliders = (newBrightness: number, newSharpness: number) => {
     setActivePreset('CUSTOM');
-    setCustomParams((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    const params = buildCustomParams(newBrightness, newSharpness);
+    if (selectedFile || imageUrlInput.trim()) {
+      void executeProcessing(selectedFile, imageUrlInput, 'CUSTOM', params);
+    }
+  };
+
+  const handleResetSliders = () => {
+    setBrightnessSlider(1.0);
+    setSharpnessSlider(2.4);
+    setActivePreset('AUTO_SMART');
+    if (selectedFile || imageUrlInput.trim()) {
+      void executeProcessing(selectedFile, imageUrlInput, 'AUTO_SMART');
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -523,7 +532,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setImageUrlInput('');
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
-    void executeProcessing(file, '', activePreset, customParams);
+    void executeProcessing(file, '', activePreset, buildCustomParams(brightnessSlider, sharpnessSlider));
     e.target.value = '';
   };
 
@@ -535,7 +544,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setImageUrlInput('');
       setZoom(1.0);
       setPan({ x: 0, y: 0 });
-      await executeProcessing(sampleFile, '', activePreset, customParams);
+      await executeProcessing(sampleFile, '', activePreset, buildCustomParams(brightnessSlider, sharpnessSlider));
     } catch (err: unknown) {
       console.error('[ForensicImageLabModal:handleGenerateSyntheticSample] Lỗi tạo ảnh mẫu:', err);
       setErrorMsg(getErrorMessage(err));
@@ -548,7 +557,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setImageUrlInput(url);
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
-    void executeProcessing(null, url, activePreset, customParams);
+    void executeProcessing(null, url, activePreset, buildCustomParams(brightnessSlider, sharpnessSlider));
   };
 
   const handleStepSamplePhoto = (delta: -1 | 1) => {
@@ -568,13 +577,8 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const handleSelectPreset = (presetId: ImageLabPreset) => {
     setActivePreset(presetId);
     if (selectedFile || imageUrlInput.trim()) {
-      void executeProcessing(selectedFile, imageUrlInput, presetId, customParams);
+      void executeProcessing(selectedFile, imageUrlInput, presetId);
     }
-  };
-
-  const handleApplyCustomSliders = () => {
-    setActivePreset('CUSTOM');
-    void executeProcessing(selectedFile, imageUrlInput, 'CUSTOM', customParams);
   };
 
   const handleDownloadEnhanced = () => {
@@ -634,26 +638,26 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <div className="bg-white text-slate-900 w-full max-w-[1720px] h-[95vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-        {/* 1. Header Bar */}
-        <div className="px-5 py-3 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+        {/* 1. Header Bar (Light Mode) */}
+        <div className="px-5 py-3 bg-white text-slate-900 flex items-center justify-between border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black tracking-tight">
-                  PHÒNG THÍ NGHIỆM XỬ LÝ & ĐỐI CHỨNG ẢNH VẾT NỨT (FORENSIC DSP LAB v2.0)
+                <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-800">
+                  PHÒNG THÍ NGHIỆM XỬ LÝ & ĐỐI CHỨNG ẢNH VẾT NỨT (FORENSIC DSP LAB)
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
-                  LUMINANCE + BOTTOM-HAT + MAD NOISE ENGINE
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                  LUMINANCE 4:4:4 ENGINE
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-700">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-300">
                   SANDBOX ĐỘC LẬP
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Xử lý trên kênh Độ chói L bảo toàn sắc độ màu • Trích xuất rãnh nứt Hình thái học Bottom-Hat • Khử nhiễu thích nghi MAD (0% tải lên điện thoại KSV)
+              <p className="text-xs text-slate-500">
+                Xử lý trên kênh Độ chói L bảo toàn sắc độ màu • Nổi vết nứt v1/v2 không hạt đen • Nâng sáng thông minh (0% tải lên điện thoại KSV)
               </p>
             </div>
           </div>
@@ -661,7 +665,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-rose-600 text-slate-600 hover:text-white transition-all cursor-pointer"
             title="Đóng cửa sổ"
           >
             <X className="w-5 h-5" />
@@ -733,7 +737,12 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     type="button"
                     onClick={() => {
                       setSelectedFile(null);
-                      void executeProcessing(null, imageUrlInput, activePreset, customParams);
+                      void executeProcessing(
+                        null,
+                        imageUrlInput,
+                        activePreset,
+                        buildCustomParams(brightnessSlider, sharpnessSlider)
+                      );
                     }}
                     disabled={!imageUrlInput.trim() || isProcessing}
                     className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
@@ -945,254 +954,159 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             </div>
 
-            {/* Khối 3: Tinh chỉnh tham số chuyên sâu (Fine-tuning Sliders) */}
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedSliders(!showAdvancedSliders)}
-                className="w-full flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-slate-700 cursor-pointer"
-              >
-                <span className="flex items-center gap-1.5">
+            {/* Khối 3: Tinh chỉnh thủ công: Tăng sáng, Giảm sáng & Tăng nét */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-sky-600" />
-                  3. Tinh Chỉnh Tham Số Toán Học
+                  3. Tinh Chỉnh Sáng & Nét
                 </span>
-                <span className="text-[11px] text-sky-600 font-bold">
-                  {showAdvancedSliders ? 'Thu gọn ▲' : 'Mở rộng ▼'}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={handleResetSliders}
+                  className="text-[11px] font-bold text-slate-500 hover:text-emerald-700 hover:bg-slate-100 px-2 py-0.5 rounded cursor-pointer"
+                  title="Đặt lại mức sáng và nét chuẩn"
+                >
+                  Đặt lại
+                </button>
+              </div>
 
-              {showAdvancedSliders && (
-                <div className="space-y-3 pt-2 border-t border-slate-100 text-xs">
-                  {/* Morphological Bottom-Hat Crack Valley Boost */}
-                  <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-200">
-                    <div className="flex justify-between font-bold text-emerald-900 mb-1">
-                      <span>Độ sâu rãnh nứt (Bottom-Hat Valley):</span>
-                      <span className="font-mono font-black text-emerald-700">
-                        {customParams.crackValleyBoost.toFixed(2)}x
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={2.5}
-                      step={0.05}
-                      value={customParams.crackValleyBoost}
-                      onChange={(e) => updateCustomParam('crackValleyBoost', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                    <p className="text-[10px] text-emerald-700 mt-0.5">
-                      Trích xuất chọn lọc rãnh tối hẹp (1–5px) của vết nứt 0.1mm & vạch thước đo.
-                    </p>
-                  </div>
+              {/* 1. Điều chỉnh Độ sáng (Giảm sáng / Tăng sáng) */}
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">Độ sáng:</span>
+                  <span className="font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    {brightnessSlider >= 1.0
+                      ? `+${Math.round((brightnessSlider - 1.0) * 100)}% (Tăng sáng)`
+                      : `-${Math.round((1.0 - brightnessSlider) * 100)}% (Giảm sáng)`}
+                  </span>
+                </div>
 
-                  {/* CLAHE Max Slope */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Tương phản cục bộ kênh L (CLAHE Slope):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.claheMaxSlope}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={8}
-                      step={1}
-                      value={customParams.claheMaxSlope}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setActivePreset('CUSTOM');
-                        setCustomParams((p) => ({
-                          ...p,
-                          enableClahe: val > 0,
-                          claheMaxSlope: val,
-                        }));
-                      }}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.max(0.5, Number((brightnessSlider - 0.1).toFixed(2)));
+                      setBrightnessSlider(next);
+                      handleApplySliders(next, sharpnessSlider);
+                    }}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Giảm độ sáng 10%"
+                  >
+                    - Giảm sáng
+                  </button>
 
-                  {/* CLAHE Tile Size */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Kích thước ô lưới CLAHE (Tile px):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.claheTileSize}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={32}
-                      max={224}
-                      step={16}
-                      value={customParams.claheTileSize}
-                      onChange={(e) => updateCustomParam('claheTileSize', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Toe-Limited Shadow Lift (Gamma) */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Nâng sáng vùng tối (Toe-Limited Curve):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.gamma.toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={1.0}
-                      max={2.8}
-                      step={0.05}
-                      value={customParams.gamma}
-                      onChange={(e) => updateCustomParam('gamma', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Brightness */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Khuếch đại sáng (Soft-Knee Brightness):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.brightness.toFixed(2)}x</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0.7}
-                      max={1.8}
-                      step={0.05}
-                      value={customParams.brightness}
-                      onChange={(e) => updateCustomParam('brightness', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Chroma Preservation (Saturation) */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Bảo toàn sắc độ màu (Chroma Ratio):</span>
-                      <span className="font-mono font-bold text-emerald-700">
-                        {Math.round(customParams.saturation * 100)}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0.0}
-                      max={1.4}
-                      step={0.05}
-                      value={customParams.saturation}
-                      onChange={(e) => updateCustomParam('saturation', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Sharpen Jagged M2 (Crack Edge Gain) */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Độ sắc cạnh rãnh vết nứt & thước (m2):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.sharpenJaggedM2.toFixed(1)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={8}
-                      step={0.2}
-                      value={customParams.sharpenJaggedM2}
-                      onChange={(e) => updateCustomParam('sharpenJaggedM2', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Sharpen Sigma */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Bán kính làm nét (Unsharp Sigma):</span>
-                      <span className="font-mono font-bold text-emerald-700">{customParams.sharpenSigma.toFixed(1)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0.5}
-                      max={3.0}
-                      step={0.1}
-                      value={customParams.sharpenSigma}
-                      onChange={(e) => updateCustomParam('sharpenSigma', Number(e.target.value))}
-                      className="w-full accent-emerald-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Median Denoise */}
-                  <div>
-                    <div className="flex justify-between font-semibold text-slate-700 mb-1">
-                      <span>Khử nhiễu hạt ISO / Ô vuông nén (Median):</span>
-                      <span className="font-mono font-bold text-emerald-700">
-                        {customParams.medianSize === 0 ? 'Tắt' : `${customParams.medianSize}x${customParams.medianSize}`}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {[0, 3, 5].map((sz) => (
-                        <button
-                          key={sz}
-                          type="button"
-                          onClick={() => updateCustomParam('medianSize', sz)}
-                          className={`py-1 rounded-lg font-bold border cursor-pointer ${
-                            customParams.medianSize === sz
-                              ? 'bg-sky-600 text-white border-sky-600'
-                              : 'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}
-                        >
-                          {sz === 0 ? 'Tắt (0)' : `Lọc ${sz}x${sz}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Checkboxes */}
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={customParams.normalizeHistogram}
-                        onChange={(e) => updateCustomParam('normalizeHistogram', e.target.checked)}
-                        className="accent-emerald-600"
-                      />
-                      <span className="font-semibold text-slate-700">
-                        Chuẩn hóa dải động kênh L (P1% – P99.5%)
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={customParams.invertNegative}
-                        onChange={(e) => updateCustomParam('invertNegative', e.target.checked)}
-                        className="accent-emerald-600"
-                      />
-                      <span className="font-semibold text-slate-700">
-                        Đảo bản âm X-Ray (Soi vết nứt siêu mảnh)
-                      </span>
-                    </label>
-                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={1.8}
+                    step={0.05}
+                    value={brightnessSlider}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setBrightnessSlider(next);
+                    }}
+                    onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    className="flex-1 accent-amber-500 cursor-pointer"
+                  />
 
                   <button
                     type="button"
-                    onClick={handleApplyCustomSliders}
-                    disabled={isProcessing || (!selectedFile && !imageUrlInput.trim())}
-                    className="w-full py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    onClick={() => {
+                      const next = Math.min(1.8, Number((brightnessSlider + 0.1).toFixed(2)));
+                      setBrightnessSlider(next);
+                      handleApplySliders(next, sharpnessSlider);
+                    }}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Tăng độ sáng 10%"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-                    <span>Áp Dụng Thông Số Tùy Chỉnh</span>
+                    + Tăng sáng
                   </button>
                 </div>
-              )}
+              </div>
+
+              {/* 2. Điều chỉnh Độ nét (Tăng nét) */}
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">Độ sắc nét:</span>
+                  <span className="font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                    {sharpnessSlider.toFixed(1)}x {sharpnessSlider === 0 ? '(Tắt)' : '(Tăng nét)'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.max(0.0, Number((sharpnessSlider - 0.4).toFixed(1)));
+                      setSharpnessSlider(next);
+                      handleApplySliders(brightnessSlider, next);
+                    }}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Giảm bớt nét"
+                  >
+                    - Giảm nét
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0.0}
+                    max={6.0}
+                    step={0.2}
+                    value={sharpnessSlider}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setSharpnessSlider(next);
+                    }}
+                    onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    className="flex-1 accent-sky-600 cursor-pointer"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = Math.min(6.0, Number((sharpnessSlider + 0.4).toFixed(1)));
+                      setSharpnessSlider(next);
+                      handleApplySliders(brightnessSlider, next);
+                    }}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Tăng thêm độ nét"
+                  >
+                    + Tăng nét
+                  </button>
+                </div>
+              </div>
+
+              {/* Nút bấm thực thi */}
+              <button
+                type="button"
+                onClick={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                disabled={isProcessing || (!selectedFile && !imageUrlInput.trim())}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                <span>Áp Dụng Điều Chỉnh Sáng & Nét</span>
+              </button>
             </div>
           </div>
 
-          {/* CỘT PHẢI: Chẩn đoán Chất lượng, Biểu đồ Histogram & Khung Đối Chứng Trực Quan */}
-          <div className="flex-1 flex flex-col min-w-0 bg-slate-900 text-white overflow-hidden">
+          {/* CỘT PHẢI: Chẩn đoán Chất lượng, Biểu đồ Histogram & Khung Đối Chứng Trực Quan (Tone Sáng Đồng Bộ) */}
+          <div className="flex-1 flex flex-col min-w-0 bg-slate-100/90 text-slate-800 overflow-hidden">
             {/* Thanh công cụ chế độ xem & Kính lúp Zoom */}
-            <div className="px-4 py-2 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="px-4 py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-2xs">
               {/* Chuyển đổi 3 chế độ xem */}
-              <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setCompareMode('SIDE_BY_SIDE')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     compareMode === 'SIDE_BY_SIDE'
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
                   <Columns className="w-3.5 h-3.5" />
@@ -1205,7 +1119,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     compareMode === 'SPLIT_SLIDER'
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
                   <SplitSquareHorizontal className="w-3.5 h-3.5" />
@@ -1218,7 +1132,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     compareMode === 'HOLD_COMPARE'
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -1229,18 +1143,18 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
               {/* Điều khiển Duyệt 100 ảnh, Zoom 100% -> 600%, Nút giữ xem ảnh gốc & Tải về */}
               <div className="flex items-center gap-2 flex-wrap">
                 {filteredRecentPhotos.length > 0 && (
-                  <div className="flex items-center gap-1 bg-slate-900 px-1.5 py-1 rounded-xl border border-slate-800">
+                  <div className="flex items-center gap-1 bg-slate-50 px-1.5 py-1 rounded-xl border border-slate-200">
                     <button
                       type="button"
                       onClick={() => handleStepSamplePhoto(-1)}
                       disabled={isProcessing}
-                      className="px-2 py-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                      className="px-2 py-1 rounded-lg hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
                       title="Ảnh trước trong bộ 100 ảnh"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                       <span>Ảnh trước</span>
                     </button>
-                    <span className="px-2 text-[11px] font-mono font-bold text-emerald-400">
+                    <span className="px-2 text-[11px] font-mono font-bold text-emerald-700">
                       {currentSampleIndex >= 0
                         ? `#${currentSampleIndex + 1}/${filteredRecentPhotos.length} (${filteredRecentPhotos[currentSampleIndex]?.parcel_code})`
                         : `${filteredRecentPhotos.length} ảnh mẫu`}
@@ -1249,7 +1163,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       type="button"
                       onClick={() => handleStepSamplePhoto(1)}
                       disabled={isProcessing}
-                      className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                      className="px-2 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40"
                       title="Ảnh tiếp theo trong bộ 100 ảnh"
                     >
                       <span>Ảnh tiếp</span>
@@ -1266,8 +1180,8 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     onMouseLeave={() => setIsHoldingOriginal(false)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
                       isHoldingOriginal
-                        ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md'
-                        : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-700/70'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-md'
+                        : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
                     }`}
                     title="Nhấn giữ chuột vào nút này hoặc nhấn giữ phím Space để xem Ảnh Gốc"
                   >
@@ -1276,7 +1190,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </button>
                 )}
 
-                <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200">
                   <button
                     type="button"
                     onClick={() =>
@@ -1286,18 +1200,18 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         return next;
                       })
                     }
-                    className="p-1 rounded hover:bg-slate-800 text-slate-300 cursor-pointer"
+                    className="p-1 rounded hover:bg-slate-200 text-slate-700 cursor-pointer"
                     title="Thu nhỏ"
                   >
                     <ZoomOut className="w-4 h-4" />
                   </button>
-                  <span className="px-2 text-xs font-mono font-bold text-emerald-400">
+                  <span className="px-2 text-xs font-mono font-bold text-slate-800">
                     {Math.round(zoom * 100)}%
                   </span>
                   <button
                     type="button"
                     onClick={() => setZoom((z) => Math.min(6.0, Number((z + 0.5).toFixed(1))))}
-                    className="p-1 rounded hover:bg-slate-800 text-slate-300 cursor-pointer"
+                    className="p-1 rounded hover:bg-slate-200 text-slate-700 cursor-pointer"
                     title="Phóng to soi thước đo (Tối đa 600%)"
                   >
                     <ZoomIn className="w-4 h-4" />
@@ -1308,7 +1222,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       setZoom(1.0);
                       setPan({ x: 0, y: 0 });
                     }}
-                    className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                    className="p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 cursor-pointer"
                     title="Đặt lại góc nhìn 100%"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -1322,51 +1236,51 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Tải Ảnh Đã Làm Nét</span>
+                    <span>Tải Ảnh</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Bảng Chẩn đoán Chất lượng & Biểu đồ Lược đồ Xám 64-Bin (Before vs After) */}
+            {/* Bảng Chẩn đoán Chất lượng & Biểu đồ Lược đồ Xám 64-Bin (Tone Sáng Rõ Nét) */}
             {result && (
-              <div className="px-4 py-2 bg-slate-900/95 border-b border-slate-800 space-y-2 shrink-0">
+              <div className="px-4 py-2.5 bg-white border-b border-slate-200 space-y-2 shrink-0">
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   {/* Chỉ số 1: Chẩn đoán tổng thể */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Chẩn Đoán Ảnh Gốc</span>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Chẩn Đoán Ảnh Gốc</span>
                     <div className="flex items-center justify-between gap-1 mt-1">
                       {result.beforeMetrics.overallVerdict === 'PASS' ? (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Đạt chuẩn
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Đạt chuẩn
                         </span>
                       ) : result.beforeMetrics.overallVerdict === 'CRITICAL' ? (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-950 text-rose-300 border border-rose-700 flex items-center gap-1">
-                          <AlertOctagon className="w-3.5 h-3.5" /> Mờ / Tối Nặng
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-50 text-rose-800 border border-rose-300 flex items-center gap-1">
+                          <AlertOctagon className="w-3.5 h-3.5 text-rose-600" /> Mờ / Tối Nặng
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700 flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5" /> Cần Tăng Cường
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Cần Tăng Cường
                         </span>
                       )}
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                      <span className="text-[10px] font-mono text-emerald-700 font-bold">
                         {result.processingTimeMs}ms
                       </span>
                     </div>
                   </div>
 
-                  {/* Chỉ số 2: Độ sắc nét Cấu trúc (Đã khấu trừ nhiễu 20*sigma^2) */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                      Độ Nét Cấu Trúc (Bù Nhiễu)
+                  {/* Chỉ số 2: Độ sắc nét Cấu trúc */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                      Độ Nét Cấu Trúc
                     </span>
                     <div className="flex items-baseline gap-1.5 mt-0.5 font-mono">
-                      <span className="text-xs text-slate-400">{result.beforeMetrics.laplacianVariance}</span>
-                      <span className="text-slate-500">→</span>
-                      <span className="text-sm font-black text-emerald-400">
+                      <span className="text-xs text-slate-500">{result.beforeMetrics.laplacianVariance}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="text-sm font-black text-emerald-700">
                         {result.afterMetrics.laplacianVariance}
                       </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
                         {result.improvementSummary.sharpnessGainPercent >= 0
                           ? `+${result.improvementSummary.sharpnessGainPercent}%`
                           : `${result.improvementSummary.sharpnessGainPercent}%`}
@@ -1375,17 +1289,17 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </div>
 
                   {/* Chỉ số 3: Độ dốc biên vết nứt Top-5% Sobel */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                      Biên Vết Nứt (Top-5% Sobel)
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                      Biên Vết Nứt (Top-5%)
                     </span>
                     <div className="flex items-baseline gap-1.5 mt-0.5 font-mono">
-                      <span className="text-xs text-slate-400">{result.beforeMetrics.edgeGradientScore}</span>
-                      <span className="text-slate-500">→</span>
-                      <span className="text-sm font-black text-sky-400">
+                      <span className="text-xs text-slate-500">{result.beforeMetrics.edgeGradientScore}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="text-sm font-black text-sky-700">
                         {result.afterMetrics.edgeGradientScore}
                       </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-950 text-sky-300 border border-sky-800">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-sky-800 border border-sky-300">
                         {result.improvementSummary.edgeGainPercent >= 0
                           ? `+${result.improvementSummary.edgeGainPercent}%`
                           : `${result.improvementSummary.edgeGainPercent}%`}
@@ -1393,57 +1307,57 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
                   </div>
 
-                  {/* Chỉ số 4: Tỉ số Tương phản trên Nhiễu (CNR) & Sàn nhiễu MAD */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                      Tỉ Số CNR & Nhiễu Nền (σ_n)
+                  {/* Chỉ số 4: Tỉ số CNR & Sàn nhiễu */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                      Tỉ Số CNR & Nhiễu
                     </span>
                     <div className="flex items-baseline justify-between mt-0.5 font-mono">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-xs text-slate-400">{result.beforeMetrics.cnrScore}</span>
-                        <span className="text-slate-500">→</span>
-                        <span className="text-sm font-black text-indigo-300">
+                        <span className="text-xs text-slate-500">{result.beforeMetrics.cnrScore}</span>
+                        <span className="text-slate-400">→</span>
+                        <span className="text-sm font-black text-indigo-700">
                           {result.afterMetrics.cnrScore}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400" title="Độ lệch chuẩn nhiễu nền ước lượng qua MAD Laplacian">
-                        σ_n: {result.beforeMetrics.noiseSigma} → {result.afterMetrics.noiseSigma}
+                      <span className="text-[10px] text-slate-500">
+                        σ_n: {result.afterMetrics.noiseSigma}
                       </span>
                     </div>
                   </div>
 
-                  {/* Chỉ số 5: Độ sáng trung bình & Tương phản RMS */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                      Độ Sáng L & Điểm Tối (&lt;50)
+                  {/* Chỉ số 5: Độ sáng trung bình */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                      Độ Sáng L (0–255)
                     </span>
                     <div className="flex items-baseline justify-between mt-0.5 font-mono">
                       <div>
-                        <span className="text-xs text-slate-400">{result.beforeMetrics.meanLuminance}</span>
-                        <span className="text-slate-500 mx-1">→</span>
-                        <span className="text-sm font-black text-amber-300">
+                        <span className="text-xs text-slate-500">{result.beforeMetrics.meanLuminance}</span>
+                        <span className="text-slate-400 mx-1">→</span>
+                        <span className="text-sm font-black text-amber-700">
                           {result.afterMetrics.meanLuminance}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400">
-                        Tối: {result.beforeMetrics.darkPixelRatio}%→{result.afterMetrics.darkPixelRatio}%
+                      <span className="text-[10px] text-slate-500">
+                        Tối: {result.afterMetrics.darkPixelRatio}%
                       </span>
                     </div>
                   </div>
 
-                  {/* Chỉ số 6: Biểu đồ Phân bố Độ sáng 64-Bin (Before vs After Histogram) */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+                  {/* Chỉ số 6: Biểu đồ Histogram 64-Bin (Trên nền sáng) */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
                     <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span className="text-slate-400 uppercase flex items-center gap-1">
-                        <BarChart3 className="w-3 h-3 text-emerald-400" />
-                        Phổ Độ Chói (64-Bin)
+                      <span className="text-slate-600 uppercase flex items-center gap-1">
+                        <BarChart3 className="w-3 h-3 text-emerald-600" />
+                        Phổ Độ Chói
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-[9px]">
                         <span className="text-slate-400">■ Gốc</span>
-                        <span className="text-emerald-400">■ Sau xử lý</span>
+                        <span className="text-emerald-600 font-bold">■ Xử lý</span>
                       </div>
                     </div>
-                    <div className="h-8 w-full mt-1 relative">
+                    <div className="h-8 w-full mt-1 relative bg-white/70 rounded border border-slate-200/60 overflow-hidden">
                       <svg
                         viewBox="0 0 180 32"
                         preserveAspectRatio="none"
@@ -1451,12 +1365,12 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       >
                         <path
                           d={buildHistogramSvgPath(result.beforeMetrics.histogram || [], 180, 32)}
-                          className="fill-slate-500/45 stroke-slate-400"
+                          className="fill-slate-300 stroke-slate-400"
                           strokeWidth="1"
                         />
                         <path
                           d={buildHistogramSvgPath(result.afterMetrics.histogram || [], 180, 32)}
-                          className="fill-emerald-500/35 stroke-emerald-400"
+                          className="fill-emerald-500/25 stroke-emerald-600"
                           strokeWidth="1.2"
                         />
                       </svg>
@@ -1464,10 +1378,10 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </div>
                 </div>
 
-                {/* Cảnh báo tự động cho Thẩm định viên nếu ảnh gốc bị mờ hoặc tối */}
+                {/* Cảnh báo chất lượng nếu có */}
                 {result.beforeMetrics.warnings.length > 0 && (
-                  <div className="px-3 py-1.5 rounded-lg bg-amber-950/70 border border-amber-700/80 text-amber-200 text-xs flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div className="space-y-0.5">
                       {result.beforeMetrics.warnings.map((w, idx) => (
                         <div key={idx}>• {w}</div>
@@ -1480,56 +1394,56 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
             {/* Thông báo lỗi nếu có */}
             {errorMsg && (
-              <div className="m-4 p-3 rounded-xl bg-rose-950 border border-rose-700 text-rose-200 text-xs flex items-center gap-2">
-                <AlertOctagon className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            {/* Khung Hiển Thị Đối Chứng Ảnh Chính */}
+            {/* Khung Hiển Thị Đối Chứng Ảnh Chính (Tone Sáng) */}
             <div
               onWheel={handleWheelZoom}
               onMouseDown={handleViewportMouseDown}
               onMouseMove={handleViewportMouseMove}
               onMouseUp={handleViewportMouseUp}
               onMouseLeave={handleViewportMouseUp}
-              className="flex-1 relative overflow-hidden flex items-center justify-center select-none cursor-grab active:cursor-grabbing"
+              className="flex-1 relative overflow-hidden flex items-center justify-center select-none cursor-grab active:cursor-grabbing bg-slate-200/50"
             >
               {isProcessing && (
-                <div className="absolute inset-0 z-40 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center gap-3">
-                  <RefreshCw className="w-9 h-9 text-emerald-400 animate-spin" />
-                  <span className="text-sm font-bold text-white">
-                    Đang chạy Pipeline Forensic v2.0 (Luminance LUT + Bottom-Hat Valley + Adaptive USM)...
+                <div className="absolute inset-0 z-40 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="w-9 h-9 text-emerald-600 animate-spin" />
+                  <span className="text-sm font-bold text-slate-800">
+                    Đang xử lý ảnh trên kênh Độ chói Luminance 4:4:4...
                   </span>
                 </div>
               )}
 
               {!result ? (
-                <div className="max-w-md text-center p-8 space-y-4">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-400">
+                <div className="max-w-md text-center p-8 space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-slate-400">
                     <ImageIcon className="w-8 h-8" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-200">
+                  <h3 className="text-base font-bold text-slate-800">
                     Chưa có ảnh nào được nạp vào Phòng Thí Nghiệm
                   </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Hãy bấm <strong>&ldquo;Tải Ảnh Từ Máy Tính&rdquo;</strong> ở cột bên trái, chọn một ảnh vết nứt từ hệ thống, hoặc bấm nút tạo ảnh mẫu chuẩn 3 cấp độ vết nứt bên dưới để kiểm nghiệm thuật toán v2.0.
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Hãy bấm <strong>&ldquo;Tải Ảnh Từ Máy Tính&rdquo;</strong>, chọn 1 trong bộ 100 ảnh mẫu khảo sát ở cột bên trái hoặc bấm nút tạo ảnh mẫu bên dưới để kiểm nghiệm ngay.
                   </p>
                   <button
                     type="button"
                     onClick={handleGenerateSyntheticSample}
-                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-2 shadow-lg cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-2 shadow-sm cursor-pointer"
                   >
                     <Zap className="w-4 h-4" />
-                    <span>Nạp Ngay Ảnh Mẫu 3 Cấp Nứt (0.45mm / 0.20mm / 0.10mm)</span>
+                    <span>Nạp Ảnh Mẫu 3 Cấp Nứt (0.45mm / 0.20mm / 0.10mm)</span>
                   </button>
                 </div>
               ) : compareMode === 'SIDE_BY_SIDE' ? (
-                /* CHẾ ĐỘ 1: SONG SONG 2 KHUNG ĐỒNG BỘ ZOOM 100% - 600% */
-                <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 gap-2 p-3">
+                /* CHẾ ĐỘ 1: SONG SONG 2 KHUNG ĐỒNG BỘ ZOOM */
+                <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
                   {/* Khung Trái: Ảnh Gốc */}
-                  <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-950 flex items-center justify-center">
-                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-700 text-xs font-bold text-slate-200 shadow-md">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-300 bg-slate-100 flex items-center justify-center shadow-xs">
+                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-white/95 border border-slate-300 text-xs font-bold text-slate-700 shadow-sm">
                       1. ẢNH GỐC CHƯA XỬ LÝ (ORIGINAL)
                     </div>
                     <img
@@ -1544,9 +1458,9 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     />
                   </div>
 
-                  {/* Khung Phải: Ảnh Đã Xử Lý (Hoặc Ảnh Gốc khi đang nhấn giữ Space/Nút Soi Gốc) */}
-                  <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500/70 bg-slate-950 flex items-center justify-center">
-                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-600 text-xs font-bold text-emerald-300 shadow-md flex items-center gap-1.5">
+                  {/* Khung Phải: Ảnh Đã Xử Lý */}
+                  <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500 bg-slate-100 flex items-center justify-center shadow-xs">
+                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-sm flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>
                         {isHoldingOriginal
@@ -1556,7 +1470,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
                     <img
                       src={isHoldingOriginal ? result.originalPreviewBase64 : result.enhancedPreviewBase64}
-                      alt="Ảnh đã làm rõ vết nứt"
+                      alt="Ảnh đã xử lý"
                       draggable={false}
                       className="max-w-full max-h-full object-contain pointer-events-none transition-transform duration-75"
                       style={{
@@ -1567,11 +1481,11 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               ) : compareMode === 'SPLIT_SLIDER' ? (
-                /* CHẾ ĐỘ 2: THANH KÉO GẠT TRỰC TIẾP TRÊN ẢNH (KHẮC PHỤC LỖI UI #1) */
+                /* CHẾ ĐỘ 2: THANH KÉO GẠT TRỰC TIẾP TRÊN ẢNH */
                 <div className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden">
                   <div
                     ref={splitContainerRef}
-                    className="relative w-full h-full flex items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950"
+                    className="relative w-full h-full flex items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-slate-100 shadow-xs"
                   >
                     {/* Lớp dưới: Ảnh sau xử lý */}
                     <img
@@ -1604,7 +1518,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       />
                     </div>
 
-                    {/* Thanh nắm kéo trực tiếp trên màn hình ảnh (Interactive Divider Handle) */}
+                    {/* Thanh nắm kéo trực tiếp trên màn hình ảnh */}
                     <div
                       onMouseDown={(e) => {
                         e.stopPropagation();
@@ -1614,48 +1528,48 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       style={{ left: `${splitPercent}%` }}
                       title="Kéo sang trái / phải để gạt so sánh Trước & Sau xử lý"
                     >
-                      <div className="w-0.5 h-full bg-emerald-400 group-hover:w-1 transition-all shadow-lg" />
-                      <div className="absolute top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-400 border-2 border-white shadow-xl flex items-center justify-center text-slate-950 transition-transform group-hover:scale-110">
+                      <div className="w-1 h-full bg-emerald-600 group-hover:w-1.5 transition-all shadow-md" />
+                      <div className="absolute top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-500 border-2 border-white shadow-xl flex items-center justify-center text-white transition-transform group-hover:scale-110">
                         <MoveHorizontal className="w-4 h-4" />
                       </div>
                     </div>
 
-                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-700 text-xs font-bold text-slate-200 pointer-events-none">
+                    <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-white/95 border border-slate-300 text-xs font-bold text-slate-700 shadow-sm pointer-events-none">
                       TRƯỚC XỬ LÝ (GỐC)
                     </div>
-                    <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-600 text-xs font-bold text-emerald-300 pointer-events-none">
+                    <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-sm pointer-events-none">
                       SAU XỬ LÝ ({result.presetUsed})
                     </div>
 
                     {/* Thanh range phụ trợ bên dưới */}
                     <div
                       onMouseDown={(e) => e.stopPropagation()}
-                      className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 px-4 py-1.5 rounded-full border border-slate-700 flex items-center gap-3 w-72 sm:w-96"
+                      className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30 bg-white/95 px-4 py-2 rounded-full border border-slate-300 shadow-lg flex items-center gap-3 w-72 sm:w-96"
                     >
-                      <span className="text-[11px] font-bold text-slate-300">Gốc</span>
+                      <span className="text-[11px] font-bold text-slate-600">Gốc</span>
                       <input
                         type="range"
                         min={2}
                         max={98}
                         value={splitPercent}
                         onChange={(e) => setSplitPercent(Number(e.target.value))}
-                        className="flex-1 accent-emerald-400 cursor-pointer"
+                        className="flex-1 accent-emerald-600 cursor-pointer"
                       />
-                      <span className="text-[11px] font-bold text-emerald-400">Làm nét</span>
+                      <span className="text-[11px] font-bold text-emerald-700">Làm nét</span>
                     </div>
                   </div>
                 </div>
               ) : (
-                /* CHẾ ĐỘ 3: LẬT NHANH TRƯỚC / SAU KHÔNG XUNG ĐỘT KÉO PAN (KHẮC PHỤC LỖI UI #2) */
+                /* CHẾ ĐỘ 3: LẬT NHANH TRƯỚC / SAU KHÔNG XUNG ĐỘT KÉO PAN */
                 <div className="relative w-full h-full flex items-center justify-center p-4">
-                  <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700 text-xs font-bold pointer-events-none">
+                  <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl bg-white/95 border border-slate-300 shadow-sm text-xs font-bold pointer-events-none">
                     {isHoldingOriginal ? (
-                      <span className="text-amber-300">
-                        ĐANG XEM: ẢNH GỐC CHƯA XỬ LÝ (Nhả nút hoặc phím SPACE để xem ảnh đã làm rõ)
+                      <span className="text-amber-700">
+                        ĐANG XEM: ẢNH GỐC CHƯA XỬ LÝ (Nhả nút hoặc phím SPACE để xem ảnh đã xử lý)
                       </span>
                     ) : (
-                      <span className="text-emerald-400">
-                        ĐANG XEM: ẢNH ĐÃ LÀM RÕ VẾT NỨT (Kéo chuột để Pan • Giữ phím SPACE hoặc nút bên dưới để lật Ảnh Gốc)
+                      <span className="text-emerald-700">
+                        ĐANG XEM: ẢNH ĐÃ XỬ LÝ (Kéo chuột để Pan • Giữ phím SPACE hoặc nút bên dưới để lật Ảnh Gốc)
                       </span>
                     )}
                   </div>
@@ -1679,13 +1593,13 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     }}
                     onMouseUp={() => setIsHoldingOriginal(false)}
                     onMouseLeave={() => setIsHoldingOriginal(false)}
-                    className={`absolute bottom-12 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full font-bold text-xs border shadow-xl flex items-center gap-2 transition-all cursor-pointer ${
+                    className={`absolute bottom-12 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-full font-bold text-xs border shadow-xl flex items-center gap-2 transition-all cursor-pointer ${
                       isHoldingOriginal
-                        ? 'bg-amber-500 text-slate-950 border-amber-200 scale-105'
-                        : 'bg-slate-900/95 hover:bg-slate-800 text-amber-300 border-amber-600'
+                        ? 'bg-amber-500 text-white border-amber-600 scale-105'
+                        : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
                     }`}
                   >
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-4 h-4 text-emerald-600" />
                     <span>
                       {isHoldingOriginal
                         ? 'Đang Hiển Thị Ảnh Gốc (Nhả Chuột Để Xem Ảnh Đã Xử Lý)'
@@ -1697,7 +1611,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
               {/* Chú thích hướng dẫn cuộn chuột dưới đáy */}
               {result && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full bg-slate-950/90 border border-slate-700 text-[11px] text-slate-300 pointer-events-none">
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full bg-white/90 border border-slate-300 text-[11px] text-slate-600 shadow-sm pointer-events-none">
                   🖱️ <strong>Cuộn chuột</strong> phóng đại đồng bộ (tới 600%) • <strong>Kéo chuột</strong> di chuyển soi vạch thước mm • <strong>Giữ phím SPACE</strong> lật xem Ảnh Gốc
                 </div>
               )}

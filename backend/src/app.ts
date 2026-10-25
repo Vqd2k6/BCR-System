@@ -88,10 +88,11 @@ export function createApp(): express.Application {
   api.post('/storage/upload-base64', authenticateJwt, StorageController.uploadBase64);
 
   // ==========================================
-  // 0b. FORENSIC IMAGE LAB SANDBOX (STANDALONE ADMIN TEST MODULE)
+  // 0b. FORENSIC IMAGE LAB SANDBOX (STANDALONE ADMIN TEST MODULE & AUDIT STUDIO IMG)
   // ==========================================
   api.post('/image-lab/process', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), upload.single('file'), ImageLabController.processImage);
   api.get('/image-lab/recent-survey-photos', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.getRecentSurveyPhotos);
+  api.post('/image-lab/commit-studio-session', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.commitStudioSession);
 
   // ==========================================
   // 1. AUTHENTICATION (PUBLIC)

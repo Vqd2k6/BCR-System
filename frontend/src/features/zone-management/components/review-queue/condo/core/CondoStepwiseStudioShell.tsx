@@ -15,6 +15,7 @@ import type {
   CondoAuditStepProps,
   CondoStepRegistryItem,
 } from '../types/condo-audit.types';
+import { useAuditStudioImgOptional } from '../../stepwise/context/AuditStudioImgContext';
 
 interface CondoStepwiseStudioShellProps<TFormState extends Record<string, unknown>> {
   entityKind: CondoAuditEntityKind;
@@ -58,6 +59,30 @@ export function CondoStepwiseStudioShell<TFormState extends Record<string, unkno
   const isApproved = status === 'APPROVED';
   const isReadOnlyLocked = Boolean(isParentLocked || isApproved);
   const totalChanges = dirtyCount + stagedPhotoCount;
+  const studioImgCtx = useAuditStudioImgOptional();
+
+  // Phím tắt E: Bật/tắt chế độ Edit nhanh khi không đang gõ chữ trong ô nhập liệu
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+          return;
+        }
+      }
+      if (studioImgCtx?.isStudioModalOpen) return;
+      if (isReadOnlyLocked) return;
+
+      if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        onToggleEditMode();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [studioImgCtx?.isStudioModalOpen, isReadOnlyLocked, onToggleEditMode]);
 
   const badgeMeta =
     entityKind === 'BUILDING_MASTER'
@@ -110,6 +135,50 @@ export function CondoStepwiseStudioShell<TFormState extends Record<string, unkno
             </div>
           )}
         </div>
+
+        {/* Nút Studio Img trên đầu Sidebar (nếu có AuditStudioImgProvider) */}
+        {studioImgCtx && (
+          <button
+            type="button"
+            onClick={() => studioImgCtx.setIsStudioModalOpen(true)}
+            title="Mở Studio Img • Nhấn giữ phím S + Click vào ảnh bất kỳ để chọn/bỏ chọn đưa vào Studio"
+            className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer border ${
+              studioImgCtx.isHoldingSKey
+                ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-400/60 shadow-sm'
+                : studioImgCtx.selectedPhotos.length > 0
+                  ? 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50/70 hover:text-indigo-800 hover:border-indigo-200'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Sparkles
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  studioImgCtx.isHoldingSKey
+                    ? 'text-white animate-pulse'
+                    : studioImgCtx.selectedPhotos.length > 0
+                      ? 'text-indigo-600'
+                      : 'text-slate-500'
+                }`}
+              />
+              <span className="truncate">
+                {studioImgCtx.isHoldingSKey ? 'Đang giữ S • Click ảnh' : 'Studio Img'}
+              </span>
+            </div>
+            <span
+              className={`text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${
+                studioImgCtx.isHoldingSKey
+                  ? 'bg-white/20 text-white'
+                  : studioImgCtx.selectedPhotos.length > 0
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-200/80 text-slate-600 font-mono'
+              }`}
+            >
+              {studioImgCtx.selectedPhotos.length > 0
+                ? `${studioImgCtx.selectedPhotos.length} ảnh`
+                : 'S+Click'}
+            </span>
+          </button>
+        )}
 
         {/* Step Navigation Items */}
         <nav className="space-y-1" aria-label="Các bước thẩm định chung cư">
@@ -164,6 +233,7 @@ export function CondoStepwiseStudioShell<TFormState extends Record<string, unkno
             <button
               type="button"
               onClick={onToggleEditMode}
+              title="Phím tắt: nhấn E để bật/tắt chế độ chỉnh sửa"
               className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 isEditMode
                   ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs'
@@ -172,6 +242,9 @@ export function CondoStepwiseStudioShell<TFormState extends Record<string, unkno
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>{isEditMode ? 'Đang Bật Chỉnh Sửa (CRUD)' : 'Bật Chế Độ Chỉnh Sửa'}</span>
+              <kbd className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-black/10 border border-black/15">
+                E
+              </kbd>
             </button>
           ) : (
             <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1.5">

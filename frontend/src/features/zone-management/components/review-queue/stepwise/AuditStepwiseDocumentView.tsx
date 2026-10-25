@@ -18,11 +18,18 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '../../../../../core/components/ui/Button';
 import { useAuditStepwiseForm } from './hooks/useAuditStepwiseForm';
 import { usePhotoOrientationAudit, type PhotoOrientationViolation } from './hooks/usePhotoOrientationAudit';
 import { PhotoOrientationAlertBanner } from './components/PhotoOrientationAlertBanner';
+import {
+  AuditStudioImgProvider,
+  useAuditStudioImg,
+  type StudioCommittedPhotoInfo,
+} from './context/AuditStudioImgContext';
+import { AuditStudioImgModal } from './components/AuditStudioImgModal';
 import { AuditStep1Identification } from './steps/AuditStep1Identification';
 import { AuditStep2OwnerInterview } from './steps/AuditStep2OwnerInterview';
 import { AuditStep3FloorDefects } from './steps/AuditStep3FloorDefects';
@@ -65,7 +72,31 @@ export interface AuditStepwiseDocumentViewProps {
   }) => void;
 }
 
-export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps> = ({
+export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps> = (props) => {
+  const sJson = ((props.data as Record<string, unknown>)?.surveyJson ||
+    (props.data as Record<string, unknown>)?.survey_data_json ||
+    {}) as Record<string, unknown>;
+  const initialEnhancedPhotos = (sJson.studioEnhancedPhotos || {}) as Record<
+    string,
+    StudioCommittedPhotoInfo
+  >;
+  const initialEnhancedByOriginal = (sJson.studioEnhancedByOriginal || {}) as Record<
+    string,
+    string
+  >;
+
+  return (
+    <AuditStudioImgProvider
+      reportId={props.reportId}
+      initialEnhancedPhotos={initialEnhancedPhotos}
+      initialEnhancedByOriginal={initialEnhancedByOriginal}
+    >
+      <AuditStepwiseDocumentViewInner {...props} />
+    </AuditStudioImgProvider>
+  );
+};
+
+const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> = ({
   data,
   reportId,
   onRefresh,
@@ -101,11 +132,61 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
 
+  const {
+    isHoldingSKey,
+    selectedPhotos,
+    toggleSelectPhoto,
+    resolveEffectiveStudioUrl,
+    isStudioModalOpen,
+    setIsStudioModalOpen,
+  } = useAuditStudioImg();
+
   // Floating modal state for orientation guidance & collapsible compact sidebar
   const [isOrientationPanelOpen, setIsOrientationPanelOpen] = React.useState(false);
   const [isStep4Expanded, setIsStep4Expanded] = React.useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const sidebarNavRef = React.useRef<HTMLElement | null>(null);
+
+  // Phím tắt E: Bật/tắt chế độ Edit nhanh khi không đang gõ chữ trong ô nhập liệu
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+          return;
+        }
+      }
+      if (isStudioModalOpen || isOrientationPanelOpen) return;
+      if (data?.status === 'APPROVED') return;
+
+      if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        setIsEditMode((prev: boolean) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isStudioModalOpen, isOrientationPanelOpen, data?.status, setIsEditMode]);
+
+  // Chặn mở Zoom khi đang giữ phím S -> đưa ảnh vào danh sách Studio Img
+  const handlePhotoZoomOrStudioSelect = React.useCallback(
+    (url: string, title?: string, photoCode?: string, rotation?: number) => {
+      const effectiveUrl = resolveEffectiveStudioUrl(url);
+      if (isHoldingSKey) {
+        toggleSelectPhoto({
+          url: effectiveUrl,
+          title: title || photoCode || 'Ảnh hiện trường',
+          photoCode,
+          rotation,
+        });
+        return;
+      }
+      onOpenPhotoZoom(effectiveUrl, title, photoCode, rotation);
+    },
+    [isHoldingSKey, resolveEffectiveStudioUrl, toggleSelectPhoto, onOpenPhotoZoom]
+  );
 
   // Tự động mở cây Bước 04 và tự cuộn nội bộ thanh sidebar bên trái (không dùng scrollIntoView để tránh hủy cuộn mượt của #audit-studio-scroll-container)
   React.useEffect(() => {
@@ -315,7 +396,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
               ) : (
                 <button
                   type="button"
-                  title={isEditMode ? 'Đang ở Chế Độ Sửa (Bấm để tắt)' : 'Bật Chế Độ Sửa'}
+                  title={isEditMode ? 'Đang ở Chế Độ Sửa (Bấm hoặc nhấn phím E để tắt)' : 'Bật Chế Độ Sửa (Phím tắt: E)'}
                   onClick={() => setIsEditMode(!isEditMode)}
                   className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer ${
                     isEditMode
@@ -324,7 +405,20 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
                   }`}
                 >
                   <Edit3 className="w-3 h-3 shrink-0" />
-                  {!isSidebarCollapsed && <span>{isEditMode ? 'Đang Sửa' : 'Sửa'}</span>}
+                  {!isSidebarCollapsed && (
+                    <>
+                      <span>{isEditMode ? 'Đang Sửa' : 'Sửa'}</span>
+                      <kbd
+                        className={`ml-0.5 px-1 py-0.2 rounded text-[9px] font-mono ${
+                          isEditMode
+                            ? 'bg-amber-600/80 text-white border border-amber-400/60'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}
+                      >
+                        E
+                      </kbd>
+                    </>
+                  )}
                 </button>
               )}
 
@@ -342,6 +436,69 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
               </button>
             </div>
           </div>
+
+          {/* Nút Studio Img: Xử lý ảnh đã chọn (Nhấn giữ S + Click ảnh ở mọi chế độ View/Edit) */}
+          <button
+            type="button"
+            onClick={() => setIsStudioModalOpen(true)}
+            title="Mở Studio Img • Nhấn giữ phím S + Click vào ảnh bất kỳ để chọn/bỏ chọn đưa vào Studio"
+            className={`w-full rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer border shrink-0 ${
+              isSidebarCollapsed ? 'p-1.5 justify-center relative' : 'px-2.5 py-1.5'
+            } ${
+              isHoldingSKey
+                ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-400/60 shadow-sm'
+                : selectedPhotos.length > 0
+                  ? 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200/90 hover:bg-indigo-50/70 hover:text-indigo-800 hover:border-indigo-200'
+            }`}
+          >
+            {isSidebarCollapsed ? (
+              <>
+                <Sparkles
+                  className={`w-4 h-4 ${
+                    isHoldingSKey
+                      ? 'text-white animate-spin'
+                      : selectedPhotos.length > 0
+                        ? 'text-indigo-600'
+                        : 'text-slate-500'
+                  }`}
+                />
+                {selectedPhotos.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                    {selectedPhotos.length}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isHoldingSKey
+                        ? 'text-white animate-pulse'
+                        : selectedPhotos.length > 0
+                          ? 'text-indigo-600'
+                          : 'text-slate-500'
+                    }`}
+                  />
+                  <span className="truncate">
+                    {isHoldingSKey ? 'Đang giữ S • Click ảnh' : 'Studio Img'}
+                  </span>
+                </div>
+                <span
+                  className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${
+                    isHoldingSKey
+                      ? 'bg-white/20 text-white'
+                      : selectedPhotos.length > 0
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-200/80 text-slate-600 font-mono'
+                  }`}
+                >
+                  {selectedPhotos.length > 0 ? `${selectedPhotos.length} ảnh` : 'S+Click'}
+                </span>
+              </>
+            )}
+          </button>
 
           {/* Nút mở bảng điều khiển Kiểm toán Hướng Ảnh A4 (Floating Drawer/Modal) */}
           {violations.length > 0 && (
@@ -657,7 +814,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
           handleApplySyncedGeometry={handleApplySyncedGeometry}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
@@ -674,7 +831,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isEditMode={isEditMode}
           formState={formState}
           handleNestedFieldChange={handleNestedFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
@@ -692,7 +849,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           formState={formState}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
@@ -709,7 +866,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isEditMode={isEditMode}
           formState={formState}
           handleFieldChange={handleFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
@@ -728,7 +885,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           data={data}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
@@ -743,7 +900,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleNestedFieldChange={handleNestedFieldChange}
           handleFieldChange={handleFieldChange}
           handleApplySyncedGeometry={handleApplySyncedGeometry}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onRefresh={onRefresh}
           isFieldDirty={isFieldDirty}
         />
@@ -777,7 +934,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           data={data}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
           onOpenPhotoHistory={onOpenPhotoHistory}
@@ -789,6 +946,44 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           {...({ stagedPhotoActions, onUndoPhotoAction } as Record<string, unknown>)}
         />
       </div>
+
+      {/* Floating Pill khi đang nhấn giữ phím S */}
+      {isHoldingSKey && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-indigo-600 text-white text-xs font-black shadow-xl border border-indigo-400 flex items-center gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-100">
+          <Sparkles className="w-4 h-4 animate-spin" />
+          <span>Chế độ chọn ảnh Studio Img (Đang giữ phím S) • Click vào ảnh bất kỳ để chọn/bỏ chọn ({selectedPhotos.length} đã chọn)</span>
+        </div>
+      )}
+
+      {/* Cửa sổ Studio Img (Xử lý ảnh hàng loạt bằng công nghệ Img Lab, lưu riêng với ảnh gốc) */}
+      <AuditStudioImgModal
+        isOpen={isStudioModalOpen}
+        onClose={() => setIsStudioModalOpen(false)}
+        onCommittedSuccess={(committedItems) => {
+          if (committedItems && committedItems.length > 0) {
+            // Thay vì gọi onRefresh() làm mất dữ liệu nháp đang sửa dở,
+            // đồng bộ mảng ảnh Studio trực tiếp vào formState để hiện trong bảng Diff!
+            const curEnhanced = ((formState.studioEnhancedPhotos as Record<string, any>) || {}) as Record<string, any>;
+            const curByOriginal = ((formState.studioEnhancedByOriginal as Record<string, any>) || {}) as Record<string, any>;
+            const nextEnhanced = { ...curEnhanced };
+            const nextByOriginal = { ...curByOriginal };
+
+            committedItems.forEach((item) => {
+              nextEnhanced[item.enhancedUrl] = item;
+              nextByOriginal[item.originalUrl] = item.enhancedUrl;
+              if (item.previousUrl) {
+                nextByOriginal[item.previousUrl] = item.enhancedUrl;
+              }
+            });
+
+            handleFieldChange(
+              'studioEnhancedPhotos',
+              `Hiệu chỉnh ${committedItems.length} ảnh qua Studio Img`,
+              nextEnhanced
+            );
+          }
+        }}
+      />
 
       {/* Floating Modal for Photo Orientation Guidance */}
       {isOrientationPanelOpen && (

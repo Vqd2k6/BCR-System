@@ -7,6 +7,12 @@ import type {
 import { CondoMasterStepwiseView } from './master-studio/CondoMasterStepwiseView';
 import { CondoMasterAreaStepwiseView } from './area-studio/CondoMasterAreaStepwiseView';
 import { CondoUnitStepwiseView } from './unit-studio/CondoUnitStepwiseView';
+import {
+  AuditStudioImgProvider,
+  useAuditStudioImg,
+  type StudioCommittedPhotoInfo,
+} from '../stepwise/context/AuditStudioImgContext';
+import { AuditStudioImgModal } from '../stepwise/components/AuditStudioImgModal';
 
 /**
  * Bộ nhận diện tự động phân hệ Chung cư (Strategy Classifier trên Frontend)
@@ -59,16 +65,85 @@ export function resolveCondoEntityKind(
 }
 
 export const CondoAuditStudioEntry: React.FC<CondoStudioEntryProps> = (props) => {
-  const kind = resolveCondoEntityKind(props.data) || 'CONDO_UNIT';
+  const sJson = ((props.data as Record<string, unknown>)?.surveyJson ||
+    (props.data as Record<string, unknown>)?.survey_data_json ||
+    {}) as Record<string, unknown>;
+  const initialEnhancedPhotos = (sJson.studioEnhancedPhotos || {}) as Record<
+    string,
+    StudioCommittedPhotoInfo
+  >;
+  const initialEnhancedByOriginal = (sJson.studioEnhancedByOriginal || {}) as Record<
+    string,
+    string
+  >;
 
-  switch (kind) {
-    case 'BUILDING_MASTER':
-      return <CondoMasterStepwiseView {...props} />;
-    case 'MASTER_AREA':
-      return <CondoMasterAreaStepwiseView {...props} />;
-    case 'CONDO_UNIT':
-    default:
-      return <CondoUnitStepwiseView {...props} />;
-  }
+  return (
+    <AuditStudioImgProvider
+      reportId={props.reportId}
+      initialEnhancedPhotos={initialEnhancedPhotos}
+      initialEnhancedByOriginal={initialEnhancedByOriginal}
+    >
+      <CondoAuditStudioEntryInner {...props} />
+    </AuditStudioImgProvider>
+  );
+};
+
+const CondoAuditStudioEntryInner: React.FC<CondoStudioEntryProps> = (props) => {
+  const kind = resolveCondoEntityKind(props.data) || 'CONDO_UNIT';
+  const {
+    isHoldingSKey,
+    selectedPhotos,
+    toggleSelectPhoto,
+    resolveEffectiveStudioUrl,
+    isStudioModalOpen,
+    setIsStudioModalOpen,
+  } = useAuditStudioImg();
+
+  const handlePhotoZoomOrStudioSelect = React.useCallback(
+    (url: string, title?: string, photoCode?: string, rotation?: number) => {
+      const effectiveUrl = resolveEffectiveStudioUrl(url);
+      if (isHoldingSKey) {
+        toggleSelectPhoto({
+          url: effectiveUrl,
+          title: title || photoCode || 'Ảnh hiện trường',
+          photoCode,
+          rotation,
+        });
+        return;
+      }
+      props.onOpenPhotoZoom(effectiveUrl, title, photoCode, rotation);
+    },
+    [isHoldingSKey, resolveEffectiveStudioUrl, toggleSelectPhoto, props]
+  );
+
+  const enhancedProps: CondoStudioEntryProps = {
+    ...props,
+    onOpenPhotoZoom: handlePhotoZoomOrStudioSelect,
+  };
+
+  return (
+    <>
+      {kind === 'BUILDING_MASTER' ? (
+        <CondoMasterStepwiseView {...enhancedProps} />
+      ) : kind === 'MASTER_AREA' ? (
+        <CondoMasterAreaStepwiseView {...enhancedProps} />
+      ) : (
+        <CondoUnitStepwiseView {...enhancedProps} />
+      )}
+
+      <AuditStudioImgModal
+        isOpen={isStudioModalOpen}
+        onClose={() => setIsStudioModalOpen(false)}
+        onCommittedSuccess={() => {
+          props.onRefresh();
+        }}
+      />
+      {isHoldingSKey && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-indigo-600 text-white text-xs font-black shadow-xl border border-indigo-400 flex items-center gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-100">
+          <span>Chế độ chọn ảnh Studio Img (Đang giữ phím S) • Click vào ảnh bất kỳ để chọn/bỏ chọn ({selectedPhotos.length} đã chọn)</span>
+        </div>
+      )}
+    </>
+  );
 };
 

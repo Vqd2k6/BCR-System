@@ -11,17 +11,17 @@ import {
   ImageLabService,
   type ImageLabPreset,
   type ImageEnhancementParams,
+  type StudioCommitItemInput,
 } from './image-lab.service';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { Database } from '../../database/db';
 
 const VALID_PRESETS: ImageLabPreset[] = [
   'AUTO_SMART',
+  'CRACK_ENHANCE_V1',
+  'CRACK_ENHANCE_V2',
   'CRACK_ENHANCE',
-  'CRACK_ISOLATION_MAP',
   'LOW_LIGHT_RESCUE',
-  'DEBLOCK_COMPRESSION',
-  'XRAY_NEGATIVE',
   'CUSTOM',
 ];
 
@@ -241,6 +241,30 @@ export class ImageLabController {
       });
     } catch (err: unknown) {
       console.error('[ImageLabController:getRecentSurveyPhotos] Lỗi lấy danh sách ảnh mẫu:', err);
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/v1/image-lab/commit-studio-session
+   * Tạo file ảnh mới riêng biệt trên Server sau khi Thẩm định viên xác nhận lưu Studio Img,
+   * gắn vào phiên thẩm định hiện tại (bảo toàn ảnh gốc KSV) và dùng cho Báo cáo PDF.
+   */
+  public static async commitStudioSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const reportId = String(req.body?.reportId || req.params?.id || '').trim();
+      const items = (Array.isArray(req.body?.items) ? req.body.items : []) as StudioCommitItemInput[];
+      const adminId = req.user?.userId || 'ADMIN';
+      const clientIp = req.ip || req.socket?.remoteAddress;
+
+      const result = await ImageLabService.commitStudioSession(reportId, adminId, items, clientIp);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (err: unknown) {
+      console.error('[ImageLabController:commitStudioSession] Lỗi lưu phiên Studio Img:', err);
       next(err);
     }
   }
