@@ -10,6 +10,46 @@
 
 export type PhotoOrientationType = 'PORTRAIT' | 'LANDSCAPE' | 'SQUARE';
 export type ExpectedOrientation = 'PORTRAIT' | 'LANDSCAPE' | 'ANY';
+export type HousePrimaryOrientation = 'PORTRAIT' | 'LANDSCAPE';
+
+/**
+ * Tự động xác định hướng chính của ngôi nhà (Dọc nếu nhà ống / sâu; Ngang nếu nhà rộng mặt tiền)
+ */
+export function resolveHousePrimaryOrientation(
+  surveyData: Record<string, unknown> | null | undefined,
+  photoCounts?: { portrait: number; landscape: number }
+): HousePrimaryOrientation {
+  if (!surveyData) return 'PORTRAIT';
+
+  // 1. Kiểm tra cấu hình chủ động (nếu thẩm định viên đã chọn trên giao diện)
+  const manual = surveyData.primaryPhotoOrientation as string | undefined;
+  if (manual === 'PORTRAIT' || manual === 'LANDSCAPE') {
+    return manual;
+  }
+
+  // 2. Kiểm tra kích thước mặt tiền vs chiều sâu nhà
+  const rawWidth = surveyData.frontageWidth;
+  const rawDepth = surveyData.lotDepth;
+  const width = typeof rawWidth === 'number' ? rawWidth : parseFloat(String(rawWidth || '0'));
+  const depth = typeof rawDepth === 'number' ? rawDepth : parseFloat(String(rawDepth || '0'));
+
+  if (width > 0 && depth > 0) {
+    // Nếu chiều sâu lớn hơn mặt tiền: nhà ống hẹp sâu -> Hướng Dọc (PORTRAIT)
+    if (depth > width) {
+      return 'PORTRAIT';
+    }
+    // Nếu mặt tiền lớn hơn hoặc bằng chiều sâu: nhà rộng ngang -> Hướng Ngang (LANDSCAPE)
+    return 'LANDSCAPE';
+  }
+
+  // 3. Fallback: Nếu có thống kê đa số ảnh hiện có
+  if (photoCounts && (photoCounts.portrait > 0 || photoCounts.landscape > 0)) {
+    return photoCounts.landscape > photoCounts.portrait ? 'LANDSCAPE' : 'PORTRAIT';
+  }
+
+  // Mặc định cho nhà dân đô thị Việt Nam là dạng nhà ống (Dọc)
+  return 'PORTRAIT';
+}
 
 export interface OrientationRuleDefinition {
   expected: ExpectedOrientation;
@@ -223,13 +263,49 @@ export function normalizeRotationAngle(deg: number | undefined | null): number {
 }
 
 /**
+ * Lấy quy tắc hướng ảnh có thích ứng với hướng chính của ngôi nhà (cho Z, E, D)
+ * - CAD luôn luôn Dọc (PORTRAIT, isStrict: true)
+ * - Z, E, D khuyến khích theo hướng nhà (Dọc nếu nhà hẹp sâu, Ngang nếu nhà rộng; isStrict: false)
+ */
+export function getEffectiveResidentialPhotoRule(
+  ruleKey: string,
+  houseOrientation: HousePrimaryOrientation = 'PORTRAIT'
+): OrientationRuleDefinition | undefined {
+  const baseRule = RESIDENTIAL_PHOTO_RULES[ruleKey];
+  if (!baseRule) return undefined;
+
+  // CAD luôn là khổ Dọc (PORTRAIT)
+  if (ruleKey === 'CAD_SKETCH') {
+    return {
+      ...baseRule,
+      expected: 'PORTRAIT',
+      isStrict: true,
+    };
+  }
+
+  // Nhóm ảnh Vùng Z, Cấu kiện E, Khuyết tật D: Khuyến khích theo hướng chính của ngôi nhà
+  const adaptiveKeys = new Set(['Z_CTX', 'Z_OV', 'E_COL', 'E_BEAM', 'E_SLAB', 'D_CU', 'D_CTX']);
+  if (adaptiveKeys.has(ruleKey)) {
+    return {
+      ...baseRule,
+      expected: houseOrientation,
+      isStrict: false, // Luôn là Khuyến nghị (Advisory) để không khóa cứng Phê duyệt
+      feHint: `Khuyến nghị theo hướng nhà (${houseOrientation === 'PORTRAIT' ? 'DỌC 3:4' : 'NGANG 4:3'})`,
+    };
+  }
+
+  return baseRule;
+}
+
+/**
  * Đánh giá hướng ảnh hiệu dụng sau khi áp dụng góc xoay
  */
 export function evaluateResidentialOrientation(
   naturalWidth: number,
   naturalHeight: number,
   rotation: number = 0,
-  ruleKey: string = 'ANY'
+  ruleKey: string = 'ANY',
+  houseOrientation: HousePrimaryOrientation = 'PORTRAIT'
 ): OrientationEvaluationResult {
   const normRot = normalizeRotationAngle(rotation);
   const isSwapped = normRot === 90 || normRot === 270;
@@ -243,8 +319,8 @@ export function evaluateResidentialOrientation(
     currentOrientation = 'PORTRAIT';
   }
 
-  // Tra cứu quy tắc
-  const rule = RESIDENTIAL_PHOTO_RULES[ruleKey];
+  // Tra cứu quy tắc thích ứng
+  const rule = getEffectiveResidentialPhotoRule(ruleKey, houseOrientation);
   const expected: ExpectedOrientation = rule ? rule.expected : 'ANY';
 
   // Nếu quy tắc là ANY hoặc ảnh vuông 1:1 (bỏ ràng buộc ảnh vuông) -> luôn hợp lệ
@@ -271,7 +347,7 @@ export function evaluateResidentialOrientation(
     // Nếu hiện tại là Landscape mà cần Portrait -> xoay thêm 90°
     // Nếu hiện tại là Portrait mà cần Landscape -> xoay thêm 90°
     suggestedRotation = (normRot + 90) % 360;
-    message = `⚠️ Ảnh đang là ${currentOrientation === 'LANDSCAPE' ? 'NGANG' : currentOrientation === 'PORTRAIT' ? 'DỌC' : 'VUÔNG'} • Quy chuẩn báo cáo yêu cầu ${expected === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}`;
+    message = `⚠️ Ảnh đang là ${currentOrientation === 'LANDSCAPE' ? 'NGANG' : currentOrientation === 'PORTRAIT' ? 'DỌC' : 'VUÔNG'} • Khuyến nghị ${expected === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}`;
   }
 
   return {

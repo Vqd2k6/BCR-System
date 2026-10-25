@@ -4,11 +4,32 @@ import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../comp
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
 import type { PhotoOrientationViolation } from '../hooks/usePhotoOrientationAudit';
-import React, { useState, useRef, useEffect } from 'react';
-import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2, History, Crosshair, Undo2, RotateCw, RotateCcw } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  Layers,
+  Maximize2,
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  Camera,
+  ShieldAlert,
+  Compass,
+  Plus,
+  Trash2,
+  History,
+  Crosshair,
+  Undo2,
+  RotateCw,
+  RotateCcw,
+  RefreshCw,
+  Lightbulb,
+  Edit3,
+} from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
+import { RotatableImageFrame } from '../components/RotatableImageFrame';
+import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
 const getBurlandGradeFromWidth = (w: number): number => {
   if (w <= 0.1) return 0;
@@ -61,6 +82,7 @@ const syncZoneBurlandGrade = (z: DamageZoneData, rawDefects: DefectItem[]): Dama
 
 interface PinUndoActionMove {
   type: 'PIN_MOVE';
+  floorIndex: number;
   pinCode: string;
   isStruct: boolean;
   prevX: number;
@@ -198,6 +220,52 @@ const DEFECT_TYPE_PRESETS = [
   'Khác',
 ];
 
+const ARCH_SCREENING_CATEGORIES = [
+  'A. Hư hỏng bề mặt & Hoàn thiện',
+  'B. Thấm, Ẩm & Nước xâm nhập',
+  'C. Biến dạng & Lệch hình học',
+  'D. Hư hỏng bộ phận phi kết cấu',
+];
+
+const ARCH_DEFECT_TYPES = [
+  'Nứt tường gạch / Vữa trát hoàn thiện',
+  'Bong tróc / Phồng rộp lớp sơn - vữa',
+  'Rêu mốc / ố vàng / Thấm nước bề mặt',
+  'Vỡ / Bong bật gạch lát nền - ốp tường',
+  'Võng / Nứt tấm trần thạch cao - trần giả',
+  'Kẹt / Xệ cánh cửa đi - cửa sổ',
+  'Nứt gãy lan can / Tay vịn cầu thang',
+  'Khác (Ghi rõ tại ghi chú)',
+];
+
+const STRUCT_SCREENING_CATEGORIES = [
+  'A. Nứt kết cấu (Structural Cracking)',
+  'B. Biến dạng & Chuyển vị kết cấu',
+  'C. Suy thoái vật liệu kết cấu',
+  'D. Thấm - Ẩm ảnh hưởng kết cấu',
+  'E. Mất liên kết & Hư hỏng nút khung',
+];
+
+const STRUCT_DEFECT_TYPES = [
+  'Nứt cắt xiên (45°) đầu dầm / chân cột',
+  'Nứt uốn giữa nhịp dầm / Đáy bản sàn chịu lực',
+  'Nứt dọc theo cốt thép chủ (Do ăn mòn cốt thép)',
+  'Bong bật lớp bê tông bảo vệ / Lộ cốt thép gỉ',
+  'Rỗ tổ ong / Phân tầng bê tông cấu kiện chính',
+  'Thấm nước xuyên sàn BTCT / Khe lún - Cổ ống',
+  'Võng bản sàn / Võng dầm vượt giới hạn mắt thường',
+  'Biến dạng / Nứt tách tại nút giao Cột - Dầm',
+  'Khác (Ghi rõ tại ghi chú)',
+];
+
+const CRACK_DIRECTION_OPTIONS = ['Ngang', 'Dọc', 'Xiên 45°', 'Chân chim / Đa hướng'];
+
+const ACTIVITY_STATE_OPTIONS: Array<{ value: 'U' | 'S' | 'A'; label: string }> = [
+  { value: 'S', label: 'S - Ổn định' },
+  { value: 'A', label: 'A - Đang phát triển' },
+  { value: 'U', label: 'U - Chưa rõ' },
+];
+
 interface Props {
   isEditMode: boolean;
   formState: Record<string, unknown>;
@@ -210,7 +278,7 @@ interface Props {
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   stagedPhotoRotations?: Record<string, number>;
-  onRotatePhoto?: (photoKey: string, newRotation: number) => void;
+  onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
 }
 
@@ -230,112 +298,85 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   violationsMap,
 }) => {
   // Helper tra cứu trạng thái can thiệp ảnh staged trong phiên thẩm định
-  const getStagedAction = (filter: {
-    category?: string;
-    targetPhotoId?: string;
-    targetPhotoType?: string;
-    defectId?: string;
-    photoIndex?: number;
-    url?: string;
-    includeAdd?: boolean;
-  }) => {
-    if (!stagedPhotoActions || stagedPhotoActions.length === 0) return null;
-    return stagedPhotoActions.find((a) => {
-      if (filter.category && a.category !== filter.category) return false;
-      if (filter.targetPhotoType && a.targetPhotoType && a.targetPhotoType !== filter.targetPhotoType) return false;
-      if (filter.targetPhotoId && a.targetPhotoId && a.targetPhotoId !== filter.targetPhotoId) return false;
-      if (filter.defectId && a.defectId && a.defectId !== filter.defectId) return false;
-      if (!filter.includeAdd && a.action === 'ADD' && (filter.photoIndex !== undefined || filter.url !== undefined)) {
-        return false;
-      }
-      // Strictly separate indexed photos (overviewPhotos / cuPhotos[idx]) from non-indexed main context photos (ZONE_CTX / ELEMENT_CTX / CAD_FLOOR)
-      if (filter.photoIndex !== undefined) {
-        if (a.photoIndex !== undefined && a.photoIndex !== filter.photoIndex) return false;
-        if (a.photoIndex === undefined && (a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')) return false;
-      } else if (a.photoIndex !== undefined && (a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')) {
-        return false;
-      }
-      if (filter.url !== undefined || filter.photoIndex !== undefined) {
-        if (filter.photoIndex !== undefined && a.photoIndex !== undefined) {
-          return a.photoIndex === filter.photoIndex;
+  const getStagedAction = useCallback(
+    (filter: {
+      category?: string;
+      targetPhotoId?: string;
+      targetPhotoType?: string;
+      defectId?: string;
+      photoIndex?: number;
+      url?: string;
+      includeAdd?: boolean;
+    }) => {
+      if (!stagedPhotoActions || stagedPhotoActions.length === 0) return null;
+      return stagedPhotoActions.find((a) => {
+        if (filter.category && a.category !== filter.category) return false;
+        if (filter.targetPhotoType && a.targetPhotoType && a.targetPhotoType !== filter.targetPhotoType) return false;
+        if (filter.targetPhotoId && a.targetPhotoId && a.targetPhotoId !== filter.targetPhotoId) return false;
+        if (filter.defectId && a.defectId && a.defectId !== filter.defectId) return false;
+        if (!filter.includeAdd && a.action === 'ADD' && (filter.photoIndex !== undefined || filter.url !== undefined)) {
+          return false;
         }
-        if (filter.url && a.oldPhotoUrl && a.oldPhotoUrl === filter.url) return true;
+        if (filter.photoIndex !== undefined) {
+          if (a.photoIndex !== undefined && a.photoIndex !== filter.photoIndex) return false;
+          if (a.photoIndex === undefined && (a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')) return false;
+        } else if (a.photoIndex !== undefined && (a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')) {
+          return false;
+        }
+        if (filter.url !== undefined || filter.photoIndex !== undefined) {
+          if (filter.photoIndex !== undefined && a.photoIndex !== undefined) {
+            return a.photoIndex === filter.photoIndex;
+          }
+          if (filter.url && a.oldPhotoUrl && a.oldPhotoUrl === filter.url) return true;
+          if (
+            filter.photoIndex === undefined &&
+            a.photoIndex === undefined &&
+            (a.category === 'CAD_FLOOR' || a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')
+          ) {
+            return true;
+          }
+          return false;
+        }
         if (
-          filter.photoIndex === undefined &&
-          a.photoIndex === undefined &&
-          (a.category === 'CAD_FLOOR' || a.category === 'ZONE_CTX' || a.category === 'ELEMENT_CTX')
+          !filter.includeAdd &&
+          a.action === 'ADD' &&
+          a.category !== 'CAD_FLOOR' &&
+          a.category !== 'ZONE_CTX' &&
+          a.category !== 'ELEMENT_CTX'
         ) {
-          return true;
+          return false;
         }
-        return false;
-      }
-      if (
-        !filter.includeAdd &&
-        a.action === 'ADD' &&
-        a.category !== 'CAD_FLOOR' &&
-        a.category !== 'ZONE_CTX' &&
-        a.category !== 'ELEMENT_CTX'
-      ) {
-        return false;
-      }
-      if (a.category === 'ZONE_CTX' && a.photoIndex !== undefined) return false;
-      return true;
-    });
-  };
+        if (a.category === 'ZONE_CTX' && a.photoIndex !== undefined) return false;
+        return true;
+      });
+    },
+    [stagedPhotoActions]
+  );
 
   // Kiểm tra khuyết tật D có bị đánh dấu xóa cả mục (deleteDefectItem: true) trong stagedPhotoActions không
-  const getStagedDefectItemDeletion = (d: DefectItem): PhotoActionPayload | undefined => {
-    const dCode = d.defectCode || d.defect_code || '';
-    return stagedPhotoActions?.find(
-      (a) =>
-        a.action === 'DELETE' &&
-        Boolean(a.deleteDefectItem) &&
-        ((d.id && a.defectId === d.id) || (dCode && (a.targetPhotoId === dCode || a.defectCode === dCode)))
-    );
-  };
+  const getStagedDefectItemDeletion = useCallback(
+    (d: DefectItem): PhotoActionPayload | undefined => {
+      const dCode = d.defectCode || d.defect_code || '';
+      return stagedPhotoActions?.find(
+        (a) =>
+          a.action === 'DELETE' &&
+          Boolean(a.deleteDefectItem) &&
+          ((d.id && a.defectId === d.id) || (dCode && (a.targetPhotoId === dCode || a.defectCode === dCode)))
+      );
+    },
+    [stagedPhotoActions]
+  );
 
-  const isDefectActive = (d: DefectItem): boolean => !isItemSoftDeleted(d) && !getStagedDefectItemDeletion(d);
+  const isDefectActive = useCallback(
+    (d: DefectItem): boolean => !isItemSoftDeleted(d) && !getStagedDefectItemDeletion(d),
+    [getStagedDefectItemDeletion]
+  );
 
   const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
   const rawDamageZones: DamageZoneData[] = Array.isArray(formState.damageZones) ? (formState.damageZones as DamageZoneData[]) : [];
-
-  // Determine active floor
-  const [activeFloorIndex, setActiveFloorIndex] = useState(0);
-  const [cadViewMode, setCadViewMode] = useState<'ARCH' | 'STRUCT'>('ARCH');
-  const [showCadPins, setShowCadPins] = useState(true);
-  const [showCtxPins, setShowCtxPins] = useState(true);
-  const [showDeletedItems, setShowDeletedItems] = useState(false);
-  const [zoneToDelete, setZoneToDelete] = useState<DamageZoneData | null>(null);
-  const [highlightedDefectId, setHighlightedDefectId] = useState<string | null>(null);
-
-  // Pinning & Drag state for CAD (Z & E)
-  const [cadPinningMode, setCadPinningMode] = useState<'Z' | 'E' | null>(null);
-  const [draggingCadPin, setDraggingCadPin] = useState<{
-    pinCode: string;
-    isStruct: boolean;
-    currentX: number;
-    currentY: number;
-  } | null>(null);
-  const [undoPinStack, setUndoPinStack] = useState<PinUndoAction[]>([]);
-  const [selectedPinCode, setSelectedPinCode] = useState<string | null>(null);
-  const initialPinCoordsRef = useRef<Record<string, { x: number; y: number }>>({});
-  const cadImageWrapperRef = useRef<HTMLDivElement | null>(null);
-
-  // Pinning & Drag state for CTX (D)
-  const [pinningCtxZone, setPinningCtxZone] = useState<string | null>(null);
-  const [draggingDefectPin, setDraggingDefectPin] = useState<{
-    zoneId: string;
-    defectId: string;
-    dCode: string;
-    currentX: number;
-    currentY: number;
-  } | null>(null);
-  const hasJustDraggedRef = useRef<boolean>(false);
-  const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
-
-  // If floors array exists and is non-empty, use floor hierarchy; otherwise wrap damageZones as virtual floor
   const hasFloors = rawFloors.length > 0;
-  const floorsList = hasFloors
+
+  const floorsList: FloorSurveyData[] = hasFloors
     ? rawFloors
     : [
         {
@@ -345,85 +386,62 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           cadSketchPhotoUrl: '',
           cadZonePins: [],
           zones: rawDamageZones,
-        },
+        } as FloorSurveyData,
       ];
 
-  const currentFloor: FloorSurveyData = (floorsList[activeFloorIndex] || floorsList[0] || {}) as FloorSurveyData;
+  const [showCadPins, setShowCadPins] = useState(true);
+  const [showCtxPins, setShowCtxPins] = useState(true);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
+  const [zoneToDelete, setZoneToDelete] = useState<{ floorIdx: number; zone: DamageZoneData } | null>(null);
+  const [highlightedDefectId, setHighlightedDefectId] = useState<string | null>(null);
 
-  // Lắng nghe sự kiện chuyển tab tầng khi bấm "Xem ảnh" ở Banner cảnh báo
+  // Pinning & Drag state for CAD (Z & E)
+  const [cadPinningMode, setCadPinningMode] = useState<{ floorIdx: number; mode: 'Z' | 'E' } | null>(null);
+  const [draggingCadPin, setDraggingCadPin] = useState<{
+    floorIdx: number;
+    pinCode: string;
+    isStruct: boolean;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+  const [undoPinStack, setUndoPinStack] = useState<PinUndoAction[]>([]);
+  const [selectedPinCode, setSelectedPinCode] = useState<string | null>(null);
+  const initialPinCoordsRef = useRef<Record<string, { x: number; y: number }>>({});
+
+  // Pinning & Drag state for CTX (D)
+  const [pinningCtxZone, setPinningCtxZone] = useState<{ floorIdx: number; zoneOrElemCode: string } | null>(null);
+  const [draggingDefectPin, setDraggingDefectPin] = useState<{
+    floorIdx: number;
+    zoneId: string;
+    defectId: string;
+    dCode: string;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+  const hasJustDraggedRef = useRef<boolean>(false);
+  const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Initialize KSV origin pin coords
   useEffect(() => {
-    const handleSwitchFloor = (e: Event) => {
-      const ce = e as CustomEvent<{ floorIndex: number }>;
-      if (ce.detail && typeof ce.detail.floorIndex === 'number' && ce.detail.floorIndex >= 0 && ce.detail.floorIndex < floorsList.length) {
-        setActiveFloorIndex(ce.detail.floorIndex);
-      }
-    };
-    window.addEventListener('audit-switch-floor-tab', handleSwitchFloor);
-    return () => window.removeEventListener('audit-switch-floor-tab', handleSwitchFloor);
-  }, [floorsList.length]);
-
-  const currentZones: DamageZoneData[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
-  const currentElements: StructuralElementData[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
-
-  const activeZones = currentZones.filter((z) => !isItemSoftDeleted(z));
-  const deletedZones = currentZones.filter((z) => isItemSoftDeleted(z));
-  const displayedZones = showDeletedItems ? currentZones : activeZones;
-
-  const activeElements = currentElements.filter((e) => !isItemSoftDeleted(e));
-  const deletedElements = currentElements.filter((e) => isItemSoftDeleted(e));
-  const displayedElements = showDeletedItems ? currentElements : activeElements;
-
-  const currentCadPins: CadZonePin[] = cadViewMode === 'ARCH'
-    ? (Array.isArray(currentFloor.cadZonePins) ? currentFloor.cadZonePins : [])
-    : (Array.isArray(currentFloor.cadElementPins) ? currentFloor.cadElementPins : []);
-
-  const displayedCadPins = currentCadPins.filter((p) => {
-    if (showDeletedItems) return true;
-    const pinCode = p.zoneCode || p.zone_code || '';
-    if (cadViewMode === 'ARCH') {
-      return !deletedZones.some((dz) => (dz.zoneCode || dz.zone_code) === pinCode);
-    } else {
-      return !deletedElements.some((de) => (de.elementCode || de.element_code) === pinCode);
-    }
-  });
-
-  const cadPhotoUrl = cadViewMode === 'ARCH'
-    ? (currentFloor.cadSketchPhotoUrl || currentFloor.cad_drawing_url || '')
-    : (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url || '');
-
-  const baseCadKey = `floor_${currentFloor.id || activeFloorIndex}_cad`;
-  const cadKey =
-    cadViewMode === 'STRUCT' && (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url)
-      ? `${baseCadKey}_struct`
-      : baseCadKey;
-  const cadRotation =
-    stagedPhotoRotations[cadKey] ??
-    stagedPhotoRotations[baseCadKey] ??
-    ((currentFloor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
-  const cadViolation =
-    violationsMap?.get(cadKey) ||
-    violationsMap?.get(baseCadKey) ||
-    (cadPhotoUrl ? violationsMap?.get(cadPhotoUrl) : undefined);
-
-  // Khởi tạo và ghi nhớ toạ độ gốc KSV của từng ghim
-  React.useEffect(() => {
-    const allPins = [...(currentFloor.cadZonePins || []), ...(currentFloor.cadElementPins || [])];
-    allPins.forEach((p) => {
-      const code = p.zoneCode || p.zone_code;
-      if (code && !initialPinCoordsRef.current[code]) {
-        initialPinCoordsRef.current[code] = getPinOriginCoords(p);
-      }
+    floorsList.forEach((fl) => {
+      const allPins = [...(fl.cadZonePins || []), ...(fl.cadElementPins || [])];
+      allPins.forEach((p) => {
+        const code = p.zoneCode || p.zone_code;
+        if (code && !initialPinCoordsRef.current[code]) {
+          initialPinCoordsRef.current[code] = getPinOriginCoords(p);
+        }
+      });
     });
-  }, [currentFloor]);
+  }, [floorsList]);
 
   // Hoàn tác thao tác ghim (Ctrl+Z / Cmd+Z hoặc bấm nút Hoàn Tác)
-  const handleUndoPin = () => {
+  const handleUndoPin = useCallback(() => {
     if (undoPinStack.length === 0) return;
     const lastAction = undoPinStack[undoPinStack.length - 1];
     setUndoPinStack((prev) => prev.slice(0, -1));
 
     if (lastAction.type === 'PIN_MOVE') {
-      handleCommitCadPinCoord(lastAction.pinCode, lastAction.isStruct, lastAction.prevX, lastAction.prevY);
+      handleCommitCadPinCoord(lastAction.floorIndex, lastAction.pinCode, lastAction.isStruct, lastAction.prevX, lastAction.prevY);
     } else if (lastAction.type === 'CAD_ROTATE') {
       onRotatePhoto?.(lastAction.cadKey, lastAction.prevRotation);
       if (hasFloors) {
@@ -436,25 +454,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             cadSketchRotation: lastAction.prevRotation,
           };
         });
-        handleFieldChange('floors', `Hoàn tác xoay CAD tầng ${currentFloor.floorName || activeFloorIndex + 1}`, updatedFloors);
+        handleFieldChange('floors', `Hoàn tác xoay CAD tầng ${lastAction.floorIndex + 1}`, updatedFloors);
       }
-      const reverseCoords = (x: number, y: number) => {
-        const rx = Math.round(Math.max(1, Math.min(99, y)) * 10) / 10;
-        const ry = Math.round(Math.max(1, Math.min(99, 100 - x)) * 10) / 10;
-        return { x: rx, y: ry };
-      };
-      lastAction.prevZonePins.concat(lastAction.prevElementPins).forEach((p) => {
-        const code = p.zoneCode || p.zone_code;
-        if (code && initialPinCoordsRef.current[code]) {
-          const cur = initialPinCoordsRef.current[code];
-          initialPinCoordsRef.current[code] = reverseCoords(cur.x, cur.y);
-        }
-      });
     }
-  };
+  }, [undoPinStack, hasFloors, rawFloors, onRotatePhoto, handleFieldChange]);
 
   // Lắng nghe phím tắt Ctrl+Z / Cmd+Z để hoàn tác ghim
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         if (undoPinStack.length > 0) {
@@ -465,11 +471,49 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undoPinStack]);
+  }, [undoPinStack, handleUndoPin]);
 
-  // Xoay CAD 90° cùng chiều kim đồng hồ kèm tự động chuyển vị toạ độ ghim: (x, y) -> (100 - y, x)
-  const handleRotateCad = () => {
-    const nextRotation = (cadRotation + 90) % 360;
+  // Commit new coordinates for CAD pins (Z or E)
+  const handleCommitCadPinCoord = (floorIdx: number, pinCode: string, isStruct: boolean, newX: number, newY: number) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        if (isStruct) {
+          const pins = (fl.cadElementPins || []).map((p: CadZonePin) => {
+            if ((p.zoneCode || p.zone_code) === pinCode) {
+              return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+            }
+            return p;
+          });
+          return { ...fl, cadElementPins: pins };
+        } else {
+          const pins = (fl.cadZonePins || []).map((p: CadZonePin) => {
+            if ((p.zoneCode || p.zone_code) === pinCode) {
+              return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+            }
+            return p;
+          });
+          return { ...fl, cadZonePins: pins };
+        }
+      });
+      handleFieldChange('floors', `Điều chỉnh vị trí ghim ${pinCode} (${newX}%, ${newY}%)`, updatedFloors);
+    }
+  };
+
+  // Rotate CAD 90 deg clockwise with automatic pin coordinate transformation: (x, y) -> (100 - y, x)
+  const handleRotateCad = (floorIdx: number, isStruct: boolean) => {
+    const floor = floorsList[floorIdx];
+    if (!floor) return;
+    const fId = floor.id ? String(floor.id) : String(floorIdx);
+    const baseCadKey = fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`;
+    const structCadKey = fId.startsWith('floor_') ? `${fId}_structural_cad` : `floor_${fId}_structural_cad`;
+    const hasSeparateStructCad = Boolean(floor.cadStructuralSketchPhotoUrl || floor.cad_structural_drawing_url);
+    const cadKey = isStruct && hasSeparateStructCad ? structCadKey : baseCadKey;
+    const curRot =
+      stagedPhotoRotations[cadKey] ??
+      stagedPhotoRotations[`floor_${floor.id || floorIdx}_cad`] ??
+      ((floor as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
+    const nextRotation = (curRot + 90) % 360;
     onRotatePhoto?.(cadKey, nextRotation);
 
     const transformCoords = (x: number, y: number) => {
@@ -478,77 +522,63 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       return { x: newX, y: newY };
     };
 
-    const oldZonePins = currentFloor.cadZonePins || [];
-    const oldElementPins = currentFloor.cadElementPins || [];
+    const oldZonePins = floor.cadZonePins || [];
+    const oldElementPins = floor.cadElementPins || [];
 
-    const updatedZonePins = oldZonePins.map((p) => {
-      const pX = Number(p.pinX ?? p.pin_x ?? 50);
-      const pY = Number(p.pinY ?? p.pin_y ?? 50);
-      const { x: newX, y: newY } = transformCoords(pX, pY);
-      return {
-        ...p,
-        pinX: newX,
-        pinY: newY,
-        pin_x: newX,
-        pin_y: newY,
-      };
-    });
+    const shouldRotateZonePins = !isStruct || !hasSeparateStructCad;
+    const shouldRotateElementPins = isStruct || !hasSeparateStructCad;
 
-    const updatedElementPins = oldElementPins.map((p) => {
-      const pX = Number(p.pinX ?? p.pin_x ?? 50);
-      const pY = Number(p.pinY ?? p.pin_y ?? 50);
-      const { x: newX, y: newY } = transformCoords(pX, pY);
-      return {
-        ...p,
-        pinX: newX,
-        pinY: newY,
-        pin_x: newX,
-        pin_y: newY,
-      };
-    });
+    const updatedZonePins = shouldRotateZonePins
+      ? oldZonePins.map((p) => {
+          const pX = Number(p.pinX ?? p.pin_x ?? 50);
+          const pY = Number(p.pinY ?? p.pin_y ?? 50);
+          const { x: newX, y: newY } = transformCoords(pX, pY);
+          return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+        })
+      : oldZonePins;
+
+    const updatedElementPins = shouldRotateElementPins
+      ? oldElementPins.map((p) => {
+          const pX = Number(p.pinX ?? p.pin_x ?? 50);
+          const pY = Number(p.pinY ?? p.pin_y ?? 50);
+          const { x: newX, y: newY } = transformCoords(pX, pY);
+          return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
+        })
+      : oldElementPins;
 
     setUndoPinStack((prev) => [
       ...prev.slice(-19),
       {
         type: 'CAD_ROTATE',
-        floorId: currentFloor.id,
-        floorIndex: activeFloorIndex,
+        floorId: floor.id,
+        floorIndex: floorIdx,
         cadKey,
-        prevRotation: cadRotation,
+        prevRotation: curRot,
         prevZonePins: oldZonePins,
         prevElementPins: oldElementPins,
       },
     ]);
 
-    // Đồng bộ toạ độ gốc KSV theo ma trận chuyển vị
-    oldZonePins.concat(oldElementPins).forEach((p) => {
-      const code = p.zoneCode || p.zone_code;
-      if (code && initialPinCoordsRef.current[code]) {
-        const cur = initialPinCoordsRef.current[code];
-        initialPinCoordsRef.current[code] = transformCoords(cur.x, cur.y);
-      }
-    });
-
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         return {
           ...fl,
           cadZonePins: updatedZonePins,
           cadElementPins: updatedElementPins,
-          cadSketchRotation: nextRotation,
+          ...(shouldRotateZonePins ? { cadSketchRotation: nextRotation } : {}),
         };
       });
-      handleFieldChange('floors', `Xoay CAD tầng ${currentFloor.floorName || activeFloorIndex + 1} 90°`, updatedFloors);
+      handleFieldChange('floors', `Xoay CAD ${isStruct ? 'Kết cấu' : 'Kiến trúc'} tầng ${floor.floorName || floorIdx + 1} 90°`, updatedFloors);
     }
   };
 
-  // Xoay ảnh ngữ cảnh Z_CTX 90° cùng chiều kim đồng hồ kèm tự động chuyển vị toạ độ ghim D: (x, y) -> (100 - y, x)
-  const handleRotateZoneCtx = (zone: DamageZoneData, currentRot: number, rotKey: string) => {
+  // Rotate Zone CTX photo with defect pins transformation
+  const handleRotateZoneCtx = (floorIdx: number, zone: DamageZoneData, currentRot: number, rotKey: string) => {
     const nextRotation = (currentRot + 90) % 360;
     onRotatePhoto?.(rotKey, nextRotation);
-
     const zCode = zone.zoneCode || zone.zone_code || 'Z-01';
+
     const transformDefectCoords = (x: number, y: number) => {
       const newX = Math.round(Math.max(1, Math.min(99, 100 - y)) * 10) / 10;
       const newY = Math.round(Math.max(1, Math.min(99, x)) * 10) / 10;
@@ -557,7 +587,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
           const defects = (z.defects || []).map((d: DefectItem) => {
@@ -586,8 +616,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Xoay ảnh ngữ cảnh E_CTX của Cấu kiện chịu lực kèm tự động chuyển vị toạ độ ghim D của cấu kiện E
+  // Rotate Element CTX photo
   const handleRotateElementCtx = (
+    floorIdx: number,
     elem: StructuralElementData,
     currentRot: number,
     rotKey: string,
@@ -596,8 +627,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     const nextRotation = ((currentRot + deltaDeg) % 360 + 360) % 360;
     const delta = ((deltaDeg % 360) + 360) % 360;
     onRotatePhoto?.(rotKey, nextRotation);
-
     const eCode = elem.elementCode || elem.element_code || 'E-01';
+
     const transformDefectCoords = (x: number, y: number) => {
       if (delta === 270) {
         const newX = Math.round(Math.max(1, Math.min(99, y)) * 10) / 10;
@@ -616,7 +647,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
           if (e.id !== elem.id && (e.elementCode || e.element_code) !== eCode) return e;
           const defects = (e.defects || []).map((d: DefectItem) => {
@@ -633,52 +664,25 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Commit new coordinates for CAD pins (Z or E)
-  const handleCommitCadPinCoord = (pinCode: string, isStruct: boolean, newX: number, newY: number) => {
-    if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        if (isStruct) {
-          const pins = (fl.cadElementPins || []).map((p: CadZonePin) => {
-            if ((p.zoneCode || p.zone_code) === pinCode) {
-              return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
-            }
-            return p;
-          });
-          return { ...fl, cadElementPins: pins };
-        } else {
-          const pins = (fl.cadZonePins || []).map((p: CadZonePin) => {
-            if ((p.zoneCode || p.zone_code) === pinCode) {
-              return { ...p, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
-            }
-            return p;
-          });
-          return { ...fl, cadZonePins: pins };
-        }
-      });
-      handleFieldChange('floors', `Điều chỉnh vị trí ghim ${pinCode} (${newX}%, ${newY}%)`, updatedFloors);
-    }
-  };
-
-  // Click-to-pin on CAD
-  const handleCadImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cadPinningMode) return;
-    const container = cadImageWrapperRef.current;
-    if (!container) return;
+  // Click-to-pin CAD (Z or E)
+  const handleCadImageClick = (e: React.MouseEvent<HTMLDivElement>, floorIdx: number, mode: 'Z' | 'E') => {
+    if (!cadPinningMode || cadPinningMode.floorIdx !== floorIdx || cadPinningMode.mode !== mode) return;
+    const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 100;
     const rawY = ((e.clientY - rect.top) / rect.height) * 100;
     const pinX = Math.round(Math.max(2, Math.min(98, rawX)) * 10) / 10;
     const pinY = Math.round(Math.max(2, Math.min(98, rawY)) * 10) / 10;
 
-    const isStruct = cadPinningMode === 'E';
+    const floor = floorsList[floorIdx];
+    const isStruct = mode === 'E';
     const prefix = isStruct ? 'E' : 'Z';
     const pinsToCheck = isStruct
-      ? (Array.isArray(currentFloor.cadElementPins) ? currentFloor.cadElementPins : [])
-      : (Array.isArray(currentFloor.cadZonePins) ? currentFloor.cadZonePins : []);
+      ? (Array.isArray(floor.cadElementPins) ? floor.cadElementPins : [])
+      : (Array.isArray(floor.cadZonePins) ? floor.cadZonePins : []);
     const historicalCodes = isStruct
-      ? (currentFloor.structuralElements || []).map((e) => e.elementCode || '')
-      : (currentFloor.zones || []).map((z) => z.zoneCode || z.zone_code || '');
+      ? (floor.structuralElements || []).map((el) => el.elementCode || '')
+      : (floor.zones || []).map((z) => z.zoneCode || z.zone_code || '');
     const nextPinCode = getNextAvailablePinCode(pinsToCheck, prefix, historicalCodes);
 
     const newPin: CadZonePin = {
@@ -694,7 +698,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         if (isStruct) {
           const currentPins = Array.isArray(fl.cadElementPins) ? fl.cadElementPins : [];
           const currentElems = Array.isArray(fl.structuralElements) ? fl.structuralElements : [];
@@ -740,11 +744,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     setCadPinningMode(null);
   };
 
-  // Commit new coordinates for D pins on CTX (supports both Zone Z and Structural Element E)
-  const handleCommitDefectPinCoord = (zoneId: string, defectId: string, dCode: string, newX: number, newY: number) => {
+  // Commit new coordinates for D pins on CTX
+  const handleCommitDefectPinCoord = (floorIdx: number, zoneId: string, defectId: string, dCode: string, newX: number, newY: number) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const defects = (z.defects || []).map((d: DefectItem) => {
@@ -764,23 +768,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         return { ...fl, zones, structuralElements };
       });
       handleFieldChange('floors', `Điều chỉnh vị trí ghim ${dCode} (${newX}%, ${newY}%)`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
-        const defects = (z.defects || []).map((d: DefectItem) => {
-          if (d.id !== defectId && d.defectCode !== defectId) return d;
-          return { ...d, pinX: newX, pinY: newY, pin_x: newX, pin_y: newY };
-        });
-        return { ...z, defects };
-      });
-      handleFieldChange('damageZones', `Điều chỉnh vị trí ghim ${dCode} (${newX}%, ${newY}%)`, updatedZones);
     }
   };
 
   // Click-to-pin D on CTX photo
-  const handleCtxImageClick = (e: React.MouseEvent<HTMLDivElement>, zone: DamageZoneData) => {
+  const handleCtxImageClick = (e: React.MouseEvent<HTMLDivElement>, floorIdx: number, zone: DamageZoneData) => {
     const zCode = zone.zoneCode || zone.zone_code || 'Z-01';
-    if (pinningCtxZone !== zCode) return;
+    if (!pinningCtxZone || pinningCtxZone.floorIdx !== floorIdx || pinningCtxZone.zoneOrElemCode !== zCode) return;
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 100;
@@ -800,8 +794,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     const newDefect: DefectItem = {
       id: newDefectId,
       defectCode: nextDCode,
-      defectType: 'Vết nứt tường',
-      screeningCategory: 'Vết nứt tường',
+      defectType: ARCH_DEFECT_TYPES[0],
+      screeningCategory: ARCH_SCREENING_CATEGORIES[0],
       widthMaxMm: 0.2,
       burlandGrade: getBurlandGradeFromWidth(0.2),
       lengthMm: 100,
@@ -810,20 +804,21 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       pinY,
       pin_x: pinX,
       pin_y: pinY,
+      materialDegradationE4: 0,
+      structuralSignificanceE2: 1,
+      functionalImpactE6: 1,
       isStructuralCritical: false,
       crackDirection: 'Ngang',
       activityState: 'S',
       hasScaleCard: true,
       notes: '',
-      materialDegradationE4: '',
-      structuralSignificanceE2: '',
       cuPhotoUrl: '',
       cuPhotos: [],
     };
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
           const currentDefects = Array.isArray(z.defects) ? z.defects : [];
@@ -832,18 +827,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Thêm khuyết tật ${nextDCode} tại (${pinX}%, ${pinY}%)`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
-        const currentDefects = Array.isArray(z.defects) ? z.defects : [];
-        return syncZoneBurlandGrade(z, [...currentDefects, newDefect]);
-      });
-      handleFieldChange('damageZones', `Thêm khuyết tật ${nextDCode} tại (${pinX}%, ${pinY}%)`, updatedZones);
     }
-
     setPinningCtxZone(null);
 
-    // Mở modal AuditPhotoActionModal ở chế độ ADD kèm tọa độ pinX, pinY
     if (onOpenPhotoAction) {
       onOpenPhotoAction({
         initialMode: 'ADD',
@@ -852,7 +838,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         targetPhotoId: nextDCode,
         defectId: newDefectId,
         defectCode: nextDCode,
-        floorCode: currentFloor.floorName,
+        floorCode: floorsList[floorIdx]?.floorName,
         zoneCode: zCode,
         initialPinX: pinX,
         initialPinY: pinY,
@@ -862,9 +848,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // Click-to-pin D on Structural Element E CTX photo
-  const handleElemCtxImageClick = (e: React.MouseEvent<HTMLDivElement>, elem: StructuralElementData) => {
+  const handleElemCtxImageClick = (e: React.MouseEvent<HTMLDivElement>, floorIdx: number, elem: StructuralElementData) => {
     const eCode = elem.elementCode || elem.element_code || 'E-01';
-    if (pinningCtxZone !== eCode || !hasFloors) return;
+    if (!pinningCtxZone || pinningCtxZone.floorIdx !== floorIdx || pinningCtxZone.zoneOrElemCode !== eCode) return;
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 100;
@@ -884,8 +870,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     const newDefect: DefectItem = {
       id: newDefectId,
       defectCode: nextDCode,
-      defectType: 'Vết nứt dầm/cột',
-      screeningCategory: 'Vết nứt dầm/cột',
+      defectType: STRUCT_DEFECT_TYPES[0],
+      screeningCategory: STRUCT_SCREENING_CATEGORIES[0],
       widthMaxMm: 0.3,
       lengthMm: 150,
       depthMm: 5,
@@ -895,6 +881,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       pin_y: pinY,
       materialDegradationE4: 1,
       structuralSignificanceE2: 1,
+      functionalImpactE6: 1,
       isStructuralCritical: true,
       crackDirection: 'Ngang',
       activityState: 'S',
@@ -904,16 +891,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       cuPhotos: [],
     };
 
-    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-      const structuralElements = (fl.structuralElements || []).map((el: StructuralElementData) => {
-        if (el.id !== elem.id && (el.elementCode || el.element_code) !== eCode) return el;
-        const currentDefects = Array.isArray(el.defects) ? el.defects : [];
-        return { ...el, defects: [...currentDefects, newDefect] };
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        const structuralElements = (fl.structuralElements || []).map((el: StructuralElementData) => {
+          if (el.id !== elem.id && (el.elementCode || el.element_code) !== eCode) return el;
+          const currentDefects = Array.isArray(el.defects) ? el.defects : [];
+          return { ...el, defects: [...currentDefects, newDefect] };
+        });
+        return { ...fl, structuralElements };
       });
-      return { ...fl, structuralElements };
-    });
-    handleFieldChange('floors', `Thêm khuyết tật ${nextDCode} vào cấu kiện ${eCode} tại (${pinX}%, ${pinY}%)`, updatedFloors);
+      handleFieldChange('floors', `Thêm khuyết tật ${nextDCode} vào cấu kiện ${eCode} tại (${pinX}%, ${pinY}%)`, updatedFloors);
+    }
     setPinningCtxZone(null);
 
     if (onOpenPhotoAction) {
@@ -924,7 +913,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         targetPhotoId: nextDCode,
         defectId: newDefectId,
         defectCode: nextDCode,
-        floorCode: currentFloor.floorName,
+        floorCode: floorsList[floorIdx]?.floorName,
         zoneCode: eCode,
         initialPinX: pinX,
         initialPinY: pinY,
@@ -934,68 +923,65 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // Handle changing defect properties in floors or damageZones
-  const handleDefectChange = (zoneId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
+  const handleDefectChange = (floorIdx: number, zoneId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
     const updateSingleDefect = (d: DefectItem): DefectItem => {
-      if (d.id !== defectId && d.defectCode !== defectId) return d;
+      const dCode = d.defectCode || d.defect_code || '';
+      if (d.id !== defectId && dCode !== defectId) return d;
       const nextD: DefectItem = { ...d, [field]: val };
       if (field === 'widthMaxMm') {
         nextD.burlandGrade = getBurlandGradeFromWidth(Number(val) || 0);
+      }
+      if (field === 'screeningCategory' || field === 'defectType') {
+        const nextCat = field === 'screeningCategory' ? String(val || '') : d.screeningCategory;
+        const nextType = field === 'defectType' ? String(val || '') : d.defectType;
+        if (!isCrackRelated(nextCat, nextType)) {
+          nextD.widthMaxMm = 0;
+          nextD.lengthMm = 0;
+          nextD.burlandGrade = 0;
+        }
       }
       return nextD;
     };
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const defects = (z.defects || []).map(updateSingleDefect);
           return syncZoneBurlandGrade(z, defects);
         });
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Khuyết tật ${fieldLabel}`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).map(updateSingleDefect);
-        return syncZoneBurlandGrade(z, defects);
-      });
-      handleFieldChange('damageZones', `Khuyết tật ${fieldLabel}`, updatedZones);
     }
   };
 
   // Handle changing zone fields
-  const handleZoneFieldChange = (zoneId: string, field: string, val: unknown, fieldLabel: string) => {
+  const handleZoneFieldChange = (floorIdx: number, zoneId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           return { ...z, [field]: val };
         });
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Vùng Z (${fieldLabel})`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
-        return { ...z, [field]: val };
-      });
-      handleFieldChange('damageZones', `Vùng Z (${fieldLabel})`, updatedZones);
     }
   };
 
-  // Add new defect to a zone (using Monotonic Max + 1 sequential code D-01, D-02...)
-  const handleAddDefect = (zoneId: string) => {
+  // Add new defect to a zone
+  const handleAddDefect = (floorIdx: number, zoneId: string) => {
     const newDefectId = `defect-${Date.now()}`;
     let createdDCode = 'D-01';
 
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const currentDefects = Array.isArray(z.defects) ? z.defects : [];
           const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
           const nextDCode = getNextAvailablePinCode(
@@ -1007,8 +993,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           const newDefect: DefectItem = {
             id: newDefectId,
             defectCode: nextDCode,
-            defectType: 'Vết nứt tường',
-            screeningCategory: 'Vết nứt tường',
+            defectType: ARCH_DEFECT_TYPES[0],
+            screeningCategory: ARCH_SCREENING_CATEGORIES[0],
             widthMaxMm: 0.2,
             burlandGrade: getBurlandGradeFromWidth(0.2),
             lengthMm: 100,
@@ -1017,13 +1003,14 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             pinY: 50,
             pin_x: 50,
             pin_y: 50,
+            materialDegradationE4: 0,
+            structuralSignificanceE2: 1,
+            functionalImpactE6: 1,
             isStructuralCritical: false,
             crackDirection: 'Ngang',
             activityState: 'S',
             hasScaleCard: true,
             notes: '',
-            materialDegradationE4: 0,
-            structuralSignificanceE2: 1,
             cuPhotoUrl: '',
             cuPhotos: [],
           };
@@ -1032,55 +1019,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Thêm khuyết tật ${createdDCode}`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
-        const currentDefects = Array.isArray(z.defects) ? z.defects : [];
-        const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
-        const nextDCode = getNextAvailablePinCode(
-          currentDefects.map((d: DefectItem) => ({ zoneCode: d.defectCode || d.defect_code })),
-          'D',
-          historicalDCodes
-        );
-        createdDCode = nextDCode;
-        const newDefect: DefectItem = {
-          id: newDefectId,
-          defectCode: nextDCode,
-          defectType: 'Vết nứt tường',
-          screeningCategory: 'Vết nứt tường',
-          widthMaxMm: 0.2,
-          burlandGrade: getBurlandGradeFromWidth(0.2),
-          lengthMm: 100,
-          depthMm: 5,
-          pinX: 50,
-          pinY: 50,
-          pin_x: 50,
-          pin_y: 50,
-          isStructuralCritical: false,
-          crackDirection: 'Ngang',
-          activityState: 'S',
-          hasScaleCard: true,
-          notes: '',
-          materialDegradationE4: 0,
-          structuralSignificanceE2: 1,
-          cuPhotoUrl: '',
-          cuPhotos: [],
-        };
-        return syncZoneBurlandGrade(z, [...currentDefects, newDefect]);
-      });
-      handleFieldChange('damageZones', `Thêm khuyết tật ${createdDCode}`, updatedZones);
     }
   };
 
-  // Soft-remove defect from a zone (Preserve code, watermark and pin history)
-  const handleRemoveDefect = (zoneId: string, defectId: string) => {
+  // Soft-remove defect from a zone
+  const handleRemoveDefect = (floorIdx: number, zoneId: string, defectId: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const defects = (z.defects || []).map((d: DefectItem) => {
-            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            const dCode = d.defectCode || d.defect_code || '';
+            if (d.id !== defectId && dCode !== defectId) return d;
             return { ...d, is_deleted: true, isDeleted: true };
           });
           return syncZoneBurlandGrade(z, defects);
@@ -1088,28 +1039,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Xóa mềm khuyết tật ${defectId}`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).map((d: DefectItem) => {
-          if (d.id !== defectId && d.defectCode !== defectId) return d;
-          return { ...d, is_deleted: true, isDeleted: true };
-        });
-        return syncZoneBurlandGrade(z, defects);
-      });
-      handleFieldChange('damageZones', `Xóa mềm khuyết tật ${defectId}`, updatedZones);
     }
   };
 
   // Restore defect
-  const handleRestoreDefect = (zoneId: string, defectId: string) => {
+  const handleRestoreDefect = (floorIdx: number, zoneId: string, defectId: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zoneId) return z;
+          if (z.id !== zoneId && (z.zoneCode || z.zone_code) !== zoneId) return z;
           const defects = (z.defects || []).map((d: DefectItem) => {
-            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            const dCode = d.defectCode || d.defect_code || '';
+            if (d.id !== defectId && dCode !== defectId) return d;
             return { ...d, is_deleted: false, isDeleted: false };
           });
           return syncZoneBurlandGrade(z, defects);
@@ -1117,166 +1059,104 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Khôi phục khuyết tật ${defectId}`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).map((d: DefectItem) => {
-          if (d.id !== defectId && d.defectCode !== defectId) return d;
-          return { ...d, is_deleted: false, isDeleted: false };
-        });
-        return syncZoneBurlandGrade(z, defects);
-      });
-      handleFieldChange('damageZones', `Khôi phục khuyết tật ${defectId}`, updatedZones);
     }
   };
 
-  // Request zone deletion (prompt danger modal if defects exist)
-  const handleRemoveZone = (zone: DamageZoneData) => {
+  // Request zone deletion
+  const handleRemoveZone = (floorIdx: number, zone: DamageZoneData) => {
     const activeChildDefects = (zone.defects || []).filter((d: DefectItem) => !isItemSoftDeleted(d));
     if (activeChildDefects.length > 0) {
-      setZoneToDelete(zone);
+      setZoneToDelete({ floorIdx, zone });
       return;
     }
-    executeSoftDeleteZone(zone);
+    executeSoftDeleteZone(floorIdx, zone);
   };
 
-  // Execute cascade soft-delete on zone and its defects
-  const executeSoftDeleteZone = (zone: DamageZoneData) => {
+  // Execute cascade soft-delete on zone and its defects (syncing cadZonePins)
+  const executeSoftDeleteZone = (floorIdx: number, zone: DamageZoneData) => {
     const zCode = zone.zoneCode || zone.zone_code || 'Z-??';
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+          if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
           const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true, isDeleted: true }));
           return syncZoneBurlandGrade({ ...z, is_deleted: true, isDeleted: true }, defects);
         });
-        return { ...fl, zones };
+        const cadZonePins = (fl.cadZonePins || []).map((p: CadZonePin) => {
+          if ((p.zoneCode || p.zone_code) === zCode) {
+            return { ...p, is_deleted: true, isDeleted: true } as CadZonePin;
+          }
+          return p;
+        });
+        return { ...fl, zones, cadZonePins };
       });
       handleFieldChange('floors', `Xóa mềm Vùng ${zCode} và các khuyết tật con`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zone.id && z.zoneCode !== zCode) return z;
-        const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true, isDeleted: true }));
-        return syncZoneBurlandGrade({ ...z, is_deleted: true, isDeleted: true }, defects);
-      });
-      handleFieldChange('damageZones', `Xóa mềm Vùng ${zCode} và các khuyết tật con`, updatedZones);
     }
     setZoneToDelete(null);
   };
 
-  // Restore zone and its defects (including restoring its CAD pin if missing)
-  const handleRestoreZone = (zone: DamageZoneData) => {
+  // Restore zone and its defects (syncing cadZonePins)
+  const handleRestoreZone = (floorIdx: number, zone: DamageZoneData) => {
     const zCode = zone.zoneCode || zone.zone_code || 'Z-??';
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const zones = (fl.zones || []).map((z: DamageZoneData) => {
-          if (z.id !== zone.id && z.zoneCode !== zCode) return z;
+          if (z.id !== zone.id && (z.zoneCode || z.zone_code) !== zCode) return z;
           const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false, isDeleted: false }));
           return syncZoneBurlandGrade({ ...z, is_deleted: false, isDeleted: false }, defects);
         });
-        const existingPins = Array.isArray(fl.cadZonePins) ? fl.cadZonePins : [];
-        const hasPin = existingPins.some((p) => (p.zoneCode || p.zone_code) === zCode);
-        const zoneWithPin = zone as DamageZoneData & { pinX?: number; pinY?: number; x?: number; y?: number };
-        const pX = Number(zoneWithPin.pinX ?? zoneWithPin.x ?? initialPinCoordsRef.current[zCode]?.x ?? 50);
-        const pY = Number(zoneWithPin.pinY ?? zoneWithPin.y ?? initialPinCoordsRef.current[zCode]?.y ?? 50);
-        const nextZonePins = hasPin
-          ? existingPins
-          : [
-              ...existingPins,
-              {
-                id: `pin-z-${Date.now()}`,
-                zoneCode: zCode,
-                x: pX,
-                y: pY,
-                pinX: pX,
-                pinY: pY,
-                pin_x: pX,
-                pin_y: pY,
-                label: zCode,
-                type: 'ZONE' as const,
-              },
-            ];
-        return { ...fl, zones, cadZonePins: nextZonePins };
+        const cadZonePins = (fl.cadZonePins || []).map((p: CadZonePin) => {
+          if ((p.zoneCode || p.zone_code) === zCode) {
+            return { ...p, is_deleted: false, isDeleted: false } as CadZonePin;
+          }
+          return p;
+        });
+        return { ...fl, zones, cadZonePins };
       });
       handleFieldChange('floors', `Khôi phục Vùng ${zCode} và các khuyết tật con`, updatedFloors);
-    } else {
-      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
-        if (z.id !== zone.id && z.zoneCode !== zCode) return z;
-        const defects = (z.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false, isDeleted: false }));
-        return syncZoneBurlandGrade({ ...z, is_deleted: false, isDeleted: false }, defects);
-      });
-      handleFieldChange('damageZones', `Khôi phục Vùng ${zCode} và các khuyết tật con`, updatedZones);
     }
   };
 
-  // Soft-remove structural element
-  const handleRemoveElement = (elemId: string) => {
+  // Direct add zone button on header
+  const handleAddZoneDirect = (floorIdx: number) => {
+    const floor = floorsList[floorIdx];
+    if (!floor) return;
+    const currentZones = floor.zones || [];
+    const historicalCodes = currentZones.map((z) => z.zoneCode || z.zone_code || '');
+    const nextZCode = getNextAvailablePinCode(
+      currentZones.map((z) => ({ zoneCode: z.zoneCode || z.zone_code })),
+      'Z',
+      historicalCodes
+    );
+    const newZone: DamageZoneData = {
+      id: `zone-${Date.now()}`,
+      zoneCode: nextZCode,
+      floorName: floor.floorName || 'Tầng',
+      roomName: 'Không gian mới',
+      componentType: 'Tường ngăn',
+      wallMaterial: 'Gạch ống (2 lỗ / 4 lỗ)',
+      notes: '',
+      defects: [],
+      overviewPhotos: [],
+    };
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-          if (e.id !== elemId && e.elementCode !== elemId) return e;
-          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true, isDeleted: true }));
-          return { ...e, is_deleted: true, isDeleted: true, defects };
-        });
-        return { ...fl, structuralElements };
+        if (fi !== floorIdx) return fl;
+        return { ...fl, zones: [...(fl.zones || []), newZone] };
       });
-      handleFieldChange('floors', `Xóa mềm cấu kiện E ${elemId}`, updatedFloors);
-    }
-  };
-
-  // Restore structural element (including restoring its CAD pin if missing)
-  const handleRestoreElement = (elemId: string) => {
-    if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const targetElem = (fl.structuralElements || []).find(
-          (e: StructuralElementData) => e.id === elemId || e.elementCode === elemId
-        ) as (StructuralElementData & { pinX?: number; pinY?: number; x?: number; y?: number }) | undefined;
-        const restoredElemCode = targetElem?.elementCode || targetElem?.element_code || elemId;
-        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-          if (e.id !== elemId && e.elementCode !== elemId) return e;
-          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false, isDeleted: false }));
-          return { ...e, is_deleted: false, isDeleted: false, defects };
-        });
-        const existingElemPins = Array.isArray(fl.cadElementPins) ? fl.cadElementPins : [];
-        const hasPin = existingElemPins.some(
-          (p) => (p.zoneCode || p.zone_code || (p as { elementCode?: string }).elementCode) === restoredElemCode
-        );
-        const pX = Number(targetElem?.pinX ?? targetElem?.x ?? initialPinCoordsRef.current[restoredElemCode]?.x ?? 50);
-        const pY = Number(targetElem?.pinY ?? targetElem?.y ?? initialPinCoordsRef.current[restoredElemCode]?.y ?? 50);
-        const nextElemPins = hasPin
-          ? existingElemPins
-          : [
-              ...existingElemPins,
-              {
-                id: `pin-e-${Date.now()}`,
-                zoneCode: restoredElemCode,
-                x: pX,
-                y: pY,
-                pinX: pX,
-                pinY: pY,
-                pin_x: pX,
-                pin_y: pY,
-                label: restoredElemCode,
-                type: 'STRUCTURAL' as const,
-              },
-            ];
-        return { ...fl, structuralElements, cadElementPins: nextElemPins };
-      });
-      handleFieldChange('floors', `Khôi phục cấu kiện E ${elemId}`, updatedFloors);
+      handleFieldChange('floors', `Thêm vùng ${nextZCode}`, updatedFloors);
     }
   };
 
   // Handle changing element fields
-  const handleElementFieldChange = (elemId: string, field: string, val: unknown, fieldLabel: string) => {
+  const handleElementFieldChange = (floorIdx: number, elemId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          if (e.id !== elemId && (e.elementCode || e.element_code) !== elemId) return e;
           return { ...e, [field]: val };
         });
         return { ...fl, structuralElements };
@@ -1286,15 +1166,28 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // Handle changing defect properties in structural elements
-  const handleElementDefectChange = (elemId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
+  const handleElementDefectChange = (floorIdx: number, elemId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        if (fi !== floorIdx) return fl;
         const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          if (e.id !== elemId && (e.elementCode || e.element_code) !== elemId) return e;
           const defects = (e.defects || []).map((d: DefectItem) => {
-            if (d.id !== defectId && d.defectCode !== defectId) return d;
-            return { ...d, [field]: val };
+            const dCode = d.defectCode || d.defect_code || '';
+            if (d.id !== defectId && dCode !== defectId) return d;
+            const nextD: DefectItem = { ...d, [field]: val };
+            if (field === 'widthMaxMm') {
+              nextD.burlandGrade = getBurlandGradeFromWidth(Number(val) || 0);
+            }
+            if (field === 'screeningCategory' || field === 'defectType') {
+              const nextCat = field === 'screeningCategory' ? String(val || '') : d.screeningCategory;
+              const nextType = field === 'defectType' ? String(val || '') : d.defectType;
+              if (!isCrackRelated(nextCat, nextType)) {
+                nextD.widthMaxMm = 0;
+                nextD.lengthMm = 0;
+              }
+            }
+            return nextD;
           });
           return { ...e, defects };
         });
@@ -1304,15 +1197,15 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Add new defect to a structural element E (sequential D-01, D-02...)
-  const handleAddElementDefect = (elemId: string) => {
+  // Add new defect to a structural element E
+  const handleAddElementDefect = (floorIdx: number, elemId: string) => {
     if (!hasFloors) return;
     const newDefectId = `elem-defect-${Date.now()}`;
     let createdDCode = 'D-01';
     const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      if (fi !== floorIdx) return fl;
       const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        if (e.id !== elemId && (e.elementCode || e.element_code) !== elemId) return e;
         const currentDefects = Array.isArray(e.defects) ? e.defects : [];
         const historicalDCodes = currentDefects.map((d: DefectItem) => d.defectCode || d.defect_code || '');
         const nextDCode = getNextAvailablePinCode(
@@ -1324,8 +1217,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         const newDefect: DefectItem = {
           id: newDefectId,
           defectCode: nextDCode,
-          defectType: 'Vết nứt dầm/cột',
-          screeningCategory: 'Vết nứt dầm/cột',
+          defectType: STRUCT_DEFECT_TYPES[0],
+          screeningCategory: STRUCT_SCREENING_CATEGORIES[0],
           widthMaxMm: 0.3,
           lengthMm: 150,
           depthMm: 5,
@@ -1335,6 +1228,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           pin_y: 50,
           materialDegradationE4: 1,
           structuralSignificanceE2: 1,
+          functionalImpactE6: 1,
           isStructuralCritical: true,
           crackDirection: 'Ngang',
           activityState: 'S',
@@ -1350,16 +1244,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     handleFieldChange('floors', `Thêm khuyết tật ${createdDCode} vào cấu kiện ${elemId}`, updatedFloors);
   };
 
-  // Soft-remove defect from a structural element E
-  const handleRemoveElementDefect = (elemId: string, defectId: string) => {
+  // Soft-remove defect from structural element E
+  const handleRemoveElementDefect = (floorIdx: number, elemId: string, defectId: string) => {
     if (!hasFloors) return;
     const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      if (fi !== floorIdx) return fl;
       const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        if (e.id !== elemId && (e.elementCode || e.element_code) !== elemId) return e;
         const defects = (e.defects || []).map((d: DefectItem) => {
-          if (d.id !== defectId && d.defectCode !== defectId) return d;
-          return { ...d, is_deleted: true };
+          const dCode = d.defectCode || d.defect_code || '';
+          if (d.id !== defectId && dCode !== defectId) return d;
+          return { ...d, is_deleted: true, isDeleted: true };
         });
         return { ...e, defects };
       });
@@ -1368,16 +1263,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     handleFieldChange('floors', `Xóa mềm khuyết tật ${defectId} của cấu kiện ${elemId}`, updatedFloors);
   };
 
-  // Restore soft-deleted defect of a structural element E
-  const handleRestoreElementDefect = (elemId: string, defectId: string) => {
+  // Restore defect on structural element E
+  const handleRestoreElementDefect = (floorIdx: number, elemId: string, defectId: string) => {
     if (!hasFloors) return;
     const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-      if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+      if (fi !== floorIdx) return fl;
       const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
-        if (e.id !== elemId && e.elementCode !== elemId) return e;
+        if (e.id !== elemId && (e.elementCode || e.element_code) !== elemId) return e;
         const defects = (e.defects || []).map((d: DefectItem) => {
-          if (d.id !== defectId && d.defectCode !== defectId) return d;
-          return { ...d, is_deleted: false };
+          const dCode = d.defectCode || d.defect_code || '';
+          if (d.id !== defectId && dCode !== defectId) return d;
+          return { ...d, is_deleted: false, isDeleted: false };
         });
         return { ...e, defects };
       });
@@ -1386,40 +1282,103 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     handleFieldChange('floors', `Khôi phục khuyết tật ${defectId} của cấu kiện ${elemId}`, updatedFloors);
   };
 
-  // Total counts for header (excluding soft-deleted items & staged defect deletions)
-  const totalZonesCount = hasFloors
-    ? rawFloors.reduce(
-        (sum, f) => sum + (f.zones || []).filter((z: DamageZoneData) => !isItemSoftDeleted(z)).length,
-        0
-      )
-    : rawDamageZones.filter((z: DamageZoneData) => !isItemSoftDeleted(z)).length;
+  // Soft-remove structural element (syncing cadElementPins)
+  const handleRemoveElement = (floorIdx: number, elemId: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        let deletedECode = elemId;
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          const eCode = e.elementCode || e.element_code || '';
+          if (e.id !== elemId && eCode !== elemId) return e;
+          if (eCode) deletedECode = eCode;
+          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: true, isDeleted: true }));
+          return { ...e, is_deleted: true, isDeleted: true, defects };
+        });
+        const cadElementPins = (fl.cadElementPins || []).map((p: CadZonePin) => {
+          if ((p.zoneCode || p.zone_code) === deletedECode) {
+            return { ...p, is_deleted: true, isDeleted: true } as CadZonePin;
+          }
+          return p;
+        });
+        return { ...fl, structuralElements, cadElementPins };
+      });
+      handleFieldChange('floors', `Xóa mềm cấu kiện E ${elemId}`, updatedFloors);
+    }
+  };
 
-  const totalDefectsCount = hasFloors
-    ? rawFloors.reduce(
-        (sum, f) =>
-          sum +
-          (f.zones || [])
-            .filter((z: DamageZoneData) => !isItemSoftDeleted(z))
-            .reduce(
-              (zSum: number, z: DamageZoneData) =>
-                zSum + (z.defects || []).filter((d: DefectItem) => isDefectActive(d)).length,
-              0
-            ) +
-          (f.structuralElements || [])
-            .filter((e: StructuralElementData) => !isItemSoftDeleted(e))
-            .reduce(
-              (eSum: number, e: StructuralElementData) =>
-                eSum + (e.defects || []).filter((d: DefectItem) => isDefectActive(d)).length,
-              0
-            ),
-        0
-      )
-    : rawDamageZones
+  // Restore structural element (syncing cadElementPins)
+  const handleRestoreElement = (floorIdx: number, elemId: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        let restoredECode = elemId;
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          const eCode = e.elementCode || e.element_code || '';
+          if (e.id !== elemId && eCode !== elemId) return e;
+          if (eCode) restoredECode = eCode;
+          const defects = (e.defects || []).map((d: DefectItem) => ({ ...d, is_deleted: false, isDeleted: false }));
+          return { ...e, is_deleted: false, isDeleted: false, defects };
+        });
+        const cadElementPins = (fl.cadElementPins || []).map((p: CadZonePin) => {
+          if ((p.zoneCode || p.zone_code) === restoredECode) {
+            return { ...p, is_deleted: false, isDeleted: false } as CadZonePin;
+          }
+          return p;
+        });
+        return { ...fl, structuralElements, cadElementPins };
+      });
+      handleFieldChange('floors', `Khôi phục cấu kiện E ${elemId}`, updatedFloors);
+    }
+  };
+
+  // Direct add element button
+  const handleAddElementDirect = (floorIdx: number) => {
+    const floor = floorsList[floorIdx];
+    if (!floor) return;
+    const currentElems = floor.structuralElements || [];
+    const historicalCodes = currentElems.map((e) => e.elementCode || e.element_code || '');
+    const nextECode = getNextAvailablePinCode(
+      currentElems.map((e) => ({ zoneCode: e.elementCode || e.element_code })),
+      'E',
+      historicalCodes
+    );
+    const newElem: StructuralElementData = {
+      id: `elem-${Date.now()}`,
+      elementCode: nextECode,
+      elementType: 'Cột BTCT',
+      materialType: 'Bê tông cốt thép (BTCT)',
+      roomName: '',
+      floorName: floor.floorName || 'Tầng',
+      notes: '',
+      defects: [],
+      overviewPhotos: [],
+    };
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        return { ...fl, structuralElements: [...(fl.structuralElements || []), newElem] };
+      });
+      handleFieldChange('floors', `Thêm cấu kiện ${nextECode}`, updatedFloors);
+    }
+  };
+
+  // Counts for summary badge
+  const totalZonesCount = floorsList.reduce(
+    (sum, f) => sum + (f.zones || []).filter((z: DamageZoneData) => !isItemSoftDeleted(z)).length,
+    0
+  );
+  const totalDefectsCount = floorsList.reduce(
+    (sum, f) =>
+      sum +
+      (f.zones || [])
         .filter((z: DamageZoneData) => !isItemSoftDeleted(z))
-        .reduce(
-          (sum, z) => sum + (z.defects || []).filter((d: DefectItem) => isDefectActive(d)).length,
-          0
-        );
+        .reduce((zSum: number, z: DamageZoneData) => zSum + (z.defects || []).filter((d: DefectItem) => isDefectActive(d)).length, 0) +
+      (f.structuralElements || [])
+        .filter((e: StructuralElementData) => !isItemSoftDeleted(e))
+        .reduce((eSum: number, e: StructuralElementData) => eSum + (e.defects || []).filter((d: DefectItem) => isDefectActive(d)).length, 0),
+    0
+  );
 
   return (
     <section id="step-4" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -1434,7 +1393,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E
             </h3>
             <p className="text-[11px] text-slate-500">
-              Sơ đồ bố trí mặt bằng CAD, toạ độ điểm ghim, khuyết tật mảng tường Vùng Z và cấu kiện chịu lực Cột/Dầm/Sàn E
+              Trải phẳng tuần tự các tầng (CAD_Z &rarr; Vùng Z &rarr; CAD_E &rarr; Cấu kiện E), ghim toạ độ và dải ảnh cận cảnh chi tiết
             </p>
           </div>
         </div>
@@ -1445,2737 +1404,2684 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="p-5 space-y-6">
-        {/* Thanh chuyển Tầng (Floor Tabs) */}
-        {hasFloors && floorsList.length > 1 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 scrollbar-thin">
-            {floorsList.map((fl, idx) => {
-              const isActive = idx === activeFloorIndex;
-              const fZones = (fl.zones || []).filter((z: DamageZoneData) => !isItemSoftDeleted(z)).length;
-              const fDefects =
-                (fl.zones || [])
-                  .filter((z: DamageZoneData) => !isItemSoftDeleted(z))
-                  .reduce(
-                    (sum: number, z: DamageZoneData) =>
-                      sum + (z.defects || []).filter((d: DefectItem) => isDefectActive(d)).length,
-                    0
-                  ) +
-                (fl.structuralElements || [])
-                  .filter((e: StructuralElementData) => !isItemSoftDeleted(e))
-                  .reduce(
-                    (sum: number, e: StructuralElementData) =>
-                      sum + (e.defects || []).filter((d: DefectItem) => isDefectActive(d)).length,
-                    0
-                  );
-              return (
-                <button
-                  key={fl.id || idx}
-                  type="button"
-                  onClick={() => {
-                    setActiveFloorIndex(idx);
-                    setCadViewMode('ARCH');
-                  }}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                  }`}
-                >
-                  <Layers className={`w-3.5 h-3.5 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
-                  <span>{fl.floorName || `Tầng ${idx + 1}`}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    {fZones}Z &bull; {fDefects}D
-                  </span>
-                </button>
-              );
-            })}
+      <div className="p-5 space-y-8">
+        {/* Quick jump pills at top of Step 4 */}
+        {floorsList.length > 1 && (
+          <div className="sticky top-0 z-20 -mx-5 px-5 py-2.5 bg-white/95 backdrop-blur-xs border-b border-slate-200/80 flex items-center gap-2 overflow-x-auto scrollbar-thin shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Cuộn nhanh tới tầng:</span>
+            {floorsList.map((fl, idx) => (
+              <button
+                key={fl.id || idx}
+                type="button"
+                onClick={() => {
+                  const target = document.getElementById(`step-4-floor-${idx}`);
+                  if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                className="px-3 py-1 rounded-xl text-xs font-bold bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 border border-slate-200 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5 text-slate-500" />
+                <span>{fl.floorName || `Tầng ${idx + 1}`}</span>
+              </button>
+            ))}
           </div>
         )}
 
-        {/* Khối Sơ đồ Mặt bằng CAD của Tầng hiện tại */}
-        <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-sky-600" />
-              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                4.1. Sơ Đồ Bố Trí Mặt Bằng Tầng CAD ({currentFloor.floorName || 'Tầng hiện tại'})
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold">
-                {displayedCadPins.length} Điểm Ghim {cadViewMode === 'ARCH' ? 'Vùng Z' : 'Cấu kiện E'}
-              </span>
-            </div>
+        {/* Trải phẳng tuần tự TẤT CẢ các tầng: Floor n (CAD_Z -> Z -> CAD_E -> E) */}
+        {floorsList.map((fl, flIdx) => {
+          const floorNumber = getFloorNumberVal(fl, flIdx);
+          const floorName = fl.floorName || `Tầng ${flIdx + 1}`;
 
-            {/* Toggle chế độ CAD Kiến trúc / CAD Kết cấu & Toggle Ẩn/Hiện Ghim */}
-            <div className="flex items-center gap-2">
-              {currentFloor.cadStructuralSketchPhotoUrl && (
-                <div className="flex items-center bg-slate-200 p-0.5 rounded-lg text-[10px] font-bold">
+          const zones = Array.isArray(fl.zones) ? fl.zones : [];
+          const elements = Array.isArray(fl.structuralElements) ? fl.structuralElements : [];
+          const activeZones = zones.filter((z) => !isItemSoftDeleted(z));
+          const deletedZones = zones.filter((z) => isItemSoftDeleted(z));
+          const displayedZones = showDeletedItems ? zones : activeZones;
+
+          const activeElements = elements.filter((e) => !isItemSoftDeleted(e));
+          const deletedElements = elements.filter((e) => isItemSoftDeleted(e));
+          const displayedElements = showDeletedItems ? elements : activeElements;
+
+          // CAD_Z (Kiến trúc) - Đồng bộ 100% photoKey với usePhotoOrientationAudit
+          const fId = fl.id ? String(fl.id) : String(flIdx);
+          const baseCadKey = fId.startsWith('floor_') ? `${fId}_cad` : `floor_${fId}_cad`;
+          const legacyCadKey = `floor_${fl.id || flIdx}_cad`;
+          const cadPhotoUrl = fl.cadSketchPhotoUrl || fl.cad_drawing_url || '';
+          const stagedCad = getStagedAction({
+            category: 'CAD_FLOOR',
+            targetPhotoId: fl.id || String(floorNumber),
+            url: cadPhotoUrl || undefined,
+            includeAdd: !cadPhotoUrl,
+          });
+          const effectiveCad = stagedCad?.action === 'DELETE' ? '' : (stagedCad?.newPhotoUrl || cadPhotoUrl);
+          const cadRotation =
+            stagedPhotoRotations[baseCadKey] ??
+            stagedPhotoRotations[legacyCadKey] ??
+            ((fl as FloorSurveyData & AuditExtendedMeta).cadSketchRotation ?? 0);
+          const cadViolation =
+            violationsMap?.get(baseCadKey) ||
+            violationsMap?.get(legacyCadKey) ||
+            (effectiveCad ? violationsMap?.get(effectiveCad) : undefined);
+          const cadZonePins = Array.isArray(fl.cadZonePins) ? fl.cadZonePins : [];
+          const displayedCadZonePins = cadZonePins.filter((p) => {
+            if (showDeletedItems) return true;
+            const pinCode = p.zoneCode || p.zone_code || '';
+            return !deletedZones.some((dz) => (dz.zoneCode || dz.zone_code) === pinCode);
+          });
+
+          // CAD_E (Kết cấu) - Đồng bộ 100% photoKey với usePhotoOrientationAudit
+          const baseStructCadKey = fId.startsWith('floor_')
+            ? `${fId}_structural_cad`
+            : `floor_${fId}_structural_cad`;
+          const legacyStructCadKey = `${legacyCadKey}_struct`;
+          const structCadPhotoUrl = fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || '';
+          const stagedStructCad = getStagedAction({
+            category: 'CAD_FLOOR',
+            targetPhotoId: fl.id || String(floorNumber),
+            url: structCadPhotoUrl || undefined,
+            includeAdd: !structCadPhotoUrl,
+          });
+          const effectiveStructCad = stagedStructCad?.action === 'DELETE' ? '' : (stagedStructCad?.newPhotoUrl || structCadPhotoUrl);
+          const structCadRotation =
+            stagedPhotoRotations[baseStructCadKey] ??
+            stagedPhotoRotations[legacyStructCadKey] ??
+            stagedPhotoRotations[baseCadKey] ??
+            cadRotation;
+          const structCadViolation =
+            violationsMap?.get(baseStructCadKey) ||
+            violationsMap?.get(legacyStructCadKey) ||
+            (effectiveStructCad ? violationsMap?.get(effectiveStructCad) : cadViolation);
+          const cadElementPins = Array.isArray(fl.cadElementPins) ? fl.cadElementPins : [];
+          const displayedCadElementPins = cadElementPins.filter((p) => {
+            if (showDeletedItems) return true;
+            const pinCode = p.zoneCode || p.zone_code || '';
+            return !deletedElements.some((de) => (de.elementCode || de.element_code) === pinCode);
+          });
+
+          return (
+            <div
+              key={fl.id || flIdx}
+              id={`step-4-floor-${flIdx}`}
+              className="scroll-mt-14 border border-slate-200 rounded-2xl p-4 sm:p-6 bg-slate-50/40 space-y-6"
+            >
+              {/* Floor Header Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-sky-600 text-white font-black flex items-center justify-center font-mono text-sm shadow-xs">
+                    {floorNumber}
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
+                      <span>{floorName}</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Bản vẽ mặt bằng CAD_Z &bull; {activeZones.length} Vùng Z &bull; Bản vẽ CAD_E &bull; {activeElements.length} Cấu kiện E
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(deletedZones.length > 0 || deletedElements.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeletedItems(!showDeletedItems)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                        showDeletedItems
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
+                      }`}
+                    >
+                      {showDeletedItems ? <EyeOff className="w-3.5 h-3.5 text-rose-700" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
+                      <span>{showDeletedItems ? 'Ẩn đã xóa' : `Hiện ${deletedZones.length + deletedElements.length} mục đã xóa`}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setCadViewMode('ARCH')}
-                    className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                      cadViewMode === 'ARCH' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    onClick={() => setShowCadPins(!showCadPins)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    CAD_01 Kiến Trúc (Z)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCadViewMode('STRUCT')}
-                    className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                      cadViewMode === 'STRUCT' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    CAD_02 Kết Cấu (E)
+                    {showCadPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-600" />}
+                    <span>{showCadPins ? 'Ẩn Ghim CAD' : 'Hiện Ghim CAD'}</span>
                   </button>
                 </div>
-              )}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setShowCadPins(!showCadPins)}
-                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title={showCadPins ? 'Ẩn ghim trên bản vẽ' : 'Hiện ghim trên bản vẽ'}
+              {/* ========================================================
+                  MỤC 1: CAD_Z - SƠ ĐỒ MẶT BẰNG KIẾN TRÚC & GHIM VÙNG Z
+                  ======================================================== */}
+              <div
+                id={`step-4-floor-${flIdx}-cad-z`}
+                className="scroll-mt-14 border border-slate-200 rounded-2xl p-4 bg-white space-y-3 shadow-2xs"
               >
-                {showCadPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-600" />}
-                <span>{showCadPins ? 'Ẩn Ghim' : 'Hiện Ghim'}</span>
-              </button>
-
-              {/* Nút + Ghim Z hoặc + Ghim E khi đang ở chế độ thẩm định */}
-              {isEditMode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const targetMode = cadViewMode === 'ARCH' ? 'Z' : 'E';
-                    setCadPinningMode(cadPinningMode === targetMode ? null : targetMode);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-                    cadPinningMode !== null
-                      ? 'bg-amber-600 text-white border-amber-700 animate-pulse'
-                      : cadViewMode === 'ARCH'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                      : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                  }`}
-                  title={`Cắm điểm ghim ${cadViewMode === 'ARCH' ? 'Vùng Z' : 'Cấu kiện E'} mới trên bản vẽ CAD`}
-                >
-                  <Crosshair className="w-3.5 h-3.5" />
-                  <span>{cadPinningMode !== null ? 'Đang ghim...' : `+ Ghim ${cadViewMode === 'ARCH' ? 'Z' : 'E'}`}</span>
-                </button>
-              )}
-
-              {/* Trạng thái Optimistic CAD nếu có */}
-              {(() => {
-                const stagedCad = getStagedAction({
-                  category: 'CAD_FLOOR',
-                  targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-                  url: cadPhotoUrl || undefined,
-                  includeAdd: !cadPhotoUrl,
-                });
-                if (!stagedCad) return null;
-                return (
-                  <div
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold ${
-                      stagedCad.action === 'DELETE'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-amber-100 text-amber-900 border-amber-300'
-                    }`}
-                  >
-                    <span>
-                      {stagedCad.action === 'DELETE'
-                        ? 'Đã xóa ảnh'
-                        : stagedCad.action === 'REPLACE'
-                        ? 'Đã đổi CAD • Chờ lưu'
-                        : 'Đã thêm CAD • Chờ lưu'}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-sky-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      CAD_Z: Sơ Đồ Mặt Bằng Kiến Trúc ({floorName}) &bull; Điểm Ghim Vùng Z
                     </span>
-                    {onUndoPhotoAction && (
-                      <button
-                        type="button"
-                        onClick={() => onUndoPhotoAction(stagedCad)}
-                        className="ml-1 underline hover:opacity-80 cursor-pointer font-bold"
-                      >
-                        • [Hoàn tác]
-                      </button>
-                    )}
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold">
+                      {displayedCadZonePins.length} Ghim Z
+                    </span>
                   </div>
-                );
-              })()}
 
-              {(() => {
-                const stagedCad = getStagedAction({
-                  category: 'CAD_FLOOR',
-                  targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-                  url: cadPhotoUrl || undefined,
-                  includeAdd: !cadPhotoUrl,
-                });
-                const effectiveCad = stagedCad?.action === 'DELETE' ? '' : (stagedCad?.newPhotoUrl || cadPhotoUrl);
-
-                return (
-                  <>
+                  <div className="flex items-center gap-2 flex-wrap">
                     {effectiveCad && (
                       <button
                         type="button"
                         onClick={() =>
                           onOpenPhotoZoom(
                             effectiveCad,
-                            `Sơ đồ CAD ${currentFloor.floorName || ''} - ${cadViewMode === 'ARCH' ? 'Kiến trúc Vùng Z' : 'Kết cấu Vùng E'}`,
-                            `CAD_${cadViewMode}_${currentFloor.floorName || ''}`
+                            `Sơ đồ CAD Kiến trúc (Z) - ${floorName}`,
+                            `CAD_Z_${floorName}`,
+                            cadRotation
                           )
                         }
                         className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
                       >
                         <Maximize2 className="w-3.5 h-3.5" />
-                        <span>Phóng To CAD</span>
-                      </button>
-                    )}
-
-                    {isEditMode && effectiveCad && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onOpenPhotoAction) {
-                            onOpenPhotoAction({
-                              initialMode: 'REPLACE',
-                              category: 'CAD_FLOOR',
-                              targetPhotoType: 'CAD',
-                              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-                              photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
-                              currentPhotoUrl: effectiveCad,
-                              floorCode: currentFloor.floorName,
-                              photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
-                            });
-                          } else if (onOpenPhotoReplace) {
-                            onOpenPhotoReplace({
-                              targetPhotoType: 'FLOOR_CAD',
-                              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-                              photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
-                              currentPhotoUrl: effectiveCad,
-                              photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
-                            });
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
-                        title="Thay thế file ảnh bản vẽ CAD của tầng này chuẩn M2"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Thay CAD</span>
+                        <span>Phóng to</span>
                       </button>
                     )}
 
                     {effectiveCad && (isEditMode || onRotatePhoto) && (
                       <button
                         type="button"
-                        onClick={handleRotateCad}
+                        onClick={() => handleRotateCad(flIdx, false)}
                         className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
-                        title="Xoay bản vẽ CAD 90° cùng chiều kim đồng hồ & tự động chuyển vị toạ độ toàn bộ ghim (x, y) -> (100 - y, x)"
+                        title="Xoay bản vẽ CAD Kiến trúc 90°"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
                         <span>Xoay CAD 90°</span>
-                        {cadRotation > 0 && <span className="text-[10px] opacity-90 font-mono">({cadRotation}°)</span>}
+                        {cadRotation > 0 && <span className="text-[10px] font-mono">({cadRotation}°)</span>}
                       </button>
                     )}
 
                     {isEditMode && (
                       <button
                         type="button"
-                        disabled={undoPinStack.length === 0}
-                        onClick={handleUndoPin}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shadow-xs ${
-                          undoPinStack.length > 0
-                            ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer'
-                            : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                        onClick={() => {
+                          const isCurrentMode = cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z';
+                          setCadPinningMode(isCurrentMode ? null : { floorIdx: flIdx, mode: 'Z' });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                          cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z'
+                            ? 'bg-amber-600 text-white border-amber-700 animate-pulse'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                         }`}
-                        title={
-                          undoPinStack.length > 0
-                            ? `Hoàn tác thao tác ghim gần nhất (${undoPinStack.length} bước lưu) - Phím tắt Ctrl+Z / Cmd+Z`
-                            : 'Chưa có thao tác ghim nào để hoàn tác'
-                        }
                       >
-                        <Undo2 className="w-3.5 h-3.5" />
-                        <span>Hoàn tác ({undoPinStack.length})</span>
-                      </button>
-                    )}
-
-                    {onOpenPhotoHistory && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenPhotoHistory({
-                            photoCode: `CAD_${cadViewMode}_${currentFloor.floorName || ''}`,
-                            photoType: 'CAD',
-                            photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
-                            currentPhotoUrl: effectiveCad || '',
-                          });
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
-                        title="Xem lịch sử các phiên bản bản vẽ CAD của tầng này"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                        <span>Lịch sử CAD</span>
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Banner hướng dẫn Click-to-Pin trên CAD */}
-          {cadPinningMode && (
-            <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 text-xs font-bold flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crosshair className="w-4 h-4 text-amber-600 animate-spin" />
-                <span>🎯 Chế độ ghim CAD: Bấm vào vị trí trên bản vẽ CAD bên dưới để tạo ghim {cadPinningMode === 'Z' ? 'Vùng Z' : 'Cấu kiện E'} mới</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCadPinningMode(null)}
-                className="px-2 py-0.5 rounded bg-white border border-amber-400 text-amber-800 hover:bg-amber-50 text-[11px] font-bold cursor-pointer"
-              >
-                Hủy
-              </button>
-            </div>
-          )}
-
-          {/* Vùng hiển thị ảnh CAD kèm các điểm chấm Z / E - Ôm khít ảnh để toạ độ khớp 100% */}
-          {(() => {
-            const stagedCad = getStagedAction({
-              category: 'CAD_FLOOR',
-              targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-              url: cadPhotoUrl || undefined,
-              includeAdd: !cadPhotoUrl,
-            });
-            const effectiveCad = stagedCad?.action === 'DELETE' ? '' : (stagedCad?.newPhotoUrl || cadPhotoUrl);
-
-            if (!effectiveCad) {
-              return (
-                <div className="py-12 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
-                  <Layers className="w-8 h-8 text-slate-300" />
-                  {stagedCad?.action === 'DELETE' ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-                      <span>Đã xóa ảnh bản vẽ CAD</span>
-                      {onUndoPhotoAction && (
-                        <button
-                          type="button"
-                          onClick={() => onUndoPhotoAction(stagedCad)}
-                          className="underline hover:text-rose-900 cursor-pointer font-black"
-                        >
-                          • [Hoàn tác]
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs italic">Chưa có ảnh bản vẽ CAD cho tầng này</span>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {isEditMode && onOpenPhotoAction && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenPhotoAction({
-                            initialMode: 'ADD',
-                            category: 'CAD_FLOOR',
-                            targetPhotoType: 'CAD',
-                            targetPhotoId: currentFloor.id || String(getFloorNumberVal(currentFloor, activeFloorIndex)),
-                            photoIndex: getFloorNumberVal(currentFloor, activeFloorIndex),
-                            floorCode: currentFloor.floorName,
-                            photoTitle: `Thêm bản vẽ CAD ${currentFloor.floorName || ''}`,
-                          })
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>+ Thêm Bản Vẽ CAD Tầng</span>
-                      </button>
-                    )}
-                    {onOpenPhotoHistory && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenPhotoHistory({
-                            photoCode: `CAD_${cadViewMode}_${currentFloor.floorName || ''}`,
-                            photoType: 'CAD',
-                            photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
-                            currentPhotoUrl: '',
-                          });
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                        title="Xem lịch sử các phiên bản bản vẽ CAD của tầng này"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                        <span>Lịch sử CAD</span>
+                        <Crosshair className="w-3.5 h-3.5" />
+                        <span>{cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z' ? 'Đang ghim Z...' : '+ Ghim Z'}</span>
                       </button>
                     )}
                   </div>
                 </div>
-              );
-            }
 
-            return (
-              <div
-                id={
-                  cadViewMode === 'STRUCT' && (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url)
-                    ? `audit-photo-card-f${activeFloorIndex}-cad-struct`
-                    : `audit-photo-card-f${activeFloorIndex}-cad`
-                }
-                className={`relative w-full max-h-[480px] min-h-[220px] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-2 select-none transition-all ${
-                  cadViolation
-                    ? 'border-2 border-red-500 ring-2 ring-red-400/50'
-                    : 'border border-slate-300'
-                }`}
-              >
-                {cadViolation && (
-                  <div
-                    className="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/95 text-white font-bold text-[10px] shadow-md"
-                    title={cadViolation.message}
-                  >
-                    <span>⚠️ Bắt buộc xoay Dọc (Portrait) — Bấm &quot;Xoay CAD 90°&quot; để sửa</span>
+                {/* Banner khi đang ở chế độ Ghim Z */}
+                {cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z' && (
+                  <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 text-xs font-bold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Crosshair className="w-4 h-4 text-amber-600 animate-spin" />
+                      <span>Bấm vào vị trí trên bản vẽ CAD bên dưới để tạo điểm ghim Vùng Z mới</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCadPinningMode(null)}
+                      className="px-2 py-0.5 rounded bg-white border border-amber-400 text-amber-800 hover:bg-amber-50 text-[11px] font-bold cursor-pointer"
+                    >
+                      Hủy
+                    </button>
                   </div>
                 )}
-                <div
-                  ref={cadImageWrapperRef}
-                  onClick={handleCadImageClick}
-                  className={`relative inline-block max-w-full leading-none mx-auto ${
-                    cadPinningMode ? 'cursor-crosshair' : ''
-                  }`}
-                >
-                  <img
-                    src={effectiveCad}
-                    alt="CAD Floor Plan"
-                    style={{
-                      transform: cadRotation ? `rotate(${cadRotation}deg)` : undefined,
-                      transition: 'transform 0.3s ease',
-                    }}
-                    className="max-w-full max-h-[460px] w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
-                  />
 
-                {/* Lớp phủ các điểm ghim Z hoặc E - Cho phép kéo điều chỉnh vị trí */}
-                {showCadPins &&
-                  displayedCadPins.map((pin: CadZonePin, pIdx: number) => {
-                    const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
-                    const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
-                    const pCode = pin.zoneCode || pin.zone_code || `${cadViewMode === 'ARCH' ? 'Z' : 'E'}-${pIdx + 1}`;
-                    const isStruct = cadViewMode === 'STRUCT' || pin.type === 'STRUCTURAL';
-                    const isBeingDragged = draggingCadPin?.pinCode === pCode;
-                    const displayX = isBeingDragged ? draggingCadPin.currentX : pX;
-                    const displayY = isBeingDragged ? draggingCadPin.currentY : pY;
+                {/* Khung hiển thị ảnh CAD Kiến Trúc (Auto-Fit khổ Dọc/Ngang + Ghim Z chuẩn 1:1) */}
+                {effectiveCad ? (
+                  <div
+                    id={`audit-photo-card-f${flIdx}-cad`}
+                    className={`relative w-full min-h-[240px] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-3 select-none transition-all ${
+                      cadViolation ? 'border-2 border-red-500 ring-2 ring-red-400/50' : 'border border-slate-300'
+                    }`}
+                  >
+                    {cadViolation && (
+                      <div className="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/95 text-white font-bold text-[10px] shadow-md">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Bắt buộc xoay Dọc (Portrait) — Bấm &quot;Xoay CAD 90°&quot; để chuẩn hóa</span>
+                      </div>
+                    )}
+                    <RotatableImageFrame
+                      url={effectiveCad}
+                      alt={`CAD Kiến trúc ${floorName}`}
+                      rotation={cadRotation}
+                      maxHeightPx={680}
+                      onClick={(e) => handleCadImageClick(e, flIdx, 'Z')}
+                      className="w-full"
+                      stageClassName={
+                        cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z' ? 'cursor-crosshair' : ''
+                      }
+                    >
+                      {/* Ghim Vùng Z trên CAD */}
+                      {showCadPins &&
+                        displayedCadZonePins.map((pin: CadZonePin, pIdx: number) => {
+                          const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
+                          const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
+                          const pCode = pin.zoneCode || pin.zone_code || `Z-${pIdx + 1}`;
+                          const isBeingDragged = draggingCadPin?.floorIdx === flIdx && draggingCadPin?.pinCode === pCode && !draggingCadPin?.isStruct;
+                          const displayX = isBeingDragged ? draggingCadPin.currentX : pX;
+                          const displayY = isBeingDragged ? draggingCadPin.currentY : pY;
 
-                    const origin = initialPinCoordsRef.current[pCode] || getPinOriginCoords(pin);
-                    const isMovedFromOrigin = Math.abs(pX - origin.x) > 0.5 || Math.abs(pY - origin.y) > 0.5;
+                          return (
+                            <div
+                              key={pin.id || `${pCode}-${pIdx}`}
+                              style={{
+                                position: 'absolute',
+                                top: `${displayY}%`,
+                                left: `${displayX}%`,
+                                transform: 'translate(-50%, -100%)',
+                                zIndex: isBeingDragged ? 50 : 25,
+                                touchAction: 'none',
+                              }}
+                              className={`flex flex-col items-center pointer-events-auto select-none group ${
+                                isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                              }`}
+                              onPointerDown={(e) => {
+                                if (!isEditMode) return;
+                                e.stopPropagation();
+                                hasJustDraggedRef.current = false;
+                                pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+                                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                                setDraggingCadPin({
+                                  floorIdx: flIdx,
+                                  pinCode: pCode,
+                                  isStruct: false,
+                                  currentX: pX,
+                                  currentY: pY,
+                                });
+                              }}
+                              onPointerMove={(e) => {
+                                if (!draggingCadPin || draggingCadPin.floorIdx !== flIdx || draggingCadPin.pinCode !== pCode || draggingCadPin.isStruct) return;
+                                e.stopPropagation();
+                                if (
+                                  pointerStartPosRef.current &&
+                                  Math.hypot(e.clientX - pointerStartPosRef.current.x, e.clientY - pointerStartPosRef.current.y) > 3
+                                ) {
+                                  hasJustDraggedRef.current = true;
+                                }
+                                const container = e.currentTarget.parentElement;
+                                if (!container) return;
+                                const rect = container.getBoundingClientRect();
+                                const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
+                                const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
+                                setDraggingCadPin((prev) => (prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null));
+                              }}
+                              onPointerUp={(e) => {
+                                if (!draggingCadPin || draggingCadPin.floorIdx !== flIdx || draggingCadPin.pinCode !== pCode || draggingCadPin.isStruct) return;
+                                e.stopPropagation();
+                                try {
+                                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                                } catch (err) {
+                                  console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
+                                }
+                                const finalX = draggingCadPin.currentX;
+                                const finalY = draggingCadPin.currentY;
+                                setDraggingCadPin(null);
+                                pointerStartPosRef.current = null;
+                                if (Math.abs(finalX - pX) > 0.2 || Math.abs(finalY - pY) > 0.2) {
+                                  hasJustDraggedRef.current = true;
+                                  handleCommitCadPinCoord(flIdx, pCode, false, finalX, finalY);
+                                }
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasJustDraggedRef.current) {
+                                  hasJustDraggedRef.current = false;
+                                  return;
+                                }
+                                setSelectedPinCode(pCode);
+                                if (!isEditMode) {
+                                  const target = document.getElementById(`zone-card-f${flIdx}-${pCode}`);
+                                  if (target) {
+                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    target.classList.add('ring-4', 'ring-emerald-400');
+                                    setTimeout(() => target.classList.remove('ring-4', 'ring-emerald-400'), 2500);
+                                  }
+                                }
+                              }}
+                            >
+                              <div className="px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg bg-emerald-600 text-white group-hover:scale-110 transition-transform">
+                                {pCode}
+                              </div>
+                              <div className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-md -mt-0.5 bg-emerald-400" />
+                            </div>
+                          );
+                        })}
+                    </RotatableImageFrame>
+                  </div>
+                ) : (
+                  <div className="py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
+                    <Layers className="w-7 h-7 text-slate-300" />
+                    <span className="text-xs italic">Chưa có bản vẽ CAD Kiến trúc (Z) cho {floorName}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================
+                  MỤC 2: Z - CHI TIẾT CÁC VÙNG KIẾN TRÚC Z & KHUYẾT TẬT D
+                  ======================================================== */}
+              <div
+                id={`step-4-floor-${flIdx}-zones`}
+                className="scroll-mt-14 space-y-4"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      Z: Danh Sách Vùng Kiến Trúc ({activeZones.length} Vùng) &bull; {floorName}
+                    </span>
+                  </div>
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddZoneDirect(flIdx)}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Thêm Vùng Z</span>
+                    </button>
+                  )}
+                </div>
+
+                {displayedZones.length === 0 ? (
+                  <div className="p-6 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                    Tầng này chưa có Vùng Kiến Trúc Z nào
+                  </div>
+                ) : (
+                  displayedZones.map((z: DamageZoneData) => {
+                    const zCode = z.zoneCode || z.zone_code || 'Z-??';
+                    const isZoneDeleted = isItemSoftDeleted(z);
+                    const rawDefectsList: DefectItem[] = Array.isArray(z.defects) ? z.defects : [];
+                    const defectsList = showDeletedItems ? rawDefectsList : rawDefectsList.filter((d) => !isItemSoftDeleted(d));
+
+                    const rawZoneCtxUrl = z.ctxPhotoUrl || z.ctx_photo_url || '';
+                    const stagedCtx = getStagedAction({
+                      category: 'ZONE_CTX',
+                      targetPhotoId: zCode,
+                      url: rawZoneCtxUrl || undefined,
+                      includeAdd: !rawZoneCtxUrl,
+                    });
+                    const ctxUrl = stagedCtx?.action === 'DELETE' ? '' : (stagedCtx?.newPhotoUrl || stagedCtx?.oldPhotoUrl || rawZoneCtxUrl);
+                    const zIdStr = z.id ? String(z.id) : '';
+                    const isZUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(zIdStr);
+                    const baseZoneKey = isZUuid ? `zone_${zIdStr}` : `zone_f${flIdx}_z${zCode}`;
+                    const legacyZoneKey = z.id ? `zone_${z.id}` : baseZoneKey;
+                    const ctxRotKey = `${baseZoneKey}_ctx`;
+                    const legacyCtxRotKey = `${legacyZoneKey}_ctx`;
+                    const ctxRot =
+                      stagedPhotoRotations[ctxRotKey] ??
+                      stagedPhotoRotations[legacyCtxRotKey] ??
+                      stagedPhotoRotations[ctxUrl] ??
+                      0;
+                    const ctxViolation =
+                      violationsMap?.get(ctxRotKey) ||
+                      violationsMap?.get(legacyCtxRotKey) ||
+                      (ctxUrl ? violationsMap?.get(ctxUrl) : undefined);
+                    const hasZonePinsOrPinning =
+                      defectsList.length > 0 ||
+                      (pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode);
 
                     return (
                       <div
-                        key={pin.id || `${pCode}-${pIdx}`}
-                        style={{
-                          position: 'absolute',
-                          top: `${displayY}%`,
-                          left: `${displayX}%`,
-                          transform: 'translate(-50%, -100%)',
-                          zIndex: isBeingDragged ? 50 : selectedPinCode === pCode ? 40 : 25,
-                          touchAction: 'none',
-                        }}
-                        className={`flex flex-col items-center pointer-events-auto select-none group ${
-                          isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                        key={z.id || zCode}
+                        id={`zone-card-f${flIdx}-${zCode}`}
+                        className={`rounded-2xl p-4 sm:p-5 space-y-4 transition-all bg-white border border-slate-200 shadow-2xs ${
+                          isZoneDeleted ? 'opacity-70 border-dashed border-rose-300 bg-rose-50/20' : ''
                         }`}
-                        onPointerDown={(e) => {
-                          if (!isEditMode) return;
-                          e.stopPropagation();
-                          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                          setDraggingCadPin({
-                            pinCode: pCode,
-                            isStruct,
-                            currentX: pX,
-                            currentY: pY,
-                          });
-                        }}
-                        onPointerMove={(e) => {
-                          if (!draggingCadPin || draggingCadPin.pinCode !== pCode) return;
-                          e.stopPropagation();
-                          const container = cadImageWrapperRef.current;
-                          if (!container) return;
-                          const rect = container.getBoundingClientRect();
-                          const rawX = ((e.clientX - rect.left) / rect.width) * 100;
-                          const rawY = ((e.clientY - rect.top) / rect.height) * 100;
-                          const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
-                          const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
-                          setDraggingCadPin((prev) => (prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null));
-                        }}
-                        onPointerUp={(e) => {
-                          if (!draggingCadPin || draggingCadPin.pinCode !== pCode) return;
-                          e.stopPropagation();
-                          try {
-                            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                          } catch (err) {
-                            console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
-                          }
-                          const finalX = draggingCadPin.currentX;
-                          const finalY = draggingCadPin.currentY;
-                          setDraggingCadPin(null);
-                          if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
-                            setUndoPinStack((prev) => [
-                              ...prev.slice(-19),
-                              {
-                                type: 'PIN_MOVE',
-                                pinCode: pCode,
-                                isStruct,
-                                prevX: pX,
-                                prevY: pY,
-                              },
-                            ]);
-                            handleCommitCadPinCoord(pCode, isStruct, finalX, finalY);
-                          } else {
-                            setSelectedPinCode((prev) => (prev === pCode ? null : pCode));
-                          }
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isEditMode) {
-                            setSelectedPinCode((prev) => (prev === pCode ? null : pCode));
-                            return;
-                          }
-                          const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
-                          if (targetElem) {
-                            targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            targetElem.classList.add('ring-4', 'ring-sky-400');
-                            setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
-                          }
-                        }}
                       >
-                        {/* Badge Đã dời vị trí KSV */}
-                        {isMovedFromOrigin && (
-                          <span className="px-1 py-0.2 rounded-xs bg-amber-500 text-white font-black text-[7px] shadow-xs uppercase tracking-tighter mb-0.5 animate-pulse">
-                            Đã dời
-                          </span>
-                        )}
-                        <div
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg transition-transform ${
-                            isBeingDragged
-                              ? 'scale-125 ring-2 ring-amber-400 bg-amber-700 text-white'
-                              : isStruct
-                              ? 'bg-amber-600 text-white group-hover:scale-110'
-                              : 'bg-emerald-600 text-white group-hover:scale-110'
-                          }`}
-                          title={isEditMode ? `Bấm xem toạ độ / Kéo đổi vị trí ghim ${pCode}` : `Bấm xem ${pCode}`}
-                        >
-                          {pCode}
-                          {isBeingDragged && (
-                            <span className="ml-1 text-[8px] font-normal opacity-90">
-                              ({displayX.toFixed(0)}%, {displayY.toFixed(0)}%)
+                        {/* Zone Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-700 text-white font-mono font-black text-xs">
+                              {zCode}
                             </span>
-                          )}
-                        </div>
-                        <div
-                          className={`w-2.5 h-2.5 rounded-full border-2 border-white shadow-md -mt-0.5 ${
-                            isBeingDragged
-                              ? 'bg-amber-300 scale-125 ring-2 ring-amber-500'
-                              : isStruct
-                              ? 'bg-amber-400'
-                              : 'bg-emerald-400'
-                          }`}
-                        />
-
-                        {/* Popover Tuỳ chọn Ghim (Bao gồm khôi phục vị trí KSV) */}
-                        {selectedPinCode === pCode && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white p-2.5 rounded-xl shadow-2xl border border-slate-700 whitespace-nowrap text-left text-[11px] space-y-1.5 backdrop-blur-md min-w-[180px]"
-                          >
-                            <div className="font-bold flex items-center justify-between gap-3 border-b border-slate-700/80 pb-1">
-                              <span className="text-amber-400 font-mono">Ghim {pCode}</span>
-                              <span className="text-slate-400 font-mono text-[9px]">({pX.toFixed(1)}%, {pY.toFixed(1)}%)</span>
-                            </div>
-                            {isMovedFromOrigin ? (
-                              <div className="text-[10px] text-amber-300 flex items-center gap-1">
-                                <span>Toạ độ gốc KSV:</span>
-                                <span className="font-mono font-bold">({origin.x.toFixed(1)}%, {origin.y.toFixed(1)}%)</span>
+                            {isEditMode ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <input
+                                  type="text"
+                                  value={z.roomName || ''}
+                                  onChange={(e) => handleZoneFieldChange(flIdx, z.id, 'roomName', e.target.value, 'Tên phòng')}
+                                  placeholder="Tên phòng (VD: Phòng khách)"
+                                  className="p-1 text-xs border border-amber-300 rounded font-bold w-36 bg-amber-50/40"
+                                />
+                                <span>&bull;</span>
+                                <select
+                                  value={z.componentType || 'Tường ngăn'}
+                                  onChange={(e) => handleZoneFieldChange(flIdx, z.id, 'componentType', e.target.value, 'Cấu kiện')}
+                                  className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
+                                >
+                                  {COMPONENT_TYPE_PRESETS.map((ct) => (
+                                    <option key={ct} value={ct}>{ct}</option>
+                                  ))}
+                                </select>
+                                <span>&bull;</span>
+                                <select
+                                  value={z.wallMaterial || 'Gạch ống (2 lỗ / 4 lỗ)'}
+                                  onChange={(e) => handleZoneFieldChange(flIdx, z.id, 'wallMaterial', e.target.value, 'Vật liệu')}
+                                  className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
+                                >
+                                  {WALL_MATERIAL_PRESETS.map((wm) => (
+                                    <option key={wm} value={wm}>{wm}</option>
+                                  ))}
+                                </select>
                               </div>
                             ) : (
-                              <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-                                <span>✓ Toạ độ KSV ban đầu</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 pt-1">
-                              {isMovedFromOrigin && isEditMode && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setUndoPinStack((prev) => [
-                                      ...prev.slice(-19),
-                                      {
-                                        type: 'PIN_MOVE',
-                                        pinCode: pCode,
-                                        isStruct,
-                                        prevX: pX,
-                                        prevY: pY,
-                                      },
-                                    ]);
-                                    handleCommitCadPinCoord(pCode, isStruct, origin.x, origin.y);
-                                    setSelectedPinCode(null);
-                                  }}
-                                  className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
-                                >
-                                  <RotateCcw className="w-2.5 h-2.5" />
-                                  <span>Khôi phục KSV</span>
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
-                                  if (targetElem) {
-                                    targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    targetElem.classList.add('ring-4', 'ring-sky-400');
-                                    setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
-                                  }
-                                  setSelectedPinCode(null);
-                                }}
-                                className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium text-[10px] cursor-pointer transition-colors"
-                              >
-                                Xem thẻ
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Khối Danh sách các Vùng Kiến Trúc Z của Tầng */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                4.2. Chi Tiết Các Vùng Kiến Trúc Z ({activeZones.length} Vùng{deletedZones.length > 0 ? ` • ${deletedZones.length} đã xóa` : ''})
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              {(deletedZones.length > 0 || deletedElements.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => setShowDeletedItems(!showDeletedItems)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
-                    showDeletedItems
-                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                  }`}
-                >
-                  {showDeletedItems ? <EyeOff className="w-3.5 h-3.5 text-rose-700" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
-                  <span>{showDeletedItems ? 'Ẩn mục đã xóa' : `Hiện ${deletedZones.length + deletedElements.length} mục đã xóa`}</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowCtxPins(!showCtxPins)}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-              >
-                {showCtxPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-600" />}
-                <span>{showCtxPins ? 'Ẩn ghim D trên ảnh CTX' : 'Hiện ghim D trên ảnh CTX'}</span>
-              </button>
-            </div>
-          </div>
-
-          {displayedZones.length === 0 ? (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400">
-              <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <span className="font-semibold text-xs">Tầng này không có Vùng Kiến Trúc Z nào</span>
-            </div>
-          ) : (
-            displayedZones.map((z: DamageZoneData) => {
-              const zCode = z.zoneCode || z.zone_code || 'Z-??';
-              const isZoneDeleted = isItemSoftDeleted(z);
-              const rawDefectsList: DefectItem[] = Array.isArray(z.defects)
-                ? z.defects
-                : typeof z.defects === 'string'
-                ? JSON.parse(z.defects)
-                : [];
-              const activeDefectsList = rawDefectsList.filter((d) => isDefectActive(d));
-              const defectsList = showDeletedItems ? rawDefectsList : rawDefectsList.filter((d) => !isItemSoftDeleted(d));
-
-              const rawZoneCtxUrl = z.ctxPhotoUrl || z.ctx_photo_url || '';
-              const stagedCtx = getStagedAction({
-                category: 'ZONE_CTX',
-                targetPhotoId: zCode,
-                url: rawZoneCtxUrl || undefined,
-                includeAdd: !rawZoneCtxUrl,
-              });
-              const isCtxDeleted = stagedCtx?.action === 'DELETE';
-              const isCtxReplaced = stagedCtx?.action === 'REPLACE' || stagedCtx?.action === 'ADD';
-              const ctxUrl = stagedCtx
-                ? isCtxDeleted
-                  ? ''
-                  : stagedCtx.newPhotoUrl || stagedCtx.oldPhotoUrl || ''
-                : rawZoneCtxUrl;
-              const ctxCode = z.ctxPhotoCode || z.ctx_photo_code || `${zCode}_CTX`;
-
-              const zIdStr = z.id ? String(z.id) : '';
-              const baseZoneKey = zIdStr
-                ? zIdStr.startsWith('zone_')
-                  ? zIdStr
-                  : `zone_${zIdStr}`
-                : `zone_f${activeFloorIndex}_z${zCode}`;
-              const ctxRotKey = `${baseZoneKey}_ctx`;
-              const legacyCtxRotKey = `zone_${z.id || zCode}_ctx`;
-              const ctxRot =
-                stagedPhotoRotations[ctxRotKey] ??
-                (ctxUrl ? stagedPhotoRotations[ctxUrl] : undefined) ??
-                stagedPhotoRotations[legacyCtxRotKey] ??
-                stagedPhotoRotations[`${zCode}-CTX`] ??
-                0;
-              const ctxViolation =
-                violationsMap?.get(ctxRotKey) ||
-                (ctxUrl ? violationsMap?.get(ctxUrl) : undefined) ||
-                violationsMap?.get(legacyCtxRotKey);
-
-              const addedZoneOvUrls =
-                stagedPhotoActions
-                  ?.filter(
-                    (a) =>
-                      a.action === 'ADD' &&
-                      a.category === 'ZONE_CTX' &&
-                      a.targetPhotoId === zCode &&
-                      Boolean(rawZoneCtxUrl)
-                  )
-                  .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])) || [];
-              const deletedZoneOvCount = (z.overviewPhotos || []).filter((ovUrl: string, ovIdx: number) => {
-                const s = getStagedAction({
-                  category: 'ZONE_CTX',
-                  targetPhotoId: zCode,
-                  photoIndex: ovIdx,
-                  url: ovUrl,
-                });
-                return s?.action === 'DELETE';
-              }).length;
-              const activeZoneOvCount = Math.max(
-                0,
-                (z.overviewPhotos?.length || 0) - deletedZoneOvCount + addedZoneOvUrls.length
-              );
-
-              return (
-                <div
-                  key={z.id || zCode}
-                  id={`zone-card-${zCode}`}
-                  className={`rounded-2xl p-4 space-y-4 transition-all ${
-                    isZoneDeleted
-                      ? 'border-2 border-dashed border-rose-300 bg-rose-50/30 opacity-80'
-                      : 'border border-slate-200 bg-slate-50/40'
-                  }`}
-                >
-                  {/* Header Vùng Z */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-white font-mono font-black text-xs">
-                          {zCode}
-                        </span>
-                        {isEditMode ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <input
-                              type="text"
-                              value={z.floorName || currentFloor.floorName || ''}
-                              onChange={(e) => handleZoneFieldChange(z.id, 'floorName', e.target.value, 'Tên tầng')}
-                              placeholder="Tên tầng (VD: Tầng trệt)"
-                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold w-28"
-                            />
-                            <span>&bull;</span>
-                            <input
-                              type="text"
-                              list={`room-presets-${z.id}`}
-                              value={z.roomName || ''}
-                              onChange={(e) => handleZoneFieldChange(z.id, 'roomName', e.target.value, 'Tên phòng/không gian')}
-                              placeholder="Phòng (VD: Phòng khách)"
-                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold w-36"
-                            />
-                            <datalist id={`room-presets-${z.id}`}>
-                              {ROOM_PRESETS.map((r) => (
-                                <option key={r} value={r} />
-                              ))}
-                            </datalist>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-800">
-                            {z.floorName || z.floor_name || currentFloor.floorName || 'Tầng trệt'} &bull;{' '}
-                            {z.roomName || z.room_name || 'Không gian chính'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-                        {isEditMode ? (
-                          <>
-                            <label className="font-semibold text-slate-600">Cấu kiện:</label>
-                            <select
-                              value={z.componentType || 'Tường ngăn'}
-                              onChange={(e) => handleZoneFieldChange(z.id, 'componentType', e.target.value, 'Loại cấu kiện')}
-                              className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
-                            >
-                              {COMPONENT_TYPE_PRESETS.map((ct) => (
-                                <option key={ct} value={ct}>{ct}</option>
-                              ))}
-                            </select>
-
-                            <label className="font-semibold text-slate-600">Vật liệu:</label>
-                            <select
-                              value={z.wallMaterial || 'Gạch ống (2 lỗ / 4 lỗ)'}
-                              onChange={(e) => handleZoneFieldChange(z.id, 'wallMaterial', e.target.value, 'Vật liệu tường')}
-                              className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
-                            >
-                              {WALL_MATERIAL_PRESETS.map((wm) => (
-                                <option key={wm} value={wm}>{wm}</option>
-                              ))}
-                            </select>
-                          </>
-                        ) : (
-                          <>
-                            Cấu kiện: <strong>{z.componentType || z.component_type || 'Tường ngăn'}</strong> &bull; Vật liệu:{' '}
-                            {z.wallMaterial || z.wall_material || 'Gạch ống'}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isZoneDeleted ? (
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-mono font-bold text-[10px] shadow-xs animate-pulse">
-                            ĐÃ XÓA MỀM
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRestoreZone(z)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
-                            title="Khôi phục vùng này và các khuyết tật con"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                            <span>Hoàn tác</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          {isEditMode ? (
-                            <label className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(z.functionalImpactRepairNeeded)}
-                                onChange={(e) => handleZoneFieldChange(z.id, 'functionalImpactRepairNeeded', e.target.checked, 'Cần sửa chữa')}
-                                className="rounded text-amber-600"
-                              />
-                              <span>Ảnh hưởng CN / Cần sửa chữa</span>
-                            </label>
-                          ) : (
-                            z.functionalImpactRepairNeeded && (
-                              <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
-                                ⚠️ Cần sửa chữa / Ảnh hưởng CN
+                              <span className="text-xs font-bold text-slate-800">
+                                {z.roomName || 'Không gian chính'} &bull; {z.componentType || 'Tường gạch'} &bull; {z.wallMaterial || 'Gạch ống'}
                               </span>
-                            )
-                          )}
-                          <Badge variant={activeDefectsList.length > 0 ? 'warning' : 'success'} size="sm">
-                            {activeDefectsList.length} khuyết tật nứt
-                          </Badge>
-                          {isEditMode && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveZone(z)}
-                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                              title={`Xóa Vùng ${zCode}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                              <span>Xóa Vùng</span>
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Ghi chú chi tiết của KSV về Vùng Z */}
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
-                    <span className="text-[11px] font-bold text-slate-600 block">
-                      Ghi chú hiện trường Vùng {zCode}:
-                    </span>
-                    {isEditMode ? (
-                      <input
-                        type="text"
-                        value={z.notes || ''}
-                        onChange={(e) => handleZoneFieldChange(z.id, 'notes', e.target.value, 'Ghi chú')}
-                        className="w-full p-1.5 bg-amber-50/40 border border-amber-300 rounded-lg text-xs"
-                        placeholder="Ghi chú chi tiết hiện trạng mảng tường, vị trí, mức ẩm..."
-                      />
-                    ) : (
-                      <div className="text-slate-700 italic">
-                        {z.notes ? z.notes : 'Không có ghi chú thêm từ khảo sát viên.'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Ảnh Tổng Quan Vùng Z (nếu có nhiều hơn 1 ảnh ngoài CTX) */}
-                  {((Array.isArray(z.overviewPhotos) && z.overviewPhotos.length > 0) || addedZoneOvUrls.length > 0) && (
-                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                          Ảnh Tổng Quan Vùng {zCode} ({activeZoneOvCount} ảnh):
-                        </span>
-                        {isEditMode && onOpenPhotoAction && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenPhotoAction({
-                                initialMode: 'ADD',
-                                category: 'ZONE_CTX',
-                                targetPhotoType: 'CTX',
-                                targetPhotoId: zCode,
-                                zoneCode: zCode,
-                                floorCode: currentFloor.floorName,
-                                photoTitle: `Bổ sung ảnh tổng quan Vùng ${zCode}`,
-                              })
-                            }
-                            className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                          >
-                            <Plus className="w-2.5 h-2.5" />
-                            <span>Thêm Ảnh</span>
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {(z.overviewPhotos || []).map((ovUrl: string, ovIdx: number) => {
-                          const stagedOv = getStagedAction({
-                            category: 'ZONE_CTX',
-                            targetPhotoId: zCode,
-                            photoIndex: ovIdx,
-                            url: ovUrl,
-                          });
-                          if (stagedOv?.action === 'DELETE') {
-                            return (
-                              <div
-                                key={ovIdx}
-                                className="flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-[10px] font-bold"
-                              >
-                                <span>Đã xóa ảnh #{ovIdx + 1}</span>
-                                {onUndoPhotoAction && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onUndoPhotoAction(stagedOv)}
-                                    className="underline hover:text-rose-900 cursor-pointer font-black"
-                                  >
-                                    • [Hoàn tác]
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          }
-                          const ovRotKey = `${baseZoneKey}_ov_${ovIdx}`;
-                          const rot =
-                            stagedPhotoRotations[ovRotKey] ??
-                            stagedPhotoRotations[ovUrl] ??
-                            0;
-                          const orientStatus =
-                            violationsMap?.get(ovRotKey) ||
-                            violationsMap?.get(ovUrl);
-                          const domId = `audit-photo-card-f${activeFloorIndex}-zone-${zCode}-ov-${ovIdx}`;
-                          return (
-                            <AuditPhotoCard
-                              key={ovIdx}
-                              url={stagedOv?.newPhotoUrl || ovUrl}
-                              photoCode={`#${ovIdx + 1}`}
-                              photoKey={ovRotKey}
-                              title={`Ảnh tổng quan ${zCode} #${ovIdx + 1}`}
-                              category="ZONE_CTX"
-                              targetPhotoType="CTX"
-                              targetPhotoId={zCode}
-                              zoneCode={zCode}
-                              floorCode={currentFloor.floorName}
-                              photoIndex={ovIdx}
-                              isEditMode={isEditMode}
-                              aspectRatio="aspect-4/3"
-                              badgeColor="slate"
-                              rotation={rot}
-                              isOrientationMismatch={Boolean(orientStatus)}
-                              isStrictOrientation={orientStatus?.isStrict ?? false}
-                              orientationRecommendation={orientStatus?.message}
-                              expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
-                              onRotate={(newRot) => onRotatePhoto?.(ovRotKey, newRot)}
-                              domId={domId}
-                              historyCount={getItemHistoryMeta(z).historyCount}
-                              hasHistory={getItemHistoryMeta(z).hasHistory}
-                              optimisticStatus={stagedOv ? 'REPLACED' : undefined}
-                              onUndoDelete={stagedOv ? () => onUndoPhotoAction?.(stagedOv) : undefined}
-                              onOpenPhotoZoom={onOpenPhotoZoom}
-                              onOpenPhotoAction={onOpenPhotoAction}
-                              onOpenPhotoHistory={onOpenPhotoHistory}
-                            />
-                          );
-                        })}
-
-                        {/* Các ảnh tổng quan mới thêm (Optimistic ADD) cho Vùng Z */}
-                        {addedZoneOvUrls.map((addedUrl, addIdx) => (
-                          <AuditPhotoCard
-                            key={`added-zone-ov-${addIdx}`}
-                            url={addedUrl}
-                            photoCode={`Mới`}
-                            title={`Ảnh tổng quan mới (${zCode})`}
-                            category="ZONE_CTX"
-                            targetPhotoType="CTX"
-                            targetPhotoId={zCode}
-                            zoneCode={zCode}
-                            floorCode={currentFloor.floorName}
-                            isEditMode={isEditMode}
-                            aspectRatio="aspect-4/3"
-                            badgeColor="emerald"
-                            optimisticStatus="ADDED"
-                            onOpenPhotoZoom={onOpenPhotoZoom}
-                            onOpenPhotoAction={onOpenPhotoAction}
-                            onOpenPhotoHistory={onOpenPhotoHistory}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Ảnh Ngữ Cảnh CTX (với Ghim Vết Nứt D) & Danh sách Khuyết Tật D */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Cột 1: Ảnh Ngữ Cảnh CTX kèm điểm chấm D-xx */}
-                    <div
-                      id={`audit-photo-card-f${activeFloorIndex}-zone-${zCode}`}
-                      className={`rounded-xl p-3 bg-white flex flex-col transition-all ${
-                        ctxViolation
-                          ? 'border-2 border-red-500 ring-2 ring-red-400/50'
-                          : 'border border-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-bold text-slate-700">
-                          Ảnh Bối Cảnh ({ctxCode})
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          {ctxUrl && onRotatePhoto && (
-                            <button
-                              type="button"
-                              onClick={() => handleRotateZoneCtx(z, ctxRot, ctxRotKey)}
-                              className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                              title={`Xoay ảnh CTX 90° & tự động chuyển vị toạ độ các điểm ghim D (Hiện tại: ${ctxRot}°)`}
-                            >
-                              <RotateCw className="w-3 h-3" />
-                              <span>Xoay 90°</span>
-                              {ctxRot > 0 && <span className="font-mono">({ctxRot}°)</span>}
-                            </button>
-                          )}
-                          {isEditMode && ctxUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setPinningCtxZone(pinningCtxZone === zCode ? null : zCode)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                                pinningCtxZone === zCode
-                                  ? 'bg-rose-600 text-white animate-pulse'
-                                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                              }`}
-                              title="Bấm để bật chế độ ghim khuyết tật D lên ảnh CTX"
-                            >
-                              <Crosshair className="w-3 h-3" />
-                              <span>{pinningCtxZone === zCode ? 'Đang ghim...' : '+ Ghim D'}</span>
-                            </button>
-                          )}
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {activeDefectsList.length} điểm nứt D
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`flex-1 min-h-[180px] rounded-lg bg-black/5 relative overflow-hidden flex items-center justify-center group transition-all ${
-                          pinningCtxZone === zCode ? 'cursor-crosshair ring-2 ring-rose-400' : 'cursor-pointer'
-                        } ${
-                          isCtxDeleted
-                            ? 'border-2 border-dashed border-rose-300 bg-rose-50/40'
-                            : isCtxReplaced
-                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-md'
-                            : ctxViolation
-                            ? 'border border-red-400'
-                            : 'border border-slate-200'
-                        }`}
-                        onClick={(e) => {
-                          if (hasJustDraggedRef.current) {
-                            hasJustDraggedRef.current = false;
-                            return;
-                          }
-                          if (pinningCtxZone === zCode) {
-                            handleCtxImageClick(e, z);
-                          } else if (ctxUrl) {
-                            const zoomTitle = isCtxReplaced
-                              ? `${zCode} - Ảnh Bối Cảnh Mảng Tường (Chờ lưu Diff)`
-                              : `${zCode} - Ảnh Bối Cảnh Mảng Tường`;
-                            onOpenPhotoZoom(ctxUrl, zoomTitle, ctxCode, ctxRot);
-                          }
-                        }}
-                      >
-                        {ctxViolation && (
-                          <div
-                            className="absolute bottom-2 left-2 z-30 px-2 py-0.5 rounded bg-red-600/95 text-white font-bold text-[9px] shadow-sm"
-                            title={ctxViolation.message}
-                          >
-                            ⚠️ Bắt buộc xoay Ngang
-                          </div>
-                        )}
-                        {ctxRot !== 0 && (
-                          <div className="absolute bottom-2 right-2 z-30 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] shadow-xs flex items-center gap-0.5">
-                            <RotateCw className="w-2.5 h-2.5" />
-                            <span>{ctxRot}°</span>
-                          </div>
-                        )}
-                        {/* Optimistic Pending Badge for CTX */}
-                        {stagedCtx && isCtxReplaced && (
-                          <div className="absolute top-2 left-2 z-30 flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10px] shadow-sm animate-pulse">
-                            <span>⚡ Chờ lưu Diff ({stagedCtx.action === 'REPLACE' ? 'Đã đổi ảnh' : 'Đã thêm ảnh'})</span>
-                            {onUndoPhotoAction && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onUndoPhotoAction(stagedCtx);
-                                }}
-                                className="underline cursor-pointer hover:text-amber-100 flex items-center gap-0.5 ml-1"
-                                title="Hoàn tác thay đổi"
-                              >
-                                <Undo2 className="w-2.5 h-2.5" /> Hoàn tác
-                              </button>
                             )}
                           </div>
-                        )}
-
-                        {/* Banner hướng dẫn khi đang ở chế độ ghim D */}
-                        {pinningCtxZone === zCode && (
-                          <div className="absolute top-2 left-2 right-2 z-30 px-2 py-1 rounded-lg bg-rose-600/90 text-white text-[11px] font-bold flex items-center justify-between shadow-md animate-pulse">
-                            <span>🎯 Bấm vào ảnh CTX để đặt ghim D</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPinningCtxZone(null);
-                              }}
-                              className="px-1.5 py-0.2 bg-white text-rose-800 rounded text-[10px] font-bold cursor-pointer"
-                            >
-                              Hủy
-                            </button>
-                          </div>
-                        )}
-
-                        {stagedCtx && isCtxDeleted ? (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex flex-col items-center justify-center gap-2 p-4 text-center"
-                          >
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-                              <span>Đã xóa ảnh bối cảnh CTX</span>
-                              {onUndoPhotoAction && (
+                          <div className="flex items-center gap-2">
+                            <Badge variant={defectsList.length > 0 ? 'warning' : 'success'} size="sm">
+                              {defectsList.length} khuyết tật D
+                            </Badge>
+                            {isEditMode && (
+                              isZoneDeleted ? (
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onUndoPhotoAction(stagedCtx);
-                                  }}
-                                  className="underline hover:text-rose-900 cursor-pointer font-black"
+                                  onClick={() => handleRestoreZone(flIdx, z)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                                 >
-                                  • [Hoàn tác]
+                                  <Undo2 className="w-3.5 h-3.5" />
+                                  <span>Khôi phục Vùng</span>
                                 </button>
-                              )}
-                            </div>
-                          </div>
-                        ) : ctxUrl ? (
-                          <>
-                            <img
-                              src={ctxUrl}
-                              alt="CTX"
-                              style={{
-                                transform: ctxRot ? `rotate(${ctxRot}deg)` : undefined,
-                                transition: 'transform 0.3s ease',
-                              }}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            {/* Overlay điểm ghim khuyết tật D dạng mũi kim trắc địa trên ảnh CTX - Cho phép kéo đổi vị trí */}
-                            {showCtxPins &&
-                              activeDefectsList.map((d: DefectItem, dIdx: number) => {
-                                const pX = Number(d.pinX ?? d.pin_x ?? 50);
-                                const pY = Number(d.pinY ?? d.pin_y ?? 50);
-                                const dCode = d.defectCode || d.defect_code || `D-${dIdx + 1}`;
-                                const defectKey = d.id || dCode;
-                                const isHighlighted = highlightedDefectId === defectKey;
-                                const isBeingDragged = draggingDefectPin?.defectId === defectKey;
-                                const displayX = isBeingDragged ? draggingDefectPin.currentX : pX;
-                                const displayY = isBeingDragged ? draggingDefectPin.currentY : pY;
-
-                                return (
-                                  <div
-                                    key={`pin_${zCode}_${defectKey}_${dIdx}`}
-                                    style={{
-                                      position: 'absolute',
-                                      top: `${displayY}%`,
-                                      left: `${displayX}%`,
-                                      transform: 'translate(-50%, -100%)',
-                                      zIndex: isBeingDragged ? 50 : isHighlighted ? 40 : 25,
-                                      touchAction: 'none',
-                                    }}
-                                    className={`flex flex-col items-center select-none group/pin ${
-                                      isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-                                    }`}
-                                    onPointerDown={(e) => {
-                                      if (!isEditMode) return;
-                                      e.stopPropagation();
-                                      hasJustDraggedRef.current = false;
-                                      pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
-                                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                                      setDraggingDefectPin({
-                                        zoneId: z.id,
-                                        defectId: defectKey,
-                                        dCode,
-                                        currentX: pX,
-                                        currentY: pY,
-                                      });
-                                    }}
-                                    onPointerMove={(e) => {
-                                      if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
-                                      e.stopPropagation();
-                                      if (pointerStartPosRef.current) {
-                                        const dist = Math.hypot(e.clientX - pointerStartPosRef.current.x, e.clientY - pointerStartPosRef.current.y);
-                                        if (dist > 5) {
-                                          hasJustDraggedRef.current = true;
-                                        }
-                                      }
-                                      const container = e.currentTarget.parentElement;
-                                      if (!container) return;
-                                      const rect = container.getBoundingClientRect();
-                                      const rawX = ((e.clientX - rect.left) / rect.width) * 100;
-                                      const rawY = ((e.clientY - rect.top) / rect.height) * 100;
-                                      const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
-                                      const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
-                                      setDraggingDefectPin((prev) => (prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null));
-                                    }}
-                                    onPointerUp={(e) => {
-                                      if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
-                                      e.stopPropagation();
-                                      try {
-                                        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                                      } catch (err) {
-                                        console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
-                                      }
-                                      const finalX = draggingDefectPin.currentX;
-                                      const finalY = draggingDefectPin.currentY;
-                                      setDraggingDefectPin(null);
-                                      pointerStartPosRef.current = null;
-                                      setTimeout(() => {
-                                        hasJustDraggedRef.current = false;
-                                      }, 300);
-                                      if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
-                                        handleCommitDefectPinCoord(z.id, defectKey, dCode, finalX, finalY);
-                                      } else {
-                                        // Bấm không kéo: Highlight và cuộn tới thẻ khuyết tật
-                                        setHighlightedDefectId(defectKey);
-                                        const container = document.getElementById('audit-studio-scroll-container');
-                                        const targetEl = document.getElementById(`defect-card-${defectKey}`);
-                                        if (container && targetEl) {
-                                          const containerRect = container.getBoundingClientRect();
-                                          const targetRect = targetEl.getBoundingClientRect();
-                                          const offsetTop = targetRect.top - containerRect.top + container.scrollTop - 20;
-                                          container.scrollTo({ top: offsetTop, behavior: 'smooth' });
-                                        } else if (targetEl) {
-                                          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        }
-                                        setTimeout(() => {
-                                          setHighlightedDefectId((curr) => (curr === defectKey ? null : curr));
-                                        }, 3500);
-                                      }
-                                    }}
-                                    onClick={(e) => {
-                                      if (isEditMode) return;
-                                      e.stopPropagation();
-                                      setHighlightedDefectId(defectKey);
-                                      const container = document.getElementById('audit-studio-scroll-container');
-                                      const targetEl = document.getElementById(`defect-card-${defectKey}`);
-                                      if (container && targetEl) {
-                                        const containerRect = container.getBoundingClientRect();
-                                        const targetRect = targetEl.getBoundingClientRect();
-                                        const offsetTop = targetRect.top - containerRect.top + container.scrollTop - 20;
-                                        container.scrollTo({ top: offsetTop, behavior: 'smooth' });
-                                      } else if (targetEl) {
-                                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                      }
-                                      setTimeout(() => {
-                                        setHighlightedDefectId((curr) => (curr === defectKey ? null : curr));
-                                      }, 3500);
-                                    }}
-                                    title={isEditMode ? `Kéo để đổi vị trí ghim ${dCode}` : `Bấm để cuộn và xem chi tiết khuyết tật ${dCode}`}
-                                  >
-                                    {/* Thẻ nhãn mã đỏ viền trắng nổi cao phía trên */}
-                                    <div
-                                      className={`px-1.5 py-0.5 rounded font-mono font-black text-[9px] shadow-md border border-white flex items-center justify-center whitespace-nowrap transition-all ${
-                                        isBeingDragged
-                                          ? 'bg-amber-600 text-white ring-2 ring-amber-300 scale-125'
-                                          : isHighlighted
-                                          ? 'bg-rose-700 text-white ring-2 ring-amber-300 scale-115'
-                                          : 'bg-rose-600 text-white group-hover/pin:scale-110 group-hover/pin:bg-rose-700'
-                                      }`}
-                                    >
-                                      {dCode}
-                                      {isBeingDragged && (
-                                        <span className="ml-0.5 text-[7px] font-normal opacity-90">
-                                          ({displayX.toFixed(0)}%, {displayY.toFixed(0)}%)
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Mũi kim tam giác nhọn chĩa thẳng xuống tọa độ */}
-                                    <div className={`w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] -mt-[0.5px] ${
-                                      isBeingDragged ? 'border-t-amber-600' : 'border-t-rose-600'
-                                    }`} />
-
-                                    {/* Chấm tâm ngắm đỏ rực tại đúng tọa độ (x, y) */}
-                                    <div className={`w-1.5 h-1.5 rounded-full border border-white -mt-[1px] shadow-xs ${
-                                      isBeingDragged ? 'bg-amber-400 ring-2 ring-amber-500' : 'bg-rose-600'
-                                    }`} />
-                                  </div>
-                                );
-                              })}
-                          </>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-lg gap-2 text-center w-full">
-                            <Camera className="w-7 h-7 text-slate-300" />
-                            <span className="text-xs text-slate-400 italic">Chưa có ảnh ngữ cảnh CTX</span>
-                            <div className="flex items-center gap-1.5 pt-1">
-                              {isEditMode && onOpenPhotoAction && (
+                              ) : (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    onOpenPhotoAction({
-                                      initialMode: 'ADD',
-                                      category: 'ZONE_CTX',
-                                      targetPhotoType: 'CTX',
-                                      targetPhotoId: zCode,
-                                      zoneCode: zCode,
-                                      floorCode: currentFloor.floorName,
-                                      photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                    })
-                                  }
-                                  className="px-2.5 py-1 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
+                                  onClick={() => handleRemoveZone(flIdx, z)}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                                 >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Thêm ảnh CTX</span>
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Xóa Vùng</span>
                                 </button>
-                              )}
-                              {onOpenPhotoHistory && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onOpenPhotoHistory({
-                                      photoCode: ctxCode,
-                                      photoType: 'CTX',
-                                      photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                    })
-                                  }
-                                  className="p-1 rounded-lg bg-slate-100 hover:bg-violet-50 text-slate-600 hover:text-violet-700 border border-slate-200 cursor-pointer"
-                                  title="Xem lịch sử ảnh CTX"
-                                >
-                                  <History className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                              )
+                            )}
                           </div>
-                        )}
-
-                        {ctxUrl && (
-                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
-                            <Maximize2 className="w-6 h-6 drop-shadow-md" />
-                          </div>
-                        )}
-                      </div>
-
-                      {ctxUrl && (
-                        <div className="mt-2 flex items-center gap-1">
-                          {isEditMode && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (onOpenPhotoAction) {
-                                  onOpenPhotoAction({
-                                    initialMode: 'REPLACE',
-                                    category: 'ZONE_CTX',
-                                    targetPhotoType: 'CTX',
-                                    targetPhotoId: zCode,
-                                    zoneCode: zCode,
-                                    floorCode: currentFloor.floorName,
-                                    currentPhotoUrl: ctxUrl,
-                                    photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                  });
-                                } else if (onOpenPhotoReplace) {
-                                  onOpenPhotoReplace({
-                                    targetPhotoType: 'ZONE_CTX',
-                                    targetPhotoId: zCode,
-                                    zoneId: z.id,
-                                    currentPhotoUrl: ctxUrl,
-                                    photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                  });
-                                }
-                              }}
-                              className="flex-1 text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 py-1 rounded text-center transition-colors cursor-pointer"
-                            >
-                              Đổi ảnh CTX
-                            </button>
-                          )}
-                          {onOpenPhotoHistory && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onOpenPhotoHistory({
-                                  photoCode: ctxCode,
-                                  photoType: 'CTX',
-                                  photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                  currentPhotoUrl: ctxUrl,
-                                })
-                              }
-                              className="p-1 text-slate-600 hover:text-violet-700 hover:bg-violet-50 rounded text-center transition-colors cursor-pointer"
-                              title="Lịch sử phiên bản ảnh CTX"
-                            >
-                              <History className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {isEditMode && onOpenPhotoAction && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'ZONE_CTX',
-                                  targetPhotoType: 'CTX',
-                                  targetPhotoId: zCode,
-                                  zoneCode: zCode,
-                                  floorCode: currentFloor.floorName,
-                                  currentPhotoUrl: ctxUrl,
-                                  photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                                })
-                              }
-                              className="px-2 py-1 text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 rounded text-center transition-colors cursor-pointer"
-                              title="Xóa ảnh CTX này"
-                            >
-                              Xóa
-                            </button>
-                          )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* Cột 2 & 3: Danh sách các Khuyết Tật Nứt D chi tiết */}
-                    <div className="md:col-span-2 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-600 block">
-                          Danh sách Khuyết Tật Nứt ({zCode}):
-                        </span>
-                        {isEditMode && (
-                          <button
-                            type="button"
-                            onClick={() => handleAddDefect(z.id)}
-                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-                          >
-                            + Thêm Khuyết Tật D
-                          </button>
-                        )}
-                      </div>
+                        {/* Dải ảnh tổng quan Vùng Z (kèm Optimistic ADD/REPLACE/DELETE) - Quy tắc 2.5 ảnh cùng cấp phủ kín chiều ngang */}
+                        {(() => {
+                          const rawZOverviews: string[] = Array.isArray(z.overviewPhotos) ? z.overviewPhotos : [];
+                          const addedZOverviews = getOptimisticAddedPhotos(stagedPhotoActions, {
+                            category: 'ZONE_OVERVIEW',
+                            targetPhotoType: 'OVERVIEW',
+                            targetPhotoId: z.id || zCode,
+                            zoneCode: zCode,
+                          });
+                          const hasAnyZOverviews = rawZOverviews.length > 0 || addedZOverviews.length > 0;
 
-                      {defectsList.length === 0 ? (
-                        <div className="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-400">
-                          Không có khuyết tật nứt nào trong vùng kiến trúc này
-                        </div>
-                      ) : (
-                        defectsList.map((d: DefectItem, dIdx: number) => {
-                          const dCode = d.defectCode || d.defect_code || 'D-??';
-                          const isDefectDeleted = Boolean(d.is_deleted || (d as { isDeleted?: boolean }).isDeleted);
-                          const stagedDefectDel = getStagedDefectItemDeletion(d);
-                          if (stagedDefectDel && !showDeletedItems) {
-                            return (
-                              <div
-                                key={`defect_del_${zCode}_${d.id || dCode}_${dIdx}`}
-                                className="flex items-center justify-between px-3 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-xs font-bold"
-                              >
-                                <span>Đã xóa khuyết tật {dCode}</span>
-                                {onUndoPhotoAction && (
+                          if (!hasAnyZOverviews && !isEditMode) return null;
+
+                          return (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                  Ảnh Tổng Quan Vùng {zCode} ({rawZOverviews.length + addedZOverviews.length} ảnh):
+                                </span>
+                                {isEditMode && onOpenPhotoAction && (
                                   <button
                                     type="button"
-                                    onClick={() => onUndoPhotoAction(stagedDefectDel)}
-                                    className="underline hover:text-rose-900 cursor-pointer font-black"
+                                    onClick={() =>
+                                      onOpenPhotoAction({
+                                        initialMode: 'ADD',
+                                        category: 'ZONE_OVERVIEW',
+                                        targetPhotoType: 'OVERVIEW',
+                                        targetPhotoId: z.id || zCode,
+                                        zoneCode: zCode,
+                                        floorCode: floorName,
+                                        photoTitle: `Thêm ảnh tổng quan ${zCode}`,
+                                      })
+                                    }
+                                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-2xs"
                                   >
-                                    • [Hoàn tác]
+                                    <Plus className="w-3 h-3" />
+                                    <span>Thêm Ảnh Tổng Quan</span>
                                   </button>
                                 )}
                               </div>
-                            );
-                          }
 
-                          const cuPhotos: string[] =
-                            Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
-                              ? d.cuPhotos
-                              : d.cuPhotoUrl
-                              ? [d.cuPhotoUrl]
-                              : d.cu_photo_url
-                              ? [d.cu_photo_url]
-                              : [];
-                          const addedCuUrls =
-                            stagedPhotoActions
-                              ?.filter(
-                                (a) =>
-                                  a.action === 'ADD' &&
-                                  a.category === 'DEFECT_CU' &&
-                                  ((d.id && a.defectId === d.id) || a.targetPhotoId === dCode)
-                              )
-                              .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])) || [];
-                          const deletedCuCount = cuPhotos.filter((cuUrl: string, cuIdx: number) => {
-                            const s = getStagedAction({
-                              category: 'DEFECT_CU',
-                              defectId: d.id,
-                              targetPhotoId: dCode,
-                              photoIndex: cuIdx,
-                              url: cuUrl,
-                            });
-                            return s?.action === 'DELETE';
-                          }).length;
-                          const activeCuCount = Math.max(0, cuPhotos.length - deletedCuCount + addedCuUrls.length);
-
-                          return (
-                            <div
-                              key={`defect_card_${zCode}_${d.id || dCode}_${dIdx}`}
-                              id={`defect-card-${d.id || dCode}`}
-                              className={`rounded-xl border p-3 shadow-2xs space-y-2.5 transition-all duration-300 ${
-                                isDefectDeleted
-                                  ? 'bg-rose-50/50 border-rose-300 border-dashed opacity-85'
-                                  : highlightedDefectId === (d.id || dCode)
-                                  ? 'bg-rose-50/70 border-rose-500 ring-4 ring-rose-300/60 shadow-md'
-                                  : 'bg-white border-slate-200'
-                              }`}
-                            >
-                              {/* Header Khuyết tật D */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-mono font-black text-xs">
-                                    {dCode}
-                                  </span>
-                                  {isDefectDeleted ? (
-                                    <span className="text-xs font-bold text-slate-800">
-                                      {d.screeningCategory || d.defectType || 'Vết nứt tường'}
-                                    </span>
-                                  ) : isEditMode ? (
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        value={d.screeningCategory || d.defectType || 'Vết nứt tường'}
-                                        onChange={(e) =>
-                                          handleDefectChange(z.id, d.id || d.defectCode, 'screeningCategory', e.target.value, `${dCode} Phân loại`)
-                                        }
-                                        className="p-1 border border-slate-300 rounded text-xs font-bold bg-white"
-                                      >
-                                        {DEFECT_TYPE_PRESETS.map((dt) => (
-                                          <option key={dt} value={dt}>{dt}</option>
-                                        ))}
-                                      </select>
-                                      <label className="flex items-center gap-1 text-[11px] font-bold text-red-700 cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={Boolean(d.isStructuralCritical)}
-                                          onChange={(e) =>
-                                            handleDefectChange(z.id, d.id || d.defectCode, 'isStructuralCritical', e.target.checked, `${dCode} Cờ kết cấu`)
-                                          }
-                                          className="rounded text-red-600"
-                                        />
-                                        <span>Cờ kết cấu</span>
-                                      </label>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span className="text-xs font-bold text-slate-800">
-                                        {d.screeningCategory || d.defectType || 'Vết nứt tường'}
-                                      </span>
-                                      {d.isStructuralCritical && (
-                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-600 text-white flex items-center gap-1">
-                                          <ShieldAlert className="w-3 h-3" />
-                                          Cờ kết cấu
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-
-                                {/* Thông số Bề rộng & Chiều dài + Nút xóa / Hoàn tác */}
-                                <div className="flex items-center gap-2">
-                                  {isDefectDeleted ? (
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-mono font-bold text-[10px] shadow-2xs animate-pulse">
-                                        ĐÃ XÓA MỀM
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRestoreDefect(z.id, d.id || d.defectCode)}
-                                        className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                                        title="Khôi phục khuyết tật này"
-                                      >
-                                        <Undo2 className="w-3 h-3" />
-                                        <span>Hoàn tác</span>
-                                      </button>
-                                    </div>
-                                  ) : isEditMode ? (
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <label className="text-[11px] font-bold text-slate-500">Rộng (mm):</label>
-                                      <input
-                                        type="number"
-                                        step="0.05"
-                                        value={d.widthMaxMm ?? d.width_max_mm ?? 0}
-                                        onChange={(e) =>
-                                          handleDefectChange(z.id, d.id || d.defectCode, 'widthMaxMm', Number(e.target.value), `${dCode} Bề rộng`)
-                                        }
-                                        className="w-16 px-1.5 py-0.5 border border-amber-300 rounded bg-amber-50/50 font-black text-red-600 text-xs"
-                                      />
-                                      <label className="text-[11px] font-bold text-slate-500">Dài (mm):</label>
-                                      <input
-                                        type="number"
-                                        value={d.lengthMm ?? 0}
-                                        onChange={(e) =>
-                                          handleDefectChange(z.id, d.id || d.defectCode, 'lengthMm', Number(e.target.value), `${dCode} Chiều dài`)
-                                        }
-                                        className="w-16 px-1.5 py-0.5 border border-amber-300 rounded bg-amber-50/50 text-xs font-bold"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveDefect(z.id, d.id || d.defectCode)}
-                                        className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold transition-colors cursor-pointer"
-                                        title="Xóa khuyết tật này"
-                                      >
-                                        Xóa
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs font-bold text-slate-800">
-                                      Rộng: <strong className="text-red-600">{d.widthMaxMm ?? d.width_max_mm ?? 0} mm</strong>
-                                      {d.lengthMm ? ` &bull; Dài ${d.lengthMm} mm` : ''}
-                                      {d.depthMm ? ` &bull; Sâu ${d.depthMm} mm` : ''}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Thông số phụ: Hướng nứt, Trạng thái hoạt động, Độ sâu, Thước đo tỷ lệ */}
-                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/80 p-2 rounded-lg border border-slate-100">
-                                <div>
-                                  <span className="text-slate-500 font-semibold block mb-0.5">Hướng nứt:</span>
-                                  {isEditMode ? (
-                                    <select
-                                      value={d.crackDirection || 'Ngang'}
-                                      onChange={(e) =>
-                                        handleDefectChange(z.id, d.id || d.defectCode, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
-                                      }
-                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
-                                    >
-                                      <option value="Ngang">Ngang</option>
-                                      <option value="Dọc">Dọc</option>
-                                      <option value="Chéo 45 độ">Chéo 45 độ</option>
-                                      <option value="Chân chim">Chân chim</option>
-                                      <option value="Hỗn hợp">Hỗn hợp</option>
-                                    </select>
-                                  ) : (
-                                    <span className="font-bold text-slate-800">
-                                      {d.crackDirection || 'Không ghi nhận'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <span className="text-slate-500 font-semibold block mb-0.5">Trạng thái:</span>
-                                  {isEditMode ? (
-                                    <select
-                                      value={d.activityState || 'S'}
-                                      onChange={(e) =>
-                                        handleDefectChange(z.id, d.id || d.defectCode, 'activityState', e.target.value, `${dCode} Trạng thái`)
-                                      }
-                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
-                                    >
-                                      <option value="S">Ổn định (S)</option>
-                                      <option value="A">Đang phát triển (A)</option>
-                                      <option value="U">Chưa xác định (U)</option>
-                                    </select>
-                                  ) : (
-                                    <span className="font-bold text-slate-800">
-                                      {d.activityState === 'S'
-                                        ? 'Ổn định (S)'
-                                        : d.activityState === 'A'
-                                        ? 'Đang phát triển (A)'
-                                        : 'Chưa xác định (U)'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <span className="text-slate-500 font-semibold block mb-0.5">Độ sâu nứt (mm):</span>
-                                  {isEditMode ? (
-                                    <input
-                                      type="number"
-                                      value={d.depthMm ?? ''}
-                                      onChange={(e) =>
-                                        handleDefectChange(z.id, d.id || d.defectCode, 'depthMm', e.target.value ? Number(e.target.value) : '', `${dCode} Độ sâu`)
-                                      }
-                                      placeholder="VD: 5"
-                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
-                                    />
-                                  ) : (
-                                    <span className="font-bold text-slate-800">
-                                      {d.depthMm ? `${d.depthMm} mm` : 'Nông bề mặt'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <span className="text-slate-500 font-semibold block mb-0.5">Thước đo mm:</span>
-                                  {isEditMode ? (
-                                    <label className="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer pt-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(d.hasScaleCard ?? d.has_scale_card)}
-                                        onChange={(e) =>
-                                          handleDefectChange(z.id, d.id || d.defectCode, 'hasScaleCard', e.target.checked, `${dCode} Thước đo`)
-                                        }
-                                      />
-                                      <span>Có thẻ chuẩn</span>
-                                    </label>
-                                  ) : (
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded font-bold text-[10px] ${
-                                        d.hasScaleCard ?? d.has_scale_card
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-red-100 text-red-800'
-                                      }`}
-                                    >
-                                      {d.hasScaleCard ?? d.has_scale_card ? '✓ Có thước đo' : '⚠️ Thiếu thước đo'}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Ghi chú chi tiết về vết nứt D */}
-                              <div className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <span className="text-slate-500 font-semibold block mb-0.5">Ghi chú vết nứt:</span>
-                                {isEditMode ? (
-                                  <input
-                                    type="text"
-                                    value={d.notes || ''}
-                                    onChange={(e) =>
-                                      handleDefectChange(z.id, d.id || d.defectCode, 'notes', e.target.value, `${dCode} Ghi chú`)
-                                    }
-                                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
-                                    placeholder="Ghi chú chi tiết vết nứt..."
-                                  />
-                                ) : (
-                                  <span className="text-slate-700 italic">
-                                    {d.notes || 'Không có ghi chú thêm.'}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Dải ảnh cận cảnh CU đa góc chụp */}
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-bold text-slate-500 block uppercase">
-                                    Ảnh Cận Cảnh CU ({activeCuCount} ảnh):
-                                  </span>
-                                  {isEditMode && onOpenPhotoAction && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onOpenPhotoAction({
-                                          initialMode: 'ADD',
-                                          category: 'DEFECT_CU',
-                                          targetPhotoType: 'CU',
-                                          targetPhotoId: dCode,
-                                          defectId: d.id,
-                                          defectCode: dCode,
-                                          floorCode: currentFloor.floorName,
-                                          zoneCode: zCode,
-                                          photoTitle: `Bổ sung ảnh khuyết tật ${dCode}`,
-                                        })
-                                      }
-                                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                                    >
-                                      <Plus className="w-2.5 h-2.5" />
-                                      <span>Thêm Ảnh CU</span>
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                  {cuPhotos.map((cuUrl: string, cuIdx: number) => {
-                                    const stagedCu = getStagedAction({
-                                      category: 'DEFECT_CU',
-                                      defectId: d.id,
-                                      targetPhotoId: dCode,
-                                      photoIndex: cuIdx,
-                                      url: cuUrl,
+                              {hasAnyZOverviews && (
+                                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
+                                  {rawZOverviews.map((ovUrl: string, ovIdx: number) => {
+                                    const ovOpt = resolveOptimisticPhoto(ovUrl, stagedPhotoActions, {
+                                      category: 'ZONE_OVERVIEW',
+                                      targetPhotoType: 'OVERVIEW',
+                                      targetPhotoId: z.id || zCode,
+                                      zoneCode: zCode,
+                                      floorCode: floorName,
+                                      photoIndex: ovIdx,
+                                      url: ovUrl,
                                     });
-                                    if (stagedCu?.action === 'DELETE') {
-                                      return (
-                                        <div
-                                          key={cuIdx}
-                                          className="flex items-center justify-between gap-1 px-2.5 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-[10px] font-bold"
-                                        >
-                                          <span>Đã xóa CU #{cuIdx + 1}</span>
-                                          {onUndoPhotoAction && (
-                                            <button
-                                              type="button"
-                                              onClick={() => onUndoPhotoAction(stagedCu)}
-                                              className="underline hover:text-rose-900 cursor-pointer font-black"
-                                            >
-                                              • [Hoàn tác]
-                                            </button>
-                                          )}
-                                        </div>
-                                      );
-                                    }
-                                    const hasMultiCu = cuPhotos.length > 1;
-                                    const dId = d.id ? String(d.id) : '';
-                                    const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
-                                    const indexedRotKey =
-                                      dId && isDefectUuid
-                                        ? dId.startsWith('defect_')
-                                          ? `${dId}_cu_${cuIdx}`
-                                          : `defect_${dId}_cu_${cuIdx}`
-                                        : dId
-                                          ? `defect_f${activeFloorIndex}_z${zCode}_${dId}_cu_${cuIdx}`
-                                          : `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu_${cuIdx}`;
-                                    const compositeRotKey =
-                                      dId && isDefectUuid
-                                        ? dId.startsWith('defect_')
-                                          ? `${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                          : `defect_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                        : dId
-                                          ? `defect_f${activeFloorIndex}_z${zCode}_${dId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                          : `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
-                                    const altCompositeRotKey = `defect_f${activeFloorIndex}_z${zCode}_d${dCode}_cu_${cuIdx}`;
-                                    const legacyRotKey = `defect_${d.id || dCode}_cu`;
+                                    const effectiveOvUrl = ovOpt.displayUrl || ovUrl;
+                                    const ovRotKey = `zone_f${flIdx}_z${zCode}_ov_${ovIdx}`;
+                                    const legacyOvKey = `${baseZoneKey}_ov_${ovIdx}`;
                                     const rot =
-                                      stagedPhotoRotations[indexedRotKey] ??
-                                      stagedPhotoRotations[compositeRotKey] ??
-                                      stagedPhotoRotations[altCompositeRotKey] ??
-                                      (!hasMultiCu && cuUrl ? stagedPhotoRotations[cuUrl] : undefined) ??
-                                      (cuIdx === 0 ? stagedPhotoRotations[legacyRotKey] ?? stagedPhotoRotations[`${dCode}-CU`] : undefined) ??
+                                      stagedPhotoRotations[ovRotKey] ??
+                                      stagedPhotoRotations[legacyOvKey] ??
                                       0;
                                     const orientStatus =
-                                      violationsMap?.get(indexedRotKey) ||
-                                      violationsMap?.get(compositeRotKey) ||
-                                      violationsMap?.get(altCompositeRotKey) ||
-                                      (!hasMultiCu ? violationsMap?.get(cuUrl) : undefined) ||
-                                      (cuIdx === 0 ? violationsMap?.get(legacyRotKey) : undefined);
-                                    const domId = `audit-photo-card-f${activeFloorIndex}-z${zCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`;
+                                      violationsMap?.get(ovRotKey) ||
+                                      violationsMap?.get(legacyOvKey);
+                                    const domId = `audit-photo-card-f${flIdx}-zone-${zCode}-ov-${ovIdx}`;
+
                                     return (
-                                      <AuditPhotoCard
-                                        key={cuIdx}
-                                        url={stagedCu?.newPhotoUrl || cuUrl}
-                                        photoCode={`CU #${cuIdx + 1}`}
-                                        photoKey={indexedRotKey}
-                                        title={`${dCode} - Ảnh Cận Cảnh #${cuIdx + 1}`}
-                                        category="DEFECT_CU"
-                                        targetPhotoType="CU"
-                                        targetPhotoId={dCode}
-                                        defectId={d.id}
-                                        defectCode={dCode}
-                                        photoIndex={cuIdx}
-                                        hasMultiplePhotos={cuPhotos.length > 1}
-                                        floorCode={currentFloor.floorName}
-                                        zoneCode={zCode}
-                                        isEditMode={isEditMode}
-                                        aspectRatio="h-24"
-                                        badgeColor="slate"
-                                        rotation={rot}
-                                        isOrientationMismatch={Boolean(orientStatus)}
-                                        isStrictOrientation={orientStatus?.isStrict ?? false}
-                                        orientationRecommendation={orientStatus?.message}
-                                        expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
-                                        onRotate={(newRot) => onRotatePhoto?.(indexedRotKey, newRot)}
-                                        domId={domId}
-                                        historyCount={getItemHistoryMeta(d).historyCount}
-                                        hasHistory={getItemHistoryMeta(d).hasHistory}
-                                        optimisticStatus={stagedCu ? 'REPLACED' : undefined}
-                                        onUndoDelete={stagedCu ? () => onUndoPhotoAction?.(stagedCu) : undefined}
-                                        onOpenPhotoZoom={onOpenPhotoZoom}
-                                        onOpenPhotoAction={onOpenPhotoAction}
-                                        onOpenPhotoHistory={onOpenPhotoHistory}
-                                      />
-                                    );
-                                  })}
-
-                                  {/* Các ảnh CU mới thêm của khuyết tật này */}
-                                  {addedCuUrls.map((addedCuUrl, addCuIdx) => (
-                                    <AuditPhotoCard
-                                      key={`added-zone-cu-${addCuIdx}`}
-                                      url={addedCuUrl}
-                                      photoCode={`Mới`}
-                                      title={`${dCode} - Cận Cảnh Mới`}
-                                      category="DEFECT_CU"
-                                      targetPhotoType="CU"
-                                      targetPhotoId={dCode}
-                                      defectId={d.id}
-                                      defectCode={dCode}
-                                      floorCode={currentFloor.floorName}
-                                      zoneCode={zCode}
-                                      isEditMode={isEditMode}
-                                      aspectRatio="h-24"
-                                      badgeColor="emerald"
-                                      optimisticStatus="ADDED"
-                                      onOpenPhotoZoom={onOpenPhotoZoom}
-                                      onOpenPhotoAction={onOpenPhotoAction}
-                                      onOpenPhotoHistory={onOpenPhotoHistory}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* 4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E */}
-        <div className="space-y-4 pt-4 border-t border-slate-200">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-amber-600" />
-              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E ({activeElements.length} Cấu Kiện
-                {deletedElements.length > 0 && ` • ${deletedElements.length} đã xóa`})
-              </span>
-            </div>
-            <span className="text-xs text-slate-500 font-semibold">
-              {displayedElements.reduce((acc, el) => acc + (el.defects?.filter((d: DefectItem) => isDefectActive(d))?.length || 0), 0)} khuyết tật kết cấu
-            </span>
-          </div>
-
-          {displayedElements.length === 0 ? (
-            <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-              <span>Tầng này không phát hiện cấu kiện chịu lực riêng lẻ bị nứt vỡ hoặc KSV gom khuyết tật theo mảng tường Vùng Z.</span>
-              <span className="font-bold text-emerald-700">✓ Không có khuyết tật cấu kiện riêng lẻ</span>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {displayedElements.map((elem: StructuralElementData) => {
-                const eCode = elem.elementCode || 'E-??';
-                const isElemDeleted = isItemSoftDeleted(elem);
-                const rawEDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
-                const activeEDefects = rawEDefects.filter((d: DefectItem) => isDefectActive(d));
-                const eDefects = showDeletedItems ? rawEDefects : rawEDefects.filter((d: DefectItem) => !isItemSoftDeleted(d));
-                const overviewPhotos = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
-                const elemIdStr = elem.id ? String(elem.id) : '';
-                const baseElemKey = elemIdStr
-                  ? elemIdStr.startsWith('elem_')
-                    ? elemIdStr
-                    : `elem_${elemIdStr}`
-                  : `elem_f${activeFloorIndex}_e${eCode}`;
-                const eTypeUpper = String(elem.elementType || '').toUpperCase();
-                const elemExpectedOrientation: 'PORTRAIT' | 'LANDSCAPE' =
-                  eTypeUpper.includes('DẦM') ||
-                  eTypeUpper.includes('BEAM') ||
-                  eTypeUpper.includes('SÀN') ||
-                  eTypeUpper.includes('SLAB') ||
-                  eTypeUpper.includes('TRẦN')
-                    ? 'LANDSCAPE'
-                    : 'PORTRAIT';
-
-                const rawElemCtxUrl = elem.ctxPhotoUrl || '';
-                const stagedElemCtx = getStagedAction({
-                  category: 'ELEMENT_CTX',
-                  targetPhotoId: elem.id,
-                  url: rawElemCtxUrl || undefined,
-                  includeAdd: !rawElemCtxUrl,
-                });
-                const isElemCtxDeleted = stagedElemCtx?.action === 'DELETE';
-                const effectiveElemCtxUrl = stagedElemCtx
-                  ? isElemCtxDeleted
-                    ? ''
-                    : stagedElemCtx.newPhotoUrl || stagedElemCtx.oldPhotoUrl || ''
-                  : rawElemCtxUrl;
-                const addedElemOvUrls =
-                  stagedPhotoActions
-                    ?.filter((a) => a.action === 'ADD' && a.category === 'ELEMENT_OVERVIEW' && a.targetPhotoId === elem.id)
-                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])) || [];
-                const deletedElemOvCount = overviewPhotos.filter((photoUrl, pIdx) => {
-                  const s = getStagedAction({
-                    category: 'ELEMENT_OVERVIEW',
-                    targetPhotoId: elem.id,
-                    photoIndex: pIdx,
-                    url: photoUrl,
-                  });
-                  return s?.action === 'DELETE';
-                }).length;
-                const activeElemPhotoCount =
-                  (effectiveElemCtxUrl ? 1 : 0) +
-                  Math.max(0, overviewPhotos.length - deletedElemOvCount) +
-                  addedElemOvUrls.length;
-
-                return (
-                  <div
-                    id={`element-card-${eCode}`}
-                    key={elem.id || eCode}
-                    className={`p-4 rounded-xl space-y-3 transition-all ${
-                      isElemDeleted
-                        ? 'bg-rose-50/30 border-2 border-dashed border-rose-300 opacity-80'
-                        : 'bg-amber-50/30 border border-amber-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2 flex-wrap flex-1">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-amber-700 text-white font-mono font-black text-xs">
-                          {eCode}
-                        </span>
-                        {isElemDeleted ? (
-                          <span className="text-xs font-bold text-slate-800">
-                            {elem.elementType || 'Cột BTCT'} &bull; {elem.materialType || 'BTCT'}
-                            {elem.dimensions ? ` &bull; ${elem.dimensions}` : ''}
-                          </span>
-                        ) : isEditMode ? (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <select
-                              value={elem.elementType || 'Cột BTCT'}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'elementType', e.target.value, 'Loại cấu kiện')}
-                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
-                            >
-                              {ELEMENT_TYPE_PRESETS.map((t) => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
-                            <span>&bull;</span>
-                            <select
-                              value={elem.materialType || 'Bê tông cốt thép (BTCT)'}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'materialType', e.target.value, 'Vật liệu')}
-                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
-                            >
-                              {MATERIAL_TYPE_PRESETS.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                            <span>&bull;</span>
-                            <input
-                              type="text"
-                              value={elem.dimensions || elem.sectionDimensions || ''}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'dimensions', e.target.value, 'Kích thước tiết diện')}
-                              placeholder="Tiết diện b x h (vd 200x300mm)"
-                              className="p-1 text-xs border border-amber-300 rounded bg-white w-44"
-                            />
-                            <span>&bull;</span>
-                            <select
-                              value={elem.structuralIntegrity || 'Nguyên vẹn'}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'structuralIntegrity', e.target.value, 'Độ toàn vẹn kết cấu')}
-                              className="p-1 text-xs border border-amber-300 rounded bg-white"
-                            >
-                              {STRUCTURAL_INTEGRITY_PRESETS.map((si) => (
-                                <option key={si} value={si}>{si}</option>
-                              ))}
-                            </select>
-                            <span>&bull;</span>
-                            <input
-                              type="text"
-                              value={elem.roomName || ''}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'roomName', e.target.value, 'Vị trí trục/phòng')}
-                              placeholder="Trục toạ độ / Vị trí..."
-                              className="p-1 text-xs border border-amber-300 rounded bg-white w-32"
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-800">
-                            {elem.elementType || 'Cột BTCT'} &bull; {elem.materialType || 'BTCT'}
-                            {elem.dimensions ? ` &bull; ${elem.dimensions}` : ''}
-                            {elem.structuralIntegrity ? ` &bull; ${elem.structuralIntegrity}` : ''} &bull;{' '}
-                            <span className="text-slate-500 font-normal">{elem.roomName || elem.customRoomName || 'Trục không xác định'}</span>
-                          </span>
-                        )}
-                      </div>
-                      {isElemDeleted ? (
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-mono font-bold text-[10px] shadow-xs animate-pulse">
-                            ĐÃ XÓA MỀM
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRestoreElement(elem.id)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
-                            title="Khôi phục cấu kiện này"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                            <span>Hoàn tác</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Badge variant={activeEDefects.length > 0 ? 'warning' : 'success'} size="sm">
-                            {activeEDefects.length} khuyết tật kết cấu
-                          </Badge>
-                          {isEditMode && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveElement(elem.id)}
-                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                              title={`Xóa cấu kiện ${eCode}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                              <span>Xóa Cấu Kiện</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ảnh bối cảnh hoặc tổng quan của cấu kiện E */}
-                    <div className="space-y-2 pt-1 border-t border-amber-200/60">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase text-slate-600 block">
-                          Ảnh Cấu Kiện Kết Cấu {eCode} ({activeElemPhotoCount} ảnh):
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          {isEditMode && effectiveElemCtxUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setPinningCtxZone(pinningCtxZone === eCode ? null : eCode)}
-                              className={`px-2 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                                pinningCtxZone === eCode
-                                  ? 'bg-rose-600 text-white animate-pulse'
-                                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                              }`}
-                              title="Bấm để bật chế độ ghim khuyết tật D lên ảnh bối cảnh cấu kiện E"
-                            >
-                              <Crosshair className="w-2.5 h-2.5" />
-                              <span>{pinningCtxZone === eCode ? 'Đang ghim...' : '+ Ghim D trên CTX'}</span>
-                            </button>
-                          )}
-                          {isEditMode && onOpenPhotoAction && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onOpenPhotoAction({
-                                  initialMode: 'ADD',
-                                  category: 'ELEMENT_OVERVIEW',
-                                  targetPhotoType: 'OVERVIEW',
-                                  targetPhotoId: elem.id,
-                                  floorCode: currentFloor.floorName,
-                                  photoTitle: `Bổ sung ảnh cấu kiện ${eCode}`,
-                                })
-                              }
-                              className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                            >
-                              <Plus className="w-2.5 h-2.5" />
-                              <span>Thêm Ảnh E</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5">
-                        {/* Ảnh bối cảnh CTX của cấu kiện E */}
-                        {(elem.ctxPhotoUrl || stagedElemCtx) && (() => {
-                          if (stagedElemCtx?.action === 'DELETE') {
-                            return (
-                              <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-[10px] font-bold shrink-0">
-                                <span>Đã xóa ảnh bối cảnh {eCode}</span>
-                                {onUndoPhotoAction && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onUndoPhotoAction(stagedElemCtx)}
-                                    className="underline hover:text-rose-900 cursor-pointer font-black"
-                                  >
-                                    • [Hoàn tác]
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          }
-                          if (!effectiveElemCtxUrl) return null;
-                          const elemCtxKey = `${baseElemKey}_ctx`;
-                          const elemCtxRot = stagedPhotoRotations[elemCtxKey] ?? stagedPhotoRotations[effectiveElemCtxUrl] ?? 0;
-                          const elemCtxViolation = violationsMap?.get(elemCtxKey) || violationsMap?.get(effectiveElemCtxUrl);
-                          const elemCtxDomId = `audit-photo-card-f${activeFloorIndex}-elem-${eCode}-ctx`;
-                          return (
-                            <div
-                              className={`relative w-36 shrink-0 ${
-                                pinningCtxZone === eCode ? 'ring-2 ring-rose-500 rounded-xl cursor-crosshair' : ''
-                              }`}
-                              onClickCapture={(e) => {
-                                if (pinningCtxZone === eCode) {
-                                  e.stopPropagation();
-                                  handleElemCtxImageClick(e, elem);
-                                }
-                              }}
-                            >
-                              <AuditPhotoCard
-                                url={effectiveElemCtxUrl}
-                                photoCode={`${eCode} - Bối Cảnh`}
-                                photoKey={elemCtxKey}
-                                title={`Ảnh bối cảnh cấu kiện ${eCode}`}
-                                category="ELEMENT_CTX"
-                                targetPhotoType="CTX"
-                                targetPhotoId={elem.id}
-                                floorCode={currentFloor.floorName}
-                                isEditMode={isEditMode}
-                                aspectRatio="h-24"
-                                badgeColor="amber"
-                                rotation={elemCtxRot}
-                                isOrientationMismatch={Boolean(elemCtxViolation)}
-                                isStrictOrientation={elemCtxViolation?.isStrict ?? false}
-                                orientationRecommendation={elemCtxViolation?.message}
-                                expectedOrientation={elemCtxViolation?.expectedOrientation || elemExpectedOrientation}
-                                onRotate={(newRot) => {
-                                  const delta = ((newRot - elemCtxRot) % 360 + 360) % 360 === 270 ? -90 : 90;
-                                  handleRotateElementCtx(elem, elemCtxRot, elemCtxKey, delta);
-                                }}
-                                domId={elemCtxDomId}
-                                historyCount={getItemHistoryMeta(elem).historyCount}
-                                hasHistory={getItemHistoryMeta(elem).hasHistory}
-                                optimisticStatus={stagedElemCtx ? 'REPLACED' : undefined}
-                                onUndoDelete={stagedElemCtx ? () => onUndoPhotoAction?.(stagedElemCtx) : undefined}
-                                onOpenPhotoZoom={onOpenPhotoZoom}
-                                onOpenPhotoAction={onOpenPhotoAction}
-                                onOpenPhotoHistory={onOpenPhotoHistory}
-                              />
-                              {/* Điểm ghim D trên ảnh bối cảnh cấu kiện E */}
-                              {showCtxPins &&
-                                activeEDefects.map((def: DefectItem, dIdx: number) => {
-                                  if (def.pinX === undefined && def.pin_x === undefined) return null;
-                                  const pX = Number(def.pinX ?? def.pin_x ?? 50);
-                                  const pY = Number(def.pinY ?? def.pin_y ?? 50);
-                                  const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
-                                  const defectKey = def.id || dCode;
-                                  const isBeingDragged = draggingDefectPin?.defectId === defectKey;
-                                  const displayX = isBeingDragged ? draggingDefectPin.currentX : pX;
-                                  const displayY = isBeingDragged ? draggingDefectPin.currentY : pY;
-                                  return (
-                                    <div
-                                      key={`elem_pin_${eCode}_${defectKey}_${dIdx}`}
-                                      style={{
-                                        position: 'absolute',
-                                        top: `${displayY}%`,
-                                        left: `${displayX}%`,
-                                        transform: 'translate(-50%, -100%)',
-                                        zIndex: isBeingDragged ? 50 : 30,
-                                        touchAction: 'none',
-                                      }}
-                                      className={`flex flex-col items-center select-none ${
-                                        isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-                                      }`}
-                                      onPointerDown={(e) => {
-                                        if (!isEditMode) return;
-                                        e.stopPropagation();
-                                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                                        setDraggingDefectPin({
-                                          zoneId: elem.id || eCode,
-                                          defectId: defectKey,
-                                          dCode,
-                                          currentX: pX,
-                                          currentY: pY,
-                                        });
-                                      }}
-                                      onPointerMove={(e) => {
-                                        if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
-                                        e.stopPropagation();
-                                        const container = e.currentTarget.parentElement;
-                                        if (!container) return;
-                                        const rect = container.getBoundingClientRect();
-                                        const rawX = ((e.clientX - rect.left) / rect.width) * 100;
-                                        const rawY = ((e.clientY - rect.top) / rect.height) * 100;
-                                        const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
-                                        const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
-                                        setDraggingDefectPin((prev) =>
-                                          prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null
-                                        );
-                                      }}
-                                      onPointerUp={(e) => {
-                                        if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
-                                        e.stopPropagation();
-                                        try {
-                                          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-                                        } catch (err) {
-                                          console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
-                                        }
-                                        const finalX = draggingDefectPin.currentX;
-                                        const finalY = draggingDefectPin.currentY;
-                                        setDraggingDefectPin(null);
-                                        if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
-                                          handleCommitDefectPinCoord(elem.id || eCode, defectKey, dCode, finalX, finalY);
-                                        }
-                                      }}
-                                    >
-                                      <div className="px-1 py-0.2 rounded font-mono font-black text-[8px] shadow-md border border-white bg-rose-600 text-white">
-                                        {dCode}
-                                      </div>
-                                      <div className="w-1.5 h-1.5 rounded-full border border-white bg-rose-600 -mt-0.5" />
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          );
-                        })()}
-
-                        {/* Các ảnh tổng quan hiện có của cấu kiện E */}
-                        {overviewPhotos.map((photoUrl, pIdx) => {
-                          const stagedOv = getStagedAction({
-                            category: 'ELEMENT_OVERVIEW',
-                            targetPhotoId: elem.id,
-                            photoIndex: pIdx,
-                            url: photoUrl,
-                          });
-                          if (stagedOv?.action === 'DELETE') {
-                            return (
-                              <div
-                                key={pIdx}
-                                className="flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-[10px] font-bold shrink-0"
-                              >
-                                <span>Đã xóa ảnh #{pIdx + 1}</span>
-                                {onUndoPhotoAction && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onUndoPhotoAction(stagedOv)}
-                                    className="underline hover:text-rose-900 cursor-pointer font-black"
-                                  >
-                                    • [Hoàn tác]
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          }
-                          const effectiveElemOvUrl = stagedOv?.newPhotoUrl || photoUrl;
-                          const elemOvKey = `${baseElemKey}_ov_${pIdx}`;
-                          const elemOvRot = stagedPhotoRotations[elemOvKey] ?? stagedPhotoRotations[effectiveElemOvUrl] ?? 0;
-                          const elemOvViolation = violationsMap?.get(elemOvKey) || violationsMap?.get(effectiveElemOvUrl);
-                          const elemOvDomId = `audit-photo-card-f${activeFloorIndex}-elem-${eCode}-ov-${pIdx}`;
-                          return (
-                            <div key={pIdx} className="w-32 shrink-0">
-                              <AuditPhotoCard
-                                url={effectiveElemOvUrl}
-                                photoCode={`#${pIdx + 1}`}
-                                photoKey={elemOvKey}
-                                title={`Ảnh tổng quan ${eCode} (#${pIdx + 1})`}
-                                category="ELEMENT_OVERVIEW"
-                                targetPhotoType="OVERVIEW"
-                                targetPhotoId={elem.id}
-                                photoIndex={pIdx}
-                                floorCode={currentFloor.floorName}
-                                isEditMode={isEditMode}
-                                aspectRatio="h-24"
-                                badgeColor="slate"
-                                rotation={elemOvRot}
-                                isOrientationMismatch={Boolean(elemOvViolation)}
-                                isStrictOrientation={elemOvViolation?.isStrict ?? false}
-                                orientationRecommendation={elemOvViolation?.message}
-                                expectedOrientation={elemOvViolation?.expectedOrientation || elemExpectedOrientation}
-                                onRotate={(newRot) => onRotatePhoto?.(elemOvKey, newRot)}
-                                domId={elemOvDomId}
-                                historyCount={getItemHistoryMeta(elem).historyCount}
-                                hasHistory={getItemHistoryMeta(elem).hasHistory}
-                                optimisticStatus={stagedOv ? 'REPLACED' : undefined}
-                                onUndoDelete={stagedOv ? () => onUndoPhotoAction?.(stagedOv) : undefined}
-                                onOpenPhotoZoom={onOpenPhotoZoom}
-                                onOpenPhotoAction={onOpenPhotoAction}
-                                onOpenPhotoHistory={onOpenPhotoHistory}
-                              />
-                            </div>
-                          );
-                        })}
-
-                        {/* Các ảnh mới thêm (Optimistic ADD) cho cấu kiện E */}
-                        {addedElemOvUrls.map((addedUrl, addIdx) => (
-                          <div key={`added-elem-photo-${addIdx}`} className="w-32 shrink-0">
-                            <AuditPhotoCard
-                              url={addedUrl}
-                              photoCode={`Mới`}
-                              title={`Ảnh mới thêm (${eCode})`}
-                              category="ELEMENT_OVERVIEW"
-                              targetPhotoType="OVERVIEW"
-                              targetPhotoId={elem.id}
-                              floorCode={currentFloor.floorName}
-                              isEditMode={isEditMode}
-                              aspectRatio="h-24"
-                              badgeColor="emerald"
-                              optimisticStatus="ADDED"
-                              onOpenPhotoZoom={onOpenPhotoZoom}
-                              onOpenPhotoAction={onOpenPhotoAction}
-                              onOpenPhotoHistory={onOpenPhotoHistory}
-                            />
-                          </div>
-                        ))}
-
-                        {activeElemPhotoCount === 0 && !stagedElemCtx && (
-                          <div className="text-xs text-slate-400 italic py-2">
-                            Chưa có ảnh cấu kiện kết cấu. Bấm &quot;Thêm Ảnh E&quot; ở trên để bổ sung.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Danh sách khuyết tật D của cấu kiện E */}
-                    <div className="space-y-2 pt-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-700 block">
-                          Khuyết tật chi tiết trên cấu kiện ({activeEDefects.length} mục):
-                        </span>
-                        {isEditMode && !isElemDeleted && (
-                          <button
-                            type="button"
-                            onClick={() => handleAddElementDefect(elem.id || eCode)}
-                            className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-                          >
-                            + Thêm Khuyết Tật D ({eCode})
-                          </button>
-                        )}
-                      </div>
-                      {eDefects.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                          {eDefects.map((def: DefectItem, dIdx: number) => {
-                            const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
-                            const isDefDeleted = isItemSoftDeleted(def);
-                            const stagedDefDel = getStagedDefectItemDeletion(def);
-                            if (stagedDefDel && !showDeletedItems) {
-                              return (
-                                <div
-                                  key={`elem_def_del_${eCode}_${def.id || dCode}_${dIdx}`}
-                                  className="flex items-center justify-between px-3 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-xs font-bold"
-                                >
-                                  <span>Đã xóa khuyết tật {dCode}</span>
-                                  {onUndoPhotoAction && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onUndoPhotoAction(stagedDefDel)}
-                                      className="underline hover:text-rose-900 cursor-pointer font-black"
-                                    >
-                                      • [Hoàn tác]
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            }
-
-                            const cuPhotos: Array<string | { url?: string; photoUrl?: string }> = Array.isArray(def.cuPhotos)
-                              ? (def.cuPhotos as Array<string | { url?: string; photoUrl?: string }>)
-                              : [];
-                            const addedElemDefCuUrls =
-                              stagedPhotoActions
-                                ?.filter(
-                                  (a) =>
-                                    a.action === 'ADD' &&
-                                    a.category === 'DEFECT_CU' &&
-                                    ((def.id && a.defectId === def.id) || a.targetPhotoId === dCode)
-                                )
-                                .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : [])) || [];
-                            const deletedElemDefCuCount = cuPhotos.filter((cuItem, cuIdx) => {
-                              const cuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
-                              if (!cuUrl) return false;
-                              const s = getStagedAction({
-                                category: 'DEFECT_CU',
-                                defectId: def.id,
-                                targetPhotoId: dCode,
-                                photoIndex: cuIdx,
-                                url: cuUrl,
-                              });
-                              return s?.action === 'DELETE';
-                            }).length;
-                            const activeElemDefCuCount = Math.max(
-                              0,
-                              cuPhotos.length - deletedElemDefCuCount + addedElemDefCuUrls.length
-                            );
-
-                            return (
-                              <div
-                                key={def.id || dCode}
-                                className={`p-3 rounded-xl border space-y-1.5 shadow-2xs ${
-                                  isDefDeleted
-                                    ? 'bg-rose-50/40 border-rose-300 border-dashed opacity-80'
-                                    : 'bg-white border-amber-200'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <span className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded text-[11px]">
-                                    {dCode}
-                                  </span>
-                                  {isEditMode && !isDefDeleted ? (
-                                    <select
-                                      value={def.defectType || def.screeningCategory || 'Vết nứt dầm/cột'}
-                                      onChange={(e) =>
-                                        handleElementDefectChange(elem.id || eCode, def.id || dCode, 'defectType', e.target.value, `${dCode} Loại khuyết tật`)
-                                      }
-                                      className="p-1 border border-amber-300 rounded text-[11px] font-bold bg-white"
-                                    >
-                                      {DEFECT_TYPE_PRESETS.map((dt) => (
-                                        <option key={dt} value={dt}>{dt}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="font-bold text-slate-700">{def.defectType || 'Vết nứt BTCT'}</span>
-                                  )}
-                                  {isDefDeleted ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRestoreElementDefect(elem.id || eCode, def.id || dCode)}
-                                      className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold cursor-pointer"
-                                    >
-                                      Hoàn tác
-                                    </button>
-                                  ) : isEditMode ? (
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="number"
-                                        step="0.05"
-                                        value={def.widthMaxMm ?? def.width_max_mm ?? 0}
-                                        onChange={(e) =>
-                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'widthMaxMm', Number(e.target.value), `${dCode} Bề rộng`)
-                                        }
-                                        className="w-14 px-1 py-0.5 border border-amber-300 rounded text-rose-600 font-bold text-[11px]"
-                                        title="Bề rộng (mm)"
-                                      />
-                                      <span className="text-[10px] text-slate-500">mm</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveElementDefect(elem.id || eCode, def.id || dCode)}
-                                        className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer"
-                                      >
-                                        Xóa
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="font-mono font-bold text-rose-600">
-                                      {def.widthMaxMm ?? def.width_max_mm ?? 0} mm
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[11px] text-slate-500 flex items-center justify-between flex-wrap gap-1">
-                                  {isEditMode && !isDefDeleted ? (
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span>Dài:</span>
-                                      <input
-                                        type="number"
-                                        value={def.lengthMm ?? def.length_mm ?? 0}
-                                        onChange={(e) =>
-                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'lengthMm', Number(e.target.value), `${dCode} Chiều dài`)
-                                        }
-                                        className="w-14 px-1 py-0.5 border border-slate-300 rounded text-[11px]"
-                                      />
-                                      <span>mm &bull; Hướng:</span>
-                                      <select
-                                        value={def.crackDirection || 'Ngang'}
-                                        onChange={(e) =>
-                                          handleElementDefectChange(elem.id || eCode, def.id || dCode, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
-                                        }
-                                        className="p-0.5 border border-slate-300 rounded text-[11px]"
-                                      >
-                                        <option value="Ngang">Ngang</option>
-                                        <option value="Dọc">Dọc</option>
-                                        <option value="Chéo 45 độ">Chéo 45 độ</option>
-                                        <option value="Chân chim">Chân chim</option>
-                                      </select>
-                                    </div>
-                                  ) : (
-                                    <span>Dài: {def.lengthMm ?? def.length_mm ?? 0} mm &bull; Hướng: {def.crackDirection || 'Không xác định'}</span>
-                                  )}
-                                  <span className={def.hasScaleCard ? 'text-emerald-600 font-bold' : 'text-amber-600'}>
-                                    {def.hasScaleCard ? '✓ Có thước đo' : '✕ Thiếu thước'}
-                                  </span>
-                                </div>
-                                {isEditMode && !isDefDeleted ? (
-                                  <input
-                                    type="text"
-                                    value={def.notes || ''}
-                                    onChange={(e) =>
-                                      handleElementDefectChange(elem.id || eCode, def.id || dCode, 'notes', e.target.value, `${dCode} Ghi chú`)
-                                    }
-                                    placeholder="Ghi chú vết nứt kết cấu..."
-                                    className="w-full p-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
-                                  />
-                                ) : (
-                                  def.notes && <div className="text-[11px] text-slate-600 italic">{def.notes}</div>
-                                )}
-
-                                {/* CU photos for this defect */}
-                                <div className="space-y-1 pt-1 border-t border-slate-100">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                      Ảnh Cận Cảnh CU ({activeElemDefCuCount} ảnh):
-                                    </span>
-                                    {isEditMode && onOpenPhotoAction && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          onOpenPhotoAction({
-                                            initialMode: 'ADD',
-                                            category: 'DEFECT_CU',
-                                            targetPhotoType: 'CU',
-                                            targetPhotoId: dCode,
-                                            defectId: def.id,
-                                            defectCode: dCode,
-                                            floorCode: currentFloor.floorName,
-                                            photoTitle: `Bổ sung ảnh khuyết tật ${dCode}`,
-                                          })
-                                        }
-                                        className="px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] flex items-center gap-0.5 transition-colors cursor-pointer shadow-2xs"
-                                      >
-                                        <Plus className="w-2.5 h-2.5" />
-                                        <span>+ Thêm CU</span>
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center gap-2 pt-1 overflow-x-auto">
-                                    {cuPhotos.map((cuItem: string | { url?: string; photoUrl?: string }, cuIdx: number) => {
-                                      const cuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
-                                      if (!cuUrl) return null;
-                                      const stagedCu = getStagedAction({
-                                        category: 'DEFECT_CU',
-                                        defectId: def.id,
-                                        targetPhotoId: dCode,
-                                        photoIndex: cuIdx,
-                                        url: cuUrl,
-                                      });
-                                      if (stagedCu?.action === 'DELETE') {
-                                        return (
-                                          <div
-                                            key={cuIdx}
-                                            className="flex items-center justify-between gap-1 px-2.5 py-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/70 text-rose-700 text-[10px] font-bold shrink-0"
-                                          >
-                                            <span>Đã xóa CU #{cuIdx + 1}</span>
-                                            {onUndoPhotoAction && (
-                                              <button
-                                                type="button"
-                                                onClick={() => onUndoPhotoAction(stagedCu)}
-                                                className="underline hover:text-rose-900 cursor-pointer font-black"
-                                              >
-                                                • [Hoàn tác]
-                                              </button>
-                                            )}
-                                          </div>
-                                        );
-                                      }
-                                      const effectiveCuUrl = stagedCu?.newPhotoUrl || cuUrl;
-                                      const hasMultiCu = cuPhotos.length > 1;
-                                      const defId = def.id ? String(def.id) : '';
-                                      const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(defId);
-                                      const indexedCuRotKey =
-                                        defId && isDefectUuid
-                                          ? defId.startsWith('defect_')
-                                            ? `${defId}_cu_${cuIdx}`
-                                            : `defect_${defId}_cu_${cuIdx}`
-                                          : defId
-                                            ? `defect_f${activeFloorIndex}_e${eCode}_${defId}_cu_${cuIdx}`
-                                            : `defect_f${activeFloorIndex}_e${eCode}_d${dCode}_cu_${cuIdx}`;
-                                      const cuRotKey =
-                                        defId && isDefectUuid
-                                          ? defId.startsWith('defect_')
-                                            ? `${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                            : `defect_${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                          : defId
-                                            ? `defect_f${activeFloorIndex}_e${eCode}_${defId}_cu${hasMultiCu ? `_${cuIdx}` : ''}`
-                                            : `defect_f${activeFloorIndex}_e${eCode}_d${dCode}_cu${hasMultiCu ? `_${cuIdx}` : ''}`;
-                                      const altCuRotKey = `defect_f${activeFloorIndex}_e${eCode}_d${dCode}_cu_${cuIdx}`;
-                                      const cuRot =
-                                        stagedPhotoRotations[indexedCuRotKey] ??
-                                        stagedPhotoRotations[cuRotKey] ??
-                                        stagedPhotoRotations[altCuRotKey] ??
-                                        (!hasMultiCu ? stagedPhotoRotations[effectiveCuUrl] : undefined) ??
-                                        0;
-                                      const cuViolation =
-                                        violationsMap?.get(indexedCuRotKey) ||
-                                        violationsMap?.get(cuRotKey) ||
-                                        violationsMap?.get(altCuRotKey) ||
-                                        (!hasMultiCu ? violationsMap?.get(effectiveCuUrl) : undefined);
-                                      const cuDomId = `audit-photo-card-f${activeFloorIndex}-e${eCode}-defect-${dCode}${hasMultiCu ? `-${cuIdx}` : ''}`;
-                                      return (
-                                        <div key={cuIdx} className="w-24 shrink-0">
-                                          <AuditPhotoCard
-                                            url={effectiveCuUrl}
-                                            photoCode={`CU #${cuIdx + 1}`}
-                                            photoKey={indexedCuRotKey}
-                                            title={`Ảnh cận cảnh ${dCode} (#${cuIdx + 1})`}
-                                            category="DEFECT_CU"
-                                            targetPhotoType="CU"
-                                            targetPhotoId={dCode}
-                                            defectId={def.id}
-                                            defectCode={dCode}
-                                            photoIndex={cuIdx}
-                                            hasMultiplePhotos={cuPhotos.length > 1}
-                                            floorCode={currentFloor.floorName}
-                                            isEditMode={isEditMode}
-                                            aspectRatio="h-16"
-                                            badgeColor="rose"
-                                            rotation={cuRot}
-                                            isOrientationMismatch={Boolean(cuViolation)}
-                                            isStrictOrientation={cuViolation?.isStrict ?? true}
-                                            orientationRecommendation={cuViolation?.message}
-                                            expectedOrientation={cuViolation?.expectedOrientation || 'LANDSCAPE'}
-                                            onRotate={(newRot) => onRotatePhoto?.(indexedCuRotKey, newRot)}
-                                            domId={cuDomId}
-                                            historyCount={getItemHistoryMeta(def).historyCount}
-                                            hasHistory={getItemHistoryMeta(def).hasHistory}
-                                            optimisticStatus={stagedCu ? 'REPLACED' : undefined}
-                                            onUndoDelete={stagedCu ? () => onUndoPhotoAction?.(stagedCu) : undefined}
-                                            onOpenPhotoZoom={onOpenPhotoZoom}
-                                            onOpenPhotoAction={onOpenPhotoAction}
-                                            onOpenPhotoHistory={onOpenPhotoHistory}
-                                          />
-                                        </div>
-                                      );
-                                    })}
-
-                                    {/* Các ảnh CU mới thêm của khuyết tật này */}
-                                    {addedElemDefCuUrls.map((addedCuUrl, addCuIdx) => (
-                                      <div key={`added-cu-${addCuIdx}`} className="w-24 shrink-0">
+                                      <div key={ovIdx} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
                                         <AuditPhotoCard
-                                          url={addedCuUrl}
-                                          photoCode={`Mới`}
-                                          title={`Ảnh cận cảnh mới (${dCode})`}
-                                          category="DEFECT_CU"
-                                          targetPhotoType="CU"
-                                          targetPhotoId={dCode}
-                                          defectId={def.id}
-                                          defectCode={dCode}
-                                          floorCode={currentFloor.floorName}
+                                          url={effectiveOvUrl}
+                                          photoCode={`${zCode}-OV-${ovIdx + 1}`}
+                                          photoKey={ovRotKey}
+                                          title={`Tổng quan ${zCode} #${ovIdx + 1}`}
+                                          category="ZONE_OVERVIEW"
+                                          targetPhotoType="OVERVIEW"
+                                          targetPhotoId={z.id || zCode}
+                                          zoneCode={zCode}
+                                          floorCode={floorName}
+                                          photoIndex={ovIdx}
                                           isEditMode={isEditMode}
-                                          aspectRatio="h-16"
-                                          badgeColor="emerald"
-                                          optimisticStatus="ADDED"
+                                          aspectRatio="aspect-4/3"
+                                          badgeColor="slate"
+                                          rotation={rot}
+                                          isOrientationMismatch={Boolean(orientStatus)}
+                                          isStrictOrientation={orientStatus?.isStrict ?? false}
+                                          orientationRecommendation={orientStatus?.message}
+                                          expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
+                                          onRotate={(newRot) => onRotatePhoto?.(ovRotKey, newRot, effectiveOvUrl)}
+                                          optimisticStatus={
+                                            ovOpt.status === 'DELETED'
+                                              ? 'DELETED'
+                                              : ovOpt.status === 'REPLACED'
+                                              ? 'REPLACED'
+                                              : undefined
+                                          }
+                                          onUndoDelete={
+                                            ovOpt.stagedAction ? () => onUndoPhotoAction?.(ovOpt.stagedAction!) : undefined
+                                          }
+                                          domId={domId}
                                           onOpenPhotoZoom={onOpenPhotoZoom}
                                           onOpenPhotoAction={onOpenPhotoAction}
                                           onOpenPhotoHistory={onOpenPhotoHistory}
                                         />
                                       </div>
-                                    ))}
+                                    );
+                                  })}
 
-                                    {activeElemDefCuCount === 0 && (
-                                      <div className="text-[11px] text-slate-400 italic py-1">Chưa có ảnh cận cảnh</div>
-                                    )}
-                                  </div>
+                                  {addedZOverviews.map((addedItem, addIdx) => {
+                                    const ovIdx = rawZOverviews.length + addIdx;
+                                    const ovRotKey = `zone_f${flIdx}_z${zCode}_ov_added_${addIdx}`;
+                                    const rot = stagedPhotoRotations[ovRotKey] ?? 0;
+                                    return (
+                                      <div key={`added-z-ov-${addIdx}`} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                                        <AuditPhotoCard
+                                          url={addedItem.displayUrl}
+                                          photoCode={`${zCode}-OV-${ovIdx + 1} (Mới)`}
+                                          photoKey={ovRotKey}
+                                          title={`Tổng quan ${zCode} #${ovIdx + 1} (Chờ lưu Diff)`}
+                                          category="ZONE_OVERVIEW"
+                                          targetPhotoType="OVERVIEW"
+                                          targetPhotoId={z.id || zCode}
+                                          zoneCode={zCode}
+                                          floorCode={floorName}
+                                          photoIndex={ovIdx}
+                                          isEditMode={isEditMode}
+                                          aspectRatio="aspect-4/3"
+                                          badgeColor="emerald"
+                                          rotation={rot}
+                                          onRotate={(newRot) => onRotatePhoto?.(ovRotKey, newRot, addedItem.displayUrl)}
+                                          optimisticStatus="ADDED"
+                                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                                          onOpenPhotoZoom={onOpenPhotoZoom}
+                                          onOpenPhotoAction={onOpenPhotoAction}
+                                          onOpenPhotoHistory={onOpenPhotoHistory}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Dải Cuộn Ngang Liên Hoàn: [Ảnh Bối Cảnh CTX 65% có ghim D] + [Các Thẻ Khuyết Tật D & Ảnh Cận Cảnh CU (150%)]
+                            Khi cuộn ngang sang phải để xem các cận cảnh CU, khung ảnh bối cảnh 65% sẽ trượt theo để nhường toàn bộ diện tích quan sát! */}
+                        <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold text-slate-700">
+                              Bối Cảnh ({zCode}_CTX) &amp; Dải Khuyết Tật D ({defectsList.length} mục &bull; Cuộn ngang liên hoàn):
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {isEditMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddDefect(flIdx, z.id || zCode)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Thêm Khuyết Tật D</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 items-start scrollbar-thin">
+                            {/* KHỐI 1 TRONG DẢI CUỘN NGANG: Ảnh Bối Cảnh Z_CTX (65% khi có ghim D) */}
+                            <div
+                              id={`audit-photo-card-f${flIdx}-zone-${zCode}`}
+                              className={`rounded-xl p-3 bg-slate-50 border flex flex-col space-y-2.5 shrink-0 ${
+                                hasZonePinsOrPinning
+                                  ? 'w-full lg:w-[65%]'
+                                  : 'w-full sm:w-[calc((100%-2rem)/2.5)] min-w-[260px]'
+                              } ${
+                                ctxViolation
+                                  ? ctxViolation.isStrict
+                                    ? 'border-2 border-amber-500 ring-2 ring-amber-400/30'
+                                    : 'border-2 border-amber-400'
+                                  : 'border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[11px] font-black text-slate-800">
+                                    Ảnh Bối Cảnh ({zCode}_CTX)
+                                  </span>
+                                  {ctxViolation && (
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 border ${
+                                        ctxViolation.isStrict
+                                          ? 'bg-amber-500 text-slate-950 border-amber-600'
+                                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                                      }`}
+                                    >
+                                      {ctxViolation.isStrict ? (
+                                        <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                      ) : (
+                                        <Lightbulb className="w-2.5 h-2.5 shrink-0" />
+                                      )}
+                                      <span>
+                                        {ctxViolation.isStrict
+                                          ? `Cần xoay ${ctxViolation.expectedOrientation === 'PORTRAIT' ? 'Dọc' : 'Ngang'}`
+                                          : `Khuyến nghị ${ctxViolation.expectedOrientation === 'PORTRAIT' ? 'Dọc' : 'Ngang'}`}
+                                      </span>
+                                    </span>
+                                  )}
+                                  {stagedCtx && onUndoPhotoAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onUndoPhotoAction(stagedCtx)}
+                                      className="px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[9px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Undo2 className="w-2.5 h-2.5" />
+                                      <span>Hoàn tác ảnh CTX</span>
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {ctxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoZoom(ctxUrl, `Ảnh bối cảnh ${zCode} (${floorName})`, ctxRotKey, ctxRot)
+                                      }
+                                      className="px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 hover:bg-slate-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                      <span>Phóng to</span>
+                                    </button>
+                                  )}
+                                  {ctxUrl && onRotatePhoto && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRotateZoneCtx(flIdx, z, ctxRot, ctxRotKey)}
+                                      className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <RotateCw className="w-3 h-3" />
+                                      <span>Xoay 90° {ctxRot ? `(${ctxRot}°)` : ''}</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && ctxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const isCur = pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode;
+                                        setPinningCtxZone(isCur ? null : { floorIdx: flIdx, zoneOrElemCode: zCode });
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                                        pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode
+                                          ? 'bg-rose-600 text-white animate-pulse'
+                                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                                      }`}
+                                    >
+                                      <Crosshair className="w-3 h-3" />
+                                      <span>{pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode ? 'Đang ghim...' : '+ Ghim D'}</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && onOpenPhotoAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoAction({
+                                          category: 'ZONE_CTX',
+                                          initialMode: ctxUrl ? 'REPLACE' : 'ADD',
+                                          targetPhotoType: 'CTX',
+                                          targetPhotoId: zCode,
+                                          zoneCode: zCode,
+                                          floorCode: floorName,
+                                          currentPhotoUrl: ctxUrl || undefined,
+                                          photoTitle: `Ảnh bối cảnh ${zCode}`,
+                                        })
+                                      }
+                                      className="px-2 py-0.5 rounded bg-slate-200/70 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      <span>{ctxUrl ? 'Đổi CTX' : '+ Thêm CTX'}</span>
+                                    </button>
+                                  )}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
 
-                    {isEditMode ? (
-                      <input
-                        type="text"
-                        value={elem.notes || ''}
-                        onChange={(e) => handleElementFieldChange(elem.id, 'notes', e.target.value, 'Ghi chú')}
-                        placeholder="Ghi chú cấu kiện kết cấu chịu lực..."
-                        className="w-full p-1.5 text-xs bg-white border border-amber-300 rounded"
-                      />
-                    ) : (
-                      <div className="text-xs text-slate-700">
-                        <span className="font-semibold text-slate-500">Ghi chú: </span>
-                        {elem.notes || 'Không'}
+                              {/* CTX Image with D pins (Auto-Fit khổ Dọc/Ngang + Ghim D chuẩn 1:1) */}
+                              {ctxUrl ? (
+                                <div
+                                  className={`relative w-full rounded-xl overflow-hidden bg-slate-950/95 flex items-center justify-center p-2 ${
+                                    hasZonePinsOrPinning ? 'min-h-[320px]' : 'h-60'
+                                  } ${
+                                    pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode ? 'ring-2 ring-rose-500' : ''
+                                  }`}
+                                >
+                                  <RotatableImageFrame
+                                    url={ctxUrl}
+                                    alt={`Ảnh bối cảnh ${zCode}`}
+                                    rotation={ctxRot}
+                                    maxHeightPx={hasZonePinsOrPinning ? 520 : 225}
+                                    onClick={(e) => handleCtxImageClick(e, flIdx, z)}
+                                    className="w-full h-full"
+                                    stageClassName={
+                                      pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === zCode
+                                        ? 'cursor-crosshair'
+                                        : ''
+                                    }
+                                  >
+                                    {/* Ghim D trên CTX */}
+                                    {showCtxPins &&
+                                      defectsList.map((d: DefectItem, dIdx: number) => {
+                                        const pX = Number(d.pinX ?? d.pin_x ?? 50);
+                                        const pY = Number(d.pinY ?? d.pin_y ?? 50);
+                                        const dCode = d.defectCode || d.defect_code || `D-${String(dIdx + 1).padStart(2, '0')}`;
+                                        const defectKey = d.id || dCode;
+                                        const isBeingDragged = draggingDefectPin?.defectId === defectKey;
+                                        const isSelectedPin = highlightedDefectId === defectKey;
+                                        const displayX = isBeingDragged ? draggingDefectPin.currentX : pX;
+                                        const displayY = isBeingDragged ? draggingDefectPin.currentY : pY;
+
+                                        return (
+                                          <div
+                                            key={`pin_${zCode}_${defectKey}_${dIdx}`}
+                                            style={{
+                                              position: 'absolute',
+                                              top: `${displayY}%`,
+                                              left: `${displayX}%`,
+                                              transform: 'translate(-50%, -100%)',
+                                              zIndex: isBeingDragged ? 50 : isSelectedPin ? 40 : 30,
+                                              touchAction: 'none',
+                                            }}
+                                            className={`flex flex-col items-center select-none group ${
+                                              isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                                            }`}
+                                            onPointerDown={(e) => {
+                                              if (!isEditMode) return;
+                                              e.stopPropagation();
+                                              hasJustDraggedRef.current = false;
+                                              pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+                                              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                                              setDraggingDefectPin({
+                                                floorIdx: flIdx,
+                                                zoneId: z.id || zCode,
+                                                defectId: defectKey,
+                                                dCode,
+                                                currentX: pX,
+                                                currentY: pY,
+                                              });
+                                            }}
+                                            onPointerMove={(e) => {
+                                              if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
+                                              e.stopPropagation();
+                                              if (
+                                                pointerStartPosRef.current &&
+                                                Math.hypot(e.clientX - pointerStartPosRef.current.x, e.clientY - pointerStartPosRef.current.y) > 3
+                                              ) {
+                                                hasJustDraggedRef.current = true;
+                                              }
+                                              const container = e.currentTarget.parentElement;
+                                              if (!container) return;
+                                              const rect = container.getBoundingClientRect();
+                                              const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                              const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                              const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
+                                              const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
+                                              setDraggingDefectPin((prev) => (prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null));
+                                            }}
+                                            onPointerUp={(e) => {
+                                              if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
+                                              e.stopPropagation();
+                                              try {
+                                                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                                              } catch (err) {
+                                                console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
+                                              }
+                                              const finalX = draggingDefectPin.currentX;
+                                              const finalY = draggingDefectPin.currentY;
+                                              setDraggingDefectPin(null);
+                                              pointerStartPosRef.current = null;
+                                              if (Math.abs(finalX - pX) > 0.2 || Math.abs(finalY - pY) > 0.2) {
+                                                hasJustDraggedRef.current = true;
+                                                handleCommitDefectPinCoord(flIdx, z.id || zCode, defectKey, dCode, finalX, finalY);
+                                              }
+                                            }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (hasJustDraggedRef.current) {
+                                                hasJustDraggedRef.current = false;
+                                                return;
+                                              }
+                                              setHighlightedDefectId(defectKey);
+                                              if (!isEditMode) {
+                                                const targetEl = document.getElementById(`defect-card-f${flIdx}-${zCode}-${dCode}`);
+                                                if (targetEl) {
+                                                  targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                                  targetEl.classList.add('ring-4', 'ring-rose-400');
+                                                  setTimeout(() => targetEl.classList.remove('ring-4', 'ring-rose-400'), 2500);
+                                                }
+                                              }
+                                            }}
+                                          >
+                                            <div
+                                              className={`px-2 py-0.5 rounded font-mono font-black text-[10px] shadow-md border border-white flex items-center gap-1 ${
+                                                isSelectedPin ? 'bg-amber-500 text-slate-950 ring-2 ring-white' : 'bg-rose-600 text-white'
+                                              }`}
+                                            >
+                                              <span>{dCode}</span>
+                                              {isEditMode && !isItemSoftDeleted(d) && (
+                                                <button
+                                                  type="button"
+                                                  title={`Xóa ghim ${dCode}`}
+                                                  onPointerDown={(ev) => ev.stopPropagation()}
+                                                  onClick={(ev) => {
+                                                    ev.stopPropagation();
+                                                    handleRemoveDefect(flIdx, z.id || zCode, d.id || dCode);
+                                                  }}
+                                                  className="ml-0.5 p-0.5 rounded hover:bg-black/25 text-white/90 hover:text-white cursor-pointer"
+                                                >
+                                                  <Trash2 className="w-2.5 h-2.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                            <div className="w-2 h-2 rounded-full border border-white bg-rose-600 -mt-0.5" />
+                                          </div>
+                                        );
+                                      })}
+                                  </RotatableImageFrame>
+                                </div>
+                              ) : (
+                                <div className="h-52 border border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center p-3 text-center text-slate-400 gap-2">
+                                  <Camera className="w-6 h-6 text-slate-300" />
+                                  <span className="text-xs">Chưa có ảnh bối cảnh CTX cho {zCode}</span>
+                                  {isEditMode && onOpenPhotoAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoAction({
+                                          category: 'ZONE_CTX',
+                                          initialMode: 'ADD',
+                                          targetPhotoType: 'CTX',
+                                          targetPhotoId: zCode,
+                                          zoneCode: zCode,
+                                          floorCode: floorName,
+                                          photoTitle: `Ảnh bối cảnh ${zCode}`,
+                                        })
+                                      }
+                                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>Tải Ảnh Bối Cảnh CTX</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* CÁC KHỐI TIẾP THEO TRONG CÙNG DẢI CUỘN NGANG: Danh sách Thẻ Khuyết Tật D & Ảnh Cận Cảnh CU (150%) */}
+                            {defectsList.length === 0 ? (
+                              <div className="w-[340px] shrink-0 p-5 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-2 min-h-[200px]">
+                                <span>Không có khuyết tật D nào trong vùng {zCode}</span>
+                                {isEditMode && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddDefect(flIdx, z.id || zCode)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                                  >
+                                    + Thêm Khuyết Tật D
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              defectsList.map((d: DefectItem, dIdx: number) => {
+                                const dCode = d.defectCode || d.defect_code || `D-${String(dIdx + 1).padStart(2, '0')}`;
+                                const defectKey = d.id || dCode;
+                                const isDefDeleted = isItemSoftDeleted(d);
+                                const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+                                const rawCuPhotos: string[] =
+                                  Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                                    ? d.cuPhotos
+                                    : d.cuPhotoUrl
+                                    ? [d.cuPhotoUrl]
+                                    : d.cu_photo_url
+                                    ? [d.cu_photo_url]
+                                    : [];
+                                const addedCuPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
+                                  category: 'DEFECT_CU',
+                                  targetPhotoType: 'CU',
+                                  targetPhotoId: dCode,
+                                  defectId: d.id,
+                                  defectCode: dCode,
+                                  zoneCode: zCode,
+                                  floorCode: floorName,
+                                });
+                                const totalCuCount = rawCuPhotos.length + addedCuPhotos.length;
+
+                                const currentCategory = d.screeningCategory || ARCH_SCREENING_CATEGORIES[0];
+                                const categoryOptions = ARCH_SCREENING_CATEGORIES.includes(currentCategory)
+                                  ? ARCH_SCREENING_CATEGORIES
+                                  : [currentCategory, ...ARCH_SCREENING_CATEGORIES];
+
+                                const currentDefectType = d.defectType || ARCH_DEFECT_TYPES[0];
+                                const defectTypeOptions = ARCH_DEFECT_TYPES.includes(currentDefectType)
+                                  ? ARCH_DEFECT_TYPES
+                                  : [currentDefectType, ...ARCH_DEFECT_TYPES, ...DEFECT_TYPE_PRESETS.filter((p) => !ARCH_DEFECT_TYPES.includes(p))];
+
+                                return (
+                                  <div
+                                    key={defectKey}
+                                    id={`defect-card-f${flIdx}-${zCode}-${dCode}`}
+                                    className={`shrink-0 min-w-[390px] sm:min-w-[440px] max-w-fit rounded-xl border p-3.5 bg-white space-y-3 shadow-2xs transition-all ${
+                                      isDefDeleted
+                                        ? 'opacity-70 border-dashed border-rose-300 bg-rose-50/20'
+                                        : highlightedDefectId === defectKey
+                                        ? 'border-2 border-rose-500 ring-2 ring-rose-300/40'
+                                        : 'border-slate-200'
+                                    }`}
+                                  >
+                                    {/* Defect Header */}
+                                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 flex-wrap">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-mono font-black text-xs">
+                                          {dCode}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-800">
+                                          {d.defectType || d.screeningCategory || 'Khuyết tật kiến trúc'}
+                                        </span>
+                                        {isCrack && (
+                                          <Badge variant="warning" size="sm">
+                                            Burland Cấp {d.burlandGrade ?? getBurlandGradeFromWidth(Number(d.widthMaxMm ?? d.width_max_mm ?? 0))}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        {!isEditMode && isCrack && (
+                                          <span className="font-mono text-rose-600 font-bold text-xs">
+                                            Rộng: {d.widthMaxMm ?? d.width_max_mm ?? 0} mm
+                                            {d.lengthMm ? ` • Dài: ${d.lengthMm} mm` : ''}
+                                          </span>
+                                        )}
+                                        {isEditMode && (
+                                          isDefDeleted ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRestoreDefect(flIdx, z.id || zCode, defectKey)}
+                                              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                            >
+                                              <Undo2 className="w-3 h-3" />
+                                              <span>Khôi phục {dCode}</span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveDefect(flIdx, z.id || zCode, defectKey)}
+                                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                              title={`Xóa mềm ghim khuyết tật ${dCode}`}
+                                            >
+                                              <Trash2 className="w-3 h-3 text-rose-600" />
+                                              <span>Xóa ghim {dCode}</span>
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Form chỉnh sửa thông tin khuyết tật D chuẩn Phase 1 (Khi ở Chế độ Sửa) */}
+                                    {isEditMode ? (
+                                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 text-xs">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                              Nhóm chỉ báo (Phase 1):
+                                            </label>
+                                            <select
+                                              value={currentCategory}
+                                              onChange={(e) =>
+                                                handleDefectChange(flIdx, z.id || zCode, defectKey, 'screeningCategory', e.target.value, `${dCode} Nhóm chỉ báo`)
+                                              }
+                                              className="w-full p-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800"
+                                            >
+                                              {categoryOptions.map((cat) => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                              Dạng khuyết tật cụ thể:
+                                            </label>
+                                            <select
+                                              value={currentDefectType}
+                                              onChange={(e) =>
+                                                handleDefectChange(flIdx, z.id || zCode, defectKey, 'defectType', e.target.value, `${dCode} Dạng khuyết tật`)
+                                              }
+                                              className="w-full p-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800"
+                                            >
+                                              {defectTypeOptions.map((dt) => (
+                                                <option key={dt} value={dt}>{dt}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        {/* Chỉ hiển thị thông số vết nứt khi thuộc nhóm/dạng Nứt (isCrackRelated === true) */}
+                                        {isCrack && (
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-200/60">
+                                            <div>
+                                              <label className="text-[10px] font-bold text-rose-700 block mb-0.5">
+                                                Rộng W (mm):
+                                              </label>
+                                              <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                value={d.widthMaxMm ?? d.width_max_mm ?? 0}
+                                                onChange={(e) =>
+                                                  handleDefectChange(flIdx, z.id || zCode, defectKey, 'widthMaxMm', parseFloat(e.target.value) || 0, `${dCode} Chiều rộng nứt`)
+                                                }
+                                                className="w-full p-1.5 rounded-lg border border-rose-300 bg-white font-mono font-bold text-xs text-rose-700"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                                Dài L (mm):
+                                              </label>
+                                              <input
+                                                type="number"
+                                                step="10"
+                                                min="0"
+                                                value={d.lengthMm ?? d.length_mm ?? 0}
+                                                onChange={(e) =>
+                                                  handleDefectChange(flIdx, z.id || zCode, defectKey, 'lengthMm', parseFloat(e.target.value) || 0, `${dCode} Chiều dài nứt`)
+                                                }
+                                                className="w-full p-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs text-slate-800"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                                Hướng nứt:
+                                              </label>
+                                              <select
+                                                value={d.crackDirection || 'Ngang'}
+                                                onChange={(e) =>
+                                                  handleDefectChange(flIdx, z.id || zCode, defectKey, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
+                                                }
+                                                className="w-full p-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-800"
+                                              >
+                                                {CRACK_DIRECTION_OPTIONS.map((dir) => (
+                                                  <option key={dir} value={dir}>{dir}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                                Trạng thái:
+                                              </label>
+                                              <select
+                                                value={d.activityState || 'S'}
+                                                onChange={(e) =>
+                                                  handleDefectChange(flIdx, z.id || zCode, defectKey, 'activityState', e.target.value, `${dCode} Trạng thái nứt`)
+                                                }
+                                                className="w-full p-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-800"
+                                              >
+                                                {ACTIVITY_STATE_OPTIONS.map((st) => (
+                                                  <option key={st.value} value={st.value}>{st.label}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-200/60">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                              Ảnh hưởng công năng (E6: 0-5):
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="5"
+                                              value={d.functionalImpactE6 ?? 0}
+                                              onChange={(e) =>
+                                                handleDefectChange(flIdx, z.id || zCode, defectKey, 'functionalImpactE6', Math.min(5, Math.max(0, parseInt(e.target.value, 10) || 0)), `${dCode} Chỉ số E6`)
+                                              }
+                                              className="w-full p-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs text-slate-800"
+                                            />
+                                          </div>
+                                          <div className="sm:col-span-2">
+                                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                                              Ghi chú hiện trạng {dCode}:
+                                            </label>
+                                            <input
+                                              type="text"
+                                              value={d.notes || ''}
+                                              onChange={(e) =>
+                                                handleDefectChange(flIdx, z.id || zCode, defectKey, 'notes', e.target.value, `${dCode} Ghi chú`)
+                                              }
+                                              placeholder="Mô tả chi tiết vị trí, tình trạng..."
+                                              className="w-full p-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-800"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      (d.notes || d.crackDirection) && (
+                                        <div className="text-[11px] text-slate-600 flex items-center gap-2 flex-wrap">
+                                          {isCrack && d.crackDirection && <span>Hướng: <strong>{d.crackDirection}</strong></span>}
+                                          {d.notes && <span className="italic text-slate-500">&ldquo;{d.notes}&rdquo;</span>}
+                                        </div>
+                                      )
+                                    )}
+
+                                    {/* CU Photos Strip - Kích thước 150% (rộng 345-375px, cao 320-360px) + Optimistic ADD/REPLACE/DELETE */}
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-bold text-slate-500 block uppercase">
+                                          Ảnh Cận Cảnh CU ({totalCuCount} ảnh &bull; Kích thước 150%):
+                                        </span>
+                                        {isEditMode && onOpenPhotoAction && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              onOpenPhotoAction({
+                                                initialMode: 'ADD',
+                                                category: 'DEFECT_CU',
+                                                targetPhotoType: 'CU',
+                                                targetPhotoId: dCode,
+                                                defectId: d.id,
+                                                defectCode: dCode,
+                                                floorCode: floorName,
+                                                zoneCode: zCode,
+                                                photoTitle: `Thêm ảnh CU ${dCode} (${zCode})`,
+                                              })
+                                            }
+                                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                                          >
+                                            <Plus className="w-3 h-3" />
+                                            <span>Thêm Ảnh CU</span>
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {totalCuCount === 0 ? (
+                                        <div className="text-[11px] text-slate-400 italic py-2 px-3 rounded-lg bg-slate-50 border border-dashed border-slate-200">
+                                          Chưa có ảnh cận cảnh CU cho {dCode}
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-nowrap gap-3.5 pb-1">
+                                          {rawCuPhotos.map((cuUrl: string, cuIdx: number) => {
+                                            const cuOpt = resolveOptimisticPhoto(cuUrl, stagedPhotoActions, {
+                                              category: 'DEFECT_CU',
+                                              targetPhotoType: 'CU',
+                                              targetPhotoId: dCode,
+                                              defectId: d.id,
+                                              defectCode: dCode,
+                                              zoneCode: zCode,
+                                              floorCode: floorName,
+                                              photoIndex: cuIdx,
+                                              url: cuUrl,
+                                            });
+                                            const effectiveCuUrl = cuOpt.displayUrl || cuUrl;
+                                            const dId = d.id ? String(d.id) : '';
+                                            const isDUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
+                                            const indexedRotKey = `defect_f${flIdx}_z${zCode}_${dCode}_cu_${cuIdx}`;
+                                            const uuidRotKey = isDUuid ? `defect_${dId}_cu_${cuIdx}` : '';
+                                            const legacyRotKey = `defect_f${flIdx}_z${zCode}_${dId || dCode}_cu_${cuIdx}`;
+                                            const rot =
+                                              stagedPhotoRotations[indexedRotKey] ??
+                                              (uuidRotKey ? stagedPhotoRotations[uuidRotKey] : undefined) ??
+                                              stagedPhotoRotations[legacyRotKey] ??
+                                              0;
+                                            const orientStatus =
+                                              violationsMap?.get(indexedRotKey) ||
+                                              (uuidRotKey ? violationsMap?.get(uuidRotKey) : undefined) ||
+                                              violationsMap?.get(legacyRotKey);
+                                            const domId = `audit-photo-card-f${flIdx}-z${zCode}-defect-${dCode}-${cuIdx}`;
+
+                                            return (
+                                              <div key={cuIdx} className="w-[345px] sm:w-[375px] shrink-0">
+                                                <AuditPhotoCard
+                                                  url={effectiveCuUrl}
+                                                  photoCode={`CU #${cuIdx + 1}`}
+                                                  photoKey={indexedRotKey}
+                                                  title={`${dCode} - Cận Cảnh #${cuIdx + 1} (${zCode})`}
+                                                  category="DEFECT_CU"
+                                                  targetPhotoType="CU"
+                                                  targetPhotoId={dCode}
+                                                  defectId={d.id}
+                                                  defectCode={dCode}
+                                                  photoIndex={cuIdx}
+                                                  floorCode={floorName}
+                                                  zoneCode={zCode}
+                                                  isEditMode={isEditMode}
+                                                  aspectRatio="h-80"
+                                                  maxHeightPx={340}
+                                                  badgeColor="slate"
+                                                  rotation={rot}
+                                                  isOrientationMismatch={Boolean(orientStatus)}
+                                                  isStrictOrientation={orientStatus?.isStrict ?? false}
+                                                  orientationRecommendation={orientStatus?.message}
+                                                  expectedOrientation={orientStatus?.expectedOrientation || 'LANDSCAPE'}
+                                                  onRotate={(newRot) => {
+                                                    onRotatePhoto?.(indexedRotKey, newRot, effectiveCuUrl);
+                                                    if (uuidRotKey && uuidRotKey !== indexedRotKey) {
+                                                      onRotatePhoto?.(uuidRotKey, newRot, effectiveCuUrl);
+                                                    }
+                                                    if (legacyRotKey && legacyRotKey !== indexedRotKey) {
+                                                      onRotatePhoto?.(legacyRotKey, newRot, effectiveCuUrl);
+                                                    }
+                                                  }}
+                                                  optimisticStatus={
+                                                    cuOpt.status === 'DELETED'
+                                                      ? 'DELETED'
+                                                      : cuOpt.status === 'REPLACED'
+                                                      ? 'REPLACED'
+                                                      : undefined
+                                                  }
+                                                  onUndoDelete={
+                                                    cuOpt.stagedAction ? () => onUndoPhotoAction?.(cuOpt.stagedAction!) : undefined
+                                                  }
+                                                  domId={domId}
+                                                  onOpenPhotoZoom={onOpenPhotoZoom}
+                                                  onOpenPhotoAction={onOpenPhotoAction}
+                                                  onOpenPhotoHistory={onOpenPhotoHistory}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+
+                                          {/* Ảnh CU mới thêm (Optimistic ADD) xuất hiện ngay lập tức trước khi Lưu Diff */}
+                                          {addedCuPhotos.map((addedItem, addIdx) => {
+                                            const cuIdx = rawCuPhotos.length + addIdx;
+                                            const addRotKey = `defect_f${flIdx}_z${zCode}_${dCode}_cu_added_${addIdx}`;
+                                            const addRot = stagedPhotoRotations[addRotKey] ?? 0;
+                                            return (
+                                              <div key={`added-cu-${addIdx}`} className="w-[345px] sm:w-[375px] shrink-0">
+                                                <AuditPhotoCard
+                                                  url={addedItem.displayUrl}
+                                                  photoCode={`CU #${cuIdx + 1} (Mới)`}
+                                                  photoKey={addRotKey}
+                                                  title={`${dCode} - Cận Cảnh #${cuIdx + 1} (Mới thêm • Chờ lưu)`}
+                                                  category="DEFECT_CU"
+                                                  targetPhotoType="CU"
+                                                  targetPhotoId={dCode}
+                                                  defectId={d.id}
+                                                  defectCode={dCode}
+                                                  photoIndex={cuIdx}
+                                                  floorCode={floorName}
+                                                  zoneCode={zCode}
+                                                  isEditMode={isEditMode}
+                                                  aspectRatio="h-80"
+                                                  maxHeightPx={340}
+                                                  badgeColor="emerald"
+                                                  rotation={addRot}
+                                                  onRotate={(newRot) => onRotatePhoto?.(addRotKey, newRot, addedItem.displayUrl)}
+                                                  optimisticStatus="ADDED"
+                                                  onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                                                  onOpenPhotoZoom={onOpenPhotoZoom}
+                                                  onOpenPhotoAction={onOpenPhotoAction}
+                                                  onOpenPhotoHistory={onOpenPhotoHistory}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
                       </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* ========================================================
+                  MỤC 3: CAD_E - SƠ ĐỒ MẶT BẰNG KẾT CẤU & GHIM CẤU KIỆN E
+                  ======================================================== */}
+              <div
+                id={`step-4-floor-${flIdx}-cad-e`}
+                className="scroll-mt-14 border border-slate-200 rounded-2xl p-4 bg-white space-y-3 shadow-2xs"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      CAD_E: Sơ Đồ Mặt Bằng Kết Cấu ({floorName}) &bull; Điểm Ghim Cấu Kiện E
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
+                      {displayedCadElementPins.length} Ghim E
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {effectiveStructCad && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenPhotoZoom(
+                            effectiveStructCad,
+                            `Sơ đồ CAD Kết cấu (E) - ${floorName}`,
+                            `CAD_E_${floorName}`,
+                            structCadRotation
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Phóng to</span>
+                      </button>
+                    )}
+
+                    {effectiveStructCad && (isEditMode || onRotatePhoto) && (
+                      <button
+                        type="button"
+                        onClick={() => handleRotateCad(flIdx, true)}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                        title="Xoay bản vẽ CAD Kết cấu 90°"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Xoay CAD 90°</span>
+                        {structCadRotation > 0 && <span className="text-[10px] font-mono">({structCadRotation}°)</span>}
+                      </button>
+                    )}
+
+                    {isEditMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isCurrentMode = cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E';
+                          setCadPinningMode(isCurrentMode ? null : { floorIdx: flIdx, mode: 'E' });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                          cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E'
+                            ? 'bg-amber-600 text-white border-amber-700 animate-pulse'
+                            : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                        }`}
+                      >
+                        <Crosshair className="w-3.5 h-3.5" />
+                        <span>{cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E' ? 'Đang ghim E...' : '+ Ghim E'}</span>
+                      </button>
                     )}
                   </div>
-                );
-              })}
+                </div>
+
+                {/* Banner khi đang ở chế độ Ghim E */}
+                {cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E' && (
+                  <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 text-xs font-bold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Crosshair className="w-4 h-4 text-amber-600 animate-spin" />
+                      <span>Bấm vào vị trí trên bản vẽ CAD bên dưới để tạo điểm ghim Cấu Kiện E mới</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCadPinningMode(null)}
+                      className="px-2 py-0.5 rounded bg-white border border-amber-400 text-amber-800 hover:bg-amber-50 text-[11px] font-bold cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                )}
+
+                {/* Khung hiển thị CAD Kết cấu */}
+                {effectiveStructCad || effectiveCad ? (
+                  <div
+                    id={`audit-photo-card-f${flIdx}-cad-struct`}
+                    className={`relative w-full min-h-[260px] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-3 select-none transition-all ${
+                      structCadViolation ? 'border-2 border-red-500 ring-2 ring-red-400/50' : 'border border-slate-300'
+                    }`}
+                  >
+                    {structCadViolation && (
+                      <div className="absolute top-3 left-3 z-30 px-2.5 py-1 rounded-lg bg-red-600 text-white text-[10px] font-black shadow-lg flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Bắt buộc xoay Dọc (Portrait) &mdash; Bấm "Xoay CAD 90&deg;" để chuẩn hóa</span>
+                      </div>
+                    )}
+                    <RotatableImageFrame
+                      src={effectiveStructCad || effectiveCad}
+                      alt={`CAD Kết cấu ${floorName}`}
+                      rotation={structCadRotation}
+                      maxHeightPx={680}
+                      stageOnClick={(e) => handleCadImageClick(e, flIdx, 'E')}
+                      stageClassName={`mx-auto ${
+                        cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E' ? 'cursor-crosshair' : ''
+                      }`}
+                    >
+                      {/* Ghim Cấu kiện E trên CAD */}
+                      {showCadPins &&
+                        displayedCadElementPins.map((pin: CadZonePin, pIdx: number) => {
+                          const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
+                          const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
+                          const pCode = pin.zoneCode || pin.zone_code || `E-${pIdx + 1}`;
+                          const isBeingDragged = draggingCadPin?.floorIdx === flIdx && draggingCadPin?.pinCode === pCode;
+                          const displayX = isBeingDragged ? draggingCadPin.currentX : pX;
+                          const displayY = isBeingDragged ? draggingCadPin.currentY : pY;
+
+                          return (
+                            <div
+                              key={pin.id || `${pCode}-${pIdx}`}
+                              style={{
+                                position: 'absolute',
+                                top: `${displayY}%`,
+                                left: `${displayX}%`,
+                                transform: 'translate(-50%, -100%)',
+                                zIndex: isBeingDragged ? 50 : 25,
+                                touchAction: 'none',
+                              }}
+                              className={`flex flex-col items-center pointer-events-auto select-none group ${
+                                isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                              }`}
+                              onPointerDown={(e) => {
+                                if (!isEditMode) return;
+                                e.stopPropagation();
+                                pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+                                hasJustDraggedRef.current = false;
+                                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                                setDraggingCadPin({
+                                  floorIdx: flIdx,
+                                  pinCode: pCode,
+                                  isStruct: true,
+                                  currentX: pX,
+                                  currentY: pY,
+                                });
+                              }}
+                              onPointerMove={(e) => {
+                                if (!draggingCadPin || draggingCadPin.floorIdx !== flIdx || draggingCadPin.pinCode !== pCode) return;
+                                e.stopPropagation();
+                                if (pointerStartPosRef.current) {
+                                  const dist = Math.hypot(e.clientX - pointerStartPosRef.current.x, e.clientY - pointerStartPosRef.current.y);
+                                  if (dist > 3) {
+                                    hasJustDraggedRef.current = true;
+                                  }
+                                }
+                                const container = e.currentTarget.parentElement;
+                                if (!container) return;
+                                const rect = container.getBoundingClientRect();
+                                const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
+                                const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
+                                setDraggingCadPin((prev) => (prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null));
+                              }}
+                              onPointerUp={(e) => {
+                                if (!draggingCadPin || draggingCadPin.floorIdx !== flIdx || draggingCadPin.pinCode !== pCode) return;
+                                e.stopPropagation();
+                                try {
+                                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                                } catch (err) {
+                                  console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
+                                }
+                                const finalX = draggingCadPin.currentX;
+                                const finalY = draggingCadPin.currentY;
+                                setDraggingCadPin(null);
+                                pointerStartPosRef.current = null;
+                                if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
+                                  hasJustDraggedRef.current = true;
+                                  handleCommitCadPinCoord(flIdx, pCode, true, finalX, finalY);
+                                  setTimeout(() => {
+                                    hasJustDraggedRef.current = false;
+                                  }, 250);
+                                }
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasJustDraggedRef.current || isEditMode) {
+                                  return;
+                                }
+                                const target = document.getElementById(`element-card-f${flIdx}-${pCode}`);
+                                if (target) {
+                                  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  target.classList.add('ring-4', 'ring-amber-400');
+                                  setTimeout(() => target.classList.remove('ring-4', 'ring-amber-400'), 2500);
+                                }
+                              }}
+                            >
+                              <div className="px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg bg-amber-600 text-white group-hover:scale-110 transition-transform">
+                                {pCode}
+                              </div>
+                              <div className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-md -mt-0.5 bg-amber-400" />
+                            </div>
+                          );
+                        })}
+                    </RotatableImageFrame>
+                  </div>
+                ) : (
+                  <div className="py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
+                    <Layers className="w-7 h-7 text-slate-300" />
+                    <span className="text-xs italic">Chưa có bản vẽ CAD Kết cấu cho {floorName}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================
+                  MỤC 4: E - CHI TIẾT CÁC CẤU KIỆN KẾT CẤU E & KHUYẾT TẬT
+                  ======================================================== */}
+              <div
+                id={`step-4-floor-${flIdx}-elements`}
+                className="scroll-mt-14 space-y-4"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                      E: Danh Sách Cấu Kiện Kết Cấu ({activeElements.length} Cấu Kiện) &bull; {floorName}
+                    </span>
+                  </div>
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddElementDirect(flIdx)}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Thêm Cấu Kiện E</span>
+                    </button>
+                  )}
+                </div>
+
+                {displayedElements.length === 0 ? (
+                  <div className="p-6 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                    Tầng này chưa có Cấu Kiện Kết Cấu E nào
+                  </div>
+                ) : (
+                  displayedElements.map((elem: StructuralElementData) => {
+                    const eCode = elem.elementCode || elem.element_code || 'E-??';
+                    const isElemDeleted = isItemSoftDeleted(elem);
+                    const rawDefectsList: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
+                    const defectsList = showDeletedItems ? rawDefectsList : rawDefectsList.filter((d) => !isItemSoftDeleted(d));
+
+                    const rawElemCtxUrl = elem.ctxPhotoUrl || (elem as StructuralElementData & { ctx_photo_url?: string }).ctx_photo_url || '';
+                    const stagedElemCtx = getStagedAction({
+                      category: 'ELEMENT_CTX',
+                      targetPhotoId: elem.id,
+                      url: rawElemCtxUrl || undefined,
+                      includeAdd: !rawElemCtxUrl,
+                    });
+                    const effectiveElemCtxUrl = stagedElemCtx?.action === 'DELETE' ? '' : (stagedElemCtx?.newPhotoUrl || rawElemCtxUrl);
+                    const eIdStr = elem.id ? String(elem.id) : '';
+                    const isEUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(eIdStr);
+                    const elemCtxKey = `element_f${flIdx}_e${eCode}_ctx`;
+                    const legacyElemCtxKey = isEUuid ? `elem_${eIdStr}_ctx` : `elem_f${flIdx}_e${eCode}_ctx`;
+                    const elemCtxRot =
+                      stagedPhotoRotations[elemCtxKey] ??
+                      stagedPhotoRotations[legacyElemCtxKey] ??
+                      stagedPhotoRotations[effectiveElemCtxUrl] ??
+                      0;
+                    const elemCtxViolation =
+                      violationsMap?.get(elemCtxKey) ||
+                      violationsMap?.get(legacyElemCtxKey) ||
+                      (effectiveElemCtxUrl ? violationsMap?.get(effectiveElemCtxUrl) : undefined);
+                    const hasElemPinsOrPinning =
+                      defectsList.length > 0 || (pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode);
+
+                    const rawElemOverviewList = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
+                    const addedElemOverviewPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
+                      category: 'ELEMENT_OVERVIEW',
+                      targetPhotoType: 'OVERVIEW',
+                      targetPhotoId: elem.id || eCode,
+                      floorCode: floorName,
+                      zoneCode: eCode,
+                    });
+
+                    return (
+                      <div
+                        key={elem.id || eCode}
+                        id={`element-card-f${flIdx}-${eCode}`}
+                        className={`rounded-2xl p-4 sm:p-5 space-y-4 transition-all bg-white border border-slate-200 shadow-2xs ${
+                          isElemDeleted ? 'opacity-70 border-dashed border-rose-300 bg-rose-50/20' : ''
+                        }`}
+                      >
+                        {/* Element Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-amber-700 text-white font-mono font-black text-xs">
+                              {eCode}
+                            </span>
+                            {isElemDeleted && (
+                              <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 text-[10px] font-bold">
+                                Đã xóa mềm
+                              </span>
+                            )}
+                            {isEditMode ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <select
+                                  value={elem.elementType || 'Cột BTCT'}
+                                  onChange={(e) => handleElementFieldChange(flIdx, elem.id, 'elementType', e.target.value, 'Loại cấu kiện')}
+                                  className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                                >
+                                  {ELEMENT_TYPE_PRESETS.map((t) => (
+                                    <option key={t} value={t}>{t}</option>
+                                  ))}
+                                </select>
+                                <span>&bull;</span>
+                                <select
+                                  value={elem.materialType || 'Bê tông cốt thép (BTCT)'}
+                                  onChange={(e) => handleElementFieldChange(flIdx, elem.id, 'materialType', e.target.value, 'Vật liệu')}
+                                  className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                                >
+                                  {MATERIAL_TYPE_PRESETS.map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                                <span>&bull;</span>
+                                <input
+                                  type="text"
+                                  value={elem.roomName || ''}
+                                  onChange={(e) => handleElementFieldChange(flIdx, elem.id, 'roomName', e.target.value, 'Vị trí trục')}
+                                  placeholder="Trục / Vị trí..."
+                                  className="p-1 text-xs border border-amber-300 rounded bg-amber-50/40 w-32"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-800">
+                                {elem.elementType || 'Cột BTCT'} &bull; {elem.materialType || 'BTCT'} &bull; {elem.roomName || 'Trục không xác định'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={defectsList.length > 0 ? 'warning' : 'success'} size="sm">
+                              {defectsList.length} khuyết tật kết cấu
+                            </Badge>
+                            {isEditMode && (
+                              isElemDeleted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestoreElement(flIdx, elem.id)}
+                                  className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Khôi phục Cấu Kiện</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveElement(flIdx, elem.id)}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Xóa Cấu Kiện</span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dải ảnh tổng quan Cấu kiện E (nếu có hoặc ở chế độ sửa) - 2.5 ảnh lấp đầy 100% khung ngang */}
+                        {(rawElemOverviewList.length > 0 || addedElemOverviewPhotos.length > 0 || isEditMode) && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                Ảnh Tổng Quan Cấu Kiện ({rawElemOverviewList.length + addedElemOverviewPhotos.length} ảnh):
+                              </span>
+                              {isEditMode && onOpenPhotoAction && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onOpenPhotoAction({
+                                      category: 'ELEMENT_OVERVIEW',
+                                      initialMode: 'ADD',
+                                      targetPhotoType: 'OVERVIEW',
+                                      targetPhotoId: elem.id || eCode,
+                                      floorCode: floorName,
+                                      zoneCode: eCode,
+                                      photoIndex: rawElemOverviewList.length + addedElemOverviewPhotos.length,
+                                      photoTitle: `Ảnh tổng quan cấu kiện ${eCode} #${rawElemOverviewList.length + addedElemOverviewPhotos.length + 1}`,
+                                    })
+                                  }
+                                  className="px-2 py-0.5 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Thêm Ảnh Tổng Quan</span>
+                                </button>
+                              )}
+                            </div>
+                            {rawElemOverviewList.length === 0 && addedElemOverviewPhotos.length === 0 ? (
+                              <div className="text-[11px] text-slate-400 italic py-1.5 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                Chưa có ảnh tổng quan cho cấu kiện {eCode}.
+                              </div>
+                            ) : (
+                              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
+                                {rawElemOverviewList.map((rawPhotoUrl, pIdx) => {
+                                  const resolvedOv = resolveOptimisticPhoto(rawPhotoUrl, stagedPhotoActions, {
+                                    category: 'ELEMENT_OVERVIEW',
+                                    targetPhotoType: 'OVERVIEW',
+                                    targetPhotoId: elem.id || eCode,
+                                    photoIndex: pIdx,
+                                    floorCode: floorName,
+                                    zoneCode: eCode,
+                                  });
+                                  const photoUrl = resolvedOv.displayUrl;
+                                  const elemOvKey = `element_f${flIdx}_e${eCode}_ov_${pIdx}`;
+                                  const legacyElemOvKey = isEUuid ? `elem_${eIdStr}_ov_${pIdx}` : `elem_f${flIdx}_e${eCode}_ov_${pIdx}`;
+                                  const elemOvRot =
+                                    stagedPhotoRotations[elemOvKey] ??
+                                    stagedPhotoRotations[legacyElemOvKey] ??
+                                    stagedPhotoRotations[photoUrl] ??
+                                    0;
+                                  const elemOvViolation =
+                                    violationsMap?.get(elemOvKey) ||
+                                    violationsMap?.get(legacyElemOvKey) ||
+                                    violationsMap?.get(photoUrl);
+                                  const elemOvDomId = `audit-photo-card-f${flIdx}-elem-${eCode}-ov-${pIdx}`;
+
+                                  return (
+                                    <div
+                                      key={pIdx}
+                                      className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0"
+                                    >
+                                      <AuditPhotoCard
+                                        url={photoUrl}
+                                        photoCode={`#${pIdx + 1}`}
+                                        photoKey={elemOvKey}
+                                        title={`Ảnh cấu kiện ${eCode} #${pIdx + 1}`}
+                                        category="ELEMENT_OVERVIEW"
+                                        targetPhotoType="OVERVIEW"
+                                        targetPhotoId={elem.id || eCode}
+                                        photoIndex={pIdx}
+                                        floorCode={floorName}
+                                        zoneCode={eCode}
+                                        isEditMode={isEditMode}
+                                        aspectRatio="aspect-4/3"
+                                        badgeColor="slate"
+                                        rotation={elemOvRot}
+                                        isOrientationMismatch={Boolean(elemOvViolation)}
+                                        isStrictOrientation={elemOvViolation?.isStrict ?? false}
+                                        orientationRecommendation={elemOvViolation?.message}
+                                        expectedOrientation={elemOvViolation?.expectedOrientation || 'LANDSCAPE'}
+                                        onRotate={(newRot) => onRotatePhoto?.(elemOvKey, newRot, photoUrl)}
+                                        optimisticStatus={
+                                          resolvedOv.status === 'DELETED'
+                                            ? 'DELETED'
+                                            : resolvedOv.status === 'REPLACED'
+                                            ? 'REPLACED'
+                                            : undefined
+                                        }
+                                        onUndoDelete={
+                                          resolvedOv.matchedAction
+                                            ? () => onUndoPhotoAction?.(resolvedOv.matchedAction!)
+                                            : undefined
+                                        }
+                                        domId={elemOvDomId}
+                                        onOpenPhotoZoom={onOpenPhotoZoom}
+                                        onOpenPhotoAction={onOpenPhotoAction}
+                                        onOpenPhotoHistory={onOpenPhotoHistory}
+                                      />
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Optimistic newly added ELEMENT_OVERVIEW photos */}
+                                {addedElemOverviewPhotos.map((addedItem, addIdx) => {
+                                  const pIdx = rawElemOverviewList.length + addIdx;
+                                  const elemOvKey = `element_f${flIdx}_e${eCode}_ov_added_${addIdx}`;
+                                  const elemOvRot =
+                                    stagedPhotoRotations[elemOvKey] ??
+                                    stagedPhotoRotations[addedItem.displayUrl] ??
+                                    0;
+                                  return (
+                                    <div
+                                      key={`added-elem-ov-${addIdx}`}
+                                      className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0"
+                                    >
+                                      <AuditPhotoCard
+                                        url={addedItem.displayUrl}
+                                        photoCode={`#${pIdx + 1} (Mới)`}
+                                        photoKey={elemOvKey}
+                                        title={`Ảnh cấu kiện ${eCode} #${pIdx + 1} (Mới thêm • Chờ lưu)`}
+                                        category="ELEMENT_OVERVIEW"
+                                        targetPhotoType="OVERVIEW"
+                                        targetPhotoId={elem.id || eCode}
+                                        photoIndex={pIdx}
+                                        floorCode={floorName}
+                                        zoneCode={eCode}
+                                        isEditMode={isEditMode}
+                                        aspectRatio="aspect-4/3"
+                                        badgeColor="emerald"
+                                        rotation={elemOvRot}
+                                        onRotate={(newRot) => onRotatePhoto?.(elemOvKey, newRot, addedItem.displayUrl)}
+                                        optimisticStatus="ADDED"
+                                        onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                                        onOpenPhotoZoom={onOpenPhotoZoom}
+                                        onOpenPhotoAction={onOpenPhotoAction}
+                                        onOpenPhotoHistory={onOpenPhotoHistory}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Bố cục Cuộn Ngang Đồng Nhất (Unified Horizontal Scroll): Ảnh Bối Cảnh E_CTX 65% chạy cùng các thẻ Khuyết tật D & Cận cảnh CU */}
+                        <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold text-slate-700">
+                              Bối Cảnh Ghim ({eCode} - CTX) &amp; Danh Sách Khuyết Tật Kết Cấu D ({defectsList.length} mục):
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {hasElemPinsOrPinning && (
+                                <span className="text-[10px] text-slate-500 italic hidden sm:inline">
+                                  Cuộn ngang để xem toàn bộ các thẻ D và ảnh cận cảnh CU &rarr;
+                                </span>
+                              )}
+                              {isEditMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddElementDefect(flIdx, elem.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-2xs flex items-center gap-1"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>+ Thêm Khuyết Tật Kết Cấu D</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            className={
+                              hasElemPinsOrPinning
+                                ? 'flex flex-nowrap gap-5 overflow-x-auto pb-4 items-start scrollbar-thin'
+                                : 'flex flex-col lg:flex-row gap-5 items-start'
+                            }
+                          >
+                            {/* KHỐI 1 (65% khi có ghim D): Ảnh Bối Cảnh Cấu Kiện E_CTX & Ghim D (cuộn ngang cùng các thẻ D) */}
+                            <div
+                              className={`shrink-0 space-y-2 ${
+                                hasElemPinsOrPinning
+                                  ? 'w-[85%] sm:w-[68%] lg:w-[62%] min-w-[360px] max-w-[760px]'
+                                  : 'w-full sm:w-[calc((100%-2rem)/2.5)] min-w-[260px]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase text-slate-600 block">
+                                  Ảnh Bối Cảnh &amp; Ghim Khuyết Tật ({eCode} - CTX):
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {effectiveElemCtxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoZoom(
+                                          effectiveElemCtxUrl,
+                                          `Ảnh bối cảnh cấu kiện ${eCode}`,
+                                          `${eCode}-CTX`,
+                                          elemCtxRot
+                                        )
+                                      }
+                                      className="px-2 py-0.5 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                      <span>Phóng to</span>
+                                    </button>
+                                  )}
+                                  {effectiveElemCtxUrl && (isEditMode || onRotatePhoto) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRotateElementCtx(flIdx, elem, elemCtxRot, elemCtxKey, 90)}
+                                      className="px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                      title="Xoay ảnh CTX 90° & chuyển vị ghim D"
+                                    >
+                                      <RotateCw className="w-3 h-3" />
+                                      <span>Xoay 90&deg;</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && effectiveElemCtxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const isCur = pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode;
+                                        setPinningCtxZone(isCur ? null : { floorIdx: flIdx, zoneOrElemCode: eCode });
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                                        pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode
+                                          ? 'bg-rose-600 text-white animate-pulse'
+                                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                                      }`}
+                                    >
+                                      <Crosshair className="w-3 h-3" />
+                                      <span>{pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode ? 'Đang ghim D...' : '+ Ghim D'}</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && onOpenPhotoAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoAction({
+                                          category: 'ELEMENT_CTX',
+                                          initialMode: effectiveElemCtxUrl ? 'REPLACE' : 'ADD',
+                                          targetPhotoType: 'CTX',
+                                          targetPhotoId: elem.id || eCode,
+                                          floorCode: floorName,
+                                          zoneCode: eCode,
+                                          currentPhotoUrl: effectiveElemCtxUrl || undefined,
+                                          photoTitle: `Ảnh bối cảnh ${eCode}`,
+                                        })
+                                      }
+                                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      <span>{effectiveElemCtxUrl ? 'Đổi ảnh' : '+ Thêm CTX'}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {effectiveElemCtxUrl ? (
+                                <div
+                                  id={`audit-photo-card-f${flIdx}-elem-${eCode}-ctx`}
+                                  className={`relative w-full bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-2.5 select-none ${
+                                    hasElemPinsOrPinning ? 'min-h-[280px]' : 'h-60'
+                                  } ${
+                                    pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode
+                                      ? 'ring-2 ring-rose-500'
+                                      : elemCtxViolation
+                                      ? elemCtxViolation.isStrict
+                                        ? 'border-2 border-amber-500 ring-2 ring-amber-400/50'
+                                        : 'border-2 border-yellow-400 ring-1 ring-yellow-300/60'
+                                      : 'border border-slate-300'
+                                  }`}
+                                >
+                                  {elemCtxViolation && (
+                                    <div
+                                      className={`absolute top-2.5 left-2.5 z-30 px-2 py-0.5 rounded-md text-[10px] font-black shadow-md flex items-center gap-1 ${
+                                        elemCtxViolation.isStrict
+                                          ? 'bg-amber-500 text-slate-950'
+                                          : 'bg-yellow-400/95 text-slate-950'
+                                      }`}
+                                    >
+                                      {elemCtxViolation.isStrict ? (
+                                        <>
+                                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                                          <span>Cần xoay A4</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Lightbulb className="w-3 h-3 shrink-0" />
+                                          <span>Khuyến nghị xoay</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <RotatableImageFrame
+                                    src={effectiveElemCtxUrl}
+                                    alt={`Bối cảnh ${eCode}`}
+                                    rotation={elemCtxRot}
+                                    maxHeightPx={hasElemPinsOrPinning ? 520 : 225}
+                                    stageOnClick={(e) => {
+                                      if (pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode) {
+                                        handleElemCtxImageClick(e, flIdx, elem);
+                                      } else {
+                                        onOpenPhotoZoom(
+                                          effectiveElemCtxUrl,
+                                          `Ảnh bối cảnh cấu kiện ${eCode}`,
+                                          `${eCode}-CTX`,
+                                          elemCtxRot
+                                        );
+                                      }
+                                    }}
+                                    stageClassName={`mx-auto ${
+                                      pinningCtxZone?.floorIdx === flIdx && pinningCtxZone?.zoneOrElemCode === eCode
+                                        ? 'cursor-crosshair'
+                                        : 'cursor-zoom-in'
+                                    }`}
+                                  >
+                                    {/* Điểm ghim khuyết tật D trên ảnh bối cảnh E_CTX */}
+                                    {defectsList.map((def: DefectItem, dIdx: number) => {
+                                      const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
+                                      const defIdOrCode = def.id || dCode;
+                                      const elemIdOrCode = elem.id || eCode;
+                                      const pX = Number(def.pinX ?? def.pin_x ?? 50);
+                                      const pY = Number(def.pinY ?? def.pin_y ?? 50);
+                                      const isDraggingThisD =
+                                        draggingDefectPin?.floorIdx === flIdx &&
+                                        draggingDefectPin?.zoneId === elemIdOrCode &&
+                                        draggingDefectPin?.defectId === defIdOrCode;
+                                      const displayX = isDraggingThisD ? draggingDefectPin.currentX : pX;
+                                      const displayY = isDraggingThisD ? draggingDefectPin.currentY : pY;
+                                      const isDefDeleted = isItemSoftDeleted(def);
+
+                                      return (
+                                        <div
+                                          key={defIdOrCode}
+                                          style={{
+                                            position: 'absolute',
+                                            top: `${displayY}%`,
+                                            left: `${displayX}%`,
+                                            transform: 'translate(-50%, -100%)',
+                                            zIndex: isDraggingThisD ? 50 : 25,
+                                            touchAction: 'none',
+                                          }}
+                                          className={`flex flex-col items-center pointer-events-auto select-none group ${
+                                            isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                                          }`}
+                                          onPointerDown={(e) => {
+                                            if (!isEditMode) return;
+                                            e.stopPropagation();
+                                            pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+                                            hasJustDraggedRef.current = false;
+                                            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                                            setDraggingDefectPin({
+                                              floorIdx: flIdx,
+                                              zoneId: elemIdOrCode,
+                                              defectId: defIdOrCode,
+                                              dCode,
+                                              currentX: pX,
+                                              currentY: pY,
+                                            });
+                                          }}
+                                          onPointerMove={(e) => {
+                                            if (
+                                              !draggingDefectPin ||
+                                              draggingDefectPin.floorIdx !== flIdx ||
+                                              draggingDefectPin.zoneId !== elemIdOrCode ||
+                                              draggingDefectPin.defectId !== defIdOrCode
+                                            ) {
+                                              return;
+                                            }
+                                            e.stopPropagation();
+                                            if (pointerStartPosRef.current) {
+                                              const dist = Math.hypot(
+                                                e.clientX - pointerStartPosRef.current.x,
+                                                e.clientY - pointerStartPosRef.current.y
+                                              );
+                                              if (dist > 3) {
+                                                hasJustDraggedRef.current = true;
+                                              }
+                                            }
+                                            const container = e.currentTarget.parentElement;
+                                            if (!container) return;
+                                            const rect = container.getBoundingClientRect();
+                                            const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                                            const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                                            const clampedX = Math.round(Math.max(1, Math.min(99, rawX)) * 10) / 10;
+                                            const clampedY = Math.round(Math.max(1, Math.min(99, rawY)) * 10) / 10;
+                                            setDraggingDefectPin((prev) =>
+                                              prev ? { ...prev, currentX: clampedX, currentY: clampedY } : null
+                                            );
+                                          }}
+                                          onPointerUp={(e) => {
+                                            if (
+                                              !draggingDefectPin ||
+                                              draggingDefectPin.floorIdx !== flIdx ||
+                                              draggingDefectPin.zoneId !== elemIdOrCode ||
+                                              draggingDefectPin.defectId !== defIdOrCode
+                                            ) {
+                                              return;
+                                            }
+                                            e.stopPropagation();
+                                            try {
+                                              (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                                            } catch (err) {
+                                              console.warn('[AuditStep3FloorDefects] releasePointerCapture failed:', err);
+                                            }
+                                            const finalX = draggingDefectPin.currentX;
+                                            const finalY = draggingDefectPin.currentY;
+                                            setDraggingDefectPin(null);
+                                            pointerStartPosRef.current = null;
+                                            if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
+                                              hasJustDraggedRef.current = true;
+                                              handleCommitDefectPinCoord(flIdx, elemIdOrCode, defIdOrCode, dCode, finalX, finalY);
+                                              setTimeout(() => {
+                                                hasJustDraggedRef.current = false;
+                                              }, 250);
+                                            }
+                                          }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (hasJustDraggedRef.current || isEditMode) {
+                                              return;
+                                            }
+                                            const el = document.getElementById(`defect-card-f${flIdx}-${eCode}-${dCode}`);
+                                            if (el) {
+                                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                              el.classList.add('ring-4', 'ring-amber-400');
+                                              setTimeout(() => el.classList.remove('ring-4', 'ring-amber-400'), 2000);
+                                            }
+                                          }}
+                                        >
+                                          <div className="relative flex items-center">
+                                            <div
+                                              className={`px-1.5 py-0.5 rounded text-white text-[10px] font-mono font-black shadow-lg border border-white group-hover:scale-110 transition-transform ${
+                                                isDefDeleted ? 'bg-slate-500 line-through opacity-75' : 'bg-rose-600'
+                                              }`}
+                                            >
+                                              {dCode}
+                                            </div>
+                                            {isEditMode && !isDefDeleted && (
+                                              <button
+                                                type="button"
+                                                title={`Xóa ghim ${dCode}`}
+                                                onPointerDown={(ev) => ev.stopPropagation()}
+                                                onClick={(ev) => {
+                                                  ev.stopPropagation();
+                                                  handleRemoveElementDefect(flIdx, elemIdOrCode, defIdOrCode);
+                                                }}
+                                                className="ml-0.5 w-4 h-4 rounded-full bg-slate-900/90 hover:bg-rose-600 text-white flex items-center justify-center text-[9px] font-black border border-white shadow-md cursor-pointer"
+                                              >
+                                                &times;
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-white shadow-md -mt-0.5" />
+                                        </div>
+                                      );
+                                    })}
+                                  </RotatableImageFrame>
+                                </div>
+                              ) : (
+                                <div className="p-4 border border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-400 bg-slate-50/50">
+                                  Chưa có ảnh bối cảnh (CTX) cho cấu kiện {eCode}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* CÁC KHỐI TIẾP THEO TRONG DẢI CUỘN NGANG: Danh sách Thẻ Khuyết Tật Kết Cấu D & Ảnh Cận Cảnh CU (150% kích thước) */}
+                            {defectsList.length === 0 ? (
+                              <div className="text-xs text-slate-400 italic py-4 px-4 bg-slate-50 rounded-xl border border-slate-100 shrink-0 min-w-[280px]">
+                                Không có khuyết tật kết cấu (D) trên cấu kiện {eCode}
+                              </div>
+                            ) : (
+                              defectsList.map((def: DefectItem, dIdx: number) => {
+                                const dCode = def.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`;
+                                const defIdOrCode = def.id || dCode;
+                                const elemIdOrCode = elem.id || eCode;
+                                const isDefDeleted = isItemSoftDeleted(def);
+                                const rawCuPhotos = Array.isArray(def.cuPhotos) ? def.cuPhotos : [];
+                                const addedCuPhotos = getOptimisticAddedPhotos(stagedPhotoActions, {
+                                  category: 'DEFECT_CU',
+                                  targetPhotoType: 'CU',
+                                  targetPhotoId: dCode,
+                                  defectId: def.id,
+                                  defectCode: dCode,
+                                  floorCode: floorName,
+                                  zoneCode: eCode,
+                                });
+                                const currentCategory = def.screeningCategory || 'Nứt kết cấu BTCT (Structural Cracks)';
+                                const categoryTypes: string[] = STRUCT_DEFECT_TYPES;
+                                const showCrackMetrics = isCrackRelated(def.screeningCategory, def.defectType);
+
+                                return (
+                                  <div
+                                    key={defIdOrCode}
+                                    id={`defect-card-f${flIdx}-${eCode}-${dCode}`}
+                                    className={`p-3.5 rounded-xl border space-y-3 shadow-2xs shrink-0 w-fit min-w-[400px] max-w-none transition-all ${
+                                      isDefDeleted
+                                        ? 'border-dashed border-rose-300 bg-rose-50/30 opacity-75'
+                                        : 'border-amber-200 bg-white'
+                                    }`}
+                                  >
+                                    {/* Dòng tiêu đề & nút Xóa / Khôi phục ghim D trên cấu kiện E */}
+                                    <div className="flex items-center justify-between gap-3 flex-wrap pb-2 border-b border-slate-100">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded text-xs">
+                                          {dCode}
+                                        </span>
+                                        {isDefDeleted && (
+                                          <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
+                                            Đã xóa mềm
+                                          </span>
+                                        )}
+                                        {!isEditMode && (
+                                          <>
+                                            <span className="text-xs font-bold text-slate-800">
+                                              {def.defectType || def.screeningCategory || 'Khuyết tật kết cấu'}
+                                            </span>
+                                            {showCrackMetrics && (
+                                              <span className="font-mono font-bold text-rose-600 text-xs">
+                                                Rộng: {def.widthMaxMm ?? def.width_max_mm ?? 0} mm &bull; Dài: {def.lengthMm ?? def.length_mm ?? 0} mm
+                                              </span>
+                                            )}
+                                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                              E2={def.structuralSignificanceE2 ?? 0} &bull; E4={def.materialDegradationE4 ?? 0}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5">
+                                        {isEditMode && (
+                                          isDefDeleted ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRestoreElementDefect(flIdx, elemIdOrCode, defIdOrCode)}
+                                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <RotateCcw className="w-3 h-3" />
+                                              <span>Khôi phục {dCode}</span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveElementDefect(flIdx, elemIdOrCode, defIdOrCode)}
+                                              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              <span>Xóa ghim {dCode}</span>
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Bộ điều khiển Sửa đầy đủ thông tin D trên E theo chuẩn Phase 1 */}
+                                    {isEditMode && !isDefDeleted && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-amber-50/40 p-2.5 rounded-xl border border-amber-200/80 text-xs">
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-slate-600 uppercase block">
+                                            Nhóm hiện tượng kết cấu (Phase 1):
+                                          </label>
+                                          <select
+                                            value={currentCategory}
+                                            onChange={(e) => {
+                                              const nextCat = e.target.value;
+                                              const defaultType = STRUCT_DEFECT_TYPES[0] || nextCat;
+                                              handleElementDefectChange(flIdx, elemIdOrCode, defIdOrCode, 'screeningCategory', nextCat, 'Nhóm khuyết tật E');
+                                              handleElementDefectChange(flIdx, elemIdOrCode, defIdOrCode, 'defectType', defaultType, 'Loại khuyết tật E');
+                                            }}
+                                            className="w-full p-1.5 text-xs border border-amber-300 rounded-lg bg-white font-semibold text-slate-800"
+                                          >
+                                            {STRUCT_SCREENING_CATEGORIES.map((cat) => (
+                                              <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-slate-600 uppercase block">
+                                            Chi tiết khuyết tật kết cấu:
+                                          </label>
+                                          <select
+                                            value={def.defectType || categoryTypes[0] || ''}
+                                            onChange={(e) =>
+                                              handleElementDefectChange(flIdx, elemIdOrCode, defIdOrCode, 'defectType', e.target.value, 'Loại khuyết tật E')
+                                            }
+                                            className="w-full p-1.5 text-xs border border-amber-300 rounded-lg bg-white font-semibold text-slate-800"
+                                          >
+                                            {categoryTypes.map((dt) => (
+                                              <option key={dt} value={dt}>{dt}</option>
+                                            ))}
+                                            {def.defectType && !categoryTypes.includes(def.defectType) && (
+                                              <option value={def.defectType}>{def.defectType}</option>
+                                            )}
+                                          </select>
+                                        </div>
+
+                                        {showCrackMetrics && (
+                                          <div className="sm:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-amber-200/60">
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block">Bề rộng W (mm):</label>
+                                              <input
+                                                type="number"
+                                                step="0.05"
+                                                value={def.widthMaxMm ?? def.width_max_mm ?? 0}
+                                                onChange={(e) =>
+                                                  handleElementDefectChange(
+                                                    flIdx,
+                                                    elemIdOrCode,
+                                                    defIdOrCode,
+                                                    'widthMaxMm',
+                                                    parseFloat(e.target.value) || 0,
+                                                    'Bề rộng vết nứt E (mm)'
+                                                  )
+                                                }
+                                                className="w-full p-1 text-xs border border-amber-300 rounded font-mono font-bold text-rose-700 bg-white"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block">Chiều dài L (mm):</label>
+                                              <input
+                                                type="number"
+                                                step="10"
+                                                value={def.lengthMm ?? def.length_mm ?? 0}
+                                                onChange={(e) =>
+                                                  handleElementDefectChange(
+                                                    flIdx,
+                                                    elemIdOrCode,
+                                                    defIdOrCode,
+                                                    'lengthMm',
+                                                    parseFloat(e.target.value) || 0,
+                                                    'Chiều dài vết nứt E (mm)'
+                                                  )
+                                                }
+                                                className="w-full p-1 text-xs border border-amber-300 rounded font-mono bg-white"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block">Phương phát triển:</label>
+                                              <select
+                                                value={def.crackDirection || ''}
+                                                onChange={(e) =>
+                                                  handleElementDefectChange(
+                                                    flIdx,
+                                                    elemIdOrCode,
+                                                    defIdOrCode,
+                                                    'crackDirection',
+                                                    e.target.value,
+                                                    'Phương vết nứt E'
+                                                  )
+                                                }
+                                                className="w-full p-1 text-xs border border-amber-300 rounded bg-white"
+                                              >
+                                                <option value="">-- Chọn --</option>
+                                                {CRACK_DIRECTION_OPTIONS.map((opt) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                            <div>
+                                              <label className="text-[10px] font-bold text-slate-600 block">Trạng thái hoạt động:</label>
+                                              <select
+                                                value={def.activityState || ''}
+                                                onChange={(e) =>
+                                                  handleElementDefectChange(
+                                                    flIdx,
+                                                    elemIdOrCode,
+                                                    defIdOrCode,
+                                                    'activityState',
+                                                    e.target.value,
+                                                    'Trạng thái vết nứt E'
+                                                  )
+                                                }
+                                                className="w-full p-1 text-xs border border-amber-300 rounded bg-white"
+                                              >
+                                                <option value="">-- Chọn --</option>
+                                                {ACTIVITY_STATE_OPTIONS.map((opt) => (
+                                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-amber-200/60">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block">Cấp điểm E2 (0-4):</label>
+                                            <select
+                                              value={def.structuralSignificanceE2 ?? 0}
+                                              onChange={(e) =>
+                                                handleElementDefectChange(
+                                                  flIdx,
+                                                  elemIdOrCode,
+                                                  defIdOrCode,
+                                                  'structuralSignificanceE2',
+                                                  parseInt(e.target.value, 10) || 0,
+                                                  'Điểm E2'
+                                                )
+                                              }
+                                              className="w-full p-1 text-xs border border-amber-300 rounded bg-white font-bold"
+                                            >
+                                              {[0, 1, 2, 3, 4].map((g) => (
+                                                <option key={g} value={g}>Cấp {g}/4</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block">Cấp điểm E4 (0-4):</label>
+                                            <select
+                                              value={def.materialDegradationE4 ?? 0}
+                                              onChange={(e) =>
+                                                handleElementDefectChange(
+                                                  flIdx,
+                                                  elemIdOrCode,
+                                                  defIdOrCode,
+                                                  'materialDegradationE4',
+                                                  parseInt(e.target.value, 10) || 0,
+                                                  'Điểm E4'
+                                                )
+                                              }
+                                              className="w-full p-1 text-xs border border-amber-300 rounded bg-white font-bold"
+                                            >
+                                              {[0, 1, 2, 3, 4].map((g) => (
+                                                <option key={g} value={g}>Cấp {g}/4</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-600 block">Ghi chú kỹ thuật:</label>
+                                            <input
+                                              type="text"
+                                              value={def.notes || ''}
+                                              onChange={(e) =>
+                                                handleElementDefectChange(
+                                                  flIdx,
+                                                  elemIdOrCode,
+                                                  defIdOrCode,
+                                                  'notes',
+                                                  e.target.value,
+                                                  'Ghi chú khuyết tật E'
+                                                )
+                                              }
+                                              placeholder="Mô tả chi tiết vị trí/biểu hiện..."
+                                              className="w-full p-1 text-xs border border-amber-300 rounded bg-white"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {!isEditMode && def.notes && (
+                                      <div className="text-[11px] text-slate-600 italic bg-slate-50 px-2.5 py-1.5 rounded-lg">
+                                        Ghi chú: {def.notes}
+                                      </div>
+                                    )}
+
+                                    {/* CU Photos of Defect on Element E - Kích thước 150% (w-[345px] sm:w-[375px] h-80) */}
+                                    <div className="space-y-2 pt-1.5 border-t border-slate-100">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                          Ảnh Cận Cảnh CU ({rawCuPhotos.length + addedCuPhotos.length} ảnh &bull; Kích thước 150%):
+                                        </span>
+                                        {isEditMode && onOpenPhotoAction && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              onOpenPhotoAction({
+                                                category: 'DEFECT_CU',
+                                                initialMode: 'ADD',
+                                                targetPhotoType: 'CU',
+                                                targetPhotoId: dCode,
+                                                defectId: def.id,
+                                                defectCode: dCode,
+                                                photoIndex: rawCuPhotos.length + addedCuPhotos.length,
+                                                floorCode: floorName,
+                                                zoneCode: eCode,
+                                                photoTitle: `${dCode} - Cận Cảnh #${rawCuPhotos.length + addedCuPhotos.length + 1}`,
+                                              })
+                                            }
+                                            className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                                          >
+                                            <Plus className="w-3 h-3" />
+                                            <span>+ Thêm Ảnh CU</span>
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {rawCuPhotos.length === 0 && addedCuPhotos.length === 0 ? (
+                                        <div className="text-[11px] text-slate-400 italic py-2 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                          Chưa có ảnh cận cảnh CU cho {dCode}
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 scrollbar-thin">
+                                          {rawCuPhotos.map((cuItem: string | { url?: string; photoUrl?: string }, cuIdx: number) => {
+                                            const rawCuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
+                                            if (!rawCuUrl) return null;
+
+                                            const resolvedCu = resolveOptimisticPhoto(rawCuUrl, stagedPhotoActions, {
+                                              category: 'DEFECT_CU',
+                                              targetPhotoType: 'CU',
+                                              targetPhotoId: dCode,
+                                              defectId: def.id,
+                                              defectCode: dCode,
+                                              photoIndex: cuIdx,
+                                              floorCode: floorName,
+                                              zoneCode: eCode,
+                                            });
+                                            const cuUrl = resolvedCu.displayUrl;
+
+                                            const defIdStr = def.id ? String(def.id) : '';
+                                            const primaryCuRotKey = `defect_f${flIdx}_e${eCode}_${dCode}_cu_${cuIdx}`;
+                                            const uuidCuRotKey = defIdStr ? `defect_${defIdStr}_cu_${cuIdx}` : primaryCuRotKey;
+                                            const altCuRotKey = `defect_f${flIdx}_e${eCode}_${defIdStr || dCode}_cu_${cuIdx}`;
+                                            const cuRot =
+                                              stagedPhotoRotations[primaryCuRotKey] ??
+                                              stagedPhotoRotations[uuidCuRotKey] ??
+                                              stagedPhotoRotations[altCuRotKey] ??
+                                              stagedPhotoRotations[cuUrl] ??
+                                              stagedPhotoRotations[rawCuUrl] ??
+                                              0;
+                                            const cuViolation =
+                                              violationsMap?.get(primaryCuRotKey) ||
+                                              violationsMap?.get(uuidCuRotKey) ||
+                                              violationsMap?.get(altCuRotKey);
+                                            const cuDomId = `audit-photo-card-f${flIdx}-e${eCode}-defect-${dCode}-${cuIdx}`;
+
+                                            return (
+                                              <div key={cuIdx} className="w-[345px] sm:w-[375px] shrink-0">
+                                                <AuditPhotoCard
+                                                  url={cuUrl}
+                                                  photoCode={`CU #${cuIdx + 1}`}
+                                                  photoKey={primaryCuRotKey}
+                                                  title={`Cận cảnh ${dCode} (#${cuIdx + 1})`}
+                                                  category="DEFECT_CU"
+                                                  targetPhotoType="CU"
+                                                  targetPhotoId={dCode}
+                                                  defectId={def.id}
+                                                  defectCode={dCode}
+                                                  photoIndex={cuIdx}
+                                                  floorCode={floorName}
+                                                  zoneCode={eCode}
+                                                  isEditMode={isEditMode}
+                                                  aspectRatio="h-80"
+                                                  maxHeightPx={340}
+                                                  badgeColor="rose"
+                                                  rotation={cuRot}
+                                                  isOrientationMismatch={Boolean(cuViolation)}
+                                                  isStrictOrientation={cuViolation?.isStrict ?? false}
+                                                  orientationRecommendation={cuViolation?.message}
+                                                  expectedOrientation={cuViolation?.expectedOrientation || 'LANDSCAPE'}
+                                                  onRotate={(newRot) => onRotatePhoto?.(primaryCuRotKey, newRot, cuUrl)}
+                                                  optimisticStatus={
+                                                    resolvedCu.status === 'DELETED'
+                                                      ? 'DELETED'
+                                                      : resolvedCu.status === 'REPLACED'
+                                                      ? 'REPLACED'
+                                                      : undefined
+                                                  }
+                                                  onUndoDelete={
+                                                    resolvedCu.matchedAction
+                                                      ? () => onUndoPhotoAction?.(resolvedCu.matchedAction!)
+                                                      : undefined
+                                                  }
+                                                  domId={cuDomId}
+                                                  onOpenPhotoZoom={onOpenPhotoZoom}
+                                                  onOpenPhotoAction={onOpenPhotoAction}
+                                                  onOpenPhotoHistory={onOpenPhotoHistory}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+
+                                          {/* Optimistic newly added DEFECT_CU photos on Element E */}
+                                          {addedCuPhotos.map((addedItem, addIdx) => {
+                                            const cuIdx = rawCuPhotos.length + addIdx;
+                                            const addRotKey = `defect_f${flIdx}_e${eCode}_${dCode}_cu_added_${addIdx}`;
+                                            const addRot =
+                                              stagedPhotoRotations[addRotKey] ??
+                                              stagedPhotoRotations[addedItem.displayUrl] ??
+                                              0;
+                                            return (
+                                              <div key={`added-elem-cu-${addIdx}`} className="w-[345px] sm:w-[375px] shrink-0">
+                                                <AuditPhotoCard
+                                                  url={addedItem.displayUrl}
+                                                  photoCode={`CU #${cuIdx + 1} (Mới)`}
+                                                  photoKey={addRotKey}
+                                                  title={`Cận cảnh ${dCode} (#${cuIdx + 1}) (Mới thêm • Chờ lưu)`}
+                                                  category="DEFECT_CU"
+                                                  targetPhotoType="CU"
+                                                  targetPhotoId={dCode}
+                                                  defectId={def.id}
+                                                  defectCode={dCode}
+                                                  photoIndex={cuIdx}
+                                                  floorCode={floorName}
+                                                  zoneCode={eCode}
+                                                  isEditMode={isEditMode}
+                                                  aspectRatio="h-80"
+                                                  maxHeightPx={340}
+                                                  badgeColor="emerald"
+                                                  rotation={addRot}
+                                                  onRotate={(newRot) => onRotatePhoto?.(addRotKey, newRot, addedItem.displayUrl)}
+                                                  optimisticStatus="ADDED"
+                                                  onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                                                  onOpenPhotoZoom={onOpenPhotoZoom}
+                                                  onOpenPhotoAction={onOpenPhotoAction}
+                                                  onOpenPhotoHistory={onOpenPhotoHistory}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
       {/* Modal xác nhận xóa Vùng có khuyết tật (Cascade Soft-Delete Warning Modal) */}
@@ -4189,18 +4095,21 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               <div>
                 <h3 className="font-black text-base text-slate-900">Xác nhận xóa Vùng Kiến Trúc</h3>
                 <p className="text-xs text-rose-700 font-bold font-mono">
-                  {zoneToDelete.zoneCode || zoneToDelete.zone_code || 'Z-??'} ({zoneToDelete.roomName || 'Không gian'})
+                  {zoneToDelete.zone.zoneCode || zoneToDelete.zone.zone_code || 'Z-??'} ({zoneToDelete.zone.roomName || 'Không gian'})
                 </p>
               </div>
             </div>
 
             <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs space-y-1.5 text-slate-700">
-              <p className="font-semibold text-rose-900">
-                ⚠️ Vùng này đang chứa{' '}
-                <strong className="text-rose-700 font-black">
-                  {(zoneToDelete.defects || []).filter((d: DefectItem) => !isItemSoftDeleted(d)).length}
-                </strong>{' '}
-                khuyết tật nứt (D) đang hoạt động!
+              <p className="font-semibold text-rose-900 flex items-center gap-1.5 flex-wrap">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span>
+                  Vùng này đang chứa{' '}
+                  <strong className="text-rose-700 font-black">
+                    {(zoneToDelete.zone.defects || []).filter((d: DefectItem) => !isItemSoftDeleted(d)).length}
+                  </strong>{' '}
+                  khuyết tật nứt (D) đang hoạt động!
+                </span>
               </p>
               <p className="text-[11px] text-slate-600 leading-relaxed">
                 Hành động này sẽ thực hiện <strong>Xóa mềm phân tầng (Cascade Soft-Delete)</strong>: Vùng và toàn bộ các khuyết tật con sẽ được ẩn khỏi danh sách chính nhưng được bảo toàn mã hiệu, toạ độ CAD và lịch sử thẩm định.
@@ -4217,7 +4126,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               </button>
               <button
                 type="button"
-                onClick={() => executeSoftDeleteZone(zoneToDelete)}
+                onClick={() => executeSoftDeleteZone(zoneToDelete.floorIdx, zoneToDelete.zone)}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-rose-600/20 transition-all cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
@@ -4230,4 +4139,3 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     </section>
   );
 };
-

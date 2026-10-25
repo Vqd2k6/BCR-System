@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool, Check } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool, Check, MousePointer } from 'lucide-react';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 import { resolvePhotoTimestamp } from '../../utils/photoTimestampHelper';
@@ -291,8 +291,10 @@ export const ImageZoomModal: React.FC<Props> = ({
             src={displayUrl || getSafeDisplayUrl(imageUrl)}
             alt={title}
             draggable={false}
-            className="max-w-none max-h-none transition-transform duration-75 ease-out shadow-2xl pointer-events-none rounded-sm"
+            className="w-auto h-auto object-contain transition-transform duration-75 ease-out shadow-2xl pointer-events-none rounded-sm"
             style={{
+              maxWidth: ((rotation % 360) + 360) % 180 !== 0 ? 'calc(100vh - 7.5rem)' : 'calc(100vw - 3rem)',
+              maxHeight: ((rotation % 360) + 360) % 180 !== 0 ? 'calc(100vw - 3rem)' : 'calc(100vh - 7.5rem)',
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
               transformOrigin: 'center center',
             }}
@@ -306,7 +308,8 @@ export const ImageZoomModal: React.FC<Props> = ({
 
         {/* Scroll zoom helper pill */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 text-slate-200 text-xs flex items-center gap-2 pointer-events-none shadow-xl">
-          <span>🖱️ <strong>Cuộn chuột</strong> để Phóng to/Thu nhỏ &bull; <strong>Kéo chuột</strong> để soi từng milimet vết nứt</span>
+          <MousePointer className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          <span><strong>Cuộn chuột</strong> để Phóng to/Thu nhỏ &bull; <strong>Kéo chuột</strong> để soi từng milimet vết nứt</span>
         </div>
       </div>
     </div>

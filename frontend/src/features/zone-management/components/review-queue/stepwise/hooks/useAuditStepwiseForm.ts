@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 import { calculateEcsScore } from '../../../../../survey-phase1/engine/ecsCalculator';
 import { calculateViScore } from '../../../../../survey-phase1/engine/viCalculator';
@@ -361,11 +361,22 @@ export interface UseAuditStepwiseFormParams {
 export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwiseFormParams) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeNavStep, setActiveNavStep] = useState<string>('step-1');
+  const [activeSubNavId, setActiveSubNavId] = useState<string>('');
 
   // Form state & Dirty fields tracker
   const [formState, setFormState] = useState<Record<string, unknown>>({});
   const [originalState, setOriginalState] = useState<Record<string, unknown>>({});
   const [dirtyFields, setDirtyFields] = useState<Record<string, { label: string; oldValue: unknown; newValue: unknown }>>({});
+
+  // Refs to stabilize callbacks and prevent infinite render loops
+  const originalStateRef = useRef<Record<string, unknown>>(originalState);
+  originalStateRef.current = originalState;
+
+  const formStateRef = useRef<Record<string, unknown>>(formState);
+  formStateRef.current = formState;
+
+  const dirtyFieldsRef = useRef<Record<string, { label: string; oldValue: unknown; newValue: unknown }>>(dirtyFields);
+  dirtyFieldsRef.current = dirtyFields;
 
   // Sync initial data from incoming props
   useEffect(() => {
@@ -664,18 +675,18 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   }, [data]);
 
   // Helper to deep get value
-  const getDeepVal = (obj: Record<string, unknown> | undefined, path: string[]): unknown => {
+  const getDeepVal = useCallback((obj: Record<string, unknown> | undefined, path: string[]): unknown => {
     return path.reduce<unknown>(
       (curr, p) => (curr && typeof curr === 'object' ? (curr as Record<string, unknown>)[p] : undefined),
       obj
     );
-  };
+  }, []);
 
   // Handle direct field change
-  const handleFieldChange = (fieldKey: string, label: string, val: unknown) => {
+  const handleFieldChange = useCallback((fieldKey: string, label: string, val: unknown) => {
     setFormState((prev) => recomputeDerivedPhase1State({ ...prev, [fieldKey]: val }, fieldKey));
 
-    const originalVal = originalState[fieldKey];
+    const originalVal = originalStateRef.current[fieldKey];
     if (JSON.stringify(originalVal) === JSON.stringify(val)) {
       setDirtyFields((prev) => {
         const copy = { ...prev };
@@ -692,14 +703,14 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         },
       }));
     }
-  };
+  }, []);
 
   /**
    * Đồng bộ Ranh đất PostGIS & Cự ly Metro (Ràng buộc 02 - /grill-me):
    * Cập nhật parcelCoordinates, metroOffsetDistance, clearanceOffsetDistance và gpsCoords (đỉnh gần Metro nhất).
    * Tuyệt đối KHÔNG ghi đè landAreaM2, constructionAreaM2, frontageWidth, lotDepth.
    */
-  const handleApplySyncedGeometry = (
+  const handleApplySyncedGeometry = useCallback((
     newCoords: [number, number][],
     newMetroDist: string,
     newClearanceDist: string,
@@ -720,7 +731,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro (m)', newMetroDist);
     handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài / mép ga (m)', newClearanceDist);
     if (targetVertex && targetVertex.length >= 2) {
-      const curAcc = (formState.gpsCoords as { accuracy?: number } | undefined)?.accuracy || 1.5;
+      const curAcc = (formStateRef.current.gpsCoords as { accuracy?: number } | undefined)?.accuracy || 1.5;
       handleFieldChange('gpsCoords', 'Tọa độ đỉnh ranh gần Metro nhất (PostGIS)', {
         lat: Number(targetVertex[0]),
         latitude: Number(targetVertex[0]),
@@ -729,13 +740,13 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         accuracy: Number(curAcc),
       });
     }
-    if (formState.keepKsvBoundaryConfirmed) {
+    if (formStateRef.current.keepKsvBoundaryConfirmed) {
       handleFieldChange('keepKsvBoundaryConfirmed', 'Xác nhận giữ ranh KSV thực địa', false);
     }
-  };
+  }, [handleFieldChange, isEditMode]);
 
   // Handle nested object field change (supports dot-paths e.g. 'diffSettlement.level')
-  const handleNestedFieldChange = (parentKey: string, childKey: string, label: string, val: unknown) => {
+  const handleNestedFieldChange = useCallback((parentKey: string, childKey: string, label: string, val: unknown) => {
     setFormState((prev) => {
       const parentObj = (prev[parentKey] as Record<string, unknown>) || {};
       let updatedParent: Record<string, unknown>;
@@ -760,7 +771,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     });
 
     const dirtyKey = `${parentKey}.${childKey}`;
-    const origParent = (originalState[parentKey] as Record<string, unknown>) || {};
+    const origParent = (originalStateRef.current[parentKey] as Record<string, unknown>) || {};
     const originalVal = childKey.includes('.') ? getDeepVal(origParent, childKey.split('.')) : origParent[childKey];
 
     if (JSON.stringify(originalVal) === JSON.stringify(val)) {
@@ -779,33 +790,33 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         },
       }));
     }
-  };
+  }, [getDeepVal]);
 
   // Helper check if field or nested field is dirty
-  const isFieldDirty = (fieldKey: string, subKey?: string): boolean => {
+  const isFieldDirty = useCallback((fieldKey: string, subKey?: string): boolean => {
     if (subKey) {
-      return Boolean(dirtyFields[`${fieldKey}.${subKey}`]);
+      return Boolean(dirtyFieldsRef.current[`${fieldKey}.${subKey}`]);
     }
-    if (dirtyFields[fieldKey]) return true;
-    return Object.keys(dirtyFields).some((k) => k === fieldKey || k.startsWith(`${fieldKey}.`));
-  };
+    if (dirtyFieldsRef.current[fieldKey]) return true;
+    return Object.keys(dirtyFieldsRef.current).some((k) => k === fieldKey || k.startsWith(`${fieldKey}.`));
+  }, []);
 
   // Discard all changes
-  const handleDiscard = (silent = false) => {
+  const handleDiscard = useCallback((silent = false) => {
     if (silent || window.confirm('Bạn có chắc muốn hủy bỏ mọi thay đổi vừa chỉnh sửa?')) {
-      setFormState(originalState);
+      setFormState(originalStateRef.current);
       setDirtyFields({});
       setIsEditMode(false);
     }
-  };
+  }, []);
 
   // Discard a single diff item (revert field to original KSV state)
-  const discardDiffItem = (fieldKey: string) => {
+  const discardDiffItem = useCallback((fieldKey: string) => {
     if (fieldKey.includes('.')) {
       const parts = fieldKey.split('.');
       const parentKey = parts[0];
       const childPath = parts.slice(1);
-      const origParent = (originalState[parentKey] as Record<string, unknown>) || {};
+      const origParent = (originalStateRef.current[parentKey] as Record<string, unknown>) || {};
       const origVal = getDeepVal(origParent, childPath);
 
       setFormState((prev) => {
@@ -830,7 +841,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         recomputeDerivedPhase1State(
           {
             ...prev,
-            [fieldKey]: originalState[fieldKey],
+            [fieldKey]: originalStateRef.current[fieldKey],
           },
           fieldKey
         )
@@ -842,24 +853,399 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       delete copy[fieldKey];
       return copy;
     });
-  };
+  }, [getDeepVal]);
 
-  const getDiffPayload = () => {
-    const diffItems: DiffItem[] = Object.entries(dirtyFields).map(([k, v]) => ({
-      field: k,
-      label: v.label,
-      oldValue: v.oldValue,
-      newValue: v.newValue,
-    }));
+  const getDiffPayload = useCallback(() => {
+    const diffItems: DiffItem[] = [];
+
+    const formatPhotoRotationKeyLabel = (rotKey: string): string => {
+      if (rotKey.startsWith('photoP0')) {
+        return `Ảnh định danh ngoại quan (${rotKey.replace('photo', '')})`;
+      }
+      const cadStructMatch = rotKey.match(/^floor_(.+)_(?:structural_cad|cad_struct)$/);
+      if (cadStructMatch) {
+        return `Sơ đồ mặt bằng Kết cấu CAD_E (${cadStructMatch[1]})`;
+      }
+      const cadMatch = rotKey.match(/^floor_(.+)_cad$/);
+      if (cadMatch) {
+        return `Sơ đồ mặt bằng Kiến trúc CAD_Z (${cadMatch[1]})`;
+      }
+      const zoneCtxMatch = rotKey.match(/^zone_f(\d+)_z([^_]+)_ctx$/);
+      if (zoneCtxMatch) {
+        return `Ảnh bối cảnh Vùng ${zoneCtxMatch[2]} (Tầng ${Number(zoneCtxMatch[1]) + 1})`;
+      }
+      const elemCtxMatch = rotKey.match(/^elem_f(\d+)_e([^_]+)_ctx$/);
+      if (elemCtxMatch) {
+        return `Ảnh bối cảnh Cấu kiện ${elemCtxMatch[2]} (Tầng ${Number(elemCtxMatch[1]) + 1})`;
+      }
+      const defectCuMatch = rotKey.match(/^defect_f(\d+)_([ze][^_]+)_(.+)_cu_(\d+)$/);
+      if (defectCuMatch) {
+        return `Ảnh cận cảnh CU #${Number(defectCuMatch[4]) + 1} (${defectCuMatch[2]} • ${defectCuMatch[3]})`;
+      }
+      return `Ảnh hồ sơ (${rotKey})`;
+    };
+
+    const expandFloorsDiff = (oldFloorsRaw: unknown, newFloorsRaw: unknown, fallbackLabel: string): DiffItem[] => {
+      const oldFloors = Array.isArray(oldFloorsRaw) ? (oldFloorsRaw as Array<Record<string, unknown>>) : [];
+      const newFloors = Array.isArray(newFloorsRaw) ? (newFloorsRaw as Array<Record<string, unknown>>) : [];
+      const items: DiffItem[] = [];
+
+      const maxLen = Math.max(oldFloors.length, newFloors.length);
+      for (let fIdx = 0; fIdx < maxLen; fIdx++) {
+        const oldFl = oldFloors[fIdx];
+        const newFl = newFloors[fIdx];
+        const flName = String(newFl?.floorName || oldFl?.floorName || `Tầng ${fIdx + 1}`);
+
+        if (!oldFl && newFl) {
+          items.push({
+            field: 'floors',
+            label: `[${flName}] Thêm tầng khảo sát mới`,
+            oldValue: 'Chưa có',
+            newValue: flName,
+          });
+          continue;
+        }
+        if (oldFl && !newFl) {
+          items.push({
+            field: 'floors',
+            label: `[${flName}] Xóa tầng khảo sát`,
+            oldValue: flName,
+            newValue: 'Đã xóa',
+          });
+          continue;
+        }
+        if (!oldFl || !newFl) continue;
+
+        // 1. Góc xoay CAD
+        const oldCadRot = Number(oldFl.cadSketchRotation ?? 0);
+        const newCadRot = Number(newFl.cadSketchRotation ?? 0);
+        if (oldCadRot !== newCadRot) {
+          items.push({
+            field: 'floors',
+            label: `[${flName}] Góc xoay bản vẽ CAD`,
+            oldValue: `${oldCadRot}°`,
+            newValue: `${newCadRot}°`,
+          });
+        }
+
+        // 2. Ghim Vùng Z trên CAD_Z
+        const oldZPins = Array.isArray(oldFl.cadZonePins) ? (oldFl.cadZonePins as Array<Record<string, unknown>>) : [];
+        const newZPins = Array.isArray(newFl.cadZonePins) ? (newFl.cadZonePins as Array<Record<string, unknown>>) : [];
+        if (JSON.stringify(oldZPins) !== JSON.stringify(newZPins)) {
+          const movedZPins: string[] = [];
+          newZPins.forEach((np) => {
+            const code = String(np.zoneCode || np.zone_code || '');
+            const op = oldZPins.find((p) => String(p.zoneCode || p.zone_code || '') === code);
+            if (!op) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • CAD_Z] Thêm điểm ghim ${code}`,
+                oldValue: 'Chưa ghim',
+                newValue: `(${np.pinX ?? np.pin_x}%, ${np.pinY ?? np.pin_y}%)`,
+              });
+            } else {
+              const ox = Number(op.pinX ?? op.pin_x ?? 50);
+              const oy = Number(op.pinY ?? op.pin_y ?? 50);
+              const nx = Number(np.pinX ?? np.pin_x ?? 50);
+              const ny = Number(np.pinY ?? np.pin_y ?? 50);
+              if (Math.abs(ox - nx) > 0.1 || Math.abs(oy - ny) > 0.1) {
+                movedZPins.push(`${code}: (${ox}%, ${oy}%) → (${nx}%, ${ny}%)`);
+              }
+            }
+          });
+          if (movedZPins.length === 1) {
+            const parts = movedZPins[0].split(': ');
+            const coords = parts[1].split(' → ');
+            items.push({
+              field: 'floors',
+              label: `[${flName} • CAD_Z] Tọa độ ghim ${parts[0]}`,
+              oldValue: coords[0],
+              newValue: coords[1],
+            });
+          } else if (movedZPins.length > 1) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • CAD_Z] Chuyển vị ${movedZPins.length} điểm ghim Vùng Z`,
+              oldValue: `${movedZPins.length} điểm ghim gốc`,
+              newValue: movedZPins.slice(0, 3).join('; ') + (movedZPins.length > 3 ? ` (+${movedZPins.length - 3} ghim)` : ''),
+            });
+          }
+        }
+
+        // 3. Ghim Cấu kiện E trên CAD_E
+        const oldEPins = Array.isArray(oldFl.cadElementPins) ? (oldFl.cadElementPins as Array<Record<string, unknown>>) : [];
+        const newEPins = Array.isArray(newFl.cadElementPins) ? (newFl.cadElementPins as Array<Record<string, unknown>>) : [];
+        if (JSON.stringify(oldEPins) !== JSON.stringify(newEPins)) {
+          const movedEPins: string[] = [];
+          newEPins.forEach((np) => {
+            const code = String(np.zoneCode || np.zone_code || '');
+            const op = oldEPins.find((p) => String(p.zoneCode || p.zone_code || '') === code);
+            if (!op) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • CAD_E] Thêm điểm ghim ${code}`,
+                oldValue: 'Chưa ghim',
+                newValue: `(${np.pinX ?? np.pin_x}%, ${np.pinY ?? np.pin_y}%)`,
+              });
+            } else {
+              const ox = Number(op.pinX ?? op.pin_x ?? 50);
+              const oy = Number(op.pinY ?? op.pin_y ?? 50);
+              const nx = Number(np.pinX ?? np.pin_x ?? 50);
+              const ny = Number(np.pinY ?? np.pin_y ?? 50);
+              if (Math.abs(ox - nx) > 0.1 || Math.abs(oy - ny) > 0.1) {
+                movedEPins.push(`${code}: (${ox}%, ${oy}%) → (${nx}%, ${ny}%)`);
+              }
+            }
+          });
+          if (movedEPins.length > 0) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • CAD_E] Chuyển vị ${movedEPins.length} điểm ghim Cấu kiện E`,
+              oldValue: `${movedEPins.length} điểm ghim gốc`,
+              newValue: movedEPins.slice(0, 3).join('; ') + (movedEPins.length > 3 ? ` (+${movedEPins.length - 3} ghim)` : ''),
+            });
+          }
+        }
+
+        // 4. Vùng Z & Khuyết tật D trong Z
+        const oldZones = Array.isArray(oldFl.zones) ? (oldFl.zones as Array<Record<string, unknown>>) : [];
+        const newZones = Array.isArray(newFl.zones) ? (newFl.zones as Array<Record<string, unknown>>) : [];
+        newZones.forEach((nz) => {
+          const zCode = String(nz.zoneCode || nz.zone_code || 'Z');
+          const oz = oldZones.find(
+            (z) => (z.id && z.id === nz.id) || String(z.zoneCode || z.zone_code || '') === zCode
+          );
+          if (!oz) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • ${zCode}] Thêm mới Vùng kiến trúc`,
+              oldValue: 'Chưa có',
+              newValue: `${zCode} (${String(nz.roomName || 'Không gian mới')})`,
+            });
+            return;
+          }
+          const wasDel = Boolean(oz.isDeleted || oz.is_deleted);
+          const isDel = Boolean(nz.isDeleted || nz.is_deleted);
+          if (wasDel !== isDel) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • ${zCode}] Trạng thái Vùng kiến trúc`,
+              oldValue: wasDel ? 'Đã xóa' : 'Đang hoạt động',
+              newValue: isDel ? 'Đã xóa mềm' : 'Khôi phục hoạt động',
+            });
+            return;
+          }
+          const zoneFields: Array<{ k: string; l: string }> = [
+            { k: 'roomName', l: 'Tên phòng' },
+            { k: 'componentType', l: 'Loại cấu kiện' },
+            { k: 'wallMaterial', l: 'Vật liệu tường' },
+            { k: 'notes', l: 'Ghi chú vùng' },
+          ];
+          zoneFields.forEach(({ k, l }) => {
+            if (String(oz[k] ?? '') !== String(nz[k] ?? '')) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${zCode}] ${l}`,
+                oldValue: oz[k] || '(Trống)',
+                newValue: nz[k] || '(Trống)',
+              });
+            }
+          });
+
+          const oldDefs = Array.isArray(oz.defects) ? (oz.defects as Array<Record<string, unknown>>) : [];
+          const newDefs = Array.isArray(nz.defects) ? (nz.defects as Array<Record<string, unknown>>) : [];
+          newDefs.forEach((nd) => {
+            const dCode = String(nd.defectCode || nd.defect_code || 'D');
+            const od = oldDefs.find(
+              (d) => (d.id && d.id === nd.id) || String(d.defectCode || d.defect_code || '') === dCode
+            );
+            if (!od) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${zCode} • ${dCode}] Thêm khuyết tật mới`,
+                oldValue: 'Chưa có',
+                newValue: `${String(nd.defectType || 'Vết nứt')} (Rộng ${nd.widthMaxMm ?? 0}mm)`,
+              });
+              return;
+            }
+            const dWasDel = Boolean(od.isDeleted || od.is_deleted);
+            const dIsDel = Boolean(nd.isDeleted || nd.is_deleted);
+            if (dWasDel !== dIsDel) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${zCode} • ${dCode}] Trạng thái khuyết tật`,
+                oldValue: dWasDel ? 'Đã xóa' : 'Đang hiển thị',
+                newValue: dIsDel ? 'Đã xóa mềm' : 'Khôi phục',
+              });
+              return;
+            }
+            const ox = Number(od.pinX ?? od.pin_x ?? 50);
+            const oy = Number(od.pinY ?? od.pin_y ?? 50);
+            const nx = Number(nd.pinX ?? nd.pin_x ?? 50);
+            const ny = Number(nd.pinY ?? nd.pin_y ?? 50);
+            if (Math.abs(ox - nx) > 0.1 || Math.abs(oy - ny) > 0.1) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${zCode} • ${dCode}] Tọa độ ghim trên ảnh CTX`,
+                oldValue: `(${ox}%, ${oy}%)`,
+                newValue: `(${nx}%, ${ny}%)`,
+              });
+            }
+            const defFields: Array<{ k: string; l: string; unit?: string }> = [
+              { k: 'defectType', l: 'Loại khuyết tật' },
+              { k: 'widthMaxMm', l: 'Bề rộng vết nứt', unit: ' mm' },
+              { k: 'lengthMm', l: 'Chiều dài vết nứt', unit: ' mm' },
+              { k: 'notes', l: 'Ghi chú khuyết tật' },
+            ];
+            defFields.forEach(({ k, l, unit = '' }) => {
+              if (String(od[k] ?? '') !== String(nd[k] ?? '')) {
+                items.push({
+                  field: 'floors',
+                  label: `[${flName} • ${zCode} • ${dCode}] ${l}`,
+                  oldValue: od[k] !== undefined && od[k] !== '' ? `${od[k]}${unit}` : '(Trống)',
+                  newValue: nd[k] !== undefined && nd[k] !== '' ? `${nd[k]}${unit}` : '(Trống)',
+                });
+              }
+            });
+          });
+        });
+
+        // 5. Cấu kiện E & Khuyết tật D trong E
+        const oldElems = Array.isArray(oldFl.structuralElements) ? (oldFl.structuralElements as Array<Record<string, unknown>>) : [];
+        const newElems = Array.isArray(newFl.structuralElements) ? (newFl.structuralElements as Array<Record<string, unknown>>) : [];
+        newElems.forEach((ne) => {
+          const eCode = String(ne.elementCode || ne.element_code || 'E');
+          const oe = oldElems.find(
+            (e) => (e.id && e.id === ne.id) || String(e.elementCode || e.element_code || '') === eCode
+          );
+          if (!oe) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • ${eCode}] Thêm mới Cấu kiện kết cấu`,
+              oldValue: 'Chưa có',
+              newValue: `${eCode} (${String(ne.elementType || 'BTCT')})`,
+            });
+            return;
+          }
+          const eWasDel = Boolean(oe.isDeleted || oe.is_deleted);
+          const eIsDel = Boolean(ne.isDeleted || ne.is_deleted);
+          if (eWasDel !== eIsDel) {
+            items.push({
+              field: 'floors',
+              label: `[${flName} • ${eCode}] Trạng thái Cấu kiện kết cấu`,
+              oldValue: eWasDel ? 'Đã xóa' : 'Đang hoạt động',
+              newValue: eIsDel ? 'Đã xóa mềm' : 'Khôi phục',
+            });
+            return;
+          }
+          const elemFields: Array<{ k: string; l: string }> = [
+            { k: 'elementType', l: 'Loại cấu kiện' },
+            { k: 'materialType', l: 'Vật liệu kết cấu' },
+            { k: 'roomName', l: 'Vị trí trục' },
+          ];
+          elemFields.forEach(({ k, l }) => {
+            if (String(oe[k] ?? '') !== String(ne[k] ?? '')) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${eCode}] ${l}`,
+                oldValue: oe[k] || '(Trống)',
+                newValue: ne[k] || '(Trống)',
+              });
+            }
+          });
+
+          const oldEDefs = Array.isArray(oe.defects) ? (oe.defects as Array<Record<string, unknown>>) : [];
+          const newEDefs = Array.isArray(ne.defects) ? (ne.defects as Array<Record<string, unknown>>) : [];
+          newEDefs.forEach((nd) => {
+            const dCode = String(nd.defectCode || nd.defect_code || 'D');
+            const od = oldEDefs.find(
+              (d) => (d.id && d.id === nd.id) || String(d.defectCode || d.defect_code || '') === dCode
+            );
+            if (!od) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${eCode} • ${dCode}] Thêm khuyết tật kết cấu`,
+                oldValue: 'Chưa có',
+                newValue: `${String(nd.defectType || 'Vết nứt BTCT')} (Rộng ${nd.widthMaxMm ?? 0}mm)`,
+              });
+              return;
+            }
+            const ox = Number(od.pinX ?? od.pin_x ?? 50);
+            const oy = Number(od.pinY ?? od.pin_y ?? 50);
+            const nx = Number(nd.pinX ?? nd.pin_x ?? 50);
+            const ny = Number(nd.pinY ?? nd.pin_y ?? 50);
+            if (Math.abs(ox - nx) > 0.1 || Math.abs(oy - ny) > 0.1) {
+              items.push({
+                field: 'floors',
+                label: `[${flName} • ${eCode} • ${dCode}] Tọa độ ghim trên ảnh CTX`,
+                oldValue: `(${ox}%, ${oy}%)`,
+                newValue: `(${nx}%, ${ny}%)`,
+              });
+            }
+          });
+        });
+      }
+
+      if (items.length === 0) {
+        items.push({
+          field: 'floors',
+          label: fallbackLabel || 'Cập nhật dữ liệu Tầng / Vùng Z / Cấu kiện E',
+          oldValue: `${oldFloors.length} tầng khảo sát (Trạng thái gốc)`,
+          newValue: `${newFloors.length} tầng khảo sát (Đã chuẩn hóa)`,
+        });
+      }
+      return items;
+    };
+
+    Object.entries(dirtyFieldsRef.current).forEach(([k, v]) => {
+      if (k === 'photoRotations') {
+        const oldRots = (v.oldValue && typeof v.oldValue === 'object' ? v.oldValue : {}) as Record<string, number>;
+        const newRots = (v.newValue && typeof v.newValue === 'object' ? v.newValue : {}) as Record<string, number>;
+        const allKeys = Array.from(new Set([...Object.keys(oldRots), ...Object.keys(newRots)]));
+        let addedCount = 0;
+        allKeys.forEach((rk) => {
+          const oDeg = Number(oldRots[rk] ?? 0);
+          const nDeg = Number(newRots[rk] ?? 0);
+          if (oDeg !== nDeg) {
+            addedCount++;
+            diffItems.push({
+              field: `photoRotations.${rk}`,
+              label: `Xoay hướng ảnh A4 — ${formatPhotoRotationKeyLabel(rk)}`,
+              oldValue: `${oDeg}° (Gốc)`,
+              newValue: `${nDeg}° (Đã xoay chuẩn A4)`,
+              isPhoto: true,
+            });
+          }
+        });
+        if (addedCount === 0) {
+          diffItems.push({
+            field: k,
+            label: v.label,
+            oldValue: '0° (Mặc định)',
+            newValue: 'Đã đồng bộ hướng ảnh chuẩn A4',
+            isPhoto: true,
+          });
+        }
+      } else if (k === 'floors') {
+        diffItems.push(...expandFloorsDiff(v.oldValue, v.newValue, v.label));
+      } else {
+        diffItems.push({
+          field: k,
+          label: v.label,
+          oldValue: v.oldValue,
+          newValue: v.newValue,
+        });
+      }
+    });
 
     const updatesPayload: Record<string, unknown> = {};
     let hasScoringKeyChanged = false;
 
-    Object.keys(dirtyFields).forEach((k) => {
+    Object.keys(dirtyFieldsRef.current).forEach((k) => {
       const topKey = k.includes('.') ? k.split('.')[0] : k;
-      updatesPayload[topKey] = formState[topKey];
+      updatesPayload[topKey] = formStateRef.current[topKey];
       if (topKey === 'floors' || topKey === 'damageZones') {
-        updatesPayload.burlandSummary = formState.burlandSummary;
+        updatesPayload.burlandSummary = formStateRef.current.burlandSummary;
       }
       if (STEP_1_TO_5_SCORING_KEYS.has(topKey) || topKey === 'ecs' || topKey === 'vi' || topKey === 'executiveSummary') {
         hasScoringKeyChanged = true;
@@ -871,22 +1257,22 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     for (const dKey of derivedKeys) {
       if (
         hasScoringKeyChanged ||
-        JSON.stringify(formState[dKey]) !== JSON.stringify(originalState[dKey])
+        JSON.stringify(formStateRef.current[dKey]) !== JSON.stringify(originalStateRef.current[dKey])
       ) {
-        updatesPayload[dKey] = formState[dKey];
+        updatesPayload[dKey] = formStateRef.current[dKey];
       }
     }
 
     if (updatesPayload.executiveSummary && typeof updatesPayload.executiveSummary === 'object') {
       updatesPayload.executiveSummary = {
         ...(updatesPayload.executiveSummary as Record<string, unknown>),
-        isImpactOverridden: Boolean(dirtyFields['executiveSummary.constructionImpactStatus']),
-        isBraOverridden: Boolean(dirtyFields['executiveSummary.braStatus']),
+        isImpactOverridden: Boolean(dirtyFieldsRef.current['executiveSummary.constructionImpactStatus']),
+        isBraOverridden: Boolean(dirtyFieldsRef.current['executiveSummary.braStatus']),
       };
     }
 
     return { diffItems, updatesPayload };
-  };
+  }, []);
 
   // Open review and diff modal
   const handleReviewSave = () => {
@@ -908,7 +1294,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     }
   };
 
-  // Scrollspy: Tự động highlight step tương ứng trong Mục Lục khi người dùng cuộn
+  // Scrollspy 2 cấp: Tự động highlight cả Step chính (step-1..9) và Mục con Bước 4 (CAD_Z, Z, CAD_E, E)
   useEffect(() => {
     const container = document.getElementById('audit-studio-scroll-container');
     if (!container) return;
@@ -936,13 +1322,28 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
             const el = document.getElementById(sId);
             if (el) {
               const elRect = el.getBoundingClientRect();
-              // Khi phần đầu của step nằm cách đỉnh container không quá 140px
               if (elRect.top - containerRect.top <= 140) {
                 currentStep = sId;
               }
             }
           }
           setActiveNavStep(currentStep);
+
+          // Nếu đang trong Bước 4, tìm phân đoạn con (CAD_Z / Z / CAD_E / E) đang ở trong tầm nhìn
+          if (currentStep === 'step-4') {
+            const subNodes = container.querySelectorAll<HTMLElement>('[id^="step-4-floor-"]');
+            let matchedSubId = '';
+            subNodes.forEach((node) => {
+              const nRect = node.getBoundingClientRect();
+              if (nRect.top - containerRect.top <= 160) {
+                matchedSubId = node.id;
+              }
+            });
+            setActiveSubNavId(matchedSubId);
+          } else {
+            setActiveSubNavId('');
+          }
+
           ticking = false;
         });
         ticking = true;
@@ -961,6 +1362,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     isEditMode,
     setIsEditMode,
     activeNavStep,
+    activeSubNavId,
+    setActiveSubNavId,
     scrollToStep,
     formState,
     dirtyFields,

@@ -14,7 +14,9 @@ import {
   History,
   RotateCw,
   Undo2,
+  Lightbulb,
 } from 'lucide-react';
+import { RotatableImageFrame } from '../components/RotatableImageFrame';
 
 import type {
   AuditStepwiseFormState,
@@ -500,7 +502,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
               {activeMinutesItems.map((item) => {
                 const { idx, url, caption, photoCode, state, matchedAction } = item;
                 const rotKey = `minutes_${idx}`;
@@ -515,7 +517,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   <div
                     key={rotKey}
                     id={`audit-photo-card-minutes-${idx}`}
-                    className={`group relative rounded-xl border overflow-hidden bg-white shadow-xs transition-all flex flex-col ${
+                    className={`w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 group relative rounded-xl border overflow-hidden bg-white shadow-xs transition-all flex flex-col ${
                       state === 'ADDED'
                         ? 'border-emerald-400 ring-1 ring-emerald-300'
                         : state === 'REPLACED'
@@ -525,18 +527,18 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                         : 'border-slate-200 hover:border-sky-400 hover:shadow-md'
                     }`}
                   >
-                    {/* Image preview area (fixed height container so 90/270 deg rotation never overflows card) */}
+                    {/* Image preview area */}
                     <div
-                      className="relative h-[240px] w-full bg-slate-100 cursor-pointer overflow-hidden flex items-center justify-center"
+                      className="relative h-[260px] w-full bg-slate-900 cursor-pointer overflow-hidden flex items-center justify-center p-1.5"
                       onClick={() => onOpenPhotoZoom(url, caption, rotKey, rot)}
                     >
-                      <img
+                      <RotatableImageFrame
                         src={url}
                         alt={caption}
-                        style={{ transform: `rotate(${rot}deg)` }}
-                        className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        rotation={rot}
+                        maxHeightPx={244}
                       />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <span className="p-1.5 rounded-full bg-white/90 text-slate-800 shadow">
                           <ZoomIn className="w-4 h-4" />
                         </span>
@@ -556,10 +558,11 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       )}
                       {orientViolation && (
                         <span
-                          className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
+                          className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs flex items-center gap-1"
                           title={orientViolation.message}
                         >
-                          💡 Khuyến nghị xoay Dọc
+                          <Lightbulb className="w-3 h-3 shrink-0" />
+                          <span>Khuyến nghị xoay Dọc</span>
                         </span>
                       )}
                       {rot !== 0 && (
@@ -1346,7 +1349,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
 
             {/* Danh sách lần liên hệ / dán giấy hẹn */}
             {(absenceLogs && absenceLogs.length > 0) || addedAbsenceNoticePhotos.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+              <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 pt-2 scrollbar-thin">
                 {absenceLogs.map((log, lIdx) => {
                   const logRec = log as Record<string, unknown>;
                   const rawLogPhotoUrl =
@@ -1375,19 +1378,14 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       ? stagedPhotoRotations[displayLogPhotoUrl]
                       : undefined) ??
                     0;
-                  const absViolation =
-                    violationsMap?.get(absRotKey) ||
-                    (displayLogPhotoUrl ? violationsMap?.get(displayLogPhotoUrl) : undefined);
 
                   return (
                     <div
                       key={log.id || lIdx}
                       id={`audit-photo-card-absence-${lIdx}`}
-                      className={`p-3 bg-white rounded-xl border space-y-2 shadow-2xs transition-all ${
+                      className={`w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 p-3 bg-white rounded-xl border space-y-2 shadow-2xs transition-all ${
                         logPhotoRes.state === 'REPLACED'
                           ? 'border-sky-400 ring-1 ring-sky-300'
-                          : absViolation
-                          ? 'border-amber-400 ring-1 ring-amber-300'
                           : 'border-purple-200'
                       }`}
                     >
@@ -1417,12 +1415,12 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                           )}
                         </div>
                       ) : displayLogPhotoUrl ? (
-                        <div className="relative h-[200px] w-full rounded-lg overflow-hidden bg-slate-100 group border border-slate-200 flex items-center justify-center">
-                          <img
+                        <div className="relative h-[220px] w-full rounded-lg overflow-hidden bg-slate-900 group border border-slate-200 flex items-center justify-center p-1.5">
+                          <RotatableImageFrame
                             src={displayLogPhotoUrl}
                             alt={`Giấy báo lần ${lIdx + 1}`}
-                            style={{ transform: absRot ? `rotate(${absRot}deg)` : undefined }}
-                            className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                            rotation={absRot}
+                            maxHeightPx={204}
                           />
                           <div
                             className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"
@@ -1440,14 +1438,6 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                           {logPhotoRes.state === 'REPLACED' && (
                             <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-sky-600 text-white font-bold text-[9px] shadow-xs">
                               Đã thay ảnh
-                            </span>
-                          )}
-                          {absViolation && (
-                            <span
-                              className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500/95 text-white font-bold text-[9px] z-10 shadow-xs"
-                              title={absViolation.message}
-                            >
-                              💡 Khuyến nghị xoay Dọc
                             </span>
                           )}
                           {absRot !== 0 && (
@@ -1557,7 +1547,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                     <div
                       key={`added-abs-${aIdx}`}
                       id={`audit-photo-card-absence-${totalIdx}`}
-                      className="p-3 bg-white rounded-xl border border-emerald-400 ring-1 ring-emerald-300 space-y-2 shadow-2xs transition-all"
+                      className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 p-3 bg-white rounded-xl border border-emerald-400 ring-1 ring-emerald-300 space-y-2 shadow-2xs transition-all"
                     >
                       <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
                         <span>Giấy báo mới #{totalIdx + 1}</span>
@@ -1570,12 +1560,12 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                           <span className="font-semibold text-slate-700">Ghi chú:</span> {addedItem.matchedAction.reason}
                         </p>
                       )}
-                      <div className="relative h-[200px] w-full rounded-lg overflow-hidden bg-slate-100 group border border-slate-200 flex items-center justify-center">
-                        <img
+                      <div className="relative h-[220px] w-full rounded-lg overflow-hidden bg-slate-900 group border border-slate-200 flex items-center justify-center p-1.5">
+                        <RotatableImageFrame
                           src={addedItem.displayUrl}
                           alt={`Giấy báo mới ${totalIdx + 1}`}
-                          style={{ transform: absRot ? `rotate(${absRot}deg)` : undefined }}
-                          className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                          rotation={absRot}
+                          maxHeightPx={204}
                         />
                         <div
                           className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white"

@@ -14,13 +14,14 @@ import {
   Layers,
   Move,
   RefreshCw,
+  X,
 } from 'lucide-react';
 import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
-import { computePolygonAreaM2 } from '../../../../../../components/gis/shared/geoMath';
+import { computePolygonAreaM2, normalizeQuadEdges, getDistanceM } from '../../../../../../components/gis/shared/geoMath';
 
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseAccessLimitation, StepwiseGisMutationConfirmed } from '../types';
 
@@ -174,19 +175,50 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     return [];
   }, [data?.surveyJson, data?.survey_data_json, data?.parcelCoordinates, data?.coordinates]);
 
-  // Trích xuất tọa độ Polygon thửa đất hiện hành
+  // Trích xuất tọa độ Polygon thửa đất hiện hành: Luôn ưu tiên ranh PostGIS hiện hành ngoài bản đồ GIS trừ khi TDV vừa chỉnh sửa thủ công
+  const isParcelCoordsManuallyEdited = Boolean(isFieldDirty?.('parcelCoordinates'));
   const parcelCoords = useMemo<[number, number][]>(() => {
-    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+    if (isParcelCoordsManuallyEdited && Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
       return formState.parcelCoordinates;
     }
     if (postgisPolygon.length >= 3) {
       return postgisPolygon;
     }
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return formState.parcelCoordinates;
+    }
     if (initialSurveyPolygon.length >= 3) {
       return initialSurveyPolygon;
     }
     return [];
-  }, [formState.parcelCoordinates, postgisPolygon, initialSurveyPolygon]);
+  }, [isParcelCoordsManuallyEdited, formState.parcelCoordinates, postgisPolygon, initialSurveyPolygon]);
+
+  // Tính toán kích thước hình học trực tiếp từ đa giác GIS hiện hành (đồng bộ 100% với bản đồ GIS bên ngoài)
+  const liveGisGeometry = useMemo<{
+    areaM2: number | string;
+    frontageM: number | string;
+    depthM: number | string;
+  }>(() => {
+    if (parcelCoords.length >= 3) {
+      const computedArea = computePolygonAreaM2(parcelCoords);
+      const quad = normalizeQuadEdges(parcelCoords);
+      const frontDist = Math.round(getDistanceM(quad.frontL, quad.frontR) * 100) / 100;
+      const leftDist = getDistanceM(quad.frontL, quad.backL);
+      const rightDist = getDistanceM(quad.frontR, quad.backR);
+      const avgDepth = Math.round(((leftDist + rightDist) / 2) * 100) / 100;
+
+      return {
+        areaM2: isFieldDirty?.('landAreaM2') && formState.landAreaM2 ? formState.landAreaM2 : (computedArea > 0 ? computedArea : (landAreaM2 || 0)),
+        frontageM: isFieldDirty?.('frontageWidth') && formState.frontageWidth ? formState.frontageWidth : (frontDist > 0 ? frontDist : (frontageWidth || '')),
+        depthM: isFieldDirty?.('lotDepth') && formState.lotDepth ? formState.lotDepth : (avgDepth > 0 ? avgDepth : (lotDepth || '')),
+      };
+    }
+    return {
+      areaM2: landAreaM2 || 0,
+      frontageM: frontageWidth || '',
+      depthM: lotDepth || '',
+    };
+  }, [parcelCoords, isFieldDirty, formState.landAreaM2, formState.frontageWidth, formState.lotDepth, landAreaM2, frontageWidth, lotDepth]);
 
   // Kiểm tra xem ranh PostGIS mới nhất trong DB có khác với ranh đang lưu trong snapshot formState hay không
   const hasPostgisDiff = useMemo<boolean>(() => {
@@ -348,7 +380,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             onClick={() => setSuccessToast('')}
             className="text-emerald-200 hover:text-white cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -725,26 +757,37 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             projectParcelCode={effectiveParcelCode || '---'}
             mutationType={mutation.type || (isBoundaryAdjusted ? 'BOUNDARY_ADJUST' : 'MATCH')}
             mutationDetails={mutation.details || {}}
-            landAreaM2={landAreaM2}
-            frontageWidth={frontageWidth}
-            lotDepth={lotDepth}
+            landAreaM2={liveGisGeometry.areaM2}
+            frontageWidth={liveGisGeometry.frontageM}
+            lotDepth={liveGisGeometry.depthM}
             gpsLocation={parsedGpsCoords}
             onOpenEditorModal={() => handleOpenGisModal(() => setIsMutationModalOpen(true))}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1">
-                Thửa Đất Hiện Hành
+            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                Thửa Đất &amp; Kích Thước GIS Hiện Hành
               </span>
               <div className="font-bold text-slate-800 font-mono">
                 Mã Thửa: [{effectiveParcelCode || '---'}]
               </div>
-              <div className="text-slate-600 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[11px]">
                 {effectiveHouseNumber} {effectiveStreet}
               </div>
+              <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-800 bg-emerald-50/80 border border-emerald-200 px-2 py-1 rounded-lg mt-1">
+                <Ruler className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>
+                  DT GIS: <strong>{liveGisGeometry.areaM2} m²</strong>
+                  {(liveGisGeometry.frontageM || liveGisGeometry.depthM) && (
+                    <span className="text-slate-600 ml-1">
+                      ({liveGisGeometry.frontageM || '?'}m &times; {liveGisGeometry.depthM || '?'}m)
+                    </span>
+                  )}
+                </span>
+              </div>
               {effectiveOwnerName && (
-                <div className="text-slate-500 text-[11px] mt-0.5">
+                <div className="text-slate-500 text-[11px] pt-0.5">
                   Chủ hộ: <strong className="text-slate-700">{effectiveOwnerName}</strong>
                 </div>
               )}

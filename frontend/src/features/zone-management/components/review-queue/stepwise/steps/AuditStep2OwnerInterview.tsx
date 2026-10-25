@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw, RotateCw, Undo2 } from 'lucide-react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw, RotateCw, Undo2, Lightbulb, CheckCircle2 } from 'lucide-react';
+import { RotatableImageFrame } from '../components/RotatableImageFrame';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -556,7 +557,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               {effectiveAsBuiltCount === 0 && (
                 <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-lg text-xs text-rose-700 font-bold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>⚠️ Bắt buộc: Đang chọn CAT {catScore} ({catScore === 1 ? 'Bản vẽ hoàn công' : 'Bản vẽ thiết kế'}) nhưng chưa có bản vẽ nào được tải lên!</span>
+                  <span>Bắt buộc: Đang chọn CAT {catScore} ({catScore === 1 ? 'Bản vẽ hoàn công' : 'Bản vẽ thiết kế'}) nhưng chưa có bản vẽ nào được tải lên!</span>
                 </div>
               )}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-emerald-100">
@@ -567,8 +568,15 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-emerald-700 font-semibold">
-                    {effectiveAsBuiltCount > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
+                  <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                    {effectiveAsBuiltCount > 0 ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Đã đính kèm hồ sơ</span>
+                      </>
+                    ) : (
+                      <span>Chưa có bản vẽ hoàn công</span>
+                    )}
                   </span>
                   {isEditMode && (
                     <button
@@ -611,7 +619,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               )}
 
               {asBuiltPhotos.length > 0 || addedAsBuiltPhotos.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 pt-1 scrollbar-thin">
                   {asBuiltPhotos.map((photo, idx) => {
                     const optRes = resolveOptimisticPhoto(photo.url, stagedPhotoActions, {
                       category: 'AS_BUILT',
@@ -637,7 +645,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                         <div
                           key={idx}
                           id={`audit-photo-card-asbuilt-${idx}`}
-                          className="rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 aspect-3/4 shadow-2xs"
+                          className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 h-72 shadow-2xs"
                         >
                           <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-rose-200 text-rose-800">
                             {dwgCode}
@@ -666,7 +674,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                       <div
                         key={idx}
                         id={`audit-photo-card-asbuilt-${idx}`}
-                        className={`group relative rounded-xl bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col ${
+                        className={`w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 group relative rounded-xl bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col ${
                           isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30'
                             : violation
@@ -675,7 +683,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                         }`}
                       >
                         <div
-                          className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                          className="h-60 w-full bg-slate-900 flex items-center justify-center overflow-hidden cursor-pointer relative p-1.5"
                           onClick={() => {
                             if (onOpenPhotoZoom && effectiveUrl) {
                               onOpenPhotoZoom(
@@ -687,20 +695,24 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                             }
                           }}
                         >
-                          <img
-                            src={effectiveUrl}
-                            alt={`Bản vẽ ${idx + 1}`}
-                            style={{ transform: `rotate(${rot}deg)` }}
-                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                          />
+                          {effectiveUrl && (
+                            <RotatableImageFrame
+                              src={effectiveUrl}
+                              alt={`Bản vẽ ${idx + 1}`}
+                              rotation={rot}
+                              maxHeightPx={225}
+                            />
+                          )}
                           {violation && !isReplaced && (
-                            <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
-                              💡 Khuyến nghị xoay Dọc
+                            <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none flex items-center gap-1">
+                              <Lightbulb className="w-3 h-3 shrink-0" />
+                              <span>Khuyến nghị xoay Dọc</span>
                             </div>
                           )}
                           {isReplaced && (
                             <div className="absolute top-2 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                              <span>⚡ Chờ lưu</span>
+                              <Sparkles className="w-3 h-3 shrink-0" />
+                              <span>Chờ lưu</span>
                               {onUndoPhotoAction && optRes.stagedAction && (
                                 <button
                                   type="button"
@@ -840,10 +852,10 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                       <div
                         key={`added-asbuilt-${addIdx}`}
                         id={`audit-photo-card-asbuilt-added-${addIdx}`}
-                        className="group relative rounded-xl bg-white overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md flex flex-col"
+                        className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 group relative rounded-xl bg-white overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md flex flex-col"
                       >
                         <div
-                          className="aspect-3/4 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                          className="h-60 w-full bg-slate-900 flex items-center justify-center overflow-hidden cursor-pointer relative p-1.5"
                           onClick={() => {
                             if (onOpenPhotoZoom && added.url) {
                               onOpenPhotoZoom(
@@ -855,14 +867,17 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                             }
                           }}
                         >
-                          <img
-                            src={added.url}
-                            alt={`Bản vẽ mới ${displayIdx}`}
-                            style={{ transform: `rotate(${addRot}deg)` }}
-                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                          />
+                          {added.url && (
+                            <RotatableImageFrame
+                              src={added.url}
+                              alt={`Bản vẽ mới ${displayIdx}`}
+                              rotation={addRot}
+                              maxHeightPx={225}
+                            />
+                          )}
                           <div className="absolute top-2 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                            <span>⚡ Mới thêm • Chờ lưu</span>
+                            <Sparkles className="w-3 h-3 shrink-0" />
+                            <span>Mới thêm • Chờ lưu</span>
                             {onUndoPhotoAction && (
                               <button
                                 type="button"

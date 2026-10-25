@@ -718,10 +718,9 @@ export class ScoringService {
              overridden_avg_vi = NULL,
              overridden_vi_class = NULL,
              overridden_impact_level_i = NULL,
-             overridden_bra = NULL,
-             preliminary_bra_classification = $4
+             overridden_bra = NULL
          WHERE report_id = $1;`,
-        [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin', autoBra]
+        [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin']
       );
 
       const curEcsObj = (currentJson.ecs && typeof currentJson.ecs === 'object' ? currentJson.ecs : {}) as Record<string, unknown>;
@@ -826,8 +825,7 @@ export class ScoringService {
            overridden_avg_vi = $9,
            overridden_vi_class = $10,
            overridden_impact_level_i = $11,
-           overridden_bra = $12,
-           preliminary_bra_classification = $13
+           overridden_bra = $12
        WHERE report_id = $1;`,
       [
         reportId,
@@ -841,8 +839,7 @@ export class ScoringService {
         overrides?.avgVi !== undefined ? overrides.avgVi : null,
         viClass || null,
         overrides?.impactLevelI !== undefined ? overrides.impactLevelI : null,
-        overrides?.bra || null,
-        recomputedBra,
+        overrides?.bra || recomputedBra || null,
       ]
     );
 

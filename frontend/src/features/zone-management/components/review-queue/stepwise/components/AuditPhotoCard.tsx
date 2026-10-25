@@ -1,19 +1,20 @@
 import React from 'react';
 import {
   Maximize2,
-  RefreshCw,
   Trash2,
   Camera,
-  AlertCircle,
-  Eye,
   Plus,
   Undo2,
   Edit3,
   History,
   RotateCw,
   RotateCcw,
+  AlertTriangle,
+  Lightbulb,
+  Sparkles,
 } from 'lucide-react';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
+import { RotatableImageFrame } from './RotatableImageFrame';
 
 export interface AuditPhotoCardProps {
   url?: string;
@@ -31,7 +32,8 @@ export interface AuditPhotoCardProps {
   isEditMode?: boolean;
   isNotApplicable?: boolean;
   naReason?: string;
-  aspectRatio?: 'aspect-4/3' | 'aspect-video' | 'aspect-square' | 'h-16' | 'h-20' | 'h-24' | 'h-36' | 'h-48';
+  aspectRatio?: 'aspect-4/3' | 'aspect-video' | 'aspect-square' | 'h-16' | 'h-20' | 'h-24' | 'h-36' | 'h-48' | 'h-64' | 'h-80' | 'h-96';
+  maxHeightPx?: number;
   badgeColor?: 'sky' | 'emerald' | 'amber' | 'rose' | 'slate' | 'indigo';
   extraBadges?: React.ReactNode;
   optimisticStatus?: 'REPLACED' | 'ADDED' | 'DELETED';
@@ -70,6 +72,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   isNotApplicable = false,
   naReason,
   aspectRatio = 'aspect-4/3',
+  maxHeightPx,
   badgeColor = 'slate',
   extraBadges,
   optimisticStatus,
@@ -321,50 +324,56 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/30'
     : isOrientationMismatch || isAutoRotated
     ? isStrictOrientation
-      ? 'border-2 border-amber-500 ring-4 ring-amber-500/30 shadow-md shadow-amber-500/10' // Bắt buộc: Line vàng hổ phách đậm
-      : 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'                      // Khuyến nghị: Line vàng hổ phách nhẹ
+      ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 shadow-xs' // Bắt buộc: Line vàng hổ phách đậm
+      : 'border-2 border-amber-300 ring-1 ring-amber-300/30 shadow-2xs' // Khuyến nghị: Line vàng hổ phách nhẹ
     : 'border border-slate-200';
 
   // Trường hợp Có Ảnh
   const finalDomId = domId || (photoCode ? `audit-photo-card-${photoCode}` : undefined);
+  const isCloseUpCuCard = category === 'DEFECT_CU' || targetPhotoType === 'CU' || targetPhotoType === 'DEFECT_CU';
+  const resolvedMaxHeightPx =
+    maxHeightPx ??
+    (isCloseUpCuCard
+      ? 340
+      : aspectRatio === 'h-96'
+      ? 360
+      : aspectRatio === 'h-80'
+      ? 320
+      : aspectRatio === 'h-64'
+      ? 260
+      : 240);
+  const viewportHeightClass = isCloseUpCuCard
+    ? 'h-80 sm:h-[360px]'
+    : aspectRatio === 'h-96'
+    ? 'h-80 sm:h-96'
+    : aspectRatio === 'h-80'
+    ? 'h-72 sm:h-80'
+    : 'h-56 sm:h-60';
 
   return (
     <div
       id={finalDomId}
       onClick={handleZoom}
-      className={`group relative rounded-xl bg-slate-900 overflow-hidden cursor-pointer shadow-2xs hover:shadow-md transition-all select-none ${aspectRatio} ${statusBorderClass} ${className}`}
+      className={`group relative rounded-xl bg-white overflow-hidden cursor-pointer shadow-2xs hover:shadow-md transition-all select-none flex flex-col ${statusBorderClass} ${className}`}
     >
-      <div className="w-full h-full flex items-center justify-center overflow-hidden bg-slate-950">
-        <img
-          src={url}
+      {/* Vùng hiển thị ảnh (Image Viewport) - Tự động co giãn tỷ lệ khi xoay 90°/270°, không cắt 2 đầu và cân bằng ngang/dọc */}
+      <div className={`relative w-full overflow-hidden bg-slate-950 flex items-center justify-center shrink-0 p-1 ${viewportHeightClass}`}>
+        <RotatableImageFrame
+          src={url!}
           alt={title}
-          style={{
-            transform: rotation ? `rotate(${rotation}deg)` : undefined,
-            transition: 'transform 0.3s ease',
-          }}
-          className={`w-full h-full ${
-            rotation && rotation % 180 !== 0 ? 'object-contain max-h-full max-w-full' : 'object-cover'
-          } group-hover:scale-105 transition-transform duration-300`}
-          loading="lazy"
+          rotation={rotation}
+          maxHeightPx={resolvedMaxHeightPx}
+          wrapperClassName="w-full h-full"
+          stageClassName="max-h-full rounded-sm shadow-xs"
         />
-      </div>
 
-      {/* Top Bar: Mã ảnh bên trái & Cụm Icon tinh gọn bên phải */}
-      <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 z-10">
-        <div className="flex items-center gap-1 flex-wrap">
+        {/* Minimal Chips góc trên bên trái: Mã ảnh & góc xoay */}
+        <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10 pointer-events-none">
           {photoCode && (
             <span
               className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] shadow-sm tracking-wide ${badgeColorClasses}`}
             >
               {photoCode}
-            </span>
-          )}
-          {((historyCount !== undefined && historyCount > 0) || hasHistory) && (
-            <span
-              className="px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-violet-600/90 text-white shadow-xs"
-              title={`Ảnh có ${historyCount || 1} phiên bản lịch sử`}
-            >
-              v{historyCount || 1}
             </span>
           )}
           {rotation > 0 && (
@@ -375,29 +384,12 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               {rotation}°
             </span>
           )}
-          {(isOrientationMismatch || isAutoRotated) && (
-            <span
-              className={`px-1.5 py-0.5 rounded font-bold text-[9px] shadow-xs flex items-center gap-1 border ${
-                isStrictOrientation
-                  ? 'bg-amber-500 text-slate-950 border-amber-600'
-                  : 'bg-amber-100 text-amber-900 border-amber-300'
-              }`}
-              title={
-                isStrictOrientation
-                  ? `Quy chuẩn A4 bắt buộc: Ảnh cần xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}. Hãy bấm nút xoay để chỉnh.`
-                  : `Khuyến nghị thẩm mỹ: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'} để báo cáo A4 đẹp mắt hơn.`
-              }
-            >
-              <span>{isStrictOrientation ? '⚠️ Cần xoay A4' : '💡 Khuyến nghị xoay'}</span>
-            </span>
-          )}
-          {extraBadges}
         </div>
 
-        {/* Cụm Icon Thao Tác Tinh Gọn (Glassmorphic Toolbar) */}
+        {/* Cụm Icon Thao Tác Tinh Gọn (Glassmorphic Toolbar) góc trên bên phải */}
         <div
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all"
+          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/85 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all z-10"
         >
           {onRotate && isEditMode && (
             <>
@@ -411,7 +403,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
                 className="p-1 rounded text-amber-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
                 title="Xoay 90° cùng chiều kim đồng hồ"
               >
-                <RotateCw className="w-3 h-3" />
+                <RotateCw className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
@@ -423,7 +415,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
                 className="p-1 rounded text-amber-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
                 title="Xoay 90° ngược chiều kim đồng hồ"
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </>
           )}
@@ -434,7 +426,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
             title="Phóng to soi chi tiết"
           >
-            <Maximize2 className="w-3 h-3" />
+            <Maximize2 className="w-3.5 h-3.5" />
           </button>
 
           {onOpenPhotoHistory && (
@@ -452,7 +444,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               className="p-1 rounded text-violet-300 hover:text-white hover:bg-violet-600 transition-colors cursor-pointer"
               title={historyCount ? `Xem lịch sử phiên bản (${historyCount})` : 'Xem lịch sử phiên bản ảnh'}
             >
-              <History className="w-3 h-3" />
+              <History className="w-3.5 h-3.5" />
             </button>
           )}
 
@@ -464,7 +456,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
                 className="p-1 rounded text-sky-300 hover:text-white hover:bg-sky-600 transition-colors cursor-pointer"
                 title="Cập nhật / Thay thế / Bổ sung ảnh"
               >
-                <Edit3 className="w-3 h-3" />
+                <Edit3 className="w-3.5 h-3.5" />
               </button>
 
               <button
@@ -473,30 +465,74 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
                 className="p-1 rounded text-rose-300 hover:text-white hover:bg-rose-600 transition-colors cursor-pointer"
                 title="Xóa ảnh / Đánh dấu Không Áp Dụng (N/A)"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Badges trạng thái Optimistic UI ở góc dưới */}
-      <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-end justify-between gap-1 pointer-events-none z-10">
-        <span className="text-[10px] font-bold text-white drop-shadow-md truncate max-w-[70%]">
-          {title}
-        </span>
-
-        {optimisticStatus === 'REPLACED' && (
-          <span className="px-1.5 py-0.5 rounded bg-amber-500 text-amber-950 font-black text-[9px] shadow-sm shrink-0 animate-pulse">
-            Đã thay • Chờ lưu
+      {/* Chân Card (Card Footer Bar) - Nằm bên dưới ảnh, hiển thị chữ và thông tin rõ ràng */}
+      <div className="p-2 sm:p-2.5 bg-white border-t border-slate-100 flex flex-col gap-1 min-w-0">
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          <span className="text-xs font-bold text-slate-800 truncate" title={title}>
+            {title}
           </span>
-        )}
+          {((historyCount !== undefined && historyCount > 0) || hasHistory) && (
+            <span
+              className="px-1.5 py-0.2 rounded font-mono font-bold text-[9px] bg-violet-100 text-violet-700 shrink-0"
+              title={`Ảnh có ${historyCount || 1} phiên bản lịch sử`}
+            >
+              v{historyCount || 1}
+            </span>
+          )}
+        </div>
 
-        {optimisticStatus === 'ADDED' && (
-          <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white font-black text-[9px] shadow-sm shrink-0 animate-pulse">
-            Mới thêm • Chờ lưu
-          </span>
-        )}
+        {/* Dòng metadata & badge trạng thái */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {(isOrientationMismatch || isAutoRotated) && (
+            <span
+              className={`px-1.5 py-0.5 rounded font-bold text-[9px] shadow-2xs flex items-center gap-1 border shrink-0 ${
+                isStrictOrientation
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}
+              title={
+                isStrictOrientation
+                  ? `Quy chuẩn A4 bắt buộc: Ảnh cần xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC (3:4)' : 'NGANG (4:3)'}.`
+                  : `Khuyến nghị: Nên xoay sang khổ ${expectedOrientation === 'PORTRAIT' ? 'DỌC' : 'NGANG'}.`
+              }
+            >
+              {isStrictOrientation ? (
+                <>
+                  <AlertTriangle className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                  <span>Cần xoay A4</span>
+                </>
+              ) : (
+                <>
+                  <Lightbulb className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                  <span>Gợi ý xoay</span>
+                </>
+              )}
+            </span>
+          )}
+
+          {optimisticStatus === 'REPLACED' && (
+            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shrink-0 animate-pulse flex items-center gap-1">
+              <Edit3 className="w-2.5 h-2.5" />
+              <span>Đã sửa</span>
+            </span>
+          )}
+
+          {optimisticStatus === 'ADDED' && (
+            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-[9px] shrink-0 animate-pulse flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>Mới thêm</span>
+            </span>
+          )}
+
+          {extraBadges}
+        </div>
       </div>
     </div>
   );

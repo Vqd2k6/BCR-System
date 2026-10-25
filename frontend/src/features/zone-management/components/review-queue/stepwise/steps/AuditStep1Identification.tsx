@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2, RotateCw, CheckCircle2 } from 'lucide-react';
+import { Camera, Maximize2, MapPin, AlertCircle, AlertTriangle, Lightbulb, Sparkles, X, ArrowRight, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3, Undo2, RotateCw, CheckCircle2 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
 import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
+import { RotatableImageFrame } from '../components/RotatableImageFrame';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem, PhotoActionPayload } from '../types';
@@ -609,10 +610,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 ảnh hiệu lực)
               </span>
             </span>
-            <span className="text-[11px] text-slate-400">Click để soi ảnh &bull; Di chuột để đổi ảnh</span>
+            <span className="text-[11px] text-slate-400">Cuộn ngang để xem đầy đủ &bull; Click để soi ảnh</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="flex flex-nowrap gap-4 overflow-x-auto pb-3 scrollbar-thin snap-x">
             {dynamicPhotoList.map((item) => {
               const optResult = item.isOptimisticAdded
                 ? {
@@ -648,7 +649,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   <div
                     key={item.key}
                     id={`audit-photo-card-${item.code}`}
-                    className="rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 h-48 shadow-2xs"
+                    className="w-[calc((100%-2rem)/2.5)] min-w-[280px] shrink-0 snap-start rounded-xl border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-2 h-80 sm:h-96 shadow-2xs"
                   >
                     <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-rose-200 text-rose-800">
                       {item.code}
@@ -677,7 +678,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <div
                   key={item.key}
                   id={`audit-photo-card-${item.code}`}
-                  className={`group relative rounded-xl bg-slate-100 overflow-hidden flex flex-col h-48 shadow-xs transition-all ${
+                  className={`w-[calc((100%-2rem)/2.5)] min-w-[280px] shrink-0 snap-start group relative rounded-xl bg-slate-900/5 overflow-hidden flex flex-col h-80 sm:h-96 shadow-xs transition-all ${
                     isStagedDeleted
                       ? 'border-2 border-amber-400 bg-amber-50/40'
                       : isStagedReplaced
@@ -690,7 +691,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   }`}
                 >
                   <div
-                    className="flex-1 bg-black/5 relative cursor-pointer overflow-hidden flex items-center justify-center"
+                    className="flex-1 bg-slate-950/90 relative cursor-pointer overflow-hidden flex items-center justify-center p-1.5"
                     onClick={() => {
                       if (url) {
                         const zoomTitle = isStagedReplaced
@@ -701,13 +702,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     }}
                   >
                     {url ? (
-                      <>
-                        <img
-                          src={url}
-                          alt={item.label}
-                          style={{ transform: `rotate(${rotation}deg)` }}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
-                        />
+                      <RotatableImageFrame
+                        url={url}
+                        alt={item.label}
+                        rotation={rotation}
+                        maxHeightPx={350}
+                        className="w-full h-full"
+                      >
                         {/* Lớp phủ đa giác SVG nếu có polygonPoints */}
                         {hasPolygon && (
                           <svg
@@ -723,7 +724,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             />
                           </svg>
                         )}
-                      </>
+                      </RotatableImageFrame>
                     ) : isEffectiveNa ? (
                       <div className="p-3 text-center text-slate-500 flex flex-col items-center justify-center gap-1.5 w-full h-full bg-slate-50 border border-dashed border-amber-300 rounded-lg">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs">
@@ -782,14 +783,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             : `Khuyến nghị: Nên xoay sang khổ ${violation?.expectedOrientation || 'chuẩn'}`
                         }
                       >
-                        <span>{isStrict ? '⚠️ Cần xoay A4' : '💡 Khuyến nghị xoay'}</span>
+                        {isStrict ? (
+                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                        ) : (
+                          <Lightbulb className="w-2.5 h-2.5 shrink-0" />
+                        )}
+                        <span>{isStrict ? 'Cần xoay A4' : 'Khuyến nghị xoay'}</span>
                       </div>
                     )}
 
                     {/* Badge Optimistic Staged Action chờ Lưu Diff */}
                     {isStaged && isStagedReplaced && (
                       <div className="absolute top-8 left-2 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                        <span>{item.isOptimisticAdded ? '⚡ Mới thêm' : '⚡ Chờ lưu Diff'}</span>
+                        <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                        <span>{item.isOptimisticAdded ? 'Mới thêm' : 'Chờ lưu Diff'}</span>
                         {onUndoPhotoAction && stagedAction && (
                           <button
                             type="button"
@@ -1049,7 +1056,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
               }
 
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {vacantLandPhotos.map((vItem, idx: number) => {
                     const rawUrl = typeof vItem === 'string' ? vItem : (vItem?.url || vItem?.photoUrl || '');
                     const optResult = resolveOptimisticPhoto(rawUrl, stagedPhotoActions, {
@@ -1066,14 +1073,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
                     const vKey = `vacantLand_${idx}`;
                     const vRot = stagedPhotoRotations[vKey] ?? 0;
-                    const vViolation = violationsMap?.get(vKey);
 
                     if (isDeleted) {
                       return (
                         <div
                           key={idx}
                           id={`audit-photo-card-vacant-land-${idx}`}
-                          className="rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5 aspect-4/3"
+                          className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5"
                         >
                           <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
                             Đã xóa ảnh #{idx + 1} • Chờ lưu
@@ -1099,26 +1105,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       <div
                         key={idx}
                         id={`audit-photo-card-vacant-land-${idx}`}
-                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
+                        className={`w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 group relative rounded-lg overflow-hidden cursor-pointer transition-all bg-slate-950/90 flex items-center justify-center p-1 ${
                           isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
-                            : vViolation
-                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-amber-200 hover:shadow-md'
                         }`}
                         onClick={() => onOpenPhotoZoom(vUrl, isReplaced ? `Ảnh đất trống ${idx + 1} (Chờ lưu Diff)` : `Ảnh đất trống ${idx + 1}`, vKey, vRot)}
                       >
-                        <img
-                          src={vUrl}
+                        <RotatableImageFrame
+                          url={vUrl}
                           alt={`Đất trống ${idx + 1}`}
-                          style={{ transform: `rotate(${vRot}deg)` }}
-                          className="w-full h-full object-contain transition-transform duration-200"
+                          rotation={vRot}
+                          maxHeightPx={225}
+                          className="w-full h-full"
                         />
-                        {vViolation && !isReplaced && (
-                          <div className="absolute bottom-1 left-1 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
-                            💡 Khuyến nghị xoay Ngang
-                          </div>
-                        )}
                         {onRotatePhoto && !isDeleted && (
                           <button
                             type="button"
@@ -1136,7 +1136,8 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         {/* Optimistic Pending Badge */}
                         {isStaged && isReplaced && (
                           <div className="absolute top-1 left-1 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                            <span>⚡ Chờ lưu</span>
+                            <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                            <span>Chờ lưu</span>
                             {onUndoPhotoAction && stagedAction && (
                               <button
                                 type="button"
@@ -1261,12 +1262,19 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   {addedVacantPhotos.map((item, addIdx) => (
                     <div
                       key={`added-vacant-${addIdx}`}
-                      className="group relative rounded-lg overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 aspect-4/3 cursor-pointer shadow-md"
+                      className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 group relative rounded-lg overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 cursor-pointer shadow-md bg-slate-950/90 flex items-center justify-center p-1"
                       onClick={() => onOpenPhotoZoom(item.url, `Ảnh đất trống mới bổ sung #${addIdx + 1} (Chờ lưu Diff)`)}
                     >
-                      <img src={item.url} alt={`Đất trống mới ${addIdx + 1}`} className="w-full h-full object-cover" />
+                      <RotatableImageFrame
+                        url={item.url}
+                        alt={`Đất trống mới ${addIdx + 1}`}
+                        rotation={0}
+                        maxHeightPx={225}
+                        className="w-full h-full"
+                      />
                       <div className="absolute top-1 left-1 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                        <span>⚡ Mới thêm</span>
+                        <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                        <span>Mới thêm</span>
                         {onUndoPhotoAction && (
                           <button
                             type="button"
@@ -1400,7 +1408,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
               }
 
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {underConstructionPhotos.map((uItem, idx: number) => {
                     const rawUrl = typeof uItem === 'string' ? uItem : (uItem?.url || uItem?.photoUrl || '');
                     const optResult = resolveOptimisticPhoto(rawUrl, stagedPhotoActions, {
@@ -1417,14 +1425,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
                     const uKey = `underConstruction_${idx}`;
                     const uRot = stagedPhotoRotations[uKey] ?? 0;
-                    const uViolation = violationsMap?.get(uKey);
 
                     if (isDeleted) {
                       return (
                         <div
                           key={idx}
                           id={`audit-photo-card-under-construction-${idx}`}
-                          className="rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5 aspect-4/3"
+                          className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 rounded-lg border border-dashed border-rose-300 bg-rose-50/80 p-3 flex flex-col items-center justify-center text-center gap-1.5"
                         >
                           <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">
                             Đã xóa ảnh #{idx + 1} • Chờ lưu
@@ -1450,26 +1457,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       <div
                         key={idx}
                         id={`audit-photo-card-under-construction-${idx}`}
-                        className={`group relative rounded-lg overflow-hidden aspect-4/3 cursor-pointer transition-all bg-slate-100 ${
+                        className={`w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 group relative rounded-lg overflow-hidden cursor-pointer transition-all bg-slate-950/90 flex items-center justify-center p-1 ${
                           isReplaced
                             ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-md'
-                            : uViolation
-                            ? 'border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
                             : 'border border-blue-200 hover:shadow-md'
                         }`}
                         onClick={() => onOpenPhotoZoom(uUrl, isReplaced ? `Ảnh xây dựng dở dang ${idx + 1} (Chờ lưu Diff)` : `Ảnh xây dựng dở dang ${idx + 1}`, uKey, uRot)}
                       >
-                        <img
-                          src={uUrl}
+                        <RotatableImageFrame
+                          url={uUrl}
                           alt={`Xây dựng dở dang ${idx + 1}`}
-                          style={{ transform: `rotate(${uRot}deg)` }}
-                          className="w-full h-full object-contain transition-transform duration-200"
+                          rotation={uRot}
+                          maxHeightPx={225}
+                          className="w-full h-full"
                         />
-                        {uViolation && !isReplaced && (
-                          <div className="absolute bottom-1 left-1 z-10 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] shadow-xs pointer-events-none">
-                            💡 Khuyến nghị xoay Dọc
-                          </div>
-                        )}
                         {onRotatePhoto && !isDeleted && (
                           <button
                             type="button"
@@ -1487,7 +1488,8 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         {/* Optimistic Pending Badge */}
                         {isStaged && isReplaced && (
                           <div className="absolute top-1 left-1 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                            <span>⚡ Chờ lưu</span>
+                            <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                            <span>Chờ lưu</span>
                             {onUndoPhotoAction && stagedAction && (
                               <button
                                 type="button"
@@ -1612,12 +1614,19 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   {addedUnderConstructionPhotos.map((item, addIdx) => (
                     <div
                       key={`added-uc-${addIdx}`}
-                      className="group relative rounded-lg overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 aspect-4/3 cursor-pointer shadow-md"
+                      className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0 h-60 group relative rounded-lg overflow-hidden border-2 border-emerald-500 ring-2 ring-emerald-500/30 cursor-pointer shadow-md bg-slate-950/90 flex items-center justify-center p-1"
                       onClick={() => onOpenPhotoZoom(item.url, `Ảnh thi công mới bổ sung #${addIdx + 1} (Chờ lưu Diff)`)}
                     >
-                      <img src={item.url} alt={`Thi công mới ${addIdx + 1}`} className="w-full h-full object-cover" />
+                      <RotatableImageFrame
+                        url={item.url}
+                        alt={`Thi công mới ${addIdx + 1}`}
+                        rotation={0}
+                        maxHeightPx={225}
+                        className="w-full h-full"
+                      />
                       <div className="absolute top-1 left-1 z-20 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
-                        <span>⚡ Mới thêm</span>
+                        <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                        <span>Mới thêm</span>
                         {onUndoPhotoAction && (
                           <button
                             type="button"
@@ -2084,9 +2093,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setShowDistanceDiffPopover(false)}
-                  className="px-2 py-0.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded cursor-pointer"
+                  className="px-2 py-0.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded cursor-pointer flex items-center gap-1"
                 >
-                  Đóng ✕
+                  <span>Đóng</span>
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -2097,7 +2107,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   </span>
                   <div className="flex items-center gap-2 mt-1 font-mono">
                     <span className="text-slate-500 line-through">{distanceDiffPreview.oldMetroDisplay}</span>
-                    <span className="text-slate-400">➔</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
                     <span className="text-sm font-black text-emerald-700">{distanceDiffPreview.newMetroDisplay}</span>
                   </div>
                 </div>
@@ -2108,7 +2118,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   </span>
                   <div className="flex items-center gap-2 mt-1 font-mono">
                     <span className="text-slate-500 line-through">{distanceDiffPreview.oldClearanceDisplay}</span>
-                    <span className="text-slate-400">➔</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
                     <span className="text-sm font-black text-emerald-700">{distanceDiffPreview.newClearanceDisplay}</span>
                   </div>
                 </div>
@@ -2210,8 +2220,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 </div>
               )}
               {parseFloat(getNumericValue(formState.clearanceOffsetDistance)) === 0 ? (
-                <span className="text-[10px] text-red-600 font-bold block mt-0.5">
-                  ⚠️ Nhà ga cắt qua / Nằm trong phạm vi ga
+                <span className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-0.5">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  <span>Nhà ga cắt qua / Nằm trong phạm vi ga</span>
                 </span>
               ) : (
                 <span className="text-[10px] text-slate-400 block mt-0.5">

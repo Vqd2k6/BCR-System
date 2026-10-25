@@ -5,6 +5,9 @@ export interface OptimisticPhotoFilter {
   targetPhotoType?: string;
   targetPhotoId?: string;
   defectId?: string;
+  defectCode?: string;
+  floorCode?: string;
+  zoneCode?: string;
   photoIndex?: number;
   url?: string;
   currentUrl?: string;
@@ -110,7 +113,13 @@ export function resolveOptimisticPhoto(
     if (filter.targetPhotoId && a.targetPhotoId && !isSameTargetId(a.targetPhotoId, filter.targetPhotoId)) {
       return false;
     }
+    const actExt = a as PhotoActionPayload & { zoneCode?: string; floorCode?: string };
+    const actZoneCode = actExt.zoneCode || (a.metadata?.zoneCode as string | undefined);
+    const actFloorCode = actExt.floorCode || (a.metadata?.floorCode as string | undefined);
     if (filter.defectId && a.defectId && a.defectId !== filter.defectId) return false;
+    if (filter.defectCode && a.defectCode && a.defectCode !== filter.defectCode) return false;
+    if (filter.zoneCode && actZoneCode && actZoneCode !== filter.zoneCode) return false;
+    if (filter.floorCode && actFloorCode && actFloorCode !== filter.floorCode) return false;
 
     if (filter.photoIndex !== undefined && a.photoIndex !== undefined) {
       return a.photoIndex === filter.photoIndex;
@@ -210,7 +219,13 @@ export function getOptimisticAddedPhotos(
     if (filter.targetPhotoId && a.targetPhotoId && !isSameTargetId(a.targetPhotoId, filter.targetPhotoId)) {
       continue;
     }
+    const actExt = a as PhotoActionPayload & { zoneCode?: string; floorCode?: string };
+    const actZoneCode = actExt.zoneCode || (a.metadata?.zoneCode as string | undefined);
+    const actFloorCode = actExt.floorCode || (a.metadata?.floorCode as string | undefined);
     if (filter.defectId && a.defectId && a.defectId !== filter.defectId) continue;
+    if (filter.defectCode && a.defectCode && a.defectCode !== filter.defectCode) continue;
+    if (filter.zoneCode && actZoneCode && actZoneCode !== filter.zoneCode) continue;
+    if (filter.floorCode && actFloorCode && actFloorCode !== filter.floorCode) continue;
 
     const urls = a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []);
     for (const u of urls) {

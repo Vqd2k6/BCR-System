@@ -214,10 +214,52 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
       );
     }
     if (typeof val === 'boolean') {
-      return val ? 'Có (True)' : 'Không (False)';
+      return val ? 'Có (Đã xác nhận)' : 'Không';
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) {
+        return <span className="text-slate-400 italic font-mono">(Danh sách trống)</span>;
+      }
+      // Đa giác tọa độ [[lat, lng], ...]
+      if (Array.isArray(val[0]) && val[0].length === 2 && typeof val[0][0] === 'number') {
+        const firstPt = val[0] as [number, number];
+        return (
+          <span className="font-mono text-[11px]">
+            Đa giác {val.length} đỉnh (Đỉnh 1: {Number(firstPt[0]).toFixed(5)}, {Number(firstPt[1]).toFixed(5)})
+          </span>
+        );
+      }
+      if (val.every((x) => typeof x === 'string' || typeof x === 'number')) {
+        return <span>{val.join(', ')}</span>;
+      }
+      return <span className="font-mono text-[11px]">Danh sách ({val.length} mục)</span>;
     }
     if (typeof val === 'object') {
-      return <span className="font-mono text-[11px]">{JSON.stringify(val)}</span>;
+      const rec = val as Record<string, unknown>;
+      const keys = Object.keys(rec);
+      if (keys.length === 0) {
+        return <span className="text-slate-400 italic font-mono">(Mặc định / Chưa thay đổi)</span>;
+      }
+      if ('lat' in rec || 'latitude' in rec) {
+        const lat = Number(rec.lat ?? rec.latitude ?? 0);
+        const lng = Number(rec.lng ?? rec.longitude ?? 0);
+        const acc = rec.accuracy ? ` (±${rec.accuracy}m)` : '';
+        return (
+          <span className="font-mono text-[11px]">
+            {lat.toFixed(6)}, {lng.toFixed(6)}{acc}
+          </span>
+        );
+      }
+      const pairs = keys
+        .slice(0, 4)
+        .map((k) => `${k}: ${String(rec[k] ?? '---')}`)
+        .join(' • ');
+      return (
+        <span className="font-mono text-[11px]">
+          {pairs}
+          {keys.length > 4 ? ` (+${keys.length - 4} mục)` : ''}
+        </span>
+      );
     }
     return String(val);
   };
@@ -317,7 +359,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
                 <AlertTriangle className="w-5 h-5 text-white shrink-0 mt-0.5" />
                 <div>
                   <span className="font-black text-xs uppercase tracking-wide block">
-                    🔴 PHÁT HIỆN LỖI CHẶN PHÁP LÝ: THIẾU BẢN VẼ HOÀN CÔNG MÓNG
+                    PHÁT HIỆN LỖI CHẶN PHÁP LÝ: THIẾU BẢN VẼ HOÀN CÔNG MÓNG
                   </span>
                   <span className="text-[11px] text-red-100 leading-relaxed block mt-0.5">
                     Công trình được xếp hạng <strong>Móng CAT {catScore}/5</strong> (Cọc khoan nhồi / Cọc ép BTCT) nhưng chưa có bản vẽ hoàn công / thiết kế móng đính kèm theo quy chuẩn Liên danh CRLG. Bạn không thể xác nhận và lưu khi còn lỗi chặn này.
@@ -579,6 +621,24 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             </div>
           </div>
         </div>
+
+        {/* Sticky Error Banner right above Footer Actions so errors are never hidden out of scroll view */}
+        {errorMsg && (
+          <div className="px-5 py-2.5 bg-red-50 border-t border-red-200 text-xs text-red-700 flex items-center justify-between gap-2 shrink-0 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span className="font-bold break-words">{errorMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg('')}
+              className="text-red-500 hover:text-red-700 p-0.5 rounded cursor-pointer shrink-0"
+              title="Đóng thông báo lỗi"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">

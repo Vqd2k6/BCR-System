@@ -163,49 +163,43 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* 2.1. Khối 3 thông số biến dạng chính */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 2.1. Khối 3 thông số biến dạng chính — Trải thành 3 phân đoạn ngang full-width */}
+        <div className="flex flex-col space-y-5">
           {/* 1. Lún chênh lệch */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 uppercase">
-                  1. Lún Chênh Lệch Nền Móng:
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                <span className="text-xs font-black text-slate-800 uppercase">
+                  1. Lún Chênh Lệch Nền Móng
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${lDiff > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
+                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${lDiff > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
                   Cấp {lDiff}/4
                 </span>
               </div>
 
               {isEditMode ? (
-                <select
-                  value={diff.level ?? 0}
-                  onChange={(e) =>
-                    handleNestedFieldChange('settlementTilt', 'diffSettlement', 'Cấp độ lún lệch', {
-                      ...diff,
-                      level: Number(e.target.value),
-                    })
-                  }
-                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
-                >
-                  {SETTLEMENT_LEVEL_OPTIONS.map((opt: { level: number; title: string; desc?: string }) => (
-                    <option key={opt.level} value={opt.level}>
-                      Cấp {opt.level} - {opt.title}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="text-xs font-bold text-slate-800">
-                  {diff.level !== undefined
-                    ? `Cấp ${diff.level} (${SETTLEMENT_LEVEL_OPTIONS.find((o: { level: number; title: string; desc?: string }) => o.level === diff.level)?.title || 'Bình thường'})`
-                    : 'Không phát hiện lún lệch'}
-                </div>
-              )}
-
-              <div>
-                <span className="text-[10px] text-slate-500 font-semibold block">Vị trí ghi nhận lún:</span>
-                {isEditMode ? (
-                  <div className="space-y-1.5 mt-0.5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Cấp độ lún chênh:</span>
+                    <select
+                      value={diff.level ?? 0}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'diffSettlement', 'Cấp độ lún lệch', {
+                          ...diff,
+                          level: Number(e.target.value),
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
+                    >
+                      {SETTLEMENT_LEVEL_OPTIONS.map((opt: { level: number; title: string; desc?: string }) => (
+                        <option key={opt.level} value={opt.level}>
+                          Cấp {opt.level} - {opt.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Vị trí ghi nhận lún:</span>
                     <input
                       type="text"
                       value={diff.position || ''}
@@ -215,9 +209,12 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           position: e.target.value,
                         })
                       }
-                      className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
                       placeholder="Vị trí ghi nhận lún..."
                     />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Ghi chú chi tiết:</span>
                     <input
                       type="text"
                       value={diff.notes || ''}
@@ -227,23 +224,38 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           notes: e.target.value,
                         })
                       }
-                      className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
                       placeholder="Ghi chú chi tiết lún lệch..."
                     />
                   </div>
-                ) : (
-                  <div className="text-[11px] text-slate-600">
-                    {diff.position || 'Không'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Mức độ đánh giá</span>
+                    <span className="font-bold text-slate-800 mt-0.5 block">
+                      {diff.level !== undefined
+                        ? `Cấp ${diff.level} (${SETTLEMENT_LEVEL_OPTIONS.find((o: { level: number; title: string; desc?: string }) => o.level === diff.level)?.title || 'Bình thường'})`
+                        : 'Không phát hiện lún lệch'}
+                    </span>
                   </div>
-                )}
-              </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Vị trí ghi nhận lún</span>
+                    <span className="font-semibold text-slate-700 mt-0.5 block">{diff.position || 'Không'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Ghi chú hiện trường</span>
+                    <span className="text-slate-600 mt-0.5 block">{diff.notes || 'Không phát hiện lún chênh'}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Thư viện ảnh lún chênh */}
-            <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
-                <span className="flex items-center gap-1">
-                  <Camera className="w-3 h-3 text-slate-500" />
+            {/* Thư viện ảnh lún chênh (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
+            <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-sky-600" />
                   <span>
                     Ảnh Lún Chênh / Chân Tường (
                     {Math.max(
@@ -258,8 +270,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                             (a.targetPhotoType === 'SETTLEMENT_DIFF' ||
                               a.targetPhotoId === 'settlementTilt.diffSettlement.photos')
                         ).length || 0)
-                    )}
-                    )
+                    )}{' '}
+                    ảnh)
                   </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
@@ -274,16 +286,16 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         photoTitle: 'Bổ sung ảnh lún chênh',
                       })
                     }
-                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
                     <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
 
               {diffPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')) ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {diffPhotos.map((p, pIdx) => {
                     const stagedDiff = getStagedAction({
                       category: 'SETTLEMENT_TILT',
@@ -301,31 +313,32 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       violationsMap?.get(itemKey) ||
                       violationsMap?.get(p.photoCode || `SETTLE_${pIdx + 1}`);
                     return (
-                      <AuditPhotoCard
-                        key={pIdx}
-                        url={stagedDiff?.newPhotoUrl || p.url}
-                        photoKey={itemKey}
-                        photoCode={p.photoCode || `SETTLE_${pIdx + 1}`}
-                        title={`Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="SETTLEMENT_DIFF"
-                        targetPhotoId="settlementTilt.diffSettlement.photos"
-                        photoIndex={pIdx}
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="amber"
-                        rotation={rot}
-                        isOrientationMismatch={Boolean(orientStatus)}
-                        isStrictOrientation={orientStatus?.isStrict ?? false}
-                        expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
-                        domId={`audit-photo-card-diff-settlement-${pIdx}`}
-                        optimisticStatus={stagedDiff ? (stagedDiff.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
-                        onUndoDelete={stagedDiff ? () => onUndoPhotoAction?.(stagedDiff) : undefined}
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
+                      <div key={pIdx} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                        <AuditPhotoCard
+                          url={stagedDiff?.newPhotoUrl || p.url}
+                          photoKey={itemKey}
+                          photoCode={p.photoCode || `SETTLE_${pIdx + 1}`}
+                          title={`Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="SETTLEMENT_DIFF"
+                          targetPhotoId="settlementTilt.diffSettlement.photos"
+                          photoIndex={pIdx}
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="amber"
+                          rotation={rot}
+                          isOrientationMismatch={Boolean(orientStatus)}
+                          isStrictOrientation={orientStatus?.isStrict ?? false}
+                          expectedOrientation="LANDSCAPE"
+                          onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                          domId={`audit-photo-card-diff-settlement-${pIdx}`}
+                          optimisticStatus={stagedDiff ? (stagedDiff.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          onUndoDelete={stagedDiff ? () => onUndoPhotoAction?.(stagedDiff) : undefined}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      </div>
                     );
                   })}
 
@@ -337,32 +350,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       const addKey = `diffSettlement_added_${addIdx}`;
                       const addRot = stagedPhotoRotations[addKey] ?? 0;
                       return (
-                        <AuditPhotoCard
-                          key={`added-diff-${addIdx}`}
-                          url={addedItem.url}
-                          photoKey={addKey}
-                          photoCode={`Mới`}
-                          title={`Ảnh lún chênh mới thêm #${addIdx + 1}`}
-                          category="SETTLEMENT_TILT"
-                          targetPhotoType="SETTLEMENT_DIFF"
-                          targetPhotoId="settlementTilt.diffSettlement.photos"
-                          isEditMode={isEditMode}
-                          aspectRatio="aspect-video"
-                          badgeColor="emerald"
-                          rotation={addRot}
-                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
-                          optimisticStatus="ADDED"
-                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
-                          onOpenPhotoZoom={onOpenPhotoZoom}
-                          onOpenPhotoAction={onOpenPhotoAction}
-                          onOpenPhotoHistory={onOpenPhotoHistory}
-                        />
+                        <div key={`added-diff-${addIdx}`} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                          <AuditPhotoCard
+                            url={addedItem.url}
+                            photoKey={addKey}
+                            photoCode={`Mới`}
+                            title={`Ảnh lún chênh mới thêm #${addIdx + 1}`}
+                            category="SETTLEMENT_TILT"
+                            targetPhotoType="SETTLEMENT_DIFF"
+                            targetPhotoId="settlementTilt.diffSettlement.photos"
+                            isEditMode={isEditMode}
+                            aspectRatio="aspect-video"
+                            badgeColor="emerald"
+                            rotation={addRot}
+                            onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                            optimisticStatus="ADDED"
+                            onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                            onOpenPhotoZoom={onOpenPhotoZoom}
+                            onOpenPhotoAction={onOpenPhotoAction}
+                            onOpenPhotoHistory={onOpenPhotoHistory}
+                          />
+                        </div>
                       );
                     })}
                 </div>
               ) : (
-                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
-                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh lún chênh chân tường</p>
+                <div className="p-3 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-xs text-slate-400 italic">Chưa có ảnh lún chênh chân tường</p>
                   {onOpenPhotoHistory && (
                     <button
                       type="button"
@@ -372,134 +386,144 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           photoTitle: 'Lịch sử ảnh lún chênh chân tường',
                         })
                       }
-                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
                       title="Xem lịch sử và khôi phục ảnh lún chênh đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span> Lịch sử / Khôi phục ảnh</span>
+                      <span>Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
-              )}
-
-              {diff.notes && (
-                <p className="text-[10px] text-slate-500 italic line-clamp-2">
-                  &bull; {diff.notes}
-                </p>
               )}
             </div>
           </div>
 
           {/* 2. Độ nghiêng công trình */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 uppercase">
-                  2. Độ Nghiêng Công Trình:
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                <span className="text-xs font-black text-slate-800 uppercase">
+                  2. Độ Nghiêng Công Trình
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${lTilt > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
+                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${lTilt > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
                   Cấp {lTilt}/4
                 </span>
               </div>
 
               {isEditMode ? (
-                <div className="space-y-1.5">
-                  <select
-                    value={tilt.level ?? 0}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Cấp độ nghiêng', {
-                        ...tilt,
-                        level: Number(e.target.value),
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs font-bold"
-                  >
-                    <option value={0}>Cấp 0 - Thẳng đứng / Trong giới hạn</option>
-                    <option value={1}>Cấp 1 - Nghiêng nhẹ</option>
-                    <option value={2}>Cấp 2 - Nghiêng trung bình</option>
-                    <option value={3}>Cấp 3 - Nghiêng nặng</option>
-                    <option value={4}>Cấp 4 - Nghiêng nguy hiểm</option>
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 flex-1">
-                      <span className="text-xs font-mono font-bold text-slate-600">X:</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={tilt.xPermille ?? ''}
-                        onChange={(e) =>
-                          handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng X', {
-                            ...tilt,
-                            xPermille: e.target.value === '' ? '' : Number(e.target.value),
-                          })
-                        }
-                        className="w-full px-1.5 py-1 border border-slate-300 rounded text-xs font-bold font-mono bg-white"
-                        placeholder="‰"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1 flex-1">
-                      <span className="text-xs font-mono font-bold text-slate-600">Y:</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={tilt.yPermille ?? ''}
-                        onChange={(e) =>
-                          handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng Y', {
-                            ...tilt,
-                            yPermille: e.target.value === '' ? '' : Number(e.target.value),
-                          })
-                        }
-                        className="w-full px-1.5 py-1 border border-slate-300 rounded text-xs font-bold font-mono bg-white"
-                        placeholder="‰"
-                      />
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Cấp độ nghiêng:</span>
+                    <select
+                      value={tilt.level ?? 0}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Cấp độ nghiêng', {
+                          ...tilt,
+                          level: Number(e.target.value),
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
+                    >
+                      <option value={0}>Cấp 0 - Thẳng đứng / Trong giới hạn</option>
+                      <option value={1}>Cấp 1 - Nghiêng nhẹ</option>
+                      <option value={2}>Cấp 2 - Nghiêng trung bình</option>
+                      <option value={3}>Cấp 3 - Nghiêng nặng</option>
+                      <option value={4}>Cấp 4 - Nghiêng nguy hiểm</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Độ nghiêng X / Y (‰):</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-xs font-mono font-bold text-slate-600">X:</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={tilt.xPermille ?? ''}
+                          onChange={(e) =>
+                            handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng X', {
+                              ...tilt,
+                              xPermille: e.target.value === '' ? '' : Number(e.target.value),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold font-mono bg-white"
+                          placeholder="‰"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-xs font-mono font-bold text-slate-600">Y:</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={tilt.yPermille ?? ''}
+                          onChange={(e) =>
+                            handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Độ nghiêng Y', {
+                              ...tilt,
+                              yPermille: e.target.value === '' ? '' : Number(e.target.value),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold font-mono bg-white"
+                          placeholder="‰"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <input
-                    type="text"
-                    value={tilt.direction || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Hướng nghiêng', {
-                        ...tilt,
-                        direction: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
-                    placeholder="Hướng nghiêng (VD: Nghiêng về hẻm sau...)"
-                  />
-                  <input
-                    type="text"
-                    value={tilt.notes || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Ghi chú độ nghiêng', {
-                        ...tilt,
-                        notes: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
-                    placeholder="Ghi chú kiểm tra độ nghiêng..."
-                  />
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Hướng nghiêng:</span>
+                    <input
+                      type="text"
+                      value={tilt.direction || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Hướng nghiêng', {
+                          ...tilt,
+                          direction: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                      placeholder="Hướng nghiêng (VD: Nghiêng về hẻm sau...)"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Ghi chú độ nghiêng:</span>
+                    <input
+                      type="text"
+                      value={tilt.notes || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'buildingTilt', 'Ghi chú độ nghiêng', {
+                          ...tilt,
+                          notes: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                      placeholder="Ghi chú kiểm tra độ nghiêng..."
+                    />
+                  </div>
                 </div>
               ) : (
-                <div>
-                  <div className="text-xs font-black text-slate-800 font-mono">
-                    X: {tilt.xPermille !== undefined && tilt.xPermille !== '' ? `${tilt.xPermille} ‰` : '---'} &bull; Y: {tilt.yPermille !== undefined && tilt.yPermille !== '' ? `${tilt.yPermille} ‰` : '---'}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Thông số nghiêng 2 phương</span>
+                    <span className="font-black text-slate-800 font-mono mt-0.5 block">
+                      X: {tilt.xPermille !== undefined && tilt.xPermille !== '' ? `${tilt.xPermille} ‰` : '---'} &bull; Y: {tilt.yPermille !== undefined && tilt.yPermille !== '' ? `${tilt.yPermille} ‰` : '---'}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
-                    Hướng: <strong>{tilt.direction || 'Không ghi nhận hướng nghiêng'}</strong>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Hướng nghiêng</span>
+                    <span className="font-semibold text-slate-700 mt-0.5 block">{tilt.direction || 'Không ghi nhận hướng nghiêng'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Ghi chú hiện trường</span>
+                    <span className="text-slate-600 mt-0.5 block">{tilt.notes || 'Không phát hiện nghiêng'}</span>
                   </div>
                 </div>
               )}
-
-              <div className="text-[11px] text-slate-500">
-                {tilt.notes || 'Không'}
-              </div>
             </div>
 
-            {/* Thư viện ảnh độ nghiêng */}
-            <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
-                <span className="flex items-center gap-1">
-                  <Camera className="w-3 h-3 text-slate-500" />
+            {/* Thư viện ảnh độ nghiêng (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
+            <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-sky-600" />
                   <span>
                     Ảnh Kiểm Tra Độ Nghiêng (
                     {Math.max(
@@ -514,8 +538,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                             (a.targetPhotoType === 'TILT_ANGLE' ||
                               a.targetPhotoId === 'settlementTilt.buildingTilt.photos')
                         ).length || 0)
-                    )}
-                    )
+                    )}{' '}
+                    ảnh)
                   </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
@@ -530,16 +554,16 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         photoTitle: 'Bổ sung ảnh độ nghiêng',
                       })
                     }
-                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
                     <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
 
               {tiltPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')) ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {tiltPhotos.map((p, pIdx) => {
                     const stagedTilt = getStagedAction({
                       category: 'SETTLEMENT_TILT',
@@ -557,31 +581,32 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       violationsMap?.get(itemKey) ||
                       violationsMap?.get(p.photoCode || `TILT_${pIdx + 1}`);
                     return (
-                      <AuditPhotoCard
-                        key={pIdx}
-                        url={stagedTilt?.newPhotoUrl || p.url}
-                        photoKey={itemKey}
-                        photoCode={p.photoCode || `TILT_${pIdx + 1}`}
-                        title={`Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="TILT_ANGLE"
-                        targetPhotoId="settlementTilt.buildingTilt.photos"
-                        photoIndex={pIdx}
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="amber"
-                        rotation={rot}
-                        isOrientationMismatch={Boolean(orientStatus)}
-                        isStrictOrientation={orientStatus?.isStrict ?? true}
-                        expectedOrientation="PORTRAIT"
-                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
-                        domId={`audit-photo-card-building-tilt-${pIdx}`}
-                        optimisticStatus={stagedTilt ? (stagedTilt.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
-                        onUndoDelete={stagedTilt ? () => onUndoPhotoAction?.(stagedTilt) : undefined}
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
+                      <div key={pIdx} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                        <AuditPhotoCard
+                          url={stagedTilt?.newPhotoUrl || p.url}
+                          photoKey={itemKey}
+                          photoCode={p.photoCode || `TILT_${pIdx + 1}`}
+                          title={`Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="TILT_ANGLE"
+                          targetPhotoId="settlementTilt.buildingTilt.photos"
+                          photoIndex={pIdx}
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="amber"
+                          rotation={rot}
+                          isOrientationMismatch={Boolean(orientStatus)}
+                          isStrictOrientation={orientStatus?.isStrict ?? true}
+                          expectedOrientation="PORTRAIT"
+                          onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                          domId={`audit-photo-card-building-tilt-${pIdx}`}
+                          optimisticStatus={stagedTilt ? (stagedTilt.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          onUndoDelete={stagedTilt ? () => onUndoPhotoAction?.(stagedTilt) : undefined}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      </div>
                     );
                   })}
 
@@ -593,32 +618,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       const addKey = `buildingTilt_added_${addIdx}`;
                       const addRot = stagedPhotoRotations[addKey] ?? 0;
                       return (
-                        <AuditPhotoCard
-                          key={`added-tilt-${addIdx}`}
-                          url={addedItem.url}
-                          photoKey={addKey}
-                          photoCode={`Mới`}
-                          title={`Ảnh độ nghiêng mới thêm #${addIdx + 1}`}
-                          category="SETTLEMENT_TILT"
-                          targetPhotoType="TILT_ANGLE"
-                          targetPhotoId="settlementTilt.buildingTilt.photos"
-                          isEditMode={isEditMode}
-                          aspectRatio="aspect-video"
-                          badgeColor="emerald"
-                          rotation={addRot}
-                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
-                          optimisticStatus="ADDED"
-                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
-                          onOpenPhotoZoom={onOpenPhotoZoom}
-                          onOpenPhotoAction={onOpenPhotoAction}
-                          onOpenPhotoHistory={onOpenPhotoHistory}
-                        />
+                        <div key={`added-tilt-${addIdx}`} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                          <AuditPhotoCard
+                            url={addedItem.url}
+                            photoKey={addKey}
+                            photoCode={`Mới`}
+                            title={`Ảnh độ nghiêng mới thêm #${addIdx + 1}`}
+                            category="SETTLEMENT_TILT"
+                            targetPhotoType="TILT_ANGLE"
+                            targetPhotoId="settlementTilt.buildingTilt.photos"
+                            isEditMode={isEditMode}
+                            aspectRatio="aspect-video"
+                            badgeColor="emerald"
+                            rotation={addRot}
+                            onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                            optimisticStatus="ADDED"
+                            onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                            onOpenPhotoZoom={onOpenPhotoZoom}
+                            onOpenPhotoAction={onOpenPhotoAction}
+                            onOpenPhotoHistory={onOpenPhotoHistory}
+                          />
+                        </div>
                       );
                     })}
                 </div>
               ) : (
-                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
-                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh nivo / độ nghiêng khối nhà</p>
+                <div className="p-3 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-xs text-slate-400 italic">Chưa có ảnh nivo / độ nghiêng khối nhà</p>
                   {onOpenPhotoHistory && (
                     <button
                       type="button"
@@ -628,11 +654,11 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           photoTitle: 'Lịch sử ảnh nivo / độ nghiêng công trình',
                         })
                       }
-                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
                       title="Xem lịch sử và khôi phục ảnh độ nghiêng đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span> Lịch sử / Khôi phục ảnh</span>
+                      <span>Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
@@ -641,20 +667,21 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           </div>
 
           {/* 3. Độ võng dầm / bản sàn */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 uppercase">
-                  3. Độ Võng Dầm / Bản Sàn:
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                <span className="text-xs font-black text-slate-800 uppercase">
+                  3. Độ Võng Dầm / Bản Sàn
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${lSag > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
+                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${lSag > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
                   Cấp {lSag}/4
                 </span>
               </div>
 
               {isEditMode ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Cấp độ võng:</span>
                     <select
                       value={beam.level ?? 0}
                       onChange={(e) =>
@@ -663,7 +690,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           level: Number(e.target.value),
                         })
                       }
-                      className="flex-1 p-1 bg-white border border-slate-300 rounded text-xs font-bold"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                     >
                       {SAG_LEVEL_OPTIONS.map((opt: { level: number; title: string; desc?: string }) => (
                         <option key={opt.level} value={opt.level}>
@@ -671,6 +698,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Độ võng (mm):</span>
                     <input
                       type="number"
                       step="0.5"
@@ -681,55 +711,66 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           sagMm: e.target.value ? Number(e.target.value) : '',
                         })
                       }
-                      className="w-18 p-1 bg-white border border-slate-300 rounded text-xs font-bold"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                       placeholder="Võng (mm)"
                     />
                   </div>
-                  <input
-                    type="text"
-                    value={beam.position || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'beamSagging', 'Vị trí dầm võng', {
-                        ...beam,
-                        position: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
-                    placeholder="Vị trí dầm (VD: Dầm D2 trục 2-3 Tầng 2)"
-                  />
-                  <input
-                    type="text"
-                    value={beam.description || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('settlementTilt', 'beamSagging', 'Mô tả độ võng dầm', {
-                        ...beam,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
-                    placeholder="Mô tả chi tiết hiện trạng võng dầm/sàn..."
-                  />
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Vị trí dầm / sàn:</span>
+                    <input
+                      type="text"
+                      value={beam.position || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'beamSagging', 'Vị trí dầm võng', {
+                          ...beam,
+                          position: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                      placeholder="Vị trí dầm (VD: Dầm D2 trục 2-3 Tầng 2)"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Mô tả chi tiết:</span>
+                    <input
+                      type="text"
+                      value={beam.description || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('settlementTilt', 'beamSagging', 'Mô tả độ võng dầm', {
+                          ...beam,
+                          description: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                      placeholder="Mô tả chi tiết hiện trạng võng dầm/sàn..."
+                    />
+                  </div>
                 </div>
               ) : (
-                <div>
-                  <div className="text-xs font-bold text-slate-800">
-                    {beam.sagMm ? `Võng ${beam.sagMm} mm (Cấp ${beam.level || 0})` : 'Không phát hiện võng'}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Biên độ võng đo đạc</span>
+                    <span className="font-bold text-slate-800 mt-0.5 block">
+                      {beam.sagMm ? `Võng ${beam.sagMm} mm (Cấp ${beam.level || 0})` : 'Không phát hiện võng'}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
-                    Vị trí: <strong>{beam.position || 'Không xác định'}</strong>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Vị trí dầm / bản sàn</span>
+                    <span className="font-semibold text-slate-700 mt-0.5 block">{beam.position || 'Không xác định'}</span>
                   </div>
-                  {beam.description && (
-                    <div className="text-[11px] text-slate-500 italic mt-0.5">{beam.description}</div>
-                  )}
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Mô tả hiện trường</span>
+                    <span className="text-slate-600 mt-0.5 block">{beam.description || 'Không phát hiện võng dầm/sàn'}</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Thư viện ảnh độ võng dầm */}
-            <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
-                <span className="flex items-center gap-1">
-                  <Camera className="w-3 h-3 text-slate-500" />
+            {/* Thư viện ảnh độ võng dầm (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
+            <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-sky-600" />
                   <span>
                     Ảnh Kiểm Tra Độ Võng Dầm (
                     {Math.max(
@@ -744,8 +785,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                             (a.category === 'BEAM_SAGGING' ||
                               a.targetPhotoId === 'settlementTilt.beamSagging.photos')
                         ).length || 0)
-                    )}
-                    )
+                    )}{' '}
+                    ảnh)
                   </span>
                 </span>
                 {isEditMode && onOpenPhotoAction && (
@@ -760,16 +801,16 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         photoTitle: 'Bổ sung ảnh độ võng dầm',
                       })
                     }
-                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
                     <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
 
               {beamPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')) ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {beamPhotos.map((p, pIdx) => {
                     const stagedBeam = getStagedAction({
                       category: 'BEAM_SAGGING',
@@ -787,31 +828,32 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       violationsMap?.get(itemKey) ||
                       violationsMap?.get(p.photoCode || `SAG_${pIdx + 1}`);
                     return (
-                      <AuditPhotoCard
-                        key={pIdx}
-                        url={stagedBeam?.newPhotoUrl || p.url}
-                        photoKey={itemKey}
-                        photoCode={p.photoCode || `SAG_${pIdx + 1}`}
-                        title={`Ảnh võng dầm (${p.photoCode || `SAG_${pIdx + 1}`})`}
-                        category="BEAM_SAGGING"
-                        targetPhotoType="BEAM_SAGGING"
-                        targetPhotoId="settlementTilt.beamSagging.photos"
-                        photoIndex={pIdx}
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="amber"
-                        rotation={rot}
-                        isOrientationMismatch={Boolean(orientStatus)}
-                        isStrictOrientation={orientStatus?.isStrict ?? true}
-                        expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
-                        domId={`audit-photo-card-beam-sagging-${pIdx}`}
-                        optimisticStatus={stagedBeam ? (stagedBeam.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
-                        onUndoDelete={stagedBeam ? () => onUndoPhotoAction?.(stagedBeam) : undefined}
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
+                      <div key={pIdx} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                        <AuditPhotoCard
+                          url={stagedBeam?.newPhotoUrl || p.url}
+                          photoKey={itemKey}
+                          photoCode={p.photoCode || `SAG_${pIdx + 1}`}
+                          title={`Ảnh võng dầm (${p.photoCode || `SAG_${pIdx + 1}`})`}
+                          category="BEAM_SAGGING"
+                          targetPhotoType="BEAM_SAGGING"
+                          targetPhotoId="settlementTilt.beamSagging.photos"
+                          photoIndex={pIdx}
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="amber"
+                          rotation={rot}
+                          isOrientationMismatch={Boolean(orientStatus)}
+                          isStrictOrientation={orientStatus?.isStrict ?? true}
+                          expectedOrientation="LANDSCAPE"
+                          onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                          domId={`audit-photo-card-beam-sagging-${pIdx}`}
+                          optimisticStatus={stagedBeam ? (stagedBeam.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          onUndoDelete={stagedBeam ? () => onUndoPhotoAction?.(stagedBeam) : undefined}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      </div>
                     );
                   })}
 
@@ -823,32 +865,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       const addKey = `beamSagging_added_${addIdx}`;
                       const addRot = stagedPhotoRotations[addKey] ?? 0;
                       return (
-                        <AuditPhotoCard
-                          key={`added-sag-${addIdx}`}
-                          url={addedItem.url}
-                          photoKey={addKey}
-                          photoCode={`Mới`}
-                          title={`Ảnh võng dầm mới thêm #${addIdx + 1}`}
-                          category="BEAM_SAGGING"
-                          targetPhotoType="BEAM_SAGGING"
-                          targetPhotoId="settlementTilt.beamSagging.photos"
-                          isEditMode={isEditMode}
-                          aspectRatio="aspect-video"
-                          badgeColor="emerald"
-                          rotation={addRot}
-                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
-                          optimisticStatus="ADDED"
-                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
-                          onOpenPhotoZoom={onOpenPhotoZoom}
-                          onOpenPhotoAction={onOpenPhotoAction}
-                          onOpenPhotoHistory={onOpenPhotoHistory}
-                        />
+                        <div key={`added-sag-${addIdx}`} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                          <AuditPhotoCard
+                            url={addedItem.url}
+                            photoKey={addKey}
+                            photoCode={`Mới`}
+                            title={`Ảnh võng dầm mới thêm #${addIdx + 1}`}
+                            category="BEAM_SAGGING"
+                            targetPhotoType="BEAM_SAGGING"
+                            targetPhotoId="settlementTilt.beamSagging.photos"
+                            isEditMode={isEditMode}
+                            aspectRatio="aspect-video"
+                            badgeColor="emerald"
+                            rotation={addRot}
+                            onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                            optimisticStatus="ADDED"
+                            onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                            onOpenPhotoZoom={onOpenPhotoZoom}
+                            onOpenPhotoAction={onOpenPhotoAction}
+                            onOpenPhotoHistory={onOpenPhotoHistory}
+                          />
+                        </div>
                       );
                     })}
                 </div>
               ) : (
-                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
-                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh kiểm tra độ võng dầm</p>
+                <div className="p-3 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-xs text-slate-400 italic">Chưa có ảnh kiểm tra độ võng dầm</p>
                   {onOpenPhotoHistory && (
                     <button
                       type="button"
@@ -858,19 +901,20 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                           photoTitle: 'Lịch sử ảnh độ võng dầm / bản sàn',
                         })
                       }
-                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
                       title="Xem lịch sử và khôi phục ảnh võng dầm đã xóa"
                     >
                       <History className="w-3 h-3 text-sky-600" />
-                      <span> Lịch sử / Khôi phục ảnh</span>
+                      <span>Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
               )}
             </div>
 
-            <div className="p-2 bg-white rounded-lg border border-slate-200 text-[10px] text-slate-500">
-              Chỉ số E3 lấy mức lớn nhất: <strong>max(Lún {lDiff}, Nghiêng {lTilt}, Võng {lSag}) = {calculatedE3}</strong>
+            <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+              <span>Tổng hợp chỉ số biến dạng E3 (lấy mức lớn nhất trong 3 tiêu chí):</span>
+              <strong className="text-purple-800 font-mono">max(Lún {lDiff}, Nghiêng {lTilt}, Võng {lSag}) = {calculatedE3}/4</strong>
             </div>
           </div>
         </div>
@@ -909,8 +953,35 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Lưới ảnh ngoại lệ */}
+          <div className="space-y-4">
+            {/* Ghi chú ngoại lệ */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-600 block">
+                Ghi chú chi tiết trường hợp ngoại lệ:
+              </span>
+              {isEditMode ? (
+                <textarea
+                  rows={2}
+                  value={abnormal.notes || ''}
+                  onChange={(e) =>
+                    handleNestedFieldChange('settlementTilt', 'abnormalCase', 'Ghi chú ngoại lệ', {
+                      ...abnormal,
+                      notes: e.target.value,
+                      description: e.target.value,
+                      hasAbnormal: Boolean(e.target.value.trim() || abnormalPhotos.length > 0),
+                    })
+                  }
+                  placeholder="VD: Rễ cây lớn làm nứt vỉa hè, hố ga thoát nước sát móng bị sụt..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
+                />
+              ) : (
+                <p className="text-xs text-slate-700 p-2.5 bg-white rounded-xl border border-slate-200">
+                  {abnormal.notes || 'Không'}
+                </p>
+              )}
+            </div>
+
+            {/* Dải ảnh ngoại lệ (2.5 ảnh full khung nhìn ngang + cuộn ngang) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] font-bold text-slate-600 block">
@@ -928,9 +999,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         photoTitle: 'Bổ sung ảnh hiện trạng bất thường',
                       })
                     }
-                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
                     <span>Thêm Ảnh</span>
                   </button>
                 )}
@@ -945,7 +1016,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     a.targetPhotoId === 'settlementTilt.abnormalCase.photos' ||
                     a.targetPhotoId === 'abnormalPhotos')
               ) ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2.5 scrollbar-thin">
                   {abnormalPhotos.map((p, pIdx) => {
                     const stagedAb =
                       getStagedAction({
@@ -966,36 +1037,33 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       stagedPhotoRotations[`abnormalCase_${pIdx}`] ??
                       stagedPhotoRotations[p.photoCode || `ANOMALY_${pIdx + 1}`] ??
                       0;
-                    const orientStatus =
-                      violationsMap?.get(itemKey) ||
-                      violationsMap?.get(`abnormalCase_${pIdx}`) ||
-                      violationsMap?.get(p.photoCode || `ANOMALY_${pIdx + 1}`);
                     return (
-                      <AuditPhotoCard
-                        key={pIdx}
-                        url={stagedAb?.newPhotoUrl || p.url}
-                        photoKey={itemKey}
-                        photoCode={p.photoCode || `ANOMALY_${pIdx + 1}`}
-                        title={`Ảnh ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`}
-                        category="SETTLEMENT_TILT"
-                        targetPhotoType="ABNORMAL_PHOTO"
-                        targetPhotoId="settlementTilt.abnormalCase.photos"
-                        photoIndex={pIdx}
-                        isEditMode={isEditMode}
-                        aspectRatio="aspect-video"
-                        badgeColor="amber"
-                        rotation={rot}
-                        isOrientationMismatch={Boolean(orientStatus)}
-                        isStrictOrientation={orientStatus?.isStrict ?? false}
-                        expectedOrientation="LANDSCAPE"
-                        onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
-                        domId={`audit-photo-card-abnormal-${pIdx}`}
-                        optimisticStatus={stagedAb ? (stagedAb.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
-                        onUndoDelete={stagedAb ? () => onUndoPhotoAction?.(stagedAb) : undefined}
-                        onOpenPhotoZoom={onOpenPhotoZoom}
-                        onOpenPhotoAction={onOpenPhotoAction}
-                        onOpenPhotoHistory={onOpenPhotoHistory}
-                      />
+                      <div key={pIdx} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                        <AuditPhotoCard
+                          url={stagedAb?.newPhotoUrl || p.url}
+                          photoKey={itemKey}
+                          photoCode={p.photoCode || `ANOMALY_${pIdx + 1}`}
+                          title={`Ảnh ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`}
+                          category="SETTLEMENT_TILT"
+                          targetPhotoType="ABNORMAL_PHOTO"
+                          targetPhotoId="settlementTilt.abnormalCase.photos"
+                          photoIndex={pIdx}
+                          isEditMode={isEditMode}
+                          aspectRatio="aspect-video"
+                          badgeColor="amber"
+                          rotation={rot}
+                          isOrientationMismatch={false}
+                          isStrictOrientation={false}
+                          expectedOrientation="ANY"
+                          onRotate={(newRot) => onRotatePhoto?.(itemKey, newRot, p.url)}
+                          domId={`audit-photo-card-abnormal-${pIdx}`}
+                          optimisticStatus={stagedAb ? (stagedAb.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                          onUndoDelete={stagedAb ? () => onUndoPhotoAction?.(stagedAb) : undefined}
+                          onOpenPhotoZoom={onOpenPhotoZoom}
+                          onOpenPhotoAction={onOpenPhotoAction}
+                          onOpenPhotoHistory={onOpenPhotoHistory}
+                        />
+                      </div>
                     );
                   })}
 
@@ -1014,26 +1082,27 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       const addKey = `abnormal_added_${addIdx}`;
                       const addRot = stagedPhotoRotations[addKey] ?? 0;
                       return (
-                        <AuditPhotoCard
-                          key={`added-ab-${addIdx}`}
-                          url={addedItem.url}
-                          photoKey={addKey}
-                          photoCode={`Mới`}
-                          title={`Ảnh ngoại lệ mới thêm #${addIdx + 1}`}
-                          category="SETTLEMENT_TILT"
-                          targetPhotoType="ABNORMAL_PHOTO"
-                          targetPhotoId="settlementTilt.abnormalCase.photos"
-                          isEditMode={isEditMode}
-                          aspectRatio="aspect-video"
-                          badgeColor="emerald"
-                          rotation={addRot}
-                          onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
-                          optimisticStatus="ADDED"
-                          onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
-                          onOpenPhotoZoom={onOpenPhotoZoom}
-                          onOpenPhotoAction={onOpenPhotoAction}
-                          onOpenPhotoHistory={onOpenPhotoHistory}
-                        />
+                        <div key={`added-ab-${addIdx}`} className="w-[calc((100%-2rem)/2.5)] min-w-[240px] shrink-0">
+                          <AuditPhotoCard
+                            url={addedItem.url}
+                            photoKey={addKey}
+                            photoCode={`Mới`}
+                            title={`Ảnh ngoại lệ mới thêm #${addIdx + 1}`}
+                            category="SETTLEMENT_TILT"
+                            targetPhotoType="ABNORMAL_PHOTO"
+                            targetPhotoId="settlementTilt.abnormalCase.photos"
+                            isEditMode={isEditMode}
+                            aspectRatio="aspect-video"
+                            badgeColor="emerald"
+                            rotation={addRot}
+                            onRotate={(newRot) => onRotatePhoto?.(addKey, newRot, addedItem.url)}
+                            optimisticStatus="ADDED"
+                            onUndoDelete={() => onUndoPhotoAction?.(addedItem.action)}
+                            onOpenPhotoZoom={onOpenPhotoZoom}
+                            onOpenPhotoAction={onOpenPhotoAction}
+                            onOpenPhotoHistory={onOpenPhotoHistory}
+                          />
+                        </div>
                       );
                     })}
                 </div>
@@ -1053,37 +1122,10 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       title="Xem lịch sử và khôi phục ảnh bất thường đã xóa"
                     >
                       <History className="w-3.5 h-3.5 text-sky-600" />
-                      <span> Lịch sử / Khôi phục ảnh</span>
+                      <span>Lịch sử / Khôi phục ảnh</span>
                     </button>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Ghi chú ngoại lệ */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-slate-600 block">
-                Ghi chú chi tiết trường hợp ngoại lệ:
-              </span>
-              {isEditMode ? (
-                <textarea
-                  rows={4}
-                  value={abnormal.notes || ''}
-                  onChange={(e) =>
-                    handleNestedFieldChange('settlementTilt', 'abnormalCase', 'Ghi chú ngoại lệ', {
-                      ...abnormal,
-                      notes: e.target.value,
-                      description: e.target.value,
-                      hasAbnormal: Boolean(e.target.value.trim() || abnormalPhotos.length > 0),
-                    })
-                  }
-                  placeholder="VD: Rễ cây lớn làm nứt vỉa hè, hố ga thoát nước sát móng bị sụt..."
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
-                />
-              ) : (
-                <p className="text-xs text-slate-700 p-3 bg-white rounded-xl border border-slate-200 min-h-[80px]">
-                  {abnormal.notes || 'Không'}
-                </p>
               )}
             </div>
           </div>
@@ -1181,12 +1223,22 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               </span>
             </div>
             <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-black ${monitoring.required
+              className={`px-2.5 py-0.5 rounded-full text-xs font-black flex items-center gap-1 ${monitoring.required
                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                   : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                 }`}
             >
-              {monitoring.required ? '⚠️ CẦN QUAN TRẮC BỔ SUNG' : '✓ KHÔNG YÊU CẦU QUAN TRẮC'}
+              {monitoring.required ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                  <span>CẦN QUAN TRẮC BỔ SUNG</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>KHÔNG YÊU CẦU QUAN TRẮC</span>
+                </>
+              )}
             </span>
           </div>
 

@@ -2,9 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   evaluateResidentialOrientation,
   RESIDENTIAL_PHOTO_RULES,
+  getEffectiveResidentialPhotoRule,
+  resolveHousePrimaryOrientation,
   normalizeRotationAngle,
   type PhotoOrientationType,
   type ExpectedOrientation,
+  type HousePrimaryOrientation,
 } from '../utils/residentialPhotoOrientationStandards';
 import type { PhotoActionPayload } from '../../AuditPhotoActionModal';
 
@@ -326,45 +329,7 @@ export function usePhotoOrientationAudit(
       });
     }
 
-    // Ảnh hiện trạng đất trống (vacantLandPhotos)
-    const vacantPhotos = Array.isArray(surveyJson.vacantLandPhotos) ? surveyJson.vacantLandPhotos : [];
-    vacantPhotos.forEach((vp, vIdx) => {
-      const vpInfo = getPhotoInfo(vp);
-      const vpUrl = resolveUrlWithStagedActions(vpInfo.url, 'vacantLandPhotos', vIdx);
-      if (vpUrl && !vpInfo.isDeleted) {
-        addCandidate({
-          key: `vacantLand_${vIdx}`,
-          ruleKey: 'vacantLand',
-          photoCode: vpInfo.code || `VACANT_${vIdx + 1}`,
-          title: `Ảnh hiện trạng đất trống #${vIdx + 1}`,
-          photoUrl: vpUrl,
-          stepId: 'step-1',
-          domElementId: `audit-photo-card-vacant-land-${vIdx}`,
-          photoIndex: vIdx,
-          aliases: [vpInfo.code || `VACANT_LAND_${vIdx + 1}`],
-        });
-      }
-    });
-
-    // Ảnh công trình đang xây dựng (underConstructionPhotos)
-    const ucPhotos = Array.isArray(surveyJson.underConstructionPhotos) ? surveyJson.underConstructionPhotos : [];
-    ucPhotos.forEach((ucp, ucIdx) => {
-      const ucpInfo = getPhotoInfo(ucp);
-      const ucpUrl = resolveUrlWithStagedActions(ucpInfo.url, 'underConstructionPhotos', ucIdx);
-      if (ucpUrl && !ucpInfo.isDeleted) {
-        addCandidate({
-          key: `underConstruction_${ucIdx}`,
-          ruleKey: 'underConstruction',
-          photoCode: ucpInfo.code || `UC_${ucIdx + 1}`,
-          title: `Ảnh công trình đang xây dựng #${ucIdx + 1}`,
-          photoUrl: ucpUrl,
-          stepId: 'step-1',
-          domElementId: `audit-photo-card-under-construction-${ucIdx}`,
-          photoIndex: ucIdx,
-          aliases: [ucpInfo.code || `UNDER_CONSTRUCTION_${ucIdx + 1}`],
-        });
-      }
-    });
+    // Lưu ý (Quy chuẩn thẩm định): Ảnh ngoại lệ (vacantLandPhotos, underConstructionPhotos) không bắt buộc/gợi ý xoay hướng A4.
 
     // =========================================================================
     // BƯỚC 2: ĐO BIẾN DẠNG, LÚN NGHIÊNG & BẤT THƯỜNG (AuditStep5SettlementTilt)
@@ -452,32 +417,7 @@ export function usePhotoOrientationAudit(
       }
     });
 
-    const abnormal = (st.abnormalCase || surveyJson.abnormalCase || {}) as Record<string, unknown>;
-    const abnormalPhotos =
-      Array.isArray(abnormal.photos) && abnormal.photos.length > 0
-        ? abnormal.photos
-        : abnormal.photoUrl
-          ? [abnormal.photoUrl]
-          : [];
-    abnormalPhotos.forEach((abp, pIdx) => {
-      const abpInfo = getPhotoInfo(abp);
-      const abpUrl = resolveUrlWithStagedActions(abpInfo.url, 'settlementTilt.abnormalCase.photos', pIdx);
-      if (abpUrl && !abpInfo.isDeleted) {
-        const key = `abnormal_${pIdx}`;
-        const code = abpInfo.code || (abnormalPhotos.length > 1 ? `ANOMALY_${pIdx + 1}` : 'P-07');
-        addCandidate({
-          key,
-          ruleKey: 'abnormalCase',
-          photoCode: code,
-          title: abnormalPhotos.length > 1 ? `Ảnh hiện trạng bất thường #${pIdx + 1}` : 'Ảnh hiện trạng bất thường (P-07)',
-          photoUrl: abpUrl,
-          stepId: 'step-2',
-          domElementId: `audit-photo-card-abnormal-${pIdx}`,
-          photoIndex: pIdx,
-          aliases: [`abnormal_${pIdx}`, `abnormalCase_${pIdx}`, `ANOMALY_${pIdx + 1}`, `ANOMALY_0${pIdx + 1}`],
-        });
-      }
-    });
+    // Lưu ý (Quy chuẩn thẩm định): Ảnh ngoại lệ bất thường (abnormalCase.photos) không kiểm tra gợi ý xoay hướng A4.
 
     // =========================================================================
     // BƯỚC 3: KẾT CẤU, NỀN MÓNG & BẢN VẼ HOÀN CÔNG (AuditStep2OwnerInterview)
@@ -636,15 +576,7 @@ export function usePhotoOrientationAudit(
 
                   const hasMultiCu = cuPhotos.length > 1;
                   const dId = d.id ? String(d.id) : '';
-                  const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
-                  const defectKey =
-                    dId && isDefectUuid
-                      ? dId.startsWith('defect_')
-                        ? `${dId}_cu_${cuIdx}`
-                        : `defect_${dId}_cu_${cuIdx}`
-                      : dId
-                        ? `defect_f${fIdx}_z${zCode}_${dId}_cu_${cuIdx}`
-                        : `defect_f${fIdx}_z${zCode}_d${dCode}_cu_${cuIdx}`;
+                  const defectKey = `defect_f${fIdx}_z${zCode}_${dCode}_cu_${cuIdx}`;
                   const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
 
                   addCandidate({
@@ -660,8 +592,14 @@ export function usePhotoOrientationAudit(
                     defectCode: dCode,
                     photoIndex: cuIdx,
                     aliases: [
+                      `defect_f${fIdx}_z${zCode}_${dCode}_cu_${cuIdx}`,
                       `defect_f${fIdx}_z${zCode}_d${dCode}_cu_${cuIdx}`,
+                      dId ? `defect_f${fIdx}_z${zCode}_${dId}_cu_${cuIdx}` : '',
+                      dId ? (dId.startsWith('defect_') ? `${dId}_cu_${cuIdx}` : `defect_${dId}_cu_${cuIdx}`) : '',
+                      `defect_${dId || dCode}_cu_${cuIdx}`,
+                      !hasMultiCu ? `defect_${dId || dCode}_cu` : '',
                       !hasMultiCu ? `defect_f${fIdx}_z${zCode}_d${dCode}_cu` : '',
+                      !hasMultiCu ? `defect_f${fIdx}_z${zCode}_${dCode}_cu` : '',
                       cuIdx === 1 ? `defect_f${fIdx}_z${zCode}_d${dCode}_extra_cu` : '',
                       cuIdx === 1 && dId ? `defect_${dId}_extra_cu` : '',
                     ].filter(Boolean),
@@ -684,11 +622,10 @@ export function usePhotoOrientationAudit(
             const elId = el.id ? String(el.id) : '';
             const isElemUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(elId);
 
-            // Ảnh bối cảnh cấu kiện E (ctxPhotoUrl hoặc overviewPhotos[0])
+            // Ảnh bối cảnh cấu kiện E (chỉ lấy ctxPhotoUrl riêng biệt, không lôi overviewPhotos[0] sang làm CTX)
             const rawElCtx = (el.ctxPhotoUrl || el.ctx_photo_url || '') as string;
             const elOverviews = Array.isArray(el.overviewPhotos) ? el.overviewPhotos : [];
-            const fallbackElOv = elOverviews.length > 0 ? getPhotoInfo(elOverviews[0]).url : '';
-            const elCtxUrl = resolveUrlWithStagedActions(rawElCtx || fallbackElOv);
+            const elCtxUrl = resolveUrlWithStagedActions(rawElCtx);
 
             const elemCtxKey =
               elId && isElemUuid
@@ -708,7 +645,13 @@ export function usePhotoOrientationAudit(
                 domElementId: `audit-photo-card-f${fIdx}-elem-${eCode}`,
                 floorIndex: fIdx,
                 zoneCode: eCode,
-                aliases: [`element_f${fIdx}_e${eCode}_ctx`, `zone_f${fIdx}_z${eCode}_ctx`, `zone_${elId || eCode}_ctx`, eCode],
+                aliases: [
+                  `element_f${fIdx}_e${eCode}_ctx`,
+                  `element_${elId || eCode}_ctx`,
+                  `zone_f${fIdx}_z${eCode}_ctx`,
+                  `zone_${elId || eCode}_ctx`,
+                  eCode,
+                ],
               });
             }
 
@@ -727,6 +670,7 @@ export function usePhotoOrientationAudit(
                 floorIndex: fIdx,
                 zoneCode: eCode,
                 photoIndex: ovIdx,
+                aliases: [`element_${elId || eCode}_ov_${ovIdx}`],
               });
             });
 
@@ -753,15 +697,7 @@ export function usePhotoOrientationAudit(
 
                   const hasMultiCu = cuPhotos.length > 1;
                   const dId = d.id ? String(d.id) : '';
-                  const isDefectUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(dId);
-                  const defectKey =
-                    dId && isDefectUuid
-                      ? dId.startsWith('defect_')
-                        ? `${dId}_cu_${cuIdx}`
-                        : `defect_${dId}_cu_${cuIdx}`
-                      : dId
-                        ? `defect_f${fIdx}_e${eCode}_${dId}_cu_${cuIdx}`
-                        : `defect_f${fIdx}_e${eCode}_d${dCode}_cu_${cuIdx}`;
+                  const defectKey = `defect_f${fIdx}_e${eCode}_${dCode}_cu_${cuIdx}`;
                   const cuSuffix = hasMultiCu ? ` #${cuIdx + 1}` : '';
 
                   addCandidate({
@@ -777,9 +713,16 @@ export function usePhotoOrientationAudit(
                     defectCode: dCode,
                     photoIndex: cuIdx,
                     aliases: [
+                      `defect_f${fIdx}_e${eCode}_${dCode}_cu_${cuIdx}`,
                       `defect_f${fIdx}_e${eCode}_d${dCode}_cu_${cuIdx}`,
+                      dId ? `defect_f${fIdx}_e${eCode}_${dId}_cu_${cuIdx}` : '',
+                      dId ? (dId.startsWith('defect_') ? `${dId}_cu_${cuIdx}` : `defect_${dId}_cu_${cuIdx}`) : '',
+                      `defect_${dId || dCode}_cu_${cuIdx}`,
+                      `defect_f${fIdx}_z${eCode}_${dCode}_cu_${cuIdx}`,
                       `defect_f${fIdx}_z${eCode}_d${dCode}_cu_${cuIdx}`,
+                      !hasMultiCu ? `defect_${dId || dCode}_cu` : '',
                       !hasMultiCu ? `defect_f${fIdx}_e${eCode}_d${dCode}_cu` : '',
+                      !hasMultiCu ? `defect_f${fIdx}_e${eCode}_${dCode}_cu` : '',
                       cuIdx === 1 ? `defect_f${fIdx}_z${eCode}_d${dCode}_extra_cu` : '',
                     ].filter(Boolean),
                   });
@@ -863,24 +806,7 @@ export function usePhotoOrientationAudit(
       });
     }
 
-    // Ảnh thông báo vắng mặt (absenceLogs / absenteeMinutesPhotos)
-    const absenceLogs = Array.isArray(surveyJson.absenceLogs) ? surveyJson.absenceLogs : [];
-    absenceLogs.forEach((logRaw, aIdx) => {
-      const logObj = (logRaw || {}) as { photoUrl?: string; photo_url?: string; url?: string; photoCode?: string };
-      const aUrl = logObj.photoUrl || logObj.photo_url || logObj.url || '';
-      if (aUrl) {
-        addCandidate({
-          key: `absenceNotice_${aIdx}`,
-          ruleKey: 'ABSENCE_NOTICE',
-          photoCode: logObj.photoCode || `ABSENCE-${aIdx + 1}`,
-          title: `Ảnh thông báo vắng mặt lần ${aIdx + 1}`,
-          photoUrl: aUrl,
-          stepId: 'step-9',
-          domElementId: `audit-photo-card-absence-${aIdx}`,
-          photoIndex: aIdx,
-        });
-      }
-    });
+    // Lưu ý (Quy chuẩn thẩm định): Ảnh thông báo vắng mặt (absenceLogs / absenteeMinutesPhotos) là ảnh ngoại lệ không bắt buộc/gợi ý xoay hướng A4.
 
     return list;
   }, [surveyJson, resolveUrlWithStagedActions]);
@@ -917,7 +843,16 @@ export function usePhotoOrientationAudit(
     };
   }, [photoCandidates]);
 
-  // 3. Đánh giá toàn bộ vi phạm hướng ảnh theo quy chuẩn Nhà Dân
+  // 3. Đánh giá toàn bộ vi phạm hướng ảnh theo quy chuẩn Nhà Dân thích ứng theo hướng chính của ngôi nhà
+  const housePrimaryOrientation = useMemo<HousePrimaryOrientation>(() => {
+    return resolveHousePrimaryOrientation(surveyJson);
+  }, [
+    surveyJson.primaryPhotoOrientation,
+    surveyJson.frontageWidth,
+    surveyJson.lotDepth,
+    surveyJson.buildingSpecs,
+  ]);
+
   const violations = useMemo<PhotoOrientationViolation[]>(() => {
     const list: PhotoOrientationViolation[] = [];
 
@@ -928,10 +863,16 @@ export function usePhotoOrientationAudit(
       }
 
       const currentRotation = getPhotoRotation(item.key, item.photoUrl, item.aliases);
-      const evalRes = evaluateResidentialOrientation(dims.width, dims.height, currentRotation, item.ruleKey);
+      const evalRes = evaluateResidentialOrientation(
+        dims.width,
+        dims.height,
+        currentRotation,
+        item.ruleKey,
+        housePrimaryOrientation
+      );
 
       if (!evalRes.isValid) {
-        const ruleDef = RESIDENTIAL_PHOTO_RULES[item.ruleKey];
+        const ruleDef = getEffectiveResidentialPhotoRule(item.ruleKey, housePrimaryOrientation);
         list.push({
           key: item.key,
           photoCode: item.photoCode,
@@ -954,24 +895,29 @@ export function usePhotoOrientationAudit(
     });
 
     return list;
-  }, [photoCandidates, measuredDimensions, getPhotoRotation]);
+  }, [photoCandidates, measuredDimensions, getPhotoRotation, housePrimaryOrientation]);
 
   // Phân loại vi phạm thành 2 nhóm: Bắt buộc (Strict) vs Khuyến nghị (Advisory)
   const strictViolations = useMemo(() => violations.filter((v) => v.isStrict), [violations]);
   const advisoryViolations = useMemo(() => violations.filter((v) => !v.isStrict), [violations]);
 
-  // Tra cứu vi phạm nhanh theo key, aliases, photoUrl, domElementId, hoặc photoCode
+  // Tra cứu vi phạm nhanh theo key, aliases, domElementId (không ghi đè bằng photoCode chung như D-01-CU #1 để tránh lây chéo vùng)
   const violationsMap = useMemo(() => {
     const map = new Map<string, PhotoOrientationViolation>();
     violations.forEach((v) => {
       map.set(v.key, v);
-      if (v.photoUrl) map.set(v.photoUrl, v);
       if (v.domElementId) map.set(v.domElementId, v);
-      if (v.photoCode) map.set(v.photoCode, v);
+      // Chỉ map theo photoCode cho các ảnh định danh duy nhất ở Bước 1..3, không map cho D-01-CU #1 (trùng giữa các Z/E)
+      if (v.photoCode && v.stepId !== 'step-4' && !map.has(v.photoCode)) {
+        map.set(v.photoCode, v);
+      }
+      if (v.photoUrl && v.stepId !== 'step-4' && !map.has(v.photoUrl)) {
+        map.set(v.photoUrl, v);
+      }
       const candidate = photoCandidates.find((c) => c.key === v.key);
       if (candidate?.aliases) {
         candidate.aliases.forEach((alias) => {
-          if (alias) map.set(alias, v);
+          if (alias && !map.has(alias)) map.set(alias, v);
         });
       }
     });
@@ -1015,6 +961,7 @@ export function usePhotoOrientationAudit(
     setPhotoRotation,
     getPhotoRotation,
     getPhotoOrientationStatus,
+    housePrimaryOrientation,
     isAutoRotated: (_key: string) => false,
     photoCandidatesCount: photoCandidates.length,
   };

@@ -18,6 +18,7 @@ import {
   ChevronDown,
   MapPin,
   Loader2,
+  MoreVertical,
 } from 'lucide-react';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
@@ -104,6 +105,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const [showVersionComparison, setShowVersionComparison] = useState(false);
   const [versions, setVersions] = useState<SurveyReportVersionItem[]>([]);
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Fullscreen studio workspace mode (Default true)
   const [isFullscreen, setIsFullscreen] = useState(true);
   // Warning Flags Popover State
@@ -469,171 +471,64 @@ export const AuditStudioModal: React.FC<Props> = ({
   const riskCard = data?.leftPane?.riskScoreCard;
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in duration-200 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4 overflow-y-auto'}`}>
-      <div className={`relative w-full bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 ${isFullscreen ? 'h-screen w-screen rounded-none' : 'max-w-7xl h-[92vh] rounded-2xl'}`}>
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-5 py-3 bg-slate-900 text-white border-b border-slate-800 shrink-0 select-none">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
-              <ShieldCheck className="w-5 h-5" />
+    <div className={`fixed inset-0 !m-0 top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in duration-200 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4 overflow-y-auto'}`}>
+      <div className={`relative w-full !m-0 bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 ${isFullscreen ? 'h-screen w-screen rounded-none border-t-0' : 'max-w-7xl h-[94vh] rounded-2xl'}`}>
+        {/* Top Header Bar (Ultra-Compact Single-Line Clean Light Theme) */}
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-white text-slate-800 border-b border-slate-200 shrink-0 select-none shadow-2xs min-h-[42px]">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="p-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200 shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono font-black text-sm text-emerald-400">
-                  {data?.projectParcelCode || 'Đang tải...'}
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <span className="font-mono font-black text-xs sm:text-sm text-emerald-700 shrink-0">
+                {data?.projectParcelCode || 'Đang tải...'}
+              </span>
+              <span className="text-slate-300 text-xs">•</span>
+              <span className="text-xs font-bold text-slate-800 truncate max-w-[220px] sm:max-w-[320px]">
+                {data?.houseNumber ? `${data.houseNumber} ${data.street}` : 'Địa chỉ chưa cập nhật'}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                {data?.zoneId || 'ZONE'}
+              </span>
+              {data?.status && (
+                <span
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                    data.status === 'APPROVED'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : data.status === 'POSTPONED_ABSENT'
+                        ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                        : data.status === 'REJECTED'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}
+                >
+                  {data.status}
                 </span>
-                <span className="text-slate-400">•</span>
-                <span className="text-xs font-bold text-white">
-                  {data?.houseNumber ? `${data.houseNumber} ${data.street}` : 'Địa chỉ chưa cập nhật'}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                  {data?.zoneId || 'ZONE'}
-                </span>
-                {data?.status && (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${data.status === 'APPROVED'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : data.status === 'POSTPONED_ABSENT'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                          : data.status === 'REJECTED'
-                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      }`}
-                  >
-                    {data.status}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
-                <span>KSV: <strong>{data?.surveyorName || '---'}</strong></span>
-                {data?.surveyorPhone && <span>• SĐT: {data.surveyorPhone}</span>}
-                {data?.surveyDate && (
-                  <span>
-                    • Khảo sát: {new Date(data.surveyDate).toLocaleDateString('vi-VN')}
-                  </span>
-                )}
-              </div>
+              )}
+              <span className="hidden lg:inline text-slate-300 text-xs">•</span>
+              <span className="hidden lg:inline text-[11px] text-slate-500 truncate">
+                KSV: <strong className="text-slate-700">{data?.surveyorName || '---'}</strong>
+                {data?.surveyDate ? ` (${new Date(data.surveyDate).toLocaleDateString('vi-VN')})` : ''}
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Version History & Rollback Dropdown */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowVersionDropdown(!showVersionDropdown)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${showVersionDropdown
-                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
-                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30'
-                  }`}
-                title="Lịch sử các phiên bản và so sánh đối chiếu"
-              >
-                <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
-                <span>
-                  v{versions.length > 0 ? versions[0].versionNumber : 0} ({versions.length} phiên bản)
-                </span>
-                <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
-              </button>
-
-              {showVersionDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-slate-900 rounded-xl shadow-2xl border border-slate-700 text-slate-100 z-50 p-3 space-y-2.5 animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-300">
-                      <GitBranch className="w-4 h-4 text-indigo-400" />
-                      <span>Lịch Sử Phiên Bản ({versions.length})</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowVersionDropdown(false)}
-                      className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs pr-1">
-                    {versions.map((ver, vIdx) => {
-                      const isLatest = vIdx === 0;
-                      return (
-                        <div
-                          key={ver.id || ver.versionNumber}
-                          onClick={() => {
-                            setShowVersionDropdown(false);
-                            setShowVersionComparison(true);
-                          }}
-                          className="p-2.5 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-800/80 hover:border-slate-700 transition-all cursor-pointer flex flex-col gap-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-indigo-400">v{ver.versionNumber}</span>
-                              <span className="font-semibold text-[11px] text-slate-200 truncate max-w-[150px]">
-                                {ver.title}
-                              </span>
-                            </div>
-                            {isLatest && (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
-                                Hiện tại
-                              </span>
-                            )}
-                          </div>
-                          {ver.editReason && (
-                            <p className="text-[11px] text-slate-400 italic line-clamp-1">
-                              &ldquo;{ver.editReason}&rdquo;
-                            </p>
-                          )}
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800/50 mt-0.5">
-                            <span>{ver.createdByName || 'Admin'}</span>
-                            <span>{new Date(ver.createdAt).toLocaleString('vi-VN')}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowVersionDropdown(false);
-                      setShowVersionComparison(true);
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-md shadow-indigo-600/30"
-                  >
-                    <History className="w-3.5 h-3.5" />
-                    <span>Mở Studio So Sánh & Hoàn Nguyên</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {data?.auditHistory && (
-              <button
-                type="button"
-                onClick={() => setShowAuditHistory(true)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${data.auditHistory.length > 0
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-300'
-                  }`}
-                title="Xem nhật ký kiểm toán và lịch sử sửa đổi"
-              >
-                <History className="w-3.5 h-3.5 text-sky-400" />
-                <span>Nhật ký ({data.auditHistory.length})</span>
-              </button>
-            )}
-
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Interactive Warning Flags Button & Popover */}
             {auditFlags.length > 0 && (
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowFlagsPopover(!showFlagsPopover)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${showFlagsPopover
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                    }`}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                    showFlagsPopover
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs'
+                      : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  }`}
                   title="Bấm để xem danh sách chi tiết các cờ cảnh báo rủi ro"
                 >
-                  <AlertTriangle className={`w-3.5 h-3.5 ${showFlagsPopover ? 'text-slate-950' : 'text-amber-400'}`} />
-                  <span>{auditFlags.length} Cờ cảnh báo</span>
+                  <AlertTriangle className={`w-3 h-3 ${showFlagsPopover ? 'text-slate-950' : 'text-amber-600'}`} />
+                  <span>{auditFlags.length} Cảnh báo</span>
                 </button>
 
                 {showFlagsPopover && (
@@ -646,7 +541,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => setShowFlagsPopover(false)}
-                        className="text-slate-400 hover:text-slate-600 p-1"
+                        className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -658,8 +553,9 @@ export const AuditStudioModal: React.FC<Props> = ({
                         return (
                           <div
                             key={flag.code || fIdx}
-                            className={`p-2.5 rounded-lg border flex items-start gap-2 ${isWarn ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-sky-50/70 border-sky-200 text-sky-950'
-                              }`}
+                            className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                              isWarn ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-sky-50/70 border-sky-200 text-sky-950'
+                            }`}
                           >
                             <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isWarn ? 'bg-amber-500' : 'bg-sky-500'}`} />
                             <div className="flex-1">
@@ -675,29 +571,146 @@ export const AuditStudioModal: React.FC<Props> = ({
               </div>
             )}
 
+            {/* Nút Yêu Cầu Khảo Sát Lại (Reject) trên Header */}
+            {data?.status !== 'APPROVED' && (
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(true)}
+                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                title="Yêu cầu khảo sát lại hồ sơ"
+              >
+                <X className="w-3 h-3 text-rose-600" />
+                <span>Yêu Cầu Khảo Sát Lại</span>
+              </button>
+            )}
+
+            {/* Nút Phê Duyệt Hồ Sơ (Approve) trên Header */}
             <button
               type="button"
-              onClick={fetchAuditData}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-              title="Làm mới dữ liệu"
+              disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}
+              onClick={handleApprove}
+              title={
+                isMissingRealOwnerName
+                  ? 'Hồ sơ thiếu tên chủ hộ thực tế. Vui lòng bấm Yêu Cầu Khảo Sát Lại (Reject) để KSV bổ sung.'
+                  : totalDiffCount > 0
+                    ? 'Vui lòng bấm Lưu Thay Đổi ở thanh sidebar bên trái trước khi phê duyệt'
+                    : 'Phê duyệt hồ sơ'
+              }
+              className={`px-3 py-1 text-[11px] font-bold rounded-lg flex items-center gap-1 transition-all shadow-2xs ${
+                data?.status === 'APPROVED'
+                  ? 'bg-emerald-700/90 text-white cursor-default'
+                  : totalDiffCount > 0 || isMissingRealOwnerName
+                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
+              }`}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+              <CheckCircle2 className="w-3 h-3" />
+              <span>
+                {isApproving
+                  ? 'Đang ký duyệt...'
+                  : data?.status === 'APPROVED'
+                    ? 'Đã Khóa Duyệt'
+                    : isMissingRealOwnerName
+                      ? 'Thiếu Tên Chủ Hộ'
+                      : totalDiffCount > 0
+                        ? 'Chưa Lưu Diff'
+                        : 'Phê Duyệt Hồ Sơ'}
+              </span>
             </button>
+
+            {/* Menu 3 Chấm (...) Gộp Quản lý phiên bản & Nhật ký */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className={`p-1 rounded-lg border transition-all cursor-pointer ${
+                  showMoreMenu
+                    ? 'bg-slate-100 border-slate-300 text-slate-900'
+                    : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
+                }`}
+                title="Tùy chọn khác (Phiên bản, Nhật ký, Làm mới...)"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-2 space-y-1 animate-in fade-in slide-in-from-top-1">
+                  <div className="px-2.5 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-100">
+                    Tùy Chọn Thẩm Định
+                  </div>
+
+                  {/* Quản lý phiên bản */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setShowVersionComparison(true);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-900 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Quản lý phiên bản</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">
+                      v{versions.length > 0 ? versions[0].versionNumber : 0} ({versions.length})
+                    </span>
+                  </button>
+
+                  {/* Nhật ký kiểm toán */}
+                  {data?.auditHistory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        setShowAuditHistory(true);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-900 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <History className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Nhật ký thẩm định</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">
+                        {data.auditHistory.length}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Làm mới dữ liệu */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      fetchAuditData();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
+                    <span>Tải lại dữ liệu</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Fullscreen Toggle */}
             <button
               type="button"
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-              title={isFullscreen ? 'Thu nhỏ về dạng cửa sổ nổi' : 'Mở rộng toàn màn hình Workspace'}
+              className="p-1 rounded-lg bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+              title={isFullscreen ? 'Thu nhỏ về dạng cửa sổ' : 'Mở rộng toàn màn hình'}
             >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
+
+            {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+              className="p-1 rounded-lg bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
               title="Đóng studio thẩm định"
             >
-              <X className="w-5 h-5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -721,7 +734,7 @@ export const AuditStudioModal: React.FC<Props> = ({
             </button>
           </div>
         ) : (
-          <div id="audit-studio-scroll-container" className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
+          <div id="audit-studio-scroll-container" className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 max-w-full px-3 sm:px-5 pt-2.5 pb-6 bg-slate-100/70">
             {(() => {
               const isCondoUnit = Boolean(
                 data?.unitInfo?.unit_type === 'UNIT' ||
@@ -936,87 +949,6 @@ export const AuditStudioModal: React.FC<Props> = ({
             </button>
           </div>
         )}
-
-        {/* Bottom Footer: Decision Action Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white border-t border-slate-200 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs text-slate-500 font-medium">
-              Thẩm định hồ sơ: <strong className="text-slate-800 font-mono">{data?.projectParcelCode || reportId}</strong>
-            </span>
-            {totalDiffCount > 0 && (
-              <button
-                type="button"
-                onClick={handleSaveDiffFirst}
-                className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 animate-pulse cursor-pointer transition-all"
-                title="Bấm để xem danh sách diff và xác nhận lưu thay đổi"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                <span>
-                  {totalDiffCount} thay đổi chưa lưu (Bấm để xem & lưu diff)
-                </span>
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {totalDiffCount > 0 && (
-              <button
-                type="button"
-                onClick={handleSaveDiffFirst}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/25 cursor-pointer animate-pulse"
-                title="Xem bảng so sánh và lưu các thay đổi vào cơ sở dữ liệu"
-              >
-                <Save className="w-4 h-4" />
-                <span>Lưu Thay Đổi ({totalDiffCount})</span>
-              </button>
-            )}
-
-            {data?.status !== 'APPROVED' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowRejectModal(true)}
-                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <X className="w-4 h-4 text-rose-600" />
-                  <span>Yêu Cầu Khảo Sát Lại (Reject)</span>
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
-              disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}
-              onClick={handleApprove}
-              title={
-                isMissingRealOwnerName
-                  ? 'Hồ sơ thiếu tên chủ hộ thực tế. Vui lòng bấm Yêu Cầu Khảo Sát Lại (Reject) để KSV bổ sung.'
-                  : totalDiffCount > 0
-                    ? 'Vui lòng bấm Lưu Thay Đổi để lưu các diff trước khi phê duyệt'
-                    : 'Phê duyệt hồ sơ'
-              }
-              className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${data?.status === 'APPROVED'
-                  ? 'bg-emerald-700/90 text-white cursor-default'
-                  : totalDiffCount > 0 || isMissingRealOwnerName
-                    ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
-                }`}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                {isApproving
-                  ? 'Đang ký duyệt...'
-                  : data?.status === 'APPROVED'
-                    ? '✓ Đã Khóa Duyệt'
-                    : isMissingRealOwnerName
-                      ? '⛔ Thiếu Tên Chủ Hộ (Cần Trả Về)'
-                      : totalDiffCount > 0
-                        ? ' Khóa Duyệt (Còn Diff Chưa Lưu)'
-                        : 'Phê Duyệt Hồ Sơ (Approve)'}
-              </span>
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Child Modals */}

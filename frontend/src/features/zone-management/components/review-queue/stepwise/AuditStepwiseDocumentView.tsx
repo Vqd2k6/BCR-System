@@ -13,6 +13,11 @@ import {
   Undo2,
   Save,
   CheckCircle2,
+  Compass,
+  ChevronDown,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { Button } from '../../../../../core/components/ui/Button';
 import { useAuditStepwiseForm } from './hooks/useAuditStepwiseForm';
@@ -28,6 +33,7 @@ import { AuditStep7EcsViScores } from './steps/AuditStep7EcsViScores';
 import { AuditStep8Conclusions } from './steps/AuditStep8Conclusions';
 import { AuditStep9SignaturesAbsence } from './steps/AuditStep9SignaturesAbsence';
 import type { DiffItem, AuditStepwiseData, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from './types';
+import type { FloorSurveyData } from '../../../../survey-phase1/types/phase1.types';
 
 export interface AuditStepwiseDocumentViewProps {
   data: AuditStepwiseData | Record<string, unknown>;
@@ -79,6 +85,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     isEditMode,
     setIsEditMode,
     activeNavStep,
+    activeSubNavId,
+    setActiveSubNavId,
     scrollToStep,
     formState,
     dirtyFields,
@@ -92,6 +100,26 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     handleReviewSave,
     getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
+
+  // Floating modal state for orientation guidance & collapsible compact sidebar
+  const [isOrientationPanelOpen, setIsOrientationPanelOpen] = React.useState(false);
+  const [isStep4Expanded, setIsStep4Expanded] = React.useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const sidebarNavRef = React.useRef<HTMLElement | null>(null);
+
+  // Tự động mở cây Bước 04 và tự cuộn thanh sidebar bên trái đuổi theo thao tác cuộn của TDV
+  React.useEffect(() => {
+    if (activeNavStep === 'step-4') {
+      setIsStep4Expanded(true);
+    }
+    const navEl = sidebarNavRef.current;
+    if (!navEl) return;
+    const targetNavId = activeSubNavId || activeNavStep;
+    const activeBtn = navEl.querySelector<HTMLElement>(`[data-nav-id="${targetNavId}"]`);
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [activeNavStep, activeSubNavId]);
 
   // Kiểm toán hướng ảnh Nhà Dân Thường theo quy chuẩn thời gian thực (formState + stagedPhotoActions)
   const {
@@ -123,19 +151,40 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     [setPhotoRotation, formState.photoRotations, stagedPhotoRotations, handleFieldChange]
   );
 
-  // Đồng bộ trạng thái kiểm toán hướng ảnh lên modal cấp cha
+  // Guard against infinite update loop by comparing state signature before calling parent callback
+  const prevOrientationSigRef = React.useRef<string>('');
   React.useEffect(() => {
-    if (onOrientationAuditChange) {
-      onOrientationAuditChange({
-        hasMismatched: hasMismatchedPhotos,
-        hasStrictViolations,
-        mismatchedCount,
-        violations,
-        stagedPhotoRotations,
-        rotatePhoto: handleRotatePhoto,
-      });
-    }
+    if (!onOrientationAuditChange) return;
+    const sig = `${hasMismatchedPhotos}-${hasStrictViolations}-${mismatchedCount}-${violations.length}-${Object.keys(stagedPhotoRotations).length}`;
+    if (prevOrientationSigRef.current === sig) return;
+    prevOrientationSigRef.current = sig;
+
+    onOrientationAuditChange({
+      hasMismatched: hasMismatchedPhotos,
+      hasStrictViolations,
+      mismatchedCount,
+      violations,
+      stagedPhotoRotations,
+      rotatePhoto: handleRotatePhoto,
+    });
   }, [hasMismatchedPhotos, hasStrictViolations, mismatchedCount, violations, stagedPhotoRotations, handleRotatePhoto, onOrientationAuditChange]);
+
+  const scrollToElement = React.useCallback(
+    (domId: string) => {
+      setActiveSubNavId(domId);
+      const container = document.getElementById('audit-studio-scroll-container');
+      const target = document.getElementById(domId);
+      if (container && target) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const offsetTop = targetRect.top - containerRect.top + container.scrollTop - 16;
+        container.scrollTo({ top: offsetTop, behavior: 'smooth' });
+      } else if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    },
+    [setActiveSubNavId]
+  );
 
   const handleNavigateToPhoto = (v: PhotoOrientationViolation) => {
     scrollToStep(v.stepId);
@@ -158,19 +207,23 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     handleRotatePhoto(photoKey, (currentRot + 90) % 360);
   };
 
-  // Đồng bộ dirty state lên AuditStudioModal cấp cha
+  // Đồng bộ dirty state lên AuditStudioModal cấp cha với signature guard
+  const prevDirtySigRef = React.useRef<string>('');
   React.useEffect(() => {
-    if (onDirtyChange) {
-      const { diffItems, updatesPayload } = getDiffPayload();
-      onDirtyChange({
-        dirtyCount,
-        diffItems,
-        updates: updatesPayload,
-        discardAll: (silent = false) => handleDiscard(silent),
-        discardDiffItem: (fieldKey: string) => discardDiffItem(fieldKey),
-      });
-    }
-  }, [dirtyCount, dirtyFields, onDirtyChange]);
+    if (!onDirtyChange) return;
+    const { diffItems, updatesPayload } = getDiffPayload();
+    const sig = `${dirtyCount}-${dirtyFields.size}-${diffItems.length}`;
+    if (prevDirtySigRef.current === sig) return;
+    prevDirtySigRef.current = sig;
+
+    onDirtyChange({
+      dirtyCount,
+      diffItems,
+      updates: updatesPayload,
+      discardAll: (silent = false) => handleDiscard(silent),
+      discardDiffItem: (fieldKey: string) => discardDiffItem(fieldKey),
+    });
+  }, [dirtyCount, dirtyFields, onDirtyChange, getDiffPayload, handleDiscard, discardDiffItem]);
 
   const stepsList = [
     { id: 'step-1', number: '01', title: 'Nhận Diện & Hiện Trạng Tổng Quan', icon: Home },
@@ -184,118 +237,420 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     { id: 'step-9', number: '09', title: 'Biên Bản Hiện Trường Đã Ký', icon: PenTool },
   ];
 
+  const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
+  const floorsList = rawFloors.length > 0 ? rawFloors : [{ id: 'floor-default', floorName: 'Tầng trệt' } as FloorSurveyData];
+
+  // Tính toán tập hợp các bước và mục con (Step 04) đang có cảnh báo (hướng ảnh A4 hoặc cảnh báo nghiệp vụ)
+  const { stepWarningSet, subNavWarningSet } = React.useMemo(() => {
+    const sSet = new Set<string>();
+    const subSet = new Set<string>();
+
+    violations.forEach((v) => {
+      if (v.stepId) {
+        sSet.add(v.stepId);
+      }
+      if (v.stepId === 'step-4' && typeof v.floorIndex === 'number') {
+        const fIdx = v.floorIndex;
+        subSet.add(`step-4-floor-${fIdx}`);
+        if (v.key.startsWith('cad_')) {
+          if (v.key.includes('struct')) {
+            subSet.add(`step-4-floor-${fIdx}-cad-e`);
+          } else {
+            subSet.add(`step-4-floor-${fIdx}-cad-z`);
+          }
+        } else if (v.key.startsWith('element_') || v.key.includes('_e')) {
+          subSet.add(`step-4-floor-${fIdx}-elements`);
+        } else {
+          subSet.add(`step-4-floor-${fIdx}-zones`);
+        }
+      }
+    });
+
+    const warningFlags = (data as Record<string, unknown>)?.auditWarningFlags as Record<string, boolean> | undefined;
+    if (warningFlags) {
+      if (warningFlags.hasAddressStandardizationNotice || warningFlags.missingIdPhotos) {
+        sSet.add('step-1');
+      }
+      if (warningFlags.hasGisDrift || warningFlags.hasBoundaryConflict) {
+        sSet.add('step-6');
+      }
+      if (warningFlags.missingSignatures) {
+        sSet.add('step-9');
+      }
+    }
+
+    return { stepWarningSet: sSet, subNavWarningSet: subSet };
+  }, [violations, data]);
+
+  const totalPendingChanges = dirtyCount + (stagedPhotoActions?.length || 0);
+
   return (
-    <div className="relative flex flex-col lg:flex-row gap-6 w-full min-h-[600px]">
-      {/* 1. Thanh điều hướng Jump-links bên trái (Sticky Sidebar) */}
-      <div className="w-full lg:w-72 shrink-0">
-        <div className="sticky top-4 bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3.5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
-            <div>
-              <span className="text-[10px] font-black uppercase text-sky-700 tracking-wider">
-                Mục Lục Thẩm Định
-              </span>
-              <h4 className="text-sm font-black text-slate-800">9 Bước Khảo Sát</h4>
-            </div>
-            {/* Nút bật/tắt chế độ sửa hoặc badge đã khóa duyệt */}
-            {data?.status === 'APPROVED' ? (
-              <span className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-2xs">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Đã Khóa Duyệt</span>
-              </span>
-            ) : (
+    <div className="relative flex flex-col lg:flex-row gap-4 w-full min-h-[600px] min-w-0 max-w-full">
+      {/* 1. Thanh điều hướng Jump-links bên trái (Thiết kế gọn gàng, có nút thu nhỏ & chấm tròn vàng cảnh báo) */}
+      <div
+        className={`w-full shrink-0 transition-all duration-200 ${
+          isSidebarCollapsed ? 'lg:w-14' : 'lg:w-56'
+        }`}
+      >
+        <div className="sticky top-2 max-h-[calc(100vh-3.75rem)] flex flex-col bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/90 shadow-sm p-2.5 gap-2">
+          {/* Header Sidebar + Nút Thu Nhỏ / Mở Rộng */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 shrink-0 gap-1">
+            {!isSidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-black uppercase text-sky-700 tracking-wider block truncate">
+                  Mục Lục Thẩm Định
+                </span>
+                <h4 className="text-xs font-black text-slate-800 truncate">9 Bước Khảo Sát</h4>
+              </div>
+            )}
+
+            <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
+              {/* Nút bật/tắt chế độ sửa hoặc badge đã khóa duyệt */}
+              {data?.status === 'APPROVED' ? (
+                <span
+                  title="Đã Khóa Duyệt"
+                  className="px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1 shadow-2xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  {!isSidebarCollapsed && <span>Đã Khóa</span>}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  title={isEditMode ? 'Đang ở Chế Độ Sửa (Bấm để tắt)' : 'Bật Chế Độ Sửa'}
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer ${
+                    isEditMode
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <Edit3 className="w-3 h-3 shrink-0" />
+                  {!isSidebarCollapsed && <span>{isEditMode ? 'Đang Sửa' : 'Sửa'}</span>}
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
-                  isEditMode
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                }`}
+                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                title={isSidebarCollapsed ? 'Mở rộng mục lục bên trái' : 'Thu gọn mục lục bên trái'}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors cursor-pointer shrink-0"
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>{isEditMode ? 'Đang Sửa' : 'Chế Độ Sửa'}</span>
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen className="w-4 h-4" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4" />
+                )}
               </button>
-            )}
+            </div>
           </div>
 
-          {/* Danh sách 9 bước */}
-          <nav className="space-y-1">
+          {/* Nút mở bảng điều khiển Kiểm toán Hướng Ảnh A4 (Floating Drawer/Modal) */}
+          {violations.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsOrientationPanelOpen(true)}
+              title={`Hướng Ảnh A4 (${violations.length} ảnh cần kiểm tra)`}
+              className={`w-full rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer border shrink-0 ${
+                isSidebarCollapsed ? 'p-1.5 justify-center relative' : 'px-2.5 py-1.5'
+              } ${
+                hasStrictViolations
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs'
+                  : 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100'
+              }`}
+            >
+              {isSidebarCollapsed ? (
+                <>
+                  <Compass className="w-4 h-4 text-amber-600 animate-pulse" />
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                    {violations.length}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Compass className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
+                    <span className="truncate">Hướng Ảnh ({violations.length})</span>
+                  </div>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                      strictViolations.length > 0 ? 'bg-amber-200 text-amber-900' : 'bg-sky-200 text-sky-900'
+                    }`}
+                  >
+                    {strictViolations.length > 0 ? `${strictViolations.length} Bắt Buộc` : 'Gợi ý'}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Danh sách 9 bước (Cuộn độc lập và tự động nhảy theo vị trí cuộn của TDV) */}
+          <nav
+            ref={sidebarNavRef}
+            className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-0.5 scrollbar-thin"
+          >
             {stepsList.map((st) => {
               const Icon = st.icon;
               const isActive = activeNavStep === st.id;
+              const isStep4 = st.id === 'step-4';
+              const hasStepWarning = stepWarningSet.has(st.id);
+
               return (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => scrollToStep(st.id)}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between group cursor-pointer ${
-                    isActive
-                      ? 'bg-sky-50 text-sky-900 font-bold border border-sky-300 shadow-2xs'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
-                    <span className="truncate">{st.title}</span>
-                  </div>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isActive ? 'bg-sky-200/80 text-sky-900 font-bold' : 'text-slate-400 group-hover:bg-slate-200/60'}`}>
-                    {st.number}
-                  </span>
-                </button>
+                <div key={st.id} className="space-y-0.5">
+                  <button
+                    type="button"
+                    data-nav-id={st.id}
+                    title={`${st.number}. ${st.title}${hasStepWarning ? ' (Có cảnh báo cần kiểm tra)' : ''}`}
+                    onClick={() => {
+                      scrollToStep(st.id);
+                      if (isStep4) setIsStep4Expanded(true);
+                    }}
+                    className={`w-full text-left rounded-xl text-[11px] font-semibold transition-all flex items-center group cursor-pointer relative ${
+                      isSidebarCollapsed ? 'p-2 justify-center' : 'px-2.5 py-1.5 justify-between'
+                    } ${
+                      isActive
+                        ? 'bg-sky-50 text-sky-900 font-bold border border-sky-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
+                    }`}
+                  >
+                    {isSidebarCollapsed ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                        <span className="text-[9px] font-mono leading-none">{st.number}</span>
+                        {hasStepWarning && (
+                          <span
+                            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30"
+                            title="Mục này đang có cảnh báo cần kiểm tra"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                          <span className="truncate">{st.title}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                          {hasStepWarning && (
+                            <span
+                              className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30 shrink-0"
+                              title="Mục này đang có cảnh báo hoặc ảnh cần kiểm tra"
+                            />
+                          )}
+                          {isStep4 && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsStep4Expanded((prev) => !prev);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setIsStep4Expanded((prev) => !prev);
+                                }
+                              }}
+                              className="p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer rounded"
+                            >
+                              {isStep4Expanded ? (
+                                <ChevronDown className="w-3 h-3" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3" />
+                              )}
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] font-mono px-1 py-0.5 rounded ${
+                              isActive
+                                ? 'bg-sky-200/80 text-sky-900 font-bold'
+                                : 'text-slate-400 group-hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {st.number}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Cây danh mục con cho Bước 4: Từng tầng với CAD_Z -> Z -> CAD_E -> E */}
+                  {isStep4 && isStep4Expanded && !isSidebarCollapsed && (
+                    <div className="pl-2.5 pr-0.5 py-1 space-y-1.5 border-l-2 border-sky-200 ml-2.5 my-0.5">
+                      {floorsList.map((fl, fIdx) => {
+                        const floorDomId = `step-4-floor-${fIdx}`;
+                        const cadZDomId = `step-4-floor-${fIdx}-cad-z`;
+                        const zonesDomId = `step-4-floor-${fIdx}-zones`;
+                        const cadEDomId = `step-4-floor-${fIdx}-cad-e`;
+                        const elementsDomId = `step-4-floor-${fIdx}-elements`;
+                        const isFloorActive =
+                          activeSubNavId === floorDomId ||
+                          activeSubNavId.startsWith(`${floorDomId}-`);
+                        const hasFloorWarning = subNavWarningSet.has(floorDomId);
+                        const hasCadZWarning = subNavWarningSet.has(cadZDomId);
+                        const hasZonesWarning = subNavWarningSet.has(zonesDomId);
+                        const hasCadEWarning = subNavWarningSet.has(cadEDomId);
+                        const hasElementsWarning = subNavWarningSet.has(elementsDomId);
+
+                        return (
+                          <div key={fl.id || fIdx} className="space-y-0.5">
+                            <button
+                              type="button"
+                              data-nav-id={floorDomId}
+                              onClick={() => scrollToElement(floorDomId)}
+                              className={`w-full text-left text-[10px] font-black uppercase tracking-wider flex items-center justify-between gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                                isFloorActive
+                                  ? 'text-sky-800 bg-sky-100/70'
+                                  : 'text-slate-700 hover:text-sky-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isFloorActive ? 'bg-sky-600 ring-2 ring-sky-300' : 'bg-sky-500'
+                                  }`}
+                                />
+                                <span className="truncate">{fl.floorName || `Tầng ${fIdx + 1}`}</span>
+                              </div>
+                              {hasFloorWarning && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30 shrink-0"
+                                  title="Tầng này có ảnh hoặc mục cần kiểm tra"
+                                />
+                              )}
+                            </button>
+                            <div className="space-y-0.5 pl-1.5 border-l border-slate-200">
+                              <button
+                                type="button"
+                                data-nav-id={cadZDomId}
+                                onClick={() => scrollToElement(cadZDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
+                                  activeSubNavId === cadZDomId
+                                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
+                                }`}
+                              >
+                                <span className="truncate">CAD_Z Kiến Trúc</span>
+                                {hasCadZWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={zonesDomId}
+                                onClick={() => scrollToElement(zonesDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
+                                  activeSubNavId === zonesDomId
+                                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
+                                }`}
+                              >
+                                <span className="truncate">Vùng Z ({(fl.zones || []).length})</span>
+                                {hasZonesWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={cadEDomId}
+                                onClick={() => scrollToElement(cadEDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
+                                  activeSubNavId === cadEDomId
+                                    ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <span className="truncate">CAD_E Kết Cấu</span>
+                                {hasCadEWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={elementsDomId}
+                                onClick={() => scrollToElement(elementsDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
+                                  activeSubNavId === elementsDomId
+                                    ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <span className="truncate">Cấu kiện E ({(fl.structuralElements || []).length})</span>
+                                {hasElementsWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
 
           {/* Thanh công cụ Lưu / Hủy khi có thay đổi - GIỮ BẢO LƯU KHI TẮT CHẾ ĐỘ SỬA */}
-          {(dirtyCount > 0 || (stagedPhotoActions && stagedPhotoActions.length > 0)) && (
-            <div className="pt-3 border-t border-amber-200/80 bg-amber-500/10 -mx-4 -mb-4 p-3.5 rounded-b-2xl space-y-2 border-b border-x border-amber-200/80">
-              <div className="text-[11px] font-bold text-amber-950 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span>
-                    {isEditMode ? 'Đang hiệu chỉnh' : 'Chế độ xem'}: {dirtyCount + (stagedPhotoActions?.length || 0)} sửa đổi
-                    {stagedPhotoActions && stagedPhotoActions.length > 0 ? ` (${stagedPhotoActions.length} ảnh)` : ''}
-                  </span>
-                </div>
-                {!isEditMode && (
-                  <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded">Chưa lưu</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDiscard(false);
-                    onDiscardAllStagedPhotos?.();
-                  }}
-                  className="flex-1 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Undo2 className="w-3.5 h-3.5" />
-                  <span>Hủy</span>
-                </button>
+          {totalPendingChanges > 0 && (
+            <div className="pt-2.5 border-t border-amber-200/80 bg-amber-500/10 -mx-2.5 -mb-2.5 p-2.5 rounded-b-2xl space-y-1.5 border-b border-x border-amber-200/80 shrink-0">
+              {isSidebarCollapsed ? (
                 <button
                   type="button"
                   onClick={handleReviewSave}
-                  className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
+                  title={`Lưu Diff (${totalPendingChanges} sửa đổi)`}
+                  className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex flex-col items-center justify-center gap-0.5 transition-colors shadow-xs cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Lưu Diff ({dirtyCount + (stagedPhotoActions?.length || 0)})</span>
+                  <span>{totalPendingChanges}</span>
                 </button>
-              </div>
+              ) : (
+                <>
+                  <div className="text-[10px] font-bold text-amber-950 flex items-center justify-between">
+                    <div className="flex items-center gap-1 truncate">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      <span className="truncate">
+                        {totalPendingChanges} sửa đổi
+                        {stagedPhotoActions && stagedPhotoActions.length > 0 ? ` (${stagedPhotoActions.length} ảnh)` : ''}
+                      </span>
+                    </div>
+                    {!isEditMode && (
+                      <span className="text-[9px] font-bold text-amber-800 bg-amber-200/60 px-1 py-0.5 rounded shrink-0">
+                        Chưa lưu
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDiscard(false);
+                        onDiscardAllStagedPhotos?.();
+                      }}
+                      className="flex-1 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hủy</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReviewSave}
+                      className="flex-1 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <Save className="w-3 h-3" />
+                      <span>Lưu ({totalPendingChanges})</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
-      <div className="flex-1 space-y-6">
-        {/* Banner cảnh báo sai lệch hướng ảnh theo chuẩn FE Nhà Dân */}
-        <PhotoOrientationAlertBanner
-          violations={violations}
-          onNavigateToPhoto={handleNavigateToPhoto}
-          onQuickRotate={handleQuickRotate}
-        />
-
+      <div className="flex-1 space-y-6 min-w-0 max-w-full overflow-x-hidden">
         {/* Bước 01: Nhận Diện & Hiện Trạng Tổng Quan */}
         <AuditStep1Identification
           isEditMode={isEditMode}
@@ -351,7 +706,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           violationsMap={violationsMap}
         />
 
-        {/* Bước 04: Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E */}
+        {/* Bước 04: Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E (Trải phẳng theo tầng n: CAD_Z -> Z -> CAD_E -> E) */}
         <AuditStep3FloorDefects
           isEditMode={isEditMode}
           formState={formState}
@@ -436,6 +791,31 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           {...({ stagedPhotoActions, onUndoPhotoAction } as Record<string, unknown>)}
         />
       </div>
+
+      {/* Floating Modal for Photo Orientation Guidance */}
+      {isOrientationPanelOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="overflow-y-auto p-4 scrollbar-thin">
+              <PhotoOrientationAlertBanner
+                violations={violations}
+                onNavigateToPhoto={(v) => {
+                  setIsOrientationPanelOpen(false);
+                  handleNavigateToPhoto(v);
+                }}
+                onQuickRotate={handleQuickRotate}
+                isFloatingPanel={true}
+                onClose={() => setIsOrientationPanelOpen(false)}
+                currentHouseOrientation={formState.houseOrientation as 'PORTRAIT' | 'LANDSCAPE' | undefined}
+                onSelectHouseOrientation={(mode) => {
+                  handleFieldChange('houseOrientation', 'Hướng trục chính nhà dân', mode);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

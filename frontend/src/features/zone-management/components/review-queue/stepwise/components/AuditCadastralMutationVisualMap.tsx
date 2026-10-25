@@ -13,7 +13,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { interpolatePoint, computePolygonAreaM2 } from '../../../../../../components/gis/shared/geoMath';
+import { interpolatePoint, computePolygonAreaM2, normalizeQuadEdges, getDistanceM } from '../../../../../../components/gis/shared/geoMath';
 
 export interface SplitChildParcel {
   landAreaM2?: number | string;
@@ -135,16 +135,32 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
     return false;
   }, [isBoundaryAdjusted, mutationType, initialSurveyPolygon, basePolygon, actualGeometricArea, initialGeometricArea]);
 
-  // Tính diện tích hiển thị: Nếu đã nắn ranh / cắt xén GPMB thì luôn ưu tiên diện tích hình học thực tế của đa giác mới
+  // Tính diện tích & kích thước hiển thị: Luôn ưu tiên diện tích hình học thực tế từ đa giác GIS hiện hành
   const computedBaseArea = useMemo(() => {
-    if (effectiveIsAdjusted) {
+    if (Array.isArray(parcelCoordinates) && parcelCoordinates.length >= 3 && actualGeometricArea > 0) {
       return actualGeometricArea;
     }
     if (landAreaM2 !== undefined && landAreaM2 !== '' && !isNaN(Number(landAreaM2))) {
       return Number(landAreaM2);
     }
     return actualGeometricArea;
-  }, [effectiveIsAdjusted, landAreaM2, actualGeometricArea]);
+  }, [parcelCoordinates, landAreaM2, actualGeometricArea]);
+
+  const computedDimensions = useMemo(() => {
+    if (Array.isArray(parcelCoordinates) && parcelCoordinates.length >= 3) {
+      const quad = normalizeQuadEdges(parcelCoordinates);
+      const frontM = Math.round(getDistanceM(quad.frontL, quad.frontR) * 100) / 100;
+      const depthM = Math.round(((getDistanceM(quad.frontL, quad.backL) + getDistanceM(quad.frontR, quad.backR)) / 2) * 100) / 100;
+      return {
+        frontage: frontM > 0 ? frontM : frontageWidth,
+        depth: depthM > 0 ? depthM : lotDepth,
+      };
+    }
+    return {
+      frontage: frontageWidth,
+      depth: lotDepth,
+    };
+  }, [parcelCoordinates, frontageWidth, lotDepth]);
 
   const originalAreaDisplay = useMemo<number | null>(() => {
     if (!effectiveIsAdjusted) return null;
@@ -265,7 +281,12 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
           )}
 
           <span className="text-xs text-slate-300 font-mono font-bold">
-            Mã: [{projectParcelCode}] • {effectiveIsAdjusted ? `DT mới: ${computedBaseArea} m²` : `${computedBaseArea} m²`}
+            Mã: [{projectParcelCode}] • {effectiveIsAdjusted ? `DT GIS: ${computedBaseArea} m²` : `${computedBaseArea} m²`}
+            {(computedDimensions.frontage || computedDimensions.depth) && (
+              <span className="text-emerald-300 ml-1.5">
+                ({computedDimensions.frontage || '?'}m &times; {computedDimensions.depth || '?'}m)
+              </span>
+            )}
             {effectiveIsAdjusted && originalAreaDisplay !== null && Math.abs(originalAreaDisplay - computedBaseArea) > 0.5 && (
               <span className="text-slate-400 ml-1">(Gốc: {originalAreaDisplay} m²)</span>
             )}
@@ -509,9 +530,9 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
                         DT gốc: {originalAreaDisplay} m²
                       </div>
                     )}
-                    {(frontageWidth || lotDepth) && (
+                    {(computedDimensions.frontage || computedDimensions.depth) && (
                       <div className="text-[9px] text-slate-600 font-mono mt-0.5">
-                        Rộng {frontageWidth || '?'}m × Sâu {lotDepth || '?'}m
+                        Rộng {computedDimensions.frontage || '?'}m × Sâu {computedDimensions.depth || '?'}m
                       </div>
                     )}
                   </div>
