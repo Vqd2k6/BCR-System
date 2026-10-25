@@ -120,30 +120,8 @@ export class CondoFinalSealService {
       );
       const isReApproval = Number(prevApprovedCountRes.rows[0]?.count || 0) > 0;
 
-      const approveRes = await client.query<{ approved_at: Date }>(
-        `UPDATE base_survey_reports
-         SET status = 'APPROVED',
-             zone_admin_id = $2,
-             approved_at = NOW(),
-             engineering_recommendations = COALESCE($3, engineering_recommendations),
-             export_revision = $4,
-             updated_at = NOW()
-         WHERE id = $1
-         RETURNING approved_at;`,
-        [actualReportId, adminId, judgementNotes || null, currentRev]
-      );
-
-      const approvedSnapshot = await ReportSnapshotService.writeApprovedRelease(
-        client,
-        actualReportId,
-        adminId,
-        approveRes.rows[0].approved_at,
-        isReApproval
-          ? `Phê duyệt lại số liệu [${entityKind}] sau mở khóa (Rev ${String(currentRev).padStart(2, '0')})`
-          : `Chốt điểm pháp lý [${entityKind}] tại thời điểm APPROVE`,
-        currentRev
-      );
-
+      // Đồng bộ building_units / parcels TRƯỚC khi chuyển base_survey_reports.status = 'APPROVED'
+      // để không kích hoạt nhầm trigger trg_protect_approved_parcels (23514: PARCEL_LOCKED_APPROVED)
       if ((entityKind === 'CONDO_UNIT' || entityKind === 'MASTER_AREA') && reportRow.unit_id) {
         const areaInfo =
           surveyJson.areaInfo && typeof surveyJson.areaInfo === 'object'
@@ -200,6 +178,30 @@ export class CondoFinalSealService {
           ]
         );
       }
+
+      const approveRes = await client.query<{ approved_at: Date }>(
+        `UPDATE base_survey_reports
+         SET status = 'APPROVED',
+             zone_admin_id = $2,
+             approved_at = NOW(),
+             engineering_recommendations = COALESCE($3, engineering_recommendations),
+             export_revision = $4,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING approved_at;`,
+        [actualReportId, adminId, judgementNotes || null, currentRev]
+      );
+
+      const approvedSnapshot = await ReportSnapshotService.writeApprovedRelease(
+        client,
+        actualReportId,
+        adminId,
+        approveRes.rows[0].approved_at,
+        isReApproval
+          ? `Phê duyệt lại số liệu [${entityKind}] sau mở khóa (Rev ${String(currentRev).padStart(2, '0')})`
+          : `Chốt điểm pháp lý [${entityKind}] tại thời điểm APPROVE`,
+        currentRev
+      );
 
       await client.query(
         `UPDATE audit_alert_items

@@ -393,12 +393,12 @@ export class CondoQueueService {
          r.id,
          r.status::text AS status,
          r.updated_at,
-         r.burland_damage_category::text AS burland_damage_category,
-         sc.total_ecs,
-         sc.ecs_class::text AS ecs_class,
-         sc.avg_vi,
-         sc.vi_class::text AS vi_class,
-         sc.bra_rating::text AS bra_rating
+         COALESCE(r.survey_data_json->'burlandSummary'->>'localMaxGrade', sc.e1_burland_score::text) AS burland_damage_category,
+         COALESCE(sc.overridden_total_ecs, sc.total_ecs_score) AS total_ecs,
+         COALESCE(sc.overridden_ecs_class, sc.ecs_class::text) AS ecs_class,
+         COALESCE(sc.overridden_avg_vi, sc.avg_vi_score) AS avg_vi,
+         COALESCE(sc.overridden_vi_class, sc.vi_class::text) AS vi_class,
+         COALESCE(sc.overridden_bra, sc.building_risk_assessment_bra::text) AS bra_rating
        FROM base_survey_reports r
        LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
        WHERE r.parcel_id = $1 AND (r.unit_id IS NULL OR r.report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))

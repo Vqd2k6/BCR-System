@@ -208,28 +208,30 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
         typeof updates.buildingName === 'string' ? updates.buildingName : (mergedJson.buildingName as string) || null,
         bGrade,
         structSys,
-        updates.aboveFloors !== undefined && updates.aboveFloors !== '' ? Number(updates.aboveFloors) : null,
-        updates.undergroundFloors !== undefined && updates.undergroundFloors !== ''
-          ? Number(updates.undergroundFloors)
+        updates.aboveFloors !== undefined && updates.aboveFloors !== '' && Number.isFinite(Number(updates.aboveFloors))
+          ? Math.round(Number(updates.aboveFloors))
+          : null,
+        updates.undergroundFloors !== undefined && updates.undergroundFloors !== '' && Number.isFinite(Number(updates.undergroundFloors))
+          ? Math.round(Number(updates.undergroundFloors))
           : null,
         foundCat,
-        updates.constructionYear !== undefined && updates.constructionYear !== ''
-          ? Number(updates.constructionYear)
+        updates.constructionYear !== undefined && updates.constructionYear !== '' && Number.isFinite(Number(updates.constructionYear))
+          ? Math.round(Number(updates.constructionYear))
           : null,
         updates.isEstimatedYear !== undefined ? Boolean(updates.isEstimatedYear) : null,
-        updates.constructionAreaM2 !== undefined && updates.constructionAreaM2 !== ''
+        updates.constructionAreaM2 !== undefined && updates.constructionAreaM2 !== '' && Number.isFinite(Number(updates.constructionAreaM2))
           ? Number(updates.constructionAreaM2)
           : null,
-        updates.buildingHeightM !== undefined && updates.buildingHeightM !== ''
+        updates.buildingHeightM !== undefined && updates.buildingHeightM !== '' && Number.isFinite(Number(updates.buildingHeightM))
           ? Number(updates.buildingHeightM)
           : null,
-        updates.foundationDepthM !== undefined && updates.foundationDepthM !== ''
+        updates.foundationDepthM !== undefined && updates.foundationDepthM !== '' && Number.isFinite(Number(updates.foundationDepthM))
           ? Number(updates.foundationDepthM)
           : null,
-        updates.foundationDensity !== undefined && updates.foundationDensity !== ''
-          ? Number(updates.foundationDensity)
+        updates.foundationDensity !== undefined && updates.foundationDensity !== '' && Number.isFinite(Number(updates.foundationDensity))
+          ? Math.round(Number(updates.foundationDensity))
           : null,
-        updates.foundationSpacingM !== undefined && updates.foundationSpacingM !== ''
+        updates.foundationSpacingM !== undefined && updates.foundationSpacingM !== '' && Number.isFinite(Number(updates.foundationSpacingM))
           ? Number(updates.foundationSpacingM)
           : null,
         typeof updates.foundationNotes === 'string' ? updates.foundationNotes : null,

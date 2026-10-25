@@ -8,6 +8,7 @@
  */
 
 import type { PoolClient } from 'pg';
+import { Database } from '../../../database/db';
 import {
   ReportSnapshotSchema,
   type ReportSnapshot,
@@ -162,13 +163,13 @@ export async function buildApprovedSnapshot(
   let absenceLogsRows: Array<Record<string, unknown>> = [];
   if (parcelId) {
     try {
-      const absRes = await client.query<Record<string, unknown>>(
-        `SELECT * FROM parcel_absence_logs WHERE parcel_id = $1 ORDER BY attempt_number ASC, recorded_at ASC;`,
+      const absRes = await Database.query<Record<string, unknown>>(
+        `SELECT * FROM survey_absence_logs WHERE parcel_id = $1 ORDER BY attempt_count ASC, recorded_at ASC;`,
         [parcelId]
       );
       absenceLogsRows = absRes.rows;
     } catch (absErr) {
-      console.warn('[SnapshotBuilder] Không thể truy vấn parcel_absence_logs khi buildSnapshot:', absErr);
+      console.warn('[SnapshotBuilder] Không thể truy vấn survey_absence_logs khi buildSnapshot:', absErr);
     }
   }
   if (absenceLogsRows.length > 0 && !Array.isArray(frozenSurveyDataJson.absenceLogs)) {

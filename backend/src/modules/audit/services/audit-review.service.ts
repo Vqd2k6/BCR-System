@@ -247,7 +247,7 @@ export class AuditReviewService {
         ) AS alert_count,
         r.approved_at,
         r.engineering_recommendations AS judgement_notes,
-        r.engineering_recommendations AS rejection_reason,
+        COALESCE(r.rejection_reason, r.engineering_recommendations) AS rejection_reason,
         u_admin.full_name AS approver_name,
         u_admin.role AS approver_role,
         p.seal_hash AS parent_parcel_seal_hash,
@@ -1365,30 +1365,6 @@ export class AuditReviewService {
       );
       const isReApproval = Number(prevApprovedCountRes.rows[0]?.count || 0) > 0;
 
-      // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả
-      const approveRes = await client.query<{ approved_at: Date }>(
-        `UPDATE base_survey_reports
-         SET status = 'APPROVED',
-             zone_admin_id = $2,
-             approved_at = NOW(),
-             engineering_recommendations = COALESCE($3, engineering_recommendations),
-             export_revision = $4,
-             updated_at = NOW()
-         WHERE id = $1
-         RETURNING approved_at;`,
-        [actualReportId, adminId, judgementNotes || null, currentRev]
-      );
-
-      // D1/D3: chụp snapshot điểm bất biến (APPROVED_RELEASE + SHA-256) trong CÙNG transaction với APPROVE
-      const approvedSnapshot = await ReportSnapshotService.writeApprovedRelease(
-        client,
-        actualReportId,
-        adminId,
-        approveRes.rows[0].approved_at,
-        isReApproval ? `Phê duyệt lại số liệu sau mở khóa (Hiện hành Rev ${String(currentRev).padStart(2, '0')})` : 'Chốt điểm tại thời điểm APPROVE',
-        currentRev
-      );
-
       let parcelApprovedStatus = 'APPROVED';
       if (repRes.rows[0].is_refused_or_absent) {
         parcelApprovedStatus = 'POSTPONED_ABSENT';
@@ -1398,6 +1374,8 @@ export class AuditReviewService {
 
       const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
 
+      // QUAN TRỌNG: Đồng bộ building_units / parcels TRƯỚC khi chuyển base_survey_reports.status = 'APPROVED'
+      // để không kích hoạt nhầm trigger trg_protect_approved_parcels (23514: PARCEL_LOCKED_APPROVED)
       if (isChildUnit && repRes.rows[0].unit_id) {
         // Cập nhật trạng thái căn hộ con thành APPROVED + đồng bộ owner_name/owner_phone (không ghi đè parcels của cả tòa nhà)
         await client.query(
@@ -1434,6 +1412,30 @@ export class AuditReviewService {
           ]
         );
       }
+
+      // official_pdf_url chỉ được gán khi có file thật (ReportReleaseService), không dùng URL giả
+      const approveRes = await client.query<{ approved_at: Date }>(
+        `UPDATE base_survey_reports
+         SET status = 'APPROVED',
+             zone_admin_id = $2,
+             approved_at = NOW(),
+             engineering_recommendations = COALESCE($3, engineering_recommendations),
+             export_revision = $4,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING approved_at;`,
+        [actualReportId, adminId, judgementNotes || null, currentRev]
+      );
+
+      // D1/D3: chụp snapshot điểm bất biến (APPROVED_RELEASE + SHA-256) trong CÙNG transaction với APPROVE
+      const approvedSnapshot = await ReportSnapshotService.writeApprovedRelease(
+        client,
+        actualReportId,
+        adminId,
+        approveRes.rows[0].approved_at,
+        isReApproval ? `Phê duyệt lại số liệu sau mở khóa (Hiện hành Rev ${String(currentRev).padStart(2, '0')})` : 'Chốt điểm tại thời điểm APPROVE',
+        currentRev
+      );
 
       await client.query(
         `UPDATE audit_alert_items

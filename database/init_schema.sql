@@ -410,7 +410,7 @@ CREATE TABLE parcels (
     locked_by_id UUID REFERENCES users(id),
     seal_hash VARCHAR(128),
     seal_notes TEXT,
-    deleted_floors JSONB DEFAULT '[]'::jsonb,
+    deleted_floors INT[] DEFAULT '{}',
     code_slug VARCHAR(32),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

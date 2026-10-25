@@ -11,10 +11,34 @@ BEGIN;
 
 -- 1. building_specifications
 ALTER TABLE building_specifications
+  ADD COLUMN IF NOT EXISTS construction_area_m2 NUMERIC(10, 2),
+  ADD COLUMN IF NOT EXISTS building_height_m NUMERIC(6, 2),
+  ADD COLUMN IF NOT EXISTS foundation_source VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS as_built_drawing_photos_json JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS foundation_cat_score INT,
   ADD COLUMN IF NOT EXISTS pile_dimensions_text VARCHAR(255),
   ADD COLUMN IF NOT EXISTS as_built_files_json JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS management_contact_json JSONB DEFAULT '{}'::jsonb;
+
+-- 1.1. survey_photo_registry & parcel_absence_logs
+ALTER TABLE survey_photo_registry
+  ADD COLUMN IF NOT EXISTS rotation_angle INT DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS parcel_absence_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    surveyor_id UUID NOT NULL REFERENCES users(id),
+    attempt_number INT NOT NULL DEFAULT 1,
+    absence_reason TEXT,
+    notes TEXT,
+    photo_proof_url TEXT,
+    reschedule_date DATE,
+    owner_name VARCHAR(128),
+    owner_phone VARCHAR(32),
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_absence_logs_parcel ON parcel_absence_logs(parcel_id);
+CREATE INDEX IF NOT EXISTS idx_absence_logs_surveyor ON parcel_absence_logs(surveyor_id);
 
 -- 2. floor_surveys
 ALTER TABLE floor_surveys
@@ -52,7 +76,18 @@ ALTER TABLE survey_scopes
 ALTER TABLE base_survey_reports
   ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
--- 7.1. Heal base_survey_reports where engineering_recommendations was overwritten by LÝ DO TRẢ VỀ / ADMIN MỞ LẠI HỒ SƠ
+-- Tạm ngắt trigger khóa bất biến trong lúc Migration đồng bộ dữ liệu lịch sử (Steps 7.1, 8, 9)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_approved_survey') THEN
+    ALTER TABLE base_survey_reports DISABLE TRIGGER trg_protect_approved_survey;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_approved_parcels') THEN
+    ALTER TABLE parcels DISABLE TRIGGER trg_protect_approved_parcels;
+  END IF;
+END $$;
+
+-- 7.1. Heal base_survey_reports where engineering_recommendations was overwritten by LÝ DO TRẢ VỀ / ADMIN MỞ LẠI HỒ SƠ (chỉ áp dụng cho hồ sơ chưa APPROVED)
 UPDATE base_survey_reports
 SET
   rejection_reason = COALESCE(
@@ -67,9 +102,10 @@ SET
     ),
     ''
   )
-WHERE engineering_recommendations ~* '^(LÝ DO TRẢ VỀ:|ADMIN MỞ LẠI HỒ SƠ:|ADMIN CHUYỂN VỀ ĐANG LÀM DỞ|\[CAN THIỆP CHUYÊN GIA)';
+WHERE status <> 'APPROVED'
+  AND engineering_recommendations ~* '^(LÝ DO TRẢ VỀ:|ADMIN MỞ LẠI HỒ SƠ:|ADMIN CHUYỂN VỀ ĐANG LÀM DỞ|\[CAN THIỆP CHUYÊN GIA)';
 
--- 8. Heal base_survey_reports.survey_data_json->>'ownerName' from other base_survey_reports, survey_report_versions or signatures if currently placeholder/empty
+-- 8. Heal base_survey_reports.survey_data_json->>'ownerName' from other base_survey_reports, survey_report_versions or signatures if currently placeholder/empty (chỉ áp dụng cho hồ sơ chưa APPROVED)
 WITH recovered_owners AS (
   SELECT
     r.id AS report_id,
@@ -123,7 +159,8 @@ WITH recovered_owners AS (
       )
     ) AS clean_owner_name
   FROM base_survey_reports r
-  WHERE r.survey_data_json IS NOT NULL
+  WHERE r.status <> 'APPROVED'
+    AND r.survey_data_json IS NOT NULL
     AND (
       NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NULL
       OR BTRIM(r.survey_data_json->>'ownerName') ~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
@@ -175,6 +212,17 @@ WHERE p.id = lps.parcel_id
     OR (lps.real_house_number IS NOT NULL AND lps.real_house_number IS DISTINCT FROM p.house_number)
     OR (lps.real_street IS NOT NULL AND lps.real_street IS DISTINCT FROM p.street)
   );
+
+-- Bật lại trigger khóa bất biến sau khi hoàn tất backfill
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_approved_survey') THEN
+    ALTER TABLE base_survey_reports ENABLE TRIGGER trg_protect_approved_survey;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_approved_parcels') THEN
+    ALTER TABLE parcels ENABLE TRIGGER trg_protect_approved_parcels;
+  END IF;
+END $$;
 
 -- 10. Backfill building_units (owner_name, owner_phone) from latest unit-level base_survey_reports
 WITH latest_unit_survey AS (

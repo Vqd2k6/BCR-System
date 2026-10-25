@@ -1,9 +1,9 @@
 import { pool } from '../database/db';
 import { MigrationRunner } from '../database/migration-runner';
-import { Section1And2Mapper } from '../modules/report/mappers/sections/section-1-2-general.mapper';
-import { ReportSnapshotService, sha256Hex } from '../modules/report/report-snapshot.service';
+import { Section1And2Mapper } from '../modules/report/mappers/sections/section-1-2-overview-spatial.mapper';
+import { ReportSnapshotService, sha256Hex } from '../modules/report/snapshot/report-snapshot.service';
 import { AuditService } from '../modules/audit/audit.service';
-import { ReportService } from '../modules/report/report-v3.service';
+import { ReportService } from '../modules/report/services/report.service';
 import { ConflictError } from '../common/errors/problem-details';
 
 interface TestCaseResult {

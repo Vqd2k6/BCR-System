@@ -49,8 +49,10 @@ export class CondoCrudEngineService {
          COALESCE(p.is_locked, false) AS is_locked,
          p.seal_hash,
          bu.unit_code,
+         bu.display_code,
          bu.unit_type,
          bu.floor_number,
+         bu.floor_number AS unit_floor_number,
          bu.floor_plan_id,
          bu.status AS unit_status
        FROM base_survey_reports r
@@ -226,7 +228,7 @@ export class CondoCrudEngineService {
       await client.query(
         `UPDATE base_survey_reports
          SET survey_data_json = $1,
-             status = CASE WHEN status = 'SUBMITTED' THEN 'UNDER_REVIEW'::survey_status_enum ELSE status END,
+             status = CASE WHEN status = 'SUBMITTED' THEN 'UNDER_REVIEW'::report_status_enum ELSE status END,
              updated_at = NOW()
          WHERE id = $2;`,
         [JSON.stringify(mergedJson), actualReportId]
