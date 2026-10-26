@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto, UpdateProfileDto } from './auth.dto';
+import { LoginDto, RefreshTokenDto, UpdateProfileDto, ChangePasswordDto } from './auth.dto';
 import { BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 
 export class AuthController {
@@ -89,6 +89,35 @@ export class AuthController {
         success: true,
         message: 'Cập nhật thông tin cá nhân thành công',
         data: profile,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.userId;
+      const parsed = ChangePasswordDto.safeParse(req.body);
+      if (!parsed.success) {
+        const firstIssueMessage = parsed.error.errors[0]?.message || 'Dữ liệu đổi mật khẩu không hợp lệ';
+        throw new BadRequestError(
+          firstIssueMessage,
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+      const result = await AuthService.changePassword(
+        userId,
+        parsed.data.currentPassword,
+        parsed.data.newPassword,
+        clientIp
+      );
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
       });
     } catch (error) {
       next(error);

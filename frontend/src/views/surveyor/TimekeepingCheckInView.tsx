@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { CompanionCheckInModal } from '../../components/attendance/CompanionCheckInModal';
 import { useTimekeepingState } from './timekeeping/hooks/useTimekeepingState';
 import { TimekeepingHeader } from './timekeeping/components/TimekeepingHeader';
@@ -17,6 +17,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     user,
     gpsLoading,
     gpsCoordinates,
+    gpsError,
     distanceMeters,
     selfieUrl,
     outOfBoundsReason,
@@ -94,6 +95,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           distanceMeters={distanceMeters}
           targetZone={targetZone}
           gpsCoordinates={gpsCoordinates}
+          gpsError={gpsError}
           isSimulatedGps={isSimulatedGps}
           cameraActive={cameraActive}
           videoRef={videoRef}
@@ -125,7 +127,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
             gap: '0.5rem',
           }}
         >
-          <CheckCircle size={18} />
+          {submitResult.success ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
           <span>{submitResult.message}</span>
         </div>
       )}
@@ -143,11 +145,12 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
       {showCompanionModal && (
         <CompanionCheckInModal
           isOpen={showCompanionModal}
+          zoneId={selectedZoneId}
           onClose={() => {
             setShowCompanionModal(false);
             loadCompanionData();
           }}
-          onSuccess={(data) => {
+          onSuccess={() => {
             setShowCompanionModal(false);
             loadCompanionData();
           }}

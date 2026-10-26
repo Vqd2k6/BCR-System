@@ -8,7 +8,10 @@ import {
   Users,
   UserCheck,
 } from 'lucide-react';
-import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import {
+  resolveAttendancePhotoUrl,
+  type MetroZoneCentroid,
+} from '../../../../core/utils/metroZoneUtils';
 
 import type { User as DomainUser } from '../../../../core/types/domain.types';
 import type { CheckInDetails, CompanionRecord } from '../types';
@@ -38,6 +41,9 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
   companionData,
   setShowCompanionModal,
 }) => {
+  const displaySelfieUrl = resolveAttendancePhotoUrl(selfieUrl || checkInDetails?.selfiePhotoUrl);
+  const displayCompanionSelfieUrl = resolveAttendancePhotoUrl(companionData?.selfieUrl);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {/* Verified Header Banner */}
@@ -127,9 +133,9 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-          {selfieUrl ? (
+          {displaySelfieUrl ? (
             <img
-              src={selfieUrl}
+              src={displaySelfieUrl}
               alt="Surveyor Selfie"
               style={{
                 width: '130px',
@@ -153,7 +159,7 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#94a3b8',
+                color: 'rgb(var(--text-slate-400))',
                 flexShrink: 0,
               }}
             >
@@ -164,12 +170,12 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
 
           <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
             <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid rgb(var(--border-slate-100))' }}>
-              <span style={{ color: '#94a3b8', fontSize: '0.725rem', display: 'block' }}>Điều tra viên chính:</span>
+              <span style={{ color: 'rgb(var(--text-slate-400))', fontSize: '0.725rem', display: 'block' }}>Điều tra viên chính:</span>
               <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
-                {user?.fullName || 'Nguyễn Văn Khảo Sát'}
+                {user?.fullName || 'Khảo Sát Viên'}
               </span>
               <span style={{ color: 'rgb(var(--text-slate-500))', fontSize: '0.75rem', display: 'block', marginTop: '2px' }}>
-                Khu vực: <strong>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
+                Khu vực: <strong>{targetZone.zoneName}</strong>
               </span>
             </div>
 
@@ -194,7 +200,7 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
             ) : (
               <div style={{ color: 'rgb(var(--text-green-600))', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', fontStyle: 'italic' }}>
                 <CheckCircle2 size={13} />
-                <span>Vị trí nằm trong bán kính quy chuẩn ≤ 500m quanh Ga Metro 2.</span>
+                <span>Vị trí nằm trong bán kính quy chuẩn ≤ 500m quanh {targetZone.zoneName}.</span>
               </div>
             )}
           </div>
@@ -258,9 +264,9 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
 
         {isCompanionCheckedIn && companionData ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'rgb(var(--bg-white))', padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid rgb(var(--border-sky-200))' }}>
-            {companionData.selfieUrl ? (
+            {displayCompanionSelfieUrl ? (
               <img
-                src={companionData.selfieUrl}
+                src={displayCompanionSelfieUrl}
                 alt={companionData.name}
                 style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid rgb(var(--border-sky-300))' }}
               />
@@ -276,7 +282,7 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
             <button
               type="button"
               onClick={() => setShowCompanionModal(true)}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary btn-sm cursor-pointer"
               style={{
                 padding: '0.35rem 0.65rem',
                 fontSize: '0.725rem',
@@ -295,9 +301,10 @@ export const TodayCheckInSummary: React.FC<TodayCheckInSummaryProps> = ({
             <button
               type="button"
               onClick={() => setShowCompanionModal(true)}
+              className="cursor-pointer"
               style={{
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
+                backgroundColor: 'rgb(var(--bg-sky-600))',
+                color: 'rgb(var(--text-white))',
                 border: 'none',
                 borderRadius: '8px',
                 padding: '0.45rem 0.95rem',

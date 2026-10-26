@@ -589,7 +589,12 @@ CREATE TABLE timekeeping_checkins (
     verified_at TIMESTAMPTZ,
     verification_notes TEXT,
     has_anomaly_flag BOOLEAN NOT NULL DEFAULT FALSE,
-    anomaly_reason TEXT
+    anomaly_reason TEXT,
+    is_companion BOOLEAN NOT NULL DEFAULT FALSE,
+    companion_name VARCHAR(128),
+    companion_role VARCHAR(128),
+    companion_phone VARCHAR(32),
+    deleted_at TIMESTAMPTZ DEFAULT NULL
 );
 
 CREATE INDEX idx_checkins_surveyor ON timekeeping_checkins(surveyor_id);
@@ -597,6 +602,7 @@ CREATE INDEX idx_checkins_zone ON timekeeping_checkins(zone_id);
 CREATE INDEX idx_checkins_time ON timekeeping_checkins(checkin_time);
 CREATE INDEX idx_checkins_status ON timekeeping_checkins(verification_status);
 CREATE INDEX idx_checkins_location ON timekeeping_checkins USING GIST(gps_location);
+CREATE INDEX idx_checkins_surveyor_companion_time ON timekeeping_checkins(surveyor_id, is_companion, checkin_time DESC) WHERE deleted_at IS NULL;
 
 -- ============================================================================
 -- 6. BẢNG DỮ LIỆU - PHÂN HỆ 4: HỒ SƠ KHẢO SÁT (MODULE 4: SURVEY REPORTS)

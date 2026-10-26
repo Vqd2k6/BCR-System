@@ -10,6 +10,7 @@ export type { CompanionRecord, CompanionCheckInModalProps };
 
 export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
   isOpen,
+  zoneId,
   onClose,
   onSuccess,
 }) => {
@@ -23,11 +24,15 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
     companionPhone,
     setCompanionPhone,
     selfieUrl,
+    setSelfieUrl,
     outOfBoundsReason,
     setOutOfBoundsReason,
     cameraActive,
+    gpsCoordinates,
     distanceMeters,
     gpsLoading,
+    gpsError,
+    submitError,
     isSubmitting,
     hasCheckedIn,
     setHasCheckedIn,
@@ -40,19 +45,19 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
     handleStopCamera,
     handleCapturePhoto,
     handleSubmit,
-  } = useCompanionCheckInState({ isOpen, onSuccess });
+  } = useCompanionCheckInState({ isOpen, zoneId, onSuccess });
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200 cursor-default"
         style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
       >
         {/* Header */}
@@ -63,15 +68,22 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
           {hasCheckedIn && checkInData ? (
             <CompanionVerifiedSummary
               checkInData={checkInData}
+              zoneName={targetZone.zoneName}
               todayStr={todayStr}
               changeCount={changeCount}
-              onReCheckIn={() => setHasCheckedIn(false)}
+              onReCheckIn={() => {
+                setSelfieUrl('');
+                setHasCheckedIn(false);
+              }}
             />
           ) : (
             <CompanionCheckInForm
               changeCount={changeCount}
               distanceMeters={distanceMeters}
               targetZone={targetZone}
+              gpsCoordinates={gpsCoordinates}
+              gpsError={gpsError}
+              submitError={submitError}
               getLiveGps={getLiveGps}
               gpsLoading={gpsLoading}
               companionName={companionName}

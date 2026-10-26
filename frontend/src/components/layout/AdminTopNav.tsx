@@ -11,8 +11,10 @@ import {
   Building,
   CheckCircle2,
   FlaskConical,
+  KeyRound,
 } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { ChangePasswordModal } from '../profile/ChangePasswordModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
 import { ForensicImageLabModal } from '../../features/image-lab/ForensicImageLabModal';
 
@@ -25,6 +27,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showImageLabModal, setShowImageLabModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -167,10 +170,22 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
                   setShowProfileMenu(false);
                   setShowProfileModal(true);
                 }}
-                className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors border border-slate-200"
+                className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors border border-slate-200 cursor-pointer"
               >
                 <User size={14} className="text-slate-500" />
                 <span>Cập nhật Thông tin cá nhân</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  setShowChangePasswordModal(true);
+                }}
+                className="w-full py-2 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors border border-sky-200 cursor-pointer"
+              >
+                <KeyRound size={14} className="text-sky-600" />
+                <span>Đổi mật khẩu tài khoản</span>
               </button>
 
               <ThemeSwitcher className="pt-2 border-t border-slate-100" />
@@ -195,6 +210,12 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
       <UserProfileModal
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
       />
 
       {/* Standalone Forensic Image Lab Sandbox Modal */}

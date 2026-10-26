@@ -119,7 +119,7 @@ export class MigrationRunner {
             if (file.startsWith('20261011_')) {
               return canBaselineCondo;
             }
-            if (file.startsWith('20261024_') || file.startsWith('20261025_')) {
+            if (file.startsWith('20261024_') || file.startsWith('20261025_') || file.startsWith('20261026_')) {
               return false;
             }
             return true;
@@ -210,6 +210,26 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261025_phase1_zero_bit_loss_columns.sql';`
           );
           appliedSet.delete('20261025_phase1_zero_bit_loss_columns.sql');
+        }
+      }
+
+      // 6.4 CƠ CHẾ SELF-HEALING CHO 20261026: Đảm bảo cột is_companion trên timekeeping_checkins luôn được khởi tạo thực tế
+      if (appliedSet.has('20261026_attendance_companion_and_zone_sync.sql')) {
+        const checkCompanionCol = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'timekeeping_checkins' AND column_name = 'is_companion'
+          ) AS exists;
+        `);
+
+        if (!checkCompanionCol.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261026_attendance_companion_and_zone_sync.sql được đánh dấu nhưng schema thực tế chưa có timekeeping_checkins.is_companion. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261026_attendance_companion_and_zone_sync.sql';`
+          );
+          appliedSet.delete('20261026_attendance_companion_and_zone_sync.sql');
         }
       }
 

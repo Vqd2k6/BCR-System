@@ -102,6 +102,7 @@ export function createApp(): express.Application {
   api.post('/auth/refresh-token', AuthController.refreshToken);
   api.get('/auth/me', authenticateJwt, AuthController.getMe);
   api.put('/auth/me', authenticateJwt, AuthController.updateMe);
+  api.post('/auth/change-password', authenticateJwt, AuthController.changePassword);
   api.post('/auth/logout', authenticateJwt, AuthController.logout);
 
   // ==========================================

@@ -45,3 +45,29 @@ export const UpdateUserStatusDto = z.object({
 export const ResetPasswordDto = z.object({
   newPassword: z.string().min(6, 'Mật khẩu mới phải từ 6 ký tự trở lên'),
 });
+
+export const ChangePasswordDto = z
+  .object({
+    currentPassword: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+    newPassword: z
+      .string()
+      .min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự')
+      .max(128, 'Mật khẩu mới không được vượt quá 128 ký tự'),
+    confirmPassword: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.currentPassword === data.newPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['newPassword'],
+        message: 'Mật khẩu mới không được trùng với mật khẩu hiện tại',
+      });
+    }
+    if (data.confirmPassword !== undefined && data.newPassword !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Mật khẩu xác nhận không khớp với mật khẩu mới',
+      });
+    }
+  });

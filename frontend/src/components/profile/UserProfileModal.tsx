@@ -11,7 +11,9 @@ import {
   ShieldCheck,
   Building,
   Lock,
+  KeyRound,
 } from 'lucide-react';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +30,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (user) {
@@ -293,13 +296,37 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
               )}
             </div>
 
-            {/* Nút đóng */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+            {/* Nút Đổi mật khẩu & Nút đóng */}
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(true)}
+                className="cursor-pointer"
+                style={{
+                  flex: 1,
+                  padding: '0.65rem',
+                  fontSize: '0.775rem',
+                  fontWeight: 700,
+                  color: 'rgb(var(--text-sky-700))',
+                  backgroundColor: 'rgb(var(--bg-sky-50))',
+                  border: '1px solid rgb(var(--border-sky-300))',
+                  borderRadius: '0.65rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <KeyRound size={15} />
+                <span>Đổi Mật Khẩu</span>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
+                className="cursor-pointer"
                 style={{
-                  width: '100%',
+                  flex: 1,
                   padding: '0.65rem',
                   fontSize: '0.8rem',
                   fontWeight: 700,
@@ -405,10 +432,37 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.5rem' }}>
+            <div style={{ borderTop: '1px solid rgb(var(--border-slate-200))', paddingTop: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(true)}
+                className="cursor-pointer"
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  fontSize: '0.775rem',
+                  fontWeight: 700,
+                  color: 'rgb(var(--text-sky-700))',
+                  backgroundColor: 'rgb(var(--bg-sky-50))',
+                  border: '1px solid rgb(var(--border-sky-300))',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <KeyRound size={15} />
+                <span>Đổi mật khẩu tài khoản</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.25rem' }}>
               <button
                 type="button"
                 onClick={onClose}
+                className="cursor-pointer"
                 style={{
                   flex: 1,
                   padding: '0.65rem',
@@ -426,6 +480,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <button
                 type="submit"
                 disabled={isSaving}
+                className="cursor-pointer"
                 style={{
                   flex: 2,
                   padding: '0.65rem',
@@ -448,6 +503,11 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </form>
         )}
       </div>
+
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
     </div>
   );
 };

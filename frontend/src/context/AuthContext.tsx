@@ -23,6 +23,7 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   updateProfile: (data: { fullName?: string; phone?: string | null; signatureImageUrl?: string | null; email?: string | null }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -120,6 +121,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+    await api.post('/auth/change-password', {
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -159,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         isLoading,
         updateProfile,
+        changePassword,
         refreshProfile: syncUserProfileFromApi,
       }}
     >

@@ -7,6 +7,7 @@ import {
   User,
   BadgeCheck,
 } from 'lucide-react';
+import { resolveAttendancePhotoUrl } from '../../../../core/utils/metroZoneUtils';
 
 import type { User as DomainUser } from '../../../../core/types/domain.types';
 import type { AttendanceRecord, CompanionRecord } from '../types';
@@ -38,6 +39,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
           <button
             type="button"
             onClick={() => setHistoryTab('surveyor')}
+            className="cursor-pointer"
             style={{
               border: 'none',
               backgroundColor: historyTab === 'surveyor' ? 'rgb(var(--bg-white))' : 'transparent',
@@ -50,11 +52,12 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
               boxShadow: historyTab === 'surveyor' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
             }}
           >
-            Điều tra viên chính
+            Điều tra viên chính ({history.length})
           </button>
           <button
             type="button"
             onClick={() => setHistoryTab('companion')}
+            className="cursor-pointer"
             style={{
               border: 'none',
               backgroundColor: historyTab === 'companion' ? 'rgb(var(--bg-white))' : 'transparent',
@@ -75,83 +78,107 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
       {/* TAB 1: SURVEYOR'S OWN HISTORY */}
       {historyTab === 'surveyor' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {history.map((h, i) => {
-            const distance = Math.round(h.distance_to_zone_center_meters ?? h.distance_meters ?? 0);
-            const isOutOfBoundItem = distance > 500 || h.is_out_of_bounds || !h.is_within_zone_boundary;
-            const photo = h.selfie_photo_url || h.photo_selfie_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-            const status = h.verification_status;
+          {history.length > 0 ? (
+            history.map((h, i) => {
+              const distance = Math.round(Number(h.distance_to_zone_center_meters ?? h.distance_meters ?? 0));
+              const isOutOfBoundItem = distance > 500 || h.is_out_of_bounds || h.is_within_zone_boundary === false;
+              const photo = resolveAttendancePhotoUrl(h.selfie_photo_url || h.photo_selfie_url || h.selfiePhotoUrl);
+              const status = h.verification_status;
 
-            return (
-              <div
-                key={h.id || i}
-                className="card"
-                style={{
-                  backgroundColor: 'rgb(var(--bg-white))',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderRadius: '0.75rem',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  gap: '0.75rem',
-                  border: '1px solid rgb(var(--border-slate-200))',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                  <img
-                    src={photo}
-                    alt="Selfie Record"
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      border: '1.5px solid rgb(var(--border-sky-200))',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {user?.fullName || 'Nguyễn Văn Khảo Sát'}
-                      </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: 'rgb(var(--bg-sky-100))', color: 'rgb(var(--text-sky-700))', padding: '1px 5px', borderRadius: '4px' }}>
-                        Chính
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
-                      {new Date(h.checkin_time).toLocaleString('vi-VN')} • Cách Ga: <strong>{distance}m</strong>
-                      {isOutOfBoundItem && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
+              return (
+                <div
+                  key={h.id || i}
+                  className="card"
+                  style={{
+                    backgroundColor: 'rgb(var(--bg-white))',
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    gap: '0.75rem',
+                    border: '1px solid rgb(var(--border-slate-200))',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                    {photo ? (
+                      <img
+                        src={photo}
+                        alt="Selfie Record"
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '1.5px solid rgb(var(--border-sky-200))',
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgb(var(--bg-sky-100))',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'rgb(var(--text-sky-600))',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <User size={22} />
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {user?.fullName || 'Khảo Sát Viên'}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: 'rgb(var(--bg-sky-100))', color: 'rgb(var(--text-sky-700))', padding: '1px 5px', borderRadius: '4px' }}>
+                          Chính
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
+                        {new Date(h.checkin_time).toLocaleString('vi-VN')} • Cách Ga: <strong>{distance}m</strong>
+                        {isOutOfBoundItem && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ flexShrink: 0 }}>
-                  {status === 'APPROVED' || status === 'VERIFIED' ? (
-                    <span className="badge badge-success" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <CheckCircle2 size={12} />
-                      Đã duyệt
-                    </span>
-                  ) : status === 'FLAGGED_WARNING' || status === 'FLAGGED' ? (
-                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <AlertTriangle size={12} />
-                      Gắn cờ
-                    </span>
-                  ) : status === 'REJECTED' ? (
-                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <XCircle size={12} />
-                      Từ chối
-                    </span>
-                  ) : (
-                    <span className="badge badge-warning" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <Clock size={12} />
-                      Chờ duyệt
-                    </span>
-                  )}
+                  <div style={{ flexShrink: 0 }}>
+                    {status === 'APPROVED' || status === 'VERIFIED' ? (
+                      <span className="badge badge-success" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <CheckCircle2 size={12} />
+                        Đã duyệt
+                      </span>
+                    ) : status === 'FLAGGED_WARNING' || status === 'FLAGGED' ? (
+                      <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <AlertTriangle size={12} />
+                        Gắn cờ
+                      </span>
+                    ) : status === 'REJECTED' ? (
+                      <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <XCircle size={12} />
+                        Từ chối
+                      </span>
+                    ) : (
+                      <span className="badge badge-warning" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <Clock size={12} />
+                        Đã ghi nhận
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
+              Chưa có lịch sử điểm danh của điều tra viên chính.
+            </div>
+          )}
         </div>
       )}
 
@@ -163,6 +190,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
               const dist = Math.round(comp.distance ?? comp.distance_meters ?? 0);
               const isItemOutOfBound = dist > 500 || comp.status === 'FLAGGED_WARNING';
               const timeStr = comp.checkin_time ? new Date(comp.checkin_time).toLocaleString('vi-VN') : (comp.date || 'Gần đây');
+              const compPhoto = resolveAttendancePhotoUrl(comp.selfieUrl);
 
               return (
                 <div
@@ -181,9 +209,9 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                    {comp.selfieUrl ? (
+                    {compPhoto ? (
                       <img
-                        src={comp.selfieUrl}
+                        src={compPhoto}
                         alt={comp.name}
                         style={{
                           width: '44px',
@@ -237,14 +265,14 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                       style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem' }}
                     >
                       <BadgeCheck size={11} />
-                      {isItemOutOfBound ? 'Ghi nhận' : 'Đã duyệt'}
+                      {comp.status === 'APPROVED' ? 'Đã duyệt' : isItemOutOfBound ? 'Cảnh báo' : 'Đã ghi nhận'}
                     </span>
                   </div>
                 </div>
               );
             })
           ) : (
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
+            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
               Chưa có lịch sử điểm danh cán bộ đi kèm nào.
             </div>
           )}

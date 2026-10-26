@@ -66,6 +66,7 @@ export const TimekeepingHeader: React.FC<TimekeepingHeaderProps> = ({
         <button
           type="button"
           onClick={() => getLiveGps()}
+          className="cursor-pointer"
           style={{
             background: 'rgb(var(--bg-slate-50))',
             color: 'rgb(var(--text-sky-600))',

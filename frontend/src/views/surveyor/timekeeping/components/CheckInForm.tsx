@@ -7,13 +7,17 @@ import {
   User,
   Clock,
 } from 'lucide-react';
-import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import {
+  resolveAttendancePhotoUrl,
+  type MetroZoneCentroid,
+} from '../../../../core/utils/metroZoneUtils';
 
 interface CheckInFormProps {
   isOutOfBounds: boolean;
   distanceMeters: number;
   targetZone: MetroZoneCentroid;
   gpsCoordinates: { lat: number; lng: number; accuracy: number } | null;
+  gpsError?: string | null;
   isSimulatedGps: boolean;
   cameraActive: boolean;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -33,7 +37,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
   distanceMeters,
   targetZone,
   gpsCoordinates,
-  isSimulatedGps,
+  gpsError,
   cameraActive,
   videoRef,
   handleCapturePhoto,
@@ -46,14 +50,16 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
   isSubmitting,
   gpsLoading,
 }) => {
+  const displaySelfieUrl = resolveAttendancePhotoUrl(selfieUrl);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* GPS Live Status Card */}
       <div
         className="card"
         style={{
-          background: isOutOfBounds ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
-          border: isOutOfBounds ? '1px solid rgb(var(--border-red-200))' : '1px solid rgb(var(--border-green-200))',
+          background: isOutOfBounds || gpsError ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
+          border: isOutOfBounds || gpsError ? '1px solid rgb(var(--border-red-200))' : '1px solid rgb(var(--border-green-200))',
           padding: '1.15rem',
           display: 'flex',
           flexDirection: 'column',
@@ -64,24 +70,30 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-            <MapPin size={18} color={isOutOfBounds ? '#dc2626' : '#16a34a'} style={{ flexShrink: 0 }} />
+            <MapPin size={18} color={isOutOfBounds || gpsError ? '#dc2626' : '#16a34a'} style={{ flexShrink: 0 }} />
             <span
               style={{
                 fontWeight: 700,
-                color: isOutOfBounds ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))',
+                color: isOutOfBounds || gpsError ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))',
                 fontSize: '0.925rem',
                 lineHeight: 1.3,
               }}
             >
-              {isOutOfBounds ? `Cảnh báo: Ngoài bán kính 500m (${targetZone.zoneName})` : `Vị trí hợp lệ (${distanceMeters}m ≤ 500m)`}
+              {gpsError
+                ? 'Chưa nhận được tín hiệu GPS thực địa'
+                : isOutOfBounds
+                  ? `Cảnh báo: Ngoài bán kính 500m (${targetZone.zoneName})`
+                  : `Vị trí hợp lệ (${distanceMeters}m ≤ 500m)`}
             </span>
           </div>
-          <span
-            className={`badge ${isOutOfBounds ? 'badge-danger' : 'badge-success'}`}
-            style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: '0.75rem', fontWeight: 700 }}
-          >
-            Cách trọng tâm {targetZone.zoneName}: {distanceMeters}m
-          </span>
+          {gpsCoordinates && (
+            <span
+              className={`badge ${isOutOfBounds ? 'badge-danger' : 'badge-success'}`}
+              style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: '0.75rem', fontWeight: 700 }}
+            >
+              Cách trọng tâm {targetZone.zoneName}: {distanceMeters}m
+            </span>
+          )}
         </div>
 
         {/* Coordinates row */}
@@ -94,21 +106,48 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
             gap: '0.5rem',
             fontSize: '0.8rem',
             color: 'rgb(var(--text-slate-600))',
-            backgroundColor: isOutOfBounds ? 'rgba(254, 226, 226, 0.4)' : 'rgba(220, 252, 231, 0.5)',
+            backgroundColor: isOutOfBounds || gpsError ? 'rgba(254, 226, 226, 0.4)' : 'rgba(220, 252, 231, 0.5)',
             padding: '0.45rem 0.75rem',
             borderRadius: '0.5rem',
           }}
         >
           <div>
-            Tọa độ thực tế: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(6)}, ${gpsCoordinates.lng.toFixed(6)} (±${gpsCoordinates.accuracy}m)` : (gpsLoading ? '📡 Đang quét vệ tinh...' : 'Chưa có tọa độ')}</strong>
+            Tọa độ thực tế:{' '}
+            <strong>
+              {gpsCoordinates
+                ? `${gpsCoordinates.lat.toFixed(6)}, ${gpsCoordinates.lng.toFixed(6)} (±${gpsCoordinates.accuracy}m)`
+                : gpsLoading
+                  ? '📡 Đang quét vệ tinh...'
+                  : 'Chưa có tọa độ'}
+            </strong>
           </div>
           <div>
             Trọng tâm {targetZone.zoneName}: <strong>{targetZone.lat.toFixed(6)}, {targetZone.lng.toFixed(6)}</strong>
           </div>
         </div>
 
+        {/* GPS Error callout */}
+        {gpsError && (
+          <div
+            style={{
+              backgroundColor: 'rgb(var(--bg-red-100))',
+              padding: '0.6rem 0.8rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.775rem',
+              color: 'rgb(var(--text-red-800))',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              lineHeight: 1.45,
+            }}
+          >
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: 'rgb(var(--text-red-600))' }} />
+            <span>{gpsError}</span>
+          </div>
+        )}
+
         {/* Warning callout */}
-        {isOutOfBounds && (
+        {!gpsError && isOutOfBounds && (
           <div
             style={{
               backgroundColor: 'rgb(var(--bg-red-100))',
@@ -152,12 +191,12 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
 
           {cameraActive ? (
             <div
+              className="bg-slate-900"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
                 alignItems: 'center',
-                backgroundColor: '#0f172a',
                 padding: '0.85rem',
                 borderRadius: '0.75rem',
               }}
@@ -172,7 +211,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 <button
                   type="button"
                   onClick={handleCapturePhoto}
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-primary btn-sm cursor-pointer"
                   style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1.35rem', fontWeight: 700 }}
                 >
                   <Camera size={15} />
@@ -181,7 +220,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 <button
                   type="button"
                   onClick={handleStopCamera}
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-sm cursor-pointer"
                   style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1rem' }}
                 >
                   <X size={15} />
@@ -192,9 +231,9 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', width: '100%' }}>
               <div style={{ position: 'relative', width: '100%', maxWidth: '280px', display: 'flex', justifyContent: 'center' }}>
-                {selfieUrl ? (
+                {displaySelfieUrl ? (
                   <img
-                    src={selfieUrl}
+                    src={displaySelfieUrl}
                     alt="Surveyor Selfie"
                     style={{
                       width: '100%',
@@ -218,7 +257,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '0.5rem',
-                      color: '#94a3b8',
+                      color: 'rgb(var(--text-slate-400))',
                     }}
                   >
                     <div
@@ -243,7 +282,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
               </div>
 
               <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center' }}>
-                {selfieUrl
+                {displaySelfieUrl
                   ? 'Đã chụp ảnh xác thực danh tính thực địa.'
                   : 'Vui lòng bật camera để chụp ảnh khuôn mặt trước khi điểm danh.'}
               </div>
@@ -251,6 +290,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
               <button
                 type="button"
                 onClick={handleStartCamera}
+                className="cursor-pointer"
                 style={{
                   background: 'rgb(var(--bg-sky-100))',
                   color: 'rgb(var(--text-sky-700))',
@@ -268,7 +308,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 }}
               >
                 <Camera size={15} />
-                <span>{selfieUrl ? 'Bật Camera chụp lại' : 'Bật Camera Chụp Selfie'}</span>
+                <span>{displaySelfieUrl ? 'Bật Camera chụp lại' : 'Bật Camera Chụp Selfie'}</span>
               </button>
             </div>
           )}
@@ -302,7 +342,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 padding: '0.65rem 0.85rem',
                 borderRadius: '0.65rem',
                 border: '1.5px solid rgb(var(--border-orange-200))',
-                backgroundColor: '#fffaf5',
+                backgroundColor: 'rgb(var(--bg-amber-50))',
                 lineHeight: '1.45',
                 color: 'rgb(var(--text-slate-800))',
                 boxShadow: 'none',
@@ -314,10 +354,11 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
         {/* Submit button */}
         <button
           type="submit"
-          disabled={isSubmitting || gpsLoading}
+          disabled={isSubmitting || gpsLoading || !gpsCoordinates}
+          className={isSubmitting || gpsLoading || !gpsCoordinates ? 'disabled:opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           style={{
-            background: isSubmitting || gpsLoading ? 'rgb(var(--bg-slate-100))' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-            color: isSubmitting || gpsLoading ? '#94a3b8' : '#ffffff',
+            background: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--bg-slate-100))' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+            color: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--text-slate-400))' : 'rgb(var(--text-white))',
             border: 'none',
             borderRadius: '9999px',
             padding: '0.85rem 1.75rem',
@@ -327,7 +368,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.5rem',
-            cursor: isSubmitting || gpsLoading ? 'not-allowed' : 'pointer',
+            cursor: isSubmitting || gpsLoading || !gpsCoordinates ? 'not-allowed' : 'pointer',
             boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
             transition: 'all 0.2s ease',
             width: '100%',

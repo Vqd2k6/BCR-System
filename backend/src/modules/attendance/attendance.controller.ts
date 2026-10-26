@@ -28,9 +28,18 @@ export class AttendanceController {
   static async getMyHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const surveyorId = req.user!.userId;
-      const startDate = req.query.startDate as string;
-      const endDate = req.query.endDate as string;
-      const result = await AttendanceService.getMyHistory(surveyorId, startDate, endDate);
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+      const rawIsCompanion = req.query.isCompanion as string | undefined;
+      const isCompanion =
+        rawIsCompanion === 'true' ? true : rawIsCompanion === 'false' ? false : undefined;
+
+      const result = await AttendanceService.getMyHistory(
+        surveyorId,
+        startDate,
+        endDate,
+        isCompanion
+      );
       res.status(200).json({
         success: true,
         data: result.checkIns,
@@ -43,7 +52,10 @@ export class AttendanceController {
 
   static async getAssignedZone(req: Request, res: Response, next: NextFunction) {
     try {
-      const zoneId = req.user?.assignedZoneId || (req.query.zoneId as string) || 'ZONE_S9';
+      const requestedZoneId = typeof req.query.zoneId === 'string' && req.query.zoneId.trim()
+        ? req.query.zoneId.trim()
+        : undefined;
+      const zoneId = requestedZoneId || req.user?.assignedZoneId || 'ZONE_09';
       const zoneInfo = await AttendanceService.getZoneInfo(zoneId);
       res.status(200).json({
         success: true,
@@ -58,11 +70,16 @@ export class AttendanceController {
 
   static async listCheckIns(req: Request, res: Response, next: NextFunction) {
     try {
+      const rawIsCompanion = req.query.isCompanion as string | undefined;
+      const isCompanion =
+        rawIsCompanion === 'true' ? true : rawIsCompanion === 'false' ? false : undefined;
+
       const filters = {
-        zoneId: req.query.zoneId as string || req.user?.assignedZoneId || undefined,
-        status: req.query.status as string,
-        startDate: req.query.startDate as string,
-        endDate: req.query.endDate as string,
+        zoneId: (req.query.zoneId as string) || req.user?.assignedZoneId || undefined,
+        status: req.query.status as string | undefined,
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        isCompanion,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
         offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
       };
@@ -107,7 +124,13 @@ export class AttendanceController {
       }
 
       const adminId = req.user!.userId;
-      const result = await AttendanceService.verifyAttendance(id, adminId, parsed.data.action, parsed.data.notes);
+      const result = await AttendanceService.verifyAttendance(
+        id,
+        adminId,
+        parsed.data.action,
+        parsed.data.notes,
+        req.ip
+      );
       res.status(200).json({
         success: true,
         data: result,
@@ -119,8 +142,8 @@ export class AttendanceController {
 
   static async getAttendanceSummary(req: Request, res: Response, next: NextFunction) {
     try {
-      const zoneId = req.query.zoneId as string || req.user?.assignedZoneId || undefined;
-      const month = req.query.month as string;
+      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || undefined;
+      const month = req.query.month as string | undefined;
       const summary = await AttendanceService.getSummary(zoneId, month);
       res.status(200).json({
         success: true,

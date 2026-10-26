@@ -5,10 +5,12 @@ import {
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
+import { resolveAttendancePhotoUrl } from '../../../../core/utils/metroZoneUtils';
 import type { CompanionRecord } from '../types';
 
 interface CompanionVerifiedSummaryProps {
   checkInData: CompanionRecord;
+  zoneName?: string;
   todayStr: string;
   changeCount: number;
   onReCheckIn: () => void;
@@ -16,10 +18,13 @@ interface CompanionVerifiedSummaryProps {
 
 export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> = ({
   checkInData,
+  zoneName = 'Ga phụ trách',
   todayStr,
   changeCount,
   onReCheckIn,
 }) => {
+  const displaySelfieUrl = resolveAttendancePhotoUrl(checkInData.selfieUrl);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
       {/* Verified Header Banner */}
@@ -86,9 +91,9 @@ export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> =
           alignItems: 'center',
         }}
       >
-        {checkInData.selfieUrl ? (
+        {displaySelfieUrl ? (
           <img
-            src={checkInData.selfieUrl}
+            src={displaySelfieUrl}
             alt={checkInData.name}
             style={{
               width: '110px',
@@ -111,7 +116,7 @@ export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> =
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#94a3b8',
+              color: 'rgb(var(--text-slate-400))',
               flexShrink: 0,
             }}
           >
@@ -121,24 +126,24 @@ export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> =
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.775rem' }}>
           <div>
-            <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Họ tên cán bộ:</span>
+            <span style={{ color: 'rgb(var(--text-slate-400))', fontSize: '0.7rem', display: 'block' }}>Họ tên cán bộ:</span>
             <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>{checkInData.name}</span>
           </div>
 
           <div>
-            <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Vai trò / Chức danh:</span>
+            <span style={{ color: 'rgb(var(--text-slate-400))', fontSize: '0.7rem', display: 'block' }}>Vai trò / Chức danh:</span>
             <span style={{ fontWeight: 700, color: 'rgb(var(--text-sky-600))' }}>{checkInData.role}</span>
           </div>
 
           {checkInData.phone && (
             <div>
-              <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Số điện thoại:</span>
+              <span style={{ color: 'rgb(var(--text-slate-400))', fontSize: '0.7rem', display: 'block' }}>Số điện thoại:</span>
               <span style={{ color: 'rgb(var(--text-slate-700))', fontWeight: 600 }}>{checkInData.phone}</span>
             </div>
           )}
 
           <div>
-            <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Khoảng cách tới Ga S9:</span>
+            <span style={{ color: 'rgb(var(--text-slate-400))', fontSize: '0.7rem', display: 'block' }}>Khoảng cách tới {zoneName}:</span>
             <span style={{ fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>{checkInData.distance}m</span>
           </div>
         </div>
@@ -163,7 +168,7 @@ export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> =
           <div>
             <span style={{ fontWeight: 700, display: 'block' }}>Lý do chấm công ngoài vùng (&gt;500m) đã khai báo:</span>
             <span style={{ color: 'rgb(var(--text-amber-900))', fontStyle: 'italic', marginTop: '2px', display: 'block' }}>
-              "{checkInData.notes}"
+              &quot;{checkInData.notes}&quot;
             </span>
           </div>
         </div>
@@ -195,6 +200,7 @@ export const CompanionVerifiedSummary: React.FC<CompanionVerifiedSummaryProps> =
           <button
             type="button"
             onClick={onReCheckIn}
+            className="cursor-pointer"
             style={{
               width: '100%',
               padding: '0.65rem',

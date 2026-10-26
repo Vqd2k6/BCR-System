@@ -1,6 +1,6 @@
 /**
  * METRO 2 ZONE CENTROIDS & SPATIAL UTILITIES
- * Tọa độ trọng tâm (Centroid) chuẩn xác của 11 phân khu ga tuyến Metro 2
+ * Tọa độ trọng tâm (Centroid) chuẩn xác của các phân khu ga tuyến Metro 2
  * Khớp 100% với PostGIS ST_Centroid(ST_Union(cadastral_polygon_geom)) trong CSDL
  */
 
@@ -52,8 +52,93 @@ export const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number
  * Lấy tọa độ trọng tâm phân khu ga được giao đảm nhận
  */
 export const getZoneCentroid = (zoneId?: string): MetroZoneCentroid => {
-  if (zoneId && METRO_ZONE_CENTROIDS[zoneId]) {
-    return METRO_ZONE_CENTROIDS[zoneId];
+  if (zoneId) {
+    const normalized = zoneId.trim().toUpperCase();
+    if (METRO_ZONE_CENTROIDS[normalized]) {
+      return METRO_ZONE_CENTROIDS[normalized];
+    }
   }
-  return METRO_ZONE_CENTROIDS.ZONE_S9;
+  return METRO_ZONE_CENTROIDS.ZONE_09;
+};
+
+/**
+ * Lấy chuỗi ngày chuẩn YYYY-MM-DD theo đúng múi giờ Việt Nam (Asia/Ho_Chi_Minh, UTC+7)
+ * Ngăn chặn lỗi lệch ngày từ 00:00 -> 06:59 sáng khi dùng toISOString() (UTC)
+ */
+export const getVietnamDateString = (dateInput?: Date | string | number): string => {
+  try {
+    const d = dateInput !== undefined ? new Date(dateInput) : new Date();
+    if (Number.isNaN(d.getTime())) {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+    }
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch (err: unknown) {
+    console.error('[metroZoneUtils:getVietnamDateString] Error formatting date:', err);
+    const fallback = new Date(Date.now() + 7 * 3600 * 1000);
+    return fallback.toISOString().split('T')[0];
+  }
+};
+
+/**
+ * Chụp và nén khung hình video từ Camera thành chuỗi JPEG DataURL tối ưu (~60KB - 100KB)
+ * Tránh tràn bộ nhớ RAM Mobile Safari và giảm tải băng thông 4G/5G
+ */
+export const captureVideoFrameAsJpeg = (
+  video: HTMLVideoElement,
+  maxWidth: number = 720,
+  quality: number = 0.82
+): string => {
+  const rawWidth = video.videoWidth || 640;
+  const rawHeight = video.videoHeight || 480;
+  const scale = rawWidth > maxWidth ? maxWidth / rawWidth : 1;
+  const targetWidth = Math.round(rawWidth * scale);
+  const targetHeight = Math.round(rawHeight * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+  return canvas.toDataURL('image/jpeg', quality);
+};
+
+/**
+ * Phân giải đường dẫn ảnh Selfie điểm danh để hiển thị đúng trên cả Local Dev và Cloud Production
+ */
+export const resolveAttendancePhotoUrl = (url?: string | null): string => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    const rawEnvUrl = (import.meta.env?.VITE_API_BASE_URL || '').trim();
+    if (rawEnvUrl.startsWith('http://') || rawEnvUrl.startsWith('https://')) {
+      try {
+        const parsed = new URL(rawEnvUrl);
+        return `${parsed.origin}${trimmed}`;
+      } catch (err: unknown) {
+        console.error('[metroZoneUtils:resolveAttendancePhotoUrl] Invalid VITE_API_BASE_URL:', err);
+      }
+    }
+    return trimmed;
+  }
+  return trimmed;
 };

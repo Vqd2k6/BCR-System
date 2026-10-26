@@ -265,6 +265,53 @@ export class AuthService {
     return toSafeUserDto(user);
   }
 
+  static async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    clientIp?: string | null
+  ) {
+    const user = await AuthRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError('Không tìm thấy tài khoản người dùng');
+    }
+
+    if (user.status === 'LOCKED' || user.status === 'SUSPENDED') {
+      throw new BadRequestError(
+        `Tài khoản đang ở trạng thái [${user.status}] - không thể thay đổi mật khẩu`
+      );
+    }
+
+    const isMatch = user.password_hash
+      ? await CryptoUtils.comparePassword(currentPassword, user.password_hash)
+      : false;
+
+    if (!isMatch) {
+      throw new BadRequestError('Mật khẩu hiện tại không chính xác');
+    }
+
+    const newPasswordHash = await CryptoUtils.hashPassword(newPassword);
+    await AuthRepository.updatePassword(userId, newPasswordHash);
+    await AuthRepository.revokeUserSessions(userId);
+
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: userId,
+      action: 'USER_CHANGED_OWN_PASSWORD',
+      performedByUserId: userId,
+      clientIp: clientIp || null,
+      diffPayload: {
+        username: user.username,
+        role: user.role,
+        selfService: true,
+      },
+    });
+
+    return {
+      message: 'Đổi mật khẩu tài khoản thành công',
+    };
+  }
+
   // --- SUPER ADMIN USER LIFECYCLE ---
 
   static async listUsers(filters: any) {

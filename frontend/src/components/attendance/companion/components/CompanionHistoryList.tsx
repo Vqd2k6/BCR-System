@@ -1,5 +1,6 @@
 import React from 'react';
 import { Clock, User, BadgeCheck } from 'lucide-react';
+import { resolveAttendancePhotoUrl } from '../../../../core/utils/metroZoneUtils';
 import type { CompanionRecord } from '../types';
 
 interface CompanionHistoryListProps {
@@ -12,7 +13,7 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.65rem' }}>
         <Clock size={14} color="#0284c7" />
         <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
-          Lịch Sử Điểm Danh Cán Bộ Đi Kèm
+          Lịch Sử Điểm Danh Cán Bộ Đi Kèm ({companionHistory.length})
         </h3>
       </div>
 
@@ -24,6 +25,7 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
             const dateFormatted = item.checkin_time
               ? new Date(item.checkin_time).toLocaleString('vi-VN')
               : (item.date || 'Gần đây');
+            const photoUrl = resolveAttendancePhotoUrl(item.selfieUrl);
 
             return (
               <div
@@ -40,9 +42,9 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
-                  {item.selfieUrl ? (
+                  {photoUrl ? (
                     <img
-                      src={item.selfieUrl}
+                      src={photoUrl}
                       alt={item.name}
                       style={{
                         width: '38px',
@@ -110,14 +112,14 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
                     }}
                   >
                     <BadgeCheck size={10} />
-                    {isItemOutOfBound ? 'Ghi nhận' : 'Đã duyệt'}
+                    {item.status === 'APPROVED' ? 'Đã duyệt' : isItemOutOfBound ? 'Cảnh báo' : 'Đã ghi nhận'}
                   </span>
                 </div>
               </div>
             );
           })
         ) : (
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', padding: '0.85rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '0.85rem' }}>
             Chưa có lịch sử điểm danh cán bộ đi kèm nào.
           </div>
         )}

@@ -31,7 +31,7 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
             justifyContent: 'center',
             flexShrink: 0,
             boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
-            color: '#ffffff',
+            color: 'rgb(var(--text-white))',
           }}
         >
           <Users size={19} />
@@ -63,6 +63,7 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
       <button
         type="button"
         onClick={onClose}
+        className="cursor-pointer"
         style={{
           background: 'rgb(var(--bg-slate-50))',
           border: '1px solid rgb(var(--border-slate-200))',

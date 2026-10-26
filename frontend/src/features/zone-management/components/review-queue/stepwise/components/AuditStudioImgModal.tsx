@@ -485,14 +485,14 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                   STUDIO IMG &mdash; HIỆU CHỈNH &amp; ĐỐI CHỨNG ẢNH THẨM ĐỊNH (MODULE IMG LAB)
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
-                  LUMINANCE 4:4:4 ENGINE
+                  CLIENT WEB WORKER &bull; RAM PIXEL CACHE
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-300">
                   BẢO TOÀN 100% ẢNH GỐC KSV
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Tạo bản sau điều chỉnh kế bên bản chính &bull; Chỉ gửi tạo file ảnh mới riêng biệt sau khi bấm &ldquo;Xác Nhận Lưu Studio&rdquo; để lưu cho phiên thẩm định &amp; Báo cáo PDF
+                Xử lý trực tiếp trên trình duyệt (Web Worker + RAM Cache, độ trễ 0ms mạng) &bull; Chỉ gửi tạo file ảnh mới riêng biệt sau khi bấm &ldquo;Xác Nhận Lưu Studio&rdquo;
               </p>
             </div>
           </div>
@@ -1191,7 +1191,7 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                   <span className="text-sm font-bold text-slate-800">
                     {isCommitting
                       ? 'Đang gửi tạo file ảnh Studio mới riêng biệt & lưu vào phiên thẩm định...'
-                      : 'Đang xử lý ảnh trên kênh Độ chói Luminance 4:4:4...'}
+                      : 'Đang xử lý ảnh trực tiếp trên Client Web Worker (Luminance 4:4:4 • RAM Pixel Cache)...'}
                   </span>
                 </div>
               )}

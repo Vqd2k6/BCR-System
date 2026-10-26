@@ -1,22 +1,54 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { api } from '../../../../services/api';
 import { useAuth } from '../../../../context/AuthContext';
-import { getZoneCentroid, calculateDistanceMeters } from '../../../../core/utils/metroZoneUtils';
+import { getErrorMessage } from '../../../../utils/errorUtils';
+import {
+  getZoneCentroid,
+  calculateDistanceMeters,
+  getVietnamDateString,
+  captureVideoFrameAsJpeg,
+  resolveAttendancePhotoUrl,
+  type MetroZoneCentroid,
+} from '../../../../core/utils/metroZoneUtils';
 import type { CompanionRecord } from '../types';
+import type { AttendanceRecord } from '../../../../views/surveyor/timekeeping/types';
 
 interface UseCompanionCheckInStateProps {
   isOpen: boolean;
+  zoneId?: string;
   onSuccess?: (data: CompanionRecord) => void;
 }
 
-export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionCheckInStateProps) => {
-  const { user } = useAuth();
-  const assignedZoneId = user?.assignedZoneId || 'ZONE_S9';
-  const targetZone = getZoneCentroid(assignedZoneId);
+interface CompanionCheckInApiResponse {
+  checkInId: string;
+  checkInTime: string;
+  zoneId: string;
+  zoneName: string;
+  distanceToCenterMeters: number;
+  verificationStatus: string;
+  hasAnomalyFlag: boolean;
+  anomalyReason: string | null;
+  selfiePhotoUrl: string | null;
+  isCompanion: boolean;
+  companionName: string | null;
+  companionRole: string | null;
+  companionPhone: string | null;
+  todayCompanionCount?: number;
+  message: string;
+}
 
-  const todayStr = new Date().toISOString().split('T')[0];
+export const useCompanionCheckInState = ({
+  isOpen,
+  zoneId,
+  onSuccess,
+}: UseCompanionCheckInStateProps) => {
+  const { user } = useAuth();
+  const effectiveZoneId = zoneId || user?.assignedZoneId || 'ZONE_09';
+  const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(effectiveZoneId));
+
+  const todayStr = getVietnamDateString();
   const storageKey = `metro2_companion_checkin_${todayStr}`;
   const changeCountKey = `metro2_companion_checkin_count_${todayStr}`;
-  const historyStorageKey = 'metro2_companion_history';
 
   const [companionName, setCompanionName] = useState<string>('');
   const [companionRole, setCompanionRole] = useState<string>('Cán bộ đo đạc & Ghi chép');
@@ -25,15 +57,18 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
-  const [distanceMeters, setDistanceMeters] = useState<number>(35);
+  const [distanceMeters, setDistanceMeters] = useState<number>(0);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(false);
   const [changeCount, setChangeCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(`metro2_companion_checkin_count_${todayStr}`);
       return saved ? parseInt(saved, 10) : 0;
-    } catch {
+    } catch (err: unknown) {
+      console.error('[useCompanionCheckInState:initCount] Error reading count:', err);
       return 0;
     }
   });
@@ -43,123 +78,159 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  const getLiveGps = () => {
+  // Đồng bộ tọa độ trọng tâm phân khu từ Backend
+  useEffect(() => {
+    const defaultCentroid = getZoneCentroid(effectiveZoneId);
+    setTargetZone(defaultCentroid);
+
+    if (!isOpen) return;
+    let isMounted = true;
+    api
+      .get(`/attendance/assigned-zone?zoneId=${encodeURIComponent(effectiveZoneId)}`)
+      .then((res) => {
+        if (isMounted && res.data?.success && res.data?.data) {
+          const zData = res.data.data as {
+            zoneId: string;
+            zoneName: string;
+            centroid: { lat: number; lng: number };
+          };
+          setTargetZone({
+            zoneId: zData.zoneId,
+            zoneName: zData.zoneName,
+            lat: Number(zData.centroid.lat),
+            lng: Number(zData.centroid.lng),
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('[useCompanionCheckInState:fetchZone] Fallback to local centroid:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveZoneId, isOpen]);
+
+  // Tính lại khoảng cách khi tọa độ GPS hoặc tâm phân khu thay đổi
+  useEffect(() => {
+    if (gpsCoordinates) {
+      const dist = calculateDistanceMeters(gpsCoordinates.lat, gpsCoordinates.lng, targetZone.lat, targetZone.lng);
+      setDistanceMeters(dist);
+    }
+  }, [targetZone.lat, targetZone.lng, gpsCoordinates]);
+
+  const getLiveGps = useCallback(() => {
     setGpsLoading(true);
+    setGpsError(null);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const accuracy = pos.coords.accuracy;
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          const accuracy = Math.round(pos.coords.accuracy || 0);
           setGpsCoordinates({ lat, lng, accuracy });
           const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
         (err) => {
-          console.warn('[Companion GPS Error]:', err);
-          const lat = targetZone.lat + 0.00025;
-          const lng = targetZone.lng + 0.0002;
-          const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
-          setGpsCoordinates({ lat, lng, accuracy: 8 });
-          setDistanceMeters(dist);
+          console.error('[useCompanionCheckInState:getLiveGps] Geolocation error:', err);
+          setGpsCoordinates(null);
           setGpsLoading(false);
+          setGpsError(
+            err.code === 1
+              ? 'Trình duyệt bị từ chối quyền định vị GPS. Vui lòng cấp quyền vị trí để điểm danh cán bộ đi kèm.'
+              : 'Không thể lấy tín hiệu GPS thực tế. Vui lòng ra khu vực thoáng và bấm "Lấy lại GPS".'
+          );
         },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     } else {
-      const lat = targetZone.lat + 0.00025;
-      const lng = targetZone.lng + 0.0002;
-      const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
-      setGpsCoordinates({ lat, lng, accuracy: 10 });
-      setDistanceMeters(dist);
+      setGpsCoordinates(null);
       setGpsLoading(false);
+      setGpsError('Thiết bị không hỗ trợ định vị GPS.');
     }
-  };
+  }, [targetZone.lat, targetZone.lng]);
 
-  const loadCompanionHistory = () => {
+  const loadCompanionHistory = useCallback(async () => {
     try {
-      const savedHist = localStorage.getItem(historyStorageKey);
-      if (savedHist) {
-        setCompanionHistory(JSON.parse(savedHist));
-      } else {
-        const defaultHistory: CompanionRecord[] = [
-          {
-            id: 'comp-mock-1',
-            name: 'Trần Văn Bình',
-            role: 'Cán bộ đo đạc & Ghi chép',
-            phone: '0912 345 678',
-            checkin_time: new Date(Date.now() - 86400000).toISOString(),
-            distance: 38,
-            distance_meters: 38,
-            selfieUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&fit=crop&q=80',
-            status: 'APPROVED',
-          },
-          {
-            id: 'comp-mock-2',
-            name: 'Lê Hoàng Nam',
-            role: 'Trợ lý kỹ thuật hiện trường',
-            phone: '0988 765 432',
-            checkin_time: new Date(Date.now() - 172800000).toISOString(),
-            distance: 540,
-            distance_meters: 540,
-            notes: 'Hỗ trợ đo vẽ ranh mốc mở rộng tiếp giáp Ga S9',
-            selfieUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&fit=crop&q=80',
-            status: 'FLAGGED_WARNING',
-          },
-        ];
-        setCompanionHistory(defaultHistory);
-        localStorage.setItem(historyStorageKey, JSON.stringify(defaultHistory));
+      const res = await api.get<{ data: AttendanceRecord[] }>('/attendance/my-history?isCompanion=true');
+      const rawRecords = Array.isArray(res.data?.data) ? res.data.data : [];
+      const companionRecords: CompanionRecord[] = rawRecords
+        .filter((item) => Boolean(item.is_companion))
+        .map((item) => {
+          const dt = item.checkin_time ? new Date(item.checkin_time) : new Date();
+          const dist = Math.round(Number(item.distance_to_zone_center_meters ?? item.distance_meters ?? 0));
+          return {
+            id: item.id || `comp-${dt.getTime()}`,
+            name: item.companion_name || 'Cán bộ đi kèm',
+            role: item.companion_role || 'Cán bộ đo đạc & Ghi chép',
+            phone: item.companion_phone || undefined,
+            selfieUrl: resolveAttendancePhotoUrl(item.selfie_photo_url || item.selfiePhotoUrl),
+            time: dt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            date: getVietnamDateString(dt),
+            checkin_time: typeof item.checkin_time === 'string' ? item.checkin_time : dt.toISOString(),
+            zone_id: item.zone_id,
+            distance: dist,
+            distance_meters: dist,
+            coordinates:
+              item.gps_latitude !== undefined && item.gps_longitude !== undefined
+                ? { lat: Number(item.gps_latitude), lng: Number(item.gps_longitude), accuracy: 10 }
+                : null,
+            notes: item.notes || undefined,
+            status: item.verification_status || (dist > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION'),
+          };
+        });
+
+      setCompanionHistory(companionRecords);
+
+      const todayRecords = companionRecords.filter(
+        (rec) => getVietnamDateString(rec.checkin_time || rec.date) === todayStr
+      );
+      setChangeCount(todayRecords.length);
+
+      try {
+        localStorage.setItem(changeCountKey, String(todayRecords.length));
+      } catch (storageErr: unknown) {
+        console.error('[useCompanionCheckInState:loadCompanionHistory] Failed to save count:', storageErr);
       }
-    } catch (_e) {}
-  };
+
+      if (todayRecords.length > 0) {
+        const latestToday = todayRecords[0];
+        setHasCheckedIn(true);
+        setCheckInData(latestToday);
+        setCompanionName(latestToday.name || '');
+        setCompanionRole(latestToday.role || 'Cán bộ đo đạc & Ghi chép');
+        setCompanionPhone(latestToday.phone || '');
+        setSelfieUrl(latestToday.selfieUrl || '');
+        setOutOfBoundsReason(latestToday.notes || '');
+        if (latestToday.distance !== undefined) setDistanceMeters(latestToday.distance);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(latestToday));
+        } catch (storageErr: unknown) {
+          console.error('[useCompanionCheckInState:loadCompanionHistory] Failed to save latest companion:', storageErr);
+        }
+      } else {
+        setHasCheckedIn(false);
+        setCheckInData(null);
+        setSelfieUrl('');
+        setOutOfBoundsReason('');
+        try {
+          localStorage.removeItem(storageKey);
+        } catch (storageErr: unknown) {
+          console.error('[useCompanionCheckInState:loadCompanionHistory] Failed to clear companion cache:', storageErr);
+        }
+      }
+    } catch (err: unknown) {
+      console.error('[useCompanionCheckInState:loadCompanionHistory] Error fetching companion history:', err);
+      setCompanionHistory([]);
+    }
+  }, [todayStr, changeCountKey, storageKey]);
 
   useEffect(() => {
     if (isOpen) {
+      setSubmitError(null);
       getLiveGps();
-      loadCompanionHistory();
-
-      // Load change count for today
-      try {
-        const savedCount = localStorage.getItem(changeCountKey);
-        if (savedCount) {
-          setChangeCount(parseInt(savedCount, 10));
-        } else {
-          const savedCheckin = localStorage.getItem(storageKey);
-          if (savedCheckin) {
-            setChangeCount(1);
-            localStorage.setItem(changeCountKey, '1');
-          } else {
-            setChangeCount(0);
-          }
-        }
-      } catch (_e) {
-        setChangeCount(0);
-      }
-
-      // Load saved companion check-in for today if exists
-      try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setHasCheckedIn(true);
-          setCheckInData(parsed);
-          setCompanionName(parsed.name || '');
-          setCompanionRole(parsed.role || 'Cán bộ đo đạc & Ghi chép');
-          setCompanionPhone(parsed.phone || '');
-          setSelfieUrl(parsed.selfieUrl || '');
-          setOutOfBoundsReason(parsed.notes || '');
-          if (parsed.distance !== undefined) setDistanceMeters(parsed.distance);
-          if (parsed.coordinates) setGpsCoordinates(parsed.coordinates);
-        } else {
-          setHasCheckedIn(false);
-          setCheckInData(null);
-          setSelfieUrl('');
-          setOutOfBoundsReason('');
-        }
-      } catch (_e) {
-        setHasCheckedIn(false);
-      }
+      void loadCompanionHistory();
     }
 
     return () => {
@@ -167,7 +238,7 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isOpen]);
+  }, [isOpen, getLiveGps, loadCompanionHistory]);
 
   const handleStartCamera = async () => {
     setCameraActive(true);
@@ -179,8 +250,8 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (err) {
-      console.warn('Camera error:', err);
+    } catch (err: unknown) {
+      console.error('[useCompanionCheckInState:handleStartCamera] Camera error:', err);
       alert('Không thể mở camera. Vui lòng cấp quyền camera trong trình duyệt.');
       setCameraActive(false);
     }
@@ -196,13 +267,8 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
 
   const handleCapturePhoto = () => {
     if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
+      const dataUrl = captureVideoFrameAsJpeg(videoRef.current, 720, 0.82);
+      if (dataUrl) {
         setSelfieUrl(dataUrl);
       }
       handleStopCamera();
@@ -211,23 +277,30 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
     if (changeCount >= 3) {
-      alert('Đã đạt giới hạn tối đa 3 lần điểm danh / đổi cán bộ đi kèm trong ngày hôm nay.');
+      setSubmitError('Đã đạt giới hạn tối đa 3 lần điểm danh / đổi cán bộ đi kèm trong ngày hôm nay.');
+      return;
+    }
+
+    if (!gpsCoordinates) {
+      setSubmitError('Chưa có tọa độ GPS thực tế. Vui lòng bật định vị và bấm "Lấy lại GPS".');
       return;
     }
 
     if (!companionName.trim()) {
-      alert('Vui lòng nhập họ tên cán bộ đi kèm.');
+      setSubmitError('Vui lòng nhập họ tên cán bộ đi kèm.');
       return;
     }
 
     if (!selfieUrl) {
-      alert('Vui lòng bật camera để chụp ảnh chân dung selfie cho cán bộ đi kèm.');
+      setSubmitError('Vui lòng bật camera để chụp ảnh chân dung selfie cho cán bộ đi kèm.');
       return;
     }
 
     if (distanceMeters > 500 && !outOfBoundsReason.trim()) {
-      alert('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
+      setSubmitError('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
       return;
     }
 
@@ -236,46 +309,71 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
       const now = new Date();
       const checkInTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-      const newRecord: CompanionRecord = {
-        id: `comp-${Date.now()}`,
-        name: companionName.trim(),
-        role: companionRole,
-        phone: companionPhone.trim(),
-        selfieUrl,
-        time: checkInTime,
-        date: todayStr,
-        checkin_time: now.toISOString(),
-        distance: distanceMeters,
-        distance_meters: distanceMeters,
-        coordinates: gpsCoordinates,
+      const payload = {
+        zoneId: targetZone.zoneId,
+        gpsLatitude: gpsCoordinates.lat,
+        gpsLongitude: gpsCoordinates.lng,
+        selfiePhotoUrl: selfieUrl,
         notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
-        status: distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED',
+        isCompanion: true,
+        companionName: companionName.trim(),
+        companionRole,
+        companionPhone: companionPhone.trim() || undefined,
       };
 
-      // Save today's companion checkin isolated
+      const res = await api.post<{ success: boolean; data: CompanionCheckInApiResponse }>(
+        '/attendance/check-in',
+        payload
+      );
+      const resData = res.data?.data;
+      const finalDistance =
+        typeof resData?.distanceToCenterMeters === 'number'
+          ? Math.round(resData.distanceToCenterMeters)
+          : distanceMeters;
+      const storedPhotoUrl = resolveAttendancePhotoUrl(resData?.selfiePhotoUrl) || selfieUrl;
+      const finalStatus =
+        resData?.verificationStatus || (finalDistance > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION');
+
+      const newRecord: CompanionRecord = {
+        id: resData?.checkInId || `comp-${Date.now()}`,
+        name: resData?.companionName || companionName.trim(),
+        role: resData?.companionRole || companionRole,
+        phone: resData?.companionPhone || companionPhone.trim() || undefined,
+        selfieUrl: storedPhotoUrl,
+        time: checkInTime,
+        date: todayStr,
+        checkin_time: resData?.checkInTime || now.toISOString(),
+        zone_id: resData?.zoneId || targetZone.zoneId,
+        distance: finalDistance,
+        distance_meters: finalDistance,
+        coordinates: gpsCoordinates,
+        notes: finalDistance > 500 ? outOfBoundsReason.trim() : undefined,
+        status: finalStatus,
+      };
+
+      const nextCount = typeof resData?.todayCompanionCount === 'number' ? resData.todayCompanionCount : changeCount + 1;
+      setChangeCount(nextCount);
+
       try {
         localStorage.setItem(storageKey, JSON.stringify(newRecord));
-      } catch (_e) {}
-
-      // Update daily change count
-      const nextCount = (changeCount || 0) + 1;
-      setChangeCount(nextCount);
-      try {
         localStorage.setItem(changeCountKey, String(nextCount));
-      } catch (_e) {}
+      } catch (storageErr: unknown) {
+        console.error('[useCompanionCheckInState:handleSubmit] Failed to update localStorage:', storageErr);
+      }
 
-      // Prepend to companion history
-      const updatedHistory = [newRecord, ...companionHistory.filter((item) => item.id !== newRecord.id)];
-      setCompanionHistory(updatedHistory);
-      try {
-        localStorage.setItem(historyStorageKey, JSON.stringify(updatedHistory));
-      } catch (_e) {}
-
+      setSelfieUrl(storedPhotoUrl);
+      setDistanceMeters(finalDistance);
       setHasCheckedIn(true);
       setCheckInData(newRecord);
+      setCompanionHistory((prev) => [newRecord, ...prev.filter((item) => item.id !== newRecord.id)]);
+
+      window.dispatchEvent(new CustomEvent('metro2-attendance-updated'));
       if (onSuccess) onSuccess(newRecord);
     } catch (err: unknown) {
-      console.error('Submit companion error:', err);
+      console.error('[useCompanionCheckInState:handleSubmit] Submit companion error:', err);
+      setSubmitError(
+        getErrorMessage(err, 'Không thể lưu điểm danh cán bộ đi kèm. Vui lòng kiểm tra mạng và thử lại.')
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -298,6 +396,8 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
     gpsCoordinates,
     distanceMeters,
     gpsLoading,
+    gpsError,
+    submitError,
     isSubmitting,
     hasCheckedIn,
     setHasCheckedIn,

@@ -7,12 +7,18 @@ import {
   AlertTriangle,
   UserCheck,
 } from 'lucide-react';
-import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import {
+  resolveAttendancePhotoUrl,
+  type MetroZoneCentroid,
+} from '../../../../core/utils/metroZoneUtils';
 
 interface CompanionCheckInFormProps {
   changeCount: number;
   distanceMeters: number;
   targetZone: MetroZoneCentroid;
+  gpsCoordinates: { lat: number; lng: number; accuracy: number } | null;
+  gpsError?: string | null;
+  submitError?: string | null;
   getLiveGps: () => void;
   gpsLoading: boolean;
   companionName: string;
@@ -38,6 +44,9 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
   changeCount,
   distanceMeters,
   targetZone,
+  gpsCoordinates,
+  gpsError,
+  submitError,
   getLiveGps,
   gpsLoading,
   companionName,
@@ -58,7 +67,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const isOutOfBounds = distanceMeters > 500;
+  const isOutOfBounds = Boolean(gpsCoordinates && distanceMeters > 500);
+  const displaySelfieUrl = resolveAttendancePhotoUrl(selfieUrl);
 
   return (
     <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
@@ -102,39 +112,75 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         style={{
           padding: '0.65rem 0.85rem',
           borderRadius: '0.65rem',
-          border: `1px solid ${isOutOfBounds ? 'rgb(var(--border-red-200))' : 'rgb(var(--border-green-200))'}`,
-          backgroundColor: isOutOfBounds ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
+          border: `1px solid ${isOutOfBounds || gpsError ? 'rgb(var(--border-red-200))' : 'rgb(var(--border-green-200))'}`,
+          backgroundColor: isOutOfBounds || gpsError ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '0.35rem',
           fontSize: '0.775rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <MapPin size={15} color={isOutOfBounds ? '#dc2626' : '#16a34a'} />
-          <span style={{ fontWeight: 700, color: isOutOfBounds ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))' }}>
-            {isOutOfBounds ? `Ngoài bán kính 500m (${targetZone.zoneName})` : `Vị trí hợp lệ`} ({distanceMeters}m)
-          </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <MapPin size={15} color={isOutOfBounds || gpsError ? '#dc2626' : '#16a34a'} />
+            <span style={{ fontWeight: 700, color: isOutOfBounds || gpsError ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))' }}>
+              {gpsError
+                ? 'Chưa nhận được tín hiệu GPS thực địa'
+                : gpsLoading
+                  ? 'Đang quét tọa độ GPS...'
+                  : isOutOfBounds
+                    ? `Ngoài bán kính 500m (${targetZone.zoneName}) (${distanceMeters}m)`
+                    : `Vị trí hợp lệ (${distanceMeters}m tới ${targetZone.zoneName})`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={getLiveGps}
+            className="cursor-pointer"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgb(var(--text-sky-600))',
+              fontSize: '0.725rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+            }}
+          >
+            <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
+            <span>Lấy lại GPS</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={getLiveGps}
+
+        {gpsError && (
+          <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-red-700))' }}>
+            {gpsError}
+          </div>
+        )}
+      </div>
+
+      {/* Submit Error Banner */}
+      {submitError && (
+        <div
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'rgb(var(--text-sky-600))',
-            fontSize: '0.725rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'inline-flex',
+            padding: '0.6rem 0.8rem',
+            borderRadius: '0.5rem',
+            backgroundColor: 'rgb(var(--bg-red-50))',
+            border: '1px solid rgb(var(--border-red-200))',
+            color: 'rgb(var(--text-red-800))',
+            fontSize: '0.775rem',
+            fontWeight: 600,
+            display: 'flex',
             alignItems: 'center',
-            gap: '3px',
+            gap: '0.4rem',
           }}
         >
-          <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
-          <span>Lấy lại GPS</span>
-        </button>
-      </div>
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>{submitError}</span>
+        </div>
+      )}
 
       {/* Companion Name */}
       <div>
@@ -144,7 +190,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         <input
           type="text"
           required
-          placeholder="VD: Trần Văn Bình..."
+          placeholder="Nhập họ và tên đầy đủ..."
           value={companionName}
           onChange={(e) => setCompanionName(e.target.value)}
           style={{
@@ -230,13 +276,13 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
 
         {cameraActive ? (
           <div
+            className="bg-slate-900"
             style={{
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '0.5rem',
-              backgroundColor: '#0f172a',
               padding: '0.65rem',
               borderRadius: '0.65rem',
             }}
@@ -251,9 +297,10 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               <button
                 type="button"
                 onClick={handleCapturePhoto}
+                className="cursor-pointer"
                 style={{
-                  background: '#0284c7',
-                  color: '#ffffff',
+                  background: 'rgb(var(--bg-sky-600))',
+                  color: 'rgb(var(--text-white))',
                   border: 'none',
                   borderRadius: '0.45rem',
                   padding: '0.45rem 1rem',
@@ -271,9 +318,10 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               <button
                 type="button"
                 onClick={handleStopCamera}
+                className="cursor-pointer"
                 style={{
-                  background: '#475569',
-                  color: '#ffffff',
+                  background: 'rgb(var(--bg-slate-600))',
+                  color: 'rgb(var(--text-white))',
                   border: 'none',
                   borderRadius: '0.45rem',
                   padding: '0.45rem 0.85rem',
@@ -287,9 +335,9 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem' }}>
-            {selfieUrl ? (
+            {displaySelfieUrl ? (
               <img
-                src={selfieUrl}
+                src={displaySelfieUrl}
                 alt="Companion Selfie"
                 style={{
                   width: '120px',
@@ -313,17 +361,18 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '4px',
-                  color: '#94a3b8',
+                  color: 'rgb(var(--text-slate-400))',
                 }}
               >
-                <User size={30} color="#cbd5e1" />
-                <span style={{ fontSize: '0.675rem', fontWeight: 600, color: '#94a3b8' }}>Khung chân dung</span>
+                <User size={30} />
+                <span style={{ fontSize: '0.675rem', fontWeight: 600, color: 'rgb(var(--text-slate-400))' }}>Khung chân dung</span>
               </div>
             )}
 
             <button
               type="button"
               onClick={handleStartCamera}
+              className="cursor-pointer"
               style={{
                 background: 'rgb(var(--bg-sky-100))',
                 color: 'rgb(var(--text-sky-600))',
@@ -339,7 +388,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               }}
             >
               <Camera size={13} />
-              <span>{selfieUrl ? 'Chụp lại ảnh' : 'Bật Camera Chụp Selfie'}</span>
+              <span>{displaySelfieUrl ? 'Chụp lại ảnh' : 'Bật Camera Chụp Selfie'}</span>
             </button>
           </div>
         )}
@@ -371,7 +420,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             style={{
               width: '100%',
               padding: '0.55rem 0.75rem',
-              backgroundColor: '#fffaf5',
+              backgroundColor: 'rgb(var(--bg-amber-50))',
               border: '1px solid rgb(var(--border-orange-200))',
               borderRadius: '0.5rem',
               fontSize: '0.8rem',
@@ -387,6 +436,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         <button
           type="button"
           onClick={onClose}
+          className="cursor-pointer"
           style={{
             padding: '0.55rem 1rem',
             borderRadius: '0.5rem',
@@ -402,16 +452,17 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || gpsLoading || !gpsCoordinates}
+          className={isSubmitting || gpsLoading || !gpsCoordinates ? 'disabled:opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           style={{
             padding: '0.55rem 1.25rem',
             borderRadius: '0.5rem',
             border: 'none',
-            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-            color: '#ffffff',
+            background: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--bg-slate-200))' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+            color: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--text-slate-500))' : 'rgb(var(--text-white))',
             fontSize: '0.775rem',
             fontWeight: 700,
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+            cursor: isSubmitting || gpsLoading || !gpsCoordinates ? 'not-allowed' : 'pointer',
             boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
             display: 'flex',
             alignItems: 'center',

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature } from 'lucide-react';
+import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature, KeyRound } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { ChangePasswordModal } from '../profile/ChangePasswordModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
-import { METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
+import { METRO_ZONE_CENTROIDS, getVietnamDateString } from '../../core/utils/metroZoneUtils';
 
 interface Props {
   title?: string;
@@ -25,10 +26,36 @@ export const SurveyorNavbar: React.FC<Props> = ({
   isCheckedInToday,
 }) => {
   const { user, logout } = useAuth();
-  const todayStr = new Date().toISOString().split('T')[0];
-  const isCompanionCheckedIn = !!localStorage.getItem(`metro2_companion_checkin_${todayStr}`);
+  const todayStr = getVietnamDateString();
+  const [isCompanionCheckedIn, setIsCompanionCheckedIn] = useState<boolean>(() => {
+    try {
+      return !!localStorage.getItem(`metro2_companion_checkin_${todayStr}`);
+    } catch (err: unknown) {
+      console.error('[SurveyorNavbar:initCompanionStatus] Error reading companion check-in:', err);
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const syncCompanionStatus = () => {
+      try {
+        const currentToday = getVietnamDateString();
+        setIsCompanionCheckedIn(!!localStorage.getItem(`metro2_companion_checkin_${currentToday}`));
+      } catch (err: unknown) {
+        console.error('[SurveyorNavbar:syncCompanionStatus] Error syncing companion check-in:', err);
+      }
+    };
+    syncCompanionStatus();
+    window.addEventListener('metro2-attendance-updated', syncCompanionStatus);
+    window.addEventListener('storage', syncCompanionStatus);
+    return () => {
+      window.removeEventListener('metro2-attendance-updated', syncCompanionStatus);
+      window.removeEventListener('storage', syncCompanionStatus);
+    };
+  }, [todayStr]);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [lastScrollY, setLastScrollY] = useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -267,6 +294,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                   setShowProfileMenu(false);
                   setShowProfileModal(true);
                 }}
+                className="cursor-pointer"
                 style={{
                   width: '100%',
                   marginTop: '0.5rem',
@@ -286,6 +314,35 @@ export const SurveyorNavbar: React.FC<Props> = ({
               >
                 <UserCheck size={13} />
                 <span>Xem Thẻ Cán Bộ Khảo Sát</span>
+              </button>
+
+              {/* Nút Đổi mật khẩu bảo mật cho KSV */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  setShowChangePasswordModal(true);
+                }}
+                className="cursor-pointer"
+                style={{
+                  width: '100%',
+                  marginTop: '0.35rem',
+                  padding: '0.35rem 0.5rem',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  color: 'rgb(var(--text-slate-700))',
+                  backgroundColor: 'rgb(var(--bg-slate-50))',
+                  border: '1px solid rgb(var(--border-slate-300))',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <KeyRound size={13} />
+                <span>Đổi mật khẩu tài khoản</span>
               </button>
               <div style={{ fontSize: '0.625rem', color: '#94a3b8', textAlign: 'center', marginTop: '3px' }}>
                 SĐT & chữ ký do Ban QLDA quản lý tập trung
@@ -481,6 +538,12 @@ export const SurveyorNavbar: React.FC<Props> = ({
       <UserProfileModal
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
+      />
+
+      {/* Modal Đổi mật khẩu bảo mật cho KSV */}
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
       />
     </header>
   );
