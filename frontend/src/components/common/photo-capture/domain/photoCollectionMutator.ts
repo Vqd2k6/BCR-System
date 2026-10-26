@@ -71,10 +71,10 @@ export function upsertPhotoObjectList<T extends { url: string; photoCode?: strin
     rawUpdated = baseList.map((item) =>
       item.url === replacesUri
         ? {
-            ...item,
             ...normalizedIncoming,
+            ...item,
             url: cleanIncomingUrl,
-            photoCode: normalizedIncoming.photoCode || item.photoCode,
+            photoCode: item.photoCode || normalizedIncoming.photoCode,
           }
         : item
     );
@@ -82,9 +82,10 @@ export function upsertPhotoObjectList<T extends { url: string; photoCode?: strin
     rawUpdated = baseList.map((item) =>
       item.url === cleanIncomingUrl
         ? {
-            ...item,
             ...normalizedIncoming,
-            photoCode: normalizedIncoming.photoCode || item.photoCode,
+            ...item,
+            url: cleanIncomingUrl,
+            photoCode: item.photoCode || normalizedIncoming.photoCode,
           }
         : item
     );
@@ -132,4 +133,33 @@ export function removePhotoObjectAtIndex<T extends { url: string }>(
     primaryUrl: syncPrimaryPhotoUrl(updatedList),
   };
 }
+
+/**
+ * Tính số thứ tự (photoIndex) tiếp theo không trùng lặp cho danh sách ảnh nhiều tấm.
+ * Đảm bảo kể cả khi xóa ảnh ở giữa (VD: có _01, _02 rồi xóa _01 còn [_02]),
+ * ảnh chụp tiếp theo sẽ nhận index = 3 (_03) thay vì bị trùng lại _02.
+ */
+export function resolveNextPhotoIndex(
+  items: readonly (string | { url?: string; photoCode?: string } | null | undefined)[] | undefined | null
+): number {
+  if (!Array.isArray(items) || items.length === 0) {
+    return 1;
+  }
+  let maxIndex = items.length;
+  for (const item of items) {
+    if (!item) continue;
+    const code = typeof item === 'string' ? '' : (item.photoCode || '');
+    if (code) {
+      const match = code.trim().match(/_(\d+)$/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (!Number.isNaN(parsed) && parsed > maxIndex) {
+          maxIndex = parsed;
+        }
+      }
+    }
+  }
+  return maxIndex + 1;
+}
+
 

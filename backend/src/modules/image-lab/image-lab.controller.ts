@@ -246,6 +246,36 @@ export class ImageLabController {
   }
 
   /**
+   * GET /api/v1/image-lab/proxy-image?url=...
+   * Cổng stream nhị phân ảnh gốc có bảo vệ chống SSRF và bật Cache-Control + CORS
+   * giúp Frontend <canvas> / Web Worker giải mã pixel từ Cloudflare R2 không bị Tainted Canvas.
+   */
+  public static async proxyImageForClientCanvas(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const rawUrl = String(req.query?.url || '').trim();
+      if (!rawUrl) {
+        throw new BadRequestError('Thiếu tham số "url" để nạp ảnh.');
+      }
+
+      const buffer = await ImageLabService.resolveBufferFromUrl(rawUrl);
+      const lower = rawUrl.toLowerCase();
+      const contentType = lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg';
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(200).send(buffer);
+    } catch (err: unknown) {
+      console.error('[ImageLabController:proxyImageForClientCanvas] Lỗi stream ảnh cho Client Canvas:', err);
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/v1/image-lab/commit-studio-session
    * Tạo file ảnh mới riêng biệt trên Server sau khi Thẩm định viên xác nhận lưu Studio Img,
    * gắn vào phiên thẩm định hiện tại (bảo toàn ảnh gốc KSV) và dùng cho Báo cáo PDF.

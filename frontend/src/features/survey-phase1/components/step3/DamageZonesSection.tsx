@@ -484,7 +484,11 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                   value=""
                   onChange={(url, code, meta?: PhotoChangeMeta) => {
                     if (url) {
-                      const curPhotos = activeZone.overviewPhotos || [];
+                      const latestFloor =
+                        usePhase1SurveyStore.getState().formData.floors?.find((f) => f.id === currentFloor.id) ||
+                        currentFloor;
+                      const latestZone = latestFloor?.zones?.[activeZoneIndex] || activeZone;
+                      const curPhotos = latestZone.overviewPhotos || [];
 
                       // [ND-04] Sử dụng Trụ cột 1 (upsertPhotoUrlList) thay thế nguyên tử qua meta.replacesUri,
                       // loại bỏ hoàn toàn biến lastTempOverviewUriRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
@@ -492,7 +496,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       const updated = upsertPhotoUrlList(curPhotos, url, meta);
 
                       // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp
-                      let newCtx = activeZone.ctxPhotoUrl;
+                      let newCtx = latestZone.ctxPhotoUrl;
                       if (!newCtx || (replacesUri && newCtx === replacesUri)) {
                         newCtx = url;
                       }
@@ -500,7 +504,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       onUpdateZone(activeZoneIndex, {
                         overviewPhotos: updated,
                         ctxPhotoUrl: newCtx,
-                        ctxPhotoCode: activeZone.ctxPhotoCode || code,
+                        ctxPhotoCode: latestZone.ctxPhotoCode || code,
                       });
                     }
                   }}

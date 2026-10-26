@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
+import { ClientImageLabService } from '../../../../../image-lab/engine/clientImageLabService';
 import type {
   ImageLabPreset,
   ImageEnhancementParams,
@@ -117,6 +118,7 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
     removeSelectedPhoto,
     clearSelectedPhotos,
     stagedAdjustments,
+    committedPreviewsMap,
     setStagedAdjustment,
     removeStagedAdjustment,
     getStudioEnhancedInfo,
@@ -146,6 +148,7 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
   const [isDraggingPan, setIsDraggingPan] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Đảm bảo activeIndex luôn nằm trong phạm vi danh sách ảnh đã chọn
   useEffect(() => {
@@ -158,11 +161,37 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
 
   const activePhoto = selectedPhotos[activeIndex] || null;
   const activeKey = activePhoto ? activePhoto.originalUrl.trim() : '';
-  const activeStaged = activeKey ? stagedAdjustments[activeKey] || stagedAdjustments[activePhoto.url.trim()] : undefined;
-  const result = activeStaged?.result || null;
+  const activeStaged = activeKey
+    ? stagedAdjustments[activeKey] || stagedAdjustments[activePhoto.url.trim()]
+    : undefined;
+  const activeCommittedPreview = activeKey
+    ? committedPreviewsMap[activeKey] || committedPreviewsMap[activePhoto.url.trim()]
+    : undefined;
+  const result = activeStaged?.result || activeCommittedPreview?.result || null;
+  const isActivePhotoAlreadyCommitted = Boolean(
+    !activeStaged &&
+      activePhoto &&
+      (activeCommittedPreview ||
+        getStudioEnhancedInfo(activePhoto.url) ||
+        getStudioEnhancedInfo(activePhoto.originalUrl))
+  );
 
   const stagedList = useMemo(() => Object.values(stagedAdjustments), [stagedAdjustments]);
   const stagedCount = stagedList.length;
+
+  const committedInSelectionCount = useMemo(
+    () =>
+      selectedPhotos.filter(
+        (item) =>
+          Boolean(
+            committedPreviewsMap[item.originalUrl.trim()] ||
+              committedPreviewsMap[item.url.trim()] ||
+              getStudioEnhancedInfo(item.url) ||
+              getStudioEnhancedInfo(item.originalUrl)
+          )
+      ).length,
+    [selectedPhotos, committedPreviewsMap, getStudioEnhancedInfo]
+  );
 
   const buildCustomParams = useCallback((b: number, s: number): ImageEnhancementParams => {
     const isBrighter = b > 1.0;
@@ -175,7 +204,8 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
     };
   }, []);
 
-  // Thực thi xử lý ảnh trên Backend (chỉ tạo bản xem trước trong RAM, chưa lưu tạo file mới trên Server)
+  // Thực thi xử lý ảnh trực tiếp tại Frontend (Client-Side Web Worker + RAM Pixel Cache)
+  // Chỉ tạo bản xem trước trong RAM trình duyệt với độ trễ ~60-120ms, chưa lưu tạo file mới trên Server cho tới khi nhấn Lưu Studio
   const executeProcessingForPhoto = useCallback(
     async (
       photoItem: { url: string; originalUrl: string; title: string; photoCode?: string },
@@ -185,18 +215,12 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
       const sourceUrl = (photoItem.originalUrl || photoItem.url || '').trim();
       if (!sourceUrl) return null;
 
-      const formData = new FormData();
-      formData.append('imageUrl', sourceUrl);
-      formData.append('preset', presetToRun);
-      if (presetToRun === 'CUSTOM' && paramsToRun) {
-        formData.append('customParams', JSON.stringify(paramsToRun));
-      }
-
-      const res = await api.post('/image-lab/process', formData);
-      const data = res.data?.data as ImageLabProcessResult | undefined;
-      if (!data || !data.enhancedPreviewBase64) {
-        throw new Error('Server không trả về dữ liệu ảnh sau xử lý.');
-      }
+      const data = await ClientImageLabService.processImage({
+        file: null,
+        imageUrl: sourceUrl,
+        preset: presetToRun,
+        customParams: presetToRun === 'CUSTOM' ? paramsToRun : undefined,
+      });
 
       setStagedAdjustment(sourceUrl, {
         photoUrl: photoItem.url,
@@ -241,7 +265,9 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
     if (!isOpen || !activePhoto) return;
     const existing =
       stagedAdjustments[activePhoto.originalUrl.trim()] ||
-      stagedAdjustments[activePhoto.url.trim()];
+      stagedAdjustments[activePhoto.url.trim()] ||
+      committedPreviewsMap[activePhoto.originalUrl.trim()] ||
+      committedPreviewsMap[activePhoto.url.trim()];
     if (existing) {
       setActivePreset(existing.presetUsed);
       if (existing.appliedParams) {
@@ -252,6 +278,25 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
     }
     void handleRunActivePhoto('AUTO_SMART');
   }, [isOpen, activePhoto?.originalUrl]);
+
+  // Lắng nghe sự kiện cuộn chuột Native với { passive: false } để triệt tiêu lỗi "Unable to preventDefault inside passive event listener invocation"
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !isOpen) return;
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.35 : -0.35;
+      setZoom((prev) => {
+        const next = Math.min(6.0, Math.max(1.0, Number((prev + delta).toFixed(2))));
+        if (next === 1.0) setPan({ x: 0, y: 0 });
+        return next;
+      });
+    };
+    el.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onNativeWheel);
+    };
+  }, [isOpen]);
 
   // Hỗ trợ phím Spacebar để nhấn giữ đối chiếu Ảnh Gốc
   useEffect(() => {
@@ -325,7 +370,12 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
 
   // XÁC NHẬN LƯU STUDIO: Chỉ lúc này mới gửi tạo file ảnh mới trên Server (lưu riêng với ảnh gốc KSV)
   const handleConfirmCommitStudio = async () => {
+    // Nếu toàn bộ các ảnh đã được lưu vào Studio trước đó và chưa có thay đổi mới, đóng modal để quay về hồ sơ thẩm định
     if (stagedList.length === 0) {
+      if (committedInSelectionCount > 0) {
+        onClose();
+        return;
+      }
       setErrorMsg('Chưa có ảnh nào được áp dụng điều chỉnh để lưu.');
       return;
     }
@@ -389,17 +439,6 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
     setActiveIndex((prev) => (prev + delta + selectedPhotos.length) % selectedPhotos.length);
   };
 
-  // Điều khiển Kính lúp đồng bộ (Synced Zoom & Pan)
-  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.35 : -0.35;
-    setZoom((prev) => {
-      const next = Math.min(6.0, Math.max(1.0, Number((prev + delta).toFixed(2))));
-      if (next === 1.0) setPan({ x: 0, y: 0 });
-      return next;
-    });
-  };
-
   const handleViewportMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     setIsDraggingPan(true);
@@ -459,22 +498,30 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {stagedCount > 0 && (
+            {(stagedCount > 0 || committedInSelectionCount > 0) && (
               <button
                 type="button"
                 onClick={handleConfirmCommitStudio}
                 disabled={isCommitting || isProcessing}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                className={`px-4 py-2 rounded-xl text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95 ${
+                  stagedCount > 0
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
               >
                 {isCommitting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
+                ) : stagedCount > 0 ? (
                   <Save className="w-4 h-4" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
                 )}
                 <span>
                   {isCommitting
                     ? 'Đang tạo ảnh mới & lưu Studio...'
-                    : `Xác Nhận Lưu Studio (${stagedCount} ảnh)`}
+                    : stagedCount > 0
+                      ? `Xác Nhận Lưu Studio (${stagedCount} ảnh)`
+                      : `Đã Lưu Studio (${committedInSelectionCount} ảnh) • Đóng`}
                 </span>
               </button>
             )}
@@ -557,7 +604,11 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                       const itemStaged =
                         stagedAdjustments[item.originalUrl.trim()] ||
                         stagedAdjustments[item.url.trim()];
-                      const committedInfo = getStudioEnhancedInfo(item.url);
+                      const itemCommittedPreview =
+                        committedPreviewsMap[item.originalUrl.trim()] ||
+                        committedPreviewsMap[item.url.trim()];
+                      const committedInfo =
+                        getStudioEnhancedInfo(item.url) || getStudioEnhancedInfo(item.originalUrl);
 
                       return (
                         <div
@@ -576,7 +627,11 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-slate-900 border border-slate-300 shrink-0">
                               <img
-                                src={itemStaged?.result.enhancedPreviewBase64 || item.url}
+                                src={
+                                  itemStaged?.result.enhancedPreviewBase64 ||
+                                  itemCommittedPreview?.result.enhancedPreviewBase64 ||
+                                  item.url
+                                }
                                 alt={item.title}
                                 className="w-full h-full object-cover"
                               />
@@ -763,6 +818,7 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                     value={brightnessSlider}
                     onChange={(e) => setBrightnessSlider(Number(e.target.value))}
                     onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    onTouchEnd={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
                     className="flex-1 accent-amber-500 cursor-pointer"
                   />
 
@@ -813,6 +869,7 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                     value={sharpnessSlider}
                     onChange={(e) => setSharpnessSlider(Number(e.target.value))}
                     onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    onTouchEnd={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
                     className="flex-1 accent-sky-600 cursor-pointer"
                   />
 
@@ -1095,24 +1152,33 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
             )}
 
             {successMsg && (
-              <div className="mx-4 mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between gap-2 shrink-0">
+              <div className="mx-4 mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between gap-2 flex-wrap shrink-0">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>{successMsg}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSuccessMsg(null)}
-                  className="text-emerald-700 hover:text-emerald-950 text-[11px] underline cursor-pointer"
-                >
-                  Ẩn
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow-2xs cursor-pointer"
+                  >
+                    Hoàn tất &amp; Xem trên hồ sơ →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSuccessMsg(null)}
+                    className="text-emerald-700 hover:text-emerald-950 text-[11px] underline cursor-pointer"
+                  >
+                    Ẩn
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Khung Hiển Thị Đối Chứng Ảnh Chính (Bản sau kế bên Bản chính) */}
             <div
-              onWheel={handleWheelZoom}
+              ref={viewportRef}
               onMouseDown={handleViewportMouseDown}
               onMouseMove={handleViewportMouseMove}
               onMouseUp={handleViewportMouseUp}
@@ -1176,11 +1242,17 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                   {/* Khung Phải: Bản Sau Áp Dụng Điều Chỉnh Kế Bên Bản Chính */}
                   <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500 bg-slate-100 flex items-center justify-center shadow-xs">
                     <div className="absolute top-3 left-3 z-20 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-sm flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
+                      {isActivePhotoAlreadyCommitted ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
                       <span>
                         {isHoldingOriginal
                           ? 'ĐANG ĐỐI CHIẾU: BẢN CHÍNH (NHẢ PHÍM SPACE ĐỂ QUAY LẠI)'
-                          : `2. BẢN SAU ĐIỀU CHỈNH (${result.presetUsed} • CHỜ LƯU STUDIO)`}
+                          : isActivePhotoAlreadyCommitted
+                            ? `2. BẢN STUDIO ĐÃ LƯU (${result.presetUsed} • ĐÃ LƯU VÀO PHIÊN THẨM ĐỊNH)`
+                            : `2. BẢN SAU ĐIỀU CHỈNH (${result.presetUsed} • CHỜ LƯU STUDIO)`}
                       </span>
                     </div>
                     <img
@@ -1289,7 +1361,15 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 <span>
                   Đã chọn <strong>{selectedPhotos.length} ảnh</strong> &bull; Đã áp dụng điều chỉnh chờ lưu:{' '}
-                  <strong className="text-emerald-700">{stagedCount} ảnh</strong>. Chỉ tạo mới file ảnh độc lập trên Server sau khi bấm{' '}
+                  <strong className="text-emerald-700">{stagedCount} ảnh</strong>
+                  {committedInSelectionCount > 0 && (
+                    <>
+                      {' '}
+                      &bull; Đã lưu Studio:{' '}
+                      <strong className="text-indigo-700">{committedInSelectionCount} ảnh</strong>
+                    </>
+                  )}
+                  . Chỉ tạo mới file ảnh độc lập trên Server sau khi bấm{' '}
                   <strong>&ldquo;Xác Nhận Lưu Studio&rdquo;</strong>.
                 </span>
               </div>
@@ -1305,18 +1385,26 @@ export const AuditStudioImgModal: React.FC<AuditStudioImgModalProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmCommitStudio}
-                  disabled={stagedCount === 0 || isCommitting || isProcessing}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  disabled={(stagedCount === 0 && committedInSelectionCount === 0) || isCommitting || isProcessing}
+                  className={`px-5 py-2 rounded-xl text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95 ${
+                    stagedCount > 0
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
                 >
                   {isCommitting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
+                  ) : stagedCount > 0 ? (
                     <Save className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
                   )}
                   <span>
                     {isCommitting
                       ? 'Đang tạo mới & lưu vào phiên thẩm định...'
-                      : `Xác Nhận Lưu Studio (${stagedCount} ảnh)`}
+                      : stagedCount > 0
+                        ? `Xác Nhận Lưu Studio (${stagedCount} ảnh)`
+                        : `Đã Lưu Studio (${committedInSelectionCount} ảnh) • Hoàn Tất & Quay Lại Hồ Sơ`}
                   </span>
                 </button>
               </div>

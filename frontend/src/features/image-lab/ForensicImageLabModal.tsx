@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
+import { ClientImageLabService } from './engine/clientImageLabService';
 
 export type ImageLabPreset =
   | 'AUTO_SMART'
@@ -340,6 +341,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [isDraggingPan, setIsDraggingPan] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Danh sách 100 ảnh khảo sát thực tế (tối đa 5 ảnh/căn) để chọn nhanh & duyệt tuần tự
   const [recentPhotos, setRecentPhotos] = useState<SampleSurveyPhoto[]>([]);
@@ -443,7 +445,8 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
     };
   }, [isOpen, result]);
 
-  // Thực thi xử lý ảnh trên Backend
+  // Thực thi xử lý ảnh trực tiếp tại Frontend (Client-Side Web Worker + RAM Pixel Cache)
+  // Chỉ giải mã JPEG 1 lần duy nhất cho mỗi ảnh, đổi Preset hoặc kéo thanh trượt tốn ~50-120ms (0ms mạng)
   const executeProcessing = useCallback(
     async (
       targetFile: File | null,
@@ -460,22 +463,12 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setErrorMsg(null);
 
       try {
-        const formData = new FormData();
-        if (targetFile) {
-          formData.append('file', targetFile);
-        } else if (targetUrl.trim()) {
-          formData.append('imageUrl', targetUrl.trim());
-        }
-        formData.append('preset', presetToRun);
-        if (presetToRun === 'CUSTOM' && paramsToRun) {
-          formData.append('customParams', JSON.stringify(paramsToRun));
-        }
-
-        const res = await api.post('/image-lab/process', formData);
-        const data = res.data?.data as ImageLabProcessResult | undefined;
-        if (!data || !data.enhancedPreviewBase64) {
-          throw new Error('Server không trả về dữ liệu ảnh sau xử lý.');
-        }
+        const data = await ClientImageLabService.processImage({
+          file: targetFile,
+          imageUrl: targetUrl.trim(),
+          preset: presetToRun,
+          customParams: presetToRun === 'CUSTOM' ? paramsToRun : undefined,
+        });
 
         setResult(data);
         if (data.appliedParams) {
@@ -483,8 +476,8 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
           setSharpnessSlider(data.appliedParams.sharpenJaggedM2 ?? 2.4);
         }
       } catch (err: unknown) {
-        console.error('[ForensicImageLabModal:executeProcessing] Lỗi xử lý ảnh:', err);
-        setErrorMsg(getErrorMessage(err, 'Không thể xử lý ảnh. Vui lòng kiểm tra kết nối Backend.'));
+        console.error('[ForensicImageLabModal:executeProcessing] Lỗi xử lý ảnh Client-Side:', err);
+        setErrorMsg(getErrorMessage(err, 'Không thể xử lý ảnh trên trình duyệt.'));
       } finally {
         setIsProcessing(false);
       }
@@ -591,16 +584,24 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
     document.body.removeChild(a);
   };
 
-  // Điều khiển Kính lúp đồng bộ (Synced Zoom & Pan)
-  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.35 : -0.35;
-    setZoom((prev) => {
-      const next = Math.min(6.0, Math.max(1.0, Number((prev + delta).toFixed(2))));
-      if (next === 1.0) setPan({ x: 0, y: 0 });
-      return next;
-    });
-  };
+  // Điều khiển Kính lúp đồng bộ (Synced Zoom & Pan) qua Native Wheel Listener ({ passive: false })
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !isOpen) return;
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.35 : -0.35;
+      setZoom((prev) => {
+        const next = Math.min(6.0, Math.max(1.0, Number((prev + delta).toFixed(2))));
+        if (next === 1.0) setPan({ x: 0, y: 0 });
+        return next;
+      });
+    };
+    el.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onNativeWheel);
+    };
+  }, [isOpen]);
 
   const handleViewportMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -1008,6 +1009,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       setBrightnessSlider(next);
                     }}
                     onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    onTouchEnd={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
                     className="flex-1 accent-amber-500 cursor-pointer"
                   />
 
@@ -1062,6 +1064,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       setSharpnessSlider(next);
                     }}
                     onMouseUp={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
+                    onTouchEnd={() => handleApplySliders(brightnessSlider, sharpnessSlider)}
                     className="flex-1 accent-sky-600 cursor-pointer"
                   />
 
@@ -1402,7 +1405,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
             {/* Khung Hiển Thị Đối Chứng Ảnh Chính (Tone Sáng) */}
             <div
-              onWheel={handleWheelZoom}
+              ref={viewportRef}
               onMouseDown={handleViewportMouseDown}
               onMouseMove={handleViewportMouseMove}
               onMouseUp={handleViewportMouseUp}

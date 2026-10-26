@@ -56,6 +56,10 @@ export function usePhotoUpload({
   const [hasLoadError, setHasLoadError] = useState(false);
   const lastBlobRef = useRef<Blob | null>(null);
   const currentLocalIdRef = useRef<string | null>(null);
+  // Ánh xạ bất biến localId -> photoCode tại đúng thời điểm chụp để tránh bị ghi đè bởi displayPhotoCode của tấm tiếp theo
+  const localIdToCodeMapRef = useRef<Map<string, string>>(new Map());
+  // Tập hợp các localId đã phát onChange thăng cấp lên R2 (chống gọi đúp giữa onSuccess và sự kiện metro2:photo-promoted)
+  const promotedLocalIdsRef = useRef<Set<string>>(new Set());
   // Luôn gọi onChange của lần render MỚI NHẤT (tránh ghi đè bằng state cũ khi upload xong muộn)
   const onChangeRef = useRef(onChange);
   const mountedRef = useRef(true);
@@ -80,14 +84,23 @@ export function usePhotoUpload({
   useEffect(() => {
     const handlePhotoPromoted = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail && detail.localId === currentLocalIdRef.current) {
-        setUploadStatus('SUCCESS');
-        if (detail.publicUrl) {
-          onChangeRef.current(detail.publicUrl, displayPhotoCode, {
-            replacesUri: `blob:local://${detail.localId}`,
-          });
-        }
+      if (!detail?.localId || !detail?.publicUrl) return;
+
+      const isTrackedLocalId =
+        detail.localId === currentLocalIdRef.current ||
+        localIdToCodeMapRef.current.has(detail.localId);
+      if (!isTrackedLocalId) return;
+
+      setUploadStatus('SUCCESS');
+      // Nếu onSuccess của startDirectUpload đã xử lý phát onChange cho localId này rồi thì không phát trùng lần 2
+      if (promotedLocalIdsRef.current.has(detail.localId)) {
+        return;
       }
+      promotedLocalIdsRef.current.add(detail.localId);
+      const originalCode = localIdToCodeMapRef.current.get(detail.localId) || displayPhotoCode;
+      onChangeRef.current(detail.publicUrl, originalCode, {
+        replacesUri: `blob:local://${detail.localId}`,
+      });
     };
 
     window.addEventListener('metro2:photo-promoted', handlePhotoPromoted);
@@ -178,6 +191,9 @@ export function usePhotoUpload({
 
     const { targetFolder, selfDescribingFilename, metadata } = extractPhotoDetails(code, customCapturedAt);
     const filename = selfDescribingFilename || `${(code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo')}_${Date.now()}.jpg`;
+    if (localId && code) {
+      localIdToCodeMapRef.current.set(localId, code);
+    }
 
     uploadQueue.enqueue(blob, filename, {
       // Truyền đúng localId để hàng đợi ghi mapping bền + thăng cấp URL trong các store đang mở
@@ -188,14 +204,20 @@ export function usePhotoUpload({
       onSuccess: async (publicUrl) => {
         if (mountedRef.current) {
           setUploadStatus('SUCCESS');
-          onChangeRef.current(
-            publicUrl,
-            code,
-            {
-              ...(localId ? { replacesUri: `blob:local://${localId}` } : {}),
-              capturedAt: metadata['captured-at'],
+          if (!localId || !promotedLocalIdsRef.current.has(localId)) {
+            if (localId) {
+              promotedLocalIdsRef.current.add(localId);
             }
-          );
+            const resolvedCode = (localId && localIdToCodeMapRef.current.get(localId)) || code;
+            onChangeRef.current(
+              publicUrl,
+              resolvedCode,
+              {
+                ...(localId ? { replacesUri: `blob:local://${localId}` } : {}),
+                capturedAt: metadata['captured-at'],
+              }
+            );
+          }
         }
         // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy)
         // và giải phóng ObjectURL trong RAM. File nhị phân vẫn được lưu an toàn trong IndexedDB.
@@ -239,6 +261,7 @@ export function usePhotoUpload({
     // 2. Tạo ID offline duy nhất
     const localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     currentLocalIdRef.current = localId;
+    localIdToCodeMapRef.current.set(localId, photoCode);
 
     // 3. Trích xuất metadata pháp lý
     const { metadata } = extractPhotoDetails(photoCode);
@@ -271,6 +294,7 @@ export function usePhotoUpload({
     const photoCode = overrideCode || displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
     const localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     currentLocalIdRef.current = localId;
+    localIdToCodeMapRef.current.set(localId, photoCode);
 
     const { metadata } = extractPhotoDetails(photoCode);
     await saveOfflinePhoto(localId, blob, photoCode, metadata);

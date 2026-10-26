@@ -5,7 +5,7 @@ import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanva
 import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../types/phase1.types';
 
 import { FloorTabsNavigation } from './step3/FloorTabsNavigation';
-import { Step3FloorOverviewSection } from './step3/Step3FloorOverviewSection';
+import { Step3FloorOverviewSection, type FloorOverviewPhotoItem } from './step3/Step3FloorOverviewSection';
 import { DamageZonesSection } from './step3/DamageZonesSection';
 import { StructuralElementsSection } from './step3/StructuralElementsSection';
 import { SaggingMonitoringSection } from './step3/SaggingMonitoringSection';
@@ -180,13 +180,32 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     setActiveElementIndex(0);
   };
 
-  // Cập nhật ảnh chụp tổng quan tầng
-  const handleUpdateFloorOverviewPhotos = (photos: { id: string; url: string; caption?: string }[]) => {
+  // Cập nhật ảnh chụp tổng quan tầng (hỗ trợ cả mảng trực tiếp lẫn hàm updater nguyên tử chống stale closure)
+  const handleUpdateFloorOverviewPhotos = (
+    photosOrUpdater:
+      | FloorOverviewPhotoItem[]
+      | ((prevPhotos: FloorOverviewPhotoItem[]) => FloorOverviewPhotoItem[])
+  ) => {
     updateFormData((prev) => {
       const updatedFloors = [...prev.floors];
-      const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      const targetIdx = updatedFloors[activeFloorIndex] ? activeFloorIndex : 0;
+      const cur = updatedFloors[targetIdx];
       if (!cur) return prev;
-      updatedFloors[activeFloorIndex] = { ...cur, overviewPhotos: photos };
+      const rawPrev = cur.overviewPhotos || [];
+      const normalizedPrev: FloorOverviewPhotoItem[] = rawPrev.map(
+        (p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) =>
+          typeof p === 'string'
+            ? { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' }
+            : {
+                id: p?.id || `fl_ov_${idx}`,
+                url: p?.url || '',
+                caption: p?.caption || '',
+                photoCode: p?.photoCode || '',
+              }
+      );
+      const nextPhotos =
+        typeof photosOrUpdater === 'function' ? photosOrUpdater(normalizedPrev) : photosOrUpdater;
+      updatedFloors[targetIdx] = { ...cur, overviewPhotos: nextPhotos };
       return { ...prev, floors: updatedFloors };
     });
   };
@@ -412,80 +431,86 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     }
   };
 
-  // Cập nhật Vùng Z kèm tính toán Burland Grade
+  // Cập nhật Vùng Z kèm tính toán Burland Grade (dùng functional updateFormData chống stale closure khi upload ảnh ngầm)
   const handleUpdateZone = (zIdx: number, updater: Partial<DamageZoneData>) => {
-    const updatedZones = [...zones];
-    const currentZ = updatedZones[zIdx];
-    if (!currentZ) return;
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const targetIdx = updatedFloors[activeFloorIndex] ? activeFloorIndex : 0;
+      const curFloor = updatedFloors[targetIdx];
+      if (!curFloor) return prev;
 
-    const merged = { ...currentZ, ...updater };
-    if (merged.defects && merged.defects.length > 0) {
-      let maxBurland = 0;
-      let repairNeeded = false;
-      merged.defects.forEach((d) => {
-        const w = d.widthMaxMm || 0;
-        let bGrade = 0;
-        if (w <= 0.1) bGrade = 0;
-        else if (w <= 1) bGrade = 1;
-        else if (w <= 5) bGrade = 2;
-        else if (w <= 15) bGrade = 3;
-        else if (w <= 25) bGrade = 4;
-        else bGrade = 5;
+      const updatedZones = [...(curFloor.zones || [])];
+      const currentZ = updatedZones[zIdx];
+      if (!currentZ) return prev;
 
-        if (bGrade > maxBurland) maxBurland = bGrade;
-        if (bGrade >= 2 || (d.functionalImpactE6 && d.functionalImpactE6 >= 1)) {
-          repairNeeded = true;
+      const merged = { ...currentZ, ...updater };
+      if (merged.defects && merged.defects.length > 0) {
+        let maxBurland = 0;
+        let repairNeeded = false;
+        merged.defects.forEach((d) => {
+          const w = d.widthMaxMm || 0;
+          let bGrade = 0;
+          if (w <= 0.1) bGrade = 0;
+          else if (w <= 1) bGrade = 1;
+          else if (w <= 5) bGrade = 2;
+          else if (w <= 15) bGrade = 3;
+          else if (w <= 25) bGrade = 4;
+          else bGrade = 5;
+
+          if (bGrade > maxBurland) maxBurland = bGrade;
+          if (bGrade >= 2 || (d.functionalImpactE6 && d.functionalImpactE6 >= 1)) {
+            repairNeeded = true;
+          }
+        });
+        merged.burlandGrade = maxBurland;
+        merged.functionalImpactRepairNeeded = repairNeeded;
+      } else {
+        merged.burlandGrade = 0;
+        merged.functionalImpactRepairNeeded = false;
+      }
+
+      if (zIdx > 0) {
+        const customSet = new Set(merged.customizedFields || []);
+        if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
+        if (updater.componentType !== undefined || updater.customComponentType !== undefined) customSet.add('componentType');
+        if (updater.wallMaterial !== undefined || updater.customWallMaterial !== undefined) customSet.add('wallMaterial');
+        merged.customizedFields = Array.from(customSet);
+      }
+      updatedZones[zIdx] = merged;
+
+      // Dây chuyền cascade Z_i-1 -> Z_i cho các vùng tiếp theo chưa tùy chỉnh
+      for (let k = zIdx + 1; k < updatedZones.length; k++) {
+        const nextZone = { ...updatedZones[k] };
+        const nextCustom = nextZone.customizedFields || [];
+        const sourceZone = updatedZones[k - 1];
+        let nextChanged = false;
+
+        if (!nextCustom.includes('roomName') && sourceZone.roomName) {
+          nextZone.roomName = sourceZone.roomName;
+          nextZone.customRoomName = sourceZone.customRoomName || '';
+          nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+          nextChanged = true;
         }
-      });
-      merged.burlandGrade = maxBurland;
-      merged.functionalImpactRepairNeeded = repairNeeded;
-    } else {
-      merged.burlandGrade = 0;
-      merged.functionalImpactRepairNeeded = false;
-    }
-
-    if (zIdx > 0) {
-      const customSet = new Set(merged.customizedFields || []);
-      if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
-      if (updater.componentType !== undefined || updater.customComponentType !== undefined) customSet.add('componentType');
-      if (updater.wallMaterial !== undefined || updater.customWallMaterial !== undefined) customSet.add('wallMaterial');
-      merged.customizedFields = Array.from(customSet);
-    }
-    updatedZones[zIdx] = merged;
-
-    // Dây chuyền cascade Z_i-1 -> Z_i cho các vùng tiếp theo chưa tùy chỉnh
-    for (let k = zIdx + 1; k < updatedZones.length; k++) {
-      const nextZone = { ...updatedZones[k] };
-      const nextCustom = nextZone.customizedFields || [];
-      const sourceZone = updatedZones[k - 1];
-      let nextChanged = false;
-
-      if (!nextCustom.includes('roomName') && sourceZone.roomName) {
-        nextZone.roomName = sourceZone.roomName;
-        nextZone.customRoomName = sourceZone.customRoomName || '';
-        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
-        nextChanged = true;
+        if (!nextCustom.includes('componentType') && sourceZone.componentType) {
+          nextZone.componentType = sourceZone.componentType;
+          nextZone.customComponentType = sourceZone.customComponentType || '';
+          nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+          nextChanged = true;
+        }
+        if (!nextCustom.includes('wallMaterial') && sourceZone.wallMaterial) {
+          nextZone.wallMaterial = sourceZone.wallMaterial;
+          nextZone.customWallMaterial = sourceZone.customWallMaterial || '';
+          nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+          nextChanged = true;
+        }
+        if (nextChanged) {
+          updatedZones[k] = nextZone;
+        }
       }
-      if (!nextCustom.includes('componentType') && sourceZone.componentType) {
-        nextZone.componentType = sourceZone.componentType;
-        nextZone.customComponentType = sourceZone.customComponentType || '';
-        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
-        nextChanged = true;
-      }
-      if (!nextCustom.includes('wallMaterial') && sourceZone.wallMaterial) {
-        nextZone.wallMaterial = sourceZone.wallMaterial;
-        nextZone.customWallMaterial = sourceZone.customWallMaterial || '';
-        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
-        nextChanged = true;
-      }
-      if (nextChanged) {
-        updatedZones[k] = nextZone;
-      }
-    }
 
-    const updatedFloors = [...formData.floors];
-    updatedFloors[activeFloorIndex] = { ...currentFloor, zones: updatedZones };
-    updateFormData({ floors: updatedFloors });
+      updatedFloors[targetIdx] = { ...curFloor, zones: updatedZones };
+      return { ...prev, floors: updatedFloors };
+    });
   };
 
   // Xóa Vùng Z
@@ -503,54 +528,60 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     }
   };
 
-  // Cập nhật Vùng E
+  // Cập nhật Vùng E (dùng functional updateFormData chống stale closure khi upload ảnh ngầm)
   const handleUpdateElement = (eIdx: number, updater: Partial<StructuralElementData>) => {
-    const updatedElements = [...structuralElements];
-    if (!updatedElements[eIdx]) return;
-    const merged = { ...updatedElements[eIdx], ...updater };
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const targetIdx = updatedFloors[activeFloorIndex] ? activeFloorIndex : 0;
+      const curFloor = updatedFloors[targetIdx];
+      if (!curFloor) return prev;
 
-    if (eIdx > 0) {
-      const customSet = new Set(merged.customizedFields || []);
-      if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
-      if (updater.elementType !== undefined || updater.customElementType !== undefined) customSet.add('elementType');
-      if (updater.materialType !== undefined || updater.customMaterialType !== undefined) customSet.add('materialType');
-      merged.customizedFields = Array.from(customSet);
-    }
-    updatedElements[eIdx] = merged;
+      const updatedElements = [...(curFloor.structuralElements || [])];
+      if (!updatedElements[eIdx]) return prev;
+      const merged = { ...updatedElements[eIdx], ...updater };
 
-    // Dây chuyền cascade E_i-1 -> E_i cho các vùng tiếp theo chưa tùy chỉnh
-    for (let k = eIdx + 1; k < updatedElements.length; k++) {
-      const nextEl = { ...updatedElements[k] };
-      const nextCustom = nextEl.customizedFields || [];
-      const sourceEl = updatedElements[k - 1];
-      let nextChanged = false;
+      if (eIdx > 0) {
+        const customSet = new Set(merged.customizedFields || []);
+        if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
+        if (updater.elementType !== undefined || updater.customElementType !== undefined) customSet.add('elementType');
+        if (updater.materialType !== undefined || updater.customMaterialType !== undefined) customSet.add('materialType');
+        merged.customizedFields = Array.from(customSet);
+      }
+      updatedElements[eIdx] = merged;
 
-      if (!nextCustom.includes('roomName') && sourceEl.roomName) {
-        nextEl.roomName = sourceEl.roomName;
-        nextEl.customRoomName = sourceEl.customRoomName || '';
-        nextEl.syncedFromElementCode = sourceEl.elementCode;
-        nextChanged = true;
-      }
-      if (!nextCustom.includes('elementType') && sourceEl.elementType) {
-        nextEl.elementType = sourceEl.elementType;
-        nextEl.customElementType = sourceEl.customElementType || '';
-        nextEl.syncedFromElementCode = sourceEl.elementCode;
-        nextChanged = true;
-      }
-      if (!nextCustom.includes('materialType') && sourceEl.materialType) {
-        nextEl.materialType = sourceEl.materialType;
-        nextEl.customMaterialType = sourceEl.customMaterialType || '';
-        nextEl.syncedFromElementCode = sourceEl.elementCode;
-        nextChanged = true;
-      }
-      if (nextChanged) {
-        updatedElements[k] = nextEl;
-      }
-    }
+      // Dây chuyền cascade E_i-1 -> E_i cho các vùng tiếp theo chưa tùy chỉnh
+      for (let k = eIdx + 1; k < updatedElements.length; k++) {
+        const nextEl = { ...updatedElements[k] };
+        const nextCustom = nextEl.customizedFields || [];
+        const sourceEl = updatedElements[k - 1];
+        let nextChanged = false;
 
-    const updatedFloors = [...formData.floors];
-    updatedFloors[activeFloorIndex] = { ...currentFloor, structuralElements: updatedElements };
-    updateFormData({ floors: updatedFloors });
+        if (!nextCustom.includes('roomName') && sourceEl.roomName) {
+          nextEl.roomName = sourceEl.roomName;
+          nextEl.customRoomName = sourceEl.customRoomName || '';
+          nextEl.syncedFromElementCode = sourceEl.elementCode;
+          nextChanged = true;
+        }
+        if (!nextCustom.includes('elementType') && sourceEl.elementType) {
+          nextEl.elementType = sourceEl.elementType;
+          nextEl.customElementType = sourceEl.customElementType || '';
+          nextEl.syncedFromElementCode = sourceEl.elementCode;
+          nextChanged = true;
+        }
+        if (!nextCustom.includes('materialType') && sourceEl.materialType) {
+          nextEl.materialType = sourceEl.materialType;
+          nextEl.customMaterialType = sourceEl.customMaterialType || '';
+          nextEl.syncedFromElementCode = sourceEl.elementCode;
+          nextChanged = true;
+        }
+        if (nextChanged) {
+          updatedElements[k] = nextEl;
+        }
+      }
+
+      updatedFloors[targetIdx] = { ...curFloor, structuralElements: updatedElements };
+      return { ...prev, floors: updatedFloors };
+    });
   };
 
   // Xóa Vùng E

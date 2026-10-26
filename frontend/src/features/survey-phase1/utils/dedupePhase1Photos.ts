@@ -42,9 +42,37 @@ export function dedupeFloorOverviewPhotos(
     const trimmedCode = item.photoCode?.trim();
     if (trimmedCode) {
       if (seenCodes.has(trimmedCode)) {
-        continue;
+        // Chỉ gộp nếu 1 bản là blob:local:// tạm thời và 1 bản là URL Cloud đã thăng cấp của cùng 1 tấm ảnh
+        const existingIdx = result.findIndex((p) => p.photoCode?.trim() === trimmedCode);
+        if (existingIdx >= 0) {
+          const existing = result[existingIdx];
+          const isExistingLocal = existing.url.startsWith('blob:local://');
+          const isIncomingLocal = trimmedUrl.startsWith('blob:local://');
+          if (isExistingLocal !== isIncomingLocal) {
+            // Ưu tiên giữ URL Cloud R2 và bảo toàn caption/id của tấm ảnh gốc
+            if (isExistingLocal && !isIncomingLocal) {
+              result[existingIdx] = {
+                ...existing,
+                url: trimmedUrl,
+                caption: existing.caption || item.caption,
+              };
+            } else if (item.caption && !existing.caption) {
+              result[existingIdx] = { ...existing, caption: item.caption };
+            }
+            continue;
+          }
+        }
+        // Nếu cả 2 đều là ảnh độc lập (khác URL, cùng loại local hoặc cùng loại cloud),
+        // tuyệt đối KHÔNG xóa ảnh mà cấp lại hậu tố STT mới để bảo toàn đầy đủ cả 2 tấm ảnh
+        const nextIdx = result.length + 1;
+        const reindexedCode = /_\d+$/.test(trimmedCode)
+          ? trimmedCode.replace(/_\d+$/, `_${String(nextIdx).padStart(2, '0')}`)
+          : `${trimmedCode}_${String(nextIdx).padStart(2, '0')}`;
+        item.photoCode = reindexedCode;
+        seenCodes.add(reindexedCode);
+      } else {
+        seenCodes.add(trimmedCode);
       }
-      seenCodes.add(trimmedCode);
     }
 
     result.push(item);

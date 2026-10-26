@@ -5,13 +5,28 @@ import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumb
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import type { FloorSurveyData } from '../../types/phase1.types';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
-import { upsertPhotoObjectList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
+import {
+  upsertPhotoObjectList,
+  resolveNextPhotoIndex,
+} from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
+import { generateMetroPhotoCode } from '../../../../utils/watermarkEngine';
+
+export type FloorOverviewPhotoItem = {
+  id: string;
+  url: string;
+  caption?: string;
+  photoCode?: string;
+};
 
 interface Step3FloorOverviewSectionProps {
   currentFloor: FloorSurveyData;
   activeFloorIndex: number;
   projectParcelCode?: string;
-  onUpdateOverviewPhotos: (photos: { id: string; url: string; caption?: string; photoCode?: string }[]) => void;
+  onUpdateOverviewPhotos: (
+    photosOrUpdater:
+      | FloorOverviewPhotoItem[]
+      | ((prevPhotos: FloorOverviewPhotoItem[]) => FloorOverviewPhotoItem[])
+  ) => void;
 }
 
 export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps> = ({
@@ -21,65 +36,84 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
   onUpdateOverviewPhotos,
 }) => {
   const rawPhotos = currentFloor.overviewPhotos || [];
-  const normalizedPhotos = rawPhotos.map((p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
-    if (typeof p === 'string') {
-      return { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' };
+  const normalizedPhotos: FloorOverviewPhotoItem[] = rawPhotos.map(
+    (p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
+      if (typeof p === 'string') {
+        return { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' };
+      }
+      return {
+        id: p?.id || `fl_ov_${idx}`,
+        url: p?.url || '',
+        caption: p?.caption || '',
+        photoCode: p?.photoCode || '',
+      };
     }
-    return {
-      id: p?.id || `fl_ov_${idx}`,
-      url: p?.url || '',
-      caption: p?.caption || '',
-      photoCode: p?.photoCode || '',
-    };
-  });
+  );
 
-  // Tự động lọc trùng (self-heal) theo URL hoặc photoCode để xử lý triệt để bản nháp cũ
+  // Chỉ lọc trùng theo URL (tuyệt đối KHÔNG lọc bỏ theo photoCode để tránh làm ẩn mất ảnh chụp mới)
   const seenUrls = new Set<string>();
   const seenCodes = new Set<string>();
-  const photos = normalizedPhotos.filter((p) => {
-    if (p.url && seenUrls.has(p.url)) return false;
-    if (p.url) seenUrls.add(p.url);
-    if (p.photoCode && seenCodes.has(p.photoCode)) return false;
-    if (p.photoCode) seenCodes.add(p.photoCode);
-    return true;
-  });
+  const photos: FloorOverviewPhotoItem[] = [];
+  for (let idx = 0; idx < normalizedPhotos.length; idx++) {
+    const p = normalizedPhotos[idx];
+    if (!p.url) continue;
+    if (seenUrls.has(p.url)) continue;
+    seenUrls.add(p.url);
+
+    let effectiveCode = p.photoCode || '';
+    if (effectiveCode && seenCodes.has(effectiveCode)) {
+      effectiveCode = generateMetroPhotoCode({
+        parcelCode: projectParcelCode,
+        floor: currentFloor.floorName,
+        photoType: 'OVERVIEW',
+        photoIndex: resolveNextPhotoIndex(photos),
+      });
+    }
+    if (effectiveCode) {
+      seenCodes.add(effectiveCode);
+    }
+    photos.push({ ...p, photoCode: effectiveCode });
+  }
 
   const handleAddPhoto = (url: string, code?: string, meta?: PhotoChangeMeta) => {
     if (!url) return;
 
-    // [ND-04] Sử dụng Trụ cột 1 (PhotoCollectionMutator) thay thế nguyên tử qua meta.replacesUri,
-    // loại bỏ hoàn toàn biến lastTempPhotoIdRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
-    if (!meta?.replacesUri && code) {
-      const codeIdx = photos.findIndex((p) => p.photoCode && p.photoCode === code);
-      if (codeIdx >= 0) {
-        const updatedByCode = [...photos];
-        updatedByCode[codeIdx] = { ...updatedByCode[codeIdx], url };
-        onUpdateOverviewPhotos(updatedByCode);
-        return;
+    onUpdateOverviewPhotos((latestPhotos) => {
+      let effectiveCode = code || '';
+      // Khi chụp thêm ảnh mới (!meta?.replacesUri), nếu mã bị trùng với ảnh đã có trong danh sách thì cấp mã STT tiếp theo
+      if (
+        !meta?.replacesUri &&
+        (!effectiveCode || latestPhotos.some((p) => p.photoCode === effectiveCode && p.url !== url))
+      ) {
+        effectiveCode = generateMetroPhotoCode({
+          parcelCode: projectParcelCode,
+          floor: currentFloor.floorName,
+          photoType: 'OVERVIEW',
+          photoIndex: resolveNextPhotoIndex(latestPhotos),
+        });
       }
-    }
 
-    const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const updated = upsertPhotoObjectList(
-      photos,
-      {
-        id: newId,
-        url,
-        caption: '',
-        photoCode: code || '',
-      },
-      meta
-    );
-    onUpdateOverviewPhotos(updated);
+      const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      return upsertPhotoObjectList(
+        latestPhotos,
+        {
+          id: newId,
+          url,
+          caption: '',
+          photoCode: effectiveCode,
+        },
+        meta
+      );
+    });
   };
 
   const handleRemovePhoto = (photoId: string) => {
-    onUpdateOverviewPhotos(photos.filter((p) => p.id !== photoId));
+    onUpdateOverviewPhotos((latestPhotos) => latestPhotos.filter((p) => p.id !== photoId));
   };
 
   const handleUpdateCaption = (photoId: string, caption: string) => {
-    onUpdateOverviewPhotos(
-      photos.map((p) => (p.id === photoId ? { ...p, caption } : p))
+    onUpdateOverviewPhotos((latestPhotos) =>
+      latestPhotos.map((p) => (p.id === photoId ? { ...p, caption } : p))
     );
   };
 
@@ -171,7 +205,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
               parcelCode: projectParcelCode,
               floor: currentFloor.floorName,
               photoType: 'OVERVIEW',
-              photoIndex: photos.length + 1,
+              photoIndex: resolveNextPhotoIndex(photos),
             }}
             height="150px"
             recommendedOrientation="landscape"

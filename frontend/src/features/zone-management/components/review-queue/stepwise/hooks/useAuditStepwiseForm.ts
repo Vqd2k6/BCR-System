@@ -13,8 +13,32 @@ import type {
   StepwiseDeformation,
   StepwiseSignatures,
 } from '../types';
+import type { StudioCommittedPhotoInfo } from '../context/AuditStudioImgContext';
 
 export type { DiffItem };
+
+function deepReplaceUrlsInValue(val: unknown, replaceMap: Map<string, string>): unknown {
+  if (!val || replaceMap.size === 0) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    return replaceMap.get(trimmed) || replaceMap.get(val) || val;
+  }
+  if (Array.isArray(val)) {
+    return val.map((item) => deepReplaceUrlsInValue(item, replaceMap));
+  }
+  if (typeof val === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (k === 'studioEnhancedPhotos' || k === 'studioEnhancedByOriginal') {
+        out[k] = v;
+        continue;
+      }
+      out[k] = deepReplaceUrlsInValue(v, replaceMap);
+    }
+    return out;
+  }
+  return val;
+}
 
 const getBurlandGradeFromWidth = (w: number): number => {
   if (w <= 0.1) return 0;
@@ -766,6 +790,14 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         sJson.photoRotations && typeof sJson.photoRotations === 'object'
           ? { ...(sJson.photoRotations as Record<string, number>) }
           : {},
+      studioEnhancedPhotos:
+        sJsonRec.studioEnhancedPhotos && typeof sJsonRec.studioEnhancedPhotos === 'object'
+          ? { ...(sJsonRec.studioEnhancedPhotos as Record<string, StudioCommittedPhotoInfo>) }
+          : {},
+      studioEnhancedByOriginal:
+        sJsonRec.studioEnhancedByOriginal && typeof sJsonRec.studioEnhancedByOriginal === 'object'
+          ? { ...(sJsonRec.studioEnhancedByOriginal as Record<string, string>) }
+          : {},
     };
 
     setFormState(initial);
@@ -803,6 +835,47 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         },
       }));
     }
+  }, []);
+
+  // Đồng bộ kết quả lưu ảnh Studio Img trực tiếp vào formState và bảng đối chiếu Diff mà không mất các trường nháp đang sửa
+  const applyStudioCommittedPhotos = useCallback((committedItems: StudioCommittedPhotoInfo[]) => {
+    if (!Array.isArray(committedItems) || committedItems.length === 0) return;
+
+    const replaceMap = new Map<string, string>();
+    committedItems.forEach((item) => {
+      if (item.originalUrl) replaceMap.set(item.originalUrl.trim(), item.enhancedUrl);
+      if (item.previousUrl) replaceMap.set(item.previousUrl.trim(), item.enhancedUrl);
+    });
+
+    const curEnhanced = ((formStateRef.current.studioEnhancedPhotos as Record<string, StudioCommittedPhotoInfo>) || {});
+    const curByOriginal = ((formStateRef.current.studioEnhancedByOriginal as Record<string, string>) || {});
+    const nextEnhanced: Record<string, StudioCommittedPhotoInfo> = { ...curEnhanced };
+    const nextByOriginal: Record<string, string> = { ...curByOriginal };
+
+    committedItems.forEach((item) => {
+      nextEnhanced[item.enhancedUrl] = item;
+      if (item.originalUrl) nextByOriginal[item.originalUrl] = item.enhancedUrl;
+      if (item.previousUrl) nextByOriginal[item.previousUrl] = item.enhancedUrl;
+    });
+
+    setFormState((prev) => {
+      const replaced = deepReplaceUrlsInValue(prev, replaceMap) as Record<string, unknown>;
+      return {
+        ...replaced,
+        studioEnhancedPhotos: nextEnhanced,
+        studioEnhancedByOriginal: nextByOriginal,
+      };
+    });
+
+    const origEnhanced = (originalStateRef.current.studioEnhancedPhotos as Record<string, StudioCommittedPhotoInfo>) || {};
+    setDirtyFields((prev) => ({
+      ...prev,
+      studioEnhancedPhotos: {
+        label: `Hiệu chỉnh chất lượng ảnh qua Studio Img (${committedItems.length} ảnh)`,
+        oldValue: origEnhanced,
+        newValue: nextEnhanced,
+      },
+    }));
   }, []);
 
   /**
@@ -1299,11 +1372,20 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
     Object.entries(dirtyFieldsRef.current).forEach(([k, v]) => {
       if (k === 'studioEnhancedPhotos' || k === 'studioEnhancedByOriginal') {
-        const enhancedMap = (v.newValue && typeof v.newValue === 'object' ? v.newValue : {}) as Record<string, any>;
-        Object.values(enhancedMap).forEach((info: any) => {
+        const oldEnhancedMap = (
+          v.oldValue && typeof v.oldValue === 'object' ? v.oldValue : {}
+        ) as Record<string, StudioCommittedPhotoInfo>;
+        const enhancedMap = (
+          v.newValue && typeof v.newValue === 'object' ? v.newValue : {}
+        ) as Record<string, StudioCommittedPhotoInfo>;
+        const newEntries = Object.values(enhancedMap).filter(
+          (info) => info && info.enhancedUrl && !oldEnhancedMap[info.enhancedUrl]
+        );
+        const listToShow = newEntries.length > 0 ? newEntries : Object.values(enhancedMap);
+        listToShow.forEach((info) => {
           if (!info || !info.enhancedUrl) return;
           diffItems.push({
-            field: `studio_${info.photoCode || 'photo'}_${info.enhancedUrl.slice(-12)}`,
+            field: 'studioEnhancedPhotos',
             label: `[Studio Img • ${info.presetUsed || 'Hiệu chỉnh'}] ${info.title || info.photoCode || 'Ảnh hiện trường'}`,
             oldValue: info.originalUrl || info.previousUrl || 'Ảnh gốc KSV',
             newValue: info.enhancedUrl,
@@ -1356,6 +1438,13 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     Object.keys(dirtyFieldsRef.current).forEach((k) => {
       const topKey = k.includes('.') ? k.split('.')[0] : k;
       updatesPayload[topKey] = formStateRef.current[topKey];
+      if (topKey === 'studioEnhancedPhotos' || topKey === 'studioEnhancedByOriginal') {
+        updatesPayload.studioEnhancedPhotos = formStateRef.current.studioEnhancedPhotos;
+        updatesPayload.studioEnhancedByOriginal = formStateRef.current.studioEnhancedByOriginal;
+        updatesPayload.floors = formStateRef.current.floors;
+        updatesPayload.damageZones = formStateRef.current.damageZones;
+        updatesPayload.settlementTilt = formStateRef.current.settlementTilt;
+      }
       if (topKey === 'floors' || topKey === 'damageZones') {
         updatesPayload.burlandSummary = formStateRef.current.burlandSummary;
       }
@@ -1518,6 +1607,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     handleFieldChange,
     handleNestedFieldChange,
     handleApplySyncedGeometry,
+    applyStudioCommittedPhotos,
     handleDiscard,
     discardDiffItem,
     handleReviewSave,

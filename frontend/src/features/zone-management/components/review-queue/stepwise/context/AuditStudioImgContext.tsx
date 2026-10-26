@@ -51,6 +51,7 @@ export interface AuditStudioImgContextValue {
   removeSelectedPhoto: (url: string) => void;
   clearSelectedPhotos: () => void;
   stagedAdjustments: Record<string, StagedStudioAdjustment>;
+  committedPreviewsMap: Record<string, StagedStudioAdjustment>;
   setStagedAdjustment: (url: string, adjustment: StagedStudioAdjustment) => void;
   removeStagedAdjustment: (url: string) => void;
   clearStagedAdjustments: () => void;
@@ -107,6 +108,7 @@ export const AuditStudioImgProvider: React.FC<ProviderProps> = ({
   const isHoldingSKeyRef = useRef<boolean>(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedStudioPhotoItem[]>([]);
   const [stagedAdjustments, setStagedAdjustments] = useState<Record<string, StagedStudioAdjustment>>({});
+  const [committedPreviewsMap, setCommittedPreviewsMap] = useState<Record<string, StagedStudioAdjustment>>({});
   const [isStudioModalOpen, setIsStudioModalOpen] = useState<boolean>(false);
 
   const [committedPhotosMap, setCommittedPhotosMap] = useState<Record<string, StudioCommittedPhotoInfo>>(
@@ -116,16 +118,16 @@ export const AuditStudioImgProvider: React.FC<ProviderProps> = ({
     () => initialEnhancedByOriginal || {}
   );
 
-  // Đồng bộ dữ liệu đã lưu từ Server khi tải lại hồ sơ
+  // Đồng bộ dữ liệu đã lưu từ Server khi tải lại hồ sơ (ưu tiên giữ các bản vừa commit trong phiên)
   useEffect(() => {
     if (initialEnhancedPhotos && Object.keys(initialEnhancedPhotos).length > 0) {
-      setCommittedPhotosMap((prev) => ({ ...prev, ...initialEnhancedPhotos }));
+      setCommittedPhotosMap((prev) => ({ ...initialEnhancedPhotos, ...prev }));
     }
   }, [initialEnhancedPhotos]);
 
   useEffect(() => {
     if (initialEnhancedByOriginal && Object.keys(initialEnhancedByOriginal).length > 0) {
-      setCommittedByOriginalMap((prev) => ({ ...prev, ...initialEnhancedByOriginal }));
+      setCommittedByOriginalMap((prev) => ({ ...initialEnhancedByOriginal, ...prev }));
     }
   }, [initialEnhancedByOriginal]);
 
@@ -370,10 +372,31 @@ export const AuditStudioImgProvider: React.FC<ProviderProps> = ({
 
       setStagedAdjustments((prev) => {
         const next = { ...prev };
+        const capturedPreviews: Record<string, StagedStudioAdjustment> = {};
         for (const item of items) {
-          delete next[item.originalUrl];
-          delete next[item.previousUrl];
-          delete next[item.enhancedUrl];
+          const origKey = item.originalUrl.trim();
+          const prevKey = item.previousUrl.trim();
+          const enhKey = item.enhancedUrl.trim();
+          const matchedStage = next[origKey] || next[prevKey] || next[enhKey];
+          if (matchedStage) {
+            const committedPreview: StagedStudioAdjustment = {
+              ...matchedStage,
+              photoUrl: item.enhancedUrl,
+              originalUrl: item.originalUrl,
+            };
+            capturedPreviews[origKey] = committedPreview;
+            if (prevKey) capturedPreviews[prevKey] = committedPreview;
+            if (enhKey) capturedPreviews[enhKey] = committedPreview;
+          }
+          delete next[origKey];
+          delete next[prevKey];
+          delete next[enhKey];
+        }
+        if (Object.keys(capturedPreviews).length > 0) {
+          setCommittedPreviewsMap((prevPreviews) => ({
+            ...prevPreviews,
+            ...capturedPreviews,
+          }));
         }
         return next;
       });
@@ -391,6 +414,7 @@ export const AuditStudioImgProvider: React.FC<ProviderProps> = ({
       removeSelectedPhoto,
       clearSelectedPhotos,
       stagedAdjustments,
+      committedPreviewsMap,
       setStagedAdjustment,
       removeStagedAdjustment,
       clearStagedAdjustments,
@@ -412,6 +436,7 @@ export const AuditStudioImgProvider: React.FC<ProviderProps> = ({
       removeSelectedPhoto,
       clearSelectedPhotos,
       stagedAdjustments,
+      committedPreviewsMap,
       setStagedAdjustment,
       removeStagedAdjustment,
       clearStagedAdjustments,

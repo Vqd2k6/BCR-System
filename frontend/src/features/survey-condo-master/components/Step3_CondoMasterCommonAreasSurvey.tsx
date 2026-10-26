@@ -901,12 +901,27 @@ export const Step3_CondoMasterCommonAreasSurvey: React.FC = () => {
             currentFloor={currentFloor}
             activeFloorIndex={activeFloorIndex}
             projectParcelCode={formData.projectParcelCode}
-            onUpdateOverviewPhotos={(photos) => {
+            onUpdateOverviewPhotos={(photosOrUpdater) => {
               updateFormData((prev) => {
                 const updated = [...prev.floors];
-                const cur = updated[activeFloorIndex] || updated[0];
+                const targetIdx = updated[activeFloorIndex] ? activeFloorIndex : 0;
+                const cur = updated[targetIdx];
                 if (!cur) return prev;
-                updated[activeFloorIndex] = { ...cur, overviewPhotos: photos };
+                const rawPrev = cur.overviewPhotos || [];
+                const normalizedPrev = rawPrev.map(
+                  (p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) =>
+                    typeof p === 'string'
+                      ? { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' }
+                      : {
+                          id: p?.id || `fl_ov_${idx}`,
+                          url: p?.url || '',
+                          caption: p?.caption || '',
+                          photoCode: p?.photoCode || '',
+                        }
+                );
+                const nextPhotos =
+                  typeof photosOrUpdater === 'function' ? photosOrUpdater(normalizedPrev) : photosOrUpdater;
+                updated[targetIdx] = { ...cur, overviewPhotos: nextPhotos };
                 return { ...prev, floors: updated };
               });
             }}

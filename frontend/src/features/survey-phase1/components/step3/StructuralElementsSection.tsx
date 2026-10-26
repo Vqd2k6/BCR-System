@@ -609,7 +609,11 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                   value=""
                   onChange={(url, code, meta?: PhotoChangeMeta) => {
                     if (url) {
-                      const curPhotos = activeElement.overviewPhotos || [];
+                      const latestFloor =
+                        usePhase1SurveyStore.getState().formData.floors?.find((f) => f.id === currentFloor.id) ||
+                        currentFloor;
+                      const latestElement = latestFloor?.structuralElements?.[activeElementIndex] || activeElement;
+                      const curPhotos = latestElement.overviewPhotos || [];
 
                       // [ND-04] Sử dụng Trụ cột 1 (upsertPhotoUrlList) thay thế nguyên tử qua meta.replacesUri,
                       // loại bỏ hoàn toàn biến lastTempOverviewUriRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
@@ -617,7 +621,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       const updated = upsertPhotoUrlList(curPhotos, url, meta);
 
                       // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp
-                      let newCtx = activeElement.ctxPhotoUrl;
+                      let newCtx = latestElement.ctxPhotoUrl;
                       if (!newCtx || (replacesUri && newCtx === replacesUri)) {
                         newCtx = url;
                       }
@@ -625,7 +629,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       onUpdateElement(activeElementIndex, {
                         overviewPhotos: updated,
                         ctxPhotoUrl: newCtx,
-                        ctxPhotoCode: activeElement.ctxPhotoCode || code,
+                        ctxPhotoCode: latestElement.ctxPhotoCode || code,
                       });
                     }
                   }}

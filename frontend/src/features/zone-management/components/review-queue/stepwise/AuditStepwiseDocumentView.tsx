@@ -126,6 +126,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     handleFieldChange,
     handleNestedFieldChange,
     handleApplySyncedGeometry,
+    applyStudioCommittedPhotos,
     handleDiscard,
     discardDiffItem,
     handleReviewSave,
@@ -961,26 +962,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
         onClose={() => setIsStudioModalOpen(false)}
         onCommittedSuccess={(committedItems) => {
           if (committedItems && committedItems.length > 0) {
-            // Thay vì gọi onRefresh() làm mất dữ liệu nháp đang sửa dở,
-            // đồng bộ mảng ảnh Studio trực tiếp vào formState để hiện trong bảng Diff!
-            const curEnhanced = ((formState.studioEnhancedPhotos as Record<string, any>) || {}) as Record<string, any>;
-            const curByOriginal = ((formState.studioEnhancedByOriginal as Record<string, any>) || {}) as Record<string, any>;
-            const nextEnhanced = { ...curEnhanced };
-            const nextByOriginal = { ...curByOriginal };
-
-            committedItems.forEach((item) => {
-              nextEnhanced[item.enhancedUrl] = item;
-              nextByOriginal[item.originalUrl] = item.enhancedUrl;
-              if (item.previousUrl) {
-                nextByOriginal[item.previousUrl] = item.enhancedUrl;
-              }
-            });
-
-            handleFieldChange(
-              'studioEnhancedPhotos',
-              `Hiệu chỉnh ${committedItems.length} ảnh qua Studio Img`,
-              nextEnhanced
-            );
+            applyStudioCommittedPhotos(committedItems);
           }
         }}
       />

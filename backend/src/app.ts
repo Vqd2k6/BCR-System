@@ -92,6 +92,7 @@ export function createApp(): express.Application {
   // ==========================================
   api.post('/image-lab/process', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), upload.single('file'), ImageLabController.processImage);
   api.get('/image-lab/recent-survey-photos', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.getRecentSurveyPhotos);
+  api.get('/image-lab/proxy-image', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.proxyImageForClientCanvas);
   api.post('/image-lab/commit-studio-session', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ImageLabController.commitStudioSession);
 
   // ==========================================
