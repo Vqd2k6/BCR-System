@@ -38,6 +38,7 @@ const ALLOWLISTED_FILES = [
   'src/components/common/photo-capture/components/PhotoWatermarkOverlay.tsx', // Lớp phủ watermark trên ảnh
   'src/components/attendance/companion/components/CompanionCheckInForm.tsx', // Video viewfinder
   'src/views/surveyor/timekeeping/components/CheckInForm.tsx', // Video viewfinder
+  'src/views/surveyor/timekeeping/components/TodayCheckInSummary.tsx', // Checkout video viewfinder
   'src/components/common/photo-capture/components/PhotoPreviewCard.tsx', // Dark photo frame
   'src/main.tsx', // Dev error boundary khẩn cấp
 ];

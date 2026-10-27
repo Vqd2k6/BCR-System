@@ -431,7 +431,8 @@ export class AuthService {
   }
 
   static async updateStatus(id: string, status: string, reason?: string, performedByUserId?: string | null) {
-    const user = await AuthRepository.updateStatus(id, status, reason);
+    const persistedReason = status === 'ACTIVE' ? undefined : reason;
+    const user = await AuthRepository.updateStatus(id, status, persistedReason);
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
@@ -444,7 +445,7 @@ export class AuthService {
       entityId: id,
       action: 'USER_STATUS_CHANGED',
       performedByUserId: performedByUserId || null,
-      diffPayload: { status, reason },
+      diffPayload: { status, reason: reason || null },
     });
 
     return toSafeUserDto(user);

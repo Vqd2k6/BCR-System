@@ -33,21 +33,42 @@ export async function authenticateJwt(req: Request, _res: Response, next: NextFu
   try {
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
-    // Kiểm tra trạng thái tài khoản thời gian thực trong CSDL để triệt tiêu Zombie Token 7 ngày
-    const userRes = await Database.query<{ status: string; deleted_at: Date | null }>(
-      `SELECT status, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
+    // Kiểm tra trạng thái tài khoản & đồng bộ phân quyền thời gian thực trong CSDL để triệt tiêu Zombie/Stale Token 7 ngày
+    const userRes = await Database.query<{
+      id: string;
+      username: string;
+      full_name: string;
+      role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
+      assigned_zone_id: string | null;
+      status: string;
+      status_reason: string | null;
+      deleted_at: Date | null;
+    }>(
+      `SELECT id, username, full_name, role, assigned_zone_id, status, status_reason, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
       [decoded.userId]
     );
 
-    if (!userRes.rows[0] || userRes.rows[0].deleted_at !== null) {
+    const dbUser = userRes.rows[0];
+    if (!dbUser || dbUser.deleted_at !== null) {
       return next(new UnauthorizedError('Tài khoản đã bị vô hiệu hóa hoặc không tồn tại trong hệ thống'));
     }
 
-    if (userRes.rows[0].status === 'LOCKED' || userRes.rows[0].status === 'SUSPENDED') {
-      return next(new UnauthorizedError(`Tài khoản đang ở trạng thái [${userRes.rows[0].status}], quyền truy cập đã bị thu hồi`));
+    if (dbUser.status === 'LOCKED' || dbUser.status === 'SUSPENDED') {
+      const reasonSuffix = dbUser.status_reason ? ` - Lý do: ${dbUser.status_reason}` : '';
+      return next(
+        new UnauthorizedError(
+          `Tài khoản đang ở trạng thái [${dbUser.status}], quyền truy cập đã bị thu hồi${reasonSuffix}`
+        )
+      );
     }
 
-    req.user = decoded;
+    req.user = {
+      userId: dbUser.id,
+      username: dbUser.username,
+      role: dbUser.role,
+      assignedZoneId: dbUser.assigned_zone_id,
+      fullName: dbUser.full_name,
+    };
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
@@ -65,7 +86,7 @@ export async function authenticateJwt(req: Request, _res: Response, next: NextFu
  * Nếu có Authorization header hợp lệ, giải mã và gán req.user.
  * Nếu không có token hoặc token không hợp lệ, vẫn cho request đi tiếp mà không ném lỗi 401.
  */
-export function optionalAuthenticateJwt(req: Request, _res: Response, next: NextFunction): void {
+export async function optionalAuthenticateJwt(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return next();
@@ -74,7 +95,29 @@ export function optionalAuthenticateJwt(req: Request, _res: Response, next: Next
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
-    req.user = decoded;
+    const userRes = await Database.query<{
+      id: string;
+      username: string;
+      full_name: string;
+      role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
+      assigned_zone_id: string | null;
+      status: string;
+      deleted_at: Date | null;
+    }>(
+      `SELECT id, username, full_name, role, assigned_zone_id, status, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
+      [decoded.userId]
+    );
+
+    const dbUser = userRes.rows[0];
+    if (dbUser && dbUser.deleted_at === null && dbUser.status === 'ACTIVE') {
+      req.user = {
+        userId: dbUser.id,
+        username: dbUser.username,
+        role: dbUser.role,
+        assignedZoneId: dbUser.assigned_zone_id,
+        fullName: dbUser.full_name,
+      };
+    }
   } catch (_error: any) {
     // Không ném lỗi nếu token không hợp lệ ở middleware tùy chọn
   }

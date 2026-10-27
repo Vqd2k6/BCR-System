@@ -25,6 +25,9 @@ import { AdminSecurityChallengeConfirm } from '../../../../features/zone-managem
 
 interface CandidateParcel {
   id: string;
+  zone_id?: string;
+  zoneId?: string;
+  isOutOfZone?: boolean;
   project_parcel_code?: string;
   projectParcelCode?: string;
   official_cadastral_code?: string;
@@ -80,6 +83,10 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
   // Danh sách toàn bộ thửa đất trong Zone có kèm coordinates
   const [zoneParcelsWithGeom, setZoneParcelsWithGeom] = useState<GisParcel[]>(availableParcels);
 
+  // Ứng viên tìm chính xác theo mã ngoài Zone (Cross-Zone Exact Code Lookup)
+  const [externalCandidate, setExternalCandidate] = useState<CandidateParcel | null>(null);
+  const [isSearchingExternal, setIsSearchingExternal] = useState(false);
+
   // Form State
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,11 +94,17 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
   const [successMsg, setSuccessMsg] = useState('');
   const [isChallengeValid, setIsChallengeValid] = useState(false);
 
+  const activeZoneId = activeParcel
+    ? activeParcel.zoneId || (activeParcel as unknown as { zone_id?: string }).zone_id || ''
+    : '';
+
   // Nạp danh sách ứng viên tiếp giáp & nạp zone map khi modal mở
   useEffect(() => {
     if (isOpen && activeParcel) {
       setSelectedTargetB(null);
       setSearchTerm('');
+      setExternalCandidate(null);
+      setIsSearchingExternal(false);
       setReason('');
       setErrorMsg('');
       setSuccessMsg('');
@@ -246,6 +259,115 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
     return Array.from(map.values());
   }, [activeParcel, adjacentCandidates, zoneParcelsWithGeom, availableParcels]);
 
+  // Hàm gọi API lấy chính xác thửa đất theo mã khi không có trong Zone
+  const fetchExactParcelByCode = useCallback(
+    async (rawInput: string) => {
+      if (!activeParcel) return;
+      const cleanCode = rawInput.trim().replace(/[\[\]"'\\]/g, '').trim();
+      if (cleanCode.length < 2) {
+        setExternalCandidate(null);
+        return;
+      }
+
+      const upperCode = cleanCode.toUpperCase();
+      const existsInPool = candidatePool.some(
+        (c) =>
+          (c.project_parcel_code || c.projectParcelCode || '').trim().toUpperCase() === upperCode ||
+          (c.official_cadastral_code || c.officialCadastralCode || '').trim().toUpperCase() === upperCode
+      );
+      if (existsInPool) {
+        setExternalCandidate(null);
+        return;
+      }
+
+      setIsSearchingExternal(true);
+      try {
+        const res = await api.get('/parcels/lookup-by-code', {
+          params: {
+            code: cleanCode,
+            excludeParcelId: activeParcel.id,
+          },
+        });
+        const raw = res.data?.data as Record<string, unknown> | null | undefined;
+        if (res.data?.success && raw && raw.id) {
+          let coords: [number, number][] = [];
+          const geojson = raw.cadastral_geojson as { type?: string; coordinates?: unknown } | undefined;
+          if (geojson?.type === 'Polygon' && Array.isArray(geojson.coordinates) && Array.isArray(geojson.coordinates[0])) {
+            coords = (geojson.coordinates[0] as [number, number][]).map(([lng, lat]) => [Number(lat), Number(lng)]);
+          } else if (
+            geojson?.type === 'MultiPolygon' &&
+            Array.isArray(geojson.coordinates) &&
+            Array.isArray(geojson.coordinates[0]) &&
+            Array.isArray((geojson.coordinates[0] as unknown[])[0])
+          ) {
+            coords = ((geojson.coordinates[0] as unknown[])[0] as [number, number][]).map(([lng, lat]) => [
+              Number(lat),
+              Number(lng),
+            ]);
+          } else if (Array.isArray(raw.coordinates)) {
+            coords = raw.coordinates as [number, number][];
+          }
+
+          const foundZone = String(raw.zone_id || raw.zoneId || '');
+          const code = String(raw.project_parcel_code || raw.projectParcelCode || '');
+          const officialCode = String(raw.official_cadastral_code || raw.officialCadastralCode || '');
+          const house = String(raw.house_number || raw.houseNumber || '');
+          const street = String(raw.street || '');
+          const owner = String(raw.owner_name || raw.ownerName || '');
+          const area = Number(raw.land_area_m2 || raw.landArea || 0);
+
+          setExternalCandidate({
+            id: String(raw.id),
+            zone_id: foundZone,
+            zoneId: foundZone,
+            isOutOfZone: Boolean(activeZoneId && foundZone && foundZone !== activeZoneId),
+            project_parcel_code: code,
+            projectParcelCode: code,
+            official_cadastral_code: officialCode,
+            officialCadastralCode: officialCode,
+            house_number: house,
+            houseNumber: house,
+            street,
+            owner_name: owner,
+            ownerName: owner,
+            land_area_m2: area,
+            landAreaM2: area,
+            landArea: area,
+            is_touching: false,
+            isTouching: false,
+            is_adjacent: false,
+            coordinates: coords,
+          });
+        } else {
+          setExternalCandidate(null);
+        }
+      } catch (err: unknown) {
+        console.error('[CadastralSpatialSwapModal] Lỗi tra cứu mã thửa ngoài Zone:', err);
+        setExternalCandidate(null);
+      } finally {
+        setIsSearchingExternal(false);
+      }
+    },
+    [activeParcel, activeZoneId, candidatePool]
+  );
+
+  // Tự động tra cứu ngoài Zone khi người dùng nhập mã không có trong candidatePool
+  useEffect(() => {
+    if (!isOpen || !activeParcel) return;
+    const cleanCode = searchTerm.trim().replace(/[\[\]"'\\]/g, '').trim();
+    if (cleanCode.length < 2) {
+      setExternalCandidate(null);
+      setIsSearchingExternal(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void fetchExactParcelByCode(cleanCode);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, activeParcel, searchTerm, fetchExactParcelByCode]);
+
   // Lọc gợi ý tìm kiếm Thửa B
   const searchSuggestions = useMemo(() => {
     const raw = stripVietnameseTones(searchTerm.replace(/[\[\]"'\\]/g, ''));
@@ -263,7 +385,7 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
       });
     }
 
-    return list
+    const sorted = list
       .sort((a, b) => {
         if (a.is_touching && !b.is_touching) return -1;
         if (!a.is_touching && b.is_touching) return 1;
@@ -277,7 +399,13 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
         return (a.project_parcel_code || a.projectParcelCode || '').localeCompare(b.project_parcel_code || b.projectParcelCode || '');
       })
       .slice(0, 10);
-  }, [candidatePool, searchTerm, isInputFocused]);
+
+    if (externalCandidate && !sorted.some((item) => item.id === externalCandidate.id)) {
+      return [externalCandidate, ...sorted];
+    }
+
+    return sorted;
+  }, [candidatePool, searchTerm, isInputFocused, externalCandidate]);
 
   // Các thửa tiếp giáp đề xuất nhanh (Touching / Adjacent)
   const quickAdjacentList = useMemo(() => {
@@ -460,46 +588,90 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Tìm mã thửa, số nhà, chủ hộ..."
+                    placeholder="Tìm trong Zone hoặc nhập đúng mã thửa ngoài Zone..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       setIsInputFocused(true);
                     }}
                     onFocus={() => setIsInputFocused(true)}
-                    className="w-full text-xs pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-slate-800 shadow-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void fetchExactParcelByCode(searchTerm);
+                      }
+                    }}
+                    className="w-full text-xs pl-8 pr-8 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-slate-800 shadow-xs"
                   />
+                  {isSearchingExternal && (
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin absolute right-2.5 top-1/2 -translate-y-1/2" />
+                  )}
                 </div>
 
                 {/* DROPDOWN GỢI Ý KHI GÕ */}
-                {isInputFocused && searchSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
-                    {searchSuggestions.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedTargetB(item);
-                          setSearchTerm(item.project_parcel_code || item.projectParcelCode || '');
-                          setIsInputFocused(false);
-                          setErrorMsg('');
-                        }}
-                        className="w-full text-left p-2 hover:bg-emerald-50 flex items-center justify-between text-xs cursor-pointer transition-colors"
-                      >
-                        <div>
-                          <div className="font-bold text-slate-800 font-mono flex items-center gap-1">
-                            {item.project_parcel_code || item.projectParcelCode}
-                            {item.is_touching && (
-                              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded font-sans">Kề bên</span>
-                            )}
+                {isInputFocused && (searchSuggestions.length > 0 || searchTerm.trim().length >= 2) && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    {searchSuggestions.map((item) => {
+                      const itemZone = item.zone_id || item.zoneId;
+                      const isCrossZone = Boolean(item.isOutOfZone || (activeZoneId && itemZone && itemZone !== activeZoneId));
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTargetB(item);
+                            setSearchTerm(item.project_parcel_code || item.projectParcelCode || '');
+                            setIsInputFocused(false);
+                            setErrorMsg('');
+                          }}
+                          className="w-full text-left p-2 hover:bg-emerald-50 flex items-center justify-between text-xs cursor-pointer transition-colors"
+                        >
+                          <div>
+                            <div className="font-bold text-slate-800 font-mono flex items-center gap-1 flex-wrap">
+                              <span>{item.project_parcel_code || item.projectParcelCode}</span>
+                              {item.is_touching && (
+                                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded font-sans">Kề bên</span>
+                              )}
+                              {isCrossZone && (
+                                <span className="text-[9px] bg-purple-100 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded font-sans font-bold">
+                                  Ngoài Zone ({itemZone})
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Số {item.house_number || item.houseNumber || '—'} {item.street}
+                            </div>
                           </div>
-                          <div className="text-[11px] text-slate-500">
-                            Số {item.house_number || item.houseNumber} {item.street}
+                          <span className="text-[11px] text-slate-500 font-mono shrink-0 ml-2">
+                            {item.land_area_m2 || item.landArea} m²
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {searchSuggestions.length === 0 && searchTerm.trim().length >= 2 && (
+                      <div className="p-2.5 text-center space-y-1.5">
+                        {isSearchingExternal ? (
+                          <div className="text-[11px] text-emerald-700 font-medium flex items-center justify-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang tra cứu mã chính xác ngoài phân khu...</span>
                           </div>
-                        </div>
-                        <span className="text-[11px] text-slate-500 font-mono">{item.land_area_m2 || item.landArea} m²</span>
-                      </button>
-                    ))}
+                        ) : (
+                          <>
+                            <div className="text-[11px] text-slate-500">
+                              Không có trong phân khu. Nhập chính xác mã lô đất để lấy từ phân khu khác:
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void fetchExactParcelByCode(searchTerm)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
+                            >
+                              Tra cứu mã chính xác &ldquo;{searchTerm.trim()}&rdquo;
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -556,8 +728,16 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
                       Đổi thửa khác
                     </button>
                   </div>
-                  <div className="font-extrabold text-sm text-emerald-900 font-mono">
-                    {selectedTargetB.project_parcel_code || selectedTargetB.projectParcelCode}
+                  <div className="font-extrabold text-sm text-emerald-900 font-mono flex items-center gap-1.5 flex-wrap">
+                    <span>{selectedTargetB.project_parcel_code || selectedTargetB.projectParcelCode}</span>
+                    {(selectedTargetB.isOutOfZone ||
+                      (activeZoneId &&
+                        (selectedTargetB.zone_id || selectedTargetB.zoneId) &&
+                        (selectedTargetB.zone_id || selectedTargetB.zoneId) !== activeZoneId)) && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-sans font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        Vượt biên: {selectedTargetB.zone_id || selectedTargetB.zoneId}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-600 mt-0.5">
                     Số {selectedTargetB.house_number || selectedTargetB.houseNumber || '—'} {selectedTargetB.street || ''}

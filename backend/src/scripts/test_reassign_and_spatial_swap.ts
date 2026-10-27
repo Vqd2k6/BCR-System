@@ -1,5 +1,6 @@
 import { Database } from '../database/db';
 import { AuditService } from '../modules/audit/audit.service';
+import { CadastralService } from '../modules/cadastral/cadastral.service';
 
 /**
  * BỘ KIỂM ĐỊNH TOÀN TRÌNH & GIÁM SÁT BUG FIX:
@@ -211,22 +212,47 @@ async function runReassignAndSpatialSwapTests() {
       }
     }
 
-    // 4.3. Thử hoán đổi liên phân khu (khác Zone)
-    const otherZoneParcel = await Database.query<{ id: string; project_parcel_code: string }>(
-      `SELECT id, project_parcel_code FROM parcels WHERE zone_id != $1 LIMIT 1;`,
+    // 4.3. Thử tra cứu mã chính xác ngoài Zone & hoán đổi vượt biên (khác Zone) rồi hoàn nguyên
+    const otherZoneParcel = await Database.query<{ id: string; project_parcel_code: string; zone_id: string }>(
+      `SELECT id, project_parcel_code, zone_id
+       FROM parcels
+       WHERE zone_id != $1
+         AND lifecycle_status = 'ACTIVE'
+         AND survey_status != 'APPROVED'
+       LIMIT 1;`,
       [parcelA.zone_id]
     );
     if (otherZoneParcel.rows[0]) {
       try {
-        await AuditService.reassignReportParcel(testReportId, otherZoneParcel.rows[0].project_parcel_code, adminId, 'Cross zone');
-        console.error('   ❌ Lẽ ra phải chặn hoán đổi liên phân khu!');
-      } catch (err: any) {
-        if (err.message.includes('khác với phân khu')) {
-          console.log('   ✅ Đã bảo vệ toàn vẹn phân khu: Chặn triệt để hoán đổi liên Zone.');
+        const lookupRes = await CadastralService.lookupParcelByExactCode(
+          otherZoneParcel.rows[0].project_parcel_code,
+          parcelA.id
+        );
+        if (!lookupRes || lookupRes.id !== otherZoneParcel.rows[0].id) {
+          throw new Error('Không tra cứu được chính xác thửa đất ngoài Zone theo mã');
+        }
+        const crossSwap = await AuditService.reassignReportParcel(
+          testReportId,
+          otherZoneParcel.rows[0].project_parcel_code,
+          adminId,
+          'Test hoán đổi vượt biên ngoài Zone'
+        );
+        const crossRevert = await AuditService.reassignReportParcel(
+          testReportId,
+          otherZoneParcel.rows[0].project_parcel_code,
+          adminId,
+          'Hoàn nguyên hoán đổi vượt biên ngoài Zone'
+        );
+        if (crossSwap.success && crossRevert.success) {
+          console.log(
+            `   ✅ Hoán đổi vượt biên (${parcelA.zone_id} ↔ ${otherZoneParcel.rows[0].zone_id}) theo mã chính xác [${otherZoneParcel.rows[0].project_parcel_code}] và hoàn nguyên thành công.`
+          );
           passed++;
         } else {
-          console.error('   ❌ Chặn liên Zone không đúng:', err.message);
+          console.error('   ❌ Hoán đổi vượt biên ngoài Zone không thành công!');
         }
+      } catch (err: any) {
+        console.error('   ❌ Lỗi hoán đổi vượt biên ngoài Zone:', err.message);
       }
     } else {
       passed++;

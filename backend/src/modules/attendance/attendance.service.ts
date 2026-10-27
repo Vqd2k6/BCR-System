@@ -253,6 +253,99 @@ export class AttendanceService {
     };
   }
 
+  static async checkOut(
+    surveyorId: string,
+    data: {
+      checkInId?: string | null;
+      zoneId?: string | null;
+      gpsLatitude: number;
+      gpsLongitude: number;
+      selfiePhotoUrl?: string | null;
+      notes?: string | null;
+      isCompanion?: boolean;
+    }
+  ) {
+    const isCompanion = Boolean(data.isCompanion);
+    const existing = await AttendanceRepository.findTodayCheckInForCheckOut(
+      surveyorId,
+      isCompanion,
+      data.checkInId
+    );
+
+    if (!existing) {
+      throw new BadRequestError(
+        isCompanion
+          ? 'Cán bộ đi kèm chưa thực hiện Check-in hôm nay nên không thể Check-out.'
+          : 'Bạn chưa thực hiện Check-in bắt đầu ca hôm nay nên không thể Check-out.'
+      );
+    }
+
+    const effectiveZoneId = (data.zoneId || existing.zone_id || 'ZONE_09').trim();
+    const zoneResolved = await this.resolveZoneCentroidAndDistance(
+      effectiveZoneId,
+      data.gpsLongitude,
+      data.gpsLatitude
+    );
+
+    const distanceMeters = zoneResolved.distanceMeters;
+    const cleanNotes = data.notes?.trim() || null;
+
+    let storedCheckoutSelfieUrl: string | null = data.selfiePhotoUrl?.trim() || null;
+    if (storedCheckoutSelfieUrl && storedCheckoutSelfieUrl.startsWith('data:image/')) {
+      const todayVn = this.getVietnamTodayStr();
+      const prefix = isCompanion
+        ? `checkout_companion_${surveyorId.slice(0, 8)}`
+        : `checkout_ksv_${surveyorId.slice(0, 8)}`;
+      const folder = `attendance/${zoneResolved.zoneId}/${todayVn}`;
+
+      const uploadRes = await StorageService.uploadBase64(storedCheckoutSelfieUrl, prefix, folder, {
+        'surveyor-id': surveyorId,
+        'zone-id': zoneResolved.zoneId,
+        'is-companion': String(isCompanion),
+        'action-type': 'CHECK_OUT',
+        'gps-lat': String(data.gpsLatitude),
+        'gps-lng': String(data.gpsLongitude),
+        'distance-m': String(distanceMeters),
+      });
+      storedCheckoutSelfieUrl = uploadRes.url;
+    }
+
+    const updated = await AttendanceRepository.updateCheckOut({
+      checkInId: existing.id,
+      gpsLatitude: data.gpsLatitude,
+      gpsLongitude: data.gpsLongitude,
+      distanceToCenterMeters: distanceMeters,
+      selfiePhotoUrl: storedCheckoutSelfieUrl,
+      notes: cleanNotes,
+    });
+
+    if (!updated) {
+      throw new NotFoundError('Không thể cập nhật thông tin Check-out cho ca làm việc này.');
+    }
+
+    return {
+      checkInId: updated.id,
+      checkInTime: updated.checkin_time,
+      checkOutTime: updated.checkout_time,
+      zoneId: updated.zone_id,
+      zoneName: zoneResolved.zoneName,
+      distanceToCenterMeters: Number(updated.distance_to_zone_center_meters ?? 0),
+      checkOutDistanceToCenterMeters: Number(updated.checkout_distance_to_zone_center_meters ?? distanceMeters),
+      selfiePhotoUrl: updated.selfie_photo_url,
+      checkOutSelfiePhotoUrl: updated.checkout_selfie_photo_url,
+      checkOutNotes: updated.checkout_notes,
+      workDurationMinutes: Number(updated.work_duration_minutes ?? 1),
+      verificationStatus: updated.verification_status,
+      isCompanion: updated.is_companion,
+      companionName: updated.companion_name,
+      companionRole: updated.companion_role,
+      companionPhone: updated.companion_phone,
+      message: isCompanion
+        ? `Đã Check-out kết thúc ca cho cán bộ đi kèm (${updated.companion_name || 'Cán bộ đi kèm'}) thành công!`
+        : 'Đã Check-out kết thúc ca làm việc thực địa thành công!',
+    };
+  }
+
   static async getZoneInfo(zoneId: string) {
     const resolved = await this.resolveZoneCentroidAndDistance(zoneId);
     return {

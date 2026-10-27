@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../../services/api';
 import { useAuth } from '../../../../context/AuthContext';
 import { getErrorMessage } from '../../../../utils/errorUtils';
@@ -6,7 +6,8 @@ import {
   getZoneCentroid,
   calculateDistanceMeters,
   getVietnamDateString,
-  captureVideoFrameAsJpeg,
+  compressBlobToJpegDataUrl,
+  resolveAttendanceGps,
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
 } from '../../../../core/utils/metroZoneUtils';
@@ -34,6 +35,24 @@ interface CheckInApiResponseData {
   message: string;
 }
 
+interface CheckOutApiResponseData {
+  checkInId: string;
+  checkInTime: string;
+  checkOutTime: string;
+  zoneId: string;
+  zoneName: string;
+  distanceToCenterMeters: number;
+  checkOutDistanceToCenterMeters: number;
+  selfiePhotoUrl: string | null;
+  checkOutSelfiePhotoUrl: string | null;
+  checkOutNotes: string | null;
+  workDurationMinutes: number;
+  verificationStatus: string;
+  isCompanion: boolean;
+  companionName: string | null;
+  message: string;
+}
+
 export const useTimekeepingState = ({
   isCheckedInToday = false,
   onCheckInSuccess,
@@ -54,17 +73,15 @@ export const useTimekeepingState = ({
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [companionHistory, setCompanionHistory] = useState<CompanionRecord[]>([]);
   const [historyTab, setHistoryTab] = useState<'surveyor' | 'companion'>('surveyor');
-  const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(isCheckedInToday);
   const [checkInDetails, setCheckInDetails] = useState<CheckInDetails | null>(null);
+  const [checkOutSelfieUrl, setCheckOutSelfieUrl] = useState<string>('');
+  const [checkOutNotes, setCheckOutNotes] = useState<string>('');
+  const [isCheckingOut, setIsCheckingOut] = useState<boolean>(false);
 
   // Companion check-in state
   const [showCompanionModal, setShowCompanionModal] = useState<boolean>(false);
   const [companionData, setCompanionData] = useState<CompanionRecord | null>(null);
-  const [isSimulatedGps, setIsSimulatedGps] = useState<boolean>(false);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const [selectedZoneId, setSelectedZoneId] = useState<string>(() => user?.assignedZoneId || 'ZONE_09');
   const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(selectedZoneId));
@@ -118,44 +135,67 @@ export const useTimekeepingState = ({
   }, [submitResult]);
 
   const getLiveGps = useCallback(
-    (zoneToUse?: MetroZoneCentroid) => {
+    async (zoneToUse?: MetroZoneCentroid) => {
       const activeZone = zoneToUse || targetZone;
       setGpsLoading(true);
       setGpsError(null);
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = Number(pos.coords.latitude.toFixed(6));
-            const lng = Number(pos.coords.longitude.toFixed(6));
-            const accuracy = Math.round(pos.coords.accuracy || 0);
-            setIsSimulatedGps(false);
-            setGpsCoordinates({ lat, lng, accuracy });
-            const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
-            setDistanceMeters(dist);
-            setGpsLoading(false);
-          },
-          (err) => {
-            console.error('[useTimekeepingState:getLiveGps] Geolocation error:', err);
-            setGpsLoading(false);
-            setGpsError(
-              err.code === 1
-                ? 'Trình duyệt bị từ chối quyền truy cập vị trí. Vui lòng bật định vị GPS trong cài đặt.'
-                : 'Không thể nhận diện vị trí GPS vệ tinh. Vui lòng ra khu vực thoáng hoặc bấm Lấy lại GPS.'
-            );
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      try {
+        const resolved = await resolveAttendanceGps(activeZone);
+        setGpsCoordinates({
+          lat: resolved.lat,
+          lng: resolved.lng,
+          accuracy: resolved.accuracy,
+        });
+        setDistanceMeters(resolved.distanceMeters);
+      } catch (err: unknown) {
+        console.error('[useTimekeepingState:getLiveGps] Error resolving real GPS:', err);
+        setGpsCoordinates(null);
+        setGpsError(
+          getErrorMessage(
+            err,
+            'Không thể lấy tọa độ GPS thực tế từ thiết bị. Vui lòng bật quyền Vị trí (Location Services) và thử lại.'
+          )
         );
-      } else {
+      } finally {
         setGpsLoading(false);
-        setGpsError('Thiết bị không hỗ trợ Geolocation API.');
       }
     },
     [targetZone]
   );
 
-  // Tự động quét GPS thực tế khi mở view hoặc khi đổi phân khu
+  // Tự động quét GPS thực tế khi mở view hoặc khi đổi phân khu + theo dõi thời gian thực (watchPosition)
   useEffect(() => {
-    getLiveGps(targetZone);
+    void getLiveGps(targetZone);
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        const accuracy = Math.max(1, Math.round(position.coords.accuracy || 10));
+        setGpsCoordinates({ lat, lng, accuracy });
+        setGpsError(null);
+        setGpsLoading(false);
+      },
+      (err) => {
+        console.error('[useTimekeepingState:watchPosition] Live GPS watch warning:', {
+          code: err.code,
+          message: err.message,
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, [targetZone.zoneId]);
 
   // Cập nhật lại khoảng cách khi gpsCoordinates hoặc targetZone thay đổi
@@ -168,7 +208,13 @@ export const useTimekeepingState = ({
 
   const mapServerRecordToCompanion = (item: AttendanceRecord): CompanionRecord => {
     const checkInDate = item.checkin_time ? new Date(item.checkin_time) : new Date();
+    const checkOutDate = item.checkout_time ? new Date(item.checkout_time) : null;
     const dist = Math.round(Number(item.distance_to_zone_center_meters ?? item.distance_meters ?? 0));
+    const checkOutDist =
+      item.checkout_distance_to_zone_center_meters !== null &&
+      item.checkout_distance_to_zone_center_meters !== undefined
+        ? Math.round(Number(item.checkout_distance_to_zone_center_meters))
+        : undefined;
     return {
       id: item.id || `comp-${checkInDate.getTime()}`,
       name: item.companion_name || 'Cán bộ đi kèm',
@@ -178,6 +224,17 @@ export const useTimekeepingState = ({
       time: checkInDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       date: getVietnamDateString(checkInDate),
       checkin_time: typeof item.checkin_time === 'string' ? item.checkin_time : checkInDate.toISOString(),
+      checkout_time: checkOutDate ? checkOutDate.toISOString() : null,
+      checkOutTime: checkOutDate
+        ? checkOutDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : undefined,
+      checkOutDistance: checkOutDist,
+      checkOutSelfieUrl: resolveAttendancePhotoUrl(item.checkout_selfie_photo_url),
+      checkOutNotes: item.checkout_notes || undefined,
+      workDurationMinutes:
+        item.work_duration_minutes !== null && item.work_duration_minutes !== undefined
+          ? Number(item.work_duration_minutes)
+          : undefined,
       zone_id: item.zone_id,
       distance: dist,
       distance_meters: dist,
@@ -200,6 +257,7 @@ export const useTimekeepingState = ({
         .map((item: AttendanceRecord) => ({
           ...item,
           selfie_photo_url: resolveAttendancePhotoUrl(item.selfie_photo_url || item.selfiePhotoUrl),
+          checkout_selfie_photo_url: resolveAttendancePhotoUrl(item.checkout_selfie_photo_url),
         }));
 
       const companionOnlyRecords = records
@@ -217,11 +275,33 @@ export const useTimekeepingState = ({
       if (todayRecord) {
         setHasCheckedIn(true);
         const resolvedPhoto = resolveAttendancePhotoUrl(todayRecord.selfie_photo_url || todayRecord.selfiePhotoUrl);
+        const resolvedCheckoutPhoto = resolveAttendancePhotoUrl(todayRecord.checkout_selfie_photo_url);
+        const checkOutDate = todayRecord.checkout_time ? new Date(todayRecord.checkout_time) : null;
         const details: CheckInDetails = {
+          checkInId: todayRecord.id,
           time: new Date(todayRecord.checkin_time).toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit',
           }),
+          checkInIso:
+            typeof todayRecord.checkin_time === 'string'
+              ? todayRecord.checkin_time
+              : new Date(todayRecord.checkin_time).toISOString(),
+          checkOutTime: checkOutDate
+            ? checkOutDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            : undefined,
+          checkOutIso: checkOutDate ? checkOutDate.toISOString() : undefined,
+          checkOutDistance:
+            todayRecord.checkout_distance_to_zone_center_meters !== null &&
+            todayRecord.checkout_distance_to_zone_center_meters !== undefined
+              ? Math.round(Number(todayRecord.checkout_distance_to_zone_center_meters))
+              : undefined,
+          checkOutSelfiePhotoUrl: resolvedCheckoutPhoto || undefined,
+          checkOutNotes: todayRecord.checkout_notes || null,
+          workDurationMinutes:
+            todayRecord.work_duration_minutes !== null && todayRecord.work_duration_minutes !== undefined
+              ? Number(todayRecord.work_duration_minutes)
+              : undefined,
           distance: Math.round(Number(todayRecord.distance_to_zone_center_meters ?? todayRecord.distance_meters ?? 0)),
           status: todayRecord.verification_status || 'PENDING_VERIFICATION',
           selfiePhotoUrl: resolvedPhoto,
@@ -234,12 +314,23 @@ export const useTimekeepingState = ({
                   accuracy: 8,
                 }
               : undefined,
+          checkOutCoordinates:
+            todayRecord.checkout_gps_latitude !== null &&
+            todayRecord.checkout_gps_latitude !== undefined &&
+            todayRecord.checkout_gps_longitude !== null &&
+            todayRecord.checkout_gps_longitude !== undefined
+              ? {
+                  lat: Number(todayRecord.checkout_gps_latitude),
+                  lng: Number(todayRecord.checkout_gps_longitude),
+                  accuracy: 8,
+                }
+              : undefined,
         };
         setCheckInDetails(details);
         if (details.selfiePhotoUrl) setSelfieUrl(details.selfiePhotoUrl);
+        if (details.checkOutSelfiePhotoUrl) setCheckOutSelfieUrl(details.checkOutSelfiePhotoUrl);
+        if (details.checkOutNotes) setCheckOutNotes(details.checkOutNotes);
         if (details.notes) setOutOfBoundsReason(details.notes);
-        if (details.distance !== undefined) setDistanceMeters(details.distance);
-        if (details.coordinates) setGpsCoordinates(details.coordinates);
 
         try {
           localStorage.setItem(storageKey, JSON.stringify(details));
@@ -249,6 +340,8 @@ export const useTimekeepingState = ({
       } else {
         setHasCheckedIn(false);
         setCheckInDetails(null);
+        setCheckOutSelfieUrl('');
+        setCheckOutNotes('');
         try {
           localStorage.removeItem(storageKey);
         } catch (storageErr: unknown) {
@@ -303,7 +396,6 @@ export const useTimekeepingState = ({
   }, [companionStorageKey, loadSurveyorHistory]);
 
   useEffect(() => {
-    getLiveGps();
     void loadSurveyorHistory();
 
     // Đọc cache tạm thời trong lúc chờ API phản hồi
@@ -315,54 +407,34 @@ export const useTimekeepingState = ({
         setCheckInDetails(parsed);
         if (parsed.selfiePhotoUrl) setSelfieUrl(resolveAttendancePhotoUrl(parsed.selfiePhotoUrl));
         if (parsed.notes) setOutOfBoundsReason(parsed.notes);
-        if (parsed.distance !== undefined) setDistanceMeters(parsed.distance);
-        if (parsed.coordinates) setGpsCoordinates(parsed.coordinates);
       } else if (isCheckedInToday) {
         setHasCheckedIn(true);
       }
     } catch (err: unknown) {
       console.error('[useTimekeepingState:init] Error reading cached check-in:', err);
     }
-
-    return () => {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
   }, [isCheckedInToday]);
 
-  const handleStartCamera = async () => {
-    setCameraActive(true);
+  const handleNativeCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      const compressedDataUrl = await compressBlobToJpegDataUrl(file, 720, 0.85);
+      if (compressedDataUrl) {
+        if (hasCheckedIn) {
+          setCheckOutSelfieUrl(compressedDataUrl);
+        } else {
+          setSelfieUrl(compressedDataUrl);
+        }
       }
     } catch (err: unknown) {
-      console.error('[useTimekeepingState:handleStartCamera] Camera not accessible:', err);
-      alert('Không thể mở camera. Vui lòng cấp quyền camera trong trình duyệt.');
-      setCameraActive(false);
-    }
-  };
-
-  const handleStopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setCameraActive(false);
-  };
-
-  const handleCapturePhoto = () => {
-    if (videoRef.current) {
-      const dataUrl = captureVideoFrameAsJpeg(videoRef.current, 720, 0.82);
-      if (dataUrl) {
-        setSelfieUrl(dataUrl);
-      }
-      handleStopCamera();
+      console.error('[useTimekeepingState:handleNativeCameraCapture] Error reading native camera photo:', err);
+      setSubmitResult({
+        success: false,
+        message: 'Không thể xử lý ảnh chụp từ máy ảnh gốc. Vui lòng chụp lại.',
+      });
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -417,7 +489,9 @@ export const useTimekeepingState = ({
         resData?.verificationStatus || (finalDistance > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION');
 
       const details: CheckInDetails = {
+        checkInId: resData?.checkInId,
         time: checkInTime,
+        checkInIso: resData?.checkInTime || now.toISOString(),
         distance: finalDistance,
         status: finalStatus,
         selfiePhotoUrl: storedPhotoUrl,
@@ -467,8 +541,91 @@ export const useTimekeepingState = ({
     }
   };
 
+  const handleCheckOutSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!hasCheckedIn || isCheckingOut) return;
+
+    setIsCheckingOut(true);
+    setSubmitResult(null);
+
+    try {
+      const resolvedGps = gpsCoordinates
+        ? { lat: gpsCoordinates.lat, lng: gpsCoordinates.lng, accuracy: gpsCoordinates.accuracy }
+        : await resolveAttendanceGps(targetZone);
+
+      const payload = {
+        checkInId: checkInDetails?.checkInId || undefined,
+        zoneId: targetZone.zoneId,
+        gpsLatitude: resolvedGps.lat,
+        gpsLongitude: resolvedGps.lng,
+        selfiePhotoUrl: checkOutSelfieUrl || undefined,
+        notes: checkOutNotes.trim() || undefined,
+        isCompanion: false,
+      };
+
+      const res = await api.post<{ success: boolean; data: CheckOutApiResponseData }>('/attendance/check-out', payload);
+      const resData = res.data?.data;
+
+      const checkOutDate = resData?.checkOutTime ? new Date(resData.checkOutTime) : new Date();
+      const checkOutTimeFormatted = checkOutDate.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const storedCheckOutPhoto =
+        resolveAttendancePhotoUrl(resData?.checkOutSelfiePhotoUrl) || checkOutSelfieUrl || undefined;
+      const finalCheckOutDistance =
+        typeof resData?.checkOutDistanceToCenterMeters === 'number'
+          ? Math.round(resData.checkOutDistanceToCenterMeters)
+          : distanceMeters;
+
+      const updatedDetails: CheckInDetails = {
+        ...(checkInDetails || {}),
+        checkInId: resData?.checkInId || checkInDetails?.checkInId,
+        checkOutTime: checkOutTimeFormatted,
+        checkOutIso: checkOutDate.toISOString(),
+        checkOutDistance: finalCheckOutDistance,
+        checkOutSelfiePhotoUrl: storedCheckOutPhoto,
+        checkOutNotes: resData?.checkOutNotes || checkOutNotes.trim() || null,
+        workDurationMinutes: resData?.workDurationMinutes ?? 1,
+        checkOutCoordinates: resolvedGps,
+      };
+
+      setCheckInDetails(updatedDetails);
+      if (storedCheckOutPhoto) {
+        setCheckOutSelfieUrl(storedCheckOutPhoto);
+      }
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updatedDetails));
+      } catch (storageErr: unknown) {
+        console.error('[useTimekeepingState:handleCheckOutSubmit] Failed to cache check-out details:', storageErr);
+      }
+
+      setSubmitResult({
+        success: true,
+        message: resData?.message || 'Đã Check-out kết thúc ca làm việc thực địa thành công!',
+        data: resData,
+      });
+
+      window.dispatchEvent(new CustomEvent('metro2-attendance-updated'));
+      await loadSurveyorHistory();
+    } catch (err: unknown) {
+      console.error('[useTimekeepingState:handleCheckOutSubmit] API check-out failed:', err);
+      setSubmitResult({
+        success: false,
+        message: getErrorMessage(
+          err,
+          'Không thể gửi Check-out lên máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.'
+        ),
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const isOutOfBounds = distanceMeters > 500;
   const isCompanionCheckedIn = Boolean(companionData);
+  const hasCheckedOut = Boolean(checkInDetails?.checkOutTime);
 
   return {
     user,
@@ -485,14 +642,17 @@ export const useTimekeepingState = ({
     companionHistory,
     historyTab,
     setHistoryTab,
-    cameraActive,
     hasCheckedIn,
+    hasCheckedOut,
     checkInDetails,
+    checkOutSelfieUrl,
+    setCheckOutSelfieUrl,
+    checkOutNotes,
+    setCheckOutNotes,
+    isCheckingOut,
     showCompanionModal,
     setShowCompanionModal,
     companionData,
-    isSimulatedGps,
-    videoRef,
     selectedZoneId,
     setSelectedZoneId,
     targetZone,
@@ -500,10 +660,9 @@ export const useTimekeepingState = ({
     getLiveGps,
     loadCompanionData,
     loadSurveyorHistory,
-    handleStartCamera,
-    handleStopCamera,
-    handleCapturePhoto,
+    handleNativeCameraCapture,
     handleCheckInSubmit,
+    handleCheckOutSubmit,
     isOutOfBounds,
     isCompanionCheckedIn,
   };

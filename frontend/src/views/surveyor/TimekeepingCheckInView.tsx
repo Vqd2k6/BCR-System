@@ -28,24 +28,25 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     companionHistory,
     historyTab,
     setHistoryTab,
-    cameraActive,
     hasCheckedIn,
+    hasCheckedOut,
     checkInDetails,
+    checkOutSelfieUrl,
+    checkOutNotes,
+    setCheckOutNotes,
+    isCheckingOut,
     showCompanionModal,
     setShowCompanionModal,
     companionData,
-    isSimulatedGps,
-    videoRef,
     selectedZoneId,
     setSelectedZoneId,
     targetZone,
     setTargetZone,
     getLiveGps,
     loadCompanionData,
-    handleStartCamera,
-    handleStopCamera,
-    handleCapturePhoto,
+    handleNativeCameraCapture,
     handleCheckInSubmit,
+    handleCheckOutSubmit,
     isOutOfBounds,
     isCompanionCheckedIn,
   } = useTimekeepingState({
@@ -87,6 +88,13 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           isCompanionCheckedIn={isCompanionCheckedIn}
           companionData={companionData}
           setShowCompanionModal={setShowCompanionModal}
+          hasCheckedOut={hasCheckedOut}
+          checkOutSelfieUrl={checkOutSelfieUrl}
+          checkOutNotes={checkOutNotes}
+          setCheckOutNotes={setCheckOutNotes}
+          isCheckingOut={isCheckingOut}
+          handleNativeCameraCapture={handleNativeCameraCapture}
+          handleCheckOutSubmit={handleCheckOutSubmit}
         />
       ) : (
         /* MODE 2: CHƯA ĐIỂM DANH (LIVE GPS SCAN & CAMERA FORM) */
@@ -96,18 +104,16 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           targetZone={targetZone}
           gpsCoordinates={gpsCoordinates}
           gpsError={gpsError}
-          isSimulatedGps={isSimulatedGps}
-          cameraActive={cameraActive}
-          videoRef={videoRef}
-          handleCapturePhoto={handleCapturePhoto}
-          handleStopCamera={handleStopCamera}
-          handleStartCamera={handleStartCamera}
+          handleNativeCameraCapture={handleNativeCameraCapture}
           selfieUrl={selfieUrl}
           outOfBoundsReason={outOfBoundsReason}
           setOutOfBoundsReason={setOutOfBoundsReason}
           handleCheckInSubmit={handleCheckInSubmit}
           isSubmitting={isSubmitting}
           gpsLoading={gpsLoading}
+          isCompanionCheckedIn={isCompanionCheckedIn}
+          companionData={companionData}
+          setShowCompanionModal={setShowCompanionModal}
         />
       )}
 

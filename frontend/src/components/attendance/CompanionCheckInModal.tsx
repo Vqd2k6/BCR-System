@@ -27,24 +27,24 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
     setSelfieUrl,
     outOfBoundsReason,
     setOutOfBoundsReason,
-    cameraActive,
     gpsCoordinates,
     distanceMeters,
     gpsLoading,
     gpsError,
     submitError,
     isSubmitting,
+    isCheckingOut,
+    checkOutNotes,
+    setCheckOutNotes,
     hasCheckedIn,
     setHasCheckedIn,
     changeCount,
     checkInData,
     companionHistory,
-    videoRef,
     getLiveGps,
-    handleStartCamera,
-    handleStopCamera,
-    handleCapturePhoto,
+    handleNativeCameraCapture,
     handleSubmit,
+    handleCompanionCheckOut,
   } = useCompanionCheckInState({ isOpen, zoneId, onSuccess });
 
   if (!isOpen) return null;
@@ -71,6 +71,11 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
               zoneName={targetZone.zoneName}
               todayStr={todayStr}
               changeCount={changeCount}
+              isCheckingOut={isCheckingOut}
+              checkOutNotes={checkOutNotes}
+              setCheckOutNotes={setCheckOutNotes}
+              onCompanionCheckOut={handleCompanionCheckOut}
+              submitError={submitError}
               onReCheckIn={() => {
                 setSelfieUrl('');
                 setHasCheckedIn(false);
@@ -92,12 +97,8 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
               setCompanionRole={setCompanionRole}
               companionPhone={companionPhone}
               setCompanionPhone={setCompanionPhone}
-              cameraActive={cameraActive}
-              videoRef={videoRef}
               selfieUrl={selfieUrl}
-              handleStartCamera={handleStartCamera}
-              handleStopCamera={handleStopCamera}
-              handleCapturePhoto={handleCapturePhoto}
+              handleNativeCameraCapture={handleNativeCameraCapture}
               outOfBoundsReason={outOfBoundsReason}
               setOutOfBoundsReason={setOutOfBoundsReason}
               isSubmitting={isSubmitting}

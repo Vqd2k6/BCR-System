@@ -33,6 +33,7 @@ import { useAuth } from '../../../context/AuthContext';
 
 export const UserManagementTab: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [total, setTotal] = useState<number>(0);
@@ -94,6 +95,13 @@ export const UserManagementTab: React.FC = () => {
   };
 
   const handleToggleStatus = async (user: AdminUser) => {
+    if (!isSuperAdmin) {
+      setBannerMsg({
+        type: 'error',
+        text: 'Chỉ Lãnh đạo MAUR (Super Admin) mới có quyền khóa hoặc mở khóa tài khoản.',
+      });
+      return;
+    }
     if (user.id === currentUser?.id) {
       alert('Bạn không thể tự khóa tài khoản của chính mình!');
       return;
@@ -101,13 +109,34 @@ export const UserManagementTab: React.FC = () => {
 
     const nextStatus = user.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
     const actionName = nextStatus === 'ACTIVE' ? 'mở khóa' : 'khóa';
-    if (!window.confirm(`Bạn có chắc muốn ${actionName} tài khoản [${user.username}]?`)) return;
+
+    let reasonInput: string | undefined;
+    if (nextStatus === 'LOCKED') {
+      const promptResult = window.prompt(
+        `Nhập lý do khóa tài khoản [${user.username}] (Tối thiểu 3 ký tự):`,
+        'Tạm khóa quyền truy cập theo yêu cầu quản trị'
+      );
+      if (promptResult === null) return;
+      const trimmed = promptResult.trim();
+      if (trimmed.length < 3) {
+        setBannerMsg({
+          type: 'error',
+          text: 'Lý do khóa tài khoản phải có ít nhất 3 ký tự.',
+        });
+        return;
+      }
+      reasonInput = trimmed;
+    } else {
+      if (!window.confirm(`Bạn có chắc muốn mở khóa tài khoản [${user.username}]?`)) return;
+      reasonInput = `Mở khóa bởi Quản trị viên lúc ${new Date().toLocaleTimeString()}`;
+    }
 
     try {
-      await userService.updateStatus(user.id, nextStatus, `Thao tác bởi Quản trị viên lúc ${new Date().toLocaleTimeString()}`);
+      await userService.updateStatus(user.id, nextStatus, reasonInput);
       setBannerMsg({ type: 'success', text: `Đã ${actionName} thành công tài khoản [${user.username}]` });
       fetchUsers();
     } catch (err: unknown) {
+      console.error('[UserManagementTab:handleToggleStatus] Lỗi cập nhật trạng thái tài khoản:', err);
       setBannerMsg({
         type: 'error',
         text: getErrorMessage(err, `Không thể ${actionName} tài khoản`),
@@ -116,6 +145,13 @@ export const UserManagementTab: React.FC = () => {
   };
 
   const handleDeleteUser = async (user: AdminUser) => {
+    if (!isSuperAdmin) {
+      setBannerMsg({
+        type: 'error',
+        text: 'Chỉ Lãnh đạo MAUR (Super Admin) mới có quyền vô hiệu hóa tài khoản.',
+      });
+      return;
+    }
     if (user.id === currentUser?.id) {
       alert('Bạn không thể tự vô hiệu hóa tài khoản của chính mình!');
       return;
@@ -128,6 +164,7 @@ export const UserManagementTab: React.FC = () => {
       setBannerMsg({ type: 'success', text: `Đã vô hiệu hóa tài khoản [${user.username}] thành công` });
       fetchUsers();
     } catch (err: unknown) {
+      console.error('[UserManagementTab:handleDeleteUser] Lỗi vô hiệu hóa tài khoản:', err);
       setBannerMsg({
         type: 'error',
         text: getErrorMessage(err, 'Không thể xóa tài khoản'),
@@ -187,23 +224,31 @@ export const UserManagementTab: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setSelectedUserForEdit(null);
-              setIsEditModalOpen(true);
-            }}
-            icon={<UserPlus size={14} />}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            + Cấp tài khoản mới
-          </Button>
+          {isSuperAdmin ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedUserForEdit(null);
+                setIsEditModalOpen(true);
+              }}
+              icon={<UserPlus size={14} />}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+            >
+              + Cấp tài khoản mới
+            </Button>
+          ) : (
+            <span className="px-2.5 py-1 rounded-lg bg-amber-950 text-amber-300 border border-amber-700 text-xs font-bold flex items-center gap-1.5">
+              <Shield size={13} />
+              <span>Chế độ Chỉ Xem (Tổ Trưởng Zone)</span>
+            </span>
+          )}
           <Button
             size="sm"
             variant="outline"
             onClick={fetchUsers}
             icon={<RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />}
             disabled={isLoading}
+            className="cursor-pointer disabled:cursor-not-allowed"
           >
             Làm mới
           </Button>
@@ -223,7 +268,7 @@ export const UserManagementTab: React.FC = () => {
             {bannerMsg.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
             <span>{bannerMsg.text}</span>
           </div>
-          <button onClick={() => setBannerMsg(null)} className="text-slate-400 hover:text-slate-600">
+          <button onClick={() => setBannerMsg(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
             &times;
           </button>
         </div>
@@ -367,69 +412,82 @@ export const UserManagementTab: React.FC = () => {
                         <span className="text-slate-400 italic">Chưa phân bổ</span>
                       )}
                     </td>
-                    <td className="p-3 text-center">{getStatusBadge(u.status)}</td>
+                    <td className="p-3 text-center">
+                      <div>{getStatusBadge(u.status)}</div>
+                      {u.status !== 'ACTIVE' && u.statusReason && (
+                        <div className="mt-1 text-[10px] text-rose-600 font-medium max-w-[180px] mx-auto truncate" title={u.statusReason}>
+                          {u.statusReason}
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Sửa thông tin */}
-                        <button
-                          title="Chỉnh sửa thông tin"
-                          onClick={() => {
-                            setSelectedUserForEdit(u);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={14} />
-                        </button>
+                      {isSuperAdmin ? (
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Sửa thông tin */}
+                          <button
+                            title="Chỉnh sửa thông tin"
+                            onClick={() => {
+                              setSelectedUserForEdit(u);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Edit2 size={14} />
+                          </button>
 
-                        {/* Đổi mật khẩu */}
-                        <button
-                          title="Đặt lại mật khẩu"
-                          onClick={() => {
-                            setSelectedUserForPassword(u);
-                            setIsPasswordModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                        >
-                          <KeyRound size={14} />
-                        </button>
+                          {/* Đổi mật khẩu */}
+                          <button
+                            title="Đặt lại mật khẩu"
+                            onClick={() => {
+                              setSelectedUserForPassword(u);
+                              setIsPasswordModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <KeyRound size={14} />
+                          </button>
 
-                        {/* Khóa/Mở khóa */}
-                        <button
-                          title={
-                            isSelf
-                              ? 'Không thể tự khóa tài khoản của chính mình'
-                              : u.status === 'ACTIVE'
-                              ? 'Khóa tài khoản'
-                              : 'Mở khóa tài khoản'
-                          }
-                          disabled={isSelf}
-                          onClick={() => handleToggleStatus(u)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isSelf
-                              ? 'opacity-30 cursor-not-allowed text-slate-400'
-                              : u.status === 'ACTIVE'
-                              ? 'text-slate-500 hover:text-red-700 hover:bg-red-50'
-                              : 'text-red-600 hover:text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {u.status === 'ACTIVE' ? <Lock size={14} /> : <Unlock size={14} />}
-                        </button>
+                          {/* Khóa/Mở khóa */}
+                          <button
+                            title={
+                              isSelf
+                                ? 'Không thể tự khóa tài khoản của chính mình'
+                                : u.status === 'ACTIVE'
+                                ? 'Khóa tài khoản'
+                                : 'Mở khóa tài khoản'
+                            }
+                            disabled={isSelf}
+                            onClick={() => handleToggleStatus(u)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelf
+                                ? 'opacity-30 cursor-not-allowed text-slate-400'
+                                : u.status === 'ACTIVE'
+                                ? 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
+                                : 'text-red-600 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer'
+                            }`}
+                          >
+                            {u.status === 'ACTIVE' ? <Lock size={14} /> : <Unlock size={14} />}
+                          </button>
 
-                        {/* Xóa/Vô hiệu hóa */}
-                        <button
-                          title={isSelf ? 'Không thể tự vô hiệu hóa tài khoản của chính mình' : 'Vô hiệu hóa tài khoản'}
-                          disabled={isSelf}
-                          onClick={() => handleDeleteUser(u)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isSelf
-                              ? 'opacity-30 cursor-not-allowed text-slate-400'
-                              : 'text-slate-400 hover:text-red-700 hover:bg-red-50'
-                          }`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                          {/* Xóa/Vô hiệu hóa */}
+                          <button
+                            title={isSelf ? 'Không thể tự vô hiệu hóa tài khoản của chính mình' : 'Vô hiệu hóa tài khoản'}
+                            disabled={isSelf}
+                            onClick={() => handleDeleteUser(u)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelf
+                                ? 'opacity-30 cursor-not-allowed text-slate-400'
+                                : 'text-slate-400 hover:text-red-700 hover:bg-red-50 cursor-pointer'
+                            }`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded bg-slate-800 text-teal-300 border border-teal-500/30 text-[10px] font-bold">
+                          Chỉ xem
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -451,7 +509,7 @@ export const UserManagementTab: React.FC = () => {
             <button
               onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
               disabled={currentPage <= 1 || isLoading}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
             >
               <ChevronLeft size={13} />
               <span>Trước</span>
@@ -464,7 +522,7 @@ export const UserManagementTab: React.FC = () => {
             <button
               onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
               disabled={currentPage >= totalPages || isLoading}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
             >
               <span>Sau</span>
               <ChevronRight size={13} />

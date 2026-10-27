@@ -114,6 +114,136 @@ export const captureVideoFrameAsJpeg = (
 };
 
 /**
+ * Nén Blob ảnh chụp trực tiếp từ LiveCameraModal thành chuỗi JPEG DataURL tối ưu (~60KB - 100KB)
+ */
+export const compressBlobToJpegDataUrl = (
+  blob: Blob,
+  maxWidth: number = 720,
+  quality: number = 0.85
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const rawWidth = img.naturalWidth || img.width || 640;
+        const rawHeight = img.naturalHeight || img.height || 480;
+        const scale = rawWidth > maxWidth ? maxWidth / rawWidth : 1;
+        const targetWidth = Math.round(rawWidth * scale);
+        const targetHeight = Math.round(rawHeight * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(typeof reader.result === 'string' ? reader.result : '');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (err) => reject(err);
+      img.src = typeof reader.result === 'string' ? reader.result : '';
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(blob);
+  });
+};
+
+export interface ResolvedAttendanceGps {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  distanceMeters: number;
+}
+
+/**
+ * Định vị GPS thực tế 100% từ phần cứng thiết bị (Tuyệt đối không dùng tọa độ giả lập / mock):
+ * - Bước 1: Quét GPS vệ tinh độ chính xác cao (enableHighAccuracy: true, maximumAge: 0)
+ * - Bước 2: Nếu thiết bị ở trong nhà/khuất vệ tinh bị TIMEOUT (code 3) hoặc POSITION_UNAVAILABLE (code 2),
+ *   quét định vị phần cứng Wi-Fi / Trạm phát sóng thực tế của thiết bị (enableHighAccuracy: false, maximumAge: 0)
+ * - Nếu người dùng chặn quyền (code 1) hoặc phần cứng tắt định vị hoàn toàn: Ném lỗi rõ ràng để yêu cầu bật GPS thật.
+ */
+export const resolveAttendanceGps = (
+  activeZone: MetroZoneCentroid
+): Promise<ResolvedAttendanceGps> => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return Promise.reject(
+      new Error('Trình duyệt hoặc thiết bị không hỗ trợ định vị GPS thực tế (Web Geolocation API).')
+    );
+  }
+
+  const requestPosition = (
+    options: PositionOptions
+  ): Promise<GeolocationPosition> =>
+    new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+
+  return requestPosition({
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0,
+  })
+    .catch((firstErr: unknown) => {
+      const geoErr = firstErr as { code?: number };
+      // Nếu người dùng từ chối quyền vị trí (code === 1), báo lỗi ngay không cần thử lại
+      if (geoErr?.code === 1) {
+        throw firstErr;
+      }
+      // Nếu timeout (code 3) hoặc khuất vệ tinh (code 2), lấy vị trí phần cứng thực qua Wi-Fi/Cell
+      return requestPosition({
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 0,
+      });
+    })
+    .then((position) => {
+      const lat = Number(position.coords.latitude.toFixed(6));
+      const lng = Number(position.coords.longitude.toFixed(6));
+      const accuracy = Math.max(1, Math.round(position.coords.accuracy || 10));
+      const distanceMeters = calculateDistanceMeters(
+        lat,
+        lng,
+        activeZone.lat,
+        activeZone.lng
+      );
+      return {
+        lat,
+        lng,
+        accuracy,
+        distanceMeters,
+      };
+    })
+    .catch((err: unknown) => {
+      const geoErr = err as { code?: number; message?: string };
+      console.error('[metroZoneUtils:resolveAttendanceGps] Real GPS acquisition failed:', {
+        code: geoErr?.code,
+        message: geoErr?.message,
+      });
+      if (geoErr?.code === 1) {
+        throw new Error(
+          'Thiết bị hoặc Trình duyệt đang chặn quyền truy cập Vị trí (GPS). Vui lòng mở Cài đặt Trình duyệt / Hệ điều hành (Location Services), cho phép quyền Vị trí rồi bấm "Lấy lại GPS".'
+        );
+      }
+      if (geoErr?.code === 2) {
+        throw new Error(
+          'Không thu được tín hiệu định vị thực tế từ phần cứng thiết bị. Vui lòng kiểm tra đã bật GPS / Wi-Fi trên máy và thử lại.'
+        );
+      }
+      if (geoErr?.code === 3) {
+        throw new Error(
+          'Quá thời gian chờ tín hiệu GPS thực tế từ thiết bị. Vui lòng di chuyển ra nơi thoáng hoặc bấm "Lấy lại GPS".'
+        );
+      }
+      throw new Error(
+        'Không thể lấy tọa độ GPS thực tế từ thiết bị. Vui lòng bật dịch vụ định vị và thử lại.'
+      );
+    });
+};
+
+/**
  * Phân giải đường dẫn ảnh Selfie điểm danh để hiển thị đúng trên cả Local Dev và Cloud Production
  */
 export const resolveAttendancePhotoUrl = (url?: string | null): string => {
@@ -141,4 +271,19 @@ export const resolveAttendancePhotoUrl = (url?: string | null): string => {
     return trimmed;
   }
   return trimmed;
+};
+
+/**
+ * Định dạng thời lượng ca làm việc thực địa từ số phút (VD: 515 -> "8 giờ 35 phút")
+ */
+export const formatWorkDurationMinutes = (minutes?: number | null): string => {
+  if (typeof minutes !== 'number' || Number.isNaN(minutes) || minutes <= 0) {
+    return '—';
+  }
+  const rounded = Math.max(1, Math.round(minutes));
+  const hrs = Math.floor(rounded / 60);
+  const mins = rounded % 60;
+  if (hrs === 0) return `${mins} phút`;
+  if (mins === 0) return `${hrs} giờ`;
+  return `${hrs} giờ ${mins} phút`;
 };

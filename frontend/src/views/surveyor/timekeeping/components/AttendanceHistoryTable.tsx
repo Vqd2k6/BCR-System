@@ -7,7 +7,10 @@ import {
   User,
   BadgeCheck,
 } from 'lucide-react';
-import { resolveAttendancePhotoUrl } from '../../../../core/utils/metroZoneUtils';
+import {
+  resolveAttendancePhotoUrl,
+  formatWorkDurationMinutes,
+} from '../../../../core/utils/metroZoneUtils';
 
 import type { User as DomainUser } from '../../../../core/types/domain.types';
 import type { AttendanceRecord, CompanionRecord } from '../types';
@@ -142,7 +145,21 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                         </span>
                       </div>
                       <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
-                        {new Date(h.checkin_time).toLocaleString('vi-VN')} • Cách Ga: <strong>{distance}m</strong>
+                        Vào: <strong>{new Date(h.checkin_time).toLocaleString('vi-VN')}</strong>
+                        {h.checkout_time ? (
+                          <>
+                            {' • '}Ra:{' '}
+                            <strong style={{ color: 'rgb(var(--text-sky-700))' }}>
+                              {new Date(h.checkout_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                            </strong>
+                            {h.work_duration_minutes ? ` (${formatWorkDurationMinutes(Number(h.work_duration_minutes))})` : ''}
+                          </>
+                        ) : (
+                          <span style={{ color: 'rgb(var(--text-amber-600))', fontWeight: 600 }}> • Chưa Check-out</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))', marginTop: '1px' }}>
+                        Cách Ga: <strong>{distance}m</strong>
                         {isOutOfBoundItem && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                       </div>
                     </div>
@@ -175,7 +192,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
               );
             })
           ) : (
-            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
+            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
               Chưa có lịch sử điểm danh của điều tra viên chính.
             </div>
           )}
@@ -253,7 +270,16 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                         {comp.role || 'Cán bộ đo đạc & Ghi chép'}
                       </div>
                       <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
-                        {timeStr} • Cách Ga: <strong>{dist}m</strong>
+                        Vào: <strong>{timeStr}</strong>
+                        {comp.checkOutTime ? (
+                          <>
+                            {' • '}Ra: <strong style={{ color: 'rgb(var(--text-sky-700))' }}>{comp.checkOutTime}</strong>
+                            {comp.workDurationMinutes ? ` (${formatWorkDurationMinutes(comp.workDurationMinutes)})` : ''}
+                          </>
+                        ) : (
+                          <span style={{ color: 'rgb(var(--text-amber-600))', fontWeight: 600 }}> • Chưa Check-out</span>
+                        )}
+                        {' • '}Cách Ga: <strong>{dist}m</strong>
                         {isItemOutOfBound && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                       </div>
                     </div>
@@ -272,7 +298,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
               );
             })
           ) : (
-            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
+            <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
               Chưa có lịch sử điểm danh cán bộ đi kèm nào.
             </div>
           )}

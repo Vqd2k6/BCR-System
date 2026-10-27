@@ -1,7 +1,7 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState } from 'react';
+import { getErrorMessage } from '@/utils/errorUtils';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, User, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Lock, User, ShieldCheck, ArrowRight, AlertTriangle } from 'lucide-react';
 
 interface Props {
   onNavigatePublicPortal?: () => void;
@@ -13,14 +13,29 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lockoutNotice, setLockoutNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem('metro2_auth_lockout_reason');
+      if (reason) {
+        setLockoutNotice(reason);
+        sessionStorage.removeItem('metro2_auth_lockout_reason');
+      }
+    } catch (_err: unknown) {
+      console.warn('[LoginView:useEffect] Không thể đọc metro2_auth_lockout_reason:', _err);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage(null);
+    setLockoutNotice(null);
     try {
       await login(username, password);
     } catch (err: unknown) {
+      console.error('[LoginView:handleSubmit] Lỗi đăng nhập:', err);
       setErrorMessage(getErrorMessage(err, 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.'));
     } finally {
       setLoading(false);
@@ -76,6 +91,20 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
             Dự án Tuyến Tàu Điện Ngầm Tuyến Số 2 TP.HCM (Metro Tuyến 2)
           </p>
         </div>
+
+        {/* Lockout / Session Revoked Banner (Phương án A) */}
+        {lockoutNotice && (
+          <div className="mb-4 rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs text-amber-900 space-y-1">
+            <div className="flex items-center gap-1.5 font-extrabold text-amber-800">
+              <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+              <span>Phiên làm việc đã bị ngắt kết nối</span>
+            </div>
+            <p className="m-0 font-semibold leading-relaxed">{lockoutNotice}</p>
+            <p className="m-0 text-[11px] text-amber-700">
+              💡 <strong>An toàn dữ liệu:</strong> Toàn bộ bản nháp khảo sát đang nhập dở trên thiết bị của bạn vẫn được bảo toàn nguyên vẹn.
+            </p>
+          </div>
+        )}
 
         {/* Error Alert */}
         {errorMessage && (
@@ -142,7 +171,7 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary"
+            className="btn btn-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               marginTop: '0.5rem',
               padding: '0.75rem',
@@ -167,6 +196,7 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
             <button
               type="button"
               onClick={onNavigatePublicPortal}
+              className="cursor-pointer hover:opacity-90 active:scale-95 transition-all"
               style={{
                 width: '100%',
                 padding: '0.6rem 0.8rem',

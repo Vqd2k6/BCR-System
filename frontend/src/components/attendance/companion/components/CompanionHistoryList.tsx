@@ -1,6 +1,9 @@
 import React from 'react';
 import { Clock, User, BadgeCheck } from 'lucide-react';
-import { resolveAttendancePhotoUrl } from '../../../../core/utils/metroZoneUtils';
+import {
+  resolveAttendancePhotoUrl,
+  formatWorkDurationMinutes,
+} from '../../../../core/utils/metroZoneUtils';
 import type { CompanionRecord } from '../types';
 
 interface CompanionHistoryListProps {
@@ -90,7 +93,16 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
                       {item.role || 'Cán bộ đi kèm'}
                     </div>
                     <div style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))' }}>
-                      {dateFormatted} • Cách Ga: <strong>{dist}m</strong>
+                      Vào: {dateFormatted}
+                      {item.checkOutTime ? (
+                        <>
+                          {' • '}Ra: <strong style={{ color: 'rgb(var(--text-sky-700))' }}>{item.checkOutTime}</strong>
+                          {item.workDurationMinutes ? ` (${formatWorkDurationMinutes(item.workDurationMinutes)})` : ''}
+                        </>
+                      ) : (
+                        <span style={{ color: 'rgb(var(--text-amber-600))', fontWeight: 600 }}> • Chưa Check-out</span>
+                      )}
+                      {' • '}Cách Ga: <strong>{dist}m</strong>
                       {isItemOutOfBound && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                     </div>
                   </div>
@@ -119,7 +131,7 @@ export const CompanionHistoryList: React.FC<CompanionHistoryListProps> = ({ comp
             );
           })
         ) : (
-          <div style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-400))', textAlign: 'center', padding: '0.85rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center', padding: '0.85rem' }}>
             Chưa có lịch sử điểm danh cán bộ đi kèm nào.
           </div>
         )}

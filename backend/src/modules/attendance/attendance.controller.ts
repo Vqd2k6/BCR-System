@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AttendanceService } from './attendance.service';
-import { CheckInDto, VerifyAttendanceDto } from './attendance.dto';
+import { CheckInDto, CheckOutDto, VerifyAttendanceDto } from './attendance.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 export class AttendanceController {
@@ -17,6 +17,27 @@ export class AttendanceController {
       const surveyorId = req.user!.userId;
       const result = await AttendanceService.checkIn(surveyorId, parsed.data);
       res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async checkOut(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = CheckOutDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu Check-out chấm công không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+
+      const surveyorId = req.user!.userId;
+      const result = await AttendanceService.checkOut(surveyorId, parsed.data);
+      res.status(200).json({
         success: true,
         data: result,
       });

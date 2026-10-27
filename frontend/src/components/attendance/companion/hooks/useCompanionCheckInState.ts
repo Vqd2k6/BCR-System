@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../../services/api';
 import { useAuth } from '../../../../context/AuthContext';
 import { getErrorMessage } from '../../../../utils/errorUtils';
@@ -6,7 +6,8 @@ import {
   getZoneCentroid,
   calculateDistanceMeters,
   getVietnamDateString,
-  captureVideoFrameAsJpeg,
+  compressBlobToJpegDataUrl,
+  resolveAttendanceGps,
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
 } from '../../../../core/utils/metroZoneUtils';
@@ -55,13 +56,14 @@ export const useCompanionCheckInState = ({
   const [companionPhone, setCompanionPhone] = useState<string>('');
   const [selfieUrl, setSelfieUrl] = useState<string>('');
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
-  const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [distanceMeters, setDistanceMeters] = useState<number>(0);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isCheckingOut, setIsCheckingOut] = useState<boolean>(false);
+  const [checkOutNotes, setCheckOutNotes] = useState<string>('');
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(false);
   const [changeCount, setChangeCount] = useState<number>(() => {
     try {
@@ -74,9 +76,6 @@ export const useCompanionCheckInState = ({
   });
   const [checkInData, setCheckInData] = useState<CompanionRecord | null>(null);
   const [companionHistory, setCompanionHistory] = useState<CompanionRecord[]>([]);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Đồng bộ tọa độ trọng tâm phân khu từ Backend
   useEffect(() => {
@@ -118,38 +117,30 @@ export const useCompanionCheckInState = ({
     }
   }, [targetZone.lat, targetZone.lng, gpsCoordinates]);
 
-  const getLiveGps = useCallback(() => {
+  const getLiveGps = useCallback(async () => {
     setGpsLoading(true);
     setGpsError(null);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          const accuracy = Math.round(pos.coords.accuracy || 0);
-          setGpsCoordinates({ lat, lng, accuracy });
-          const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
-          setDistanceMeters(dist);
-          setGpsLoading(false);
-        },
-        (err) => {
-          console.error('[useCompanionCheckInState:getLiveGps] Geolocation error:', err);
-          setGpsCoordinates(null);
-          setGpsLoading(false);
-          setGpsError(
-            err.code === 1
-              ? 'Trình duyệt bị từ chối quyền định vị GPS. Vui lòng cấp quyền vị trí để điểm danh cán bộ đi kèm.'
-              : 'Không thể lấy tín hiệu GPS thực tế. Vui lòng ra khu vực thoáng và bấm "Lấy lại GPS".'
-          );
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    } else {
+    try {
+      const resolved = await resolveAttendanceGps(targetZone);
+      setGpsCoordinates({
+        lat: resolved.lat,
+        lng: resolved.lng,
+        accuracy: resolved.accuracy,
+      });
+      setDistanceMeters(resolved.distanceMeters);
+    } catch (err: unknown) {
+      console.error('[useCompanionCheckInState:getLiveGps] Error resolving real GPS:', err);
       setGpsCoordinates(null);
+      setGpsError(
+        getErrorMessage(
+          err,
+          'Không thể lấy tọa độ GPS thực tế từ thiết bị. Vui lòng bật quyền Vị trí (Location Services) và thử lại.'
+        )
+      );
+    } finally {
       setGpsLoading(false);
-      setGpsError('Thiết bị không hỗ trợ định vị GPS.');
     }
-  }, [targetZone.lat, targetZone.lng]);
+  }, [targetZone]);
 
   const loadCompanionHistory = useCallback(async () => {
     try {
@@ -159,7 +150,13 @@ export const useCompanionCheckInState = ({
         .filter((item) => Boolean(item.is_companion))
         .map((item) => {
           const dt = item.checkin_time ? new Date(item.checkin_time) : new Date();
+          const checkOutDt = item.checkout_time ? new Date(item.checkout_time) : null;
           const dist = Math.round(Number(item.distance_to_zone_center_meters ?? item.distance_meters ?? 0));
+          const checkOutDist =
+            item.checkout_distance_to_zone_center_meters !== null &&
+            item.checkout_distance_to_zone_center_meters !== undefined
+              ? Math.round(Number(item.checkout_distance_to_zone_center_meters))
+              : undefined;
           return {
             id: item.id || `comp-${dt.getTime()}`,
             name: item.companion_name || 'Cán bộ đi kèm',
@@ -169,6 +166,17 @@ export const useCompanionCheckInState = ({
             time: dt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             date: getVietnamDateString(dt),
             checkin_time: typeof item.checkin_time === 'string' ? item.checkin_time : dt.toISOString(),
+            checkout_time: checkOutDt ? checkOutDt.toISOString() : null,
+            checkOutTime: checkOutDt
+              ? checkOutDt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+              : undefined,
+            checkOutDistance: checkOutDist,
+            checkOutSelfieUrl: resolveAttendancePhotoUrl(item.checkout_selfie_photo_url),
+            checkOutNotes: item.checkout_notes || undefined,
+            workDurationMinutes:
+              item.work_duration_minutes !== null && item.work_duration_minutes !== undefined
+                ? Number(item.work_duration_minutes)
+                : undefined,
             zone_id: item.zone_id,
             distance: dist,
             distance_meters: dist,
@@ -229,49 +237,25 @@ export const useCompanionCheckInState = ({
   useEffect(() => {
     if (isOpen) {
       setSubmitError(null);
-      getLiveGps();
+      void getLiveGps();
       void loadCompanionHistory();
     }
-
-    return () => {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
   }, [isOpen, getLiveGps, loadCompanionHistory]);
 
-  const handleStartCamera = async () => {
-    setCameraActive(true);
+  const handleNativeCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      const compressedDataUrl = await compressBlobToJpegDataUrl(file, 720, 0.85);
+      if (compressedDataUrl) {
+        setSelfieUrl(compressedDataUrl);
+        setSubmitError(null);
       }
     } catch (err: unknown) {
-      console.error('[useCompanionCheckInState:handleStartCamera] Camera error:', err);
-      alert('Không thể mở camera. Vui lòng cấp quyền camera trong trình duyệt.');
-      setCameraActive(false);
-    }
-  };
-
-  const handleStopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setCameraActive(false);
-  };
-
-  const handleCapturePhoto = () => {
-    if (videoRef.current) {
-      const dataUrl = captureVideoFrameAsJpeg(videoRef.current, 720, 0.82);
-      if (dataUrl) {
-        setSelfieUrl(dataUrl);
-      }
-      handleStopCamera();
+      console.error('[useCompanionCheckInState:handleNativeCameraCapture] Error reading native camera photo:', err);
+      setSubmitError('Không thể xử lý ảnh chụp từ máy ảnh gốc. Vui lòng chụp lại.');
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -379,6 +363,70 @@ export const useCompanionCheckInState = ({
     }
   };
 
+  const handleCompanionCheckOut = async () => {
+    if (!checkInData || isCheckingOut) return;
+    setSubmitError(null);
+    setIsCheckingOut(true);
+
+    try {
+      const resolvedGps = gpsCoordinates
+        ? { lat: gpsCoordinates.lat, lng: gpsCoordinates.lng, accuracy: gpsCoordinates.accuracy }
+        : await resolveAttendanceGps(targetZone);
+
+      const res = await api.post<{
+        success: boolean;
+        data: {
+          checkInId: string;
+          checkOutTime: string;
+          checkOutDistanceToCenterMeters: number;
+          checkOutNotes: string | null;
+          workDurationMinutes: number;
+        };
+      }>('/attendance/check-out', {
+        checkInId: checkInData.id,
+        zoneId: targetZone.zoneId,
+        gpsLatitude: resolvedGps.lat,
+        gpsLongitude: resolvedGps.lng,
+        notes: checkOutNotes.trim() || undefined,
+        isCompanion: true,
+      });
+
+      const resData = res.data?.data;
+      const checkOutDt = resData?.checkOutTime ? new Date(resData.checkOutTime) : new Date();
+      const updatedCompanion: CompanionRecord = {
+        ...checkInData,
+        checkout_time: checkOutDt.toISOString(),
+        checkOutTime: checkOutDt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        checkOutDistance:
+          typeof resData?.checkOutDistanceToCenterMeters === 'number'
+            ? Math.round(resData.checkOutDistanceToCenterMeters)
+            : distanceMeters,
+        checkOutNotes: resData?.checkOutNotes || checkOutNotes.trim() || undefined,
+        workDurationMinutes: resData?.workDurationMinutes ?? 1,
+      };
+
+      setCheckInData(updatedCompanion);
+      setCompanionHistory((prev) =>
+        prev.map((item) => (item.id === updatedCompanion.id ? updatedCompanion : item))
+      );
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updatedCompanion));
+      } catch (storageErr: unknown) {
+        console.error('[useCompanionCheckInState:handleCompanionCheckOut] Failed to save companion checkout:', storageErr);
+      }
+
+      window.dispatchEvent(new CustomEvent('metro2-attendance-updated'));
+    } catch (err: unknown) {
+      console.error('[useCompanionCheckInState:handleCompanionCheckOut] Error checking out companion:', err);
+      setSubmitError(
+        getErrorMessage(err, 'Không thể Check-out cán bộ đi kèm. Vui lòng kiểm tra mạng và thử lại.')
+      );
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   return {
     targetZone,
     todayStr,
@@ -392,23 +440,23 @@ export const useCompanionCheckInState = ({
     setSelfieUrl,
     outOfBoundsReason,
     setOutOfBoundsReason,
-    cameraActive,
     gpsCoordinates,
     distanceMeters,
     gpsLoading,
     gpsError,
     submitError,
     isSubmitting,
+    isCheckingOut,
+    checkOutNotes,
+    setCheckOutNotes,
     hasCheckedIn,
     setHasCheckedIn,
     changeCount,
     checkInData,
     companionHistory,
-    videoRef,
     getLiveGps,
-    handleStartCamera,
-    handleStopCamera,
-    handleCapturePhoto,
+    handleNativeCameraCapture,
     handleSubmit,
+    handleCompanionCheckOut,
   };
 };

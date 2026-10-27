@@ -144,6 +144,92 @@ export class CadastralRepository {
     return res.rows[0] || null;
   }
 
+  static async findExactForSwapByCode(
+    rawCode: string,
+    excludeParcelId?: string
+  ): Promise<(ParcelEntity & {
+    report_id?: string | null;
+    report_code?: string | null;
+    report_status?: string | null;
+    surveyor_name?: string | null;
+  }) | null> {
+    const cleanedCode = (rawCode || '')
+      .trim()
+      .replace(/[\[\]"'\\]/g, '')
+      .trim();
+    if (!cleanedCode) return null;
+
+    const isUuidExclude =
+      !!excludeParcelId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(excludeParcelId.trim());
+
+    const params: unknown[] = [cleanedCode];
+    let excludeClause = '';
+    if (isUuidExclude && excludeParcelId) {
+      params.push(excludeParcelId.trim());
+      excludeClause = `AND p.id != $2::uuid`;
+    }
+
+    const res = await Database.query<
+      ParcelEntity & {
+        report_id?: string | null;
+        report_code?: string | null;
+        report_status?: string | null;
+        surveyor_name?: string | null;
+      }
+    >(
+      `SELECT p.*,
+              COALESCE(
+                CASE
+                  WHEN NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), '') IS NOT NULL
+                   AND BTRIM(r_latest.survey_data_json->>'ownerName') !~* '^(chủ\\s+hộ\\s+thửa|chưa\\s+cập\\s+nhật|chủ\\s+sở\\s+hữu\\s+thửa)'
+                  THEN BTRIM(r_latest.survey_data_json->>'ownerName')
+                  ELSE NULL
+                END,
+                CASE
+                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                   AND BTRIM(p.owner_name) !~* '^(chủ\\s+hộ\\s+thửa|chưa\\s+cập\\s+nhật|chủ\\s+sở\\s+hữu\\s+thửa)'
+                  THEN BTRIM(p.owner_name)
+                  ELSE NULL
+                END,
+                NULLIF(BTRIM(r_latest.survey_data_json->>'ownerName'), ''),
+                p.owner_name
+              ) AS owner_name,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'ownerPhone'), ''), p.owner_phone) AS owner_phone,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'houseNumber'), ''), p.house_number) AS house_number,
+              COALESCE(NULLIF(BTRIM(r_latest.survey_data_json->>'street'), ''), p.street) AS street,
+              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+              ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+              r_latest.id AS report_id,
+              r_latest.report_code AS report_code,
+              r_latest.status AS report_status,
+              COALESCE(u_rep.full_name, u_p.full_name) AS surveyor_name
+       FROM parcels p
+       LEFT JOIN LATERAL (
+         SELECT bsr.id, bsr.report_code, bsr.status, bsr.surveyor_id, bsr.survey_data_json
+         FROM base_survey_reports bsr
+         WHERE bsr.parcel_id = p.id
+           AND bsr.unit_id IS NULL
+           AND bsr.deleted_at IS NULL
+         ORDER BY (CASE WHEN bsr.id = p.active_phase1_report_id THEN 0 ELSE 1 END), bsr.updated_at DESC NULLS LAST, bsr.created_at DESC
+         LIMIT 1
+       ) r_latest ON TRUE
+       LEFT JOIN users u_rep ON r_latest.surveyor_id = u_rep.id
+       LEFT JOIN users u_p ON p.assigned_surveyor_id = u_p.id
+       WHERE p.lifecycle_status = 'ACTIVE'
+         ${excludeClause}
+         AND (
+           UPPER(BTRIM(p.project_parcel_code)) = UPPER($1)
+           OR UPPER(BTRIM(COALESCE(p.official_cadastral_code, ''))) = UPPER($1)
+         )
+       ORDER BY (CASE WHEN UPPER(BTRIM(p.project_parcel_code)) = UPPER($1) THEN 0 ELSE 1 END) ASC
+       LIMIT 1;`,
+      params
+    );
+    return res.rows[0] || null;
+  }
+
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
     // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
     const target = (zoneId || 'ALL').toUpperCase();

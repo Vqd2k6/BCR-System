@@ -26,7 +26,8 @@ type ExtendedTrack = MediaStreamTrack & {
 interface UseLiveCameraProps {
   effectiveWatermarkOptions?: MetroWatermarkOptions;
   displayPhotoCode?: string;
-  cameraInputId: string;
+  cameraInputId?: string;
+  initialFacingMode?: 'environment' | 'user';
   onSuccessCapture: (result: { blob: Blob; photoCode: string }) => void;
 }
 
@@ -39,11 +40,12 @@ export interface CameraLensOption {
 export function useLiveCamera({
   effectiveWatermarkOptions,
   displayPhotoCode,
-  cameraInputId,
+  cameraInputId = '',
+  initialFacingMode = 'environment',
   onSuccessCapture,
 }: UseLiveCameraProps) {
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>(initialFacingMode);
   const [cameraLoading, setCameraLoading] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -88,10 +90,14 @@ export function useLiveCamera({
           if (isTorchOn) {
             try {
               (track as ExtendedTrack).applyConstraints({ advanced: [{ torch: false }] });
-            } catch (_) {}
+            } catch (torchErr: unknown) {
+              console.error('[useLiveCamera:stopLiveCamera] Torch off warning:', torchErr);
+            }
           }
           track.stop();
-        } catch (_e) {}
+        } catch (trackErr: unknown) {
+          console.error('[useLiveCamera:stopLiveCamera] Track stop warning:', trackErr);
+        }
       });
       streamRef.current = null;
     }
@@ -112,10 +118,14 @@ export function useLiveCamera({
           const min = caps.zoom.min || 1;
           const max = caps.zoom.max || 5;
           const target = Math.min(max, Math.max(min, zoom));
-          track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
+          track.applyConstraints({ advanced: [{ zoom: target }] }).catch((zErr: unknown) => {
+            console.error('[useLiveCamera:applyHardwareZoom] Constraint warning:', zErr);
+          });
         }
       }
-    } catch (_e) {}
+    } catch (err: unknown) {
+      console.error('[useLiveCamera:applyHardwareZoom] Error applying zoom:', err);
+    }
   };
 
   // Quét danh sách thiết bị để tìm camera góc rộng 0.5x và camera chính
@@ -214,7 +224,9 @@ export function useLiveCamera({
       streamRef.current.getTracks().forEach((track) => {
         try {
           track.stop();
-        } catch (_e) {}
+        } catch (trackErr: unknown) {
+          console.error('[useLiveCamera:startLiveCamera] Stop previous track warning:', trackErr);
+        }
       });
       streamRef.current = null;
     }
@@ -328,7 +340,9 @@ export function useLiveCamera({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(20);
-      } catch (_) {}
+      } catch (vibErr: unknown) {
+        console.error('[useLiveCamera:switchLensMode] Vibrate warning:', vibErr);
+      }
     }
 
     if (targetMode === '0.5x') {
@@ -388,7 +402,9 @@ export function useLiveCamera({
                 advanced: [{ torch: false }],
               });
             }
-          } catch (_) {}
+          } catch (tErr: unknown) {
+            console.error('[useLiveCamera:toggleTorch] Thermal auto-off warning:', tErr);
+          }
           setIsTorchOn(false);
           setTorchMessage('Đèn Flash đã tự tắt sau 45s để hạ nhiệt thiết bị. Bấm lại nếu cần tiếp tục soi sáng.');
           if (torchTimeoutRef.current) clearTimeout(torchTimeoutRef.current);
@@ -443,7 +459,9 @@ export function useLiveCamera({
             streamRef.current.getTracks().forEach((track) => {
               try {
                 track.stop();
-              } catch (_) {}
+              } catch (visErr: unknown) {
+                console.error('[useLiveCamera:visibilityChange] Track stop warning:', visErr);
+              }
             });
             streamRef.current = null;
           }
@@ -476,6 +494,10 @@ export function useLiveCamera({
   }, [isLiveCameraOpen, facingMode]);
 
   const handleTriggerNativeCamera = () => {
+    if (!cameraInputId) {
+      void startLiveCamera();
+      return;
+    }
     stopLiveCamera();
     setIsLiveCameraOpen(false);
     setTimeout(() => {
@@ -489,8 +511,10 @@ export function useLiveCamera({
   const handleTriggerCapture = () => {
     if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
       setIsLiveCameraOpen(true);
-    } else {
+    } else if (cameraInputId) {
       document.getElementById(cameraInputId)?.click();
+    } else {
+      setIsLiveCameraOpen(true);
     }
   };
 
@@ -604,7 +628,9 @@ export function useLiveCamera({
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             canvas.width = 0;
             canvas.height = 0;
-          } catch (_e) {}
+          } catch (clearErr: unknown) {
+            console.error('[useLiveCamera:handleCaptureLiveFrame] Canvas cleanup warning:', clearErr);
+          }
 
           if (blob) {
             onSuccessCapture({ blob, photoCode });
@@ -644,6 +670,7 @@ export function useLiveCamera({
     toggleTorch,
     dismissTorchMessage,
     applyHardwareZoom,
+    startLiveCamera,
     handleTriggerNativeCamera,
     handleTriggerCapture,
     handleVideoReady,

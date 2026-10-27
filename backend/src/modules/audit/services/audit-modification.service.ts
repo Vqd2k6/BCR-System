@@ -2353,14 +2353,16 @@ export class AuditModificationService {
       isUuid
         ? `SELECT id, project_parcel_code, zone_id FROM parcels WHERE id = $1;`
         : `SELECT id, project_parcel_code, zone_id FROM parcels 
-           WHERE (
-             project_parcel_code = $1 
-             OR official_cadastral_code = $1
-             OR project_parcel_code ILIKE $1
-             OR official_cadastral_code ILIKE $1
-             OR (project_parcel_code ILIKE ('%' || $1) AND zone_id = $2)
-           )
+           WHERE lifecycle_status = 'ACTIVE'
+             AND (
+               project_parcel_code = $1 
+               OR official_cadastral_code = $1
+               OR project_parcel_code ILIKE $1
+               OR official_cadastral_code ILIKE $1
+               OR (project_parcel_code ILIKE ('%' || $1) AND zone_id = $2)
+             )
            ORDER BY 
+             (CASE WHEN zone_id = $2 THEN 0 ELSE 1 END) ASC,
              (CASE WHEN project_parcel_code = $1 THEN 1 WHEN project_parcel_code ILIKE $1 THEN 2 ELSE 3 END) ASC
            LIMIT 1;`,
       isUuid ? [cleanTarget] : [cleanTarget, currentZoneId]
@@ -2373,12 +2375,6 @@ export class AuditModificationService {
 
     if (oldParcelId === targetParcel.id) {
       throw new BadRequestError(`Thửa đất đích [${targetParcel.project_parcel_code}] trùng với thửa đất hiện tại của hồ sơ`);
-    }
-
-    if (targetParcel.zone_id && currentZoneId && targetParcel.zone_id !== currentZoneId) {
-      throw new BadRequestError(
-        `Thửa đất đích [${targetParcel.project_parcel_code}] thuộc phân khu ${targetParcel.zone_id}, khác với phân khu ${currentZoneId} của hồ sơ hiện tại. Không thể hoán đổi liên phân khu!`
-      );
     }
 
     const effectiveReason = reason || 'Điều chuyển vị trí ranh đất không gian GIS do KSV tích nhầm polygon trên bản đồ';
@@ -2610,6 +2606,7 @@ export class AuditModificationService {
     const query = `
       SELECT 
         p.id AS parcel_id,
+        p.zone_id,
         p.project_parcel_code,
         p.official_cadastral_code,
         p.house_number,
@@ -2624,12 +2621,14 @@ export class AuditModificationService {
         r.id AS report_id,
         r.report_code,
         r.status AS report_status,
-        COALESCE(u.full_name, u_p.full_name) AS surveyor_name
+        COALESCE(u.full_name, u_p.full_name) AS surveyor_name,
+        false AS is_out_of_zone
       FROM parcels p
       LEFT JOIN LATERAL (
         SELECT id, report_code, status, surveyor_id 
         FROM base_survey_reports 
         WHERE parcel_id = p.id 
+          AND deleted_at IS NULL
         ORDER BY updated_at DESC LIMIT 1
       ) r ON true
       LEFT JOIN users u ON r.surveyor_id = u.id
@@ -2642,7 +2641,82 @@ export class AuditModificationService {
     `;
 
     const res = await Database.query(query, params);
-    return res.rows;
+    const inZoneRows = res.rows;
+
+    // 4. Nếu có nhập mã tìm kiếm chính xác mà không có trong Zone hiện tại, tự động tra cứu khớp mã chính xác ngoài Zone
+    if (cleanedSearch) {
+      const upperSearch = cleanedSearch.toUpperCase();
+      const hasExactInZone = inZoneRows.some(
+        (row: Record<string, unknown>) =>
+          String(row.project_parcel_code || '').trim().toUpperCase() === upperSearch ||
+          String(row.official_cadastral_code || '').trim().toUpperCase() === upperSearch
+      );
+
+      if (!hasExactInZone) {
+        const extParams: unknown[] = [cleanedSearch];
+        const extWhere: string[] = [
+          `p.lifecycle_status = 'ACTIVE'`,
+          `(UPPER(BTRIM(p.project_parcel_code)) = UPPER($1) OR UPPER(BTRIM(COALESCE(p.official_cadastral_code, ''))) = UPPER($1))`,
+        ];
+
+        if (resolvedZoneId) {
+          extParams.push(resolvedZoneId);
+          extWhere.push(`p.zone_id != $${extParams.length}`);
+        }
+        if (excludeReportId) {
+          extParams.push(excludeReportId);
+          extWhere.push(
+            `p.id != COALESCE((SELECT parcel_id FROM base_survey_reports WHERE id = $${extParams.length}::uuid), '00000000-0000-0000-0000-000000000000'::uuid)`
+          );
+        }
+        if (excludeParcelId) {
+          extParams.push(excludeParcelId);
+          extWhere.push(`p.id != $${extParams.length}::uuid`);
+        }
+
+        const extQuery = `
+          SELECT 
+            p.id AS parcel_id,
+            p.zone_id,
+            p.project_parcel_code,
+            p.official_cadastral_code,
+            p.house_number,
+            p.street,
+            p.ward,
+            p.district,
+            p.owner_name,
+            p.owner_phone,
+            p.land_area_m2,
+            p.construction_area_m2,
+            p.survey_status,
+            r.id AS report_id,
+            r.report_code,
+            r.status AS report_status,
+            COALESCE(u.full_name, u_p.full_name) AS surveyor_name,
+            true AS is_out_of_zone
+          FROM parcels p
+          LEFT JOIN LATERAL (
+            SELECT id, report_code, status, surveyor_id 
+            FROM base_survey_reports 
+            WHERE parcel_id = p.id 
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC LIMIT 1
+          ) r ON true
+          LEFT JOIN users u ON r.surveyor_id = u.id
+          LEFT JOIN users u_p ON p.assigned_surveyor_id = u_p.id
+          WHERE ${extWhere.join(' AND ')}
+          ORDER BY p.project_parcel_code ASC
+          LIMIT 5;
+        `;
+
+        const extRes = await Database.query(extQuery, extParams);
+        if (extRes.rows.length > 0) {
+          return [...extRes.rows, ...inZoneRows];
+        }
+      }
+    }
+
+    return inZoneRows;
   }
 
   /**

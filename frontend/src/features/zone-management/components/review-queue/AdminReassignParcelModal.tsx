@@ -15,6 +15,8 @@ import { AdminSecurityChallengeConfirm } from './AdminSecurityChallengeConfirm';
 
 export interface SwapCandidateParcel {
   parcel_id: string;
+  zone_id?: string;
+  is_out_of_zone?: boolean;
   project_parcel_code: string;
   official_cadastral_code?: string;
   house_number?: string;
@@ -115,6 +117,54 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
       clearTimeout(timer);
     };
   }, [isOpen, reportId, currentParcelId, zoneId, searchTerm]);
+
+  const handleLookupExactOutOfZone = async () => {
+    const cleanCode = searchTerm.trim().replace(/[\[\]"'\\]/g, '').trim();
+    if (!cleanCode) return;
+
+    setIsLoadingCandidates(true);
+    try {
+      const res = await api.get('/parcels/lookup-by-code', {
+        params: {
+          code: cleanCode,
+          excludeParcelId: currentParcelId || undefined,
+        },
+      });
+      const raw = res.data?.data as Record<string, unknown> | null | undefined;
+      if (res.data?.success && raw && raw.id) {
+        const foundZone = String(raw.zone_id || '');
+        const mapped: SwapCandidateParcel = {
+          parcel_id: String(raw.id),
+          zone_id: foundZone,
+          is_out_of_zone: Boolean(zoneId && foundZone && foundZone !== zoneId),
+          project_parcel_code: String(raw.project_parcel_code || ''),
+          official_cadastral_code: raw.official_cadastral_code ? String(raw.official_cadastral_code) : undefined,
+          house_number: raw.house_number ? String(raw.house_number) : undefined,
+          street: raw.street ? String(raw.street) : undefined,
+          ward: raw.ward ? String(raw.ward) : undefined,
+          district: raw.district ? String(raw.district) : undefined,
+          owner_name: raw.owner_name ? String(raw.owner_name) : undefined,
+          owner_phone: raw.owner_phone ? String(raw.owner_phone) : undefined,
+          land_area_m2: raw.land_area_m2 !== undefined ? Number(raw.land_area_m2) : undefined,
+          construction_area_m2: raw.construction_area_m2 !== undefined ? Number(raw.construction_area_m2) : undefined,
+          survey_status: raw.survey_status ? String(raw.survey_status) : undefined,
+          report_id: raw.report_id ? String(raw.report_id) : null,
+          report_code: raw.report_code ? String(raw.report_code) : null,
+          report_status: raw.report_status ? String(raw.report_status) : null,
+          surveyor_name: raw.surveyor_name ? String(raw.surveyor_name) : null,
+        };
+        setCandidates((prev) => {
+          if (prev.some((p) => p.parcel_id === mapped.parcel_id)) return prev;
+          return [mapped, ...prev];
+        });
+        setIsDropdownOpen(true);
+      }
+    } catch (err: unknown) {
+      console.error('[AdminReassignParcelModal] Exact parcel lookup error:', err);
+    } finally {
+      setIsLoadingCandidates(false);
+    }
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -246,7 +296,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                 2. Chọn Thửa Đất Cần Hoán Đổi Ranh GIS (Thửa B):
               </label>
               <span className="text-[11px] text-slate-400">
-                Tìm theo mã thửa, số nhà, đường, chủ hộ (không dấu)
+                Tìm trong Zone hoặc nhập chính xác mã lô đất ngoài Zone
               </span>
             </div>
 
@@ -254,7 +304,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Gõ mã thửa (vd: 0180), số nhà (vd: 658/1), tên đường (vd: cach mang)..."
+                placeholder="Gõ mã thửa, số nhà, tên đường (hoặc nhập đúng mã lô đất ngoài Zone)..."
                 value={selectedTargetParcel ? `[${selectedTargetParcel.project_parcel_code}] - Số ${selectedTargetParcel.house_number || '---'} ${selectedTargetParcel.street || ''}` : searchTerm}
                 onFocus={() => {
                   if (selectedTargetParcel) {
@@ -266,6 +316,12 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   setSelectedTargetParcel(null);
                   setSearchTerm(e.target.value);
                   setIsDropdownOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleLookupExactOutOfZone();
+                  }
                 }}
                 className="w-full pl-3 pr-10 py-2.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
               />
@@ -311,14 +367,28 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                 </div>
 
                 {candidates.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 italic">
-                    {isLoadingCandidates
-                      ? 'Đang tìm kiếm trong toàn bộ phân khu...'
-                      : 'Không tìm thấy thửa đất nào phù hợp với từ khóa.'}
+                  <div className="p-4 text-center text-xs text-slate-500 space-y-2">
+                    <div className="italic">
+                      {isLoadingCandidates
+                        ? 'Đang tìm kiếm trong phân khu và tra cứu mã chính xác...'
+                        : 'Không tìm thấy thửa đất trong phân khu hiện tại.'}
+                    </div>
+                    {!isLoadingCandidates && searchTerm.trim().length >= 2 && (
+                      <button
+                        type="button"
+                        onClick={() => void handleLookupExactOutOfZone()}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        Tra cứu chính xác mã &ldquo;{searchTerm.trim()}&rdquo; ngoài Zone
+                      </button>
+                    )}
                   </div>
                 ) : (
                   candidates.map((item) => {
                     const isSurveyed = !!item.report_id;
+                    const isCrossZone = Boolean(
+                      item.is_out_of_zone || (zoneId && item.zone_id && item.zone_id !== zoneId)
+                    );
                     return (
                       <button
                         key={item.parcel_id}
@@ -330,10 +400,15 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                         className="w-full text-left p-2.5 hover:bg-indigo-50/70 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-mono font-black text-indigo-700 group-hover:text-indigo-900">
                               [{item.project_parcel_code}]
                             </span>
+                            {isCrossZone && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                Ngoài Zone: {item.zone_id}
+                              </span>
+                            )}
                             <span className="text-xs font-bold text-slate-800 truncate">
                               Số {item.house_number || '---'} {item.street || ''}
                             </span>
@@ -379,13 +454,21 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
             {/* Hộp Thông Báo Ngữ Cảnh Nghiệp Vụ Tự Động */}
             {selectedTargetParcel && (
               <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs space-y-1.5 animate-in fade-in duration-150">
-                <div className="flex items-center gap-1.5 font-bold text-indigo-900">
-                  <Info className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <span>
-                    {selectedTargetParcel.report_id
-                      ? '✓ Hoán đổi chéo 2 hồ sơ đã khảo sát (Swap)'
-                      : '✓ Chuyển hồ sơ sang thửa đích chưa khảo sát (Reassign)'}
-                  </span>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                    <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>
+                      {selectedTargetParcel.report_id
+                        ? '✓ Hoán đổi chéo 2 hồ sơ đã khảo sát (Swap)'
+                        : '✓ Chuyển hồ sơ sang thửa đích chưa khảo sát (Reassign)'}
+                    </span>
+                  </div>
+                  {(selectedTargetParcel.is_out_of_zone ||
+                    (zoneId && selectedTargetParcel.zone_id && selectedTargetParcel.zone_id !== zoneId)) && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                      Hoán đổi vượt biên: {zoneId} ↔ {selectedTargetParcel.zone_id}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
                   {selectedTargetParcel.report_id ? (

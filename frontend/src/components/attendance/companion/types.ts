@@ -7,6 +7,12 @@ export interface CompanionRecord {
   time?: string;
   date?: string;
   checkin_time?: string;
+  checkout_time?: string | null;
+  checkOutTime?: string;
+  checkOutDistance?: number;
+  checkOutSelfieUrl?: string;
+  checkOutNotes?: string;
+  workDurationMinutes?: number;
   zone_id?: string;
   distance?: number;
   distance_meters?: number;

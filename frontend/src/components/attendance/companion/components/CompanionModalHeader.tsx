@@ -31,7 +31,7 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
             justifyContent: 'center',
             flexShrink: 0,
             boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
-            color: 'rgb(var(--text-white))',
+            color: '#ffffff',
           }}
         >
           <Users size={19} />

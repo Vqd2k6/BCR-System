@@ -20,6 +20,13 @@ export interface TimekeepingCheckInEntity {
   companion_name: string | null;
   companion_role: string | null;
   companion_phone: string | null;
+  checkout_time?: Date | null;
+  checkout_distance_to_zone_center_meters?: number | null;
+  checkout_selfie_photo_url?: string | null;
+  checkout_notes?: string | null;
+  work_duration_minutes?: number | null;
+  checkout_gps_latitude?: number | null;
+  checkout_gps_longitude?: number | null;
   deleted_at?: Date | null;
   gps_latitude?: number;
   gps_longitude?: number;
@@ -50,6 +57,12 @@ export class AttendanceRepository {
           ADD COLUMN IF NOT EXISTS companion_name VARCHAR(128),
           ADD COLUMN IF NOT EXISTS companion_role VARCHAR(128),
           ADD COLUMN IF NOT EXISTS companion_phone VARCHAR(32),
+          ADD COLUMN IF NOT EXISTS checkout_time TIMESTAMPTZ DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS checkout_gps_location GEOMETRY(Point, 4326) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS checkout_distance_to_zone_center_meters NUMERIC(10,2) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS checkout_selfie_photo_url TEXT DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS checkout_notes TEXT DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS work_duration_minutes INT DEFAULT NULL,
           ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
       `);
       this.schemaEnsured = true;
@@ -121,10 +134,82 @@ export class AttendanceRepository {
     return res.rows[0];
   }
 
+  static async findTodayCheckInForCheckOut(
+    surveyorId: string,
+    isCompanion: boolean,
+    checkInId?: string | null
+  ): Promise<TimekeepingCheckInEntity | null> {
+    await this.ensureCompanionColumns();
+    if (checkInId && checkInId.trim()) {
+      const byIdRes = await Database.query<TimekeepingCheckInEntity>(
+        `SELECT t.*, ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude,
+                ST_X(t.checkout_gps_location) AS checkout_gps_longitude, ST_Y(t.checkout_gps_location) AS checkout_gps_latitude
+         FROM timekeeping_checkins t
+         WHERE t.id = $1 AND t.surveyor_id = $2 AND t.deleted_at IS NULL
+         LIMIT 1;`,
+        [checkInId.trim(), surveyorId]
+      );
+      if (byIdRes.rows[0]) {
+        return byIdRes.rows[0];
+      }
+    }
+
+    const res = await Database.query<TimekeepingCheckInEntity>(
+      `SELECT t.*, ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude,
+              ST_X(t.checkout_gps_location) AS checkout_gps_longitude, ST_Y(t.checkout_gps_location) AS checkout_gps_latitude
+       FROM timekeeping_checkins t
+       WHERE t.surveyor_id = $1
+         AND t.is_companion = $2
+         AND t.deleted_at IS NULL
+         AND (t.checkin_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = (NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+       ORDER BY (t.checkout_time IS NULL) DESC, t.checkin_time DESC
+       LIMIT 1;`,
+      [surveyorId, isCompanion]
+    );
+    return res.rows[0] || null;
+  }
+
+  static async updateCheckOut(data: {
+    checkInId: string;
+    gpsLatitude: number;
+    gpsLongitude: number;
+    distanceToCenterMeters: number;
+    selfiePhotoUrl?: string | null;
+    notes?: string | null;
+  }): Promise<TimekeepingCheckInEntity | null> {
+    await this.ensureCompanionColumns();
+    const res = await Database.query<TimekeepingCheckInEntity>(
+      `UPDATE timekeeping_checkins
+       SET checkout_time = NOW(),
+           checkout_gps_location = ST_SetSRID(ST_MakePoint($2, $3), 4326),
+           checkout_distance_to_zone_center_meters = $4,
+           checkout_selfie_photo_url = COALESCE($5, checkout_selfie_photo_url),
+           checkout_notes = COALESCE($6, checkout_notes),
+           work_duration_minutes = GREATEST(1, ROUND(EXTRACT(EPOCH FROM (NOW() - checkin_time)) / 60.0)::int)
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING *,
+         ST_X(gps_location) AS gps_longitude,
+         ST_Y(gps_location) AS gps_latitude,
+         ST_X(checkout_gps_location) AS checkout_gps_longitude,
+         ST_Y(checkout_gps_location) AS checkout_gps_latitude;`,
+      [
+        data.checkInId,
+        data.gpsLongitude,
+        data.gpsLatitude,
+        data.distanceToCenterMeters,
+        data.selfiePhotoUrl || null,
+        data.notes || null,
+      ]
+    );
+    return res.rows[0] || null;
+  }
+
   static async getCheckInById(id: string): Promise<TimekeepingCheckInEntity | null> {
     await this.ensureCompanionColumns();
     const res = await Database.query<TimekeepingCheckInEntity>(
-      `SELECT t.*, u.full_name AS surveyor_name, ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude
+      `SELECT t.*, u.full_name AS surveyor_name,
+              ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude,
+              ST_X(t.checkout_gps_location) AS checkout_gps_longitude, ST_Y(t.checkout_gps_location) AS checkout_gps_latitude
        FROM timekeeping_checkins t
        JOIN users u ON t.surveyor_id = u.id
        WHERE t.id = $1 AND t.deleted_at IS NULL LIMIT 1;`,
@@ -183,7 +268,9 @@ export class AttendanceRepository {
     params.push(limit, offset);
 
     const res = await Database.query<TimekeepingCheckInEntity>(
-      `SELECT t.*, u.full_name AS surveyor_name, ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude
+      `SELECT t.*, u.full_name AS surveyor_name,
+              ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude,
+              ST_X(t.checkout_gps_location) AS checkout_gps_longitude, ST_Y(t.checkout_gps_location) AS checkout_gps_latitude
        FROM timekeeping_checkins t
        JOIN users u ON t.surveyor_id = u.id
        ${whereClause}

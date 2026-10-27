@@ -28,6 +28,7 @@ interface LiveCameraModalProps {
   onToggleTorch?: () => void;
   torchMessage?: string | null;
   onDismissTorchMessage?: () => void;
+  hideNativeCameraFallback?: boolean;
 }
 
 export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
@@ -56,6 +57,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
   onToggleTorch,
   torchMessage,
   onDismissTorchMessage,
+  hideNativeCameraFallback = false,
 }) => {
   if (!isOpen) return null;
 
@@ -64,7 +66,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 120000,
+        zIndex: 1000005,
         backgroundColor: '#000000',
         display: 'flex',
         flexDirection: 'column',
@@ -89,6 +91,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
         <button
           type="button"
           onClick={onClose}
+          className="cursor-pointer"
           style={{
             background: 'rgba(255, 255, 255, 0.2)',
             border: 'none',
@@ -122,6 +125,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={() => onSelectLensMode && onSelectLensMode('0.5x')}
+            className="cursor-pointer"
             style={{
               padding: '0.25rem 0.65rem',
               borderRadius: '9999px',
@@ -148,6 +152,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={() => onSelectLensMode && onSelectLensMode('1.0x')}
+            className="cursor-pointer"
             style={{
               padding: '0.25rem 0.65rem',
               borderRadius: '9999px',
@@ -168,6 +173,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={onResetZoom}
+            className="cursor-pointer"
             style={{
               padding: '0.25rem 0.65rem',
               borderRadius: '9999px',
@@ -191,6 +197,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={onToggleTorch}
+            className="cursor-pointer"
             style={{
               background: isTorchOn ? '#facc15' : 'rgba(255, 255, 255, 0.2)',
               border: isTorchOn ? '2px solid #eab308' : '1px solid rgba(255, 255, 255, 0.25)',
@@ -220,6 +227,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={onSwitchCamera}
+            className="cursor-pointer"
             style={{
               background: 'rgba(255, 255, 255, 0.2)',
               border: 'none',
@@ -270,6 +278,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <button
             type="button"
             onClick={onDismissTorchMessage}
+            className="cursor-pointer"
             style={{
               background: 'transparent',
               border: 'none',
@@ -323,6 +332,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
         {cameraLoading && !cameraError && (
           <div
             onClick={onDismissLoading}
+            className="cursor-pointer"
             style={{
               position: 'absolute',
               inset: 0,
@@ -366,10 +376,15 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
             }}
           >
             <AlertTriangle size={36} />
-            <div style={{ fontSize: '0.85rem', maxWidth: '300px', lineHeight: 1.4 }}>{cameraError}</div>
+            <div style={{ fontSize: '0.85rem', maxWidth: '300px', lineHeight: 1.4 }}>
+              {hideNativeCameraFallback
+                ? 'Không thể khởi động luồng Camera trực tiếp. Vui lòng cấp quyền Camera cho trình duyệt và bấm thử lại.'
+                : cameraError}
+            </div>
             <button
               type="button"
               onClick={onTriggerNativeCamera}
+              className="cursor-pointer"
               style={{
                 backgroundColor: '#0284c7',
                 color: '#ffffff',
@@ -386,7 +401,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
               }}
             >
               <Camera size={16} />
-              <span>Mở Máy ảnh hệ thống</span>
+              <span>{hideNativeCameraFallback ? 'Thử kết nối lại Camera' : 'Mở Máy ảnh hệ thống'}</span>
             </button>
           </div>
         )}
@@ -469,12 +484,17 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           zIndex: 20,
         }}
       >
-        {/* Nút mở Máy ảnh hệ thống (Native Camera - Mát máy ngoài trời) */}
+        {/* Nút bên trái: Đổi Camera trước/sau (khi dùng cho Điểm danh) hoặc mở Máy ảnh hệ thống */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
           <button
             type="button"
-            onClick={onTriggerNativeCamera}
-            title="Chuyển sang Máy ảnh hệ điều hành (chống nóng máy, có Flash phần cứng)"
+            onClick={hideNativeCameraFallback ? onSwitchCamera : onTriggerNativeCamera}
+            className="cursor-pointer"
+            title={
+              hideNativeCameraFallback
+                ? 'Đổi Camera trước / sau'
+                : 'Chuyển sang Máy ảnh hệ điều hành (chống nóng máy, có Flash phần cứng)'
+            }
             style={{
               background: 'rgba(255,255,255,0.18)',
               border: '1px solid rgba(255,255,255,0.25)',
@@ -489,9 +509,11 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
               backdropFilter: 'blur(4px)',
             }}
           >
-            <Camera size={20} />
+            {hideNativeCameraFallback ? <RefreshCw size={20} /> : <Camera size={20} />}
           </button>
-          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Cam gốc</span>
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+            {hideNativeCameraFallback ? 'Đổi Cam' : 'Cam gốc'}
+          </span>
         </div>
 
         {/* Shutter Button */}
@@ -499,6 +521,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           type="button"
           onClick={onCaptureFrame}
           disabled={cameraLoading || !!cameraError}
+          className={cameraLoading || !!cameraError ? 'disabled:opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           style={{
             width: '74px',
             height: '74px',

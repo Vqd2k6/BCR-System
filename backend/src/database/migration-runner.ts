@@ -119,7 +119,12 @@ export class MigrationRunner {
             if (file.startsWith('20261011_')) {
               return canBaselineCondo;
             }
-            if (file.startsWith('20261024_') || file.startsWith('20261025_') || file.startsWith('20261026_')) {
+            if (
+              file.startsWith('20261024_') ||
+              file.startsWith('20261025_') ||
+              file.startsWith('20261026_') ||
+              file.startsWith('20261027_')
+            ) {
               return false;
             }
             return true;
@@ -230,6 +235,26 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261026_attendance_companion_and_zone_sync.sql';`
           );
           appliedSet.delete('20261026_attendance_companion_and_zone_sync.sql');
+        }
+      }
+
+      // 6.5 CƠ CHẾ SELF-HEALING CHO 20261027: Đảm bảo cột checkout_time trên timekeeping_checkins luôn được khởi tạo thực tế
+      if (appliedSet.has('20261027_attendance_checkout_support.sql')) {
+        const checkCheckoutCol = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'timekeeping_checkins' AND column_name = 'checkout_time'
+          ) AS exists;
+        `);
+
+        if (!checkCheckoutCol.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261027_attendance_checkout_support.sql được đánh dấu nhưng schema thực tế chưa có timekeeping_checkins.checkout_time. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261027_attendance_checkout_support.sql';`
+          );
+          appliedSet.delete('20261027_attendance_checkout_support.sql');
         }
       }
 

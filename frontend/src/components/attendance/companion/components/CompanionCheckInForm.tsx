@@ -27,12 +27,8 @@ interface CompanionCheckInFormProps {
   setCompanionRole: (role: string) => void;
   companionPhone: string;
   setCompanionPhone: (phone: string) => void;
-  cameraActive: boolean;
-  videoRef: React.RefObject<HTMLVideoElement>;
   selfieUrl: string;
-  handleStartCamera: () => void;
-  handleStopCamera: () => void;
-  handleCapturePhoto: () => void;
+  handleNativeCameraCapture: (e: React.ChangeEvent<HTMLInputElement>) => void;
   outOfBoundsReason: string;
   setOutOfBoundsReason: (reason: string) => void;
   isSubmitting: boolean;
@@ -55,12 +51,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
   setCompanionRole,
   companionPhone,
   setCompanionPhone,
-  cameraActive,
-  videoRef,
   selfieUrl,
-  handleStartCamera,
-  handleStopCamera,
-  handleCapturePhoto,
+  handleNativeCameraCapture,
   outOfBoundsReason,
   setOutOfBoundsReason,
   isSubmitting,
@@ -153,6 +145,12 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             <span>Lấy lại GPS</span>
           </button>
         </div>
+
+        {gpsCoordinates && (
+          <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-600))' }}>
+            Tọa độ thực tế: <strong>{gpsCoordinates.lat.toFixed(6)}, {gpsCoordinates.lng.toFixed(6)} (±{gpsCoordinates.accuracy}m)</strong>
+          </div>
+        )}
 
         {gpsError && (
           <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-red-700))' }}>
@@ -256,7 +254,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         </div>
       </div>
 
-      {/* Camera & Selfie Capture */}
+      {/* Camera & Live Capture */}
       <div
         style={{
           backgroundColor: 'rgb(var(--bg-slate-50))',
@@ -271,127 +269,91 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
       >
         <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
           <Camera size={14} color="#0284c7" />
-          <span>Ảnh Selfie Cán Bộ Đi Kèm (*)</span>
+          <span>Ảnh Chụp Sống Cán Bộ Đi Kèm (*)</span>
         </div>
 
-        {cameraActive ? (
-          <div
-            className="bg-slate-900"
-            style={{
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.65rem',
-              borderRadius: '0.65rem',
-            }}
-          >
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              style={{ width: '100%', maxHeight: '200px', borderRadius: '0.5rem', objectFit: 'cover' }}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', width: '100%' }}>
+          {displaySelfieUrl ? (
+            <img
+              src={displaySelfieUrl}
+              alt="Companion Live Photo"
+              style={{
+                width: '120px',
+                height: '150px',
+                borderRadius: '0.65rem',
+                objectFit: 'cover',
+                border: '2px solid rgb(var(--border-sky-300))',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)',
+              }}
             />
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                type="button"
-                onClick={handleCapturePhoto}
-                className="cursor-pointer"
-                style={{
-                  background: 'rgb(var(--bg-sky-600))',
-                  color: 'rgb(var(--text-white))',
-                  border: 'none',
-                  borderRadius: '0.45rem',
-                  padding: '0.45rem 1rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Camera size={13} />
-                Chụp ảnh
-              </button>
-              <button
-                type="button"
-                onClick={handleStopCamera}
-                className="cursor-pointer"
-                style={{
-                  background: 'rgb(var(--bg-slate-600))',
-                  color: 'rgb(var(--text-white))',
-                  border: 'none',
-                  borderRadius: '0.45rem',
-                  padding: '0.45rem 0.85rem',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Hủy
-              </button>
+          ) : (
+            <div
+              style={{
+                width: '120px',
+                height: '140px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgb(var(--bg-white))',
+                border: '2px dashed rgb(var(--border-slate-300))',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                color: 'rgb(var(--text-slate-500))',
+              }}
+            >
+              <User size={30} />
+              <span style={{ fontSize: '0.675rem', fontWeight: 600, color: 'rgb(var(--text-slate-500))' }}>Ảnh sống hiện tại</span>
             </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem' }}>
-            {displaySelfieUrl ? (
-              <img
-                src={displaySelfieUrl}
-                alt="Companion Selfie"
-                style={{
-                  width: '120px',
-                  height: '150px',
-                  borderRadius: '0.65rem',
-                  objectFit: 'cover',
-                  border: '2px solid rgb(var(--border-sky-300))',
-                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '120px',
-                  height: '140px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgb(var(--bg-white))',
-                  border: '2px dashed rgb(var(--border-slate-300))',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  color: 'rgb(var(--text-slate-400))',
-                }}
-              >
-                <User size={30} />
-                <span style={{ fontSize: '0.675rem', fontWeight: 600, color: 'rgb(var(--text-slate-400))' }}>Khung chân dung</span>
-              </div>
-            )}
+          )}
 
-            <button
-              type="button"
-              onClick={handleStartCamera}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', position: 'relative' }}>
+            <input
+              id="attendance_companion_native_camera"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleNativeCameraCapture}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '1px',
+                height: '1px',
+                padding: 0,
+                margin: 0,
+                overflow: 'hidden',
+                clip: 'rect(0, 0, 0, 0)',
+                whiteSpace: 'nowrap',
+                border: 0,
+                opacity: 0,
+                pointerEvents: 'none',
+              }}
+            />
+            <label
+              htmlFor="attendance_companion_native_camera"
               className="cursor-pointer"
               style={{
-                background: 'rgb(var(--bg-sky-100))',
-                color: 'rgb(var(--text-sky-600))',
-                border: '1px solid rgb(var(--border-sky-200))',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                border: 'none',
                 borderRadius: '999px',
-                padding: '0.4rem 1rem',
-                fontSize: '0.75rem',
+                padding: '0.5rem 1.2rem',
+                fontSize: '0.775rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '5px',
+                boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
+                userSelect: 'none',
               }}
             >
-              <Camera size={13} />
-              <span>{displaySelfieUrl ? 'Chụp lại ảnh' : 'Bật Camera Chụp Selfie'}</span>
-            </button>
+              <Camera size={14} />
+              <span>{displaySelfieUrl ? 'Mở Máy Ảnh chụp lại' : 'Mở Máy Ảnh Chụp Điểm Danh'}</span>
+            </label>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Out of bounds reason */}
@@ -459,7 +421,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             borderRadius: '0.5rem',
             border: 'none',
             background: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--bg-slate-200))' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-            color: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--text-slate-500))' : 'rgb(var(--text-white))',
+            color: isSubmitting || gpsLoading || !gpsCoordinates ? 'rgb(var(--text-slate-500))' : '#ffffff',
             fontSize: '0.775rem',
             fontWeight: 700,
             cursor: isSubmitting || gpsLoading || !gpsCoordinates ? 'not-allowed' : 'pointer',

@@ -22,6 +22,16 @@ export const CheckInDto = z
     }
   });
 
+export const CheckOutDto = z.object({
+  checkInId: z.string().uuid('ID lượt chấm công không hợp lệ').optional().nullable(),
+  zoneId: z.string().optional().nullable(),
+  gpsLatitude: z.number().min(-90).max(90),
+  gpsLongitude: z.number().min(-180).max(180),
+  selfiePhotoUrl: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  isCompanion: z.boolean().optional().default(false),
+});
+
 export const VerifyAttendanceDto = z.object({
   action: z.enum(['APPROVE', 'REJECT', 'FLAG_WARNING']),
   notes: z.string().optional().nullable(),

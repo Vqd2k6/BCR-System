@@ -74,11 +74,22 @@ api.interceptors.response.use(
     }
 
     if (status === 401) {
+      const msgStr = typeof detailMsg === 'string' ? detailMsg : 'Phiên đăng nhập đã hết hạn hoặc tài khoản đã bị thu hồi quyền truy cập.';
       console.warn(
-        `%c[API AUTH 401] ${method} ${url}%c -> Token hết hạn hoặc chưa đăng nhập. Chi tiết: ${detailMsg}`,
+        `%c[API AUTH 401] ${method} ${url}%c -> Token hết hạn hoặc chưa đăng nhập. Chi tiết: ${msgStr}`,
         'color: #f59e0b; font-weight: bold;',
         'color: inherit;'
       );
+      if (typeof window !== 'undefined' && !url?.includes('/auth/login')) {
+        window.dispatchEvent(
+          new CustomEvent('metro2:auth-unauthorized', {
+            detail: {
+              message: msgStr,
+              url: url || '',
+            },
+          })
+        );
+      }
     } else if (status && status >= 400 && status < 500) {
       if (!isDraftCheck404) {
         console.warn(

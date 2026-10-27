@@ -35,12 +35,30 @@ export const SurveyorNavbar: React.FC<Props> = ({
       return false;
     }
   });
+  const [isCheckedOutToday, setIsCheckedOutToday] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { checkOutTime?: string };
+      return Boolean(parsed?.checkOutTime);
+    } catch (err: unknown) {
+      console.error('[SurveyorNavbar:initCheckOutStatus] Error reading check-out status:', err);
+      return false;
+    }
+  });
 
   useEffect(() => {
     const syncCompanionStatus = () => {
       try {
         const currentToday = getVietnamDateString();
         setIsCompanionCheckedIn(!!localStorage.getItem(`metro2_companion_checkin_${currentToday}`));
+        const rawToday = localStorage.getItem(`metro2_today_checkin_${currentToday}`);
+        if (rawToday) {
+          const parsed = JSON.parse(rawToday) as { checkOutTime?: string };
+          setIsCheckedOutToday(Boolean(parsed?.checkOutTime));
+        } else {
+          setIsCheckedOutToday(false);
+        }
       } catch (err: unknown) {
         console.error('[SurveyorNavbar:syncCompanionStatus] Error syncing companion check-in:', err);
       }
@@ -415,7 +433,13 @@ export const SurveyorNavbar: React.FC<Props> = ({
                   }}
                 >
                   {isCheckedInToday && <CheckCircle2 size={10} />}
-                  <span>{isCheckedInToday ? 'Đã điểm danh' : 'Chưa điểm danh'}</span>
+                  <span>
+                    {isCheckedInToday
+                      ? isCheckedOutToday
+                        ? 'Đã hoàn tất ca'
+                        : 'Đang trong ca'
+                      : 'Chưa điểm danh'}
+                  </span>
                 </span>
               </div>
 
@@ -426,7 +450,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                     setShowProfileMenu(false);
                     onNavigateToCheckIn();
                   }}
-                  className={isCheckedInToday ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'}
+                  className={isCheckedInToday ? 'btn btn-secondary btn-sm cursor-pointer' : 'btn btn-warning btn-sm cursor-pointer'}
                   style={{
                     width: '100%',
                     padding: '0.35rem',
@@ -439,7 +463,13 @@ export const SurveyorNavbar: React.FC<Props> = ({
                   }}
                 >
                   <Clock size={12} />
-                  <span>{isCheckedInToday ? 'Xem chi tiết điểm danh' : 'Chấm công GPS ngay'}</span>
+                  <span>
+                    {isCheckedInToday
+                      ? isCheckedOutToday
+                        ? 'Xem chi tiết điểm danh'
+                        : 'Check-out / Xem điểm danh'
+                      : 'Chấm công GPS ngay'}
+                  </span>
                 </button>
               )}
             </div>

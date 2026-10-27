@@ -23,6 +23,10 @@ export class CadastralService {
     return parcel;
   }
 
+  static async lookupParcelByExactCode(code: string, excludeParcelId?: string) {
+    return CadastralRepository.findExactForSwapByCode(code, excludeParcelId);
+  }
+
   static async listParcelsInZone(zoneId: string, status?: string) {
     return CadastralRepository.listParcelsByZone(zoneId, status);
   }

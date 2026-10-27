@@ -101,6 +101,24 @@ export class CadastralController {
     }
   }
 
+  static async lookupParcelByExactCode(req: Request, res: Response, next: NextFunction) {
+    try {
+      const code = (req.query.code as string) || '';
+      const excludeParcelId = (req.query.excludeParcelId as string) || undefined;
+      if (!code.trim()) {
+        throw new BadRequestError('Vui lòng nhập mã thửa đất (code) cần tra cứu');
+      }
+      const parcel = await CadastralService.lookupParcelByExactCode(code, excludeParcelId);
+      const isGuest = req.user?.role === 'GUEST';
+      res.status(200).json({
+        success: true,
+        data: parcel ? (isGuest ? maskParcelPii(parcel) : parcel) : null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async startSurvey(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

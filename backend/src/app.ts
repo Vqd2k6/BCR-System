@@ -110,6 +110,7 @@ export function createApp(): express.Application {
   // ==========================================
   // Chấm công
   api.post('/attendance/check-in', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.checkIn);
+  api.post('/attendance/check-out', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.checkOut);
   api.get('/attendance/my-history', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getMyHistory);
   api.get('/attendance/assigned-zone', authenticateJwt, AttendanceController.getAssignedZone);
 
@@ -121,6 +122,7 @@ export function createApp(): express.Application {
   api.get('/parcels/zone-map', authenticateJwt, CadastralController.getZoneMap);
   api.get('/parcels/nearby', authenticateJwt, CadastralController.getNearbyParcels);
   api.get('/parcels/next-high-range-codes', authenticateJwt, CadastralController.getNextHighRangeProjectCodes);
+  api.get('/parcels/lookup-by-code', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.lookupParcelByExactCode);
   api.get('/parcels/:id', authenticateJwt, CadastralController.getParcelById);
   api.get('/parcels/:id/units', authenticateJwt, CadastralController.getUnits);
   api.post('/parcels/:id/units', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.createUnit);

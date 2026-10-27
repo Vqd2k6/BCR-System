@@ -146,6 +146,7 @@ export class CadastralGeometryService {
 
     const res = await Database.query<{
       id: string;
+      zone_id: string;
       project_parcel_code: string;
       official_cadastral_code: string;
       house_number: string;
@@ -156,7 +157,7 @@ export class CadastralGeometryService {
       distance_meters: number;
       is_touching: boolean;
     }>(
-      `SELECT p.id, p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
+      `SELECT p.id, p.zone_id, p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
               p.owner_name, p.land_area_m2, p.survey_status,
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ROUND(ST_Distance(p.cadastral_polygon_geom::geography, target.cadastral_polygon_geom::geography)::numeric, 1) AS distance_meters,
@@ -286,13 +287,7 @@ export class CadastralGeometryService {
         throw new BadRequestError('Không thể phân định 2 thửa đất riêng biệt để hoán đổi');
       }
 
-      if (parcelA.zone_id !== parcelB.zone_id) {
-        throw new BadRequestError(
-          `Hai thửa đất không cùng Zone (Thửa A thuộc ${parcelA.zone_id}, Thửa B thuộc ${parcelB.zone_id}). Không thể hoán đổi liên Zone!`
-        );
-      }
-
-      // 1.1. Chốt chặn IDOR & Phân quyền Zone Admin
+      // 1.1. Chốt chặn IDOR & Phân quyền Zone Admin (Cho phép hoán đổi vượt biên nếu ít nhất 1 thửa thuộc phân khu quản lý)
       let effectiveRole = user?.role;
       let effectiveZoneId = user?.assignedZoneId;
       if (!effectiveRole && adminId) {
@@ -313,12 +308,40 @@ export class CadastralGeometryService {
         const normalizedAssigned = (effectiveZoneId || '').trim().toUpperCase();
         const hasAllZonesPrivilege =
           !normalizedAssigned || normalizedAssigned === 'ALL' || normalizedAssigned === 'ALL_ZONES';
+        const zoneAliases: Record<string, string[]> = {
+          ZONE_S1: ['ZONE_S1', 'ZONE_01'],
+          ZONE_01: ['ZONE_01', 'ZONE_S1'],
+          ZONE_S2: ['ZONE_S2', 'ZONE_02', 'ZONE_03'],
+          ZONE_02: ['ZONE_02', 'ZONE_S2'],
+          ZONE_S3: ['ZONE_S3', 'ZONE_03', 'ZONE_05'],
+          ZONE_03: ['ZONE_03', 'ZONE_S3', 'ZONE_S2'],
+          ZONE_S4: ['ZONE_S4', 'ZONE_04', 'ZONE_07'],
+          ZONE_04: ['ZONE_04', 'ZONE_S4'],
+          ZONE_S5: ['ZONE_S5', 'ZONE_09', 'ZONE_05'],
+          ZONE_05: ['ZONE_05', 'ZONE_S5', 'ZONE_S3'],
+          ZONE_S6: ['ZONE_S6', 'ZONE_11'],
+          ZONE_11: ['ZONE_11', 'ZONE_S6'],
+          ZONE_S7: ['ZONE_S7', 'ZONE_13'],
+          ZONE_13: ['ZONE_13', 'ZONE_S7'],
+          ZONE_S8: ['ZONE_S8', 'ZONE_08', 'ZONE_15'],
+          ZONE_08: ['ZONE_08', 'ZONE_S8'],
+          ZONE_S9: ['ZONE_S9', 'ZONE_09', 'ZONE_17'],
+          ZONE_09: ['ZONE_09', 'ZONE_S9', 'ZONE_S5', 'ZONE_17'],
+          ZONE_S10: ['ZONE_S10', 'ZONE_19'],
+          ZONE_19: ['ZONE_19', 'ZONE_S10'],
+          ZONE_S11: ['ZONE_S11', 'ZONE_21'],
+          ZONE_21: ['ZONE_21', 'ZONE_S11'],
+        };
+        const allowedZoneList = zoneAliases[normalizedAssigned] || [normalizedAssigned];
+        const normZoneA = (parcelA.zone_id || '').trim().toUpperCase();
+        const normZoneB = (parcelB.zone_id || '').trim().toUpperCase();
         if (
           !hasAllZonesPrivilege &&
-          (parcelA.zone_id !== effectiveZoneId || parcelB.zone_id !== effectiveZoneId)
+          !allowedZoneList.includes(normZoneA) &&
+          !allowedZoneList.includes(normZoneB)
         ) {
           throw new ForbiddenError(
-            `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ được phép thao tác trong phân khu [${effectiveZoneId}], không thể hoán đổi thửa thuộc phân khu [${parcelA.zone_id}].`
+            `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ được phép thao tác trong phân khu [${effectiveZoneId}], không thể hoán đổi 2 thửa đều nằm ngoài phân khu quản lý ([${parcelA.zone_id}] và [${parcelB.zone_id}]).`
           );
         }
       }
@@ -542,6 +565,7 @@ export class CadastralGeometryService {
       );
 
       // 3. Ghi log sự kiện biến động (Mutation Event)
+      const isCrossZoneSwap = parcelA.zone_id !== parcelB.zone_id;
       const swapEventCode = `SWAP-GIS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const mutRes = await client.query<{ id: string }>(
         `INSERT INTO parcel_mutation_events (
@@ -553,7 +577,7 @@ export class CadastralGeometryService {
           swapEventCode,
           parcelA.id,
           parcelB.id,
-          `Hoán đổi không gian GIS giữa [${parcelA.project_parcel_code}] (${parcelA.house_number} ${parcelA.street}) và [${parcelB.project_parcel_code}] (${parcelB.house_number} ${parcelB.street}). Lý do: ${reason}`,
+          `Hoán đổi không gian GIS${isCrossZoneSwap ? ` vượt biên (${parcelA.zone_id} ↔ ${parcelB.zone_id})` : ''} giữa [${parcelA.project_parcel_code}] (${parcelA.house_number} ${parcelA.street}) và [${parcelB.project_parcel_code}] (${parcelB.house_number} ${parcelB.street}). Lý do: ${reason}`,
           adminId,
         ]
       );
@@ -570,15 +594,18 @@ export class CadastralGeometryService {
           adminId,
           JSON.stringify({
             swapEventCode,
+            isCrossZoneSwap,
             parcelA: {
               id: parcelA.id,
               code: parcelA.project_parcel_code,
+              zoneId: parcelA.zone_id,
               oldArea: parcelA.land_area_m2,
               newArea: parcelB.land_area_m2,
             },
             parcelB: {
               id: parcelB.id,
               code: parcelB.project_parcel_code,
+              zoneId: parcelB.zone_id,
               oldArea: parcelB.land_area_m2,
               newArea: parcelA.land_area_m2,
             },

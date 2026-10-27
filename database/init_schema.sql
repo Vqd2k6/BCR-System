@@ -594,6 +594,12 @@ CREATE TABLE timekeeping_checkins (
     companion_name VARCHAR(128),
     companion_role VARCHAR(128),
     companion_phone VARCHAR(32),
+    checkout_time TIMESTAMPTZ DEFAULT NULL,
+    checkout_gps_location GEOMETRY(Point, 4326) DEFAULT NULL,
+    checkout_distance_to_zone_center_meters NUMERIC(10,2) DEFAULT NULL,
+    checkout_selfie_photo_url TEXT DEFAULT NULL,
+    checkout_notes TEXT DEFAULT NULL,
+    work_duration_minutes INT DEFAULT NULL,
     deleted_at TIMESTAMPTZ DEFAULT NULL
 );
 
