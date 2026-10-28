@@ -123,7 +123,8 @@ export class MigrationRunner {
               file.startsWith('20261024_') ||
               file.startsWith('20261025_') ||
               file.startsWith('20261026_') ||
-              file.startsWith('20261027_')
+              file.startsWith('20261027_') ||
+              file.startsWith('20261028_')
             ) {
               return false;
             }
@@ -255,6 +256,26 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261027_attendance_checkout_support.sql';`
           );
           appliedSet.delete('20261027_attendance_checkout_support.sql');
+        }
+      }
+
+      // 6.6 CƠ CHẾ SELF-HEALING CHO 20261028: Đảm bảo bảng progress_report_config_versions luôn được khởi tạo thực tế
+      if (appliedSet.has('20261028_progress_report_config_versions.sql')) {
+        const checkProgressReportTable = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'progress_report_config_versions'
+          ) AS exists;
+        `);
+
+        if (!checkProgressReportTable.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261028_progress_report_config_versions.sql được đánh dấu nhưng schema thực tế chưa có bảng progress_report_config_versions. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261028_progress_report_config_versions.sql';`
+          );
+          appliedSet.delete('20261028_progress_report_config_versions.sql');
         }
       }
 
