@@ -10,7 +10,7 @@ import { isInWindow, resolveTimeWindow, vnDateString, formatVnDate } from './rul
 import { calculateSummary } from './summary/summary.calculator';
 import { getRenderer } from './render/renderer.registry';
 import type { RenderedFile } from './render/renderer.types';
-import type { ProgressFilter, ProgressPreview, ProgressRecord } from './progress-report.types';
+import type { ProgressFilter, ProgressPreview, ProgressRecord, RawProgressRow } from './progress-report.types';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 /**
@@ -56,10 +56,10 @@ export class ProgressReportService {
 
     const { config, version } = await ProgressConfigProvider.getActive();
     const raw = await this.dataSource.fetchRows({ zoneId: filter.zoneId });
-    const universe = raw.map((r) => normalizeRecord(r, config));
+    const universe = raw.map((r: RawProgressRow) => normalizeRecord(r, config));
     const window = resolveTimeWindow(filter, now);
 
-    const filtered = universe.filter((r) => {
+    const filtered = universe.filter((r: ProgressRecord) => {
       if (filter.timeMode === 'ALL_TIME') return config.includeNotSurveyedRows || isTouched(r);
       return isTouched(r) && isInWindow(r.activityDates, window);
     });
