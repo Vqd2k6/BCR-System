@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
+import { ProgressReportExportButton } from '../../../progress-report';
 
 export interface ZoneIntelligenceStats {
   totalParcels: number;
@@ -96,7 +97,8 @@ export const ZoneIntelligenceDashboard: React.FC<Props> = ({
           </div>
 
           {/* Quick Velocity Pill */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <ProgressReportExportButton zoneId={selectedZone} />
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold whitespace-nowrap shrink-0 shadow-2xs">
               <Zap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>Tốc độ: ~{stats.velocityPerDay || 1.5} thửa/ngày</span>

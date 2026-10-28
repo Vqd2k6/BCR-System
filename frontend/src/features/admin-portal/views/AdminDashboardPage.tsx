@@ -9,6 +9,7 @@ import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
 import { ReportContentConfigTab } from '../components/ReportContentConfigTab';
 import { ZoneIngestionTab } from '../components/ZoneIngestionTab';
+import { ProgressConfigTab } from '../../progress-report';
 import type { ImportPreviewState } from '../../../components/gis/shared/types';
 import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
 import { useAuth } from '../../../context/AuthContext';
@@ -85,6 +86,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onOpenMa
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'report-content', label: 'Nội Dung Chuẩn & Thiết Bị Báo Cáo', icon: <FileSpreadsheet className="w-4 h-4" /> },
+          { key: 'progress-config', label: 'Cấu Hình Báo Cáo Tiến Độ Ngày', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
         ] as const).map((tab) => (
           <button
@@ -126,6 +128,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onOpenMa
       {/* Tab Report Content & Equipment Config */}
       {activeTab === 'report-content' && (
         <ReportContentConfigTab />
+      )}
+
+      {/* Tab Plugin: Cấu hình Báo cáo Tiến độ Ngày */}
+      {activeTab === 'progress-config' && (
+        <ProgressConfigTab />
       )}
 
       {/* Tab Audit */}
