@@ -7,7 +7,6 @@ import { Phase1PreviewModal } from './phase1-export/components/modals/Phase1Prev
 import { AuditStudioModal } from './review-queue/AuditStudioModal';
 import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
 import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPreview';
-import { ProgressReportExportButton } from '../../progress-report';
 import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
 
 // Re-export all types so existing consumers don't break
@@ -117,7 +116,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         isLoading={isLoading}
         onRefresh={fetchExportableParcels}
         hideZoneSelect={hideZoneSelect}
-        extraActions={<ProgressReportExportButton zoneId={selectedZone} lockZone={hideZoneSelect} />}
       />
 
       {/* 4. Bảng danh sách công trình & các nút thao tác xuất báo cáo */}

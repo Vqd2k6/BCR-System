@@ -1150,19 +1150,3 @@ BEFORE UPDATE ON parcels
 FOR EACH ROW
 EXECUTE FUNCTION check_parcel_approved_lock();
 
-
--- ============================================================================
--- MODULE BÁO CÁO TIẾN ĐỘ NGÀY (PROGRESS REPORT PLUGIN) – Đồng bộ migration 20261028
--- ============================================================================
-CREATE TABLE IF NOT EXISTS progress_report_config_versions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  version_number INTEGER NOT NULL UNIQUE CHECK (version_number >= 1),
-  content_json JSONB NOT NULL,
-  change_reason TEXT NOT NULL CHECK (char_length(btrim(change_reason)) >= 5),
-  created_by_user_id UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  deleted_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_progress_report_config_versions_active
-  ON progress_report_config_versions(version_number DESC) WHERE deleted_at IS NULL;

@@ -22,7 +22,6 @@ import { ReportController } from './modules/report/report.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { ReportConfigController } from './modules/report_config/report-config.controller';
 import { ImageLabController } from './modules/image-lab/image-lab.controller';
-import { createProgressReportRouter } from './modules/progress-report';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -287,11 +286,6 @@ export function createApp(): express.Application {
   // ==========================================
   api.post('/dev/report-error', DevController.reportError);
   app.post('/api/dev/report-error', DevController.reportError);
-
-  // ==========================================
-  // 7. PLUGIN: BÁO CÁO TIẾN ĐỘ NGÀY (PROGRESS REPORT) – cắm/rút bằng 1 dòng
-  // ==========================================
-  api.use('/progress-report', createProgressReportRouter());
 
   // Mount API prefix
   app.use(config.apiPrefix, api);

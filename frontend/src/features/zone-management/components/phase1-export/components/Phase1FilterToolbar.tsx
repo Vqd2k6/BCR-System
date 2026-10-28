@@ -15,8 +15,6 @@ interface Phase1FilterToolbarProps {
   isLoading: boolean;
   onRefresh: () => void;
   hideZoneSelect?: boolean;
-  /** Slot nút mở rộng (VD: plugin Xuất Tiến Độ Ngày) – không phụ thuộc cụ thể plugin nào. */
-  extraActions?: React.ReactNode;
 }
 
 export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
@@ -29,7 +27,6 @@ export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
   isLoading,
   onRefresh,
   hideZoneSelect = false,
-  extraActions,
 }) => {
   return (
     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -98,7 +95,6 @@ export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
       </div>
 
       <div className="flex items-center gap-2 self-end md:self-auto">
-        {extraActions}
         <button
           onClick={onRefresh}
           disabled={isLoading}
