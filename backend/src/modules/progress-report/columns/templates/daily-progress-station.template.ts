@@ -2,8 +2,9 @@ import type { ProgressTemplate } from '../column.types';
 import { COL } from '../common.columns';
 
 /**
- * Template "Tiến độ khảo sát ngày theo Ga" – bám sát source_templete/Bảng tính không có tiêu đề.xlsx
- * 28 cột A → AB, chú giải Row 5–6, header 2 tầng Row 8–9, bảng tổng hợp cuối sheet.
+ * Template "Tiến độ khảo sát ngày theo Ga":
+ * 29 cột A → AC (tách "Tình trạng hiện tại" (ECS) và "Mức độ đánh giá rủi ro" (BRA)),
+ * chú giải 3 dòng (ECS / BRA / Trạng thái KS), header 2 tầng, bảng tổng hợp cuối sheet.
  */
 export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
   id: 'daily-progress-station',
@@ -14,12 +15,21 @@ export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
       label: 'Tình trạng hiện tại:',
       labelSpan: 3,
       items: [
-        { text: config.labels.condition.NEW, span: 1 },
-        { text: config.labels.condition.OLD, span: 1 },
-        { text: config.labels.condition.DEGRADED, span: 1 },
-        { text: config.labels.condition.MONITOR, span: 2, colorKey: 'MONITOR' },
-        { text: config.labels.condition.HIGH_RISK, span: 1, colorKey: 'HIGH_RISK' },
-        { text: config.labels.condition.INACCESSIBLE, span: 2, colorKey: 'INACCESSIBLE' },
+        { text: config.labels.ecs.GOOD, span: 1 },
+        { text: config.labels.ecs.MEDIUM, span: 1 },
+        { text: config.labels.ecs.DEFICIENT, span: 2, colorKey: 'MONITOR' },
+        { text: config.labels.ecs.CRITICAL, span: 1, colorKey: 'HIGH_RISK' },
+        { text: config.labels.ecs.INACCESSIBLE, span: 2, colorKey: 'INACCESSIBLE' },
+      ],
+    },
+    {
+      label: 'Mức độ đánh giá rủi ro:',
+      labelSpan: 3,
+      items: [
+        { text: config.labels.bra.LOW, span: 1 },
+        { text: config.labels.bra.MEDIUM, span: 1, colorKey: 'MONITOR' },
+        { text: config.labels.bra.HIGH, span: 2, colorKey: 'HIGH_RISK' },
+        { text: config.labels.bra.VERY_HIGH, span: 1, colorKey: 'HIGH_RISK' },
       ],
     },
     {
@@ -54,15 +64,15 @@ export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
     COL.floors, // R
     COL.totalRooms, // S
     COL.year, // T
-    COL.condition, // U
-    COL.designUnit, // V
-    COL.constructionUnit, // W
-    COL.asBuilt, // X
-    COL.distCenterline, // Y
-    COL.distEdge, // Z
-    COL.surveyProgress, // AA
-    COL.notes, // AB
+    COL.condition, // U - Tình trạng hiện tại (ECS)
+    COL.braRisk, // V - Mức độ đánh giá rủi ro (BRA)
+    COL.designUnit, // W
+    COL.constructionUnit, // X
+    COL.asBuilt, // Y
+    COL.distCenterline, // Z
+    COL.distEdge, // AA
+    COL.surveyProgress, // AB
+    COL.notes, // AC
   ],
   includeSummary: true,
 };
-

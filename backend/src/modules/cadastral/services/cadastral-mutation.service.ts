@@ -3,6 +3,7 @@ import { CadastralRepository } from '../cadastral.repository';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
 import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
+import { generateUniqueCadastralCode, resolveCadastralCode } from '../utils/cadastral-code.generator';
 
 export class CadastralMutationService {
   /**
@@ -436,6 +437,7 @@ export class CadastralMutationService {
       primaryProjectParcelCode?: string;
       childParcels?: Array<{
         projectParcelCode?: string;
+        officialCadastralCode?: string;
         houseNumber?: string;
         street?: string;
         ownerName?: string;
@@ -859,14 +861,8 @@ export class CadastralMutationService {
             const newOwnerName = (data.mergeSecondaryOwnerName || 'Chủ hộ mới').trim();
             const newOwnerPhone = (data.mergeSecondaryPhone || '').trim();
             const newFloorCount = Number(data.mergeSecondaryFloorCount) || 1;
-            let newOfficialCode = `${primaryParcel.official_cadastral_code || primaryParcel.project_parcel_code}-B`;
-            const checkOff = await client.query<{ id: string }>(
-              `SELECT id FROM parcels WHERE official_cadastral_code = $1;`,
-              [newOfficialCode]
-            );
-            if (checkOff.rows.length > 0) {
-              newOfficialCode = `${primaryParcel.official_cadastral_code || primaryParcel.project_parcel_code}-${Date.now().toString().slice(-4)}`;
-            }
+            // Mã ĐC tạm cấp ngẫu nhiên R####### cho căn công trình mới phát sinh sau gộp thửa
+            const newOfficialCode = await generateUniqueCadastralCode(client);
 
             let geomInsertExpr: string;
             let insertParams: any[];
@@ -1392,6 +1388,8 @@ export class CadastralMutationService {
             const bOwnerName = child.ownerName || `Chủ hộ Căn ${String.fromCharCode(65 + idx)} (${code})`;
             const bConstructionArea = bArea;
             const bFloorCount = child.floorCount || 1;
+            // Mã ĐC: dùng mã Admin nhập tay nếu có, ngược lại tạm cấp R####### ngẫu nhiên
+            const bOfficialCode = await resolveCadastralCode(client, child.officialCadastralCode);
 
             const insertParams: any[] = [
               zoneId,                        // $1
@@ -1406,6 +1404,7 @@ export class CadastralMutationService {
               bConstructionArea,             // $10
               bFloorCount,                   // $11
               parent.id,                     // $12
+              bOfficialCode,                 // $13
             ];
 
             let bGeomExpr: string;
@@ -1450,15 +1449,17 @@ export class CadastralMutationService {
                  zone_id, project_parcel_code, house_number, street, ward, district,
                  owner_name, owner_phone, land_area_m2, construction_area_m2, floor_count,
                  cadastral_polygon_geom, footprint_polygon_geom, location_geom,
-                 survey_status, lifecycle_status, mutation_type, parent_parcel_ids
+                 survey_status, lifecycle_status, mutation_type, parent_parcel_ids,
+                 official_cadastral_code
                ) VALUES (
                  $1, $2, $3, $4, $5, $6,
                  $7, $8, $9, $10, $11,
                  ${bGeomExpr},
                  ${bGeomExpr},
                  ST_Centroid(${bGeomExpr}),
-                 'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$12::uuid]
-               ) RETURNING id, project_parcel_code;`,
+                 'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$12::uuid],
+                 $13
+               ) RETURNING id, project_parcel_code, official_cadastral_code;`,
               insertParams
             );
 
@@ -1510,6 +1511,7 @@ export class CadastralMutationService {
         splitCount: createdParcels.length,
         splitChildren: createdParcels.map((c, idx) => ({
           childCode: c.project_parcel_code,
+          ...(c.official_cadastral_code ? { officialCadastralCode: c.official_cadastral_code } : {}),
           areaM2: Number(data.childParcels?.[idx]?.landAreaM2) || 0,
           ownerName: data.childParcels?.[idx]?.ownerName || '',
         })),

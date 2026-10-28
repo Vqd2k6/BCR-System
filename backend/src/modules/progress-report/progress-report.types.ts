@@ -10,7 +10,14 @@ export type TimeMode = 'TODAY' | 'DATE_RANGE' | 'ALL_TIME';
 
 export type AlignmentSide = 'RIGHT' | 'LEFT';
 
+/** Mã tổng hợp phục vụ bảng Summary (Cần theo dõi / Nguy cơ cao / Không tiếp cận). */
 export type ConditionCode = 'NEW' | 'OLD' | 'DEGRADED' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE';
+
+/** Cột "Tình trạng hiện tại" (ECS - 4 mức phân hạng + Không tiếp cận được). */
+export type EcsConditionCode = 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' | 'INACCESSIBLE';
+
+/** Cột "Mức độ đánh giá rủi ro" (BRA - 4 mức phân hạng). */
+export type BraRiskCode = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
 
 export type SurveyProgressCode = 'IN_PROGRESS' | 'SURVEY_DONE_REPORTING' | 'REPORT_DONE' | 'REPORT_SIGNED';
 
@@ -39,6 +46,7 @@ export interface RawProgressRow {
   parcelOwnerPhone: string | null;
   parcelFloorCount: number | null;
   parcelFrontageWidth: number | null;
+  parcelLotDepth?: number | null;
   parcelDistanceToCenterline: number | null;
   parcelSurveyStatus: string;
   unitCode: string | null;
@@ -65,9 +73,17 @@ export interface RawProgressRow {
   specFoundationDepth: number | null;
   specBuildingHeight: number | null;
   specFoundationCatScore: number | null;
+  specBuildingGrade?: string | null;
+  submittedLotDepth?: number | null;
+  submittedFrontageWidth?: number | null;
+  submittedBuildingHeight?: number | null;
   riskEcsClass: string | null;
+  riskViClass?: string | null;
+  riskViAvg?: number | null;
   riskBra: string | null;
   riskOverriddenEcsClass: string | null;
+  riskOverriddenViClass?: string | null;
+  riskOverriddenAvgVi?: number | null;
   riskOverriddenBra: string | null;
   riskOverriddenBurland: number | null;
   riskJudgementApplied: boolean;
@@ -81,6 +97,8 @@ export interface RawProgressRow {
   absenceReason: string | null;
   absenceNotes: string | null;
   computedSide: AlignmentSide | null;
+  gisDistanceCenterlineM?: number | null;
+  gisDistanceEdgeM?: number | null;
 }
 
 /** Bản ghi đã chuẩn hóa nghiệp vụ – đầu vào duy nhất cho Column Registry. */
@@ -111,6 +129,8 @@ export interface ProgressRecord {
   totalRooms: number | null;
   constructionYear: number | string | null;
   condition: ConditionCode | null;
+  ecsCondition: EcsConditionCode | null;
+  braGrade: BraRiskCode | null;
   designUnit: string;
   constructionUnit: string;
   asBuilt: string;
@@ -157,4 +177,3 @@ export interface ProgressPreview {
   columns: Array<{ key: string; header: string; group?: string }>;
   configVersion: number | null;
 }
-

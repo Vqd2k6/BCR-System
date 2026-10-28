@@ -1,6 +1,7 @@
 import { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
 import { CadastralMutationService } from '../../cadastral/services/cadastral-mutation.service';
+import { resolveCadastralCode } from '../../cadastral/utils/cadastral-code.generator';
 
 export class SurveyMutationRepository {
   /**
@@ -204,10 +205,11 @@ export class SurveyMutationRepository {
         portionBCode = await this.getNextZoneProjectCode(client, zoneId);
       }
 
-      const officialBCode =
-        splitChildren[1]?.officialCadastralCode ||
-        rawMutation.portionBOfficialCadastralCode ||
-        `${origOfficialCode || originalProjectParcelCode}-B`;
+      // Mã ĐC: ưu tiên mã KSV/Admin khai báo, ngược lại tạm cấp R####### ngẫu nhiên
+      const officialBCode = await resolveCadastralCode(
+        client,
+        splitChildren[1]?.officialCadastralCode || rawMutation.portionBOfficialCadastralCode
+      );
 
       const ownerBName =
         splitChildren[1]?.ownerName ||

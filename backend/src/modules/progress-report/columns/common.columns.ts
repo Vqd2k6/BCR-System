@@ -1,5 +1,5 @@
 import type { ColumnDefinition } from './column.types';
-import type { CellStyle, ConditionCode } from '../progress-report.types';
+import type { BraRiskCode, CellStyle, EcsConditionCode } from '../progress-report.types';
 import type { ProgressReportConfig } from '../config/config.schema';
 import { toVnCalendarDate } from '../rules/time-window';
 
@@ -10,10 +10,16 @@ import { toVnCalendarDate } from '../rules/time-window';
 const DATE_FMT = 'dd/mm/yyyy';
 const METER_FMT = '0.0#';
 
-function conditionStyle(code: ConditionCode | null, config: ProgressReportConfig): CellStyle | undefined {
-  if (code === 'MONITOR') return { fillArgb: config.colors.MONITOR };
-  if (code === 'HIGH_RISK') return { fillArgb: config.colors.HIGH_RISK };
+function ecsStyle(code: EcsConditionCode | null, config: ProgressReportConfig): CellStyle | undefined {
+  if (code === 'DEFICIENT') return { fillArgb: config.colors.MONITOR };
+  if (code === 'CRITICAL') return { fillArgb: config.colors.HIGH_RISK };
   if (code === 'INACCESSIBLE') return { fillArgb: config.colors.INACCESSIBLE };
+  return undefined;
+}
+
+function braStyle(code: BraRiskCode | null, config: ProgressReportConfig): CellStyle | undefined {
+  if (code === 'MEDIUM') return { fillArgb: config.colors.MONITOR };
+  if (code === 'HIGH' || code === 'VERY_HIGH') return { fillArgb: config.colors.HIGH_RISK };
   return undefined;
 }
 
@@ -40,11 +46,19 @@ export const COL = {
   year: { key: 'year', header: 'Năm XD', width: 9, align: 'center', resolve: (r) => r.constructionYear },
   condition: {
     key: 'condition',
-    header: 'Tình trạng hiện tại',
+    header: 'Tình trạng hiện tại (ECS)',
     width: 20,
     align: 'center',
-    resolve: (r, ctx) => (r.condition ? ctx.config.labels.condition[r.condition] : null),
-    style: (r, ctx) => conditionStyle(r.condition, ctx.config),
+    resolve: (r, ctx) => (r.ecsCondition ? ctx.config.labels.ecs[r.ecsCondition] : null),
+    style: (r, ctx) => ecsStyle(r.ecsCondition, ctx.config),
+  },
+  braRisk: {
+    key: 'braRisk',
+    header: 'Mức độ đánh giá rủi ro (BRA)',
+    width: 22,
+    align: 'center',
+    resolve: (r, ctx) => (r.braGrade ? ctx.config.labels.bra[r.braGrade] : null),
+    style: (r, ctx) => braStyle(r.braGrade, ctx.config),
   },
   designUnit: { key: 'designUnit', header: 'ĐV thiết kế', group: 'Hồ sơ ', width: 12, resolve: (r) => r.designUnit || null },
   constructionUnit: { key: 'constructionUnit', header: 'ĐV thi công', group: 'Hồ sơ ', width: 12, resolve: (r) => r.constructionUnit || null },
@@ -59,4 +73,3 @@ export const COL = {
   },
   notes: { key: 'notes', header: 'Ghi chú', width: 32, resolve: (r) => r.notes || null },
 } satisfies Record<string, ColumnDefinition>;
-

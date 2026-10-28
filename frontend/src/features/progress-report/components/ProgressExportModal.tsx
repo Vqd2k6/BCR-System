@@ -101,7 +101,7 @@ export const ProgressExportModal: React.FC<ProgressExportModalProps> = ({ isOpen
               Xuất File Tiến Độ Khảo Sát (.xlsx)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Theo mẫu báo cáo tiến độ ngày: 28 cột, chú giải tình trạng, bảng tổng hợp Phải/Trái tuyến.
+              Theo mẫu báo cáo tiến độ ngày: 29 cột (tách Tình trạng hiện tại ECS &amp; Mức độ đánh giá rủi ro BRA), khoảng cách GIS, bảng tổng hợp Phải/Trái tuyến.
             </p>
           </div>
           <button

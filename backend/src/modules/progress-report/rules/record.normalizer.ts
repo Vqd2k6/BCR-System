@@ -1,15 +1,22 @@
 import type { ProgressRecord, RawProgressRow } from '../progress-report.types';
 import type { ProgressReportConfig } from '../config/config.schema';
 import { arrayLength, firstNumber, firstText, getPath, stripPrefix, text, toNumber } from './json-reader';
-import { classifyCondition, isInaccessible, resolveConstructionYear } from './condition.classifier';
+import {
+  classifyBraGrade,
+  classifyCondition,
+  classifyEcsCondition,
+  isInaccessible,
+  resolveConstructionYear,
+} from './condition.classifier';
 import { mapSurveyProgress } from './survey-status.mapper';
 import { resolveAlignmentSide, resolveStationCode } from './alignment-side';
 import { resolveOwnerName, resolveOwnerPhone } from './owner-name.resolver';
 
 /**
- * Chuẩn hóa 1 bản ghi thô thành ProgressRecord theo các quyết định nghiệp vụ đã chốt.
- * Các trường chưa có dữ liệu trong hệ thống được để trống có chủ đích:
- * Khu phố (H), Dài (M), Tổng số phòng (S), ĐV thiết kế (V), ĐV thi công (W).
+ * Chuẩn hóa 1 bản ghi thô thành ProgressRecord:
+ * 1. Tách "Tình trạng hiện tại" (ECS) và "Mức độ đánh giá rủi ro" (BRA).
+ * 2. Dài / Rộng / Cao: ưu tiên kiểm tra hồ sơ đã nộp/duyệt (SUBMITTED/UNDER_REVIEW/APPROVED) → không có thì để trống.
+ * 3. Tim tuyến / Biên kết cấu: lấy trực tiếp theo hình học GIS hiện tại (fallback JSON nếu thiếu hình học).
  */
 
 export const UNKNOWN_FOUNDATION = 'Không rõ';
@@ -41,6 +48,15 @@ export function formatFloor(floor: number | null): string {
   if (floor === null) return '';
   if (floor === 0) return 'Trệt';
   return `Lầu ${Number.isInteger(floor) ? floor : floor.toFixed(1)}`;
+}
+
+/** Chỉ nhận số dương (> 0); nếu 0 hoặc không có thì trả về null (để trống trên Excel). */
+function positiveNumber(...candidates: unknown[]): number | null {
+  for (const c of candidates) {
+    const n = toNumber(c);
+    if (n !== null && n > 0) return n;
+  }
+  return null;
 }
 
 function buildHistoryNotes(row: RawProgressRow): string {
@@ -105,6 +121,8 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   const isUnit = row.kind === 'CONDO_UNIT';
   const inaccessible = isInaccessible(row);
   const condition = classifyCondition(row, config);
+  const ecsCondition = classifyEcsCondition(row);
+  const braGrade = classifyBraGrade(row);
   const surveyProgress = mapSurveyProgress(row);
 
   const street = stripPrefix(
@@ -172,6 +190,52 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   if (inaccessible) endDate = row.absenceLastAt ?? row.reportUpdatedAt;
   else if (isSurveyedReport) endDate = row.reportSubmittedAt ?? row.reportSurveyDate ?? row.reportUpdatedAt;
 
+  // Dài / Rộng / Cao: ưu tiên hồ sơ đã nộp/duyệt (submitted/active report) → dữ liệu thửa/spec → không có thì để trống
+  const lengthM = isUnit
+    ? null
+    : positiveNumber(
+        row.submittedLotDepth,
+        getPath(json, 'lotDepth'),
+        getPath(json, 'specs.lotDepth'),
+        getPath(json, 'lengthM'),
+        row.parcelLotDepth
+      );
+  const widthM = isUnit
+    ? null
+    : positiveNumber(
+        row.submittedFrontageWidth,
+        getPath(json, 'frontageWidth'),
+        getPath(json, 'specs.frontageWidth'),
+        getPath(json, 'photoP02.widthM'),
+        row.parcelFrontageWidth
+      );
+  const heightM = isUnit
+    ? null
+    : positiveNumber(
+        row.submittedBuildingHeight,
+        getPath(json, 'buildingHeightM'),
+        getPath(json, 'specs.buildingHeightM'),
+        getPath(json, 'photoP02.heightM'),
+        row.specBuildingHeight
+      );
+
+  // Tim tuyến & Biên kết cấu: ưu tiên tuyệt đối theo GIS hiện tại của thửa đất
+  const distanceCenterlineM =
+    row.gisDistanceCenterlineM !== undefined && row.gisDistanceCenterlineM !== null
+      ? row.gisDistanceCenterlineM
+      : isUnit
+        ? firstNumber(getPath(row.masterJson, 'metroOffsetDistance'), row.parcelDistanceToCenterline)
+        : firstNumber(getPath(json, 'metroOffsetDistance'), getPath(json, 'manualMetroDistanceM'), row.parcelDistanceToCenterline);
+
+  const distanceEdgeM =
+    row.gisDistanceEdgeM !== undefined && row.gisDistanceEdgeM !== null
+      ? row.gisDistanceEdgeM
+      : firstNumber(
+          getPath(json, 'clearanceOffsetDistance'),
+          getPath(json, 'stationEdgeDistance'),
+          isUnit ? getPath(row.masterJson, 'clearanceOffsetDistance') : null
+        );
+
   return {
     kind: row.kind,
     parcelId: row.parcelId,
@@ -190,26 +254,22 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     ownerName: resolveOwnerName(row),
     ownerPhone: resolveOwnerPhone(row),
     usageFunction,
-    lengthM: null,
-    widthM: isUnit ? null : firstNumber(getPath(json, 'frontageWidth'), getPath(json, 'photoP02.widthM'), row.parcelFrontageWidth),
-    heightM: isUnit ? null : firstNumber(getPath(json, 'buildingHeightM'), getPath(json, 'photoP02.heightM'), row.specBuildingHeight),
+    lengthM,
+    widthM,
+    heightM,
     foundationType,
     foundationDepth,
     floorsLabel: floors,
     totalRooms: null,
     constructionYear: year,
     condition,
+    ecsCondition,
+    braGrade,
     designUnit: '',
     constructionUnit: '',
     asBuilt,
-    distanceCenterlineM: isUnit
-      ? firstNumber(getPath(row.masterJson, 'metroOffsetDistance'), row.parcelDistanceToCenterline)
-      : firstNumber(getPath(json, 'metroOffsetDistance'), getPath(json, 'manualMetroDistanceM'), row.parcelDistanceToCenterline),
-    distanceEdgeM: firstNumber(
-      getPath(json, 'clearanceOffsetDistance'),
-      getPath(json, 'stationEdgeDistance'),
-      isUnit ? getPath(row.masterJson, 'clearanceOffsetDistance') : null
-    ),
+    distanceCenterlineM,
+    distanceEdgeM,
     surveyProgress,
     notes: buildNotes(row, inaccessible),
     hasFoundationInfo,

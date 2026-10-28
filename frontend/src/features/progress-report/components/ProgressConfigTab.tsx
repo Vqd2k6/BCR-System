@@ -272,49 +272,109 @@ export const ProgressConfigTab: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="rounded-xl border border-slate-200 p-3 space-y-2">
             <div className="text-xs font-black text-slate-700">
-              Nhãn & màu cột "Tình trạng hiện tại"
+              Nhãn & màu cột "Tình trạng hiện tại" (ECS) & "Mức độ đánh giá rủi ro" (BRA)
+            </div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase pt-1">
+              Cột Tình trạng hiện tại (ECS - 4 mức + Không tiếp cận)
             </div>
             {(
-              Object.keys(draft.labels.condition) as Array<
-                keyof ProgressReportConfig["labels"]["condition"]
+              Object.keys(draft.labels.ecs) as Array<
+                keyof ProgressReportConfig["labels"]["ecs"]
               >
             ).map((k) => (
-              <div key={k} className="flex items-center gap-2">
+              <div key={`ecs-${k}`} className="flex items-center gap-2">
                 <span className="w-24 text-[10px] font-mono text-slate-500">
                   {k}
                 </span>
                 <input
                   className={inputCls}
-                  value={draft.labels.condition[k]}
+                  value={draft.labels.ecs[k]}
                   onChange={(e) =>
                     update({
                       labels: {
                         ...draft.labels,
-                        condition: {
-                          ...draft.labels.condition,
+                        ecs: {
+                          ...draft.labels.ecs,
                           [k]: e.target.value,
                         },
                       },
                     })
                   }
                 />
-                {(k === "MONITOR" ||
-                  k === "HIGH_RISK" ||
-                  k === "INACCESSIBLE") && (
+                {k === "DEFICIENT" && (
                   <input
                     type="color"
                     className="w-9 h-8 rounded border border-slate-200 cursor-pointer"
-                    value={argbToHex(draft.colors[k])}
+                    value={argbToHex(draft.colors.MONITOR)}
                     onChange={(e) =>
                       update({
                         colors: {
                           ...draft.colors,
-                          [k]: hexToArgb(e.target.value),
+                          MONITOR: hexToArgb(e.target.value),
                         },
                       })
                     }
                   />
                 )}
+                {k === "CRITICAL" && (
+                  <input
+                    type="color"
+                    className="w-9 h-8 rounded border border-slate-200 cursor-pointer"
+                    value={argbToHex(draft.colors.HIGH_RISK)}
+                    onChange={(e) =>
+                      update({
+                        colors: {
+                          ...draft.colors,
+                          HIGH_RISK: hexToArgb(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                )}
+                {k === "INACCESSIBLE" && (
+                  <input
+                    type="color"
+                    className="w-9 h-8 rounded border border-slate-200 cursor-pointer"
+                    value={argbToHex(draft.colors.INACCESSIBLE)}
+                    onChange={(e) =>
+                      update({
+                        colors: {
+                          ...draft.colors,
+                          INACCESSIBLE: hexToArgb(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                )}
+              </div>
+            ))}
+            <div className="text-[10px] font-bold text-slate-500 uppercase pt-2 border-t border-slate-100">
+              Cột Mức độ đánh giá rủi ro (BRA - 4 mức)
+            </div>
+            {(
+              Object.keys(draft.labels.bra) as Array<
+                keyof ProgressReportConfig["labels"]["bra"]
+              >
+            ).map((k) => (
+              <div key={`bra-${k}`} className="flex items-center gap-2">
+                <span className="w-24 text-[10px] font-mono text-slate-500">
+                  {k}
+                </span>
+                <input
+                  className={inputCls}
+                  value={draft.labels.bra[k]}
+                  onChange={(e) =>
+                    update({
+                      labels: {
+                        ...draft.labels,
+                        bra: {
+                          ...draft.labels.bra,
+                          [k]: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                />
               </div>
             ))}
           </div>

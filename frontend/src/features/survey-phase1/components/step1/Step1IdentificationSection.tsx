@@ -86,7 +86,11 @@ export const Step1IdentificationSection: React.FC<Step1IdentificationSectionProp
           label="Mã Địa Chính Gốc (Cadastral Code) * (Cố định từ GIS)"
           value={formData.officialCadastralCode || 'Đang đồng bộ từ bản đồ GIS...'}
           disabled
-          hint="Số tờ - Số thửa bản đồ địa chính nhà nước (Cố định, không cho phép thay đổi)"
+          hint={
+            /^R\d{7}$/.test((formData.officialCadastralCode || '').trim())
+              ? 'Mã ĐC tạm cấp cho thửa phát sinh do tách thửa (chưa có số tờ - số thửa nhà nước)'
+              : 'Số tờ - Số thửa bản đồ địa chính nhà nước (Cố định, không cho phép thay đổi)'
+          }
         />
 
         <Input

@@ -21,6 +21,21 @@ export const sideOverrideSchema = z.object({
   force: z.boolean().default(false),
 });
 
+const ecsLabelsSchema = z.object({
+  GOOD: z.string().min(1).default('Tốt'),
+  MEDIUM: z.string().min(1).default('Trung bình'),
+  DEFICIENT: z.string().min(1).default('Kém'),
+  CRITICAL: z.string().min(1).default('Nguy hiểm'),
+  INACCESSIBLE: z.string().min(1).default('Không tiếp cận được'),
+});
+
+const braLabelsSchema = z.object({
+  LOW: z.string().min(1).default('Thấp'),
+  MEDIUM: z.string().min(1).default('Trung bình'),
+  HIGH: z.string().min(1).default('Cao'),
+  VERY_HIGH: z.string().min(1).default('Rất cao'),
+});
+
 export const progressReportConfigSchema = z.object({
   titlePrefix: z.string().min(3).max(200),
   newBuildingMinYear: z.number().int().min(1900).max(2100),
@@ -36,6 +51,19 @@ export const progressReportConfigSchema = z.object({
       MONITOR: z.string().min(1),
       HIGH_RISK: z.string().min(1),
       INACCESSIBLE: z.string().min(1),
+    }),
+    ecs: ecsLabelsSchema.default({
+      GOOD: 'Tốt',
+      MEDIUM: 'Trung bình',
+      DEFICIENT: 'Kém',
+      CRITICAL: 'Nguy hiểm',
+      INACCESSIBLE: 'Không tiếp cận được',
+    }),
+    bra: braLabelsSchema.default({
+      LOW: 'Thấp',
+      MEDIUM: 'Trung bình',
+      HIGH: 'Cao',
+      VERY_HIGH: 'Rất cao',
     }),
     surveyProgress: z.object({
       IN_PROGRESS: z.string().min(1),
@@ -65,4 +93,3 @@ export const saveConfigBodySchema = z.object({
   content: progressReportConfigSchema,
   changeReason: z.string().trim().min(5, 'Lý do thay đổi tối thiểu 5 ký tự'),
 });
-

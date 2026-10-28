@@ -2,7 +2,7 @@ import type { ProgressReportConfig } from './config.schema';
 
 /**
  * Cấu hình mặc định – dùng khi bảng progress_report_config_versions chưa có phiên bản
- * hoặc phiên bản trong DB không hợp lệ. Bám sát file mẫu source_templete/Bảng tính không có tiêu đề.xlsx.
+ * hoặc phiên bản trong DB không hợp lệ.
  */
 export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
   titlePrefix: 'BÁO CÁO KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH KHU VỰC ẢNH HƯỞNG TUYẾN METRO 2.1',
@@ -31,6 +31,19 @@ export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
       HIGH_RISK: 'Nguy cơ cao',
       INACCESSIBLE: 'Không tiếp cận được',
     },
+    ecs: {
+      GOOD: 'Tốt',
+      MEDIUM: 'Trung bình',
+      DEFICIENT: 'Kém',
+      CRITICAL: 'Nguy hiểm',
+      INACCESSIBLE: 'Không tiếp cận được',
+    },
+    bra: {
+      LOW: 'Thấp',
+      MEDIUM: 'Trung bình',
+      HIGH: 'Cao',
+      VERY_HIGH: 'Rất cao',
+    },
     surveyProgress: {
       IN_PROGRESS: 'Đang thực hiện',
       SURVEY_DONE_REPORTING: 'Đã hoàn thành KS đang làm báo cáo',
@@ -51,4 +64,3 @@ export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
   },
   sideOverrides: [],
 };
-

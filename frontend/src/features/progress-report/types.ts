@@ -57,6 +57,8 @@ export interface ProgressReportConfig {
   includeNotSurveyedRows: boolean;
   labels: {
     condition: Record<'NEW' | 'OLD' | 'DEGRADED' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE', string>;
+    ecs: Record<'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' | 'INACCESSIBLE', string>;
+    bra: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH', string>;
     surveyProgress: Record<'IN_PROGRESS' | 'SURVEY_DONE_REPORTING' | 'REPORT_DONE' | 'REPORT_SIGNED', string>;
     sideRight: string;
     sideLeft: string;

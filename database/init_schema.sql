@@ -418,6 +418,10 @@ CREATE TABLE parcels (
 
 CREATE INDEX idx_parcels_project_code ON parcels(project_parcel_code);
 CREATE INDEX idx_parcels_zone ON parcels(zone_id);
+-- Mã ĐC tạm cấp R####### (thửa phát sinh do tách/gộp) là duy nhất
+CREATE UNIQUE INDEX IF NOT EXISTS uq_parcels_random_cadastral_code
+  ON parcels (official_cadastral_code)
+  WHERE official_cadastral_code ~ '^R[0-9]{7}$';
 CREATE INDEX idx_parcels_status ON parcels(survey_status);
 CREATE INDEX idx_parcels_lifecycle ON parcels(lifecycle_status);
 CREATE INDEX idx_parcels_building_type ON parcels(building_type);

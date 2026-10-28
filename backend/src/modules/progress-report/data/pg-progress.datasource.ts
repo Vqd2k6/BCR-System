@@ -1,13 +1,16 @@
 import { Database } from '../../../database/db';
 import type { ProgressFilter, RawProgressRow, RecordKind } from '../progress-report.types';
-import { computeAlignmentSide } from '../geo/alignment-geometry';
+import { computeAlignmentSide, computeGisDistances, parseGeoJsonOuterRingLngLat } from '../geo/alignment-geometry';
+import { toNumber } from '../rules/json-reader';
 import type { ProgressDataSource } from './progress.datasource';
 
 /**
  * PostgreSQL/PostGIS DataSource – CHỈ ĐỌC (Read-Only 100%), SQL tham số hóa $n.
  *
- * Phải/Trái tuyến: SQL chỉ trả tọa độ tâm công trình (lng/lat); phía tuyến được tính bằng hàm thuần
- * computeAlignmentSide() trên tim tuyến chi tiết 537 điểm (geo/), chính xác hơn metro_alignments (12 điểm).
+ * - Phải/Trái tuyến & Khoảng cách GIS (Tim tuyến / Biên kết cấu): lấy trực tiếp từ hình học GIS hiện tại
+ *   của thửa đất (COALESCE(footprint_polygon_geom, cadastral_polygon_geom), location_geom)
+ *   so với tim tuyến 537 đỉnh + 12 đường bao ga/depot CAD MAUR.
+ * - Hồ sơ khảo sát: ưu tiên hồ sơ đã duyệt/nộp (APPROVED → UNDER_REVIEW → SUBMITTED) trước bản nháp (DRAFT).
  */
 
 type DbRow = Record<string, unknown>;
@@ -16,7 +19,8 @@ const PARCEL_GEO_CTE = `
   parcel_side AS (
     SELECT p.id AS parcel_id,
            ST_X(pt.g) AS pt_lng,
-           ST_Y(pt.g) AS pt_lat
+           ST_Y(pt.g) AS pt_lat,
+           ST_AsGeoJSON(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)) AS poly_geojson
       FROM parcels p
       LEFT JOIN LATERAL (
         SELECT ST_SetSRID(
@@ -47,8 +51,12 @@ const REPORT_COLUMNS = `
   bs.floor_count AS spec_floor_count, bs.year_of_construction AS spec_year,
   bs.foundation_category::text AS spec_foundation_category, bs.foundation_depth_m AS spec_foundation_depth,
   bs.building_height_m AS spec_building_height, bs.foundation_cat_score AS spec_foundation_cat_score,
-  rk.ecs_class::text AS risk_ecs_class, rk.building_risk_assessment_bra AS risk_bra,
-  rk.overridden_ecs_class AS risk_overridden_ecs_class, rk.overridden_bra AS risk_overridden_bra,
+  bs.building_grade::text AS spec_building_grade,
+  rk.ecs_class::text AS risk_ecs_class, rk.vi_class::text AS risk_vi_class, rk.avg_vi_score AS risk_vi_avg,
+  rk.building_risk_assessment_bra AS risk_bra,
+  rk.overridden_ecs_class AS risk_overridden_ecs_class,
+  rk.overridden_vi_class AS risk_overridden_vi_class, rk.overridden_avg_vi AS risk_overridden_avg_vi,
+  rk.overridden_bra AS risk_overridden_bra,
   rk.overridden_burland_grade AS risk_overridden_burland,
   COALESCE(rk.is_engineering_judgement_applied, FALSE) AS risk_judgement_applied,
   COALESCE(da.monitoring_required, FALSE) AS monitoring_required`;
@@ -63,8 +71,18 @@ const PARCEL_COLUMNS = `
   p.house_number AS parcel_house_number, p.street AS parcel_street, p.ward AS parcel_ward,
   p.owner_name AS parcel_owner_name, p.owner_phone AS parcel_owner_phone,
   p.floor_count AS parcel_floor_count, p.frontage_width AS parcel_frontage_width,
+  p.lot_depth AS parcel_lot_depth,
   p.distance_to_centerline_m AS parcel_distance_to_centerline,
-  p.survey_status::text AS parcel_survey_status, ps.pt_lng, ps.pt_lat`;
+  p.survey_status::text AS parcel_survey_status, ps.pt_lng, ps.pt_lat, ps.poly_geojson`;
+
+const REPORT_STATUS_PRIORITY = `
+  CASE r.status::text
+    WHEN 'APPROVED' THEN 1
+    WHEN 'UNDER_REVIEW' THEN 2
+    WHEN 'SUBMITTED' THEN 3
+    WHEN 'REJECTED' THEN 4
+    ELSE 5
+  END ASC`;
 
 const BUILDINGS_SQL = `
 WITH ${PARCEL_GEO_CTE}, ${ABSENCE_CTE}
@@ -72,6 +90,7 @@ SELECT ${PARCEL_COLUMNS},
        NULL::uuid AS unit_id, NULL AS unit_code, NULL AS unit_display_code, NULL::numeric AS unit_floor_number,
        NULL AS unit_owner_name, NULL AS unit_owner_phone, NULL AS unit_status,
        rep.*,
+       sub_dim.sub_lot_depth, sub_dim.sub_frontage_width, sub_dim.sub_building_height,
        NULL::jsonb AS master_json, NULL AS master_building_name, NULL::int AS master_year,
        ab.cnt AS absence_count, ab.first_at AS absence_first_at, ab.last_at AS absence_last_at,
        ab.last_reason AS absence_reason, ab.last_notes AS absence_notes
@@ -87,9 +106,30 @@ SELECT ${PARCEL_COLUMNS},
        AND r.deleted_at IS NULL
        AND r.phase = 'PHASE_1'
        AND COALESCE(r.report_type, 'STANDALONE') NOT IN ('CONDO_UNIT', 'UNIT_CHILD')
-     ORDER BY (r.id = p.active_phase1_report_id) DESC, r.updated_at DESC NULLS LAST
+     ORDER BY ${REPORT_STATUS_PRIORITY}, (r.id = p.active_phase1_report_id) DESC, r.updated_at DESC NULLS LAST
      LIMIT 1
   ) rep ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT (ARRAY_REMOVE(ARRAY_AGG(
+             COALESCE(NULLIF(BTRIM(r2.survey_data_json->>'lotDepth'), ''), NULLIF(BTRIM(r2.survey_data_json#>>'{specs,lotDepth}'), ''))
+             ORDER BY (r2.id = p.active_phase1_report_id) DESC, r2.updated_at DESC NULLS LAST
+           ), NULL))[1] AS sub_lot_depth,
+           (ARRAY_REMOVE(ARRAY_AGG(
+             COALESCE(NULLIF(BTRIM(r2.survey_data_json->>'frontageWidth'), ''), NULLIF(BTRIM(r2.survey_data_json#>>'{specs,frontageWidth}'), ''), NULLIF(BTRIM(r2.survey_data_json#>>'{photoP02,widthM}'), ''))
+             ORDER BY (r2.id = p.active_phase1_report_id) DESC, r2.updated_at DESC NULLS LAST
+           ), NULL))[1] AS sub_frontage_width,
+           (ARRAY_REMOVE(ARRAY_AGG(
+             COALESCE(NULLIF(BTRIM(r2.survey_data_json->>'buildingHeightM'), ''), NULLIF(BTRIM(r2.survey_data_json#>>'{specs,buildingHeightM}'), ''), NULLIF(BTRIM(r2.survey_data_json#>>'{photoP02,heightM}'), ''), bs2.building_height_m::text)
+             ORDER BY (r2.id = p.active_phase1_report_id) DESC, r2.updated_at DESC NULLS LAST
+           ), NULL))[1] AS sub_building_height
+      FROM base_survey_reports r2
+      LEFT JOIN building_specifications bs2 ON bs2.report_id = r2.id
+     WHERE r2.parcel_id = p.id
+       AND r2.unit_id IS NULL
+       AND r2.deleted_at IS NULL
+       AND r2.phase = 'PHASE_1'
+       AND r2.status::text IN ('APPROVED', 'UNDER_REVIEW', 'SUBMITTED')
+  ) sub_dim ON TRUE
   LEFT JOIN LATERAL (
     SELECT COUNT(*)::int AS cnt, MIN(au.recorded_at) AS first_at, MAX(au.recorded_at) AS last_at,
            (ARRAY_AGG(au.reason ORDER BY au.recorded_at DESC))[1] AS last_reason,
@@ -112,6 +152,7 @@ SELECT ${PARCEL_COLUMNS},
        bu.id AS unit_id, bu.unit_code, bu.display_code AS unit_display_code, bu.floor_number AS unit_floor_number,
        bu.owner_name AS unit_owner_name, bu.owner_phone AS unit_owner_phone, bu.status::text AS unit_status,
        rep.*,
+       NULL AS sub_lot_depth, NULL AS sub_frontage_width, NULL AS sub_building_height,
        mst.survey_data_json AS master_json, mst_bs.building_name AS master_building_name,
        mst_bs.year_of_construction AS master_year,
        ab.cnt AS absence_count, ab.first_at AS absence_first_at, ab.last_at AS absence_last_at,
@@ -127,14 +168,22 @@ SELECT ${PARCEL_COLUMNS},
      WHERE (r.unit_id = bu.id OR r.id = bu.phase1_report_id)
        AND r.deleted_at IS NULL
        AND r.phase = 'PHASE_1'
-     ORDER BY (r.id = bu.phase1_report_id) DESC, r.updated_at DESC NULLS LAST
+     ORDER BY ${REPORT_STATUS_PRIORITY}, (r.id = bu.phase1_report_id) DESC, r.updated_at DESC NULLS LAST
      LIMIT 1
   ) rep ON TRUE
   LEFT JOIN LATERAL (
     SELECT m.id, m.survey_data_json
       FROM base_survey_reports m
      WHERE m.parcel_id = p.id AND m.unit_id IS NULL AND m.deleted_at IS NULL AND m.phase = 'PHASE_1'
-     ORDER BY (m.id = p.active_phase1_report_id) DESC, m.updated_at DESC NULLS LAST
+     ORDER BY
+       CASE m.status::text
+         WHEN 'APPROVED' THEN 1
+         WHEN 'UNDER_REVIEW' THEN 2
+         WHEN 'SUBMITTED' THEN 3
+         ELSE 4
+       END ASC,
+       (m.id = p.active_phase1_report_id) DESC,
+       m.updated_at DESC NULLS LAST
      LIMIT 1
   ) mst ON TRUE
   LEFT JOIN building_specifications mst_bs ON mst_bs.report_id = mst.id
@@ -189,6 +238,10 @@ function lngLat(lng: unknown, lat: unknown): readonly [number, number] | null {
 }
 
 function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
+  const pt = lngLat(r.pt_lng, r.pt_lat);
+  const polyRing = parseGeoJsonOuterRingLngLat(str(r.poly_geojson));
+  const gisDistances = computeGisDistances(polyRing, pt);
+
   return {
     kind,
     parcelId: String(r.parcel_id),
@@ -203,6 +256,7 @@ function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
     parcelOwnerPhone: str(r.parcel_owner_phone),
     parcelFloorCount: num(r.parcel_floor_count),
     parcelFrontageWidth: num(r.parcel_frontage_width),
+    parcelLotDepth: num(r.parcel_lot_depth),
     parcelDistanceToCenterline: num(r.parcel_distance_to_centerline),
     parcelSurveyStatus: String(r.parcel_survey_status ?? 'NOT_SURVEYED'),
     unitCode: str(r.unit_code),
@@ -229,9 +283,17 @@ function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
     specFoundationDepth: num(r.spec_foundation_depth),
     specBuildingHeight: num(r.spec_building_height),
     specFoundationCatScore: num(r.spec_foundation_cat_score),
+    specBuildingGrade: str(r.spec_building_grade),
+    submittedLotDepth: toNumber(r.sub_lot_depth),
+    submittedFrontageWidth: toNumber(r.sub_frontage_width),
+    submittedBuildingHeight: toNumber(r.sub_building_height),
     riskEcsClass: str(r.risk_ecs_class),
+    riskViClass: str(r.risk_vi_class),
+    riskViAvg: num(r.risk_vi_avg),
     riskBra: str(r.risk_bra),
     riskOverriddenEcsClass: str(r.risk_overridden_ecs_class),
+    riskOverriddenViClass: str(r.risk_overridden_vi_class),
+    riskOverriddenAvgVi: num(r.risk_overridden_avg_vi),
     riskOverriddenBra: str(r.risk_overridden_bra),
     riskOverriddenBurland: num(r.risk_overridden_burland),
     riskJudgementApplied: r.risk_judgement_applied === true,
@@ -244,7 +306,9 @@ function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
     absenceLastAt: date(r.absence_last_at),
     absenceReason: str(r.absence_reason),
     absenceNotes: str(r.absence_notes),
-    computedSide: computeAlignmentSide(lngLat(r.pt_lng, r.pt_lat)).side,
+    computedSide: computeAlignmentSide(pt).side,
+    gisDistanceCenterlineM: gisDistances.distanceCenterlineM,
+    gisDistanceEdgeM: gisDistances.distanceEdgeM,
   };
 }
 
@@ -277,4 +341,3 @@ export class PgProgressDataSource implements ProgressDataSource {
     return res.rows[0]?.zone_name ?? null;
   }
 }
-

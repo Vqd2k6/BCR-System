@@ -4,10 +4,15 @@
  */
 import assert from "node:assert/strict";
 import {
+  classifyBraGrade,
   classifyCondition,
+  classifyEcsCondition,
+  computeGisImpactCode,
   isInaccessible,
   normalizeRiskValue,
+  resolveVulnerabilityCode,
 } from "../modules/progress-report/rules/condition.classifier";
+import { COL } from "../modules/progress-report/columns/common.columns";
 import { mapSurveyProgress } from "../modules/progress-report/rules/survey-status.mapper";
 import {
   resolveAlignmentSide,
@@ -25,7 +30,11 @@ import {
   toVnCalendarDate,
 } from "../modules/progress-report/rules/time-window";
 import { toNumber } from "../modules/progress-report/rules/json-reader";
-import { computeAlignmentSide } from "../modules/progress-report/geo/alignment-geometry";
+import {
+  computeAlignmentSide,
+  computeGisDistances,
+  parseGeoJsonOuterRingLngLat,
+} from "../modules/progress-report/geo/alignment-geometry";
 import { calculateSummary } from "../modules/progress-report/summary/summary.calculator";
 import { DEFAULT_PROGRESS_CONFIG as CFG } from "../modules/progress-report/config/default-config";
 import { progressReportConfigSchema } from "../modules/progress-report/config/config.schema";
@@ -45,9 +54,13 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
     parcelOwnerName: "Chủ hộ thửa 12",
     parcelOwnerPhone: null,
     parcelFloorCount: 1,
+    parcelLotDepth: null,
     parcelFrontageWidth: null,
     parcelDistanceToCenterline: null,
     parcelSurveyStatus: "SUBMITTED",
+    submittedLotDepth: null,
+    submittedFrontageWidth: null,
+    submittedBuildingHeight: null,
     unitCode: null,
     unitDisplayCode: null,
     unitFloorNumber: null,
@@ -93,6 +106,8 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
     absenceReason: null,
     absenceNotes: null,
     computedSide: "RIGHT",
+    gisDistanceCenterlineM: null,
+    gisDistanceEdgeM: null,
     ...overrides,
   };
 }
@@ -392,7 +407,7 @@ const tests: Array<[string, () => void]> = [
     },
   ],
   [
-    "Các cột chốt để trống: Khu phố, Dài, Tổng số phòng, ĐV thiết kế, ĐV thi công",
+    "Các cột chốt để trống khi không có dữ liệu: Khu phố, Dài, Tổng số phòng, ĐV thiết kế, ĐV thi công",
     () => {
       const rec = normalizeRecord(raw(), CFG);
       assert.deepEqual(
@@ -406,6 +421,124 @@ const tests: Array<[string, () => void]> = [
         ["", null, null, "", ""],
       );
       assert.equal(rec.ownerName, "Nguyễn Văn A");
+    },
+  ],
+  [
+    "Tách 2 cột: Tình trạng hiện tại (ECS 4 mức + Không tiếp cận) và Mức độ đánh giá rủi ro (BRA 4 mức)",
+    () => {
+      assert.equal(classifyEcsCondition(raw({ reportJson: { ecs: { ecsClass: "GOOD" } } })), "GOOD");
+      assert.equal(classifyEcsCondition(raw({ reportJson: { ecs: { ecsClass: "MEDIUM" } } })), "MEDIUM");
+      assert.equal(classifyEcsCondition(raw({ reportJson: { ecs: { ecsClass: "DEFICIENT" } } })), "DEFICIENT");
+      assert.equal(classifyEcsCondition(raw({ reportJson: { ecs: { ecsClass: "CRITICAL" } } })), "CRITICAL");
+      assert.equal(
+        classifyEcsCondition(
+          raw({
+            reportId: null,
+            reportStatus: null,
+            reportJson: null,
+            parcelSurveyStatus: "POSTPONED_ABSENT",
+            absenceCount: 1,
+          }),
+        ),
+        "INACCESSIBLE",
+      );
+
+      assert.equal(classifyBraGrade(raw({ reportJson: { executiveSummary: { braStatus: "LOW" } } })), "LOW");
+      assert.equal(classifyBraGrade(raw({ reportJson: { executiveSummary: { braStatus: "MEDIUM_RISK" } } })), "MEDIUM");
+      assert.equal(classifyBraGrade(raw({ reportJson: { executiveSummary: { braStatus: "HIGH" } } })), "HIGH");
+      assert.equal(classifyBraGrade(raw({ reportJson: { executiveSummary: { braStatus: "VERY_HIGH_RISK" } } })), "VERY_HIGH");
+    },
+  ],
+  [
+    "Dài/Rộng/Cao ưu tiên lấy từ hồ sơ SUBMITTED/APPROVED, không có thì để trống",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          submittedLotDepth: 7.3,
+          submittedFrontageWidth: 3.5,
+          submittedBuildingHeight: 6.5,
+          parcelLotDepth: 10,
+          parcelFrontageWidth: 5,
+          specBuildingHeight: 9,
+        }),
+        CFG,
+      );
+      assert.equal(rec.lengthM, 7.3);
+      assert.equal(rec.widthM, 3.5);
+      assert.equal(rec.heightM, 6.5);
+    },
+  ],
+  [
+    "Biên kết cấu và Tim công trình ưu tiên tính theo GIS hiện tại",
+    () => {
+      const ring = parseGeoJsonOuterRingLngLat(
+        JSON.stringify({
+          type: "Polygon",
+          coordinates: [
+            [
+              [106.6647, 10.7867],
+              [106.6648, 10.7867],
+              [106.6648, 10.7868],
+              [106.6647, 10.7868],
+              [106.6647, 10.7867],
+            ],
+          ],
+        }),
+      );
+      const gis = computeGisDistances(ring, [106.66475, 10.78675]);
+      assert.equal(typeof gis.distanceCenterlineM, "number");
+      assert.equal(typeof gis.distanceEdgeM, "number");
+      assert.equal((gis.distanceCenterlineM ?? -1) >= 0, true);
+      assert.equal((gis.distanceEdgeM ?? -1) >= 0, true);
+
+      const rec = normalizeRecord(
+        raw({
+          gisDistanceCenterlineM: 38.7,
+          gisDistanceEdgeM: 22.9,
+          parcelDistanceToCenterline: 99,
+        }),
+        CFG,
+      );
+      assert.equal(rec.distanceCenterlineM, 38.7);
+      assert.equal(rec.distanceEdgeM, 22.9);
+    },
+  ],
+  [
+    "BRA tính lại từ I theo GIS hiện tại (bỏ I4 cũ trước nắn đất) và tiêu đề cột có (ECS)/(BRA)",
+    () => {
+      // Hồ sơ cũ lưu constructionImpactStatus = I4, braStatus = High do trước nắn đất khoảng cách < 5m,
+      // nhưng GIS hiện tại cách biên ga 25.0m (>= 20m -> I1) và VI = MEDIUM (V2) -> V2 × I1 = LOW
+      const r1 = raw({
+        gisDistanceEdgeM: 25.0,
+        gisDistanceCenterlineM: 35.0,
+        reportJson: {
+          objectGroup: "GENERAL",
+          ecs: { ecsClass: "GOOD" },
+          vi: { viClass: "MEDIUM", viAvg: 1.83 },
+          executiveSummary: { constructionImpactStatus: "I4", braStatus: "High" },
+        },
+      });
+      assert.equal(computeGisImpactCode(r1), "I1");
+      assert.equal(resolveVulnerabilityCode(r1), "V2");
+      assert.equal(classifyBraGrade(r1), "LOW");
+
+      // GIS cách biên ga 15.0m (10m <= d < 20m -> I2) và VI = MEDIUM (V2) -> V2 × I2 = MEDIUM
+      const r2 = raw({
+        gisDistanceEdgeM: 15.0,
+        gisDistanceCenterlineM: 25.0,
+        reportJson: {
+          objectGroup: "GENERAL",
+          ecs: { ecsClass: "GOOD" },
+          vi: { viClass: "MEDIUM", viAvg: 1.83 },
+          executiveSummary: { constructionImpactStatus: "I4", braStatus: "High" },
+        },
+      });
+      assert.equal(computeGisImpactCode(r2), "I2");
+      assert.equal(classifyBraGrade(r2), "MEDIUM");
+
+      // Kiểm tra tiêu đề cột có (ECS) và (BRA)
+      assert.equal(COL.condition.header, "Tình trạng hiện tại (ECS)");
+      assert.equal(COL.braRisk.header, "Mức độ đánh giá rủi ro (BRA)");
     },
   ],
   [
