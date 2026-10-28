@@ -76,6 +76,22 @@ export const Step2_OwnerInterview: React.FC = () => {
     updateFormData({ foundationCatScore: score });
   };
 
+  const suggestedGfa =
+    formData.constructionAreaM2 && Number(formData.constructionAreaM2) > 0
+      ? Number(
+          (
+            Number(formData.constructionAreaM2) * Math.max(1, Number(formData.aboveFloors) || 1)
+          ).toFixed(1)
+        )
+      : null;
+
+  const isAreaMismatch = Boolean(
+    formData.constructionAreaM2 &&
+      formData.totalFloorAreaM2 &&
+      Number(formData.aboveFloors) >= 1 &&
+      Number(formData.totalFloorAreaM2) < Number(formData.constructionAreaM2)
+  );
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       {/* 2.1. Khảo sát kiến trúc, kết cấu nền */}
@@ -140,20 +156,58 @@ export const Step2_OwnerInterview: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div>
             <Input
               id="input-constructionAreaM2"
-              label="Diện Tích Sàn Xây Dựng (m²) *"
+              label="Diện Tích Xây Dựng (m²) *"
               type="number"
               step="any"
               min={0}
-              placeholder="VD: 120.5"
+              placeholder="VD: 85.0"
               value={formData.constructionAreaM2 === '' || formData.constructionAreaM2 === undefined ? '' : formData.constructionAreaM2}
               onChange={(e) =>
                 updateFormData({ constructionAreaM2: e.target.value === '' ? '' : Number(e.target.value) })
               }
-              hint="Tổng diện tích sàn thực tế"
+              hint="Diện tích chiếm đất tầng 1 / trệt (đo theo mép ngoài tường)"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="input-totalFloorAreaM2" className="text-xs font-bold text-slate-700">
+                Tổng Diện Tích Sàn (m²) <span className="text-red-500">*</span>
+              </label>
+              {suggestedGfa && (formData.totalFloorAreaM2 === '' || formData.totalFloorAreaM2 === undefined) && (
+                <button
+                  type="button"
+                  onClick={() => updateFormData({ totalFloorAreaM2: suggestedGfa })}
+                  className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+                  title="Bấm để áp dụng gợi ý: Diện tích xây dựng × Số tầng nổi"
+                >
+                  ≈ {suggestedGfa} m² (Áp dụng)
+                </button>
+              )}
+            </div>
+            <Input
+              id="input-totalFloorAreaM2"
+              type="number"
+              step="any"
+              min={0}
+              placeholder="VD: 255.0"
+              value={formData.totalFloorAreaM2 === '' || formData.totalFloorAreaM2 === undefined ? '' : formData.totalFloorAreaM2}
+              onChange={(e) =>
+                updateFormData({ totalFloorAreaM2: e.target.value === '' ? '' : Number(e.target.value) })
+              }
+              hint="Tổng diện tích sàn tất cả các tầng (GFA)"
+            />
+            {isAreaMismatch && (
+              <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                <span>⚠️ Tổng diện tích sàn ({formData.totalFloorAreaM2} m²) đang nhỏ hơn diện tích xây dựng ({formData.constructionAreaM2} m²).</span>
+              </p>
+            )}
+          </div>
+
+          <div>
             <Input
               id="input-buildingHeightM"
               label="Chiều Cao Công Trình (m) *"

@@ -147,6 +147,7 @@ export class SurveyPackageMapper {
       floorCount: Number(surveyData?.specs?.floorCount ?? (surveyData?.aboveFloors !== '' && surveyData?.aboveFloors !== undefined ? surveyData.aboveFloors : 1)),
       basementCount: Number(surveyData?.specs?.basementCount ?? (surveyData?.undergroundFloors !== '' && surveyData?.undergroundFloors !== undefined ? surveyData.undergroundFloors : 0)),
       constructionAreaM2: surveyData?.specs?.constructionAreaM2 ?? (surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : (surveyData?.unitAreaM2 !== '' && surveyData?.unitAreaM2 !== undefined ? Number(surveyData.unitAreaM2) : null)),
+      totalFloorAreaM2: surveyData?.specs?.totalFloorAreaM2 ?? (surveyData?.totalFloorAreaM2 !== '' && surveyData?.totalFloorAreaM2 !== undefined ? Number(surveyData.totalFloorAreaM2) : (surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null)),
       buildingHeightM: surveyData?.specs?.buildingHeightM ?? (surveyData?.buildingHeightM !== '' && surveyData?.buildingHeightM !== undefined ? Number(surveyData.buildingHeightM) : null),
       yearOfConstruction: surveyData?.specs?.yearOfConstruction ?? (surveyData?.constructionYear !== '' && surveyData?.constructionYear !== undefined ? Number(surveyData.constructionYear) : null),
       isYearEstimated: Boolean(surveyData?.specs?.isYearEstimated ?? surveyData?.isEstimatedYear),
@@ -312,6 +313,7 @@ export class SurveyPackageMapper {
       unitCadUrl: surveyData?.unitCadUrl || surveyData?.damageMapUrl || null,
       cadBbox: surveyData?.cadBbox || null,
       constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : (surveyData?.unitAreaM2 !== '' && surveyData?.unitAreaM2 !== undefined ? Number(surveyData.unitAreaM2) : null),
+      totalFloorAreaM2: surveyData?.totalFloorAreaM2 !== '' && surveyData?.totalFloorAreaM2 !== undefined ? Number(surveyData.totalFloorAreaM2) : (surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null),
       workingMinutesPhotos,
       surveyDataJson: enrichedSurveyData,
     };

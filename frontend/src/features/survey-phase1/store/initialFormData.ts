@@ -46,6 +46,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   aboveFloors: 0,
   undergroundFloors: 0,
   constructionAreaM2: '',
+  totalFloorAreaM2: '',
   buildingHeightM: '',
   constructionYear: 2026,
   isEstimatedYear: false,

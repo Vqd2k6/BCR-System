@@ -161,6 +161,7 @@ interface Phase1ServerReportResponse {
       floor_count?: number;
       basement_count?: number;
       construction_area_m2?: number;
+      total_floor_area_m2?: number;
       building_height_m?: number;
       year_of_construction?: number;
       is_year_estimated?: boolean;
@@ -524,6 +525,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   if (s.basement_count !== undefined && s.basement_count !== null) updates.undergroundFloors = s.basement_count;
                 }
                 if (!updates.constructionAreaM2 && s.construction_area_m2) updates.constructionAreaM2 = s.construction_area_m2;
+                if (!updates.totalFloorAreaM2) {
+                  if (s.total_floor_area_m2) {
+                    updates.totalFloorAreaM2 = s.total_floor_area_m2;
+                  } else if (updates.constructionAreaM2) {
+                    updates.totalFloorAreaM2 = updates.constructionAreaM2;
+                  }
+                }
                 if (!updates.buildingHeightM && s.building_height_m) updates.buildingHeightM = s.building_height_m;
                 if (!updates.constructionYear && s.year_of_construction) updates.constructionYear = s.year_of_construction;
                 if (updates.isEstimatedYear === undefined && s.is_year_estimated !== undefined) updates.isEstimatedYear = s.is_year_estimated;

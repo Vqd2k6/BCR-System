@@ -210,10 +210,10 @@ export const Step2_CondoMasterInterview: React.FC = () => {
           </div>
 
           {/* Grid thông số diện tích, chiều cao, năm xây dựng */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-slate-100">
             <Input
               id="input-constructionAreaM2"
-              label="Diện Tích Sàn Xây Dựng (m²) *"
+              label="Diện Tích Xây Dựng (m²) *"
               type="number"
               step="any"
               min={0}
@@ -224,7 +224,23 @@ export const Step2_CondoMasterInterview: React.FC = () => {
                   constructionAreaM2: e.target.value === '' ? '' : Number(e.target.value),
                 })
               }
-              hint="Tổng diện tích sàn toàn toà"
+              hint="Diện tích chiếm đất khối đế"
+            />
+
+            <Input
+              id="input-totalFloorAreaM2"
+              label="Tổng Diện Tích Sàn (m²) *"
+              type="number"
+              step="any"
+              min={0}
+              placeholder="VD: 32000"
+              value={formData.totalFloorAreaM2 ?? ''}
+              onChange={(e) =>
+                updateFormData({
+                  totalFloorAreaM2: e.target.value === '' ? '' : Number(e.target.value),
+                })
+              }
+              hint="Tổng diện tích sàn toàn toà (GFA)"
             />
 
             <Input

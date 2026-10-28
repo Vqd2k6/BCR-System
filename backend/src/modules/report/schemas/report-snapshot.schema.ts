@@ -50,6 +50,7 @@ export const FrozenParcelSchema = z.object({
   ownerPhone: z.string().nullable().optional(),
   landAreaM2: z.union([z.number(), z.string()]).nullable().optional(),
   constructionAreaM2: z.union([z.number(), z.string()]).nullable().optional(),
+  totalFloorAreaM2: z.union([z.number(), z.string()]).nullable().optional(),
   floorCount: z.number().nullable().optional(),
   buildingType: z.string().nullable().optional(),
   cadastralCode: z.string().nullable().optional(),

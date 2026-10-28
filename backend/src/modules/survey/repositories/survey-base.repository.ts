@@ -463,41 +463,79 @@ export class SurveyBaseRepository {
         }
 
         // 4. Cập nhật building_specifications nếu có
+        const hasTotalFloorAreaCol = await SurveyBaseRepository.hasColumn('building_specifications', 'total_floor_area_m2');
         if (
           updateData.foundationDepthM !== undefined ||
           updateData.foundationNotes !== undefined ||
           updateData.constructionAreaM2 !== undefined ||
+          updateData.totalFloorAreaM2 !== undefined ||
           updateData.buildingHeightM !== undefined ||
           updateData.yearOfConstruction !== undefined ||
           updateData.buildingName !== undefined
         ) {
-          await client.query(
-            `UPDATE building_specifications
-             SET foundation_depth_m = COALESCE($1, foundation_depth_m),
-                 foundation_notes = COALESCE($2, foundation_notes),
-                 construction_area_m2 = COALESCE($3, construction_area_m2),
-                 building_height_m = COALESCE($4, building_height_m),
-                 year_of_construction = COALESCE($5, year_of_construction),
-                 building_name = COALESCE($6, building_name)
-             WHERE report_id = $7;`,
-            [
-              updateData.foundationDepthM !== undefined && updateData.foundationDepthM !== '' && updateData.foundationDepthM !== '--'
-                ? Number(updateData.foundationDepthM)
-                : null,
-              updateData.foundationNotes ?? null,
-              updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
-                ? Number(updateData.constructionAreaM2)
-                : null,
-              updateData.buildingHeightM !== undefined && updateData.buildingHeightM !== '' && updateData.buildingHeightM !== null
-                ? Number(updateData.buildingHeightM)
-                : null,
-              updateData.yearOfConstruction !== undefined && updateData.yearOfConstruction !== '' && updateData.yearOfConstruction !== null
-                ? parseInt(String(updateData.yearOfConstruction))
-                : null,
-              updateData.buildingName ?? null,
-              reportId,
-            ]
-          );
+          if (hasTotalFloorAreaCol) {
+            await client.query(
+              `UPDATE building_specifications
+               SET foundation_depth_m = COALESCE($1, foundation_depth_m),
+                   foundation_notes = COALESCE($2, foundation_notes),
+                   construction_area_m2 = COALESCE($3, construction_area_m2),
+                   total_floor_area_m2 = COALESCE($4, total_floor_area_m2),
+                   building_height_m = COALESCE($5, building_height_m),
+                   year_of_construction = COALESCE($6, year_of_construction),
+                   building_name = COALESCE($7, building_name)
+               WHERE report_id = $8;`,
+              [
+                updateData.foundationDepthM !== undefined && updateData.foundationDepthM !== '' && updateData.foundationDepthM !== '--'
+                  ? Number(updateData.foundationDepthM)
+                  : null,
+                updateData.foundationNotes ?? null,
+                updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
+                  ? Number(updateData.constructionAreaM2)
+                  : null,
+                updateData.totalFloorAreaM2 !== undefined && updateData.totalFloorAreaM2 !== '' && updateData.totalFloorAreaM2 !== null
+                  ? Number(updateData.totalFloorAreaM2)
+                  : (updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
+                    ? Number(updateData.constructionAreaM2)
+                    : null),
+                updateData.buildingHeightM !== undefined && updateData.buildingHeightM !== '' && updateData.buildingHeightM !== null
+                  ? Number(updateData.buildingHeightM)
+                  : null,
+                updateData.yearOfConstruction !== undefined && updateData.yearOfConstruction !== '' && updateData.yearOfConstruction !== null
+                  ? parseInt(String(updateData.yearOfConstruction))
+                  : null,
+                updateData.buildingName ?? null,
+                reportId,
+              ]
+            );
+          } else {
+            await client.query(
+              `UPDATE building_specifications
+               SET foundation_depth_m = COALESCE($1, foundation_depth_m),
+                   foundation_notes = COALESCE($2, foundation_notes),
+                   construction_area_m2 = COALESCE($3, construction_area_m2),
+                   building_height_m = COALESCE($4, building_height_m),
+                   year_of_construction = COALESCE($5, year_of_construction),
+                   building_name = COALESCE($6, building_name)
+               WHERE report_id = $7;`,
+              [
+                updateData.foundationDepthM !== undefined && updateData.foundationDepthM !== '' && updateData.foundationDepthM !== '--'
+                  ? Number(updateData.foundationDepthM)
+                  : null,
+                updateData.foundationNotes ?? null,
+                updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
+                  ? Number(updateData.constructionAreaM2)
+                  : null,
+                updateData.buildingHeightM !== undefined && updateData.buildingHeightM !== '' && updateData.buildingHeightM !== null
+                  ? Number(updateData.buildingHeightM)
+                  : null,
+                updateData.yearOfConstruction !== undefined && updateData.yearOfConstruction !== '' && updateData.yearOfConstruction !== null
+                  ? parseInt(String(updateData.yearOfConstruction))
+                  : null,
+                updateData.buildingName ?? null,
+                reportId,
+              ]
+            );
+          }
         }
       }
     });

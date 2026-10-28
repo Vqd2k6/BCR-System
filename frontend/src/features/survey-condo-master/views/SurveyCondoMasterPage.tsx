@@ -165,6 +165,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
               if (s.foundation_category && !updates.foundationType) updates.foundationType = String(s.foundation_category);
               if (s.structural_system && !updates.structureSystem) updates.structureSystem = String(s.structural_system);
               if (s.construction_area_m2 && !updates.constructionAreaM2) updates.constructionAreaM2 = Number(s.construction_area_m2);
+              if (s.total_floor_area_m2 && !updates.totalFloorAreaM2) updates.totalFloorAreaM2 = Number(s.total_floor_area_m2);
+              else if (updates.constructionAreaM2 && !updates.totalFloorAreaM2) updates.totalFloorAreaM2 = updates.constructionAreaM2;
               if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = Number(s.building_height_m);
 
               // [CC-01] Khôi phục đầy đủ danh sách ảnh bản vẽ hoàn công asBuiltDrawingPhotos

@@ -89,10 +89,10 @@ export class Section1And2Mapper {
     const isUnderConstruction = Boolean(json.surveyCaseType === 'UNDER_CONSTRUCTION');
     const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
 
-    const bldgType = (json.buildingType || specs.buildingType || rawReport.building_type || '').toUpperCase();
+    const bldgType = (json.buildingType || specs?.buildingType || rawReport.building_type || '').toUpperCase();
     const rawBldgName = isVacantLand
       ? 'Khu đất trống'
-      : (json.buildingName || json.usageFunction || specs.buildingNameVi || specs.building_name || specs.land_use_function || rawReport.building_name || (bldgType === 'WAREHOUSE' ? 'Kho hàng' : 'Nhà ở gia đình'));
+      : (json.buildingName || json.usageFunction || specs?.buildingNameVi || specs?.building_name || specs?.land_use_function || rawReport.building_name || (bldgType === 'WAREHOUSE' ? 'Kho hàng' : 'Nhà ở gia đình'));
     let bldgNameVi = rawBldgName;
     let bldgNameEn = isVacantLand ? 'Vacant Land' : (bldgType === 'WAREHOUSE' ? 'Commercial Warehouse' : 'Private Residential Townhouse');
     if (!isVacantLand) {
@@ -218,10 +218,10 @@ export class Section1And2Mapper {
     };
 
     // CHƯƠNG II: Đọc trực tiếp 1:1 từ dữ liệu đã lưu (Zero Calculate)
-    const explicitAboveFloors = json.aboveFloors ?? specs.aboveFloors ?? specs.above_floors ?? specs.floor_count ?? rawReport.parcel_floor_count;
+    const explicitAboveFloors = json.aboveFloors ?? specs?.aboveFloors ?? specs?.above_floors ?? specs?.floor_count ?? rawReport.parcel_floor_count;
     const hasExplicitAboveFloors = explicitAboveFloors !== undefined && explicitAboveFloors !== null && explicitAboveFloors !== '' && !isNaN(Number(explicitAboveFloors));
     const storeysAbove: number | string = isVacantLand ? 0 : (hasExplicitAboveFloors ? Number(explicitAboveFloors) : '--');
-    const rawBasement = json.undergroundFloors ?? specs.undergroundFloors ?? specs.underground_floors ?? specs.basement_count;
+    const rawBasement = json.undergroundFloors ?? specs?.undergroundFloors ?? specs?.underground_floors ?? specs?.basement_count;
     const storeysBasement: number | string = isVacantLand
       ? 0
       : (rawBasement !== undefined && rawBasement !== null && rawBasement !== '' && !isNaN(Number(rawBasement)) ? Number(rawBasement) : 0);
@@ -231,12 +231,12 @@ export class Section1And2Mapper {
       ? Number(rawLandArea).toFixed(1)
       : '';
 
-    const rawGfa = json.constructionAreaM2 ?? json.totalFloorAreaM2 ?? specs.constructionAreaM2 ?? specs.totalFloorAreaM2 ?? specs.construction_area_m2 ?? specs.total_floor_area_m2 ?? rawReport.parcel_construction_area_m2;
+    const rawGfa = json.totalFloorAreaM2 ?? specs?.totalFloorAreaM2 ?? specs?.total_floor_area_m2 ?? json.constructionAreaM2 ?? specs?.constructionAreaM2 ?? specs?.construction_area_m2 ?? rawReport.parcel_construction_area_m2;
     const totalFloorAreaM2 = isVacantLand
       ? '0.0'
       : ((rawGfa !== undefined && rawGfa !== null && rawGfa !== '' && !isNaN(Number(rawGfa))) ? Number(rawGfa).toFixed(1) : '');
 
-    const rawFootprint = json.footprintAreaM2 ?? json.groundFloorAreaM2 ?? specs.footprintAreaM2 ?? specs.ground_floor_area_m2;
+    const rawFootprint = json.constructionAreaM2 ?? json.footprintAreaM2 ?? json.groundFloorAreaM2 ?? specs?.constructionAreaM2 ?? specs?.construction_area_m2 ?? specs?.footprintAreaM2 ?? specs?.ground_floor_area_m2 ?? rawReport.parcel_construction_area_m2;
     const footprintM2 = isVacantLand
       ? '0.0'
       : (rawFootprint !== undefined && rawFootprint !== null && rawFootprint !== '' && !isNaN(Number(rawFootprint)) && Number(rawFootprint) > 0
@@ -250,15 +250,23 @@ export class Section1And2Mapper {
         }
       : {
           vi: totalFloorAreaM2
-            ? `Tổng diện tích sàn: ${totalFloorAreaM2} m² (Diện tích đất: ${landAreaM2 || '--'} m²${footprintM2 ? ` | Diện tích xây dựng tầng trệt: ${footprintM2} m²` : ''})`
-            : (landAreaM2 ? `Diện tích đất: ${landAreaM2} m²` : '--'),
+            ? (footprintM2 && footprintM2 !== totalFloorAreaM2
+                ? `Tổng diện tích sàn: ${totalFloorAreaM2} m² | Diện tích xây dựng: ${footprintM2} m² (Diện tích đất: ${landAreaM2 || '--'} m²)`
+                : `Tổng diện tích sàn: ${totalFloorAreaM2} m² (Diện tích đất: ${landAreaM2 || '--'} m²${footprintM2 ? ` | Diện tích xây dựng: ${footprintM2} m²` : ''})`)
+            : (footprintM2
+                ? `Diện tích xây dựng: ${footprintM2} m² (Diện tích đất: ${landAreaM2 || '--'} m²)`
+                : (landAreaM2 ? `Diện tích đất: ${landAreaM2} m²` : '--')),
           en: totalFloorAreaM2
-            ? `Total floor area: ${totalFloorAreaM2} m² (Land plot area: ${landAreaM2 || '--'} m²${footprintM2 ? ` | Ground footprint: ${footprintM2} m²` : ''})`
-            : (landAreaM2 ? `Land plot area: ${landAreaM2} m²` : '--'),
+            ? (footprintM2 && footprintM2 !== totalFloorAreaM2
+                ? `Total floor area: ${totalFloorAreaM2} m² | Ground footprint: ${footprintM2} m² (Land plot: ${landAreaM2 || '--'} m²)`
+                : `Total floor area: ${totalFloorAreaM2} m² (Land plot: ${landAreaM2 || '--'} m²${footprintM2 ? ` | Ground footprint: ${footprintM2} m²` : ''})`)
+            : (footprintM2
+                ? `Ground footprint: ${footprintM2} m² (Land plot: ${landAreaM2 || '--'} m²)`
+                : (landAreaM2 ? `Land plot area: ${landAreaM2} m²` : '--')),
         };
 
-    const rawHeight = Number(json.buildingHeightM ?? specs.buildingHeightM ?? specs.building_height_m ?? 0);
-    const rawTypicalStorey = Number(json.typicalStoreyHeightM ?? json.floorHeightM ?? specs.typicalStoreyHeightM ?? specs.floor_height_m ?? 0);
+    const rawHeight = Number(json.buildingHeightM ?? specs?.buildingHeightM ?? specs?.building_height_m ?? 0);
+    const rawTypicalStorey = Number(json.typicalStoreyHeightM ?? json.floorHeightM ?? specs?.typicalStoreyHeightM ?? specs?.floor_height_m ?? 0);
     const maxHeightM = isVacantLand ? '0.0' : (rawHeight > 0 ? rawHeight.toFixed(1) : '--');
     const typicalStoreyM = isVacantLand ? '--' : (rawTypicalStorey > 0 ? rawTypicalStorey.toFixed(1) : '--');
 
@@ -284,10 +292,10 @@ export class Section1And2Mapper {
     }
 
     const distanceToMetroAlignmentM = readSavedMeters(
-      json.manualMetroDistanceM ?? json.distanceToMetroM ?? json.metroOffsetDistance ?? specs.metroOffsetDistance ?? rawReport.distance_to_centerline_m
+      json.manualMetroDistanceM ?? json.distanceToMetroM ?? json.metroOffsetDistance ?? specs?.metroOffsetDistance ?? rawReport.distance_to_centerline_m
     );
     const distanceToMetroEdgeM = readSavedMeters(
-      json.stationEdgeDistance ?? json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM ?? specs.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
+      json.stationEdgeDistance ?? json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM ?? specs?.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
     );
 
     const alignLabel = distanceToMetroAlignmentM ? `${distanceToMetroAlignmentM} m` : '--';
@@ -297,9 +305,9 @@ export class Section1And2Mapper {
       en: `To alignment centerline: ${alignLabel} | To structure / excavation edge: ${edgeLabel}`,
     };
 
-    const rawFoundDepth = json.foundationDepthM ?? specs.foundation_depth_m;
-    const clearanceVerticalM = readSavedMeters(json.clearanceVerticalM ?? specs.clearanceVerticalM);
-    const clearance3DM = readSavedMeters(json.clearance3DM ?? json.clearance3dM ?? specs.clearance3DM);
+    const rawFoundDepth = json.foundationDepthM ?? specs?.foundation_depth_m;
+    const clearanceVerticalM = readSavedMeters(json.clearanceVerticalM ?? specs?.clearanceVerticalM);
+    const clearance3DM = readSavedMeters(json.clearance3DM ?? json.clearance3dM ?? specs?.clearance3DM);
     const clearanceDisplay: BilingualText = (clearanceVerticalM || clearance3DM)
       ? {
           vi: `Tĩnh không đứng: ${clearanceVerticalM || '--'} m | Tĩnh không 3D: ${clearance3DM || '--'} m`,
@@ -439,8 +447,8 @@ export class Section1And2Mapper {
       dimensionsDisplay: mainDimensions,
       maxHeightM,
       typicalStoreyHeightM: typicalStoreyM === '--' ? '--' : `${typicalStoreyM} m`,
-      yearConstructed: isVacantLand ? 'N/A' : (json.constructionYear || specs.constructionYear || specs.year_of_construction || '--'),
-      isEstimatedYear: Boolean(json.isEstimatedYear ?? specs.isEstimatedYear ?? specs.is_year_estimated),
+      yearConstructed: isVacantLand ? 'N/A' : (json.constructionYear || specs?.constructionYear || specs?.year_of_construction || '--'),
+      isEstimatedYear: Boolean(json.isEstimatedYear ?? specs?.isEstimatedYear ?? specs?.is_year_estimated),
       distanceToMetroAlignmentM: distanceToMetroAlignmentM || '--',
       distanceToMetroEdgeM: distanceToMetroEdgeM || '--',
       distanceToMetroDisplay,

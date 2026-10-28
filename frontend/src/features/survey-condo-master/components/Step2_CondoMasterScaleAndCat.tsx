@@ -210,18 +210,37 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
           <Input
-            label="Tổng Diện Tích Sàn Xây Dựng (m²) *"
+            label="Diện Tích Xây Dựng (m²) *"
             disabled={isReadOnly}
             type="number"
-            placeholder="VD: 32000"
+            step="any"
+            min={0}
+            placeholder="VD: 2500"
             value={formData.constructionAreaM2 ?? ''}
             onChange={(e) =>
               updateFormData({
                 constructionAreaM2: e.target.value === '' ? '' : Number(e.target.value),
               })
             }
+            hint="Diện tích chiếm đất khối đế"
+          />
+
+          <Input
+            label="Tổng Diện Tích Sàn (m²) *"
+            disabled={isReadOnly}
+            type="number"
+            step="any"
+            min={0}
+            placeholder="VD: 32000"
+            value={formData.totalFloorAreaM2 ?? ''}
+            onChange={(e) =>
+              updateFormData({
+                totalFloorAreaM2: e.target.value === '' ? '' : Number(e.target.value),
+              })
+            }
+            hint="Tổng diện tích sàn toàn toà (GFA)"
           />
 
           <Input
@@ -229,6 +248,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
             disabled={isReadOnly}
             type="number"
             step="0.1"
+            min={0}
             placeholder="VD: 85.5"
             value={formData.buildingHeightM ?? ''}
             onChange={(e) =>
@@ -236,6 +256,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                 buildingHeightM: e.target.value === '' ? '' : Number(e.target.value),
               })
             }
+            hint="Chiều cao đo đạc thực tế"
           />
         </div>
       </Card>

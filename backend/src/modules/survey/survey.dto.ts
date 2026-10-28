@@ -240,6 +240,7 @@ export const BuildingSpecsDto = z.object({
   ),
   foundationSource: z.string().optional().nullable(),
   constructionAreaM2: z.number().optional().nullable(),
+  totalFloorAreaM2: z.number().optional().nullable(),
   buildingHeightM: z.number().optional().nullable(),
   yearOfConstruction: z.number().int().optional().nullable(),
   isYearEstimated: z.boolean().default(false),
@@ -317,6 +318,7 @@ export const SubmitPhase1ReportDto = z.object({
   displayCode: z.string().optional().nullable(),
   display_code: z.string().optional().nullable(),
   constructionAreaM2: z.number().optional().nullable(),
+  totalFloorAreaM2: z.number().optional().nullable(),
   surveyDataJson: z.any().optional(),
 });
 

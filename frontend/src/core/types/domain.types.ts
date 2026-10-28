@@ -66,6 +66,8 @@ export interface GisParcel {
   constructionArea?: number;
   construction_area_m2?: number;
   constructionAreaM2?: number;
+  totalFloorAreaM2?: number;
+  total_floor_area_m2?: number;
   floorCount?: number;
   floor_count?: number;
   aboveFloors?: number;

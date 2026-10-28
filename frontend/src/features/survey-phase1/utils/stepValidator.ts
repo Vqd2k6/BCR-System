@@ -505,9 +505,19 @@ export const validateCondoMasterStep = (step: number, formData: Phase1SurveyForm
     if (!formData.constructionAreaM2 || Number(formData.constructionAreaM2) <= 0) {
       missing.push({
         fieldId: 'input-constructionAreaM2',
-        label: '2.1. Diện tích sàn xây dựng *',
+        label: '2.1. Diện tích xây dựng khối đế *',
         step: 2,
-        description: 'Vui lòng nhập tổng diện tích sàn xây dựng của tòa nhà (> 0 m²).',
+        description: 'Vui lòng nhập diện tích xây dựng chiếm đất của tòa nhà (> 0 m²).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.totalFloorAreaM2 || Number(formData.totalFloorAreaM2) <= 0) {
+      missing.push({
+        fieldId: 'input-totalFloorAreaM2',
+        label: '2.1. Tổng diện tích sàn *',
+        step: 2,
+        description: 'Vui lòng nhập tổng diện tích sàn xây dựng toàn toà (> 0 m²).',
         isBlocking: true,
       });
     }
@@ -864,9 +874,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.constructionAreaM2 || Number(formData.constructionAreaM2) <= 0) {
       missing.push({
         fieldId: 'input-constructionAreaM2',
-        label: '2.1. Diện tích sàn xây dựng *',
+        label: '2.1. Diện tích xây dựng *',
         step: 2,
-        description: 'Vui lòng nhập diện tích sàn xây dựng thực tế (> 0 m²).',
+        description: 'Vui lòng nhập diện tích xây dựng thực tế tầng trệt (> 0 m²).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.totalFloorAreaM2 || Number(formData.totalFloorAreaM2) <= 0) {
+      missing.push({
+        fieldId: 'input-totalFloorAreaM2',
+        label: '2.1. Tổng diện tích sàn *',
+        step: 2,
+        description: 'Vui lòng nhập tổng diện tích sàn xây dựng thực tế (> 0 m²).',
         isBlocking: true,
       });
     }

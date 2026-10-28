@@ -299,7 +299,8 @@ export interface Phase1SurveyFormData {
   usageFunction: string;
   aboveFloors: number | '';
   undergroundFloors: number | '';
-  constructionAreaM2?: number | '';
+  constructionAreaM2?: number | ''; // Diện tích xây dựng tầng trệt / chiếm đất (Footprint)
+  totalFloorAreaM2?: number | ''; // Tổng diện tích sàn tất cả các tầng (GFA)
   buildingHeightM?: number | '';
   constructionYear: number | '';
   isEstimatedYear: boolean;

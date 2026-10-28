@@ -661,59 +661,132 @@ export class AuditModificationService {
         ? (['GENERAL', 'IMPORTANT', 'CRITICAL'].includes(String(u.objectGroup).toUpperCase()) ? String(u.objectGroup).toUpperCase() : 'GENERAL')
         : null;
 
-      await client.query(
-        `INSERT INTO building_specifications (
-           report_id, building_name, building_grade, adjacent_buildings, structural_system,
-           floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
-           construction_area_m2, building_height_m, foundation_source,
-           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
-           land_use_function
-         ) VALUES (
-           $12, $1, COALESCE($13::building_grade_enum, 'GENERAL'::building_grade_enum), $11, COALESCE($14::structural_system_enum, 'KHUNG_BTCT_CHIU_LUC'::structural_system_enum),
-           COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
-           $16, $17, $18,
-           $7, $8, $9, $10,
-           $4
-         )
-         ON CONFLICT (report_id) DO UPDATE SET
-           building_name = COALESCE($1, building_specifications.building_name),
-           floor_count = COALESCE($2, building_specifications.floor_count),
-           basement_count = COALESCE($3, building_specifications.basement_count),
-           land_use_function = COALESCE($4, building_specifications.land_use_function),
-           year_of_construction = COALESCE($5, building_specifications.year_of_construction),
-           is_year_estimated = COALESCE($6, building_specifications.is_year_estimated),
-           foundation_depth_m = COALESCE($7, building_specifications.foundation_depth_m),
-           foundation_density = COALESCE($8, building_specifications.foundation_density),
-           foundation_spacing_m = COALESCE($9, building_specifications.foundation_spacing_m),
-           foundation_notes = COALESCE($10, building_specifications.foundation_notes),
-           adjacent_buildings = COALESCE($11, building_specifications.adjacent_buildings),
-           building_grade = COALESCE($13::building_grade_enum, building_specifications.building_grade),
-           structural_system = COALESCE($14::structural_system_enum, building_specifications.structural_system),
-           foundation_category = COALESCE($15::foundation_category_enum, building_specifications.foundation_category),
-           construction_area_m2 = COALESCE($16, building_specifications.construction_area_m2),
-           building_height_m = COALESCE($17, building_specifications.building_height_m),
-           foundation_source = COALESCE($18, building_specifications.foundation_source);`,
-        [
-          u.buildingName !== undefined ? u.buildingName : null,
-          u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
-          u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
-          u.usageFunction !== undefined ? u.usageFunction : null,
-          u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
-          u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
-          u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
-          u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
-          u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
-          u.foundationNotes !== undefined ? u.foundationNotes : null,
-          u.adjacentBuildings ? (typeof u.adjacentBuildings === 'object' ? JSON.stringify(u.adjacentBuildings) : u.adjacentBuildings) : null,
-          actualReportId,
-          normBuildingGrade,
-          normStructSys,
-          normFoundCat,
-          u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
-          u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
-          u.foundationSource !== undefined ? String(u.foundationSource) : null,
-        ]
-      );
+      const totalFloorAreaVal =
+        u.totalFloorAreaM2 !== undefined && u.totalFloorAreaM2 !== ''
+          ? Number(u.totalFloorAreaM2)
+          : (u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null);
+
+      let hasTotalFloorAreaCol = false;
+      try {
+        const colCheck = await client.query(
+          `SELECT 1 FROM information_schema.columns WHERE table_name = 'building_specifications' AND column_name = 'total_floor_area_m2' LIMIT 1;`
+        );
+        hasTotalFloorAreaCol = colCheck.rows.length > 0;
+      } catch {
+        hasTotalFloorAreaCol = false;
+      }
+
+      if (hasTotalFloorAreaCol) {
+        await client.query(
+          `INSERT INTO building_specifications (
+             report_id, building_name, building_grade, adjacent_buildings, structural_system,
+             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+             construction_area_m2, building_height_m, foundation_source,
+             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+             land_use_function, total_floor_area_m2
+           ) VALUES (
+             $12, $1, COALESCE($13::building_grade_enum, 'GENERAL'::building_grade_enum), $11, COALESCE($14::structural_system_enum, 'KHUNG_BTCT_CHIU_LUC'::structural_system_enum),
+             COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
+             $16, $17, $18,
+             $7, $8, $9, $10,
+             $4, $19
+           )
+           ON CONFLICT (report_id) DO UPDATE SET
+             building_name = COALESCE($1, building_specifications.building_name),
+             floor_count = COALESCE($2, building_specifications.floor_count),
+             basement_count = COALESCE($3, building_specifications.basement_count),
+             land_use_function = COALESCE($4, building_specifications.land_use_function),
+             year_of_construction = COALESCE($5, building_specifications.year_of_construction),
+             is_year_estimated = COALESCE($6, building_specifications.is_year_estimated),
+             foundation_depth_m = COALESCE($7, building_specifications.foundation_depth_m),
+             foundation_density = COALESCE($8, building_specifications.foundation_density),
+             foundation_spacing_m = COALESCE($9, building_specifications.foundation_spacing_m),
+             foundation_notes = COALESCE($10, building_specifications.foundation_notes),
+             adjacent_buildings = COALESCE($11, building_specifications.adjacent_buildings),
+             building_grade = COALESCE($13::building_grade_enum, building_specifications.building_grade),
+             structural_system = COALESCE($14::structural_system_enum, building_specifications.structural_system),
+             foundation_category = COALESCE($15::foundation_category_enum, building_specifications.foundation_category),
+             construction_area_m2 = COALESCE($16, building_specifications.construction_area_m2),
+             building_height_m = COALESCE($17, building_specifications.building_height_m),
+             foundation_source = COALESCE($18, building_specifications.foundation_source),
+             total_floor_area_m2 = COALESCE($19, building_specifications.total_floor_area_m2);`,
+          [
+            u.buildingName !== undefined ? u.buildingName : null,
+            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+            u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
+            u.usageFunction !== undefined ? u.usageFunction : null,
+            u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
+            u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
+            u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
+            u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
+            u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
+            u.foundationNotes !== undefined ? u.foundationNotes : null,
+            u.adjacentBuildings ? (typeof u.adjacentBuildings === 'object' ? JSON.stringify(u.adjacentBuildings) : u.adjacentBuildings) : null,
+            actualReportId,
+            normBuildingGrade,
+            normStructSys,
+            normFoundCat,
+            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
+            u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
+            u.foundationSource !== undefined ? String(u.foundationSource) : null,
+            totalFloorAreaVal,
+          ]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO building_specifications (
+             report_id, building_name, building_grade, adjacent_buildings, structural_system,
+             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+             construction_area_m2, building_height_m, foundation_source,
+             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+             land_use_function
+           ) VALUES (
+             $12, $1, COALESCE($13::building_grade_enum, 'GENERAL'::building_grade_enum), $11, COALESCE($14::structural_system_enum, 'KHUNG_BTCT_CHIU_LUC'::structural_system_enum),
+             COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
+             $16, $17, $18,
+             $7, $8, $9, $10,
+             $4
+           )
+           ON CONFLICT (report_id) DO UPDATE SET
+             building_name = COALESCE($1, building_specifications.building_name),
+             floor_count = COALESCE($2, building_specifications.floor_count),
+             basement_count = COALESCE($3, building_specifications.basement_count),
+             land_use_function = COALESCE($4, building_specifications.land_use_function),
+             year_of_construction = COALESCE($5, building_specifications.year_of_construction),
+             is_year_estimated = COALESCE($6, building_specifications.is_year_estimated),
+             foundation_depth_m = COALESCE($7, building_specifications.foundation_depth_m),
+             foundation_density = COALESCE($8, building_specifications.foundation_density),
+             foundation_spacing_m = COALESCE($9, building_specifications.foundation_spacing_m),
+             foundation_notes = COALESCE($10, building_specifications.foundation_notes),
+             adjacent_buildings = COALESCE($11, building_specifications.adjacent_buildings),
+             building_grade = COALESCE($13::building_grade_enum, building_specifications.building_grade),
+             structural_system = COALESCE($14::structural_system_enum, building_specifications.structural_system),
+             foundation_category = COALESCE($15::foundation_category_enum, building_specifications.foundation_category),
+             construction_area_m2 = COALESCE($16, building_specifications.construction_area_m2),
+             building_height_m = COALESCE($17, building_specifications.building_height_m),
+             foundation_source = COALESCE($18, building_specifications.foundation_source);`,
+          [
+            u.buildingName !== undefined ? u.buildingName : null,
+            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+            u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
+            u.usageFunction !== undefined ? u.usageFunction : null,
+            u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
+            u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
+            u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
+            u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
+            u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
+            u.foundationNotes !== undefined ? u.foundationNotes : null,
+            u.adjacentBuildings ? (typeof u.adjacentBuildings === 'object' ? JSON.stringify(u.adjacentBuildings) : u.adjacentBuildings) : null,
+            actualReportId,
+            normBuildingGrade,
+            normStructSys,
+            normFoundCat,
+            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
+            u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
+            u.foundationSource !== undefined ? String(u.foundationSource) : null,
+          ]
+        );
+      }
 
       // 4.4. Cập nhật historical_sensitivities (UPSERT)
       const hi = u.historyInterview;

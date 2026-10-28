@@ -194,116 +194,242 @@ export class SurveyDefectsRepository {
 
   static async saveBuildingSpecs(reportId: string, specs: any): Promise<void> {
     const hasExtendedCols = await SurveyBaseRepository.hasColumn('building_specifications', 'foundation_cat_score');
+    const hasTotalFloorAreaCol = await SurveyBaseRepository.hasColumn('building_specifications', 'total_floor_area_m2');
+    const totalFloorAreaVal =
+      specs.totalFloorAreaM2 !== undefined && specs.totalFloorAreaM2 !== null && specs.totalFloorAreaM2 !== ''
+        ? Number(specs.totalFloorAreaM2)
+        : (specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== ''
+          ? Number(specs.constructionAreaM2)
+          : null);
+
     await Database.transaction(async (client) => {
       if (hasExtendedCols) {
-        await client.query(
-          `INSERT INTO building_specifications (
-             report_id, building_name, building_grade, adjacent_buildings, structural_system,
-             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
-             construction_area_m2, building_height_m, foundation_source,
-             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
-             land_use_function, as_built_drawing_photos_json,
-             foundation_cat_score, pile_dimensions_text, as_built_files_json, management_contact_json
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-           ON CONFLICT (report_id) DO UPDATE SET
-             building_name = EXCLUDED.building_name,
-             building_grade = EXCLUDED.building_grade,
-             adjacent_buildings = EXCLUDED.adjacent_buildings,
-             structural_system = EXCLUDED.structural_system,
-             floor_count = EXCLUDED.floor_count,
-             basement_count = EXCLUDED.basement_count,
-             foundation_category = EXCLUDED.foundation_category,
-             year_of_construction = EXCLUDED.year_of_construction,
-             is_year_estimated = EXCLUDED.is_year_estimated,
-             construction_area_m2 = EXCLUDED.construction_area_m2,
-             building_height_m = EXCLUDED.building_height_m,
-             foundation_source = EXCLUDED.foundation_source,
-             foundation_depth_m = EXCLUDED.foundation_depth_m,
-             foundation_density = EXCLUDED.foundation_density,
-             foundation_spacing_m = EXCLUDED.foundation_spacing_m,
-             foundation_notes = EXCLUDED.foundation_notes,
-             land_use_function = EXCLUDED.land_use_function,
-             as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json,
-             foundation_cat_score = EXCLUDED.foundation_cat_score,
-             pile_dimensions_text = EXCLUDED.pile_dimensions_text,
-             as_built_files_json = EXCLUDED.as_built_files_json,
-             management_contact_json = EXCLUDED.management_contact_json;`,
-          [
-            reportId,
-            specs.buildingName || null,
-            specs.buildingGrade || 'GENERAL',
-            specs.adjacentBuildings || null,
-            specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
-            Number(specs.floorCount) || 1,
-            Number(specs.basementCount) || 0,
-            specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
-            specs.yearOfConstruction || null,
-            specs.isYearEstimated ?? false,
-            specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
-            specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
-            specs.foundationSource || null,
-            specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
-            specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
-            specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
-            specs.foundationNotes || null,
-            specs.landUseFunction || null,
-            JSON.stringify(specs.asBuiltDrawingPhotos || []),
-            specs.foundationCatScore !== undefined && specs.foundationCatScore !== null && specs.foundationCatScore !== '' ? Number(specs.foundationCatScore) : null,
-            specs.pileDimensionsText || null,
-            JSON.stringify(specs.asBuiltDrawingFiles || []),
-            JSON.stringify(specs.managementContactJson || {}),
-          ]
-        );
+        if (hasTotalFloorAreaCol) {
+          await client.query(
+            `INSERT INTO building_specifications (
+               report_id, building_name, building_grade, adjacent_buildings, structural_system,
+               floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+               construction_area_m2, building_height_m, foundation_source,
+               foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+               land_use_function, as_built_drawing_photos_json,
+               foundation_cat_score, pile_dimensions_text, as_built_files_json, management_contact_json,
+               total_floor_area_m2
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+             ON CONFLICT (report_id) DO UPDATE SET
+               building_name = EXCLUDED.building_name,
+               building_grade = EXCLUDED.building_grade,
+               adjacent_buildings = EXCLUDED.adjacent_buildings,
+               structural_system = EXCLUDED.structural_system,
+               floor_count = EXCLUDED.floor_count,
+               basement_count = EXCLUDED.basement_count,
+               foundation_category = EXCLUDED.foundation_category,
+               year_of_construction = EXCLUDED.year_of_construction,
+               is_year_estimated = EXCLUDED.is_year_estimated,
+               construction_area_m2 = EXCLUDED.construction_area_m2,
+               building_height_m = EXCLUDED.building_height_m,
+               foundation_source = EXCLUDED.foundation_source,
+               foundation_depth_m = EXCLUDED.foundation_depth_m,
+               foundation_density = EXCLUDED.foundation_density,
+               foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+               foundation_notes = EXCLUDED.foundation_notes,
+               land_use_function = EXCLUDED.land_use_function,
+               as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json,
+               foundation_cat_score = EXCLUDED.foundation_cat_score,
+               pile_dimensions_text = EXCLUDED.pile_dimensions_text,
+               as_built_files_json = EXCLUDED.as_built_files_json,
+               management_contact_json = EXCLUDED.management_contact_json,
+               total_floor_area_m2 = EXCLUDED.total_floor_area_m2;`,
+            [
+              reportId,
+              specs.buildingName || null,
+              specs.buildingGrade || 'GENERAL',
+              specs.adjacentBuildings || null,
+              specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+              Number(specs.floorCount) || 1,
+              Number(specs.basementCount) || 0,
+              specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+              specs.yearOfConstruction || null,
+              specs.isYearEstimated ?? false,
+              specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+              specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+              specs.foundationSource || null,
+              specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+              specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+              specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+              specs.foundationNotes || null,
+              specs.landUseFunction || null,
+              JSON.stringify(specs.asBuiltDrawingPhotos || []),
+              specs.foundationCatScore !== undefined && specs.foundationCatScore !== null && specs.foundationCatScore !== '' ? Number(specs.foundationCatScore) : null,
+              specs.pileDimensionsText || null,
+              JSON.stringify(specs.asBuiltDrawingFiles || []),
+              JSON.stringify(specs.managementContactJson || {}),
+              totalFloorAreaVal,
+            ]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO building_specifications (
+               report_id, building_name, building_grade, adjacent_buildings, structural_system,
+               floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+               construction_area_m2, building_height_m, foundation_source,
+               foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+               land_use_function, as_built_drawing_photos_json,
+               foundation_cat_score, pile_dimensions_text, as_built_files_json, management_contact_json
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+             ON CONFLICT (report_id) DO UPDATE SET
+               building_name = EXCLUDED.building_name,
+               building_grade = EXCLUDED.building_grade,
+               adjacent_buildings = EXCLUDED.adjacent_buildings,
+               structural_system = EXCLUDED.structural_system,
+               floor_count = EXCLUDED.floor_count,
+               basement_count = EXCLUDED.basement_count,
+               foundation_category = EXCLUDED.foundation_category,
+               year_of_construction = EXCLUDED.year_of_construction,
+               is_year_estimated = EXCLUDED.is_year_estimated,
+               construction_area_m2 = EXCLUDED.construction_area_m2,
+               building_height_m = EXCLUDED.building_height_m,
+               foundation_source = EXCLUDED.foundation_source,
+               foundation_depth_m = EXCLUDED.foundation_depth_m,
+               foundation_density = EXCLUDED.foundation_density,
+               foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+               foundation_notes = EXCLUDED.foundation_notes,
+               land_use_function = EXCLUDED.land_use_function,
+               as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json,
+               foundation_cat_score = EXCLUDED.foundation_cat_score,
+               pile_dimensions_text = EXCLUDED.pile_dimensions_text,
+               as_built_files_json = EXCLUDED.as_built_files_json,
+               management_contact_json = EXCLUDED.management_contact_json;`,
+            [
+              reportId,
+              specs.buildingName || null,
+              specs.buildingGrade || 'GENERAL',
+              specs.adjacentBuildings || null,
+              specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+              Number(specs.floorCount) || 1,
+              Number(specs.basementCount) || 0,
+              specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+              specs.yearOfConstruction || null,
+              specs.isYearEstimated ?? false,
+              specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+              specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+              specs.foundationSource || null,
+              specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+              specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+              specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+              specs.foundationNotes || null,
+              specs.landUseFunction || null,
+              JSON.stringify(specs.asBuiltDrawingPhotos || []),
+              specs.foundationCatScore !== undefined && specs.foundationCatScore !== null && specs.foundationCatScore !== '' ? Number(specs.foundationCatScore) : null,
+              specs.pileDimensionsText || null,
+              JSON.stringify(specs.asBuiltDrawingFiles || []),
+              JSON.stringify(specs.managementContactJson || {}),
+            ]
+          );
+        }
       } else {
-        await client.query(
-          `INSERT INTO building_specifications (
-             report_id, building_name, building_grade, adjacent_buildings, structural_system,
-             floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
-             construction_area_m2, building_height_m, foundation_source,
-             foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
-             land_use_function, as_built_drawing_photos_json
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-           ON CONFLICT (report_id) DO UPDATE SET
-             building_name = EXCLUDED.building_name,
-             building_grade = EXCLUDED.building_grade,
-             adjacent_buildings = EXCLUDED.adjacent_buildings,
-             structural_system = EXCLUDED.structural_system,
-             floor_count = EXCLUDED.floor_count,
-             basement_count = EXCLUDED.basement_count,
-             foundation_category = EXCLUDED.foundation_category,
-             year_of_construction = EXCLUDED.year_of_construction,
-             is_year_estimated = EXCLUDED.is_year_estimated,
-             construction_area_m2 = EXCLUDED.construction_area_m2,
-             building_height_m = EXCLUDED.building_height_m,
-             foundation_source = EXCLUDED.foundation_source,
-             foundation_depth_m = EXCLUDED.foundation_depth_m,
-             foundation_density = EXCLUDED.foundation_density,
-             foundation_spacing_m = EXCLUDED.foundation_spacing_m,
-             foundation_notes = EXCLUDED.foundation_notes,
-             land_use_function = EXCLUDED.land_use_function,
-             as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json;`,
-          [
-            reportId,
-            specs.buildingName || null,
-            specs.buildingGrade || 'GENERAL',
-            specs.adjacentBuildings || null,
-            specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
-            Number(specs.floorCount) || 1,
-            Number(specs.basementCount) || 0,
-            specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
-            specs.yearOfConstruction || null,
-            specs.isYearEstimated ?? false,
-            specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
-            specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
-            specs.foundationSource || null,
-            specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
-            specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
-            specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
-            specs.foundationNotes || null,
-            specs.landUseFunction || null,
-            JSON.stringify(specs.asBuiltDrawingPhotos || []),
-          ]
-        );
+        if (hasTotalFloorAreaCol) {
+          await client.query(
+            `INSERT INTO building_specifications (
+               report_id, building_name, building_grade, adjacent_buildings, structural_system,
+               floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+               construction_area_m2, building_height_m, foundation_source,
+               foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+               land_use_function, as_built_drawing_photos_json, total_floor_area_m2
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+             ON CONFLICT (report_id) DO UPDATE SET
+               building_name = EXCLUDED.building_name,
+               building_grade = EXCLUDED.building_grade,
+               adjacent_buildings = EXCLUDED.adjacent_buildings,
+               structural_system = EXCLUDED.structural_system,
+               floor_count = EXCLUDED.floor_count,
+               basement_count = EXCLUDED.basement_count,
+               foundation_category = EXCLUDED.foundation_category,
+               year_of_construction = EXCLUDED.year_of_construction,
+               is_year_estimated = EXCLUDED.is_year_estimated,
+               construction_area_m2 = EXCLUDED.construction_area_m2,
+               building_height_m = EXCLUDED.building_height_m,
+               foundation_source = EXCLUDED.foundation_source,
+               foundation_depth_m = EXCLUDED.foundation_depth_m,
+               foundation_density = EXCLUDED.foundation_density,
+               foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+               foundation_notes = EXCLUDED.foundation_notes,
+               land_use_function = EXCLUDED.land_use_function,
+               as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json,
+               total_floor_area_m2 = EXCLUDED.total_floor_area_m2;`,
+            [
+              reportId,
+              specs.buildingName || null,
+              specs.buildingGrade || 'GENERAL',
+              specs.adjacentBuildings || null,
+              specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+              Number(specs.floorCount) || 1,
+              Number(specs.basementCount) || 0,
+              specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+              specs.yearOfConstruction || null,
+              specs.isYearEstimated ?? false,
+              specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+              specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+              specs.foundationSource || null,
+              specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+              specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+              specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+              specs.foundationNotes || null,
+              specs.landUseFunction || null,
+              JSON.stringify(specs.asBuiltDrawingPhotos || []),
+              totalFloorAreaVal,
+            ]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO building_specifications (
+               report_id, building_name, building_grade, adjacent_buildings, structural_system,
+               floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+               construction_area_m2, building_height_m, foundation_source,
+               foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+               land_use_function, as_built_drawing_photos_json
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+             ON CONFLICT (report_id) DO UPDATE SET
+               building_name = EXCLUDED.building_name,
+               building_grade = EXCLUDED.building_grade,
+               adjacent_buildings = EXCLUDED.adjacent_buildings,
+               structural_system = EXCLUDED.structural_system,
+               floor_count = EXCLUDED.floor_count,
+               basement_count = EXCLUDED.basement_count,
+               foundation_category = EXCLUDED.foundation_category,
+               year_of_construction = EXCLUDED.year_of_construction,
+               is_year_estimated = EXCLUDED.is_year_estimated,
+               construction_area_m2 = EXCLUDED.construction_area_m2,
+               building_height_m = EXCLUDED.building_height_m,
+               foundation_source = EXCLUDED.foundation_source,
+               foundation_depth_m = EXCLUDED.foundation_depth_m,
+               foundation_density = EXCLUDED.foundation_density,
+               foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+               foundation_notes = EXCLUDED.foundation_notes,
+               land_use_function = EXCLUDED.land_use_function,
+               as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json;`,
+            [
+              reportId,
+              specs.buildingName || null,
+              specs.buildingGrade || 'GENERAL',
+              specs.adjacentBuildings || null,
+              specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+              Number(specs.floorCount) || 1,
+              Number(specs.basementCount) || 0,
+              specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
+              specs.yearOfConstruction || null,
+              specs.isYearEstimated ?? false,
+              specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+              specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+              specs.foundationSource || null,
+              specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+              specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+              specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+              specs.foundationNotes || null,
+              specs.landUseFunction || null,
+              JSON.stringify(specs.asBuiltDrawingPhotos || []),
+            ]
+          );
+        }
       }
 
       if (specs.totalUnitsCount && Number(specs.totalUnitsCount) > 0) {
