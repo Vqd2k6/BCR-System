@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
-import { Layers, Search, Menu, Map, Compass, X, MapPin } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
 import { isExcludedParcel } from '../../shared/parcelExclusion';
+import { ZoneSvgPreviewModal } from '../../../../features/zone-management/components/modals/ZoneSvgPreviewModal';
+import { getSvgExportDisabledReason } from '../../../../features/zone-management/utils/zoneSvgTechnicalExporter';
 
 interface SweepMapHeaderProps {
   selectedZone: string;
@@ -32,6 +34,7 @@ interface SweepMapHeaderProps {
   isCustomFilterActive: boolean;
   setShowFilterModal: (show: boolean) => void;
   parcels?: GisParcel[];
+  canExportSvg?: boolean;
 }
 
 export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
@@ -61,7 +64,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   isCustomFilterActive,
   setShowFilterModal,
   parcels,
+  canExportSvg = false,
 }) => {
+  const [showSvgExportModal, setShowSvgExportModal] = useState<boolean>(false);
+  const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels?.length ?? 0);
+
   const parcelsCountByZone = useMemo(() => {
     const map: Record<string, number> = {};
     if (parcels && parcels.length > 0) {
@@ -144,6 +151,33 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             })}
           </optgroup>
         </select>
+
+        {/* Xuất bình đồ kỹ thuật SVG (chỉ Admin) */}
+        {canExportSvg && (
+          <button
+            type="button"
+            onClick={() => setShowSvgExportModal(true)}
+            disabled={svgExportDisabledReason !== null}
+            title={svgExportDisabledReason ?? 'Xuất bình đồ kỹ thuật mặt bằng Zone (định dạng SVG)'}
+            className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: 'rgb(var(--bg-slate-100))',
+              color: 'rgb(var(--text-sky-600))',
+              border: '1px solid rgb(var(--border-slate-300))',
+              borderRadius: '0.5rem',
+              padding: '0.35rem 0.55rem',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <FileCode size={14} />
+            <span className="hidden sm:inline">Xuất Bình Đồ (SVG)</span>
+          </button>
+        )}
 
         {/* Map Layer Switcher Button */}
         <div style={{ position: 'relative' }}>
@@ -572,6 +606,10 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {showSvgExportModal && (
+        <ZoneSvgPreviewModal zoneId={selectedZone} onClose={() => setShowSvgExportModal(false)} />
       )}
     </>
   );

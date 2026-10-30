@@ -135,6 +135,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         isCustomFilterActive={isCustomFilterActive}
         setShowFilterModal={setShowFilterModal}
         parcels={parcels}
+        canExportSvg={canViewExcluded}
       />
 
       {/* 2. 3-Bar Filter & Legend Drawer/Modal */}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FileCode } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { Phase1ExportHeader } from './phase1-export/components/Phase1ExportHeader';
 import { Phase1FilterToolbar } from './phase1-export/components/Phase1FilterToolbar';
@@ -8,6 +9,8 @@ import { AuditStudioModal } from './review-queue/AuditStudioModal';
 import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
 import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPreview';
 import { ProgressReportExportButton } from '../../progress-report';
+import { ZoneSvgPreviewModal } from './modals/ZoneSvgPreviewModal';
+import { getSvgExportDisabledReason } from '../utils/zoneSvgTechnicalExporter';
 import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
 
 // Re-export all types so existing consumers don't break
@@ -37,6 +40,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     searchQuery,
     setSearchQuery,
     isLoading,
+    parcels,
     filteredParcels,
     selectedParcelIds,
     actionMessage,
@@ -89,6 +93,10 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
   });
 
   const [auditStudioReportId, setAuditStudioReportId] = useState<string | null>(null);
+  const [showSvgExportModal, setShowSvgExportModal] = useState<boolean>(false);
+
+  const canExportSvg = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels.length);
 
   const handleOpenAuditStudio = (parcel: ExportParcelItem) => {
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
@@ -117,7 +125,23 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         isLoading={isLoading}
         onRefresh={fetchExportableParcels}
         hideZoneSelect={hideZoneSelect}
-        extraActions={<ProgressReportExportButton zoneId={selectedZone} lockZone={hideZoneSelect} />}
+        extraActions={
+          <>
+            <ProgressReportExportButton zoneId={selectedZone} lockZone={hideZoneSelect} />
+            {canExportSvg && (
+              <button
+                type="button"
+                onClick={() => setShowSvgExportModal(true)}
+                disabled={svgExportDisabledReason !== null}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title={svgExportDisabledReason ?? 'Xuất bình đồ kỹ thuật vector (.SVG) của phân khu'}
+              >
+                <FileCode size={14} className="text-slate-500" />
+                <span>Xuất Bình Đồ (SVG)</span>
+              </button>
+            )}
+          </>
+        }
       />
 
       {/* 4. Bảng danh sách công trình & các nút thao tác xuất báo cáo */}
@@ -168,6 +192,10 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleSelectRevision={handleSelectRevision}
         handleExportRevisionPdf={handleExportRevisionPdf}
       />
+
+      {showSvgExportModal && (
+        <ZoneSvgPreviewModal zoneId={selectedZone} onClose={() => setShowSvgExportModal(false)} />
+      )}
 
       {auditStudioReportId && (
         <AuditStudioModal

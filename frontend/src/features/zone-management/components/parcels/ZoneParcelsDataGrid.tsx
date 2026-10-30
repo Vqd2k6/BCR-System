@@ -26,8 +26,11 @@ import {
   Building2,
   EyeOff,
   RotateCcw,
+  FileCode,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
+import { ZoneSvgPreviewModal } from '../modals/ZoneSvgPreviewModal';
+import { getSvgExportDisabledReason } from '../../utils/zoneSvgTechnicalExporter';
 import type { GisParcel } from '../../../../components/gis/shared/types';
 import { ExcludeParcelModal } from '../../../../components/gis/shared/ExcludeParcelModal';
 import {
@@ -109,6 +112,8 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   const [showExcludedList, setShowExcludedList] = useState<boolean>(false);
   const [lifecycleTarget, setLifecycleTarget] = useState<{ parcel: GisParcel; mode: 'EXCLUDE' | 'RESTORE' } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showSvgExportModal, setShowSvgExportModal] = useState<boolean>(false);
+  const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels.length);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -426,6 +431,17 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
           >
             <Download size={14} className="text-slate-500" />
             <span>Xuất Excel (.csv)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSvgExportModal(true)}
+            disabled={svgExportDisabledReason !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title={svgExportDisabledReason ?? 'Xuất bình đồ kỹ thuật mặt bằng Zone (định dạng SVG)'}
+          >
+            <FileCode size={14} className="text-slate-500" />
+            <span>Xuất Bình Đồ (SVG)</span>
           </button>
 
           <button
@@ -1146,6 +1162,10 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
       )}
 
       {/* Modal Ẩn / Khôi phục thửa đất */}
+      {showSvgExportModal && (
+        <ZoneSvgPreviewModal zoneId={selectedZone} onClose={() => setShowSvgExportModal(false)} />
+      )}
+
       {lifecycleTarget && (
         <ExcludeParcelModal
           parcel={lifecycleTarget.parcel}
