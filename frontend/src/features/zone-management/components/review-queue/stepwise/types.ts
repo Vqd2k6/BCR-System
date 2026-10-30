@@ -269,6 +269,7 @@ export interface AuditStepwiseFormState {
   constructionYear?: number | string;
   isEstimatedYear?: boolean;
   constructionAreaM2?: number | string;
+  totalFloorAreaM2?: number | string;
   buildingHeightM?: number | string;
   adjacentBuildings?: unknown;
   surveyCaseType?: string;
@@ -409,6 +410,8 @@ export interface StepwiseBuildingSpecs {
   is_year_estimated?: boolean;
   constructionAreaM2?: string | number;
   construction_area_m2?: string | number;
+  totalFloorAreaM2?: string | number;
+  total_floor_area_m2?: string | number;
   buildingHeightM?: string | number;
   building_height_m?: string | number;
   adjacentBuildings?: unknown;
@@ -485,6 +488,7 @@ export interface StepwiseSurveyJson {
   constructionYear?: string;
   isEstimatedYear?: boolean;
   constructionAreaM2?: string | number;
+  totalFloorAreaM2?: string | number;
   buildingHeightM?: string | number;
   adjacentBuildings?: unknown;
   surveyCaseType?: string;

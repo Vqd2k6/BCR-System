@@ -482,6 +482,19 @@ export class AuditVersionService {
         ]
       );
 
+      // 4.2b. Khôi phục Tổng diện tích sàn (GFA); snapshot legacy chưa có GFA → lấy theo diện tích xây dựng
+      const totalFloorAreaColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'building_specifications' AND column_name = 'total_floor_area_m2' LIMIT 1;`
+      );
+      if (totalFloorAreaColCheck.rows.length > 0) {
+        await client.query(
+          `UPDATE building_specifications
+           SET total_floor_area_m2 = COALESCE($1::numeric, construction_area_m2)
+           WHERE report_id = $2;`,
+          [toFiniteNumberOrNull(specs.totalFloorAreaM2 ?? specs.total_floor_area_m2), actualReportId]
+        );
+      }
+
       // 4.3. Khôi phục historical_sensitivities (UPSERT)
       const hi = { ...(leftPane.interview || snap.historyInterview || {}), ...(sJson.historyInterview || sJson.interview || {}) };
       const toBoolOrNull = (val: any): boolean | null => {

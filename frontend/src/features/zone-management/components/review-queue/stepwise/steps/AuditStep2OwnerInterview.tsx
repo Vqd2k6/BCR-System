@@ -12,6 +12,7 @@ import {
   NEIGHBOR_DAMAGE_OPTIONS,
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
+import { suggestGfa, getFloorAreaWarnings } from '../../../../../survey-phase1/utils/floorAreaChecks';
 
 import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoOrientationViolation, PhotoActionPayload } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
@@ -176,6 +177,24 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
     return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
   };
 
+  const renderDirtyBadge = (fieldKey: string) =>
+    checkDirty(fieldKey) ? (
+      <span className="ml-1.5 px-1 py-0.2 rounded text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-300 inline-block normal-case">
+        Đã sửa
+      </span>
+    ) : null;
+
+  const suggestedGfa = suggestGfa(formState.constructionAreaM2, formState.aboveFloors);
+  const floorAreaWarnings =
+    formState.surveyCaseType === 'VACANT_LAND'
+      ? []
+      : getFloorAreaWarnings({
+          constructionAreaM2: formState.constructionAreaM2,
+          totalFloorAreaM2: formState.totalFloorAreaM2,
+          aboveFloors: formState.aboveFloors,
+          undergroundFloors: formState.undergroundFloors,
+        });
+
   return (
     <section id="step-3" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Hidden file inputs for as-built drawings */}
@@ -234,7 +253,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 text-xs">
             {/* Số tầng nổi & ngầm */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
@@ -266,10 +285,10 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               )}
             </div>
 
-            {/* Diện tích sàn xây dựng */}
+            {/* Diện tích xây dựng (footprint) */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Diện tích sàn xây dựng (m²) *
+                Diện tích xây dựng (m²) * {renderDirtyBadge('constructionAreaM2')}
               </label>
               {isEditMode ? (
                 <input
@@ -277,13 +296,49 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   step="any"
                   min={0}
                   value={formState.constructionAreaM2 ?? ''}
-                  onChange={(e) => handleFieldChange('constructionAreaM2', 'Diện tích sàn XD', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 120.5"
+                  onChange={(e) => handleFieldChange('constructionAreaM2', 'Diện tích xây dựng', e.target.value ? Number(e.target.value) : '')}
+                  placeholder="VD: 85.0"
+                  title="Diện tích chiếm đất tầng 1 / trệt (đo theo mép ngoài tường)"
                   className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold font-mono"
                 />
               ) : (
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800 font-mono">
                   {formState.constructionAreaM2 ? `${formState.constructionAreaM2} m²` : '---'}
+                </div>
+              )}
+            </div>
+
+            {/* Tổng diện tích sàn (GFA) */}
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">
+                  Tổng diện tích sàn (m²) * {renderDirtyBadge('totalFloorAreaM2')}
+                </label>
+                {isEditMode && suggestedGfa !== null && Number(formState.totalFloorAreaM2) !== suggestedGfa && (
+                  <button
+                    type="button"
+                    onClick={() => handleFieldChange('totalFloorAreaM2', 'Tổng diện tích sàn', suggestedGfa)}
+                    className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded px-1.5 py-0.5"
+                    title="Áp dụng gợi ý: Diện tích xây dựng × Số tầng nổi"
+                  >
+                    ≈ {suggestedGfa}
+                  </button>
+                )}
+              </div>
+              {isEditMode ? (
+                <input
+                  type="number"
+                  step="any"
+                  min={0}
+                  value={formState.totalFloorAreaM2 ?? ''}
+                  onChange={(e) => handleFieldChange('totalFloorAreaM2', 'Tổng diện tích sàn', e.target.value ? Number(e.target.value) : '')}
+                  placeholder="VD: 255.0"
+                  title="Tổng diện tích sàn tất cả các tầng (GFA)"
+                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold font-mono"
+                />
+              ) : (
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800 font-mono">
+                  {formState.totalFloorAreaM2 ? `${formState.totalFloorAreaM2} m²` : '---'}
                 </div>
               )}
             </div>
@@ -341,6 +396,17 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               )}
             </div>
           </div>
+
+          {floorAreaWarnings.length > 0 && (
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 space-y-1">
+              {floorAreaWarnings.map((w) => (
+                <p key={w} className="text-[11px] text-amber-700 font-medium flex items-start gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>{w}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 3.2. HỆ KẾT CẤU CHỊU LỰC, NỀN MÓNG & BẢN VẼ HOÀN CÔNG */}

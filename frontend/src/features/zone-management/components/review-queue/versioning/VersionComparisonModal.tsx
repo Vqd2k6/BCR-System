@@ -1182,7 +1182,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     {renderCompareRow('SĐT chủ hộ', getParcelVal(snapLeft, 'ownerPhone', snapData, snapJson), getParcelVal(curLeft, 'ownerPhone', currentData, curJson))}
                     {renderCompareRow('Số tờ / Số thửa', getParcelVal(snapLeft, 'officialCadastralCode', snapData, snapJson), getParcelVal(curLeft, 'officialCadastralCode', currentData, curJson))}
                     {renderCompareRow('Diện tích đất (m²)', getParcelVal(snapLeft, 'landAreaM2', snapData, snapJson), getParcelVal(curLeft, 'landAreaM2', currentData, curJson))}
-                    {renderCompareRow('Diện tích XD (m²)', getParcelVal(snapLeft, 'constructionAreaM2', snapData, snapJson), getParcelVal(curLeft, 'constructionAreaM2', currentData, curJson))}
+                    {renderCompareRow('Diện tích xây dựng (m²)', getParcelVal(snapLeft, 'constructionAreaM2', snapData, snapJson), getParcelVal(curLeft, 'constructionAreaM2', currentData, curJson))}
+                    {renderCompareRow('Tổng diện tích sàn (m²)', getParcelVal(snapLeft, 'totalFloorAreaM2', snapData, snapJson), getParcelVal(curLeft, 'totalFloorAreaM2', currentData, curJson))}
                     {renderCompareRow('Chiều rộng mặt tiền (m)', getParcelVal(snapLeft, 'frontageWidth', snapData, snapJson), getParcelVal(curLeft, 'frontageWidth', currentData, curJson))}
                     {renderCompareRow('Chiều sâu thửa đất (m)', getParcelVal(snapLeft, 'lotDepth', snapData, snapJson), getParcelVal(curLeft, 'lotDepth', currentData, curJson))}
                     {renderCompareRow('Tọa độ GPS', getParcelVal(snapLeft, 'gpsCoords', snapData, snapJson), getParcelVal(curLeft, 'gpsCoords', currentData, curJson))}
@@ -1806,7 +1807,8 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   {renderSnapshotField('Số điện thoại', getParcelVal(snapLeft, 'ownerPhone', snapData, snapJson))}
                   {renderSnapshotField('Số tờ / Số thửa', getParcelVal(snapLeft, 'officialCadastralCode', snapData, snapJson))}
                   {renderSnapshotField('Diện tích đất (m²)', getParcelVal(snapLeft, 'landAreaM2', snapData, snapJson))}
-                  {renderSnapshotField('Diện tích XD (m²)', getParcelVal(snapLeft, 'constructionAreaM2', snapData, snapJson))}
+                  {renderSnapshotField('Diện tích xây dựng (m²)', getParcelVal(snapLeft, 'constructionAreaM2', snapData, snapJson))}
+                  {renderSnapshotField('Tổng diện tích sàn (m²)', getParcelVal(snapLeft, 'totalFloorAreaM2', snapData, snapJson))}
                   {renderSnapshotField('Chiều rộng MT (m)', getParcelVal(snapLeft, 'frontageWidth', snapData, snapJson))}
                   {renderSnapshotField('Chiều sâu thửa (m)', getParcelVal(snapLeft, 'lotDepth', snapData, snapJson))}
                   {renderSnapshotField('Tọa độ GPS', getParcelVal(snapLeft, 'gpsCoords', snapData, snapJson))}

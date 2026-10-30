@@ -36,6 +36,7 @@ import {
   NEIGHBOR_DAMAGE_OPTIONS,
   FIRE_FLOOD_OPTIONS,
 } from '../constants/historyInterviewConstants';
+import { suggestGfa, getFloorAreaWarnings } from '../utils/floorAreaChecks';
 
 
 export const Step2_OwnerInterview: React.FC = () => {
@@ -76,21 +77,18 @@ export const Step2_OwnerInterview: React.FC = () => {
     updateFormData({ foundationCatScore: score });
   };
 
-  const suggestedGfa =
-    formData.constructionAreaM2 && Number(formData.constructionAreaM2) > 0
-      ? Number(
-          (
-            Number(formData.constructionAreaM2) * Math.max(1, Number(formData.aboveFloors) || 1)
-          ).toFixed(1)
-        )
-      : null;
+  const suggestedGfa = suggestGfa(formData.constructionAreaM2, formData.aboveFloors);
 
-  const isAreaMismatch = Boolean(
-    formData.constructionAreaM2 &&
-      formData.totalFloorAreaM2 &&
-      Number(formData.aboveFloors) >= 1 &&
-      Number(formData.totalFloorAreaM2) < Number(formData.constructionAreaM2)
-  );
+  // Thiếu giá trị đã do stepValidator chặn, ở đây chỉ hiện cảnh báo so sánh khi đủ 2 số
+  const areaWarnings =
+    formData.constructionAreaM2 && formData.totalFloorAreaM2
+      ? getFloorAreaWarnings({
+          constructionAreaM2: formData.constructionAreaM2,
+          totalFloorAreaM2: formData.totalFloorAreaM2,
+          aboveFloors: formData.aboveFloors,
+          undergroundFloors: formData.undergroundFloors,
+        })
+      : [];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -200,11 +198,11 @@ export const Step2_OwnerInterview: React.FC = () => {
               }
               hint="Tổng diện tích sàn tất cả các tầng (GFA)"
             />
-            {isAreaMismatch && (
-              <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
-                <span>⚠️ Tổng diện tích sàn ({formData.totalFloorAreaM2} m²) đang nhỏ hơn diện tích xây dựng ({formData.constructionAreaM2} m²).</span>
+            {areaWarnings.map((w) => (
+              <p key={w} className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                <span>⚠️ {w}</span>
               </p>
-            )}
+            ))}
           </div>
 
           <div>

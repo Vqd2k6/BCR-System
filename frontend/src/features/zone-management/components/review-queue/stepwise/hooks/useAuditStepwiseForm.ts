@@ -549,6 +549,16 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       constructionYear: sJson.constructionYear || bSpecs.yearOfConstruction || bSpecs.year_of_construction || '',
       isEstimatedYear: Boolean(sJson.isEstimatedYear ?? bSpecs.isYearEstimated ?? bSpecs.is_year_estimated),
       constructionAreaM2: sJson.constructionAreaM2 || bSpecs.constructionAreaM2 || bSpecs.construction_area_m2 || data.constructionAreaM2 || '',
+      // Hồ sơ legacy chưa có GFA → fallback về diện tích xây dựng (giống SurveyPhase1Page)
+      totalFloorAreaM2:
+        sJson.totalFloorAreaM2 ||
+        bSpecs.totalFloorAreaM2 ||
+        bSpecs.total_floor_area_m2 ||
+        sJson.constructionAreaM2 ||
+        bSpecs.constructionAreaM2 ||
+        bSpecs.construction_area_m2 ||
+        data.constructionAreaM2 ||
+        '',
       buildingHeightM: sJson.buildingHeightM || bSpecs.buildingHeightM || bSpecs.building_height_m || '',
       adjacentBuildings: sJson.adjacentBuildings || bSpecs.adjacentBuildings || bSpecs.adjacent_buildings || { left: { details: '' }, right: { details: '' }, back: { details: '' } },
 

@@ -661,10 +661,10 @@ export class AuditModificationService {
         ? (['GENERAL', 'IMPORTANT', 'CRITICAL'].includes(String(u.objectGroup).toUpperCase()) ? String(u.objectGroup).toUpperCase() : 'GENERAL')
         : null;
 
+      // Chỉ ghi GFA khi thẩm định viên sửa trường này; sửa riêng diện tích xây dựng không được ghi đè GFA cũ.
+      // Fallback GFA = diện tích xây dựng chỉ áp dụng khi INSERT hàng mới (xem COALESCE($19, $16) bên dưới).
       const totalFloorAreaVal =
-        u.totalFloorAreaM2 !== undefined && u.totalFloorAreaM2 !== ''
-          ? Number(u.totalFloorAreaM2)
-          : (u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null);
+        u.totalFloorAreaM2 !== undefined && u.totalFloorAreaM2 !== '' ? Number(u.totalFloorAreaM2) : null;
 
       let hasTotalFloorAreaCol = false;
       try {
@@ -689,7 +689,7 @@ export class AuditModificationService {
              COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
              $16, $17, $18,
              $7, $8, $9, $10,
-             $4, $19
+             $4, COALESCE($19::numeric, $16::numeric)
            )
            ON CONFLICT (report_id) DO UPDATE SET
              building_name = COALESCE($1, building_specifications.building_name),
