@@ -662,9 +662,12 @@ export class AuditModificationService {
         : null;
 
       // Chỉ ghi GFA khi thẩm định viên sửa trường này; sửa riêng diện tích xây dựng không được ghi đè GFA cũ.
-      // Fallback GFA = diện tích xây dựng chỉ áp dụng khi INSERT hàng mới (xem COALESCE($19, $16) bên dưới).
+      // Fallback GFA = diện tích xây dựng chỉ áp dụng khi INSERT hàng mới ($20). Không cast ::numeric lên $16/$19:
+      // cast tường minh ép kiểu tham số cho cả nhánh ON CONFLICT → lỗi "COALESCE types numeric and character varying".
       const totalFloorAreaVal =
         u.totalFloorAreaM2 !== undefined && u.totalFloorAreaM2 !== '' ? Number(u.totalFloorAreaM2) : null;
+      const constructionAreaVal =
+        u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null;
 
       let hasTotalFloorAreaCol = false;
       try {
@@ -689,7 +692,7 @@ export class AuditModificationService {
              COALESCE($2, 1), COALESCE($3, 0), COALESCE($15::foundation_category_enum, 'CAT_2_MONG_DON_BTCT'::foundation_category_enum), $5, COALESCE($6, false),
              $16, $17, $18,
              $7, $8, $9, $10,
-             $4, COALESCE($19::numeric, $16::numeric)
+             $4, $20
            )
            ON CONFLICT (report_id) DO UPDATE SET
              building_name = COALESCE($1, building_specifications.building_name),
@@ -730,6 +733,7 @@ export class AuditModificationService {
             u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
             u.foundationSource !== undefined ? String(u.foundationSource) : null,
             totalFloorAreaVal,
+            totalFloorAreaVal ?? constructionAreaVal,
           ]
         );
       } else {

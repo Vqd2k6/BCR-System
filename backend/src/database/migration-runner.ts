@@ -125,7 +125,8 @@ export class MigrationRunner {
               file.startsWith('20261026_') ||
               file.startsWith('20261027_') ||
               file.startsWith('20261028_') ||
-              file.startsWith('20261030_')
+              file.startsWith('20261030_') ||
+              file.startsWith('20261031_')
             ) {
               return false;
             }
@@ -319,6 +320,36 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261030_foundation_density_numeric.sql';`
           );
           appliedSet.delete('20261030_foundation_density_numeric.sql');
+        }
+      }
+
+      // 6.9 CƠ CHẾ SELF-HEALING CHO 20261031_building_specs_numeric_areas.sql: Đảm bảo construction_area_m2 & total_floor_area_m2 là kiểu NUMERIC
+      if (appliedSet.has('20261031_building_specs_numeric_areas.sql')) {
+        const checkNumericAreas = await Database.query<{ exists: boolean }>(`
+          SELECT (
+            EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'building_specifications'
+                AND column_name = 'construction_area_m2'
+                AND data_type = 'numeric'
+            )
+            AND EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'building_specifications'
+                AND column_name = 'total_floor_area_m2'
+                AND data_type = 'numeric'
+            )
+          ) AS exists;
+        `);
+
+        if (!checkNumericAreas.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261031_building_specs_numeric_areas.sql được đánh dấu nhưng các cột diện tích chưa hoàn toàn là NUMERIC. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261031_building_specs_numeric_areas.sql';`
+          );
+          appliedSet.delete('20261031_building_specs_numeric_areas.sql');
         }
       }
 

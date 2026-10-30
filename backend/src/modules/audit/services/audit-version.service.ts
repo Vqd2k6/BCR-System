@@ -489,7 +489,7 @@ export class AuditVersionService {
       if (totalFloorAreaColCheck.rows.length > 0) {
         await client.query(
           `UPDATE building_specifications
-           SET total_floor_area_m2 = COALESCE($1::numeric, construction_area_m2)
+           SET total_floor_area_m2 = COALESCE($1, construction_area_m2)
            WHERE report_id = $2;`,
           [toFiniteNumberOrNull(specs.totalFloorAreaM2 ?? specs.total_floor_area_m2), actualReportId]
         );

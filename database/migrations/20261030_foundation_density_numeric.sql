@@ -17,3 +17,4 @@ FROM base_survey_reports r
 WHERE r.id = bs.report_id
   AND bs.foundation_density IS NULL
   AND (r.survey_data_json->>'foundationDensity') ~ '^[0-9]+(\.[0-9]+)?$';
+

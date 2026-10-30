@@ -29,3 +29,4 @@ WHERE bs.report_id = r.id
     BTRIM(COALESCE(r.survey_data_json->>'totalFloorAreaM2', '')) ~ '^[0-9]+(\.[0-9]+)?$'
     OR bs.construction_area_m2 IS NOT NULL
   );
+
