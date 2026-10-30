@@ -154,9 +154,10 @@ export class CondoFinalSealService {
           typeof surveyJson.buildingName === 'string' && surveyJson.buildingName.trim()
             ? surveyJson.buildingName.trim()
             : resolvedRealOwnerName;
+        // parcel_survey_status_enum không có UNDER_REVIEW: tòa giữ SUBMITTED cho tới niêm phong cuối (→ APPROVED)
         await client.query(
           `UPDATE parcels
-           SET survey_status = 'UNDER_REVIEW',
+           SET survey_status = 'SUBMITTED',
                owner_name = COALESCE($2, owner_name),
                owner_phone = COALESCE($3, owner_phone),
                house_number = COALESCE($4, house_number),

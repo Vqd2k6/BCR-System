@@ -188,7 +188,7 @@ export class CondoQueueService {
         (
           SELECT COUNT(*)::int
           FROM building_units bu
-          WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL AND bu.status IN ('SUBMITTED', 'UNDER_REVIEW')
+          WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL AND bu.status = 'SUBMITTED'
         ) AS pending_unit_count,
         (
           SELECT COUNT(*)::int
@@ -230,10 +230,11 @@ export class CondoQueueService {
           JOIN base_survey_reports r_u ON r_u.unit_id = bu.id
           LEFT JOIN risk_score_cards sc_u ON sc_u.report_id = r_u.id
           WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
-            AND (
-              COALESCE(sc_u.e1_burland_score, 0) >= 3
-              OR r_u.burland_damage_category IN ('CAT_3_MODERATE', 'CAT_4_SEVERE', 'CAT_5_VERY_SEVERE')
-            )
+            AND GREATEST(
+              COALESCE(sc_u.e1_burland_score, 0),
+              CASE WHEN (r_u.survey_data_json->'burlandSummary'->>'localMaxGrade') ~ '^[0-9]+$'
+                   THEN (r_u.survey_data_json->'burlandSummary'->>'localMaxGrade')::int ELSE 0 END
+            ) >= 3
         ) AS critical_unit_count
       FROM parcels p
       LEFT JOIN users u_lock ON p.locked_by_id = u_lock.id
@@ -293,7 +294,7 @@ export class CondoQueueService {
       status: string;
       report_id: string | null;
       report_status: string | null;
-      burland_damage_category: string | null;
+      burland_grade: number | null;
       e1_burland_score: number | null;
       critical_defect_count: number;
     }>(
@@ -306,7 +307,7 @@ export class CondoQueueService {
          bu.status,
          r.id AS report_id,
          r.status::text AS report_status,
-         r.burland_damage_category::text AS burland_damage_category,
+         r.burland_grade,
          sc.e1_burland_score,
          COALESCE((
            SELECT COUNT(*)::int
@@ -318,7 +319,9 @@ export class CondoQueueService {
          ), 0) AS critical_defect_count
        FROM building_units bu
        LEFT JOIN LATERAL (
-         SELECT r_sub.id, r_sub.status, r_sub.burland_damage_category
+         SELECT r_sub.id, r_sub.status,
+           CASE WHEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade') ~ '^[0-9]+$'
+                THEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade')::int END AS burland_grade
          FROM base_survey_reports r_sub
          WHERE r_sub.unit_id = bu.id
          ORDER BY r_sub.created_at DESC
@@ -461,9 +464,7 @@ export class CondoQueueService {
       const isArea = isMasterAreaUnit(u);
       const isCritical =
         Number(u.e1_burland_score ?? 0) >= 3 ||
-        ['CAT_3_MODERATE', 'CAT_4_SEVERE', 'CAT_5_VERY_SEVERE'].includes(
-          String(u.burland_damage_category || '')
-        ) ||
+        Number(u.burland_grade ?? 0) >= 3 ||
         Number(u.critical_defect_count || 0) > 0;
 
       row.totalUnits += 1;

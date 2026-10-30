@@ -26,4 +26,3 @@ BEGIN
     UPDATE parcels SET official_cadastral_code = v_code, updated_at = NOW() WHERE id = r.id;
   END LOOP;
 END $$;
-

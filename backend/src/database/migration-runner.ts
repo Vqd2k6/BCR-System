@@ -124,7 +124,8 @@ export class MigrationRunner {
               file.startsWith('20261025_') ||
               file.startsWith('20261026_') ||
               file.startsWith('20261027_') ||
-              file.startsWith('20261028_')
+              file.startsWith('20261028_') ||
+              file.startsWith('20261030_')
             ) {
               return false;
             }
@@ -276,6 +277,48 @@ export class MigrationRunner {
             `DELETE FROM schema_migrations WHERE id = '20261028_progress_report_config_versions.sql';`
           );
           appliedSet.delete('20261028_progress_report_config_versions.sql');
+        }
+      }
+
+      // 6.7 CƠ CHẾ SELF-HEALING CHO 20261028_add_total_floor_area_to_building_specs.sql: Đảm bảo cột total_floor_area_m2 luôn tồn tại
+      if (appliedSet.has('20261028_add_total_floor_area_to_building_specs.sql')) {
+        const checkTotalFloorAreaCol = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'building_specifications' AND column_name = 'total_floor_area_m2'
+          ) AS exists;
+        `);
+
+        if (!checkTotalFloorAreaCol.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261028_add_total_floor_area_to_building_specs.sql được đánh dấu nhưng schema thực tế chưa có building_specifications.total_floor_area_m2. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261028_add_total_floor_area_to_building_specs.sql';`
+          );
+          appliedSet.delete('20261028_add_total_floor_area_to_building_specs.sql');
+        }
+      }
+
+      // 6.8 CƠ CHẾ SELF-HEALING CHO 20261030_foundation_density_numeric.sql: Đảm bảo foundation_density là kiểu NUMERIC
+      if (appliedSet.has('20261030_foundation_density_numeric.sql')) {
+        const checkFoundationDensityNumeric = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'building_specifications'
+              AND column_name = 'foundation_density'
+              AND data_type = 'numeric'
+          ) AS exists;
+        `);
+
+        if (!checkFoundationDensityNumeric.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261030_foundation_density_numeric.sql được đánh dấu nhưng building_specifications.foundation_density chưa phải NUMERIC. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261030_foundation_density_numeric.sql';`
+          );
+          appliedSet.delete('20261030_foundation_density_numeric.sql');
         }
       }
 

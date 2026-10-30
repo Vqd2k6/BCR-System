@@ -8,8 +8,6 @@
 --   2. Backfill các hồ sơ bị mất mật độ móng thập phân từ survey_data_json.
 -- ============================================================================
 
-BEGIN;
-
 ALTER TABLE building_specifications
   ALTER COLUMN foundation_density TYPE NUMERIC(10, 3) USING foundation_density::numeric;
 
@@ -19,5 +17,3 @@ FROM base_survey_reports r
 WHERE r.id = bs.report_id
   AND bs.foundation_density IS NULL
   AND (r.survey_data_json->>'foundationDensity') ~ '^[0-9]+(\.[0-9]+)?$';
-
-COMMIT;
