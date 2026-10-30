@@ -411,6 +411,7 @@ export const App: React.FC = () => {
       street: p.street || '',
       ownerName: p.owner_name || p.ownerName || 'Chưa cập nhật',
       surveyStatus: effectiveStatus,
+      lifecycleStatus: p.lifecycle_status || p.lifecycleStatus,
       absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
       coordinates: coords,
       adjacentType: p.adjacent_type || p.adjacentType || 'TOWNHOUSE',
@@ -1121,6 +1122,7 @@ export const App: React.FC = () => {
                 }
               }}
               onSwapSuccess={() => loadParcels()}
+              onParcelLifecycleChanged={() => loadParcels()}
               userGps={liveUserGps}
               previewImportState={previewImportState}
               onConfirmImportPreview={async () => {

@@ -9,6 +9,7 @@ import {
   getParcelCenter,
   getEffectiveParcelStatus,
 } from '../utils/sweepMapHelpers';
+import { isExcludedParcel } from '../../shared/parcelExclusion';
 
 export interface AppliedFiltersState {
   APPROVED: boolean;
@@ -18,10 +19,24 @@ export interface AppliedFiltersState {
   POSTPONED_ABSENT: boolean;
   NOT_SURVEYED: boolean;
   hideNonBuildings: boolean;
+  showExcluded: boolean;
 }
+
+const DEFAULT_APPLIED_FILTERS: AppliedFiltersState = {
+  APPROVED: true,
+  PHASE2_COMPLETED: true,
+  SUBMITTED: true,
+  IN_PROGRESS: true,
+  POSTPONED_ABSENT: true,
+  NOT_SURVEYED: true,
+  hideNonBuildings: false,
+  showExcluded: false,
+};
 
 interface UseSweepMapStateProps {
   parcels: GisParcel[];
+  excludedParcels?: GisParcel[];
+  onSelectExcludedParcel?: (parcel: GisParcel) => void;
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   initialSelectedParcel?: GisParcel | null;
@@ -53,6 +68,8 @@ const readSavedMapSession = (): SavedSweepMapSession => {
 
 export const useSweepMapState = ({
   parcels,
+  excludedParcels = [],
+  onSelectExcludedParcel,
   selectedZone,
   onSelectZone: _onSelectZone,
   initialSelectedParcel,
@@ -115,20 +132,10 @@ export const useSweepMapState = ({
 
   // 3-Bar Filter & Legend Drawer/Modal state
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFiltersState>(() => {
-    const saved = readSavedMapSession().appliedFilters;
-    return (
-      saved || {
-        APPROVED: true,
-        PHASE2_COMPLETED: true,
-        SUBMITTED: true,
-        IN_PROGRESS: true,
-        POSTPONED_ABSENT: true,
-        NOT_SURVEYED: true,
-        hideNonBuildings: false,
-      }
-    );
-  });
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFiltersState>(() => ({
+    ...DEFAULT_APPLIED_FILTERS,
+    ...readSavedMapSession().appliedFilters,
+  }));
 
   // Lưu trạng thái chế độ bản đồ, bộ lọc và các lớp layer vào sessionStorage
   useEffect(() => {
@@ -213,7 +220,7 @@ export const useSweepMapState = ({
   });
 
   // Filter suggestions based on searchQuery & displayed parcels
-  const searchSuggestions = (displayedParcels || []).filter((p) => {
+  const matchesSearchQuery = (p: GisParcel): boolean => {
     if (!searchQuery.trim()) return false;
     const query = searchQuery.toLowerCase().trim();
     const code = String(p.projectParcelCode || p.project_parcel_code || '').toLowerCase();
@@ -229,11 +236,25 @@ export const useSweepMapState = ({
       street.includes(query) ||
       owner.includes(query)
     );
-  });
+  };
+
+  // Thửa đã ẩn luôn tìm được để Admin khôi phục, kể cả khi chưa bật lớp hiển thị trong bộ lọc
+  const searchSuggestions = [
+    ...(displayedParcels || []).filter(matchesSearchQuery),
+    ...excludedParcels.filter(matchesSearchQuery),
+  ];
 
   const handleSelectSearchResult = (parcel: GisParcel) => {
     const center = getParcelCenter(parcel, currentStation.center);
     setTargetFlyCoords(center);
+    if (isExcludedParcel(parcel)) {
+      setActiveParcel(null);
+      setAppliedFilters((prev) => ({ ...prev, showExcluded: true }));
+      onSelectExcludedParcel?.(parcel);
+      setIsSearchOpen(false);
+      setSearchQuery('');
+      return;
+    }
     setActiveParcel(parcel);
     onSelectParcel(parcel);
     setIsSearchOpen(false);
@@ -284,6 +305,7 @@ export const useSweepMapState = ({
       POSTPONED_ABSENT: enable,
       NOT_SURVEYED: enable,
       hideNonBuildings: false,
+      showExcluded: draftFilters.showExcluded,
     });
   };
 
@@ -296,6 +318,7 @@ export const useSweepMapState = ({
       POSTPONED_ABSENT: true,
       NOT_SURVEYED: true,
       hideNonBuildings: draftFilters.hideNonBuildings,
+      showExcluded: draftFilters.showExcluded,
     });
   };
 
@@ -308,6 +331,7 @@ export const useSweepMapState = ({
       POSTPONED_ABSENT: false,
       NOT_SURVEYED: false,
       hideNonBuildings: draftFilters.hideNonBuildings,
+      showExcluded: draftFilters.showExcluded,
     });
   };
 

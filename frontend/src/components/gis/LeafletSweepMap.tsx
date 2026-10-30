@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 import { Filter, X, Sparkles } from 'lucide-react';
 import type { GisParcel, LeafletSweepMapProps } from './shared/types';
 import { ChangeView, FlyToController } from './shared/MapControllers';
 import { useSweepMapState } from './sweep-map/hooks/useSweepMapState';
+import { useExcludedParcels } from './sweep-map/hooks/useExcludedParcels';
 import { isNonBuildingParcel } from './sweep-map/utils/sweepMapHelpers';
 import { SweepMapHeader } from './sweep-map/components/SweepMapHeader';
 import { SweepMapFilterModal } from './sweep-map/components/SweepMapFilterModal';
@@ -12,6 +13,9 @@ import { ParcelsLayer } from './sweep-map/components/layers/ParcelsLayer';
 import { PreviewParcelsLayer } from './sweep-map/components/layers/PreviewParcelsLayer';
 import { FloatingImportPreviewBar } from './sweep-map/components/FloatingImportPreviewBar';
 import { ParcelDetailBottomSheet } from './sweep-map/components/ParcelDetailBottomSheet';
+import { ExcludedParcelsLayer } from './sweep-map/components/layers/ExcludedParcelsLayer';
+import { ExcludedParcelPanel } from './sweep-map/components/ExcludedParcelPanel';
+import { ExcludeParcelModal } from './shared/ExcludeParcelModal';
 
 // Re-export GisParcel for backward compatibility across the entire system
 export type { GisParcel } from './shared/types';
@@ -36,7 +40,12 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   previewImportState,
   onConfirmImportPreview,
   onCancelImportPreview,
+  onParcelLifecycleChanged,
 }) => {
+  const { excludedParcels, canViewExcluded, reloadExcluded } = useExcludedParcels(selectedZone);
+  const [selectedExcluded, setSelectedExcluded] = useState<GisParcel | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<GisParcel | null>(null);
+
   const {
     currentZoneConfig,
     currentStation,
@@ -79,6 +88,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     isCustomFilterActive,
   } = useSweepMapState({
     parcels,
+    excludedParcels,
+    onSelectExcludedParcel: setSelectedExcluded,
     selectedZone,
     onSelectZone,
     initialSelectedParcel,
@@ -86,6 +97,13 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     onRecordAbsence,
     userGps,
   });
+
+  const handleLifecycleChanged = () => {
+    setActiveParcel(null);
+    setSelectedExcluded(null);
+    reloadExcluded();
+    onParcelLifecycleChanged?.();
+  };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -131,6 +149,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         setPhase1Only={setPhase1Only}
         setPhase2Only={setPhase2Only}
         isNonBuildingParcel={isNonBuildingParcel}
+        canViewExcluded={canViewExcluded}
+        excludedCount={excludedParcels.length}
       />
 
       {/* 3. Leaflet Map Container with Deep Zoom (up to level 23) */}
@@ -194,11 +214,39 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             thematicMode={thematicMode}
           />
 
+          {/* Lớp thửa đã loại trừ: nét đứt xám, chỉ Admin bật */}
+          {canViewExcluded && appliedFilters.showExcluded && (
+            <ExcludedParcelsLayer
+              parcels={excludedParcels}
+              onSelect={(parcel) => {
+                setActiveParcel(null);
+                setSelectedExcluded(parcel);
+              }}
+            />
+          )}
+
           {/* 4b. Lớp đa giác nét đứt cho tệp đang xem trước (Preview Layer) */}
           {previewImportState && (
             <PreviewParcelsLayer previewParcels={previewImportState.parcels} />
           )}
         </MapContainer>
+
+        {selectedExcluded && !activeParcel && (
+          <ExcludedParcelPanel
+            parcel={selectedExcluded}
+            onClose={() => setSelectedExcluded(null)}
+            onRestore={setRestoreTarget}
+          />
+        )}
+
+        {restoreTarget && (
+          <ExcludeParcelModal
+            parcel={restoreTarget}
+            mode="RESTORE"
+            onClose={() => setRestoreTarget(null)}
+            onSuccess={handleLifecycleChanged}
+          />
+        )}
 
         {/* Thanh điều khiển nổi xem trước dữ liệu nạp (Floating Import Preview Bar) */}
         {previewImportState && onConfirmImportPreview && onCancelImportPreview && (
@@ -305,6 +353,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             setActiveParcel(null);
             onSwapSuccess?.();
           }}
+          onParcelExcluded={handleLifecycleChanged}
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
         />

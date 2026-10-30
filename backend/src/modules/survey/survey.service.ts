@@ -1,6 +1,7 @@
 import { SurveyRepository } from './survey.repository';
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { assertParcelsNotExcludedByIds } from '../cadastral/utils/parcel-exclusion';
 
 export class SurveyService {
   static async createPhase1Report(
@@ -20,6 +21,8 @@ export class SurveyService {
     if (!parcelRes.rows[0]) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
+
+    await assertParcelsNotExcludedByIds([parcelId]);
 
     const projectCode = parcelRes.rows[0].project_parcel_code;
     let actualReportType =
@@ -217,6 +220,14 @@ export class SurveyService {
   }
 
   static async submitPhase1Report(reportId: string, submitData: any, userId?: string, clientIp?: string) {
+    const reportParcelRes = await Database.query<{ parcel_id: string }>(
+      `SELECT parcel_id FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    );
+    if (reportParcelRes.rows[0]) {
+      await assertParcelsNotExcludedByIds([reportParcelRes.rows[0].parcel_id]);
+    }
+
     // BƯỚC 1: Ghi survey_data_json mới nhất vào base_survey_reports và đồng bộ parcels / building_units
     await SurveyRepository.submitReport(reportId, submitData);
 

@@ -17,6 +17,7 @@ import {
   ParcelFloorParamDto,
   ParcelUnitParamDto,
   SwapUnitCadGeometryDto,
+  UpdateParcelLifecycleDto,
 } from './cadastral.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { maskParcelPii } from '../../common/utils/pii.utils';
@@ -37,6 +38,38 @@ export class CadastralController {
       res.status(200).json({
         success: true,
         data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getExcludedParcels(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await CadastralService.listExcludedParcels(req.query.zoneId as string | undefined, req.user);
+      res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateParcelLifecycle(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = ParcelParamDto.parse(req.params);
+      const parsed = UpdateParcelLifecycleDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu cập nhật trạng thái thửa đất không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+      const result = await CadastralService.updateParcelLifecycle(id, parsed.data, req.user, req.ip);
+      res.status(200).json({
+        success: true,
+        data: result,
       });
     } catch (error) {
       next(error);

@@ -1,6 +1,7 @@
 import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
+import { EXCLUDED_LIFECYCLE_STATUSES } from './utils/parcel-exclusion';
 
 export interface ParcelEntity {
   id: string;
@@ -20,7 +21,18 @@ export interface ParcelEntity {
   importance_group: string;
   adjacent_type: string;
   survey_status: 'NOT_SURVEYED' | 'ASSIGNED_TO_ME' | 'IN_PROGRESS' | 'POSTPONED_ABSENT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-  lifecycle_status: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED' | 'MUTATION_VOID';
+  lifecycle_status:
+    | 'ACTIVE'
+    | 'PENDING_MUTATION_APPROVAL'
+    | 'SPLIT_DEPRECATED'
+    | 'MERGED_DEPRECATED'
+    | 'MUTATION_VOID'
+    | 'EXCLUDED_NON_BUILDING'
+    | 'EXCLUDED_TRAINING_DEMO';
+  exclusion_type?: string | null;
+  exclusion_reason?: string | null;
+  excluded_at?: Date | null;
+  excluded_by_id?: string | null;
   building_type?: string;
   total_units?: number;
   deleted_floors?: number[];
@@ -230,37 +242,71 @@ export class CadastralRepository {
     return res.rows[0] || null;
   }
 
+  // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
+  private static readonly ZONE_ALIASES: Record<string, string[]> = {
+    'ZONE_S1': ['ZONE_S1', 'ZONE_01'],
+    'ZONE_01': ['ZONE_01', 'ZONE_S1'],
+    'ZONE_S2': ['ZONE_S2', 'ZONE_02', 'ZONE_03'],
+    'ZONE_02': ['ZONE_02', 'ZONE_S2'],
+    'ZONE_S3': ['ZONE_S3', 'ZONE_03', 'ZONE_05'],
+    'ZONE_03': ['ZONE_03', 'ZONE_S3', 'ZONE_S2'],
+    'ZONE_S4': ['ZONE_S4', 'ZONE_04', 'ZONE_07'],
+    'ZONE_04': ['ZONE_04', 'ZONE_S4'],
+    'ZONE_S5': ['ZONE_S5', 'ZONE_09', 'ZONE_05'],
+    'ZONE_05': ['ZONE_05', 'ZONE_S5', 'ZONE_S3'],
+    'ZONE_S6': ['ZONE_S6', 'ZONE_11'],
+    'ZONE_11': ['ZONE_11', 'ZONE_S6'],
+    'ZONE_S7': ['ZONE_S7', 'ZONE_13'],
+    'ZONE_13': ['ZONE_13', 'ZONE_S7'],
+    'ZONE_S8': ['ZONE_S8', 'ZONE_08', 'ZONE_15'],
+    'ZONE_08': ['ZONE_08', 'ZONE_S8'],
+    'ZONE_S9': ['ZONE_S9', 'ZONE_09', 'ZONE_17'],
+    'ZONE_09': ['ZONE_09', 'ZONE_S9', 'ZONE_S5', 'ZONE_17'],
+    'ZONE_S10': ['ZONE_S10', 'ZONE_19'],
+    'ZONE_19': ['ZONE_19', 'ZONE_S10'],
+    'ZONE_S11': ['ZONE_S11', 'ZONE_21'],
+    'ZONE_21': ['ZONE_21', 'ZONE_S11'],
+  };
+
+  /**
+   * Danh sách thửa đã loại trừ, chỉ phục vụ màn soát xét của Admin (không dùng chung với zone-map).
+   */
+  static async listExcludedParcelsByZone(zoneId: string): Promise<ParcelEntity[]> {
+    const target = (zoneId || 'ALL').toUpperCase();
+    const isAll = target === 'ALL' || target === 'ALL_ZONES';
+    const params: unknown[] = [[...EXCLUDED_LIFECYCLE_STATUSES]];
+    let zoneClause = '';
+
+    if (!isAll) {
+      params.push(this.ZONE_ALIASES[target] || [target]);
+      zoneClause = `AND p.zone_id = ANY($2)`;
+    }
+
+    const res = await Database.query<ParcelEntity>(
+      `SELECT p.id, p.zone_id, p.project_parcel_code, p.official_cadastral_code,
+              p.house_number, p.street, p.owner_name, p.owner_phone,
+              p.land_area_m2, p.construction_area_m2, p.floor_count, p.building_type,
+              p.survey_status, p.lifecycle_status,
+              p.exclusion_type, p.exclusion_reason, p.excluded_at, p.excluded_by_id,
+              u.full_name AS excluded_by_name,
+              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+              ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
+       FROM parcels p
+       LEFT JOIN users u ON p.excluded_by_id = u.id
+       WHERE p.lifecycle_status::text = ANY($1::text[])
+         ${zoneClause}
+       ORDER BY p.excluded_at DESC NULLS LAST, p.project_parcel_code ASC;`,
+      params
+    );
+    return res.rows;
+  }
+
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
-    // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL' || target === 'ALL_ZONES';
 
-    const zoneAliases: Record<string, string[]> = {
-      'ZONE_S1': ['ZONE_S1', 'ZONE_01'],
-      'ZONE_01': ['ZONE_01', 'ZONE_S1'],
-      'ZONE_S2': ['ZONE_S2', 'ZONE_02', 'ZONE_03'],
-      'ZONE_02': ['ZONE_02', 'ZONE_S2'],
-      'ZONE_S3': ['ZONE_S3', 'ZONE_03', 'ZONE_05'],
-      'ZONE_03': ['ZONE_03', 'ZONE_S3', 'ZONE_S2'],
-      'ZONE_S4': ['ZONE_S4', 'ZONE_04', 'ZONE_07'],
-      'ZONE_04': ['ZONE_04', 'ZONE_S4'],
-      'ZONE_S5': ['ZONE_S5', 'ZONE_09', 'ZONE_05'],
-      'ZONE_05': ['ZONE_05', 'ZONE_S5', 'ZONE_S3'],
-      'ZONE_S6': ['ZONE_S6', 'ZONE_11'],
-      'ZONE_11': ['ZONE_11', 'ZONE_S6'],
-      'ZONE_S7': ['ZONE_S7', 'ZONE_13'],
-      'ZONE_13': ['ZONE_13', 'ZONE_S7'],
-      'ZONE_S8': ['ZONE_S8', 'ZONE_08', 'ZONE_15'],
-      'ZONE_08': ['ZONE_08', 'ZONE_S8'],
-      'ZONE_S9': ['ZONE_S9', 'ZONE_09', 'ZONE_17'],
-      'ZONE_09': ['ZONE_09', 'ZONE_S9', 'ZONE_S5', 'ZONE_17'],
-      'ZONE_S10': ['ZONE_S10', 'ZONE_19'],
-      'ZONE_19': ['ZONE_19', 'ZONE_S10'],
-      'ZONE_S11': ['ZONE_S11', 'ZONE_21'],
-      'ZONE_21': ['ZONE_21', 'ZONE_S11'],
-    };
-
-    const targetList = zoneAliases[target] || [target];
+    const targetList = this.ZONE_ALIASES[target] || [target];
 
     let whereClause = `WHERE p.lifecycle_status = 'ACTIVE'`;
     const params: any[] = [];
@@ -1459,8 +1505,9 @@ export class CadastralRepository {
            assigned_at = NOW(),
            assignment_notes = COALESCE($2, assignment_notes),
            updated_at = NOW()
-       WHERE id = ANY($3::uuid[]);`,
-      [surveyorId, notes || null, parcelIds]
+       WHERE id = ANY($3::uuid[])
+         AND lifecycle_status::text <> ALL($4::text[]);`,
+      [surveyorId, notes || null, parcelIds, [...EXCLUDED_LIFECYCLE_STATUSES]]
     );
     return res.rowCount || 0;
   }

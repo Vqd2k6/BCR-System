@@ -21,6 +21,7 @@ import { Database } from '../../database/db';
 import { CadastralRepository } from '../cadastral/cadastral.repository';
 import { AppError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { maskReportPii } from '../../common/utils/pii.utils';
+import { assertParcelsNotExcludedByIds } from '../cadastral/utils/parcel-exclusion';
 
 export class SurveyController {
   // Phase 1
@@ -207,6 +208,8 @@ export class SurveyController {
         throw new BadRequestError('parcelId là bắt buộc');
       }
       const surveyorId = req.user!.userId;
+
+      await assertParcelsNotExcludedByIds([parcelId]);
 
       // 0. Lưới an toàn: TỪ CHỐI nộp nếu còn ảnh chưa lên Cloud (blob:local / base64).
       // Nếu cho qua, ảnh sẽ hỏng vĩnh viễn trên báo cáo vì file gốc chỉ nằm trong IndexedDB của thiết bị.

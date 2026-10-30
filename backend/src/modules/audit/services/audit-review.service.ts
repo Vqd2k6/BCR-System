@@ -1846,8 +1846,9 @@ export class AuditReviewService {
       'ZONE_19': 'ZONE_S10', 'ZONE_21': 'ZONE_S11',
     };
 
-    let whereClause = ``;
-    let reportWhereClause = ``;
+    // Tiến độ chỉ tính thửa ACTIVE. Thống kê hồ sơ chỉ bỏ thửa đã loại trừ, giữ hồ sơ của thửa đã tách/gộp.
+    let whereClause = `WHERE p.lifecycle_status = 'ACTIVE'`;
+    let reportWhereClause = `AND p.lifecycle_status::text NOT IN ('EXCLUDED_NON_BUILDING', 'EXCLUDED_TRAINING_DEMO')`;
     const params: any[] = [];
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL' || target === 'ALL_ZONES';
@@ -1855,8 +1856,8 @@ export class AuditReviewService {
     if (!isAll) {
       const altTarget = zoneMapping[target] || target;
       params.push(target, altTarget);
-      whereClause = `WHERE (p.zone_id = $1 OR p.zone_id = $2)`;
-      reportWhereClause = `AND (p.zone_id = $1 OR p.zone_id = $2)`;
+      whereClause += ` AND (p.zone_id = $1 OR p.zone_id = $2)`;
+      reportWhereClause += ` AND (p.zone_id = $1 OR p.zone_id = $2)`;
     }
 
     const parcelStatsRes = await Database.query(

@@ -3,6 +3,7 @@ import { Layers, Search, Menu, Map, Compass, X, MapPin } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
+import { isExcludedParcel } from '../../shared/parcelExclusion';
 
 interface SweepMapHeaderProps {
   selectedZone: string;
@@ -551,7 +552,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-sky-600))' }}>
                           {parcel.projectParcelCode}
                         </span>
-                        {getStatusBadge(parcel.surveyStatus, parcel)}
+                        {isExcludedParcel(parcel) ? (
+                          <span className="badge bg-slate-800 text-slate-300 border border-slate-600 font-bold">Đã ẩn</span>
+                        ) : (
+                          getStatusBadge(parcel.surveyStatus, parcel)
+                        )}
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-900))', fontWeight: 600, marginTop: '2px' }}>
                         Số {parcel.houseNumber} {parcel.street}

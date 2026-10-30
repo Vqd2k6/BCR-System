@@ -8,6 +8,7 @@ import {
   AlertCircle,
   PlusCircle,
   Eye,
+  EyeOff,
   Navigation,
   Split,
   History,
@@ -24,6 +25,8 @@ import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
+import { ExcludeParcelModal } from '../../shared/ExcludeParcelModal';
+import { canExcludeParcel } from '../../shared/parcelExclusion';
 
 interface ParcelDetailBottomSheetProps {
   activeParcel: GisParcel | null;
@@ -35,6 +38,7 @@ interface ParcelDetailBottomSheetProps {
   onOpenAuditReview?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   onSwapSuccess?: () => void;
+  onParcelExcluded?: () => void;
   absenceRecordedToday: { [parcelId: string]: string };
   handleOpenGoogleMapsDirections: (parcel: GisParcel) => void;
 }
@@ -49,10 +53,12 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   onOpenAuditReview,
   onProposeSplit,
   onSwapSuccess,
+  onParcelExcluded,
   absenceRecordedToday,
   handleOpenGoogleMapsDirections,
 }) => {
   const { user } = useAuth();
+  const [showExcludeModal, setShowExcludeModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showReshapeModal, setShowReshapeModal] = useState(false);
@@ -632,6 +638,36 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             </button>
           )}
 
+        {/* Nút Ẩn / Loại trừ thửa đất (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
+        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+          <button
+            type="button"
+            className={`btn btn-sm disabled:opacity-50 ${canExcludeParcel(activeParcel) ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            disabled={!canExcludeParcel(activeParcel)}
+            onClick={() => setShowExcludeModal(true)}
+            style={{
+              fontSize: '0.775rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              color: 'rgb(var(--text-red-700))',
+              borderColor: 'rgb(var(--border-red-200))',
+              backgroundColor: 'rgb(var(--bg-red-50))',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 700,
+            }}
+            title={
+              canExcludeParcel(activeParcel)
+                ? 'Ẩn / Loại trừ thửa đất khỏi khảo sát (Admin Only)'
+                : 'Không thể ẩn: Thửa đất đã có hồ sơ được nộp hoặc phê duyệt'
+            }
+          >
+            <EyeOff size={14} />
+            Ẩn thửa
+          </button>
+        )}
+
         {/* Nút Chuyển Vị Trí GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
         {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
@@ -733,6 +769,16 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           Chỉ đường
         </button>
       </div>
+
+      {/* Modal Ẩn / Loại trừ thửa đất (Admin Only) */}
+      {showExcludeModal && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        <ExcludeParcelModal
+          parcel={activeParcel}
+          mode="EXCLUDE"
+          onClose={() => setShowExcludeModal(false)}
+          onSuccess={() => onParcelExcluded?.()}
+        />
+      )}
 
       {/* Modal Chuyển / Hoán đổi vị trí (Admin Only) */}
       {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (

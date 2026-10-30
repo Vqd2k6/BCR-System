@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { Database, pool } from '../../../database/db';
 import { ZONE_SEGMENT_PREFIX_MAP, ZonePrefixMeta } from '../../../common/constants/zone-prefixes';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../../../common/errors/problem-details';
+import { EXCLUDED_LIFECYCLE_STATUSES } from '../utils/parcel-exclusion';
 
 function toValidUuidOrNull(val?: string | null): string | null {
   if (!val) return null;
@@ -121,7 +122,7 @@ export class CadastralIngestionService {
         COUNT(p.id) FILTER (WHERE p.survey_status = 'NOT_SURVEYED') as unsurveyed_count
       FROM metro_zones z
       LEFT JOIN users u ON z.assigned_admin_id = u.id
-      LEFT JOIN parcels p ON z.zone_code = p.zone_id
+      LEFT JOIN parcels p ON z.zone_code = p.zone_id AND p.lifecycle_status = 'ACTIVE'
       GROUP BY z.id, z.zone_code, z.zone_name, z.total_parcels_count, z.approved_parcels_count, z.is_active, z.assigned_admin_id, u.full_name, u.email
       ORDER BY z.zone_code ASC;
     `;
@@ -361,6 +362,17 @@ export class CadastralIngestionService {
         if (!forceCleanReimport) {
           throw new BadRequestError(
             `Zone ${zoneCode} đã có ${totalInZone} thửa đất tồn tại. Vui lòng xác nhận tùy chọn 'Làm sạch & Nạp lại' (Clean Re-import) để tiếp tục.`
+          );
+        }
+        // Nạp lại sẽ xóa thửa NOT_SURVEYED: chặn để không mất quyết định loại trừ đã ghi nhận
+        const excludedRes = await client.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM parcels WHERE zone_id = $1 AND lifecycle_status::text = ANY($2::text[]);`,
+          [zoneCode, [...EXCLUDED_LIFECYCLE_STATUSES]]
+        );
+        const excludedInZone = Number(excludedRes.rows[0]?.count || 0);
+        if (excludedInZone > 0) {
+          throw new BadRequestError(
+            `KHÓA CHẶN AN TOÀN: Zone ${zoneCode} có ${excludedInZone} thửa đã loại trừ khỏi khảo sát. Vui lòng khôi phục các thửa này trước khi nạp lại để không mất quyết định loại trừ.`
           );
         }
         // Làm sạch an toàn các thửa đất cũ chưa khảo sát

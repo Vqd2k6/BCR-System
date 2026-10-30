@@ -390,6 +390,10 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             onProposeSplit={onProposeSplit || (() => {})}
             onSwapSuccess={onReloadParcels}
             userGps={userGps}
+            onParcelLifecycleChanged={() => {
+              onReloadParcels?.();
+              fetchLiveIntelligence(selectedZone);
+            }}
           />
         </div>
       )}
@@ -406,6 +410,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             }}
             onViewSurvey={handleNavigateToReviewForParcel}
             onRefreshStats={() => fetchLiveIntelligence(selectedZone)}
+            onParcelsChanged={onReloadParcels}
           />
         </div>
       )}

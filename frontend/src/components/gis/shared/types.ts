@@ -1,6 +1,7 @@
 import type { GisParcel as DomainGisParcel } from '../../../core/types/domain.types';
 
 export type GisParcel = DomainGisParcel;
+export type { ParcelExclusionType } from '../../../core/types/domain.types';
 
 export interface SplitChildData {
   label: string;
@@ -151,5 +152,7 @@ export interface LeafletSweepMapProps {
   previewImportState?: ImportPreviewState | null;
   onConfirmImportPreview?: () => void;
   onCancelImportPreview?: () => void;
+  /** Gọi sau khi Ẩn / Khôi phục thửa để màn hình cha tải lại parcels và số liệu. */
+  onParcelLifecycleChanged?: () => void;
 }
 

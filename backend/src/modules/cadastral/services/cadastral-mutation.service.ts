@@ -4,6 +4,7 @@ import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
 import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
 import { generateUniqueCadastralCode, resolveCadastralCode } from '../utils/cadastral-code.generator';
+import { assertParcelsNotExcludedByIds } from '../utils/parcel-exclusion';
 
 export class CadastralMutationService {
   /**
@@ -468,6 +469,10 @@ export class CadastralMutationService {
     if (!data.sourceParcelIds || data.sourceParcelIds.length === 0) {
       throw new BadRequestError('Danh sách thửa đất nguồn (sourceParcelIds) không được để trống');
     }
+
+    await assertParcelsNotExcludedByIds(
+      data.primaryParcelId ? [...data.sourceParcelIds, data.primaryParcelId] : data.sourceParcelIds
+    );
 
     // M6-02: Bảo đảm khởi tạo v0 (ORIGINAL_SUBMISSION) trước khi thực thi biến động Tách / Gộp thửa
     try {

@@ -24,9 +24,17 @@ import {
   User,
   Move,
   Building2,
+  EyeOff,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../../components/gis/shared/types';
+import { ExcludeParcelModal } from '../../../../components/gis/shared/ExcludeParcelModal';
+import {
+  EXCLUSION_TYPE_LABELS,
+  canExcludeParcel,
+  fetchExcludedParcels,
+} from '../../../../components/gis/shared/parcelExclusion';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { FloorPlanCadManagementModal } from '../../../../components/survey/building-hub/components/FloorPlanCadManagementModal';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -37,6 +45,7 @@ interface ZoneParcelsDataGridProps {
   onNavigateToMap?: (parcel: GisParcel) => void;
   onViewSurvey?: (parcel: GisParcel) => void;
   onRefreshStats?: () => void;
+  onParcelsChanged?: () => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -93,8 +102,12 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   onNavigateToMap,
   onViewSurvey,
   onRefreshStats,
+  onParcelsChanged,
 }) => {
   const [parcels, setParcels] = useState<GisParcel[]>(initialParcels || []);
+  const [excludedParcels, setExcludedParcels] = useState<GisParcel[]>([]);
+  const [showExcludedList, setShowExcludedList] = useState<boolean>(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<{ parcel: GisParcel; mode: 'EXCLUDE' | 'RESTORE' } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
@@ -209,6 +222,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         ownerName: String(raw.owner_name || raw.ownerName || ''),
         ownerPhone: String(raw.owner_phone || raw.ownerPhone || ''),
         surveyStatus: (raw.survey_status || raw.surveyStatus || 'NOT_SURVEYED') as GisParcel['surveyStatus'],
+        lifecycleStatus: (raw.lifecycle_status || raw.lifecycleStatus) as GisParcel['lifecycleStatus'],
         buildingType: (raw.building_type || raw.buildingType || 'STANDALONE') as GisParcel['buildingType'],
         floorCount: Number(raw.floor_count ?? raw.floorCount ?? 1),
         constructionArea: Number(raw.construction_area_m2 ?? raw.constructionArea ?? 0),
@@ -234,6 +248,19 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   useEffect(() => {
     fetchZoneParcels();
   }, [fetchZoneParcels]);
+
+  const loadExcludedParcels = useCallback(async () => {
+    try {
+      setExcludedParcels(await fetchExcludedParcels(selectedZone));
+    } catch (err: unknown) {
+      console.error('[ZoneParcelsDataGrid:loadExcludedParcels] Không tải được thửa đã ẩn:', err);
+      setExcludedParcels([]);
+    }
+  }, [selectedZone]);
+
+  useEffect(() => {
+    loadExcludedParcels();
+  }, [loadExcludedParcels]);
 
   // Filtered & Sorted Data
   const filteredParcels = useMemo(() => {
@@ -559,8 +586,87 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         </button>
       </div>
 
+      {/* 2.6. Chuyển giữa thửa đang khảo sát và thửa đã ẩn / loại trừ */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowExcludedList(false)}
+          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${
+            !showExcludedList ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Thửa khảo sát hoạt động ({parcels.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowExcludedList(true)}
+          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${
+            showExcludedList ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Đã ẩn / Loại trừ ({excludedParcels.length})
+        </button>
+      </div>
+
+      {showExcludedList && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                <th className="py-3 px-4">Mã thửa</th>
+                <th className="py-3 px-4">Địa chỉ</th>
+                <th className="py-3 px-4">Phân loại</th>
+                <th className="py-3 px-4">Lý do</th>
+                <th className="py-3 px-4">Người thực hiện</th>
+                <th className="py-3 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {excludedParcels.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 px-4 text-center text-slate-500">
+                    Chưa có thửa nào bị ẩn trong phân khu này.
+                  </td>
+                </tr>
+              )}
+              {excludedParcels.map((parcel) => (
+                <tr key={parcel.id}>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <span className="inline-block rounded-md border bg-teal-950 text-teal-300 border-teal-700 px-2 py-0.5 text-[11px] font-mono font-bold">
+                      {parcel.projectParcelCode}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">{[parcel.houseNumber, parcel.street].filter(Boolean).join(' ') || '---'}</td>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    {parcel.exclusionType ? EXCLUSION_TYPE_LABELS[parcel.exclusionType] : '---'}
+                  </td>
+                  <td className="py-3 px-4 min-w-[200px]">{parcel.exclusionReason || '---'}</td>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <div>{parcel.excludedByName || '---'}</div>
+                    {parcel.excludedAt && (
+                      <div className="text-[10px] text-slate-400">{new Date(parcel.excludedAt).toLocaleString('vi-VN')}</div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setLifecycleTarget({ parcel, mode: 'RESTORE' })}
+                      className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                      title="Khôi phục thửa đất về khảo sát"
+                    >
+                      <RotateCcw size={13} />
+                      <span>Khôi phục</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* 3. Cadastral Data Grid Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className={`bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden ${showExcludedList ? 'hidden' : ''}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -764,6 +870,17 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                           >
                             <Move size={14} />
                           </button>
+
+                          {canExcludeParcel(parcel) && (
+                            <button
+                              type="button"
+                              onClick={() => setLifecycleTarget({ parcel, mode: 'EXCLUDE' })}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+                              title="Ẩn / Loại trừ khỏi khảo sát (Đất trống / Giao thông / Demo)"
+                            >
+                              <EyeOff size={14} />
+                            </button>
+                          )}
 
                           {onViewSurvey && (
                             <button
@@ -1026,6 +1143,21 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Ẩn / Khôi phục thửa đất */}
+      {lifecycleTarget && (
+        <ExcludeParcelModal
+          parcel={lifecycleTarget.parcel}
+          mode={lifecycleTarget.mode}
+          onClose={() => setLifecycleTarget(null)}
+          onSuccess={() => {
+            fetchZoneParcels();
+            loadExcludedParcels();
+            onParcelsChanged?.();
+            if (onRefreshStats) onRefreshStats();
+          }}
+        />
       )}
 
       {/* Cadastral Boundary Reshape Modal */}

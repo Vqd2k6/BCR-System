@@ -1,5 +1,5 @@
 import React from 'react';
-import { Filter, X, Layers, EyeOff, Check } from 'lucide-react';
+import { Filter, X, Layers, Eye, EyeOff, Check } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import type { AppliedFiltersState } from '../hooks/useSweepMapState';
 
@@ -14,6 +14,8 @@ interface SweepMapFilterModalProps {
   setPhase1Only: () => void;
   setPhase2Only: () => void;
   isNonBuildingParcel: (parcel: GisParcel) => boolean;
+  canViewExcluded?: boolean;
+  excludedCount?: number;
 }
 
 export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
@@ -27,6 +29,8 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
   setPhase1Only,
   setPhase2Only,
   isNonBuildingParcel,
+  canViewExcluded = false,
+  excludedCount = 0,
 }) => {
   if (!showFilterModal) return null;
 
@@ -301,6 +305,40 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
                 </div>
               </div>
             </label>
+
+            {/* Lớp thửa đã ẩn / loại trừ (chỉ Admin) */}
+            {canViewExcluded && (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.5rem 0.6rem',
+                  marginTop: '0.45rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgb(var(--bg-slate-50))',
+                  border: '1px solid rgb(var(--border-slate-200))',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.showExcluded}
+                  onChange={(e) => setDraftFilters((prev) => ({ ...prev, showExcluded: e.target.checked }))}
+                  style={{ width: '17px', height: '17px', cursor: 'pointer', flexShrink: 0 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 700, color: 'rgb(var(--text-slate-800))', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Eye size={14} />
+                    <span>Hiển thị thửa đã ẩn / loại trừ ({excludedCount} thửa)</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))', marginTop: '1px' }}>
+                    Hiện dạng nét đứt xám, bấm vào thửa để xem lý do và khôi phục
+                  </div>
+                </div>
+              </label>
+            )}
           </div>
         </div>
 

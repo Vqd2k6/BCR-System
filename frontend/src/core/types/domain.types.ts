@@ -36,6 +36,17 @@ export type SurveyStatus =
   | 'SPLIT_DEPRECATED'
   | 'MERGED_DEPRECATED';
 
+export type ParcelLifecycleStatus =
+  | 'ACTIVE'
+  | 'PENDING_MUTATION_APPROVAL'
+  | 'SPLIT_DEPRECATED'
+  | 'MERGED_DEPRECATED'
+  | 'MUTATION_VOID'
+  | 'EXCLUDED_NON_BUILDING'
+  | 'EXCLUDED_TRAINING_DEMO';
+
+export type ParcelExclusionType = 'ROAD_TRAFFIC' | 'VACANT_LAND' | 'CLICK_MISTAKE' | 'TRAINING_DEMO' | 'DUPLICATE';
+
 export interface GisParcel {
   id: string;
   projectParcelCode: string;
@@ -115,7 +126,12 @@ export interface GisParcel {
   rejection_reason?: string;
   activePhase1ReportId?: string;
   activePhase2ReportId?: string;
-  lifecycleStatus?: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED';
+  lifecycleStatus?: ParcelLifecycleStatus;
+  lifecycle_status?: ParcelLifecycleStatus;
+  exclusionType?: ParcelExclusionType;
+  exclusionReason?: string;
+  excludedAt?: string;
+  excludedByName?: string;
   mutationType?: 'SPLIT' | 'MERGE' | null;
   parentParcelIds?: string[];
   childParcelIds?: string[];

@@ -5,6 +5,18 @@ export const StartSurveyDto = z.object({
   claimReason: z.string().optional(),
 });
 
+export const UpdateParcelLifecycleDto = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('EXCLUDE'),
+    exclusionType: z.enum(['ROAD_TRAFFIC', 'VACANT_LAND', 'CLICK_MISTAKE', 'TRAINING_DEMO', 'DUPLICATE']),
+    reason: z.string().trim().min(3, 'Lý do loại trừ tối thiểu 3 ký tự').max(500),
+  }),
+  z.object({
+    action: z.literal('RESTORE'),
+    reason: z.string().trim().min(3, 'Lý do khôi phục tối thiểu 3 ký tự').max(500),
+  }),
+]);
+
 export const RecordAbsenceDto = z.object({
   unitId: z.string().uuid().optional().nullable(),
   absenceReason: z.string().min(1),

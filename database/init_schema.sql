@@ -53,8 +53,10 @@ CREATE TYPE parcel_lifecycle_enum AS ENUM (
     'ACTIVE', 
     'PENDING_MUTATION_APPROVAL', 
     'SPLIT_DEPRECATED', 
-    'MERGED_DEPRECATED', 
-    'MUTATION_VOID'
+    'MERGED_DEPRECATED',
+    'MUTATION_VOID',
+    'EXCLUDED_NON_BUILDING',
+    'EXCLUDED_TRAINING_DEMO'
 );
 
 CREATE TYPE mutation_type_enum AS ENUM (
@@ -412,6 +414,10 @@ CREATE TABLE parcels (
     seal_notes TEXT,
     deleted_floors INT[] DEFAULT '{}',
     code_slug VARCHAR(32),
+    exclusion_type VARCHAR(32),                    -- ROAD_TRAFFIC | VACANT_LAND | CLICK_MISTAKE | TRAINING_DEMO | DUPLICATE
+    exclusion_reason TEXT,
+    excluded_at TIMESTAMPTZ,
+    excluded_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

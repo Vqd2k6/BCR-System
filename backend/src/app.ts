@@ -121,6 +121,7 @@ export function createApp(): express.Application {
 
   // Thửa đất & Quét cạn
   api.get('/parcels/zone-map', authenticateJwt, CadastralController.getZoneMap);
+  api.get('/parcels/excluded', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getExcludedParcels);
   api.get('/parcels/nearby', authenticateJwt, CadastralController.getNearbyParcels);
   api.get('/parcels/next-high-range-codes', authenticateJwt, CadastralController.getNextHighRangeProjectCodes);
   api.get('/parcels/lookup-by-code', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.lookupParcelByExactCode);
@@ -136,6 +137,7 @@ export function createApp(): express.Application {
   api.post('/parcels/:id/floor-plans/partitions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.saveFloorPartitions);
   api.post('/parcels/:id/floor-plans/atomic-sync', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.atomicSyncFloorPlanAndPartitions);
   api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
+  api.patch('/parcels/:id/lifecycle', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateParcelLifecycle);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
   api.post('/parcels/:id/resume-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.resumeSurvey);
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
