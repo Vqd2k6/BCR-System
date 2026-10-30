@@ -663,7 +663,10 @@ export const AuditStudioModal: React.FC<Props> = ({
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowFlagsPopover(!showFlagsPopover)}
+                  onClick={() => {
+                    setShowFlagsPopover(!showFlagsPopover);
+                    setShowMoreMenu(false);
+                  }}
                   className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                     showFlagsPopover
                       ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs'
@@ -676,7 +679,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                 </button>
 
                 {showFlagsPopover && (
-                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-3 space-y-2 animate-in fade-in slide-in-from-top-1">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -766,7 +769,10 @@ export const AuditStudioModal: React.FC<Props> = ({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                onClick={() => {
+                  setShowMoreMenu(!showMoreMenu);
+                  setShowFlagsPopover(false);
+                }}
                 className={`p-1 rounded-lg border transition-all cursor-pointer ${
                   showMoreMenu
                     ? 'bg-slate-100 border-slate-300 text-slate-900'
@@ -778,7 +784,7 @@ export const AuditStudioModal: React.FC<Props> = ({
               </button>
 
               {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-2 space-y-1 animate-in fade-in slide-in-from-top-1">
+                <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-2 space-y-1 animate-in fade-in slide-in-from-top-1">
                   <div className="px-2.5 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-100">
                     Tùy Chọn Thẩm Định
                   </div>

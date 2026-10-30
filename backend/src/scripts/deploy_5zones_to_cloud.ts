@@ -117,7 +117,7 @@ async function deploy5ZonesToCloud() {
         ADD COLUMN IF NOT EXISTS building_height_m NUMERIC,
         ADD COLUMN IF NOT EXISTS foundation_source VARCHAR(64),
         ADD COLUMN IF NOT EXISTS foundation_depth_m NUMERIC(6,2),
-        ADD COLUMN IF NOT EXISTS foundation_density INT,
+        ADD COLUMN IF NOT EXISTS foundation_density NUMERIC(10, 3),
         ADD COLUMN IF NOT EXISTS foundation_spacing_m NUMERIC(6,2),
         ADD COLUMN IF NOT EXISTS foundation_notes TEXT;
 

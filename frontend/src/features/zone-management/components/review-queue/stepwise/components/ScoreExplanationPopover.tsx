@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Info, X, Calculator, ShieldCheck, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { Info, X, Calculator } from 'lucide-react';
 
 export type MetricType =
   | 'ECS'
@@ -26,22 +27,100 @@ interface Props {
 
 export const ScoreExplanationPopover: React.FC<Props> = ({ metric, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverPanelRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    placement: 'bottom' | 'top';
+  }>({
+    top: 0,
+    left: 0,
+    placement: 'bottom',
+  });
 
-  // Close on outside click
+  const updatePosition = useCallback(() => {
+    const triggerEl = triggerRef.current;
+    if (!triggerEl) return;
+
+    const triggerRect = triggerEl.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const margin = 12;
+    const gap = 8;
+
+    const panelEl = popoverPanelRef.current;
+    const panelW = panelEl ? panelEl.offsetWidth : Math.min(384, viewportW - margin * 2);
+    const panelH = panelEl ? panelEl.offsetHeight : 320;
+
+    // Căn ngang: ưu tiên bám mép trái nút (i) và mở rộng sang phải để không bị tràn mép trái bảng;
+    // nếu vượt quá mép phải màn hình thì tự động lật sang bám mép phải nút (i) và kẹp trong khung nhìn.
+    let nextLeft = triggerRect.left;
+    if (nextLeft + panelW > viewportW - margin) {
+      nextLeft = triggerRect.right - panelW;
+    }
+    nextLeft = Math.max(margin, Math.min(nextLeft, viewportW - panelW - margin));
+
+    // Căn dọc: ưu tiên hiển thị bên dưới nút (i); nếu phía dưới bị hẹp thì tự động lật lên trên.
+    const spaceBelow = viewportH - triggerRect.bottom - margin;
+    const spaceAbove = triggerRect.top - margin;
+    let placement: 'bottom' | 'top' = 'bottom';
+    let nextTop = triggerRect.bottom + gap;
+
+    if (spaceBelow < panelH && spaceAbove > spaceBelow) {
+      placement = 'top';
+      nextTop = Math.max(margin, triggerRect.top - panelH - gap);
+    } else if (nextTop + panelH > viewportH - margin) {
+      nextTop = Math.max(margin, viewportH - panelH - margin);
+    }
+
+    setCoords({
+      top: Math.round(nextTop),
+      left: Math.round(nextLeft),
+      placement,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    // Đo lại sau frame đầu tiên khi DOM portal đã render đủ chiều cao thực tế
+    const rafId = window.requestAnimationFrame(() => {
+      updatePosition();
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isOpen, metric, updatePosition]);
+
+  // Đóng khi click ra ngoài hoặc nhấn phím Escape, đồng thời cập nhật vị trí khi cuộn/resize
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleOutsideClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverPanelRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setIsOpen(false);
       }
     };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-    }
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   const getContent = () => {
     switch (metric) {
@@ -285,81 +364,98 @@ export const ScoreExplanationPopover: React.FC<Props> = ({ metric, className = '
   const data = getContent();
 
   return (
-    <div className={`relative inline-flex items-center ${className}`} ref={popoverRef}>
+    <div className={`relative inline-flex items-center ${className}`}>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="p-1 rounded-full text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`p-1 rounded-full transition-colors cursor-pointer ${
+          isOpen
+            ? 'text-sky-600 bg-sky-100 ring-2 ring-sky-400/50'
+            : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'
+        }`}
         title={`Bấm để xem công thức và bảng ngưỡng tính toán ${metric}`}
       >
         <Info className="w-3.5 h-3.5" />
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 text-xs text-slate-700 z-50 animate-in fade-in slide-in-from-top-1 space-y-3">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-sky-100 text-sky-700 rounded-lg">
-                <Calculator className="w-4 h-4" />
-              </div>
-              <h4 className="font-bold text-slate-900 text-xs leading-snug">{data.title}</h4>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Công thức toán học */}
-          <div className="p-2.5 bg-slate-900 text-sky-300 rounded-xl font-mono text-[11px] font-bold text-center tracking-wide shadow-inner">
-            {data.formula}
-          </div>
-
-          {/* Mô tả nghiệp vụ */}
-          <p className="text-[11px] text-slate-600 leading-relaxed">{data.description}</p>
-
-          {/* Các biến thành phần */}
-          {data.variables.length > 0 && (
-            <div className="space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px]">
-              <span className="font-bold text-slate-800 text-[10px] uppercase block mb-1">
-                Các Thành Phần Cấu Thành:
-              </span>
-              {data.variables.map((v, i) => (
-                <div key={i} className="flex items-start gap-1.5 leading-snug">
-                  <span className="font-mono font-bold text-sky-700 shrink-0">{v.code}:</span>
-                  <span className="text-slate-700">
-                    <strong>{v.name}</strong> - {v.desc}
-                  </span>
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverPanelRef}
+            role="dialog"
+            aria-label={data.title}
+            style={{
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+            }}
+            className="fixed w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 text-xs text-slate-700 z-[10050] animate-in fade-in zoom-in-95 duration-150 space-y-3 font-normal text-left"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-sky-100 text-sky-700 rounded-lg shrink-0">
+                  <Calculator className="w-4 h-4" />
                 </div>
-              ))}
+                <h4 className="font-bold text-slate-900 text-xs leading-snug">{data.title}</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md shrink-0 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
 
-          {/* Bảng ngưỡng rủi ro */}
-          {data.thresholds.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <span className="font-bold text-slate-800 text-[10px] uppercase block">
-                Bảng Ngưỡng Phân Loại Tiêu Chuẩn Kỹ Thuật:
-              </span>
-              <div className="grid grid-cols-1 gap-1 text-[11px]">
-                {data.thresholds.map((t, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center justify-between px-2.5 py-1 rounded-lg border text-[11px] font-medium ${t.color}`}
-                  >
-                    <span className="font-mono font-bold">{t.range}</span>
-                    <span className="font-bold">{t.label}</span>
+            {/* Công thức toán học */}
+            <div className="p-2.5 bg-slate-900 text-sky-300 rounded-xl font-mono text-[11px] font-bold text-center tracking-wide shadow-inner break-words">
+              {data.formula}
+            </div>
+
+            {/* Mô tả nghiệp vụ */}
+            <p className="text-[11px] text-slate-600 leading-relaxed">{data.description}</p>
+
+            {/* Các biến thành phần */}
+            {data.variables.length > 0 && (
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px]">
+                <span className="font-bold text-slate-800 text-[10px] uppercase block mb-1">
+                  Các Thành Phần Cấu Thành:
+                </span>
+                {data.variables.map((v, i) => (
+                  <div key={i} className="flex items-start gap-1.5 leading-snug">
+                    <span className="font-mono font-bold text-sky-700 shrink-0">{v.code}:</span>
+                    <span className="text-slate-700">
+                      <strong>{v.name}</strong> - {v.desc}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+
+            {/* Bảng ngưỡng rủi ro */}
+            {data.thresholds.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="font-bold text-slate-800 text-[10px] uppercase block">
+                  Bảng Ngưỡng Phân Loại Tiêu Chuẩn Kỹ Thuật:
+                </span>
+                <div className="grid grid-cols-1 gap-1 text-[11px]">
+                  {data.thresholds.map((t, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg border text-[11px] font-medium ${t.color}`}
+                    >
+                      <span className="font-mono font-bold shrink-0">{t.range}</span>
+                      <span className="font-bold text-right">{t.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

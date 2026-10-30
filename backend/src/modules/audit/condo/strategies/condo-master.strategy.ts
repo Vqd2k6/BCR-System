@@ -229,7 +229,7 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
           ? Number(updates.foundationDepthM)
           : null,
         updates.foundationDensity !== undefined && updates.foundationDensity !== '' && Number.isFinite(Number(updates.foundationDensity))
-          ? Math.round(Number(updates.foundationDensity))
+          ? Number(updates.foundationDensity)
           : null,
         updates.foundationSpacingM !== undefined && updates.foundationSpacingM !== '' && Number.isFinite(Number(updates.foundationSpacingM))
           ? Number(updates.foundationSpacingM)

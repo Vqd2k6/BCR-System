@@ -729,7 +729,7 @@ CREATE TABLE building_specifications (
     year_of_construction INT,
     is_year_estimated BOOLEAN NOT NULL DEFAULT FALSE,
     foundation_depth_m NUMERIC(6,2),
-    foundation_density INT,
+    foundation_density NUMERIC(10, 3),
     foundation_spacing_m NUMERIC(6,2),
     foundation_notes TEXT
 );

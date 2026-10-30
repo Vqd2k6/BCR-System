@@ -1081,7 +1081,7 @@ export class AuditVersionService {
         const compType = normalizeComponentType(z.component_type || z.componentType || z.elementType || (z._isElement ? 'COLUMN' : 'WALL'));
         const wallMat = z.wall_material || z.wallMaterial || z.materialType || (z._isElement ? 'BTCT' : null);
         const ctxUrl = (z.ctx_photo_url || z.ctxPhotoUrl || '').trim() || '';
-        const bGrade = pickFiniteNumberOrZero(z.burland_grade, z.burlandGrade);
+        const bGrade = Math.round(pickFiniteNumberOrZero(z.burland_grade, z.burlandGrade));
         const funcImpact = Boolean(z.functional_impact_repair_needed ?? z.functionalImpactRepairNeeded ?? z.hasDamage);
 
         const matchedZoneUuid = resolveZoneUuid(z.id, floorName, zCode);
@@ -1170,8 +1170,8 @@ export class AuditVersionService {
           const screenCat = d.screening_category || d.screeningCategory || d.defect_type || d.defectType || 'CRACK';
           const defType = d.defect_type || d.defectType || 'HAIRLINE';
           const crackDir = d.crack_direction || d.crackDirection || null;
-          const matE4 = Number(d.material_degradation_e4 ?? d.materialDegradationE4 ?? 0) || 0;
-          const structE2 = Number(d.structural_significance_e2 ?? d.structuralSignificanceE2 ?? 0) || 0;
+          const matE4 = Math.round(Number(d.material_degradation_e4 ?? d.materialDegradationE4 ?? 0) || 0);
+          const structE2 = Math.round(Number(d.structural_significance_e2 ?? d.structuralSignificanceE2 ?? 0) || 0);
           const hasScale = Boolean(d.has_scale_card ?? d.hasScaleCard ?? true);
           const isCrit = Boolean(d.is_structural_critical ?? d.isStructuralCritical ?? false);
           const pinCol = d.pin_color || d.pinColor || '#ef4444';
