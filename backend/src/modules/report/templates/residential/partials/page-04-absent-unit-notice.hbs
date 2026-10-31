@@ -1,0 +1,33 @@
+  <!-- =====================================================================
+       CĂN HỘ VẮNG CHỦ: thay Chương III-VIII. Các mốc data-section giữ mục lục đúng trang.
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+
+    <div class="report-subpage-topbar">
+      <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+      <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+    </div>
+
+    <h2 class="chapter-header" data-section="sec-3">III - VIII. KHÔNG ĐÁNH GIÁ DO KHÔNG TIẾP CẬN ĐƯỢC CĂN HỘ - NOT ASSESSED (UNIT NOT ACCESSIBLE)</h2>
+    <span data-section="sec-4"></span><span data-section="sec-5"></span><span data-section="sec-6"></span>
+    <span data-section="sec-7"></span><span data-section="sec-8"></span>
+
+    <p>Khảo sát viên không tiếp cận được bên trong căn hộ, vì vậy báo cáo không ghi nhận hiện trạng kết cấu, biến dạng, khuyết tật và không có điểm ECS, VI, BRA cho căn hộ này. Việc không có khuyết tật trong báo cáo <strong>không</strong> có nghĩa là căn hộ không có hư hại.<br>
+    <span class="text-muted">The surveyor could not access the unit interior. This report records no structural condition, deformation or defects and no ECS, VI or BRA score. The absence of recorded defects does <strong>not</strong> mean the unit is undamaged.</span></p>
+
+    <h3 class="section-header">Ghi nhận không tiếp cận / Non-access record:</h3>
+    <table class="tech-table compact-table">
+      <tbody>
+        <tr><td class="font-bold" style="width: 38%;">Lý do / Reason</td><td>{{#if condoUnitAbsent.reason}}{{condoUnitAbsent.reason}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Số lần tiếp cận / Attempts</td><td>{{#if condoUnitAbsent.attemptCount}}{{condoUnitAbsent.attemptCount}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Ghi chú hiện trường / Field notes</td><td>{{#if condoUnitAbsent.notes}}{{condoUnitAbsent.notes}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Người chứng kiến / Witness</td><td>{{#if condoUnitAbsent.witnessName}}{{condoUnitAbsent.witnessName}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Vai trò / Role</td><td>{{#if condoUnitAbsent.witnessRole}}{{condoUnitAbsent.witnessRole}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Điện thoại / Phone</td><td>{{#if condoUnitAbsent.witnessPhone}}{{condoUnitAbsent.witnessPhone}}{{else}}---{{/if}}</td></tr>
+        <tr><td class="font-bold">Đã niêm yết thông báo / Notice posted</td><td>{{#if condoUnitAbsent.noticeDelivered}}Có / Yes{{else}}Không ghi nhận / Not recorded{{/if}}</td></tr>
+        <tr><td class="font-bold">Hẹn khảo sát lại / Rescheduled</td><td>{{#if condoUnitAbsent.rescheduleDate}}{{condoUnitAbsent.rescheduleDate}}{{else}}---{{/if}}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="page-number-footer">{{tocPageNumbers.section3}}</div>
+  </div>

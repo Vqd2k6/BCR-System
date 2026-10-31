@@ -11,6 +11,7 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 import { Database } from '../../../database/db';
 import { SurveyRepository } from '../../survey/survey.repository';
+import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
 import { NotFoundError } from '../../../common/errors/problem-details';
 import { maskReportPii } from '../../../common/utils/pii.utils';
 import { ReportViewModel } from '../report.types';
@@ -202,7 +203,7 @@ export class ReportService {
     maskPii: boolean = false,
     enableWatermark: boolean = true
   ): Promise<{ html: string; viewModel: ReportViewModel }> {
-    let activeReport = applyOverridesToReport(rawReport, overrides);
+    let activeReport = await applyCondoReportContext(applyOverridesToReport(rawReport, overrides));
     if (maskPii) {
       activeReport = maskReportPii(activeReport);
     }

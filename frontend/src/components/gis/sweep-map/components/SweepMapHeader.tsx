@@ -6,6 +6,8 @@ import { getStatusBadge } from '../utils/sweepMapHelpers';
 import { isExcludedParcel } from '../../shared/parcelExclusion';
 import { ZoneSvgPreviewModal } from '../../../../features/zone-management/components/modals/ZoneSvgPreviewModal';
 import { getSvgExportDisabledReason } from '../../../../features/zone-management/utils/zoneSvgTechnicalExporter';
+import { useAuth } from '../../../../context/AuthContext';
+import { getLockedZone } from '../../../../utils/zoneScope';
 
 interface SweepMapHeaderProps {
   selectedZone: string;
@@ -66,6 +68,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   parcels,
   canExportSvg = false,
 }) => {
+  const { user } = useAuth();
+  const lockedZone = getLockedZone(user);
   const [showSvgExportModal, setShowSvgExportModal] = useState<boolean>(false);
   const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels?.length ?? 0);
 
@@ -109,7 +113,12 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
         }}
       >
-        {/* Zone Select Dropdown */}
+        {/* Zone Select Dropdown (Zone Admin được gán zone cụ thể chỉ xem mã phân khu) */}
+        {lockedZone ? (
+          <div className="flex-1 min-w-0 rounded-lg px-2 py-1 text-xs border bg-cyan-950 text-cyan-300 border-cyan-700 font-mono font-bold">
+            {lockedZone}
+          </div>
+        ) : (
         <select
           value={selectedZone}
           onChange={(e) => {
@@ -151,6 +160,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             })}
           </optgroup>
         </select>
+        )}
 
         {/* Xuất bình đồ kỹ thuật SVG (chỉ Admin) */}
         {canExportSvg && (

@@ -167,6 +167,7 @@ export function createApp(): express.Application {
   api.get('/surveys/draft/:parcelId', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.getSurveyDraft);
   api.post('/surveys/draft/save', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveSurveyDraft);
   api.post('/surveys/draft/:parcelId/photo-mappings', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.savePhotoMappings);
+  api.post('/surveys/draft/:parcelId/recover-orphan-photos', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.recoverOrphanPhotos);
   api.post('/surveys/draft/release-lock', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.releaseDraftLock);
   api.post('/surveys/draft/takeover', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.takeoverSurveyDraft);
 
@@ -283,6 +284,13 @@ export function createApp(): express.Application {
   api.get('/reports/:id/revisions',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listReleases);
   api.post('/reports/:id/release',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
   api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+
+  api.get('/reports/:id/minutes/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportSingleMinutePdf);
+  api.get('/reports/minutes/zone/:zoneId',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.getZoneMinutesSummary);
+  api.post('/reports/minutes/zone/:zoneId/batch-zip', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportZoneBatchMinutesZip);
+  api.get('/reports/minutes/jobs/:jobId',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.getMinutesJob);
+  api.post('/reports/minutes/jobs/:jobId/download-ticket', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueMinutesDownloadTicket);
+  api.get('/reports/minutes/jobs/:jobId/download', ReportController.downloadMinutesZip);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

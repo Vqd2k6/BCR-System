@@ -1,6 +1,8 @@
 import { Database } from '../../../../database/db';
 import { NotFoundError } from '../../../../common/errors/problem-details';
 import { CondoFloorMatrixRow } from '../condo-audit.types';
+import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
+import { CONDO_AREA_UNIT_SQL, isCondoAreaUnit } from '../condo-entity-classifier';
 import { fetchParentMasterSummary } from '../strategies/condo-entity-strategy.interface';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
 
@@ -20,6 +22,10 @@ export class CondoQueueService {
 
     const { context, entityKind } = resolved;
     const parentMasterSummary = await fetchParentMasterSummary(context.parcel_id);
+    const condoAbsence =
+      entityKind === 'CONDO_UNIT'
+        ? ((await fetchCondoUnitAbsenceMap([context.report_id])).get(context.report_id) ?? null)
+        : null;
 
     // Truy vấn danh sách mặt bằng CAD các tầng của tòa tháp
     const fpRes = await Database.query<{
@@ -88,11 +94,13 @@ export class CondoQueueService {
     }
 
     if (entityKind === 'CONDO_UNIT') {
-      const waterLeak =
-        surveyJson.waterLeakageFromUpperFloor && typeof surveyJson.waterLeakageFromUpperFloor === 'object'
-          ? (surveyJson.waterLeakageFromUpperFloor as Record<string, unknown>)
-          : null;
-      if (waterLeak && Boolean(waterLeak.hasLeakage)) {
+      const auditLeak = surveyJson.waterLeakageFromUpperFloor as Record<string, unknown> | undefined;
+      const surveyLeak = surveyJson.upperFloorWaterLeakage as Record<string, unknown> | undefined;
+      const hasWaterLeak =
+        Boolean(auditLeak?.hasLeakage) ||
+        Boolean(surveyLeak?.has) ||
+        (Array.isArray(surveyLeak?.leakageItems) && surveyLeak.leakageItems.length > 0);
+      if (hasWaterLeak) {
         existingWarnings.push({
           code: 'UPPER_FLOOR_WATER_LEAKAGE',
           level: 'WARNING',
@@ -101,11 +109,12 @@ export class CondoQueueService {
         });
       }
 
-      const doorJam =
-        surveyJson.doorJamming && typeof surveyJson.doorJamming === 'object'
-          ? (surveyJson.doorJamming as Record<string, unknown>)
-          : null;
-      if (doorJam && Boolean(doorJam.hasJamming)) {
+      const auditDoorJam = surveyJson.doorJamming as Record<string, unknown> | undefined;
+      const surveyDoorJam = surveyJson.doorJammingStatus;
+      const hasDoorJam =
+        Boolean(auditDoorJam?.hasJamming) ||
+        (typeof surveyDoorJam === 'string' && surveyDoorJam !== '' && surveyDoorJam !== 'NORMAL');
+      if (hasDoorJam) {
         existingWarnings.push({
           code: 'DOOR_JAMMING_STRUCTURAL',
           level: 'WARNING',
@@ -118,6 +127,7 @@ export class CondoQueueService {
     return {
       ...baseView,
       condoEntityKind: entityKind,
+      condoAbsence,
       parentMasterSummary,
       floorPlans: fpRes.rows,
       auditWarningFlags: existingWarnings,
@@ -194,28 +204,26 @@ export class CondoQueueService {
           SELECT COUNT(*)::int
           FROM building_units bu
           WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
-            AND (bu.unit_type = 'MASTER_AREA' OR bu.unit_code LIKE 'MA-%' OR bu.unit_code LIKE 'AREA-%')
+            AND ${CONDO_AREA_UNIT_SQL}
         ) AS master_area_count,
         (
           SELECT COUNT(*)::int
           FROM building_units bu
           WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
-            AND (bu.unit_type = 'MASTER_AREA' OR bu.unit_code LIKE 'MA-%' OR bu.unit_code LIKE 'AREA-%')
+            AND ${CONDO_AREA_UNIT_SQL}
             AND bu.status = 'APPROVED'
         ) AS approved_master_area_count,
         (
           SELECT COUNT(*)::int
           FROM building_units bu
           WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
-            AND (bu.unit_type IS NULL OR bu.unit_type != 'MASTER_AREA')
-            AND bu.unit_code NOT LIKE 'MA-%' AND bu.unit_code NOT LIKE 'AREA-%'
+            AND NOT ${CONDO_AREA_UNIT_SQL}
         ) AS child_unit_count,
         (
           SELECT COUNT(*)::int
           FROM building_units bu
           WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
-            AND (bu.unit_type IS NULL OR bu.unit_type != 'MASTER_AREA')
-            AND bu.unit_code NOT LIKE 'MA-%' AND bu.unit_code NOT LIKE 'AREA-%'
+            AND NOT ${CONDO_AREA_UNIT_SQL}
             AND bu.status IN ('APPROVED', 'POSTPONED_ABSENT_VERIFIED')
         ) AS approved_child_unit_count,
         (
@@ -335,9 +343,7 @@ export class CondoQueueService {
 
     const allUnits = unitsRes.rows;
     const isMasterAreaUnit = (u: { unit_type: string | null; unit_code: string }) =>
-      u.unit_type === 'MASTER_AREA' ||
-      u.unit_code.startsWith('MA-') ||
-      u.unit_code.startsWith('AREA-');
+      isCondoAreaUnit(u.unit_type, u.unit_code);
 
     const childUnits = allUnits.filter((u) => !isMasterAreaUnit(u));
     const masterAreas = allUnits.filter((u) => isMasterAreaUnit(u));

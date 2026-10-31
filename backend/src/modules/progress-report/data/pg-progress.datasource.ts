@@ -92,6 +92,7 @@ SELECT ${PARCEL_COLUMNS},
        rep.*,
        sub_dim.sub_lot_depth, sub_dim.sub_frontage_width, sub_dim.sub_building_height,
        NULL::jsonb AS master_json, NULL AS master_building_name, NULL::int AS master_year,
+       NULL AS master_foundation_category, NULL::numeric AS master_foundation_depth, NULL::int AS master_floor_count,
        ab.cnt AS absence_count, ab.first_at AS absence_first_at, ab.last_at AS absence_last_at,
        ab.last_reason AS absence_reason, ab.last_notes AS absence_notes
   FROM parcels p
@@ -155,6 +156,8 @@ SELECT ${PARCEL_COLUMNS},
        NULL AS sub_lot_depth, NULL AS sub_frontage_width, NULL AS sub_building_height,
        mst.survey_data_json AS master_json, mst_bs.building_name AS master_building_name,
        mst_bs.year_of_construction AS master_year,
+       mst_bs.foundation_category::text AS master_foundation_category,
+       mst_bs.foundation_depth_m AS master_foundation_depth, mst_bs.floor_count AS master_floor_count,
        ab.cnt AS absence_count, ab.first_at AS absence_first_at, ab.last_at AS absence_last_at,
        ab.last_reason AS absence_reason, ab.last_notes AS absence_notes
   FROM building_units bu
@@ -175,6 +178,7 @@ SELECT ${PARCEL_COLUMNS},
     SELECT m.id, m.survey_data_json
       FROM base_survey_reports m
      WHERE m.parcel_id = p.id AND m.unit_id IS NULL AND m.deleted_at IS NULL AND m.phase = 'PHASE_1'
+       AND m.report_type = 'BUILDING_MASTER'
      ORDER BY
        CASE m.status::text
          WHEN 'APPROVED' THEN 1
@@ -301,6 +305,9 @@ function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
     masterJson: obj(r.master_json),
     masterBuildingName: str(r.master_building_name),
     masterYear: num(r.master_year),
+    masterFoundationCategory: str(r.master_foundation_category),
+    masterFoundationDepth: num(r.master_foundation_depth),
+    masterFloorCount: num(r.master_floor_count),
     absenceCount: num(r.absence_count) ?? 0,
     absenceFirstAt: date(r.absence_first_at),
     absenceLastAt: date(r.absence_last_at),

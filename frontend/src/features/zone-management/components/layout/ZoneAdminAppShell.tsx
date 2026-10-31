@@ -5,6 +5,7 @@ import {
 } from './ZoneAdminSidebar';
 import { ZoneAdminTopBar } from './ZoneAdminTopBar';
 import { useAuth } from '../../../../context/AuthContext';
+import { getLockedZone } from '../../../../utils/zoneScope';
 
 interface Props {
   activeNav: ZoneNavView;
@@ -75,6 +76,7 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         onChangeNav={onChangeNav}
         selectedZone={selectedZone}
         onSelectZone={onSelectZone}
+        zoneLocked={getLockedZone(user) !== null}
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
         pendingCount={pendingCount}

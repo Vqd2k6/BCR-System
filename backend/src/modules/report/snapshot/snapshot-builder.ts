@@ -25,6 +25,8 @@ import {
   stableStringify,
   sha256Hex,
 } from './snapshot-scores.utils';
+import { fetchCondoUnitAbsenceMap } from '../../audit/condo/condo-absence.resolver';
+import { fetchMasterStandardizedAddress, projectCondoAbsentSurveyJson } from './condo-absent-projection';
 
 export {
   type RiskCardRow,
@@ -50,18 +52,30 @@ export async function buildApprovedSnapshot(
   );
   const cardRes = await client.query<RiskCardRow>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
 
+  const unitId: string | null = repRes.rows[0]?.unit_id ?? null;
+  const absence = (await fetchCondoUnitAbsenceMap([reportId], client)).get(reportId);
+  const isAbsentUnit = absence?.state === 'ABSENT';
+
   const rawSurveyJson = repRes.rows[0]?.survey_data_json;
-  const frozenSurveyDataJson = asObject(rawSurveyJson);
+  const frozenSurveyDataJson = isAbsentUnit
+    ? projectCondoAbsentSurveyJson(asObject(rawSurveyJson))
+    : asObject(rawSurveyJson);
+  // Căn hộ vắng không có bảng điểm: thẻ điểm hiện có là kết quả tính từ dữ liệu nội thất không có thật
+  const cardRow = isAbsentUnit ? null : (cardRes.rows[0] ?? null);
   const burlandSummary = asObject(frozenSurveyDataJson.burlandSummary);
   const rawBurland =
-    asNumber(cardRes.rows[0]?.overridden_burland_grade) ??
+    asNumber(cardRow?.overridden_burland_grade) ??
     asNumber(burlandSummary.localMaxGrade ?? burlandSummary.assignedCategory) ??
-    asNumber(cardRes.rows[0]?.e1_burland_score);
+    asNumber(cardRow?.e1_burland_score);
   const burland = rawBurland === null ? null : Math.min(5, Math.max(0, Math.round(rawBurland)));
 
-  const scores = resolveFrozenScores(frozenSurveyDataJson, cardRes.rows[0] ?? null, burland);
+  const scores = resolveFrozenScores(frozenSurveyDataJson, cardRow, burland);
 
   const parcelId = repRes.rows[0]?.parcel_id;
+  if (unitId && parcelId && !frozenSurveyDataJson.standardizedAddress) {
+    const standardizedAddress = await fetchMasterStandardizedAddress(parcelId);
+    if (standardizedAddress) frozenSurveyDataJson.standardizedAddress = standardizedAddress;
+  }
   let frozenParcel: any = undefined;
   if (parcelId) {
     const pRes = await client.query<Record<string, any>>(
@@ -164,8 +178,10 @@ export async function buildApprovedSnapshot(
   if (parcelId) {
     try {
       const absRes = await Database.query<Record<string, unknown>>(
-        `SELECT * FROM survey_absence_logs WHERE parcel_id = $1 ORDER BY attempt_count ASC, recorded_at ASC;`,
-        [parcelId]
+        `SELECT * FROM survey_absence_logs
+         WHERE parcel_id = $1 AND unit_id IS NOT DISTINCT FROM $2
+         ORDER BY attempt_count ASC, recorded_at ASC;`,
+        [parcelId, unitId]
       );
       absenceLogsRows = absRes.rows;
     } catch (absErr) {
@@ -176,7 +192,6 @@ export async function buildApprovedSnapshot(
     frozenSurveyDataJson.absenceLogs = absenceLogsRows;
   }
 
-  const cardRow = cardRes.rows[0] ?? null;
   const edgeDist =
     asNumber(frozenSurveyDataJson.stationEdgeDistance) ??
     asNumber(frozenSurveyDataJson.clearanceOffsetDistance) ??
@@ -287,17 +302,17 @@ export async function buildApprovedSnapshot(
   const frozenReportData: Record<string, unknown> = {
     identificationPhotos: photosRes.rows,
     buildingSpecs: specsRes.rows[0] || null,
-    historicalSensitivity: historyRes.rows[0] || null,
-    floors: floorsRes.rows,
-    damageZones: zonesRes.rows,
-    damage_zones: zonesRes.rows,
-    deformation: deformRes.rows[0] || null,
+    historicalSensitivity: isAbsentUnit ? null : historyRes.rows[0] || null,
+    floors: isAbsentUnit ? [] : floorsRes.rows,
+    damageZones: isAbsentUnit ? [] : zonesRes.rows,
+    damage_zones: isAbsentUnit ? [] : zonesRes.rows,
+    deformation: isAbsentUnit ? null : deformRes.rows[0] || null,
     riskScores: cardRow,
     phase2Details: p2DetailsRes.rows[0] || null,
     survey_date: repRow?.survey_date ?? null,
-    summary_conclusions: repRow?.summary_conclusions ?? null,
+    summary_conclusions: isAbsentUnit ? null : repRow?.summary_conclusions ?? null,
     engineering_recommendations: repRow?.engineering_recommendations ?? null,
-    owner_remarks: repRow?.owner_remarks ?? null,
+    owner_remarks: isAbsentUnit ? null : repRow?.owner_remarks ?? null,
     surveyor_signature_url: repRow?.surveyor_signature_url ?? null,
     owner_signature_url: repRow?.owner_signature_url ?? null,
     is_absentee_survey: repRow?.is_absentee_survey ?? null,

@@ -147,7 +147,7 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
   return (
     <div className="space-y-4">
       {/* Search & Actions Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -155,19 +155,19 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
             value={searchTowerInput}
             onChange={(e) => setSearchTowerInput(e.target.value)}
             placeholder="Tìm theo tên tháp, mã tòa, địa chỉ..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
           />
         </div>
 
         <div className="flex items-center gap-2">
           <div className="text-xs text-slate-500">
-            Tổng cộng: <strong className="text-slate-800 dark:text-slate-200">{filteredTowers.length}</strong> khối tháp
+            Tổng cộng: <strong className="text-slate-800">{filteredTowers.length}</strong> khối tháp
           </div>
 
           <button
             type="button"
             onClick={fetchTowers}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
             title="Làm mới danh sách tòa"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
@@ -176,7 +176,7 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
       </div>
 
       {errorMsg && (
-        <div className="p-4 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded-2xl border border-red-200 text-xs flex items-center justify-between">
+        <div className="p-4 bg-red-50 text-red-700 rounded-2xl border border-red-200 text-xs flex items-center justify-between">
           <span>{errorMsg}</span>
           <button onClick={fetchTowers} className="font-bold underline cursor-pointer hover:opacity-80">
             Thử lại
@@ -191,9 +191,9 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
           <span className="text-xs font-semibold">Đang tải danh sách các khối tháp chung cư...</span>
         </div>
       ) : filteredTowers.length === 0 ? (
-        <div className="py-16 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-2">
-          <Building2 className="w-12 h-12 text-slate-300 dark:text-slate-700" />
-          <span className="font-bold text-sm text-slate-600 dark:text-slate-400">
+        <div className="py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-2">
+          <Building2 className="w-12 h-12 text-slate-300" />
+          <span className="font-bold text-sm text-slate-600">
             Không tìm thấy dự án chung cư nào trong phân khu này
           </span>
           <p className="text-xs text-slate-400 max-w-sm">

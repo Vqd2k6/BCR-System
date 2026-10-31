@@ -2,6 +2,7 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
+import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from './utils/zoneScope';
 import { getVietnamDateString, resolveAttendancePhotoUrl } from './core/utils/metroZoneUtils';
 import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
@@ -42,6 +43,8 @@ import {
   getDefaultTabForRole,
   sanitizeNavigationForRole,
 } from './utils/rbacNavigationGuard';
+
+const DEFAULT_ZONE = 'ZONE_09';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -85,7 +88,7 @@ export const App: React.FC = () => {
     updateNavigationUrl({ tab: defaultTab }, { replace: true });
   }, [user?.id, user?.role, isAuthenticated]);
 
-  const [selectedZone, setSelectedZone] = useState<string>(() => {
+  const [storedZone, setSelectedZone] = useState<string>(() => {
     const nav = getNavigationFromUrl();
     if (nav.zone) return nav.zone.toUpperCase();
     try {
@@ -94,8 +97,13 @@ export const App: React.FC = () => {
     } catch (_e: unknown) {
       console.warn('[App:selectedZone] Lỗi đọc zone đã lưu:', _e);
     }
-    return 'ZONE_09';
+    return DEFAULT_ZONE;
   });
+
+  // user chỉ có sau khi AuthContext khôi phục phiên nên zone được dẫn xuất, không chốt lúc khởi tạo state
+  const [zoneChosenManually, setZoneChosenManually] = useState(false);
+  const selectedZone =
+    getLockedZone(user) ?? (zoneChosenManually ? storedZone : resolveInitialZone(user, storedZone, DEFAULT_ZONE));
 
   const [previewImportState, setPreviewImportState] = useState<ImportPreviewState | null>(null);
 
@@ -114,6 +122,7 @@ export const App: React.FC = () => {
   }, [user?.assignedZoneId]);
 
   const handleSelectZone = (newZone: string) => {
+    setZoneChosenManually(true);
     setSelectedZone(newZone);
     updateNavigationUrl({ zone: newZone });
     try {
@@ -435,6 +444,10 @@ export const App: React.FC = () => {
 
   // ─── Load thửa đất theo zone từ API Backend ─────────────────────────────────
   const loadParcels = async () => {
+    if (isUnassignedZoneAdmin(user)) {
+      setParcels([]);
+      return;
+    }
     try {
       console.log(`[Metro2] Loading parcels for zone: ${selectedZone}`);
       const res = await api.get('/parcels/zone-map', { params: { zoneId: selectedZone } });

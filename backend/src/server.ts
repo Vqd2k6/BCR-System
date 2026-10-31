@@ -4,6 +4,7 @@ import { Database } from './database/db';
 import { MigrationRunner } from './database/migration-runner';
 import { StorageService } from './common/services/storage.service';
 import { ReportSnapshotService } from './modules/report/snapshot/report-snapshot.service';
+import { ZoneMinutesBatchService } from './modules/report/services/zone-minutes-batch.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -17,6 +18,9 @@ async function bootstrap() {
 
   // Tự động rà soát và nâng cấp Full Snapshot v2 cho các hồ sơ APPROVED cũ nếu phát hiện thiếu (Self-Healing)
   await ReportSnapshotService.autoBackfillApprovedSnapshots();
+
+  // Job xuất biên bản dang dở không thể chạy tiếp sau khi tiến trình dừng
+  await ZoneMinutesBatchService.recoverOnStartup();
 
   // Tự động kiểm tra và cấu hình CORS cho Cloudflare R2 bucket nếu đang chạy R2 storage
   await StorageService.autoConfigureR2Cors();

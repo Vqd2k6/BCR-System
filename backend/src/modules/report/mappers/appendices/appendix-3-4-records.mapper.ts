@@ -16,23 +16,37 @@ import {
 } from '../../report.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
-import { extractPhotoDateTime } from '../formatters.mapper';
+import { extractPhotoDateTime, parseSurveyDate } from '../formatters.mapper';
+import { resolveContactPhone, resolveRecordAddress } from '../sections/section-1-2-overview-spatial.mapper';
+import { resolveLocalRepresentative } from './local-authority.rules';
 import type { ReportContentConfig } from '../../../report_config/report-config.types';
 
+export interface SignedRecordDocItem {
+  url: string;
+  kind: 'MINUTES' | 'ABSENCE';
+  kindIdx: number;
+}
+
+/** Đơn vị giám sát mặc định khi hồ sơ không ghi nhận tư vấn giám sát riêng. */
+const DEFAULT_SUPERVISION_CONSULTANT = {
+  vi: 'Tổng thầu EPC-THACO-CREC',
+  en: 'EPC General Contractor THACO-CREC',
+};
+
 export class Appendix3And4Mapper {
-  public static mapAppendix3(
-    rawReport: any,
-    json: any,
-    identPhotos: any[] = [],
-    surveyDateWithTime: string = '',
-    surveyDateFormatted: string = '',
-    surveyorName: string = '',
-    zoneAdminName: string = '',
-    reportNo: string = '',
-    buildingId?: string,
-    rawSurveyDate?: any
-  ): Appendix3SignedRecord {
-    const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey || json.surveyCaseType === 'ABSENTEE');
+  /** Hồ sơ vắng chủ: các luồng nhập lưu cờ ở những nơi khác nhau nên chỉ cần một cờ bật là đủ. */
+  public static isAbsenteeReport(rawReport: any, json: any): boolean {
+    return Boolean(
+      json.isAbsentee ||
+      json.isAbsenteeSurvey ||
+      json.surveyCaseType === 'ABSENTEE' ||
+      rawReport.is_absentee_survey ||
+      rawReport.is_refused_or_absent
+    );
+  }
+
+  public static collectSignedRecordDocs(rawReport: any, json: any, identPhotos: any[] = []): SignedRecordDocItem[] {
+    const isAbsentee = this.isAbsenteeReport(rawReport, json);
     const extractUrl = (p: unknown): string => {
       if (typeof p === 'string') return p.trim();
       if (p && typeof p === 'object') {
@@ -83,7 +97,7 @@ export class Appendix3And4Mapper {
       }
     }
 
-    const allDocItems: Array<{ url: string; kind: 'MINUTES' | 'ABSENCE'; kindIdx: number }> = [];
+    const allDocItems: SignedRecordDocItem[] = [];
     const seenDocUrls = new Set<string>();
     const pushDocGroup = (urls: string[], kind: 'MINUTES' | 'ABSENCE') => {
       urls.forEach((u, kindIdx) => {
@@ -100,6 +114,23 @@ export class Appendix3And4Mapper {
       pushDocGroup(mergedWorkingMinutes, 'MINUTES');
       pushDocGroup(absNoticeUrls, 'ABSENCE');
     }
+    return allDocItems;
+  }
+
+  public static mapAppendix3(
+    rawReport: any,
+    json: any,
+    identPhotos: any[] = [],
+    surveyDateWithTime: string = '',
+    surveyDateFormatted: string = '',
+    surveyorName: string = '',
+    zoneAdminName: string = '',
+    reportNo: string = '',
+    buildingId?: string,
+    rawSurveyDate?: any
+  ): Appendix3SignedRecord {
+    const isAbsentee = this.isAbsenteeReport(rawReport, json);
+    const allDocItems = this.collectSignedRecordDocs(rawReport, json, identPhotos);
 
     const ownerFeedbackText = json.signatures?.ownerFeedback ?? json.ownerFeedback ?? json.ownerRemarks ?? rawReport.owner_remarks ?? '';
     const rawRepName = json.signatures?.ownerRepresentative?.fullName || json.ownerRepresentativeName || rawReport.owner_rep_name || '';
@@ -111,28 +142,40 @@ export class Appendix3And4Mapper {
     const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
     const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative / Occupant';
 
-    const witnessName = json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '';
-    const witnessRole = json.signatures?.localAuthority?.title || json.signatures?.witnessRole || json.witnessInfo?.role || json.witnessRole || '';
+    const witnessName = String(json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '').trim();
+    const witnessRole = String(json.signatures?.localAuthority?.title || json.signatures?.witnessRole || json.witnessInfo?.role || json.witnessRole || '').trim();
     const supName = json.signatures?.supervisionConsultant?.fullName;
     const supTitle = json.signatures?.supervisionConsultant?.title;
+    const localAuthorityText = witnessName
+      ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}`
+      : resolveLocalRepresentative(
+          rawReport.zone_id,
+          json.ward || rawReport.ward,
+          json.street || rawReport.street,
+          rawReport.district
+        ) || '--';
+    const parcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
+    const codeLabel = parcelCode ? ` ${parcelCode}` : '';
 
     return {
       surveyTime: surveyDateWithTime,
+      address: resolveRecordAddress(rawReport, json),
+      contactPhone: resolveContactPhone(rawReport, json) || '--',
       ownerRepresentative: {
         vi: isAbsentee ? `${finalOwnerName} (Vắng mặt tại thời điểm khảo sát)` : `${finalOwnerName} - ${roleSuffixVi}`,
         en: isAbsentee ? `${finalOwnerName} (Absent during survey)` : `${finalOwnerName} - ${roleSuffixEn}`,
       },
       localAuthority: {
-        vi: witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--',
-        en: witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--',
+        vi: localAuthorityText,
+        en: localAuthorityText,
       },
       supervisionConsultant: {
-        vi: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : '--',
-        en: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : '--',
+        vi: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : DEFAULT_SUPERVISION_CONSULTANT.vi,
+        en: supName ? `${supName}${supTitle ? ` - ${supTitle}` : ''}` : DEFAULT_SUPERVISION_CONSULTANT.en,
       },
       surveyUnit: {
-        vi: surveyorName ? `${surveyorName} - Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT` : 'Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT',
-        en: surveyorName ? `${surveyorName} - Field survey engineer, CRLG – CRSRI – TT JV` : 'Field survey engineer, CRLG – CRSRI – TT JV',
+        vi: 'Liên danh CRLG – CRSRI – TT',
+        en: 'CRLG – CRSRI – TT Joint Venture',
       },
       fieldComments: {
         vi: isAbsentee ? 'Khảo sát vắng chủ – Lập biên bản niêm yết theo quy định' : (ownerFeedbackText || 'Không có ý kiến bổ sung'),
@@ -150,7 +193,7 @@ export class Appendix3And4Mapper {
         const isApproved = String(rawReport.status || '').toUpperCase() === 'APPROVED';
         const refIso = (isApproved && rawReport.approved_at)
           ? new Date(rawReport.approved_at).toISOString()
-          : (rawSurveyDate ? new Date(rawSurveyDate).toISOString() : '');
+          : (parseSurveyDate(rawSurveyDate)?.toISOString() ?? '');
         return {
           vi: `Bản xuất phần mềm ${reportNo}, ngày khảo sát ${surveyDateFormatted || '–'}`,
           en: `Software export ${reportNo}${refIso ? `, approved/recorded at ${refIso}` : ''}`,
@@ -164,8 +207,8 @@ export class Appendix3And4Mapper {
           : (rotMap[`minutes_${kindIdx}`] ?? rotMap[`workingMinutesPhotos_${kindIdx}`] ?? rotMap[`MINUTES-${kindIdx + 1}`] ?? rotMap[url] ?? 0);
         const isAbsPage = isAbsentee || kind === 'ABSENCE';
         const docTitleVi = isAbsPage
-          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ - trang ${idx + 1}/${allDocItems.length || 1}`
-          : `Biên bản xác nhận khảo sát hiện trường - trang ${idx + 1}/${allDocItems.length || 1}`;
+          ? `Biên bản niêm yết / thông báo khảo sát vắng chủ${codeLabel} - trang ${idx + 1}/${allDocItems.length || 1}`
+          : `Biên bản xác nhận khảo sát hiện trường${codeLabel} - trang ${idx + 1}/${allDocItems.length || 1}`;
         const docTitleEn = isAbsPage
           ? `Absentee survey notice / record - page ${idx + 1}/${allDocItems.length || 1}`
           : `Signed site-survey record - page ${idx + 1}/${allDocItems.length || 1}`;

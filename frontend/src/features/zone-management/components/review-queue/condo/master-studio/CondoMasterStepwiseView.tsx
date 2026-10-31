@@ -25,6 +25,8 @@ export const CondoMasterStepwiseView: React.FC<CondoStudioEntryProps> = ({
   onDirtyChange,
   stagedPhotoActions = [],
   onUndoPhotoAction,
+  onRefresh,
+  registerStudioCommitHandler,
 }) => {
   const stepIds = useMemo(
     () => CONDO_MASTER_STEPS.map((s) => s.stepId),
@@ -47,6 +49,7 @@ export const CondoMasterStepwiseView: React.FC<CondoStudioEntryProps> = ({
   } = useCondoBaseAuditForm<CondoMasterFormState>({
     data,
     stepIds,
+    registerStudioCommitHandler,
     normalizeData: normalizeCondoMasterData,
     recomputeDerivedOnChange: recomputeCondoMasterScoresOnChange,
     onDirtyChange,
@@ -93,6 +96,7 @@ export const CondoMasterStepwiseView: React.FC<CondoStudioEntryProps> = ({
         formState,
         data,
         reportId,
+        onRefresh,
         parentMasterSummary,
         floorPlans,
         handleFieldChange,

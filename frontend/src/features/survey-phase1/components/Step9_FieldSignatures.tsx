@@ -25,14 +25,13 @@ import { compressCleanImage } from '../../../utils/cleanImageCompressor';
 import { PhotoWatermarkOverlay } from '../../../components/common/photo-capture/components/PhotoWatermarkOverlay';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import {
-  resolveOfflinePhotoUrl,
-  getSafeDisplayUrl,
   saveOfflinePhoto,
   markOfflinePhotoUploaded,
   saveUploadedPhotoMapping,
   createManagedBlobUrl,
   revokeManagedBlobUrl,
 } from '../../../core/storage/offlinePhotoStorage';
+import { useResolvedPhotoUrl } from '../../../core/storage/useResolvedPhotoUrl';
 import { useStorageInfo } from '../../../core/services/storageInfoService';
 
 interface Step9Props {
@@ -67,25 +66,7 @@ const MinutesPhotoCardItem: React.FC<{
   onAnnotate,
 }) => {
   const storageInfo = useStorageInfo();
-  const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
-
-  React.useEffect(() => {
-    let isSubscribed = true;
-    if (photoUrl) {
-      const immediate = getSafeDisplayUrl(photoUrl);
-      if (immediate && isSubscribed) setDisplayUrl(immediate);
-      resolveOfflinePhotoUrl(photoUrl).then((resolved) => {
-        if (isSubscribed && resolved) setDisplayUrl(resolved);
-      });
-    } else {
-      setDisplayUrl('');
-    }
-    return () => {
-      isSubscribed = false;
-    };
-  }, [photoUrl]);
-
-  const currentSrc = displayUrl || getSafeDisplayUrl(photoUrl);
+  const { displayUrl: currentSrc } = useResolvedPhotoUrl(photoUrl);
 
   return (
     <div

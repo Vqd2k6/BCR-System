@@ -133,6 +133,36 @@ export class CondoPhotoLineageService {
       syncZoneOrElemCtx(surveyJson.structuralElements);
     }
 
+    // 2b'. Đồng bộ dải ảnh tổng quan của Z/E trên mảng phẳng, gồm cả cột SQL mà màn thẩm định ưu tiên đọc
+    if (cat === 'ZONE_OVERVIEW') {
+      for (const list of [surveyJson.damageZones, surveyJson.structuralElements]) {
+        if (!Array.isArray(list)) continue;
+        for (const item of list as Array<Record<string, unknown>>) {
+          const code = String(item.zoneCode || item.zone_code || item.elementCode || item.element_code || '');
+          if (String(item.id || '') !== targetId && code !== targetId) continue;
+
+          const current = (Array.isArray(item.overviewPhotos) ? item.overviewPhotos : [])
+            .map((photo: unknown) => (typeof photo === 'string' ? photo : String((photo as Record<string, unknown>)?.url || '')))
+            .filter(Boolean);
+          let next = current;
+          if (action === 'ADD') {
+            const urls = Array.isArray(pa.newPhotoUrls) && pa.newPhotoUrls.length > 0 ? pa.newPhotoUrls : newUrl ? [newUrl] : [];
+            next = [...current, ...urls.filter((url) => url && !current.includes(url))];
+          } else if (action === 'REPLACE' || action === 'RESTORE') {
+            next = current.includes(oldUrl) ? current.map((url) => (url === oldUrl ? newUrl : url)) : [...current, newUrl];
+          } else if (action === 'DELETE') {
+            next = current.filter((url) => url !== oldUrl);
+          }
+          item.overviewPhotos = next;
+          await client.query(`UPDATE damage_zones SET overview_photos_json = $1 WHERE report_id = $2 AND id::text = $3;`, [
+            JSON.stringify(next),
+            reportId,
+            String(item.id || ''),
+          ]);
+        }
+      }
+    }
+
     // 2c. Đồng bộ ảnh đặc thù Khu vực dùng chung (areaInfo.overviewPhotos & areaInfo.croppedCadUrl)
     if (cat === 'AREA_OVERVIEW' || type === 'AREA_OVERVIEW' || cat === 'CROPPED_CAD' || type === 'CROPPED_CAD') {
       const areaInfo = ((surveyJson.areaInfo as Record<string, unknown>) || {}) as Record<string, unknown>;

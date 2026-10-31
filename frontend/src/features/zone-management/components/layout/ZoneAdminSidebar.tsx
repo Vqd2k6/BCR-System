@@ -25,6 +25,8 @@ interface Props {
   onChangeNav: (nav: ZoneNavView) => void;
   selectedZone: string;
   onSelectZone: (zone: string) => void;
+  /** Zone Admin được gán zone cụ thể: chỉ hiện mã phân khu, không cho chọn. */
+  zoneLocked?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   pendingCount?: number;
@@ -39,6 +41,7 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
   onChangeNav,
   selectedZone,
   onSelectZone,
+  zoneLocked = false,
   isCollapsed,
   onToggleCollapse,
   pendingCount = 0,
@@ -153,6 +156,11 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
               Phân Khu Đang Quản Trị:
             </label>
+            {zoneLocked ? (
+              <div className="w-full rounded-xl px-3 py-2 text-xs border bg-cyan-950 text-cyan-300 border-cyan-700 font-mono font-bold">
+                {selectedZone}
+              </div>
+            ) : (
             <select
               value={selectedZone}
               onChange={(e) => onSelectZone(e.target.value)}
@@ -174,6 +182,7 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
                 ))}
               </optgroup>
             </select>
+            )}
           </div>
         )}
       </div>

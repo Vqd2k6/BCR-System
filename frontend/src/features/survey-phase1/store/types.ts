@@ -42,10 +42,15 @@ export interface SyncSliceState {
     ownerSurveyorName: string;
     ownerSurveyorPhone?: string;
   } | null;
+  photoRecovery: {
+    status: 'IDLE' | 'RUNNING' | 'DONE' | 'UNAVAILABLE';
+    unresolvedCount: number;
+  };
 }
 
 export interface SyncSliceActions {
   syncDraftToServer: () => Promise<void>;
+  recoverUnsyncedPhotos: () => Promise<void>;
   releaseDraftLock: () => Promise<void>;
   takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
   closeHandoverModal: () => void;

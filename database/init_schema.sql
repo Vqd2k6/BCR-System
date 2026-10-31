@@ -975,7 +975,12 @@ CREATE TABLE compiled_report_batches (
     checksum_sha256 VARCHAR(64),
     error_message TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ
+    expires_at TIMESTAMPTZ,
+    progress_done INTEGER NOT NULL DEFAULT 0,
+    progress_total INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    current_item VARCHAR(128),
+    file_path TEXT
 );
 
 CREATE INDEX idx_batches_zone ON compiled_report_batches(zone_id);

@@ -23,14 +23,20 @@ export interface Section1And2Result {
   rawFoundDepth: any;
 }
 
+/** Thửa chung cư lưu tên tòa ở cột số nhà nên không thêm tiền tố "Số". */
+function formatHouseLabel(houseNumber: string, prefix: string): string {
+  if (/^chung\s*cư/i.test(houseNumber)) return houseNumber;
+  return `${prefix} ${houseNumber.replace(/^số\s*/i, '')}`;
+}
+
 function formatSavedAddressVi(houseNumber: unknown, street: unknown, ward: unknown, fallbackCombined?: unknown): string {
   const hn = String(houseNumber ?? '').trim();
   const st = String(street ?? '').trim();
   const wd = String(ward ?? '').trim();
   const parts: string[] = [];
 
-  if (hn && st) parts.push(`Số ${hn.replace(/^số\s*/i, '')}, Đường ${st.replace(/^đường\s*/i, '')}`);
-  else if (hn) parts.push(`Số ${hn.replace(/^số\s*/i, '')}`);
+  if (hn && st) parts.push(`${formatHouseLabel(hn, 'Số')}, Đường ${st.replace(/^đường\s*/i, '')}`);
+  else if (hn) parts.push(formatHouseLabel(hn, 'Số'));
   else if (st) parts.push(`Đường ${st.replace(/^đường\s*/i, '')}`);
 
   if (wd) parts.push(/^phường\s/i.test(wd) ? wd : `Phường ${wd}`);
@@ -47,8 +53,8 @@ function formatSavedAddressEn(houseNumber: unknown, street: unknown, ward: unkno
   const wd = String(ward ?? '').trim();
   const parts: string[] = [];
 
-  if (hn && st) parts.push(`No. ${hn.replace(/^số\s*/i, '')}, ${st.replace(/^đường\s*/i, '')} St.`);
-  else if (hn) parts.push(`No. ${hn.replace(/^số\s*/i, '')}`);
+  if (hn && st) parts.push(`${formatHouseLabel(hn, 'No.')}, ${st.replace(/^đường\s*/i, '')} St.`);
+  else if (hn) parts.push(formatHouseLabel(hn, 'No.'));
   else if (st) parts.push(`${st.replace(/^đường\s*/i, '')} St.`);
 
   if (wd) {
@@ -60,6 +66,73 @@ function formatSavedAddressEn(houseNumber: unknown, street: unknown, ward: unkno
     return parts.join(', ');
   }
   return String(fallbackCombined ?? '').trim() || '--';
+}
+
+/** Địa chỉ chuẩn hóa theo NQ 1685; hồ sơ căn hộ nhận giá trị này từ Tòa mẹ qua applyCondoReportContext. */
+function readStandardizedAddress(json: any): BilingualText | null {
+  let stdAddrVi = '';
+  const rawStd = json.standardizedAddress;
+  if (typeof rawStd === 'string' && rawStd.trim() !== '') {
+    stdAddrVi = rawStd.trim();
+  } else if (rawStd && typeof rawStd === 'object') {
+    const stdObj = rawStd as Record<string, unknown>;
+    const fullStd = String(stdObj.fullStandardized ?? '').trim();
+    if (fullStd) {
+      stdAddrVi = fullStd;
+    } else {
+      const stdParts = [stdObj.street, stdObj.wardNew, stdObj.cityNew]
+        .map((p) => String(p ?? '').trim())
+        .filter(Boolean);
+      if (stdParts.length > 0) {
+        stdAddrVi = stdParts.join(', ');
+      }
+    }
+  }
+  if (!stdAddrVi) return null;
+  stdAddrVi = stdAddrVi.replace(/^Số\s+(?=chung\s*cư)/i, '');
+  return {
+    vi: stdAddrVi,
+    en: stdAddrVi
+      .replace(/Phường\s+/gi, 'Ward ')
+      .replace(/Đường\s+/gi, 'St. ')
+      .replace(/Số\s+/gi, 'No. ')
+      .replace(/TP\.\s*Hồ\s*Chí\s*Minh/gi, 'Ho Chi Minh City'),
+  };
+}
+
+function resolveSavedAddress(rawReport: any, json: any): BilingualText {
+  const rawHouse = json.houseNumber ?? rawReport.house_number;
+  const rawStreet = json.streetName ?? json.street ?? rawReport.street_name ?? rawReport.street;
+  const rawWard = json.wardName ?? json.ward ?? rawReport.ward_name ?? rawReport.ward;
+  const fallbackAddr = rawReport.address_combined ?? rawReport.survey_address ?? json.address ?? json.surveyAddress;
+  return {
+    vi: formatSavedAddressVi(rawHouse, rawStreet, rawWard, fallbackAddr),
+    en: formatSavedAddressEn(rawHouse, rawStreet, rawWard, fallbackAddr),
+  };
+}
+
+/** Mục I: địa chỉ đã lưu, kèm địa chỉ chuẩn hóa theo NQ 1685 nếu có. */
+export function resolveReportAddress(rawReport: any, json: any): BilingualText {
+  const { vi: baseAddressVi, en: baseAddressEn } = resolveSavedAddress(rawReport, json);
+  const standardized = readStandardizedAddress(json);
+  const stdAddrVi = standardized?.vi ?? '';
+  const stdAddrEn = standardized?.en ?? '';
+  const addressVi = stdAddrVi && stdAddrVi !== baseAddressVi
+    ? (baseAddressVi !== '--' ? `${baseAddressVi} (Theo NQ 1685: ${stdAddrVi})` : `Theo NQ 1685: ${stdAddrVi}`)
+    : baseAddressVi;
+  const addressEn = stdAddrEn && stdAddrEn !== baseAddressEn
+    ? (baseAddressEn !== '--' ? `${baseAddressEn} (Res. 1685: ${stdAddrEn})` : `Res. 1685: ${stdAddrEn}`)
+    : baseAddressEn;
+  return { vi: addressVi, en: addressEn };
+}
+
+/** Biên bản hiện trường: có địa chỉ chuẩn hóa thì chỉ in địa chỉ đó. */
+export function resolveRecordAddress(rawReport: any, json: any): BilingualText {
+  return readStandardizedAddress(json) ?? resolveSavedAddress(rawReport, json);
+}
+
+export function resolveContactPhone(rawReport: any, json: any): string {
+  return String(json.ownerPhone ?? json.signatures?.ownerPhone ?? rawReport.owner_phone ?? '').trim();
 }
 
 function readSavedMeters(val: unknown): string {
@@ -144,49 +217,7 @@ export class Section1And2Mapper {
       isDepot: metroType === 'DEP',
     };
 
-    const rawHouse = json.houseNumber ?? rawReport.house_number;
-    const rawStreet = json.streetName ?? json.street ?? rawReport.street_name ?? rawReport.street;
-    const rawWard = json.wardName ?? json.ward ?? rawReport.ward_name ?? rawReport.ward;
-    const ownerPhone = String(
-      json.ownerPhone ?? json.signatures?.ownerPhone ?? rawReport.owner_phone ?? ''
-    ).trim();
-
-    let stdAddrVi = '';
-    let stdAddrEn = '';
-    const rawStd = json.standardizedAddress;
-    if (typeof rawStd === 'string' && rawStd.trim() !== '') {
-      stdAddrVi = rawStd.trim();
-    } else if (rawStd && typeof rawStd === 'object') {
-      const stdObj = rawStd as Record<string, unknown>;
-      const fullStd = String(stdObj.fullStandardized ?? '').trim();
-      if (fullStd) {
-        stdAddrVi = fullStd;
-      } else {
-        const stdParts = [stdObj.street, stdObj.wardNew, stdObj.cityNew]
-          .map((p) => String(p ?? '').trim())
-          .filter(Boolean);
-        if (stdParts.length > 0) {
-          stdAddrVi = stdParts.join(', ');
-        }
-      }
-    }
-    if (stdAddrVi) {
-      stdAddrEn = stdAddrVi
-        .replace(/Phường\s+/gi, 'Ward ')
-        .replace(/Đường\s+/gi, 'St. ')
-        .replace(/Số\s+/gi, 'No. ')
-        .replace(/TP\.\s*Hồ\s*Chí\s*Minh/gi, 'Ho Chi Minh City');
-    }
-
-    const fallbackAddr = rawReport.address_combined ?? rawReport.survey_address ?? json.address ?? json.surveyAddress;
-    const baseAddressVi = formatSavedAddressVi(rawHouse, rawStreet, rawWard, fallbackAddr);
-    const baseAddressEn = formatSavedAddressEn(rawHouse, rawStreet, rawWard, fallbackAddr);
-    const addressVi = stdAddrVi && stdAddrVi !== baseAddressVi
-      ? (baseAddressVi !== '--' ? `${baseAddressVi} (Theo NQ 1685: ${stdAddrVi})` : `Theo NQ 1685: ${stdAddrVi}`)
-      : baseAddressVi;
-    const addressEn = stdAddrEn && stdAddrEn !== baseAddressEn
-      ? (baseAddressEn !== '--' ? `${baseAddressEn} (Res. 1685: ${stdAddrEn})` : `Res. 1685: ${stdAddrEn}`)
-      : baseAddressEn;
+    const ownerPhone = resolveContactPhone(rawReport, json);
 
     const section1: Section1GeneralInfo = {
       projectTitleVi: metadata.projectTitleVi,
@@ -195,10 +226,7 @@ export class Section1And2Mapper {
       surveyId,
       reportNo,
       buildingName: { vi: bldgNameVi, en: bldgNameEn },
-      address: {
-        vi: addressVi,
-        en: addressEn,
-      },
+      address: resolveReportAddress(rawReport, json),
       cadastralCode,
       ownerOccupant: { vi: ownerVi, en: ownerEn },
       ownerName: ownerVi,
@@ -424,6 +452,9 @@ export class Section1And2Mapper {
 
     if (isVacantLand || caseType === 'VACANT_LAND') {
       categoryVi = 'Khu đất trống'; categoryEn = 'Vacant Land';
+    } else if ((isAbsentee || caseType === 'ABSENTEE') && rawReport.unit_id) {
+      categoryVi = `${bldgNameVi} (Không tiếp cận được căn hộ - Vắng chủ)`;
+      categoryEn = `${bldgNameEn} (Unit not accessible - Absentee owner)`;
     } else if (isAbsentee || caseType === 'ABSENTEE') {
       categoryVi = `${bldgNameVi} (Khảo sát ngoại thất - Vắng chủ)`;
       categoryEn = `${bldgNameEn} (Exterior survey - Absentee owner)`;

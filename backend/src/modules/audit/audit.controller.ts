@@ -447,6 +447,7 @@ export class AuditController {
         {
           reason: parsed.data.rollbackReason,
           password: parsed.data.adminPassword,
+          confirmZoneWipe: parsed.data.confirmZoneWipe,
         },
         req.ip
       );

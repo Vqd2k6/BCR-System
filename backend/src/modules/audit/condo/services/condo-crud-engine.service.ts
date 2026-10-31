@@ -12,7 +12,8 @@ import {
   CondoPhotoActionItem,
   CondoReportContextRow,
 } from '../condo-audit.types';
-import { ICondoEntityAuditStrategy } from '../strategies/condo-entity-strategy.interface';
+import { classifyCondoEntityKind } from '../condo-entity-classifier';
+import { ICondoEntityAuditStrategy, projectCondoZonesToFloors } from '../strategies/condo-entity-strategy.interface';
 import { CondoMasterAuditStrategy } from '../strategies/condo-master.strategy';
 import { CondoAreaAuditStrategy } from '../strategies/condo-area.strategy';
 import { CondoUnitAuditStrategy } from '../strategies/condo-unit.strategy';
@@ -69,8 +70,6 @@ export class CondoCrudEngineService {
 
     const bType = String(row.building_type || '').toUpperCase();
     const rType = String(row.report_type || '').toUpperCase();
-    const uType = String(row.unit_type || '').toUpperCase();
-    const uCode = String(row.unit_code || '').toUpperCase();
 
     const isCondoDomain =
       bType === 'CONDOMINIUM' ||
@@ -82,21 +81,20 @@ export class CondoCrudEngineService {
       return null;
     }
 
-    let entityKind: CondoAuditEntityKind = 'BUILDING_MASTER';
-    if (!row.unit_id && ['BUILDING_MASTER', 'CONDO_MASTER', 'STANDALONE', ''].includes(rType)) {
-      entityKind = 'BUILDING_MASTER';
-    } else if (
-      rType === 'MASTER_AREA' ||
-      uType === 'MASTER_AREA' ||
-      uCode.startsWith('MA-') ||
-      uCode.startsWith('AREA-')
-    ) {
-      entityKind = 'MASTER_AREA';
-    } else {
-      entityKind = 'CONDO_UNIT';
-    }
+    const entityKind: CondoAuditEntityKind = classifyCondoEntityKind({
+      unitId: row.unit_id,
+      unitType: row.unit_type,
+      unitCode: row.unit_code,
+      reportType: row.report_type,
+    });
 
     return { context: row, entityKind };
+  }
+
+  /** Thao tác ảnh chạy sau bước đồng bộ Z/E nên phải chiếu lại `floors[]`, nếu không báo cáo vẫn dùng ảnh cũ. */
+  private static refreshZoneProjection(context: CondoReportContextRow, json: Record<string, unknown>): void {
+    if (!context.unit_id || !Array.isArray(json.damageZones)) return;
+    projectCondoZonesToFloors(json, `Tầng ${context.unit_floor_number ?? 1}`);
   }
 
   static getStrategy(kind: CondoAuditEntityKind): ICondoEntityAuditStrategy {
@@ -173,8 +171,9 @@ export class CondoCrudEngineService {
 
     // 4. Tự động khởi tạo phiên bản gốc bất biến v0 (ORIGINAL_SUBMISSION) nếu chưa có bản chụp nào
     try {
+      // Bản SWAP do CAD Studio ghi không phải baseline, nên điều kiện là "chưa có ORIGINAL_SUBMISSION"
       const verCountRes = await Database.query<{ count: string }>(
-        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1;`,
+        `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'ORIGINAL_SUBMISSION';`,
         [actualReportId]
       );
       if (Number(verCountRes.rows[0]?.count || 0) === 0) {
@@ -214,6 +213,7 @@ export class CondoCrudEngineService {
             pa
           );
         }
+        this.refreshZoneProjection(context, mergedJson);
       }
 
       mergedJson._lastAdminEdit = {
@@ -350,6 +350,7 @@ export class CondoCrudEngineService {
         existingJson,
         photoAction
       );
+      this.refreshZoneProjection(context, existingJson);
 
       await client.query(
         `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,

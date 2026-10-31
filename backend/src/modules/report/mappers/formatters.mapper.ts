@@ -27,6 +27,17 @@ export function formatDateVi(dateVal: any, includeTime: boolean = false): string
   return `${day}/${month}/${year}`;
 }
 
+/** Ngày nhập tay có thể ở dạng dd/mm/yyyy: new Date() sẽ ném lỗi hoặc đảo ngày tháng nên phải tách riêng. */
+export function parseSurveyDate(dateVal: any): Date | null {
+  if (!dateVal) return null;
+  const str = String(dateVal).trim();
+  const vnMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const parsed = vnMatch
+    ? new Date(Date.UTC(Number(vnMatch[3]), Number(vnMatch[2]) - 1, Number(vnMatch[1])))
+    : new Date(str);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function formatWatermarkDateTime(dateVal: any): string {
   if (!dateVal) return '';
   const str = String(dateVal).trim();
