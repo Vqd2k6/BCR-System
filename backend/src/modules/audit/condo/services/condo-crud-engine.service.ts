@@ -139,7 +139,7 @@ export class CondoCrudEngineService {
       throw new BadRequestError('Vui lòng nhập mật khẩu tài khoản để xác thực quyền điều chỉnh hồ sơ pháp lý.');
     }
     const adminRes = await Database.query<{ password_hash: string; role: string }>(
-      `SELECT password_hash, role FROM users WHERE id = $1 AND is_active = true;`,
+      `SELECT password_hash, role FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'ACTIVE';`,
       [adminId]
     );
     if (!adminRes.rows[0]) {

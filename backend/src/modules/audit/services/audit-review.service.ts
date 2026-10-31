@@ -4,6 +4,9 @@ import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '.
 import { ReportSnapshotService } from '../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from './report-consistency-gate';
 
+const APPROVED_LOCKED_MESSAGE =
+  'Hồ sơ đã được phê duyệt (APPROVED) và khóa bất biến. Chỉ Super Admin mới có quyền Mở khóa (Unlock) trước khi thay đổi.';
+
 export class AuditReviewService {
   /**
    * Truy vấn danh sách hàng đợi các hồ sơ cần Zone Admin thẩm định (SUBMITTED / POSTPONED_ABSENT / REJECTED)
@@ -1589,14 +1592,19 @@ export class AuditReviewService {
   }
 
   static async rejectReport(reportId: string, adminId: string, rejectionReason: string) {
+    // hasColumn có thể chạy DDL trên kết nối khác, phải gọi trước khi khóa dòng để tránh tự chặn nhau
+    const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
+    const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
+
     return Database.transaction(async (client) => {
       const repRes = await client.query<{
         id: string;
         parcel_id: string;
         unit_id: string | null;
         report_type: string | null;
+        status: string;
       }>(
-        `SELECT id, parcel_id, unit_id, report_type FROM base_survey_reports 
+        `SELECT id, parcel_id, unit_id, report_type, status::text AS status FROM base_survey_reports
          WHERE (id = $1 OR parcel_id = $1)
          ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
          LIMIT 1 FOR UPDATE;`,
@@ -1605,12 +1613,13 @@ export class AuditReviewService {
       if (!repRes.rows[0]) {
         throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
       }
+      if (repRes.rows[0].status === 'APPROVED') {
+        throw new ConflictError(APPROVED_LOCKED_MESSAGE);
+      }
 
       const actualReportId = repRes.rows[0].id;
       const actualParcelId = repRes.rows[0].parcel_id;
 
-      const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
-      const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
       if (hasRejectionReasonCol) {
         await client.query(
           `UPDATE base_survey_reports
@@ -1689,8 +1698,13 @@ export class AuditReviewService {
     identifier: string,
     adminId: string,
     reason?: string,
-    unitId?: string | null
+    unitId?: string | null,
+    actorRole?: string
   ) {
+    const isSurveyorActor = actorRole === 'SURVEYOR';
+    const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
+    const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
+
     const result = await Database.transaction(async (client) => {
       let targetUnitId = unitId || null;
       let targetParcelId: string | null = null;
@@ -1753,38 +1767,60 @@ export class AuditReviewService {
         throw new NotFoundError(`Không tìm thấy hồ sơ, căn hộ hoặc thửa đất với ID: ${identifier}`);
       }
 
+      // Hồ sơ đã duyệt là bất biến; Surveyor chỉ được mở lại hồ sơ của chính mình
+      const ownershipRes = await client.query<{
+        status: string | null;
+        surveyor_id: string | null;
+        assigned_surveyor_id: string | null;
+      }>(
+        targetReportId
+          ? `SELECT r.status::text AS status, r.surveyor_id, p.assigned_surveyor_id
+             FROM base_survey_reports r
+             LEFT JOIN parcels p ON p.id = r.parcel_id
+             WHERE r.id = $1
+             FOR UPDATE OF r;`
+          : `SELECT NULL::text AS status, NULL::uuid AS surveyor_id, assigned_surveyor_id
+             FROM parcels WHERE id = $1;`,
+        [targetReportId || targetParcelId]
+      );
+      const ownership = ownershipRes.rows[0];
+      if (ownership?.status === 'APPROVED') {
+        throw new ConflictError(APPROVED_LOCKED_MESSAGE);
+      }
+      if (isSurveyorActor && ownership?.surveyor_id !== adminId && ownership?.assigned_surveyor_id !== adminId) {
+        throw new ForbiddenError('Khảo sát viên chỉ được mở lại hồ sơ do chính mình phụ trách.');
+      }
+
       const noteText = reason ? `ADMIN MỞ LẠI HỒ SƠ: ${reason}` : 'ADMIN CHUYỂN VỀ ĐANG LÀM DỞ';
 
       // 4. Cập nhật base_survey_reports về 'DRAFT', reset submitted_at (lưu lý do mở lại vào rejection_reason thay vì ghi đè engineering_recommendations)
       if (targetReportId) {
-        const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
-        const hasRejectionReasonCol = await SurveyBaseRepository.hasColumn('base_survey_reports', 'rejection_reason');
         if (hasRejectionReasonCol) {
           await client.query(
             `UPDATE base_survey_reports
              SET status = 'DRAFT',
                  submitted_at = NULL,
-                 zone_admin_id = $2,
+                 zone_admin_id = CASE WHEN $4::boolean THEN zone_admin_id ELSE $2::uuid END,
                  is_ready_for_handover = TRUE,
                  is_refused_or_absent = FALSE,
                  last_edited_by_id = $2,
                  rejection_reason = COALESCE($3, rejection_reason),
                  updated_at = NOW()
              WHERE id = $1;`,
-            [targetReportId, adminId, noteText]
+            [targetReportId, adminId, noteText, isSurveyorActor]
           );
         } else {
           await client.query(
             `UPDATE base_survey_reports
              SET status = 'DRAFT',
                  submitted_at = NULL,
-                 zone_admin_id = $2,
+                 zone_admin_id = CASE WHEN $3::boolean THEN zone_admin_id ELSE $2::uuid END,
                  is_ready_for_handover = TRUE,
                  is_refused_or_absent = FALSE,
                  last_edited_by_id = $2,
                  updated_at = NOW()
              WHERE id = $1;`,
-            [targetReportId, adminId]
+            [targetReportId, adminId, isSurveyorActor]
           );
         }
       }
@@ -2028,12 +2064,14 @@ export class AuditReviewService {
           continue;
         }
 
-        // Thực thi phê duyệt an toàn
-        await AuditReviewService.approveReport(
-          reportId,
-          adminId,
-          judgementNotes || 'Phê duyệt hàng loạt an toàn (Căn hộ Grade 0)'
-        );
+        // Thực thi phê duyệt an toàn: hồ sơ chung cư đi qua luồng duyệt riêng của Condo
+        const batchNotes = judgementNotes || 'Phê duyệt hàng loạt an toàn (Căn hộ Grade 0)';
+        const { CondoAuditFacade } = await import('../condo/condo-audit.facade');
+        if (await CondoAuditFacade.isCondoReport(reportId)) {
+          await CondoAuditFacade.approveReport(reportId, adminId, batchNotes);
+        } else {
+          await AuditReviewService.approveReport(reportId, adminId, batchNotes);
+        }
 
         approvedCount++;
         results.push({ reportId, success: true, message: 'Phê duyệt thành công' });
@@ -2109,6 +2147,9 @@ export class AuditReviewService {
       }
 
       const rep = repRes.rows[0];
+      if (rep.status === 'APPROVED') {
+        throw new ConflictError(APPROVED_LOCKED_MESSAGE);
+      }
       const actualReportId = rep.id;
       const actualParcelId = rep.parcel_id;
       const actualUnitId = rep.unit_id;

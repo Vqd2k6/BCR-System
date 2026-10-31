@@ -52,7 +52,7 @@ export const UnitStep4BurlandSignatures: React.FC<
     setAbsenteeVerifyMsg(null);
     try {
       await api.post(`/admin/reports/${reportId}/approve-absentee`, {
-        notes: `Xác thực pháp lý hồ sơ vắng chủ căn hộ ${formState.unitCode} (${formState.absenceLogs?.length || 0} lượt viếng thăm)`,
+        judgementNotes: `Xác thực pháp lý hồ sơ vắng chủ căn hộ ${formState.unitCode} (${formState.absenceLogs?.length || 0} lượt viếng thăm)`,
       });
       setAbsenteeVerifyMsg(
         'Đã xác thực pháp lý hồ sơ Vắng chủ (POSTPONED_ABSENT_VERIFIED) thành công!'

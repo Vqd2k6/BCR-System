@@ -172,7 +172,13 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
       });
 
       if (res.data?.success || res.status === 200) {
-        alert('Đã lưu chỉnh sửa và ghi nhận vào Nhật ký kiểm toán thành công!');
+        const warnings: unknown = res.data?.warnings;
+        if (Array.isArray(warnings) && warnings.length > 0) {
+          console.error('[AuditDiffConfirmModal:Submit] Lưu thành công nhưng có cảnh báo hậu xử lý:', warnings);
+          alert(`Đã lưu chỉnh sửa, nhưng cần lưu ý:\n${warnings.join('\n')}`);
+        } else {
+          alert('Đã lưu chỉnh sửa và ghi nhận vào Nhật ký kiểm toán thành công!');
+        }
         onSuccess();
         onClose();
       } else {

@@ -64,7 +64,7 @@ export class CondoVersionRollbackService {
     }
 
     const adminRes = await Database.query<{ password_hash: string }>(
-      `SELECT password_hash FROM users WHERE id = $1 AND is_active = true;`,
+      `SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'ACTIVE';`,
       [adminId]
     );
     if (!adminRes.rows[0]) {

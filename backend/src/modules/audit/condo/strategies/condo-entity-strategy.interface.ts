@@ -218,7 +218,7 @@ export async function fetchParentMasterSummary(parcelId: string): Promise<CondoP
             ? Number(scoreRow.avg_vi_score)
             : null,
       viClass: String(viObj.viClass || scoreRow?.vi_class || 'LOW'),
-      braStatus: String(execObj.braStatus || scoreRow?.preliminary_bra_classification || 'LOW'),
+      braStatus: String(execObj.braStatus || scoreRow?.building_risk_assessment_bra || 'LOW'),
       impactStatus: String(execObj.constructionImpactStatus || 'I1'),
     },
     managementBoard: {

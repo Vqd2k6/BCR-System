@@ -1,5 +1,6 @@
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
+import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { AuditReviewService } from './audit-review.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
@@ -49,7 +50,19 @@ export class AuditVersionService {
       const fullView = await AuditReviewService.getSplitPaneAuditView(actualReportId);
       // Loại bỏ auditHistory để tránh lồng nhau gây phình to vô ích
       const { auditHistory, ...cleanedView } = fullView as any;
-      snapshotData = cleanedView;
+      // Kết luận nằm ở cột riêng, không thuộc audit view: lưu kèm để rollback khôi phục được
+      const conclusionsRes = await Database.query<{
+        summary_conclusions: string | null;
+        engineering_recommendations: string | null;
+      }>(
+        `SELECT summary_conclusions, engineering_recommendations FROM base_survey_reports WHERE id = $1;`,
+        [actualReportId]
+      );
+      snapshotData = {
+        ...cleanedView,
+        summaryConclusions: conclusionsRes.rows[0]?.summary_conclusions ?? null,
+        engineeringRecommendations: conclusionsRes.rows[0]?.engineering_recommendations ?? null,
+      };
     }
 
     let safeUserId = params.userId || null;
@@ -309,14 +322,38 @@ export class AuditVersionService {
         };
       }
 
+      // Snapshot có key thì khôi phục đúng giá trị (kể cả rỗng); snapshot định dạng cũ không có key thì giữ nguyên
+      const resolveSnapshotText = (...candidates: unknown[]) => ({
+        isPresent: candidates.some((candidate) => candidate !== undefined),
+        value: candidates.find(Boolean) ?? null,
+      });
+      const summaryText = resolveSnapshotText(
+        snap.summaryConclusions,
+        sJson.summaryConclusions,
+        sJson.executiveSummary?.summaryConclusions,
+        leftPane.conclusions?.summary
+      );
+      const recommendationsText = resolveSnapshotText(
+        snap.engineeringRecommendations,
+        sJson.engineeringRecommendations,
+        sJson.executiveSummary?.specificRecommendationsText,
+        leftPane.conclusions?.recommendations
+      );
+      const ownerRemarksText = resolveSnapshotText(
+        snap.ownerRemarks,
+        sJson.ownerFeedback,
+        sJson.ownerRemarks,
+        sJson.signatures?.ownerFeedback
+      );
+
       await client.query(
         `UPDATE base_survey_reports SET
            survey_data_json = $1,
            surveyor_signature_url = COALESCE($2, surveyor_signature_url),
            owner_signature_url = COALESCE($3, owner_signature_url),
-           summary_conclusions = COALESCE($4, summary_conclusions),
-           engineering_recommendations = COALESCE($5, engineering_recommendations),
-           owner_remarks = COALESCE($6, owner_remarks),
+           summary_conclusions = CASE WHEN $9::boolean THEN $4::text ELSE summary_conclusions END,
+           engineering_recommendations = CASE WHEN $10::boolean THEN $5::text ELSE engineering_recommendations END,
+           owner_remarks = CASE WHEN $11::boolean THEN $6::text ELSE owner_remarks END,
            survey_date = COALESCE($7::timestamptz, survey_date),
            status = 'UNDER_REVIEW',
            updated_at = NOW()
@@ -325,11 +362,14 @@ export class AuditVersionService {
           JSON.stringify(finalSurveyJson),
           snap.surveyorSignatureUrl || sJson.surveyorSignatureUrl || sJson.signatures?.surveyorSignatureUrl || null,
           snap.ownerSignatureUrl || sJson.ownerSignatureUrl || sJson.signatures?.ownerSignatureUrl || null,
-          snap.summaryConclusions || sJson.summaryConclusions || sJson.executiveSummary?.summaryConclusions || leftPane.conclusions?.summary || null,
-          snap.engineeringRecommendations || sJson.engineeringRecommendations || sJson.executiveSummary?.specificRecommendationsText || leftPane.conclusions?.recommendations || null,
-          snap.ownerRemarks || sJson.ownerFeedback || sJson.ownerRemarks || sJson.signatures?.ownerFeedback || null,
-          snap.surveyDate || sJson.surveyDate || null,
+          summaryText.value,
+          recommendationsText.value,
+          ownerRemarksText.value,
+          normalizeSurveyDate(snap.surveyDate) ?? normalizeSurveyDate(sJson.surveyDate),
           actualReportId,
+          summaryText.isPresent,
+          recommendationsText.isPresent,
+          ownerRemarksText.isPresent,
         ]
       );
 
@@ -567,16 +607,16 @@ export class AuditVersionService {
            measurement_reliability, diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json,
            e3_deformation_score
          ) VALUES (
-           $1, COALESCE($2, 0), COALESCE($3, 0), $4, COALESCE($5, 0),
+           $1, COALESCE($2::numeric, 0), COALESCE($3::numeric, 0), $4, COALESCE($5::numeric, 0),
            COALESCE($6::reliability_enum, 'HIGH'::reliability_enum),
            COALESCE($7::jsonb, '[]'::jsonb), COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb),
            COALESCE($10, 0)
          )
          ON CONFLICT (report_id) DO UPDATE SET
-           tilt_angle_x = COALESCE($2, 0),
-           tilt_angle_y = COALESCE($3, 0),
+           tilt_angle_x = COALESCE($2::numeric, 0),
+           tilt_angle_y = COALESCE($3::numeric, 0),
            tilt_direction = $4,
-           beam_deflection_mm = COALESCE($5, 0),
+           beam_deflection_mm = COALESCE($5::numeric, 0),
            measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
            diff_settlement_photos_json = COALESCE($7::jsonb, deformation_assessments.diff_settlement_photos_json),
            tilt_photos_json = COALESCE($8::jsonb, deformation_assessments.tilt_photos_json),

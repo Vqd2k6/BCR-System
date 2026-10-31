@@ -258,14 +258,14 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
            measurement_reliability, e3_deformation_score,
            diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
          ) VALUES (
-           $1, $2, $3, $4, $5, 'HIGH'::reliability_enum, $6,
+           $1, COALESCE($2::numeric, 0), COALESCE($3::numeric, 0), $4, COALESCE($5::numeric, 0), 'HIGH'::reliability_enum, $6,
            COALESCE($7::jsonb, '[]'::jsonb), COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb)
          )
          ON CONFLICT (report_id) DO UPDATE SET
-           tilt_angle_x = $2,
-           tilt_angle_y = $3,
+           tilt_angle_x = COALESCE($2::numeric, deformation_assessments.tilt_angle_x, 0),
+           tilt_angle_y = COALESCE($3::numeric, deformation_assessments.tilt_angle_y, 0),
            tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
-           beam_deflection_mm = $5,
+           beam_deflection_mm = COALESCE($5::numeric, deformation_assessments.beam_deflection_mm, 0),
            e3_deformation_score = $6,
            diff_settlement_photos_json = COALESCE($7::jsonb, deformation_assessments.diff_settlement_photos_json),
            tilt_photos_json = COALESCE($8::jsonb, deformation_assessments.tilt_photos_json),
@@ -365,7 +365,7 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
            v1_importance_score = $10, v2_structure_score = $11, v3_foundation_score = $12,
            v4_age_score = $13, v5_ecs_score = $14, v6_sensitivity_score = $15,
            avg_vi_score = $16, vi_class = $17,
-           preliminary_bra_classification = $18
+           building_risk_assessment_bra = $18
          WHERE report_id = $1;`,
         [
           actualReportId,

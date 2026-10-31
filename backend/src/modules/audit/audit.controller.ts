@@ -14,6 +14,13 @@ import {
 } from './audit.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
+function parseVersionNumber(raw: string): number {
+  if (!/^\d+$/.test(raw)) {
+    throw new BadRequestError(`Số phiên bản không hợp lệ: ${raw}`);
+  }
+  return Number(raw);
+}
+
 export class AuditController {
   static async getProgressAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
@@ -168,7 +175,7 @@ export class AuditController {
       const reason = parsed.success ? parsed.data.reason : undefined;
       const adminId = req.user!.userId;
 
-      const result = await AuditService.revertReportToDraft(id, adminId, reason, unitId);
+      const result = await AuditService.revertReportToDraft(id, adminId, reason, unitId, req.user!.role);
       res.status(200).json({
         success: true,
         data: result,
@@ -412,7 +419,7 @@ export class AuditController {
   static async getReportVersionSnapshot(req: Request, res: Response, next: NextFunction) {
     try {
       const { id, versionNumber } = req.params;
-      const snapshot = await AuditService.getReportVersionSnapshot(id, Number(versionNumber));
+      const snapshot = await AuditService.getReportVersionSnapshot(id, parseVersionNumber(versionNumber));
       res.status(200).json({
         success: true,
         data: snapshot,
@@ -435,7 +442,7 @@ export class AuditController {
       const adminId = req.user!.userId;
       const result = await AuditService.rollbackReportVersion(
         id,
-        Number(versionNumber),
+        parseVersionNumber(versionNumber),
         adminId,
         {
           reason: parsed.data.rollbackReason,

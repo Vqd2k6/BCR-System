@@ -632,7 +632,7 @@ export class ScoringService {
       v1_importance_score: number;
       avg_vi_score: number;
       vi_class: string;
-      impact_level_i: number | null;
+      construction_impact_level_i: number | null;
       overridden_impact_level_i: number | null;
     }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
 
@@ -648,7 +648,7 @@ export class ScoringService {
         v1_importance_score: number;
         avg_vi_score: number;
         vi_class: string;
-        impact_level_i: number | null;
+        construction_impact_level_i: number | null;
         overridden_impact_level_i: number | null;
       }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
     }
@@ -701,7 +701,7 @@ export class ScoringService {
     if (action === 'KEEP') {
       const autoBra = computeBraFromViAndI(
         card.vi_class || 'LOW',
-        Number(card.impact_level_i || 1)
+        Number(card.construction_impact_level_i || 1)
       );
 
       await Database.query(
@@ -808,7 +808,7 @@ export class ScoringService {
     const effectiveImpactLevel =
       overrides?.impactLevelI !== undefined
         ? overrides.impactLevelI
-        : Number(card.overridden_impact_level_i ?? card.impact_level_i ?? 1);
+        : Number(card.overridden_impact_level_i ?? card.construction_impact_level_i ?? 1);
     const recomputedBra = overrides?.bra || computeBraFromViAndI(effectiveViClass, effectiveImpactLevel);
 
     await Database.query(

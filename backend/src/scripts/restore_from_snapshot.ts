@@ -13,6 +13,8 @@ import { Pool, PoolClient } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import type { CloudUserRow } from './lib/ensure-user-refs';
+import { ensureUserRefs, mergeCloudUsers } from './lib/ensure-user-refs';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -203,6 +205,10 @@ async function restoreFromSnapshot() {
       summary[table] = rows.length;
       console.log(`   ├─ [${table}]: ${rows.length} bản ghi`);
     }
+
+    const userMerge = await mergeCloudUsers(localClient, (snapshotArchive['users'] || []) as CloudUserRow[]);
+    const userRefs = await ensureUserRefs(localClient);
+    console.log(`   ├─ [users]: Nạp ${userMerge.merged}, bỏ qua trùng username ${userMerge.skippedUsernameConflict}, tạo stub ${userRefs.stubsCreated}`);
 
     await localClient.query("SET session_replication_role = 'origin';");
     await localClient.query('COMMIT;');

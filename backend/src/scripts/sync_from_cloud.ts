@@ -22,6 +22,8 @@ import { Pool, PoolClient } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import type { CloudUserRow } from './lib/ensure-user-refs';
+import { ensureUserRefs, mergeCloudUsers, stripPasswordHash } from './lib/ensure-user-refs';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -189,6 +191,11 @@ async function syncFromCloud() {
       syncSummary[table] = remoteRes.rows.length;
     }
 
+    // Lấy users để giữ toàn vẹn FK; bỏ password_hash để không ghi hash ra file snapshot
+    const remoteUsersRes = await remoteClient.query('SELECT * FROM public.users;');
+    snapshotArchive['users'] = remoteUsersRes.rows.map(stripPasswordHash);
+    syncSummary['users'] = remoteUsersRes.rows.length;
+
     // Kết thúc Transaction Read-only trên Remote ngay lập tức
     await remoteClient.query('COMMIT;');
     remoteClient.release();
@@ -313,6 +320,10 @@ async function syncFromCloud() {
 
       console.log(`   ├─ [${table}]: Đã nạp ${rows.length} bản ghi`);
     }
+
+    const userMerge = await mergeCloudUsers(localClient, (snapshotArchive['users'] || []) as CloudUserRow[]);
+    const userRefs = await ensureUserRefs(localClient);
+    console.log(`   ├─ [users]: Nạp ${userMerge.merged}, bỏ qua trùng username ${userMerge.skippedUsernameConflict}, tạo stub ${userRefs.stubsCreated}`);
 
     await localClient.query("SET session_replication_role = 'origin';");
     await localClient.query('COMMIT;');

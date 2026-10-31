@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
+import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
@@ -91,6 +92,15 @@ function isShortEntityId(targetId?: string): boolean {
     /^(defect|zone|elem|floor)[_-]/i.test(s) ||
     /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s)
   );
+}
+
+function toOptionalNumber(value: unknown, fieldName: string, options?: { integer?: boolean }): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || (options?.integer && !Number.isInteger(parsed))) {
+    throw new BadRequestError(`Giá trị của trường "${fieldName}" không hợp lệ: ${String(value)}`);
+  }
+  return parsed;
 }
 
 function parseMeters(val: unknown): number | null {
@@ -188,7 +198,7 @@ export class AuditModificationService {
     clientIp?: string
   ) {
     if (!payload.adminPassword || !payload.adminPassword.trim()) {
-      throw new UnauthorizedError('Bắt buộc nhập mật khẩu Zone Admin để xác thực quyền sửa đổi.');
+      throw new BadRequestError('Bắt buộc nhập mật khẩu Zone Admin để xác thực quyền sửa đổi.');
     }
 
     // Tự động tổng hợp mô tả kiểm toán (Auto-Summary) nếu client không truyền editReason thủ công
@@ -221,7 +231,7 @@ export class AuditModificationService {
     }
     const isPasswordValid = await CryptoUtils.comparePassword(payload.adminPassword, userRes.rows[0].password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedError('Mật khẩu xác thực của Zone Admin không chính xác.');
+      throw new ForbiddenError('Mật khẩu xác thực của Zone Admin không chính xác.');
     }
 
     // 2. Kiểm tra hồ sơ
@@ -232,8 +242,13 @@ export class AuditModificationService {
       report_type: string | null;
       status: string;
       survey_data_json: any;
+      updated_at_text: string;
     }>(
-      `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json FROM base_survey_reports WHERE (id = $1 OR parcel_id = $1) LIMIT 1;`,
+      `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json, updated_at::text AS updated_at_text
+       FROM base_survey_reports
+       WHERE (id = $1 OR parcel_id = $1)
+       ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
+       LIMIT 1;`,
       [reportId]
     );
     if (!reportRes.rows[0]) {
@@ -435,8 +450,23 @@ export class AuditModificationService {
       console.warn('[applyAdminSurveyEdit] Không thể tự động khởi tạo v0 trước chỉnh sửa:', seedV0Err?.message);
     }
 
+    const postCommitWarnings: string[] = [];
+
     // 4. Lưu CSDL trong Transaction
     const txResult = await Database.transaction(async (client) => {
+      // Khóa dòng và phát hiện ghi đè: phải thay đổi trên đúng bản đã dùng để gộp mergedJson
+      const lockRes = await client.query<{ updated_at_text: string; status: string }>(
+        `SELECT updated_at::text AS updated_at_text, status::text AS status
+         FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+        [actualReportId]
+      );
+      if (lockRes.rows[0]?.status === 'APPROVED') {
+        throw new ForbiddenError('Hồ sơ khảo sát này đã được phê duyệt chính thức và bị khóa bất biến, không thể chỉnh sửa.');
+      }
+      if (lockRes.rows[0]?.updated_at_text !== report.updated_at_text) {
+        throw new ConflictError('Hồ sơ vừa được cập nhật bởi một thao tác khác. Vui lòng tải lại dữ liệu trước khi lưu.');
+      }
+
       await client.query(
         `UPDATE base_survey_reports 
          SET survey_data_json = $1, 
@@ -507,11 +537,11 @@ export class AuditModificationService {
             u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
             u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
             u.officialCadastralCode !== undefined && u.officialCadastralCode !== '' ? u.officialCadastralCode : null,
-            u.frontageWidth !== undefined && u.frontageWidth !== '' ? Number(u.frontageWidth) : null,
-            u.lotDepth !== undefined && u.lotDepth !== '' ? Number(u.lotDepth) : null,
-            u.landAreaM2 !== undefined && u.landAreaM2 !== '' ? Number(u.landAreaM2) : null,
-            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
-            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+            toOptionalNumber(u.frontageWidth, 'frontageWidth'),
+            toOptionalNumber(u.lotDepth, 'lotDepth'),
+            toOptionalNumber(u.landAreaM2, 'landAreaM2'),
+            toOptionalNumber(u.constructionAreaM2, 'constructionAreaM2'),
+            toOptionalNumber(u.aboveFloors, 'aboveFloors', { integer: true }),
             latVal !== null && latVal !== undefined && !isNaN(latVal) ? Number(latVal) : null,
             lngVal !== null && lngVal !== undefined && !isNaN(lngVal) ? Number(lngVal) : null,
             report.parcel_id,
@@ -572,9 +602,13 @@ export class AuditModificationService {
       // 4.2. Cập nhật base_survey_reports metadata & survey_scopes nếu có
       const sigs = u.signatures || {};
       const exec = u.executiveSummary || {};
-      const cleanSurveyDate = (u.surveyDate && typeof u.surveyDate === 'string' && u.surveyDate.trim() !== '') 
+      const rawSurveyDate = (u.surveyDate && typeof u.surveyDate === 'string' && u.surveyDate.trim() !== '') 
         ? u.surveyDate.trim() 
         : null;
+      const cleanSurveyDate = rawSurveyDate ? normalizeSurveyDate(rawSurveyDate) : null;
+      if (rawSurveyDate && !cleanSurveyDate) {
+        throw new BadRequestError(`Ngày khảo sát không hợp lệ: ${rawSurveyDate}`);
+      }
       const summaryConclusionsVal = u.summaryConclusions !== undefined
         ? u.summaryConclusions
         : (exec.summaryConclusions !== undefined ? exec.summaryConclusions : null);
@@ -665,9 +699,9 @@ export class AuditModificationService {
       // Fallback GFA = diện tích xây dựng chỉ áp dụng khi INSERT hàng mới ($20). Không cast ::numeric lên $16/$19:
       // cast tường minh ép kiểu tham số cho cả nhánh ON CONFLICT → lỗi "COALESCE types numeric and character varying".
       const totalFloorAreaVal =
-        u.totalFloorAreaM2 !== undefined && u.totalFloorAreaM2 !== '' ? Number(u.totalFloorAreaM2) : null;
+        toOptionalNumber(u.totalFloorAreaM2, 'totalFloorAreaM2');
       const constructionAreaVal =
-        u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null;
+        toOptionalNumber(u.constructionAreaM2, 'constructionAreaM2');
 
       let hasTotalFloorAreaCol = false;
       try {
@@ -715,12 +749,12 @@ export class AuditModificationService {
              total_floor_area_m2 = COALESCE($19, building_specifications.total_floor_area_m2);`,
           [
             u.buildingName !== undefined ? u.buildingName : null,
-            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
-            u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
+            toOptionalNumber(u.aboveFloors, 'aboveFloors', { integer: true }),
+            toOptionalNumber(u.undergroundFloors, 'undergroundFloors', { integer: true }),
             u.usageFunction !== undefined ? u.usageFunction : null,
-            u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
+            toOptionalNumber(u.constructionYear, 'constructionYear', { integer: true }),
             u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
-            u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
+            toOptionalNumber(u.foundationDepthM, 'foundationDepthM'),
             u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
             u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
             u.foundationNotes !== undefined ? u.foundationNotes : null,
@@ -729,8 +763,8 @@ export class AuditModificationService {
             normBuildingGrade,
             normStructSys,
             normFoundCat,
-            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
-            u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
+            toOptionalNumber(u.constructionAreaM2, 'constructionAreaM2'),
+            toOptionalNumber(u.buildingHeightM, 'buildingHeightM'),
             u.foundationSource !== undefined ? String(u.foundationSource) : null,
             totalFloorAreaVal,
             totalFloorAreaVal ?? constructionAreaVal,
@@ -771,12 +805,12 @@ export class AuditModificationService {
              foundation_source = COALESCE($18, building_specifications.foundation_source);`,
           [
             u.buildingName !== undefined ? u.buildingName : null,
-            u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
-            u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
+            toOptionalNumber(u.aboveFloors, 'aboveFloors', { integer: true }),
+            toOptionalNumber(u.undergroundFloors, 'undergroundFloors', { integer: true }),
             u.usageFunction !== undefined ? u.usageFunction : null,
-            u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
+            toOptionalNumber(u.constructionYear, 'constructionYear', { integer: true }),
             u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
-            u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
+            toOptionalNumber(u.foundationDepthM, 'foundationDepthM'),
             u.foundationDensity !== undefined && u.foundationDensity !== '' && !isNaN(Number(u.foundationDensity)) ? Number(u.foundationDensity) : null,
             u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' && !isNaN(Number(u.foundationSpacingM)) ? Number(u.foundationSpacingM) : null,
             u.foundationNotes !== undefined ? u.foundationNotes : null,
@@ -785,8 +819,8 @@ export class AuditModificationService {
             normBuildingGrade,
             normStructSys,
             normFoundCat,
-            u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
-            u.buildingHeightM !== undefined && u.buildingHeightM !== '' ? Number(u.buildingHeightM) : null,
+            toOptionalNumber(u.constructionAreaM2, 'constructionAreaM2'),
+            toOptionalNumber(u.buildingHeightM, 'buildingHeightM'),
             u.foundationSource !== undefined ? String(u.foundationSource) : null,
           ]
         );
@@ -893,15 +927,15 @@ export class AuditModificationService {
              measurement_reliability, e3_deformation_score,
              diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
            ) VALUES (
-             $1, COALESCE($2, 0), COALESCE($3, 0), $4, COALESCE($5, 0),
+             $1, COALESCE($2::numeric, 0), COALESCE($3::numeric, 0), $4, COALESCE($5::numeric, 0),
              COALESCE($6::reliability_enum, 'HIGH'), COALESCE($7, 0),
              COALESCE($8::jsonb, '[]'::jsonb), COALESCE($9::jsonb, '[]'::jsonb), COALESCE($10::jsonb, '[]'::jsonb)
            )
            ON CONFLICT (report_id) DO UPDATE SET
-             tilt_angle_x = COALESCE($2, deformation_assessments.tilt_angle_x, 0),
-             tilt_angle_y = COALESCE($3, deformation_assessments.tilt_angle_y, 0),
+             tilt_angle_x = COALESCE($2::numeric, deformation_assessments.tilt_angle_x, 0),
+             tilt_angle_y = COALESCE($3::numeric, deformation_assessments.tilt_angle_y, 0),
              tilt_direction = COALESCE($4, deformation_assessments.tilt_direction),
-             beam_deflection_mm = COALESCE($5, deformation_assessments.beam_deflection_mm, 0),
+             beam_deflection_mm = COALESCE($5::numeric, deformation_assessments.beam_deflection_mm, 0),
              measurement_reliability = COALESCE($6::reliability_enum, deformation_assessments.measurement_reliability),
              e3_deformation_score = COALESCE($7, deformation_assessments.e3_deformation_score),
              diff_settlement_photos_json = COALESCE($8::jsonb, deformation_assessments.diff_settlement_photos_json),
@@ -1611,12 +1645,13 @@ export class AuditModificationService {
             }))
           );
         }
-        // Cập nhật lại survey_data_json sau khi photoActions cập nhật các mảng ảnh trong mergedJson
-        await client.query(
-          `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
-          [JSON.stringify(mergedJson), actualReportId]
-        );
       }
+
+      // Lưu bản mergedJson cuối cùng: các bước trên có thể đã chuẩn hóa thêm sau lần UPDATE đầu
+      await client.query(
+        `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
+        [JSON.stringify(mergedJson), actualReportId]
+      );
 
       await client.query(
         `INSERT INTO system_audit_logs (
@@ -1845,7 +1880,7 @@ export class AuditModificationService {
            v6_sensitivity_score = $15,
            avg_vi_score = $16,
            vi_class = $17,
-           impact_level_i = $18,
+           construction_impact_level_i = $18,
            overridden_impact_level_i = $19,
            overridden_bra = $20
          WHERE report_id = $1;`,
@@ -1908,6 +1943,7 @@ export class AuditModificationService {
       }
     } catch (scoreErr) {
       console.error('[applyAdminSurveyEdit] Lỗi khi tự động tính lại điểm số:', scoreErr);
+      postCommitWarnings.push('Đã lưu chỉnh sửa nhưng chưa tính lại được điểm rủi ro. Vui lòng kiểm tra lại điểm ECS/VI.');
     }
 
     // Tự động tạo bản chụp Snapshot bất biến cho phiên bản chỉnh sửa Diff
@@ -1923,9 +1959,10 @@ export class AuditModificationService {
       });
     } catch (snapErr) {
       console.error('[applyAdminSurveyEdit] Không thể tạo snapshot phiên bản:', snapErr);
+      postCommitWarnings.push('Đã lưu chỉnh sửa nhưng chưa tạo được phiên bản lịch sử cho lần sửa này.');
     }
 
-    return txResult;
+    return { ...txResult, warnings: postCommitWarnings };
   }
 
   /**
