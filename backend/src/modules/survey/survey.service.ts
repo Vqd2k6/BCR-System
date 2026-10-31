@@ -631,7 +631,7 @@ export class SurveyService {
         fromSurveyorName: draft.surveyor_name || 'Kỹ sư ca trước',
         fromSurveyorPhone: draft.surveyor_phone || '',
         currentStep: draft.current_step,
-        securityCode: draft.handover_security_code || '123456',
+        securityCode: draft.handover_security_code || await SurveyRepository.ensureHandoverCode(draft.id),
         updatedAt: draft.updated_at,
         syncVersion: draft.sync_version,
         unsyncedPhotosInfo,
@@ -859,7 +859,7 @@ export class SurveyService {
       throw new NotFoundError('Không tìm thấy bản nháp đang khảo sát để tiếp quản');
     }
 
-    if (String(draft.handover_security_code).trim() !== String(data.handoverCode).trim()) {
+    if (!draft.handover_security_code || String(draft.handover_security_code).trim() !== String(data.handoverCode).trim()) {
       throw new BadRequestError('Mã xác nhận bảo mật 6 số không chính xác. Vui lòng nhập đúng mã hiển thị trên màn hình.');
     }
 

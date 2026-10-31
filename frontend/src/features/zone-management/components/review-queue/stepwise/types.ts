@@ -181,6 +181,7 @@ export interface StepwiseAbsenceLogItem {
   reason?: string;
   notes?: string;
   photoUrl?: string;
+  minutesPhotos?: string[];
   created_at?: string;
   [key: string]: unknown;
 }
@@ -545,8 +546,16 @@ export interface StepwiseSurveyJson {
   [key: string]: unknown;
 }
 
+export interface AbsenceEvidenceSummary {
+  photos: string[];
+  hasWitness: boolean;
+  missing: string[];
+}
+
 export interface AuditStepwiseData {
   id?: string;
+  isResidentialAbsent?: boolean;
+  absenceEvidence?: AbsenceEvidenceSummary;
   parcelId?: string;
   projectParcelCode?: string;
   officialCadastralCode?: string;

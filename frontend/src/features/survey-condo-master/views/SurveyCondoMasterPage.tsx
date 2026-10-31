@@ -71,6 +71,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     handoverInfo,
     closeHandoverModal,
     takeoverDraft,
+    requestEditUnlock,
     markServerHydrated,
   } = usePhase1SurveyStore();
   const { isAdmin: isZoneAdmin, isViewOnlyForAdmin, unlockEdit, lockEdit } = useAdminViewLock();
@@ -78,6 +79,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [serverReport, setServerReport] = useState<ServerPhase1ReportResponse['report'] | null>(null);
   const [isReverting, setIsReverting] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const [localStatusOverride, setLocalStatusOverride] = useState<string | null>(null);
 
   // Xác định trạng thái đã nộp:
@@ -419,6 +421,27 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     }
   };
 
+  // Admin mở khóa chỉnh sửa ca đang làm dở: kiểm tra khóa ca / bàn giao trước khi cho sửa
+  const handleUnlockEdit = async () => {
+    try {
+      setIsUnlocking(true);
+      const canEdit = await requestEditUnlock();
+      if (canEdit) {
+        unlockEdit();
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleTakeoverAndUnlock = async (handoverCode: string, note?: string) => {
+    const ok = await takeoverDraft(handoverCode, note);
+    if (ok) {
+      unlockEdit();
+    }
+    return ok;
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Condo Master Header */}
@@ -434,7 +457,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
                 <strong>Chế độ Xem Lại (Chỉ Đọc · Không đồng bộ):</strong>{' '}
                 {isSubmittedOrApproved
                   ? `Hồ sơ khảo sát Tòa nhà tổng thể đã được nộp. ${isZoneAdmin ? 'Admin có thể mở lại để chỉnh sửa thông tin.' : 'Chỉ có Zone Admin mới được điều chỉnh.'}`
-                  : 'Biểu mẫu đang ở chế độ chỉ xem, dữ liệu sẽ không bị thay đổi hay đồng bộ. Bấm "Mở khóa chỉnh sửa" nếu muốn sửa.'}
+                  : 'Đang xem ca làm dở, dữ liệu không bị thay đổi. Bấm "Mở khóa chỉnh sửa" và nhập mã 6 số để tiếp tục khảo sát.'}
               </span>
             </span>
             <div className="flex items-center gap-2">
@@ -453,12 +476,13 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
               {isZoneAdmin && !isSubmittedOrApproved && isViewOnlyForAdmin && (
                 <button
                   type="button"
-                  onClick={unlockEdit}
-                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  disabled={isUnlocking}
+                  onClick={handleUnlockEdit}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   title="Mở khóa chỉnh sửa biểu mẫu (kiểm tra khóa ca / tiếp quản)"
                 >
                   <Unlock size={14} />
-                  <span>Mở khóa chỉnh sửa</span>
+                  <span>{isUnlocking ? 'Đang kiểm tra...' : 'Mở khóa chỉnh sửa'}</span>
                 </button>
               )}
               <span className="font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0">
@@ -515,7 +539,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       <HandoverTakeoverModal
         isOpen={isHandoverModalOpen}
         handoverInfo={handoverInfo}
-        onTakeover={takeoverDraft}
+        onTakeover={handleTakeoverAndUnlock}
         onCancel={() => {
           closeHandoverModal();
           if (isZoneAdmin) {

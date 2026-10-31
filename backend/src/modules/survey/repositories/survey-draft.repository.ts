@@ -2,6 +2,26 @@ import { Database } from '../../../database/db';
 import { SurveyBaseRepository } from './survey-base.repository';
 
 export class SurveyDraftRepository {
+  private static generateHandoverCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * Cấp mã bàn giao cho báo cáo chưa có mã (báo cáo không sinh từ upsertDraft, ví dụ được revert về DRAFT).
+   * COALESCE giữ nguyên mã đã có khi 2 request chạy đồng thời.
+   * Trigger trg_update_reports_timestamp sẽ đổi updated_at một lần, nên ca đã hết khóa có thể báo khóa lại tối đa 15 phút.
+   */
+  static async ensureHandoverCode(reportId: string): Promise<string> {
+    const res = await Database.query<{ handover_security_code: string }>(
+      `UPDATE base_survey_reports
+       SET handover_security_code = COALESCE(handover_security_code, $2)
+       WHERE id = $1
+       RETURNING handover_security_code;`,
+      [reportId, this.generateHandoverCode()]
+    );
+    return res.rows[0].handover_security_code;
+  }
+
   static async findActiveDraft(
     parcelId: string,
     unitId?: string | null,
@@ -224,7 +244,7 @@ export class SurveyDraftRepository {
       return updateRes.rows[0];
     } else {
       // Khởi tạo mã ngẫu nhiên 6 số phục vụ bàn giao ca
-      const securityCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const securityCode = this.generateHandoverCode();
       const parsedNewSurveyData: any = typeof data.surveyData === 'string'
         ? (() => { try { return JSON.parse(data.surveyData); } catch { return {}; } })()
         : (data.surveyData || {});
@@ -364,7 +384,7 @@ export class SurveyDraftRepository {
       throw new Error('Không tìm thấy bản nháp đang khảo sát để tiếp quản');
     }
 
-    const newSecurityCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newSecurityCode = this.generateHandoverCode();
     const handoverEntry = {
       fromSurveyorId: existing.surveyor_id,
       fromSurveyorName: existing.surveyor_name,

@@ -1,0 +1,92 @@
+/**
+ * Minh chứng của hồ sơ vắng mặt. Ảnh biển số P-01 không phải giấy hẹn nên không bao giờ được tính vào đây.
+ * Nhà dân ghi người chứng kiến ở khối đại diện địa phương, căn hộ ghi trong `absenteeInfo` và nhật ký vắng.
+ */
+export interface AbsenceLogEvidenceRow {
+  photo_proof_url?: string | null;
+  minutes_photos_json?: unknown;
+  witness_name?: string | null;
+}
+
+export interface AbsenceEvidenceSummary {
+  photos: string[];
+  hasWitness: boolean;
+  missing: string[];
+}
+
+function readRecord(val: unknown): Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val) ? (val as Record<string, unknown>) : {};
+}
+
+function readUrlList(val: unknown): string[] {
+  let parsed = val;
+  if (typeof val === 'string') {
+    try {
+      parsed = JSON.parse(val);
+    } catch (err) {
+      console.error('[AbsenceEvidence:readUrlList] Lỗi parse danh sách ảnh biên bản:', err);
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function hasText(val: unknown): boolean {
+  return typeof val === 'string' && val.trim().length > 0;
+}
+
+/** Tên cột trong `survey_absence_logs` khác hợp đồng hiển thị của Step 9 thẩm định. */
+export function toAuditAbsenceLogView<T extends AbsenceLogEvidenceRow & { attempt_count?: number | null; recorded_at?: unknown }>(
+  log: T
+) {
+  const minutesPhotos = readUrlList(log.minutes_photos_json);
+  return {
+    ...log,
+    attemptNumber: log.attempt_count ?? undefined,
+    attemptDate: log.recorded_at,
+    photoUrl: log.photo_proof_url || minutesPhotos[0] || undefined,
+    minutesPhotos,
+  };
+}
+
+/** Nhà dân vắng dừng ở Bước 1 nên `surveyCaseType` là dấu hiệu chính; `isAbsenteeSurvey` là cờ song hành của form. */
+export function isResidentialAbsentSurvey(surveyJson: Record<string, unknown>): boolean {
+  return String(surveyJson.surveyCaseType || '').toUpperCase() === 'ABSENTEE' || surveyJson.isAbsenteeSurvey === true;
+}
+
+export function resolveAbsenceEvidence(
+  surveyJson: Record<string, unknown>,
+  logs: AbsenceLogEvidenceRow[]
+): AbsenceEvidenceSummary {
+  const info = readRecord(surveyJson.absenteeInfo);
+  const signatures = readRecord(surveyJson.signatures);
+
+  const photos = Array.from(
+    new Set([
+      ...readUrlList(info.absenteeMinutesPhotos),
+      ...readUrlList(surveyJson.absenteeMinutesPhotos),
+      ...readUrlList(surveyJson.absenteeNoticePhotos),
+      ...readUrlList(surveyJson.absentNoticePhotos),
+      ...readUrlList(surveyJson.doorNoticePhotos),
+      ...logs.flatMap((log) => [
+        ...(hasText(log.photo_proof_url) ? [String(log.photo_proof_url)] : []),
+        ...readUrlList(log.minutes_photos_json),
+      ]),
+    ])
+  );
+
+  const hasWitness =
+    hasText(info.witnessName) ||
+    hasText(surveyJson.witnessName) ||
+    hasText(signatures.witnessName) ||
+    hasText(readRecord(signatures.localAuthority).fullName) ||
+    logs.some((log) => hasText(log.witness_name));
+
+  const missing = [
+    ...(photos.length === 0 ? ['Ảnh dán giấy hẹn / biên bản vắng nhà'] : []),
+    ...(hasWitness ? [] : ['Người chứng kiến']),
+  ];
+
+  return { photos, hasWitness, missing };
+}

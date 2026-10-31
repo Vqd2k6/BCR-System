@@ -206,7 +206,7 @@ function recomputeDerivedPhase1State(
   }
 
   // 2. Nếu sửa dữ liệu nguồn ở Bước 1..5 -> tự động tính lại ECS, VI, Impact và BRA theo chuẩn FE Phase 1
-  if (STEP_1_TO_5_SCORING_KEYS.has(changedTopKey)) {
+  if (STEP_1_TO_5_SCORING_KEYS.has(changedTopKey) && updated.surveyCaseType !== 'ABSENTEE') {
     const rawHi = (updated.historyInterview || {}) as Record<string, unknown>;
     const normalizedHi = {
       ...rawHi,
@@ -763,7 +763,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
         return {
           ...rawExec,
-          braStatus: resolvedBra,
+          // Nhà chưa vào được thì không có căn cứ để tính BRA
+          braStatus: sJson.surveyCaseType === 'ABSENTEE' ? rawBra : resolvedBra,
           constructionImpactStatus: resolvedImpactLabel,
           isImpactOverridden: hasValidSavedOverride,
           impactOverrideReason: hasValidSavedOverride ? String(rawExec.impactOverrideReason || '') : '',

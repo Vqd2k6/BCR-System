@@ -100,7 +100,7 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
     try {
       setIsApprovingAbsentee(true);
       const res = await api.post(`/admin/reports/${repId}/approve-absentee`, {
-        absenceVerificationNotes: notes || 'Đã kiểm tra chứng cứ vắng mặt.',
+        judgementNotes: notes || 'Đã kiểm tra chứng cứ vắng mặt.',
       });
       if (res.data?.success) {
         alert('✅ Đã phê duyệt hồ sơ vắng mặt thành công!');

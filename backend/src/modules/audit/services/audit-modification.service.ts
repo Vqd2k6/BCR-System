@@ -6,6 +6,7 @@ import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
 import { parseMeters, resolvePolygonGeometryUpdate } from './audit-geometry-sync.helpers';
+import { isResidentialAbsentSurvey } from '../absence-evidence';
 
 export interface PhotoActionItem {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';
@@ -1578,6 +1579,8 @@ export class AuditModificationService {
 
     // 4.7. Tự động kích hoạt tính lại toàn bộ điểm rủi ro (Raw Scores) theo Ground Truth mới SAU KHI commit
     // và đồng bộ các chỉnh sửa trực tiếp ở Bước 7 (ecs / vi) vào risk_score_cards & survey_data_json
+    // Nhà chưa vào được thì không có dữ liệu đầu vào: tính lại sẽ sinh điểm an toàn giả
+    if (!isResidentialAbsentSurvey(mergedJson)) {
     try {
       const { ScoringService } = await import('../../scoring/scoring.service');
       const calcRes = await ScoringService.calculatePhase1Scores(actualReportId);
@@ -1840,6 +1843,7 @@ export class AuditModificationService {
     } catch (scoreErr) {
       console.error('[applyAdminSurveyEdit] Lỗi khi tự động tính lại điểm số:', scoreErr);
       postCommitWarnings.push('Đã lưu chỉnh sửa nhưng chưa tính lại được điểm rủi ro. Vui lòng kiểm tra lại điểm ECS/VI.');
+    }
     }
 
     // Tự động tạo bản chụp Snapshot bất biến cho phiên bản chỉnh sửa Diff

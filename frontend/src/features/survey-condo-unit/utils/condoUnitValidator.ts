@@ -666,6 +666,18 @@ export function validateCondoUnitAbsenteeStep2(formData: CondoUnitFormData): Con
     }
   }
 
+  // 4.1. Người chứng kiến là căn cứ pháp lý duy nhất của lượt tiếp cận khi chủ hộ không có mặt
+  if (!absInfo?.witnessName?.trim()) {
+    issues.push({
+      fieldId: 'input-witnessName',
+      step: 2,
+      target: 'MINUTES',
+      title: 'Chưa nhập Người chứng kiến',
+      message: 'Vui lòng nhập họ tên người chứng kiến (BQL, bảo vệ, trưởng tầng...) khi xác nhận căn hộ vắng mặt.',
+      isBlocking: true,
+    });
+  }
+
   // 5. Kiểm tra định dạng SĐT nếu có nhập
   if (formData.ownerPhone?.trim()) {
     const vnPhoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;

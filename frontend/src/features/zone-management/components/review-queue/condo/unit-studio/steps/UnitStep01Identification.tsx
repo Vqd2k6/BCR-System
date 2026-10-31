@@ -34,11 +34,12 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
   const { state, hasUnknownOwnerName, hasUnknownOwnerPhone } = formState.absence;
   const isAbsentUnit = state === 'ABSENT';
   // Với căn vắng, tên/SĐT là KSV điền cho qua form: không trình bày như thông tin đã xác minh
-  const ownerNameValue = isAbsentUnit && hasUnknownOwnerName && !isEditMode ? '' : formState.ownerName;
-  const ownerPhoneValue = isAbsentUnit && hasUnknownOwnerPhone && !isEditMode ? '' : formState.ownerPhone;
+  const ownerNameValue = isAbsentUnit && hasUnknownOwnerName ? '' : formState.ownerName;
+  const ownerPhoneValue = isAbsentUnit && hasUnknownOwnerPhone ? '' : formState.ownerPhone;
   const ownerSuffix = isAbsentUnit ? ' (KSV nhập, chưa xác minh)' : '';
-  const unitAreaValue =
-    isAbsentUnit && !isEditMode ? toNumberOrNull(toRecord(data.unitInfo).unit_area_m2) : formState.unitAreaM2;
+  const unitAreaValue = isAbsentUnit ? toNumberOrNull(toRecord(data.unitInfo).unit_area_m2) : formState.unitAreaM2;
+  // Căn vắng chỉ được chuẩn hóa biển số và ảnh tiếp cận; thông tin còn lại chưa được xác minh tại căn
+  const isIdentityEditable = isEditMode && !isAbsentUnit;
 
   const photos = [
     { key: 'photoP01', code: 'P-01', type: 'P01_HOUSE_NUMBER', title: 'Biển số cửa căn hộ', item: formState.photoP01 },
@@ -82,7 +83,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Mã căn hộ"
             value={formState.unitCode}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('unitCode')}
             onChange={(val) => handleFieldChange('unitCode', 'Mã căn hộ', val)}
           />
@@ -98,7 +99,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Tầng"
             type="number"
             value={formState.floorNumber}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('floorNumber')}
             onChange={(val) => handleFieldChange('floorNumber', 'Tầng căn hộ', toNumberOrNull(val))}
           />
@@ -107,7 +108,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             type="number"
             unit="m²"
             value={unitAreaValue}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('unitAreaM2')}
             onChange={(val) => handleFieldChange('unitAreaM2', 'Diện tích căn hộ', toNumberOrNull(val))}
           />
@@ -116,14 +117,14 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             type="select"
             value={formState.residentStatus}
             options={withCurrentOption(RESIDENT_STATUS_OPTIONS, formState.residentStatus)}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('residentStatus')}
             onChange={(val) => handleFieldChange('residentStatus', 'Tình trạng cư trú', val)}
           />
           <AuditField
             label={`Họ tên chủ hộ${ownerSuffix}`}
             value={ownerNameValue}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerName')}
             onChange={(val) => handleFieldChange('ownerName', 'Họ tên chủ hộ căn hộ', val)}
           />
@@ -131,7 +132,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label={`Số điện thoại${ownerSuffix}`}
             value={ownerPhoneValue}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerPhone')}
             onChange={(val) => handleFieldChange('ownerPhone', 'Số điện thoại chủ hộ', val)}
           />
@@ -139,7 +140,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Số CCCD"
             value={formState.ownerIdCard}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerIdCard')}
             onChange={(val) => handleFieldChange('ownerIdCard', 'Số CCCD chủ hộ', val)}
           />

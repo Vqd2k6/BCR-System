@@ -1,4 +1,5 @@
 import { firstNonEmptyString, isRecord, toNumberOrNull, toRecord, toStringArray } from '../core/condo-normalize.utils';
+import type { StepwiseAbsenceLogItem } from '../../stepwise/types';
 import type {
   CondoAbsenceView,
   CondoUnitAbsenteeView,
@@ -193,7 +194,11 @@ export function resolveCondoAbsenceView(data: unknown): CondoAbsenceView {
   return typeof absence.state === 'string' ? (absence as unknown as CondoAbsenceView) : NORMAL_ABSENCE_VIEW;
 }
 
-export function adaptUnitAbsentee(sJson: Record<string, unknown>): CondoUnitAbsenteeView | null {
+/** Nhật ký vắng là bản ghi quan hệ của lượt tiếp cận nên bù được phần JSON hồ sơ cũ còn thiếu. */
+export function adaptUnitAbsentee(
+  sJson: Record<string, unknown>,
+  logs: StepwiseAbsenceLogItem[] = []
+): CondoUnitAbsenteeView | null {
   const info = isRecord(sJson.absenteeInfo) ? sJson.absenteeInfo : null;
   const isAbsentee =
     Boolean(sJson.isAbsentee) || Boolean(sJson.isRefusedOrAbsent) || sJson.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA';
@@ -204,22 +209,24 @@ export function adaptUnitAbsentee(sJson: Record<string, unknown>): CondoUnitAbse
     rawReason === 'OTHER'
       ? firstNonEmptyString(info?.customReason, info?.notes)
       : ABSENCE_REASON_LABELS[rawReason] || rawReason;
+  const latestLog = logs[0];
   const photos = [
     ...toStringArray(info?.absenteeMinutesPhotos),
     ...toStringArray(sJson.absenteeMinutesPhotos),
     ...toStringArray(sJson.absenteeNoticePhotos),
+    ...logs.flatMap((log) => [...toStringArray(log.minutesPhotos), ...toStringArray(log.photoUrl ? [log.photoUrl] : [])]),
   ];
 
   return {
     reasonCode: rawReason,
     reason,
     notes: firstNonEmptyString(info?.notes),
-    witnessName: firstNonEmptyString(info?.witnessName),
-    witnessRole: firstNonEmptyString(info?.witnessRole),
-    witnessPhone: firstNonEmptyString(info?.witnessPhone),
-    noticeDelivered: Boolean(info?.noticeDelivered),
-    rescheduleDate: firstNonEmptyString(info?.rescheduleDate),
-    attemptCount: toNumberOrNull(info?.attemptCount),
+    witnessName: firstNonEmptyString(info?.witnessName, latestLog?.witness_name),
+    witnessRole: firstNonEmptyString(info?.witnessRole, latestLog?.witness_role),
+    witnessPhone: firstNonEmptyString(info?.witnessPhone, latestLog?.witness_phone),
+    noticeDelivered: Boolean(info?.noticeDelivered) || logs.some((log) => log.notice_delivered === true),
+    rescheduleDate: firstNonEmptyString(info?.rescheduleDate, latestLog?.reschedule_date),
+    attemptCount: toNumberOrNull(info?.attemptCount ?? latestLog?.attemptNumber),
     photos: Array.from(new Set(photos)),
   };
 }

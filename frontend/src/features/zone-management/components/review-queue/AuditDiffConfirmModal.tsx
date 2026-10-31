@@ -95,7 +95,9 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   const deletedAsBuiltCount = asBuiltPhotoActions.filter((a) => a.action === 'DELETE').length;
   const effectiveDrawingsCount = Math.max(0, baseDrawingsCount + addedAsBuiltCount - deletedAsBuiltCount);
 
-  const hasCatBlocker = (catScore === 1 || catScore === 2) && effectiveDrawingsCount === 0;
+  // Ca vắng không thu thập hạng móng nên không có căn cứ để đòi bản vẽ hoàn công
+  const isAbsentSurvey = formState?.surveyCaseType === 'ABSENTEE' || formState?.isAbsenteeSurvey === true;
+  const hasCatBlocker = !isAbsentSurvey && (catScore === 1 || catScore === 2) && effectiveDrawingsCount === 0;
 
   const blockingErrorsCount = hasCatBlocker ? 1 : 0;
   const warningCount = 0;

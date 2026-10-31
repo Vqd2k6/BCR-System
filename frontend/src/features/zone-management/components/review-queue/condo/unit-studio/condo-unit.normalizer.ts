@@ -78,7 +78,7 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
 
   const { cadUrl, isFloorCadFallback } = resolveUnitCadUrl(sJson, unitInfo);
   const absence = resolveCondoAbsenceView(data);
-  const absenteeInfo = absence.state === 'ABSENT' || absence.state === 'ACCESS_HISTORY' ? adaptUnitAbsentee(sJson) : null;
+  const absenteeInfo = absence.state === 'ABSENT' || absence.state === 'ACCESS_HISTORY' ? adaptUnitAbsentee(sJson, rawAbsenceLogs) : null;
   const renovation = toRecord(sJson.interiorRenovationHistory);
 
   return recomputeCondoUnitBurlandOnChange(

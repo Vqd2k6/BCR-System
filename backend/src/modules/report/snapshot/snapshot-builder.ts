@@ -26,7 +26,12 @@ import {
   sha256Hex,
 } from './snapshot-scores.utils';
 import { fetchCondoUnitAbsenceMap } from '../../audit/condo/condo-absence.resolver';
-import { fetchMasterStandardizedAddress, projectCondoAbsentSurveyJson } from './condo-absent-projection';
+import {
+  fetchMasterStandardizedAddress,
+  projectCondoAbsentSurveyJson,
+  projectResidentialAbsentSurveyJson,
+} from './condo-absent-projection';
+import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
 
 export {
   type RiskCardRow,
@@ -54,12 +59,15 @@ export async function buildApprovedSnapshot(
 
   const unitId: string | null = repRes.rows[0]?.unit_id ?? null;
   const absence = (await fetchCondoUnitAbsenceMap([reportId], client)).get(reportId);
-  const isAbsentUnit = absence?.state === 'ABSENT';
-
   const rawSurveyJson = repRes.rows[0]?.survey_data_json;
-  const frozenSurveyDataJson = isAbsentUnit
-    ? projectCondoAbsentSurveyJson(asObject(rawSurveyJson))
-    : asObject(rawSurveyJson);
+  const isResidentialAbsent = !unitId && isResidentialAbsentSurvey(asObject(rawSurveyJson));
+  const isAbsentUnit = isResidentialAbsent || absence?.state === 'ABSENT';
+
+  const frozenSurveyDataJson = isResidentialAbsent
+    ? projectResidentialAbsentSurveyJson(asObject(rawSurveyJson))
+    : isAbsentUnit
+      ? projectCondoAbsentSurveyJson(asObject(rawSurveyJson))
+      : asObject(rawSurveyJson);
   // Căn hộ vắng không có bảng điểm: thẻ điểm hiện có là kết quả tính từ dữ liệu nội thất không có thật
   const cardRow = isAbsentUnit ? null : (cardRes.rows[0] ?? null);
   const burlandSummary = asObject(frozenSurveyDataJson.burlandSummary);

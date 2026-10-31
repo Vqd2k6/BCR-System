@@ -10,6 +10,7 @@ interface SurveyReviewBannerProps {
   onRevertToDraft?: () => void;
   canUnlockEdit?: boolean;
   onUnlockEdit?: () => void;
+  isUnlocking?: boolean;
   onBack: () => void;
 }
 
@@ -22,6 +23,7 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
   onRevertToDraft,
   canUnlockEdit,
   onUnlockEdit,
+  isUnlocking,
   onBack,
 }) => {
   if (!readOnly) return null;
@@ -40,6 +42,8 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
               Thẩm định hồ sơ (Zone Admin / Super Admin) - Thửa:{' '}
               <strong className="text-violet-700">{targetCode}</strong>
             </>
+          ) : canUnlockEdit ? (
+            <>👁️ Đang xem ca làm dở (Chỉ Đọc) — bấm "Mở khóa chỉnh sửa" và nhập mã 6 số để tiếp tục khảo sát.</>
           ) : (
             <>👁️ Chế độ Xem lại biểu mẫu — Hồ sơ đã nộp, không thể chỉnh sửa.</>
           )}
@@ -82,11 +86,14 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
           <button
             type="button"
             onClick={onUnlockEdit}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            disabled={isUnlocking}
+            className={`bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors ${
+              isUnlocking ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
             title="Mở khóa chỉnh sửa biểu mẫu"
           >
             <Unlock className="w-4 h-4" />
-            Mở khóa chỉnh sửa
+            {isUnlocking ? 'Đang kiểm tra...' : 'Mở khóa chỉnh sửa'}
           </button>
         )}
         <button

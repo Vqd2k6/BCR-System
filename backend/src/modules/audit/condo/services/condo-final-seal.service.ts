@@ -8,6 +8,7 @@ import {
 import { ReportSnapshotService } from '../../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from '../../services/report-consistency-gate';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
+import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
 
 export class CondoFinalSealService {
   /**
@@ -74,16 +75,8 @@ export class CondoFinalSealService {
       const gateReportObj = fullReportContext ? { ...fullReportContext, ...reportRow } : reportRow;
 
       // Đối với CONDO_UNIT thường (không phải vắng mặt, không phải MASTER_AREA, không phải BUILDING_MASTER), kiểm tra tên chủ căn hộ
-      const isAbsentUnit = Boolean(
-        reportRow.is_refused_or_absent ||
-          surveyJson.isAbsentee ||
-          surveyJson.isAbsenteeSurvey ||
-          surveyJson.isRefusedOrAbsent ||
-          String(surveyJson.surveyCaseType || '').toUpperCase() === 'ABSENTEE' ||
-          ['VẮNG_MẶT_KHÓA_CỬA', 'BỎ_TRỐNG_CHƯA_VỀ_Ở'].includes(
-            String(surveyJson.residentStatus || '').toUpperCase()
-          )
-      );
+      const condoAbsence = (await fetchCondoUnitAbsenceMap([actualReportId], client)).get(actualReportId);
+      const isAbsentUnit = condoAbsence?.state === 'ABSENT';
 
       const isPlaceholderOwner = (val: unknown) =>
         typeof val === 'string' &&

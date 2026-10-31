@@ -2,7 +2,7 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { api } from '../../../services/api';
-import { ABSENTEE_REASONS } from './step1/step1.constants';
+import { ABSENTEE_REASONS, ABSENTEE_REASON_CODES } from './step1/step1.constants';
 import { Step1IdentificationSection } from './step1/Step1IdentificationSection';
 import { Step1ObjectGroupSection } from './step1/Step1ObjectGroupSection';
 import { Step1MetroGisSection } from './step1/Step1MetroGisSection';
@@ -200,7 +200,10 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       // 2. Gửi API máy chủ ([ND-01] Zero Cross-Category Fallback: Tuyệt đối không lấy photoP01.url làm photoProofUrl)
       try {
         await api.post(`/parcels/${formData.parcelId}/record-absence`, {
-          absenceReason: 'HOMEOWNER_ABSENT',
+          absenceReason: ABSENTEE_REASON_CODES[healedFormData.absenteeReason || ''] || 'OTHER',
+          customReason: ABSENTEE_REASON_CODES[healedFormData.absenteeReason || '']
+            ? null
+            : healedFormData.customAbsenteeReason || healedFormData.absenteeReason || null,
           notes: healedFormData.absenteeReason === 'Lý do khác' ? (healedFormData.customAbsenteeReason || 'Lý do khác') : (healedFormData.absenteeReason || 'Chủ nhà vắng mặt'),
           photoProofUrl: healedFormData.absenteeMinutesPhotos?.[0] || '',
           minutesPhotos: healedFormData.absenteeMinutesPhotos || [],

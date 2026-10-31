@@ -149,4 +149,8 @@ export class SurveyRepository {
   ): Promise<any> {
     return SurveyDraftRepository.takeoverDraft(parcelId, unitId, newSurveyorId, note);
   }
+
+  public static async ensureHandoverCode(reportId: string): Promise<string> {
+    return SurveyDraftRepository.ensureHandoverCode(reportId);
+  }
 }

@@ -1,6 +1,6 @@
 import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
-import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../common/errors/problem-details';
 import { EXCLUDED_LIFECYCLE_STATUSES } from './utils/parcel-exclusion';
 
 export interface ParcelEntity {
@@ -658,41 +658,47 @@ export class CadastralRepository {
 
       // 4. Nếu có dữ liệu ngoại thất Bước 1, lưu bảo toàn vào base_survey_reports
       if (data.surveyData) {
+        // Nhà dân kết thúc khảo sát ngay tại đây nên phải vào hàng đợi thẩm định; căn hộ nộp qua luồng submit riêng
+        const absentReportStatus = data.unitId ? 'DRAFT' : 'SUBMITTED';
         let repRes;
         if (data.unitId) {
-          repRes = await client.query<{ id: string }>(
-            `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 ORDER BY created_at DESC LIMIT 1;`,
+          repRes = await client.query<{ id: string; status: string }>(
+            `SELECT id, status::text AS status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 ORDER BY created_at DESC LIMIT 1;`,
             [data.parcelId, data.unitId]
           );
         } else {
-          repRes = await client.query<{ id: string }>(
-            `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL ORDER BY created_at DESC LIMIT 1;`,
+          repRes = await client.query<{ id: string; status: string }>(
+            `SELECT id, status::text AS status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL ORDER BY created_at DESC LIMIT 1;`,
             [data.parcelId]
           );
         }
 
         let repId: string;
         if (repRes.rows[0]) {
+          if (repRes.rows[0].status === 'APPROVED') {
+            throw new ConflictError('Hồ sơ đã được phê duyệt nên không thể ghi đè bằng lượt vắng mặt mới.');
+          }
           repId = repRes.rows[0].id;
           await client.query(
             `UPDATE base_survey_reports
              SET is_refused_or_absent = TRUE,
-                 status = 'DRAFT',
+                 status = $4::report_status_enum,
+                 submitted_at = CASE WHEN $4::text = 'SUBMITTED' THEN NOW() ELSE submitted_at END,
                  survey_data_json = $2,
                  surveyor_id = $3,
                  updated_at = NOW()
              WHERE id = $1;`,
-            [repId, JSON.stringify(data.surveyData), data.surveyorId]
+            [repId, JSON.stringify(data.surveyData), data.surveyorId, absentReportStatus]
           );
         } else {
           const reportCode = `REPORT-ABSENT-${Date.now()}`;
           const reportType = data.unitId ? 'CONDO_UNIT' : 'STANDALONE';
           const newRep = await client.query<{ id: string }>(
             `INSERT INTO base_survey_reports (
-               parcel_id, unit_id, surveyor_id, report_code, report_type, phase, status, is_refused_or_absent, survey_data_json
-             ) VALUES ($1, $2, $3, $4, $5, 'PHASE_1', 'DRAFT', TRUE, $6)
+               parcel_id, unit_id, surveyor_id, report_code, report_type, phase, status, submitted_at, is_refused_or_absent, survey_data_json
+             ) VALUES ($1, $2, $3, $4, $5, 'PHASE_1', $7::report_status_enum, CASE WHEN $7::text = 'SUBMITTED' THEN NOW() END, TRUE, $6)
              RETURNING id;`,
-            [data.parcelId, data.unitId || null, data.surveyorId, reportCode, reportType, JSON.stringify(data.surveyData)]
+            [data.parcelId, data.unitId || null, data.surveyorId, reportCode, reportType, JSON.stringify(data.surveyData), absentReportStatus]
           );
           repId = newRep.rows[0].id;
           await client.query(

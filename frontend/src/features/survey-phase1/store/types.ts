@@ -53,6 +53,8 @@ export interface SyncSliceActions {
   recoverUnsyncedPhotos: () => Promise<void>;
   releaseDraftLock: () => Promise<void>;
   takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
+  /** Admin xin mở khóa chỉnh sửa: true = được sửa ngay; false = đã bật modal khóa ca / tiếp quản hoặc không kiểm tra được */
+  requestEditUnlock: () => Promise<boolean>;
   closeHandoverModal: () => void;
   closeLockedModal: () => void;
   setIsDirty: (isDirty: boolean) => void;

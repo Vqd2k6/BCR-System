@@ -5,6 +5,7 @@
  */
 import { Database } from '../../../database/db';
 import { fetchCondoUnitAbsenceMap, isUnknownOwnerName, isUnknownOwnerPhone } from '../../audit/condo/condo-absence.resolver';
+import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
 
 type JsonObject = Record<string, unknown>;
 
@@ -63,6 +64,17 @@ export function projectCondoAbsentSurveyJson(surveyJson: JsonObject): JsonObject
   return projected;
 }
 
+/** Nhà dân vắng vẫn có quan sát lún nghiêng từ ngoài nhà ở Bước 1; chỉ võng dầm là số đo bên trong. */
+export function projectResidentialAbsentSurveyJson(surveyJson: JsonObject): JsonObject {
+  const projected = projectCondoAbsentSurveyJson(surveyJson);
+  if (isJsonObject(surveyJson.settlementTilt)) {
+    const exteriorObservation = { ...surveyJson.settlementTilt };
+    delete exteriorObservation.beamSagging;
+    projected.settlementTilt = exteriorObservation;
+  }
+  return projected;
+}
+
 /** Địa chỉ chuẩn hóa thuộc về Tòa mẹ; hồ sơ con không có màn sửa địa chỉ nên đọc lại từ đây. */
 export async function fetchMasterStandardizedAddress(parcelId: string): Promise<string | null> {
   const res = await Database.query<{ standardized_address: string | null }>(
@@ -78,23 +90,29 @@ export async function fetchMasterStandardizedAddress(parcelId: string): Promise<
   return res.rows[0]?.standardized_address?.trim() || null;
 }
 
-/** Áp dụng ở điểm render chung vì hồ sơ vắng đã xác thực không có `APPROVED_RELEASE`, báo cáo đọc thẳng bảng live. */
+/** Áp dụng ở điểm render chung vì hồ sơ vắng xác thực trước đây không có `APPROVED_RELEASE`, báo cáo đọc thẳng bảng live. */
 export async function applyCondoReportContext<T extends Record<string, any>>(report: T): Promise<T> {
-  if (!report?.unit_id) return report;
+  const surveyJson = isJsonObject(report?.survey_data_json) ? report.survey_data_json : {};
+  const isResidentialAbsent = !report?.unit_id && isResidentialAbsentSurvey(surveyJson);
+  if (!report?.unit_id && !isResidentialAbsent) return report;
 
   const reportId = String(report.id);
-  const absence = (await fetchCondoUnitAbsenceMap([reportId])).get(reportId);
-  const isAbsent = absence?.state === 'ABSENT';
-  const surveyJson = isJsonObject(report.survey_data_json) ? report.survey_data_json : {};
+  const absence = report.unit_id ? (await fetchCondoUnitAbsenceMap([reportId])).get(reportId) : undefined;
+  const isAbsent = isResidentialAbsent || absence?.state === 'ABSENT';
   const logsRes = await Database.query<Record<string, unknown>>(
-    `SELECT * FROM survey_absence_logs WHERE unit_id = $1 ORDER BY recorded_at DESC;`,
-    [report.unit_id]
+    report.unit_id
+      ? `SELECT * FROM survey_absence_logs WHERE unit_id = $1 ORDER BY recorded_at DESC;`
+      : `SELECT * FROM survey_absence_logs WHERE parcel_id = $1 AND unit_id IS NULL ORDER BY recorded_at DESC;`,
+    [report.unit_id ?? report.parcel_id]
   );
   const next: Record<string, any> = { ...report, absenceLogs: logsRes.rows };
 
   if (isAbsent) {
     next.condoUnitAbsent = true;
-    next.survey_data_json = projectCondoAbsentSurveyJson(surveyJson);
+    next.residentialAbsent = isResidentialAbsent;
+    next.survey_data_json = isResidentialAbsent
+      ? projectResidentialAbsentSurveyJson(surveyJson)
+      : projectCondoAbsentSurveyJson(surveyJson);
     next.floors = [];
     next.buildingSpecs = null;
     next.damageZones = [];
@@ -108,7 +126,7 @@ export async function applyCondoReportContext<T extends Record<string, any>>(rep
   }
 
   const isFrozen = String(report.status || '').toUpperCase() === 'APPROVED';
-  if (!isFrozen && !surveyJson.standardizedAddress && report.parcel_id) {
+  if (report.unit_id && !isFrozen && !surveyJson.standardizedAddress && report.parcel_id) {
     const standardizedAddress = await fetchMasterStandardizedAddress(String(report.parcel_id));
     if (standardizedAddress) {
       next.survey_data_json = { ...(next.survey_data_json ?? surveyJson), standardizedAddress };

@@ -314,6 +314,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     handoverInfo,
     closeHandoverModal,
     takeoverDraft,
+    requestEditUnlock,
     syncDraftToServer,
     isDirty,
     setCurrentStep,
@@ -326,6 +327,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [isPhotoSyncFromSubmit, setIsPhotoSyncFromSubmit] = useState(false);
   const [isExitingWithSync, setIsExitingWithSync] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   // Tính toán trạng thái chỉ đọc (Triple-lock read-only protection)
   const effectiveStatus = parcel ? getEffectiveParcelStatus(parcel) : null;
@@ -349,7 +351,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   // Khởi tạo form khi parcel thay đổi
   useEffect(() => {
     if (parcel) {
-      initializeForm(parcel, unit);
+      // Truyền readOnly ngay lúc khởi tạo: effect đồng bộ store chạy sau, nếu không admin bị bật modal tiếp quản khi chỉ mở xem
+      initializeForm(parcel, unit, { readOnly: effectiveReadOnly });
     }
   }, [parcel?.id, unit?.id]);
 
@@ -421,7 +424,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only) hoặc nạp dữ liệu đã lưu từ máy chủ
   useEffect(() => {
     if (parcel?.id) {
-      api.get<Phase1ServerReportResponse>(`/parcels/${parcel.id}/phase1-report`)
+      // Admin xem hồ sơ chưa nộp: ưu tiên bản nháp để thấy đúng tiến độ mới nhất
+      api.get<Phase1ServerReportResponse>(`/parcels/${parcel.id}/phase1-report${isAdmin && !isSubmittedOrApproved ? '?preferDraft=true' : ''}`)
         .then((res) => {
           const data = (res?.data && 'data' in res.data ? (res.data as { data?: Phase1ServerReportResponse }).data : res?.data) || null;
           if (data) {
@@ -1128,6 +1132,27 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     }
   };
 
+  // Admin mở khóa chỉnh sửa ca đang làm dở: kiểm tra khóa ca / bàn giao trước khi cho sửa
+  const handleUnlockEdit = async () => {
+    try {
+      setIsUnlocking(true);
+      const canEdit = await requestEditUnlock();
+      if (canEdit) {
+        unlockEdit();
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleTakeoverAndUnlock = async (handoverCode: string, note?: string) => {
+    const ok = await takeoverDraft(handoverCode, note);
+    if (ok) {
+      unlockEdit();
+    }
+    return ok;
+  };
+
   const isAbsenteeReport =
     formData.surveyCaseType === 'ABSENTEE' ||
     formData.isAbsenteeSurvey === true ||
@@ -1161,7 +1186,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onReject={handleRejectFromPage}
         onRevertToDraft={canApproveOrReject ? handleRevertToDraftFromPage : undefined}
         canUnlockEdit={isAdmin && !isSubmittedOrApproved && isViewOnlyForAdmin}
-        onUnlockEdit={unlockEdit}
+        onUnlockEdit={handleUnlockEdit}
+        isUnlocking={isUnlocking}
         onBack={onBackToHome}
       />
 
@@ -1273,10 +1299,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       <HandoverTakeoverModal
         isOpen={isHandoverModalOpen}
         handoverInfo={handoverInfo}
-        onTakeover={takeoverDraft}
+        onTakeover={handleTakeoverAndUnlock}
         onCancel={() => {
           closeHandoverModal();
-          onBackToHome();
+          if (!isAdmin) onBackToHome();
         }}
       />
 
@@ -1286,7 +1312,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         lockedInfo={lockedInfo}
         onClose={() => {
           closeLockedModal();
-          onBackToHome();
+          if (!isAdmin) onBackToHome();
         }}
       />
 

@@ -8,12 +8,12 @@
       <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
     </div>
 
-    <h2 class="chapter-header" data-section="sec-3">III - VIII. KHÔNG ĐÁNH GIÁ DO KHÔNG TIẾP CẬN ĐƯỢC CĂN HỘ - NOT ASSESSED (UNIT NOT ACCESSIBLE)</h2>
+    <h2 class="chapter-header" data-section="sec-3">III - VIII. KHÔNG ĐÁNH GIÁ DO KHÔNG TIẾP CẬN ĐƯỢC {{#if condoUnitAbsent.isResidential}}BÊN TRONG CÔNG TRÌNH{{else}}CĂN HỘ{{/if}} - NOT ASSESSED (UNIT NOT ACCESSIBLE)</h2>
     <span data-section="sec-4"></span><span data-section="sec-5"></span><span data-section="sec-6"></span>
     <span data-section="sec-7"></span><span data-section="sec-8"></span>
 
-    <p>Khảo sát viên không tiếp cận được bên trong căn hộ, vì vậy báo cáo không ghi nhận hiện trạng kết cấu, biến dạng, khuyết tật và không có điểm ECS, VI, BRA cho căn hộ này. Việc không có khuyết tật trong báo cáo <strong>không</strong> có nghĩa là căn hộ không có hư hại.<br>
-    <span class="text-muted">The surveyor could not access the unit interior. This report records no structural condition, deformation or defects and no ECS, VI or BRA score. The absence of recorded defects does <strong>not</strong> mean the unit is undamaged.</span></p>
+    <p>Khảo sát viên không tiếp cận được bên trong {{condoUnitAbsent.entityNoun.vi}}, vì vậy báo cáo không ghi nhận hiện trạng kết cấu, biến dạng, khuyết tật và không có điểm ECS, VI, BRA cho {{condoUnitAbsent.entityNoun.vi}} này. Việc không có khuyết tật trong báo cáo <strong>không</strong> có nghĩa là {{condoUnitAbsent.entityNoun.vi}} không có hư hại.<br>
+    <span class="text-muted">The surveyor could not access the {{condoUnitAbsent.entityNoun.en}} interior. This report records no structural condition, deformation or defects and no ECS, VI or BRA score. The absence of recorded defects does <strong>not</strong> mean the unit is undamaged.</span></p>
 
     <h3 class="section-header">Ghi nhận không tiếp cận / Non-access record:</h3>
     <table class="tech-table compact-table">
@@ -26,6 +26,9 @@
         <tr><td class="font-bold">Điện thoại / Phone</td><td>{{#if condoUnitAbsent.witnessPhone}}{{condoUnitAbsent.witnessPhone}}{{else}}---{{/if}}</td></tr>
         <tr><td class="font-bold">Đã niêm yết thông báo / Notice posted</td><td>{{#if condoUnitAbsent.noticeDelivered}}Có / Yes{{else}}Không ghi nhận / Not recorded{{/if}}</td></tr>
         <tr><td class="font-bold">Hẹn khảo sát lại / Rescheduled</td><td>{{#if condoUnitAbsent.rescheduleDate}}{{condoUnitAbsent.rescheduleDate}}{{else}}---{{/if}}</td></tr>
+        {{#each condoUnitAbsent.exteriorObservations}}
+        <tr><td class="font-bold">{{this.label}}</td><td>{{#if this.value}}{{this.value}}{{else}}---{{/if}}</td></tr>
+        {{/each}}
       </tbody>
     </table>
 

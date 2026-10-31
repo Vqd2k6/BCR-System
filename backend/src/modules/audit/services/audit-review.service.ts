@@ -1,9 +1,14 @@
 import crypto from 'crypto';
+import type { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../../common/errors/problem-details';
 import { ReportSnapshotService } from '../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from './report-consistency-gate';
 import { fetchCondoUnitAbsenceMap } from '../condo/condo-absence.resolver';
+import { isResidentialAbsentSurvey, resolveAbsenceEvidence, toAuditAbsenceLogView } from '../absence-evidence';
+import type { AbsenceLogEvidenceRow } from '../absence-evidence';
+
+const MIN_ABSENCE_WAIVER_REASON_LENGTH = 10;
 
 const APPROVED_LOCKED_MESSAGE =
   'Hồ sơ đã được phê duyệt (APPROVED) và khóa bất biến. Chỉ Super Admin mới có quyền Mở khóa (Unlock) trước khi thay đổi.';
@@ -929,11 +934,10 @@ export class AuditReviewService {
     }
 
     // 3. Kiểm tra vắng mặt
+    const absenceEvidence = resolveAbsenceEvidence(surveyJson, absenceLogsRes.rows);
+    const isResidentialAbsent = !report.unit_id && isResidentialAbsentSurvey(surveyJson);
     if (report.is_refused_or_absent || report.status === 'POSTPONED_ABSENT') {
-      const hasDoorNotice = normalizedSignatures.workingMinutesPhotos.length > 0 ||
-        (Array.isArray(surveyJson.doorNoticePhotos) && surveyJson.doorNoticePhotos.length > 0) ||
-        Boolean(identificationPhotos.photoP01?.url);
-      if (!hasDoorNotice) {
+      if (absenceEvidence.photos.length === 0) {
         auditWarningFlags.push({
           code: 'ABSENT_WITHOUT_INVITATION_PHOTO',
           level: 'WARNING',
@@ -1050,6 +1054,8 @@ export class AuditReviewService {
       status: report.status,
       surveyDate: report.survey_date,
       isRefusedOrAbsent: report.is_refused_or_absent,
+      isResidentialAbsent,
+      absenceEvidence,
       engineeringRecommendations: report.engineering_recommendations,
       rejectionReason: (report as any).rejection_reason || null,
       officialPdfUrl: report.official_pdf_url,
@@ -1114,7 +1120,7 @@ export class AuditReviewService {
         interview: historyRes.rows[0] || surveyJson.interview || surveyJson.historyInterview || null,
         identPhotos: photosRes.rows,
         signatures: normalizedSignatures,
-        absenceLogs: absenceLogsRes.rows,
+        absenceLogs: absenceLogsRes.rows.map(toAuditAbsenceLogView),
       },
 
       rightPane: {
@@ -1700,6 +1706,45 @@ export class AuditReviewService {
   }
 
   /**
+   * Chủ hộ đã liên hệ lại: hồ sơ quay về luồng khảo sát thường nhưng vẫn giữ ảnh tiếp cận và nhật ký vắng.
+   * Cờ vắng trong JSON phải được gỡ, nếu không resolver và wizard KSV vẫn xếp hồ sơ vào nhánh vắng.
+   */
+  private static async clearAbsentSurveyFlagsInTx(
+    client: PoolClient,
+    reportId: string,
+    unitId: string | null,
+    adminId: string,
+    reason: string
+  ): Promise<void> {
+    const res = await client.query<{ survey_data_json: Record<string, unknown> | null }>(
+      `SELECT survey_data_json FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    );
+    const json = res.rows[0]?.survey_data_json ?? {};
+    const reopenedJson: Record<string, unknown> = {
+      ...json,
+      isAbsentee: false,
+      isAbsenteeSurvey: false,
+      isRefusedOrAbsent: false,
+      surveyCaseType: json.surveyCaseType === 'ABSENTEE' ? 'NORMAL' : json.surveyCaseType,
+      residentStatus: json.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' ? 'CHỦ_HỘ_Ở' : json.residentStatus,
+      resumedFromAbsentee: true,
+      resumedAt: new Date().toISOString(),
+      absenceDecision: { decision: 'NOT_ABSENT', reason: reason.trim(), decidedBy: adminId, decidedAt: new Date().toISOString() },
+    };
+    await client.query(`UPDATE base_survey_reports SET survey_data_json = $2::jsonb WHERE id = $1;`, [
+      reportId,
+      JSON.stringify(reopenedJson),
+    ]);
+    if (unitId) {
+      await client.query(
+        `UPDATE building_units SET resident_status = 'CHỦ_HỘ_Ở' WHERE id = $1 AND resident_status = 'VẮNG_MẶT_KHÓA_CỬA';`,
+        [unitId]
+      );
+    }
+  }
+
+  /**
    * Chuyển trạng thái hồ sơ / căn hộ / thửa đất đã nộp về "Đang làm dở" (DRAFT / IN_PROGRESS)
    * Phục vụ Zone Admin / Super Admin mở lại biểu mẫu để khảo sát viên hoặc admin chỉnh sửa bổ sung thông tin.
    */
@@ -1708,7 +1753,8 @@ export class AuditReviewService {
     adminId: string,
     reason?: string,
     unitId?: string | null,
-    actorRole?: string
+    actorRole?: string,
+    reopenAbsentSurvey = false
   ) {
     const isSurveyorActor = actorRole === 'SURVEYOR';
     const { SurveyBaseRepository } = await import('../../survey/repositories/survey-base.repository');
@@ -1798,6 +1844,19 @@ export class AuditReviewService {
       }
       if (isSurveyorActor && ownership?.surveyor_id !== adminId && ownership?.assigned_surveyor_id !== adminId) {
         throw new ForbiddenError('Khảo sát viên chỉ được mở lại hồ sơ do chính mình phụ trách.');
+      }
+      if (reopenAbsentSurvey) {
+        if (isSurveyorActor) {
+          throw new ForbiddenError('Chỉ Admin mới được mở lại khảo sát của hồ sơ vắng mặt.');
+        }
+        if ((reason || '').trim().length < MIN_ABSENCE_WAIVER_REASON_LENGTH) {
+          throw new BadRequestError(
+            `Vui lòng nhập lý do mở lại khảo sát tối thiểu ${MIN_ABSENCE_WAIVER_REASON_LENGTH} ký tự.`
+          );
+        }
+        if (targetReportId) {
+          await AuditReviewService.clearAbsentSurveyFlagsInTx(client, targetReportId, targetUnitId, adminId, reason as string);
+        }
       }
 
       const noteText = reason ? `ADMIN MỞ LẠI HỒ SƠ: ${reason}` : 'ADMIN CHUYỂN VỀ ĐANG LÀM DỞ';
@@ -2143,8 +2202,10 @@ export class AuditReviewService {
         report_type: string | null;
         status: string;
         survey_data_json: Record<string, unknown> | string | null;
+        is_refused_or_absent: boolean | null;
+        export_revision: number | null;
       }>(
-        `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json
+        `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json, is_refused_or_absent, export_revision
          FROM base_survey_reports
          WHERE id = $1
          FOR UPDATE;`,
@@ -2175,6 +2236,30 @@ export class AuditReviewService {
         }
       }
 
+      // Khu vực chung không có trong bản đồ vắng chủ của căn hộ nên giữ nguyên luồng xác nhận hiện có
+      const condoAbsence = actualUnitId
+        ? (await fetchCondoUnitAbsenceMap([actualReportId], client)).get(actualReportId)
+        : undefined;
+      const isConfirmedAbsent = actualUnitId
+        ? !condoAbsence || condoAbsence.state === 'ABSENT'
+        : rep.is_refused_or_absent === true || isResidentialAbsentSurvey(existingJson);
+      if (!isConfirmedAbsent) {
+        throw new BadRequestError('Hồ sơ này không thuộc diện vắng mặt nên không thể xác nhận vắng mặt.');
+      }
+
+      const absenceLogsRes = await client.query<AbsenceLogEvidenceRow>(
+        `SELECT photo_proof_url, minutes_photos_json, witness_name
+         FROM survey_absence_logs
+         WHERE parcel_id = $1 AND unit_id IS NOT DISTINCT FROM $2::uuid;`,
+        [actualParcelId, actualUnitId]
+      );
+      const { missing } = resolveAbsenceEvidence(existingJson, absenceLogsRes.rows);
+      if (missing.length > 0 && (judgementNotes || '').trim().length < MIN_ABSENCE_WAIVER_REASON_LENGTH) {
+        throw new BadRequestError(
+          `Hồ sơ vắng mặt còn thiếu: ${missing.join(', ')}. Vui lòng trả về khảo sát viên hoặc nhập lý do giải trình tối thiểu ${MIN_ABSENCE_WAIVER_REASON_LENGTH} ký tự.`
+        );
+      }
+
       const updatedSurveyJson: Record<string, unknown> = {
         ...existingJson,
         isRefusedOrAbsent: true,
@@ -2184,7 +2269,7 @@ export class AuditReviewService {
       };
 
       // Cập nhật base_survey_reports kèm bảo toàn toàn bộ survey_data_json
-      await client.query(
+      const approveRes = await client.query<{ approved_at: Date }>(
         `UPDATE base_survey_reports
          SET status = 'APPROVED',
              is_refused_or_absent = TRUE,
@@ -2193,7 +2278,8 @@ export class AuditReviewService {
              engineering_recommendations = COALESCE($3, engineering_recommendations),
              survey_data_json = $4::jsonb,
              updated_at = NOW()
-         WHERE id = $1;`,
+         WHERE id = $1
+         RETURNING approved_at;`,
         [
           actualReportId,
           adminId,
@@ -2220,6 +2306,16 @@ export class AuditReviewService {
           [actualParcelId]
         );
       }
+
+      // Hồ sơ vắng cũng là căn cứ pháp lý nên dùng cùng snapshot bất biến SHA-256 với luồng duyệt thường
+      await ReportSnapshotService.writeApprovedRelease(
+        client,
+        actualReportId,
+        adminId,
+        approveRes.rows[0].approved_at,
+        'Biên bản Xác nhận Vắng mặt / Từ chối Khảo sát',
+        rep.export_revision ?? 0
+      );
 
       // Đánh dấu đã xử lý cảnh báo nếu có
       await client.query(
@@ -2261,19 +2357,6 @@ export class AuditReviewService {
         message: 'Đã xác nhận hồ sơ vắng mặt hợp lệ (POSTPONED_ABSENT_VERIFIED)',
       };
     });
-
-    // M9-05: Tạo snapshot đầy đủ (chứa trọn vẹn survey_data_json & thông tin thửa đất) qua AuditVersionService.createSnapshot
-    try {
-      const { AuditVersionService } = await import('./audit-version.service');
-      await AuditVersionService.createSnapshot(txResult.reportId, {
-        versionTag: 'ADMIN_DIFF_SAVE',
-        title: 'Biên bản Xác nhận Vắng mặt / Từ chối Khảo sát',
-        editReason: judgementNotes || 'Xác nhận hồ sơ vắng mặt hợp lệ - cơ sở phát hành công văn mời lần 2',
-        userId: adminId,
-      });
-    } catch (snapErr) {
-      console.error('[approveAbsenteeReport] Không thể tạo snapshot đầy đủ:', snapErr);
-    }
 
     return txResult;
   }

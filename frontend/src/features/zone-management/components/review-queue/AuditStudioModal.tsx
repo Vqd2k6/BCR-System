@@ -528,7 +528,7 @@ export const AuditStudioModal: React.FC<Props> = ({
       ['BUILDING_MASTER', 'CONDO_MASTER', 'MASTER_AREA'].includes(reportTypeForOwnerCheck) ||
       data?.unitInfo?.unit_type === 'MASTER'
   );
-  const isAbsentCondoUnit = resolveCondoAbsenceView(data).state === 'ABSENT';
+  const isAbsentReport = resolveCondoAbsenceView(data).state === 'ABSENT' || data?.isResidentialAbsent === true;
   const isMissingRealOwnerName = Boolean(
     data &&
       !isSpecialOrMasterForOwnerCheck &&
@@ -743,7 +743,7 @@ export const AuditStudioModal: React.FC<Props> = ({
             )}
 
             {/* Nút Phê Duyệt Hồ Sơ (Approve) trên Header: căn vắng chỉ đi qua luồng Xác Thực Hồ Sơ Vắng Chủ */}
-            {!(isAbsentCondoUnit && data?.status !== 'APPROVED') && (
+            {!(isAbsentReport && data?.status !== 'APPROVED') && (
             <button
               type="button"
               disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}

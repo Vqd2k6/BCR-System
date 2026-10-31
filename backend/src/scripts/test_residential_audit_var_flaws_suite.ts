@@ -874,35 +874,35 @@ async function runTestSuite() {
     console.log('\n--- BẮT ĐẦU NHÓM 5: QUY TRÌNH BIÊN BẢN VẮNG MẶT (TC 41 - 50) ---');
 
     await assertTest('Logic 5', 'TC41', 'approveAbsenteeReport giữ nguyên bản ghi ECS gốc trong risk_score_cards', async () => {
-      const { reportId } = await createTestResidential('41');
+      const { reportId } = await createTestResidential('41', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt 3 lần có công an khu vực ký');
       const cardRes = await client.query<{ total_ecs_score: number }>(`SELECT total_ecs_score FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
       expect(cardRes.rows.length).toBe(1);
     });
 
     await assertTest('Logic 5', 'TC42', 'approveAbsenteeReport giữ nguyên bản ghi VI gốc trong risk_score_cards', async () => {
-      const { reportId } = await createTestResidential('42');
+      const { reportId } = await createTestResidential('42', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const cardRes = await client.query<{ avg_vi_score: number; vi_class: string }>(`SELECT avg_vi_score, vi_class FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
       expect(cardRes.rows.length).toBe(1);
     });
 
     await assertTest('Logic 5', 'TC43', 'approveAbsenteeReport cập nhật trạng thái thửa đất thành POSTPONED_ABSENT_VERIFIED', async () => {
-      const { reportId, parcelId } = await createTestResidential('43');
+      const { reportId, parcelId } = await createTestResidential('43', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const pRes = await client.query<{ survey_status: string }>(`SELECT survey_status FROM parcels WHERE id = $1;`, [parcelId]);
       expect(pRes.rows[0].survey_status).toBe('POSTPONED_ABSENT_VERIFIED');
     });
 
     await assertTest('Logic 5', 'TC44', 'approveAbsenteeReport gán is_refused_or_absent = true trong base_survey_reports', async () => {
-      const { reportId } = await createTestResidential('44');
+      const { reportId } = await createTestResidential('44', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const repRes = await client.query<{ is_refused_or_absent: boolean }>(`SELECT is_refused_or_absent FROM base_survey_reports WHERE id = $1;`, [reportId]);
       expect(repRes.rows[0].is_refused_or_absent).toBe(true);
     });
 
     await assertTest('Logic 5', 'TC45', 'approveAbsenteeReport cập nhật status trong base_survey_reports thành APPROVED kèm cờ vắng mặt', async () => {
-      const { reportId } = await createTestResidential('45');
+      const { reportId } = await createTestResidential('45', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const repRes = await client.query<{ status: string; is_refused_or_absent: boolean }>(`SELECT status, is_refused_or_absent FROM base_survey_reports WHERE id = $1;`, [reportId]);
       expect(repRes.rows[0].status).toBe('APPROVED');
@@ -910,25 +910,25 @@ async function runTestSuite() {
     });
 
     await assertTest('Logic 5', 'TC46', 'approveAbsenteeReport cập nhật survey_status trong parcels thành POSTPONED_ABSENT_VERIFIED', async () => {
-      const { reportId, parcelId } = await createTestResidential('46');
+      const { reportId, parcelId } = await createTestResidential('46', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const pRes = await client.query<{ survey_status: string }>(`SELECT survey_status FROM parcels WHERE id = $1;`, [parcelId]);
       expect(pRes.rows[0].survey_status).toBe('POSTPONED_ABSENT_VERIFIED');
     });
 
-    await assertTest('Logic 5', 'TC47', 'approveAbsenteeReport tạo bản chụp Snapshot bất biến với versionTag = ABSENTEE_VERIFIED', async () => {
-      const { reportId } = await createTestResidential('47');
+    await assertTest('Logic 5', 'TC47', 'approveAbsenteeReport tạo bản chụp Snapshot bất biến với versionTag = APPROVED_RELEASE', async () => {
+      const { reportId } = await createTestResidential('47', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const verRes = await client.query<{ version_tag: string }>(
-        `SELECT version_tag FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'ABSENTEE_VERIFIED';`,
+        `SELECT version_tag FROM survey_report_versions WHERE report_id = $1 AND version_tag = 'APPROVED_RELEASE';`,
         [reportId]
       );
       expect(verRes.rows.length).toBeGreaterThan(0);
-      expect(verRes.rows[0].version_tag).toBe('ABSENTEE_VERIFIED');
+      expect(verRes.rows[0].version_tag).toBe('APPROVED_RELEASE');
     });
 
     await assertTest('Logic 5', 'TC48', 'approveAbsenteeReport tự động giải phóng session lock nếu admin đang giữ khóa', async () => {
-      const { reportId } = await createTestResidential('48');
+      const { reportId } = await createTestResidential('48', { surveyCaseType: 'ABSENTEE' });
       await AuditModificationService.acquireAuditLock(reportId, adminId);
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt và giải phóng lock');
       const lockCheck = await AuditModificationService.checkAuditLock(reportId, adminId);
@@ -936,7 +936,7 @@ async function runTestSuite() {
     });
 
     await assertTest('Logic 5', 'TC49', 'approveAbsenteeReport ghi nhận nhật ký kiểm toán với action = APPROVE_ABSENTEE_VERIFIED', async () => {
-      const { reportId } = await createTestResidential('49');
+      const { reportId } = await createTestResidential('49', { surveyCaseType: 'ABSENTEE' });
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Ghi nhận kiểm toán vắng mặt');
       const logRes = await client.query<{ action: string }>(
         `SELECT action FROM system_audit_logs WHERE entity_id = $1 AND action = 'APPROVE_ABSENTEE_VERIFIED';`,
@@ -947,8 +947,8 @@ async function runTestSuite() {
     });
 
     await assertTest('Logic 5', 'TC50', 'Hồ sơ đã APPROVED vắng mặt bị từ chối phê duyệt lại bằng approveReport', async () => {
-      const { reportId } = await createTestResidential('50');
-      await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Vắng mặt');
+      const { reportId } = await createTestResidential('50', { surveyCaseType: 'ABSENTEE' });
+      await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       await expectToThrow(
         () => AuditReviewService.approveReport(reportId, adminId, 'Thử duyệt lại'),
         ConflictError,

@@ -56,7 +56,8 @@ const imageDimensionsCache = new Map<string, { width: number; height: number }>(
 export function usePhotoOrientationAudit(
   data: Record<string, unknown> | null | undefined,
   formState?: Record<string, unknown>,
-  stagedPhotoActions?: PhotoActionPayload[]
+  stagedPhotoActions?: PhotoActionPayload[],
+  visibleStepIds?: readonly string[]
 ) {
   // Lấy dữ liệu survey_data_json gốc kết hợp với dữ liệu thực tế từ formState & rightPane
   const surveyJson = useMemo(() => {
@@ -915,7 +916,7 @@ export function usePhotoOrientationAudit(
     surveyJson.buildingSpecs,
   ]);
 
-  const violations = useMemo<PhotoOrientationViolation[]>(() => {
+  const allViolations = useMemo<PhotoOrientationViolation[]>(() => {
     const list: PhotoOrientationViolation[] = [];
 
     // Bước 3a: Xác định hướng chuẩn (Anchor Orientation) cho từng cấu kiện Vùng Z / Cấu kiện E:
@@ -1040,6 +1041,12 @@ export function usePhotoOrientationAudit(
   }, [photoCandidates, measuredDimensions, getPhotoRotation, housePrimaryOrientation]);
 
   // Phân loại vi phạm thành 2 nhóm: Bắt buộc (Strict) vs Khuyến nghị (Advisory)
+  // Cảnh báo ở bước đang ẩn không được chặn duyệt vì Admin không thấy để xử lý
+  const violations = useMemo(
+    () => (visibleStepIds ? allViolations.filter((v) => visibleStepIds.includes(v.stepId)) : allViolations),
+    [allViolations, visibleStepIds]
+  );
+
   const strictViolations = useMemo(() => violations.filter((v) => v.isStrict), [violations]);
   const advisoryViolations = useMemo(() => violations.filter((v) => !v.isStrict), [violations]);
 
