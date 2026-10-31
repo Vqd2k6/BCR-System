@@ -671,67 +671,6 @@ export class SurveyService {
     );
   }
 
-  /**
-   * Tìm trên kho lưu trữ các ảnh mà bản nháp chỉ còn blob:local:// và gắn lại khi có đúng 1 object khớp.
-   * Thiếu cấu hình hoặc lỗi đọc kho đều không được làm hỏng luồng mở hồ sơ.
-   */
-  static async recoverOrphanPhotos(data: {
-    parcelId: string;
-    unitId?: string | null;
-    actorId: string;
-    clientIp?: string | null;
-  }) {
-    const { SurveyDraftRepository } = await import('./repositories/survey-draft.repository');
-    const { StorageService } = await import('../../common/services/storage.service');
-    const { collectOrphanTargets, matchOrphanTargets } = await import('./orphan-photo-matcher');
-    const { config } = await import('../../config');
-
-    if (!StorageService.canListObjects()) {
-      return { status: 'UNAVAILABLE' as const, recovered: {}, unresolved: [] };
-    }
-
-    const draft = await SurveyDraftRepository.findActiveDraft(data.parcelId, data.unitId);
-    if (!draft) {
-      return { status: 'NO_DRAFT' as const, recovered: {}, unresolved: [] };
-    }
-
-    const surveyData = typeof draft.survey_data_json === 'string'
-      ? JSON.parse(draft.survey_data_json)
-      : (draft.survey_data_json || {});
-    const { targets, referencedKeys } = collectOrphanTargets(surveyData, surveyData._photoMappings || {});
-    if (targets.length === 0) {
-      return { status: 'NOTHING_TO_RECOVER' as const, recovered: {}, unresolved: [] };
-    }
-
-    const keysByPrefix: Record<string, string[]> = {};
-    try {
-      const prefixes = Array.from(new Set(targets.map((t) => t.listPrefix).filter((p): p is string => Boolean(p))));
-      for (const prefix of prefixes) {
-        keysByPrefix[prefix] = await StorageService.listObjectKeys(prefix);
-      }
-    } catch (err) {
-      console.error('[SurveyService:RecoverOrphanPhotos] Không đọc được kho lưu trữ:', err);
-      return { status: 'UNAVAILABLE' as const, recovered: {}, unresolved: [] };
-    }
-
-    const { recovered, unresolved } = matchOrphanTargets(
-      targets,
-      keysByPrefix,
-      referencedKeys,
-      config.storage.s3.publicUrl || ''
-    );
-
-    if (Object.keys(recovered).length > 0) {
-      const applied = await SurveyDraftRepository.applyRecoveredPhotos(draft.id, recovered, data.actorId, data.clientIp);
-      if (!applied) {
-        return { status: 'NO_DRAFT' as const, recovered: {}, unresolved: [] };
-      }
-    }
-
-    const recoveredUrls = Object.fromEntries(Object.entries(recovered).map(([localId, item]) => [localId, item.url]));
-    return { status: 'DONE' as const, recovered: recoveredUrls, unresolved };
-  }
-
   static async saveSurveyDraft(data: {
     parcelId: string;
     surveyorId: string;

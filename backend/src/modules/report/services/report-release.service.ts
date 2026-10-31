@@ -15,7 +15,6 @@ import type { JwtPayload } from '../../../common/guards/auth.guard';
 import { ReportSnapshotService, sha256Hex } from '../snapshot/report-snapshot.service';
 import { ReportService, type ResolvedReport } from './report.service';
 import { ReportConfigService } from '../../report_config/report-config.service';
-import { canAccessZone } from '../utils/zone-access.utils';
 
 export const MIN_RELEASE_REASON_LENGTH = 10;
 
@@ -200,7 +199,13 @@ export class ReportReleaseService {
   }
 
   public static assertCanRelease(resolved: ResolvedReport, user: JwtPayload): void {
-    if (canAccessZone(user, resolved.zoneId)) return;
+    if (user.role === 'SUPER_ADMIN') return;
+    if (user.role === 'ZONE_ADMIN' && user.assignedZoneId) {
+      const normalizedAssigned = user.assignedZoneId.trim().toUpperCase();
+      if (normalizedAssigned === 'ALL' || normalizedAssigned === 'ALL_ZONES' || user.assignedZoneId === resolved.zoneId) {
+        return;
+      }
+    }
     throw new ForbiddenError('Chỉ Zone Admin của phân khu chứa hồ sơ này hoặc Super Admin mới được phát hành Rev mới');
   }
 

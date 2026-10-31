@@ -302,11 +302,6 @@ export class CadastralRepository {
     return res.rows;
   }
 
-  static getZoneAliases(zoneId: string): string[] {
-    const target = zoneId.trim().toUpperCase();
-    return this.ZONE_ALIASES[target] || [target];
-  }
-
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL' || target === 'ALL_ZONES';

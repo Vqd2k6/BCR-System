@@ -11,9 +11,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
 
-const STRICT_FETCH_ATTEMPTS = 3;
-const STRICT_FETCH_TIMEOUT_MS = 20000;
-
 export class ReportImageResolver {
   private static remoteBase64Cache = new Map<string, string>();
   private static rotatedBase64Cache = new Map<string, string>();
@@ -139,62 +136,6 @@ export class ReportImageResolver {
         }
       }
     }
-  }
-
-  /**
-   * Nạp ảnh cho tài liệu pháp lý: không qua cache tĩnh để không giữ RAM trong xuất mẻ, và ném lỗi
-   * thay vì bỏ qua. Ảnh không xoay giữ nguyên byte gốc, không nén lại.
-   */
-  public static async loadImageStrict(photoUrl: string, rotationDeg: number = 0): Promise<string> {
-    const trimmed = photoUrl.trim();
-    const normDeg = ((Number(rotationDeg) || 0) % 360 + 360) % 360;
-    const { buffer, mime } = await this.readImageBytesStrict(trimmed);
-    await sharp(buffer).metadata();
-
-    if (normDeg === 0) {
-      return `data:${mime};base64,${buffer.toString('base64')}`;
-    }
-    const isPng = mime === 'image/png';
-    const pipeline = sharp(buffer).rotate(normDeg);
-    const rotated = isPng ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 92 }).toBuffer();
-    return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${rotated.toString('base64')}`;
-  }
-
-  private static async readImageBytesStrict(trimmed: string): Promise<{ buffer: Buffer; mime: string }> {
-    const dataUriMatch = trimmed.match(/^data:(image\/[a-z+.-]+);base64,(.+)$/i);
-    if (dataUriMatch) {
-      return { buffer: Buffer.from(dataUriMatch[2], 'base64'), mime: dataUriMatch[1] };
-    }
-
-    if (!/^https?:\/\//i.test(trimmed)) {
-      const local = this.resolveLocalUpload(trimmed);
-      const localMatch = local.match(/^data:(image\/[a-z+.-]+);base64,(.+)$/i);
-      if (!localMatch) throw new Error(`Không đọc được ảnh nội bộ: ${trimmed}`);
-      return { buffer: Buffer.from(localMatch[2], 'base64'), mime: localMatch[1] };
-    }
-
-    let lastError: unknown = null;
-    for (let attempt = 1; attempt <= STRICT_FETCH_ATTEMPTS; attempt++) {
-      try {
-        const res = await fetch(trimmed, { signal: AbortSignal.timeout(STRICT_FETCH_TIMEOUT_MS) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = Buffer.from(await res.arrayBuffer());
-        if (buffer.length < 64) throw new Error('Tệp ảnh rỗng');
-        const contentType = res.headers.get('content-type') || '';
-        const lowerUrl = trimmed.toLowerCase();
-        const mime = contentType.includes('png') || lowerUrl.endsWith('.png')
-          ? 'image/png'
-          : contentType.includes('webp') || lowerUrl.endsWith('.webp')
-            ? 'image/webp'
-            : 'image/jpeg';
-        return { buffer, mime };
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw new Error(
-      `Không tải được ảnh sau ${STRICT_FETCH_ATTEMPTS} lần thử: ${trimmed} (${lastError instanceof Error ? lastError.message : String(lastError)})`
-    );
   }
 
   private static resolveLocalUpload(trimmed: string): string {

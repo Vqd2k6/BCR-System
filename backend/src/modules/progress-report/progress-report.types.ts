@@ -91,9 +91,6 @@ export interface RawProgressRow {
   masterJson: Record<string, unknown> | null;
   masterBuildingName: string | null;
   masterYear: number | null;
-  masterFoundationCategory?: string | null;
-  masterFoundationDepth?: number | null;
-  masterFloorCount?: number | null;
   absenceCount: number;
   absenceFirstAt: Date | null;
   absenceLastAt: Date | null;
@@ -118,6 +115,7 @@ export interface ProgressRecord {
   houseNumber: string;
   street: string;
   ward: string;
+  quarter: string;
   buildingName: string;
   ownerName: string;
   ownerPhone: string;
@@ -143,8 +141,6 @@ export interface ProgressRecord {
   hasFoundationInfo: boolean;
   isSurveyed: boolean;
   activityDates: Date[];
-  /** Nội dung dòng tòa mẹ trên sheet (null với công trình độc lập). */
-  masterLabel: string | null;
 }
 
 export interface CellStyle {

@@ -11,8 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { ZoomIn, RefreshCw } from 'lucide-react';
 import { useLightbox } from './photo-capture/hooks/useLightbox';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
-import { isPersistedPhotoUrl } from '../../core/storage/offlinePhotoStorage';
-import { useResolvedPhotoUrl } from '../../core/storage/useResolvedPhotoUrl';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, getKnownCloudUrl, extractLocalIdFromUri } from '../../core/storage/offlinePhotoStorage';
 import { useStorageInfo } from '../../core/services/storageInfoService';
 
 interface TapToZoomThumbnailProps {
@@ -79,12 +78,28 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   } = useLightbox();
 
   const [imgLoaded, setImgLoaded] = useState(false);
-  // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
-  const { displayUrl: currentDisplaySrc } = useResolvedPhotoUrl(src);
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(src));
 
+  // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
   useEffect(() => {
-    setImgLoaded(false);
-  }, [currentDisplaySrc]);
+    let isSubscribed = true;
+    if (src) {
+      const immediate = getSafeDisplayUrl(src);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+      }
+      resolveOfflinePhotoUrl(src).then((resolved) => {
+        if (isSubscribed && resolved) {
+          setDisplayUrl(resolved);
+        }
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [src]);
 
   const handleOpen = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -92,7 +107,15 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
     setIsLightboxOpen(true);
   };
 
-  const isR2Synced = uploadStatus === 'SUCCESS' || isPersistedPhotoUrl(src);
+  const currentDisplaySrc = displayUrl || getSafeDisplayUrl(src);
+  const isCloudOrServerUrl = (url?: string | null) =>
+    Boolean(url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')));
+  const mappedCloudUrl = src ? getKnownCloudUrl(extractLocalIdFromUri(src)) : null;
+  const isR2Synced =
+    uploadStatus === 'SUCCESS' ||
+    isCloudOrServerUrl(src) ||
+    isCloudOrServerUrl(currentDisplaySrc) ||
+    Boolean(mappedCloudUrl);
   const isR2Uploading = uploadStatus === 'UPLOADING';
   const isR2Error = uploadStatus === 'ERROR';
 
@@ -115,7 +138,7 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 text-[10px] p-1 text-center leading-tight">
             <span>Chưa có trên máy</span>
-            <span className="text-[8px] text-slate-500 mt-0.5">(Nếu vẫn thiếu, liên hệ Zone Admin)</span>
+            <span className="text-[8px] text-slate-500 mt-0.5">(Cần KSV đẩy lên Cloud)</span>
           </div>
         )}
 

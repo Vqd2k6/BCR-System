@@ -2,15 +2,12 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import type { StateCreator } from 'zustand';
 import type { Phase1SurveyStore, SyncSlice } from '../types';
 import { surveyDraftService } from '../../services/surveyDraftService';
-import { sanitizeSurveyDataForSync, uploadQueue } from '../../../../core/services/uploadQueueService';
+import { sanitizeSurveyDataForSync } from '../../../../core/services/uploadQueueService';
 import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { saveSurveyDraft } from '../../../../core/utils/idbDraftStorage';
 import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
-import { saveUploadedPhotoMapping, healLocalPhotoUris, findUnsyncedPhotoPaths } from '../../../../core/storage/offlinePhotoStorage';
-
-// Lần gọi đến khi đang tìm phải chờ kết quả, nếu thoát sớm "Tải lại" sẽ báo không tìm thấy dù chưa tìm xong
-let recoveryInFlight: Promise<void> | null = null;
+import { saveUploadedPhotoMapping, healLocalPhotoUris } from '../../../../core/storage/offlinePhotoStorage';
 
 export const createSyncSlice: StateCreator<
   Phase1SurveyStore,
@@ -28,7 +25,6 @@ export const createSyncSlice: StateCreator<
   isHandoverModalOpen: false,
   handoverInfo: null,
   unsyncedRemotePhotos: null,
-  photoRecovery: { status: 'IDLE', unresolvedCount: 0 },
 
   setIsDirty: (isDirty: boolean) => set({ isDirty }),
   markServerHydrated: () => set({ hasServerHydrated: true }),
@@ -71,57 +67,6 @@ export const createSyncSlice: StateCreator<
         set({ syncStatus: 'ERROR' });
       }
     }
-  },
-
-  // Tự cứu ảnh khi vào hồ sơ: máy còn bản gốc thì đẩy lên, không thì nhờ server tìm trên kho lưu trữ.
-  // Chế độ chỉ đọc vẫn được chạy: server tự chặn theo trạng thái hồ sơ và ghi vết kiểm toán.
-  recoverUnsyncedPhotos: () => {
-    if (recoveryInFlight) return recoveryInFlight;
-
-    const { formData, currentUnitId, isSubmitted } = get();
-    const parcelId = formData.parcelId;
-    if (isSubmitted || !parcelId) return Promise.resolve();
-    if (findUnsyncedPhotoPaths(healLocalPhotoUris(formData)).length === 0) return Promise.resolve();
-
-    const run = async () => {
-      set({ photoRecovery: { status: 'RUNNING', unresolvedCount: 0 } });
-      try {
-        await uploadQueue.resumePendingOfflineUploads();
-        const res = await surveyDraftService.recoverOrphanPhotos(parcelId, currentUnitId);
-
-        for (const [localId, publicUrl] of Object.entries(res.recovered)) {
-          saveUploadedPhotoMapping(localId, publicUrl);
-        }
-
-        set((state) => {
-          const merged = dedupePhase1FormData(healLocalPhotoUris(state.formData));
-          const remaining = findUnsyncedPhotoPaths(merged).length;
-          return {
-            formData: merged,
-            photoRecovery: {
-              status: res.status === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'DONE',
-              unresolvedCount: res.unresolved.length,
-            },
-            unsyncedRemotePhotos:
-              remaining === 0 || !state.unsyncedRemotePhotos
-                ? null
-                : { ...state.unsyncedRemotePhotos, pendingCount: remaining },
-          };
-        });
-
-        if (Object.keys(res.recovered).length > 0) {
-          get().saveDraftToStorage();
-        }
-      } catch (err: unknown) {
-        console.error('[SurveyPhase1Store:RecoverPhotos] Lỗi tự khôi phục ảnh:', err);
-        set({ photoRecovery: { status: 'UNAVAILABLE', unresolvedCount: 0 } });
-      }
-    };
-
-    recoveryInFlight = run().finally(() => {
-      recoveryInFlight = null;
-    });
-    return recoveryInFlight;
   },
 
   releaseDraftLock: async () => {
@@ -187,7 +132,6 @@ export const createSyncSlice: StateCreator<
 
         const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
         saveSurveyDraft(draftKey, { ...serverData, _savedStep: targetStep });
-        void get().recoverUnsyncedPhotos();
         return true;
       }
       return false;

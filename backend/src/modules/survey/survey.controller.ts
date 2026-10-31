@@ -646,27 +646,6 @@ export class SurveyController {
     }
   }
 
-  static async recoverOrphanPhotos(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { parcelId } = req.params;
-      const { unitId } = req.body;
-
-      const result = await SurveyService.recoverOrphanPhotos({
-        parcelId,
-        unitId: unitId || null,
-        actorId: req.user!.userId,
-        clientIp: req.ip,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
   static async savePhotoMappings(req: Request, res: Response, next: NextFunction) {
     try {
       const { parcelId } = req.params;

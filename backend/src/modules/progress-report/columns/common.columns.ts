@@ -31,6 +31,7 @@ export const COL = {
   houseNumber: { key: 'houseNumber', header: 'Số nhà', group: 'Địa chỉ Công Trình', width: 16, resolve: (r) => r.houseNumber || null },
   street: { key: 'street', header: 'Đường', group: 'Địa chỉ Công Trình', width: 22, resolve: (r) => r.street || null },
   ward: { key: 'ward', header: 'Phường', group: 'Địa chỉ Công Trình', width: 14, resolve: (r) => r.ward || null },
+  quarter: { key: 'quarter', header: 'Khu Phố', group: 'Địa chỉ Công Trình', width: 10, resolve: (r) => r.quarter || null },
   buildingName: { key: 'buildingName', header: 'Tên công trình- Số căn hộ (nếu có)', width: 24, resolve: (r) => r.buildingName || null },
   ownerName: { key: 'ownerName', header: 'Chủ sở hữu hoặc người sử dụng', group: 'Chủ sở hữu hoặc người sử dụng', width: 24, resolve: (r) => r.ownerName || null },
   ownerPhone: { key: 'ownerPhone', header: 'Số điện thoại liên hệ', group: 'Chủ sở hữu hoặc người sử dụng', width: 14, resolve: (r) => r.ownerPhone || null },

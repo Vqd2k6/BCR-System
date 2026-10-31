@@ -1,6 +1,6 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
-import { getOfflinePhoto, extractLocalIdFromUri, getKnownCloudUrl, healLocalPhotoUris, isPersistedPhotoUrl } from '../../../core/storage/offlinePhotoStorage';
+import { getOfflinePhoto, extractLocalIdFromUri, getKnownCloudUrl, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 
 export interface SurveyPhotoAuditItem {
   id: string;
@@ -64,7 +64,7 @@ export function auditSurveyPhotos(
     if (!url || typeof url !== 'string' || url.trim() === '') return;
 
     let effectiveUrl = url;
-    let isCloudUrl = isPersistedPhotoUrl(effectiveUrl);
+    let isCloudUrl = effectiveUrl.startsWith('http://') || effectiveUrl.startsWith('https://') || effectiveUrl.startsWith('/uploads');
     const isBase64 = effectiveUrl.startsWith('data:image/') && effectiveUrl.length > 200;
     let isLocalBlob = effectiveUrl.startsWith('blob:local://') || effectiveUrl.startsWith('blob:');
 
@@ -372,14 +372,13 @@ export function auditSurveyPhotos(
           const zLabel = zone.zoneCode || `Vùng Z-${zi + 1}`;
           const rName = zone.roomName ? ` (${zone.roomName})` : '';
 
-          // Ảnh bối cảnh vùng Z (CTX mặc định kế thừa từ ảnh tổng quan: cùng một ảnh chỉ tính 1 dòng)
+          // Ảnh bối cảnh vùng Z
           if (zone.ctxPhotoUrl) {
-            const sharedOvIdx = Array.isArray(zone.overviewPhotos) ? zone.overviewPhotos.indexOf(zone.ctxPhotoUrl) : -1;
             checkAndAdd(
               `floor_${fi}_zone_${zi}_ctx`,
               3,
               s3Title,
-              `Ảnh bối cảnh [${fName}] > [${zLabel}${rName}]${sharedOvIdx >= 0 ? ` (dùng chung ảnh tổng quan #${sharedOvIdx + 1})` : ''}`,
+              `Ảnh bối cảnh [${fName}] > [${zLabel}${rName}]`,
               zone.ctxPhotoUrl,
               zone.ctxPhotoCode,
               (newUrl) =>
@@ -388,10 +387,10 @@ export function auditSurveyPhotos(
                   if (floors[fi]?.zones?.[zi]) {
                     const zones = [...floors[fi].zones];
                     const curZone = { ...zones[zi], ctxPhotoUrl: newUrl };
-                    // Ảnh tổng quan dùng chung với CTX không có dòng riêng, phải đồng bộ cùng lúc tại đây
-                    if (Array.isArray(curZone.overviewPhotos)) {
-                      const ovs = curZone.overviewPhotos.map((u) => (u === zone.ctxPhotoUrl ? newUrl : u));
-                      if (!ovs[0]) ovs[0] = newUrl;
+                    // Nếu overviewPhotos[0] dùng chung ảnh với CTX, đồng bộ luôn overviewPhotos[0]
+                    if (Array.isArray(curZone.overviewPhotos) && (curZone.overviewPhotos[0] === zone.ctxPhotoUrl || !curZone.overviewPhotos[0])) {
+                      const ovs = [...curZone.overviewPhotos];
+                      ovs[0] = newUrl;
                       curZone.overviewPhotos = ovs;
                     }
                     zones[zi] = curZone;
@@ -405,7 +404,6 @@ export function auditSurveyPhotos(
           // Ảnh tổng quan vùng Z
           if (Array.isArray(zone.overviewPhotos)) {
             zone.overviewPhotos.forEach((ovUrl, pi) => {
-              if (zone.ctxPhotoUrl && ovUrl === zone.ctxPhotoUrl) return;
               checkAndAdd(
                 `floor_${fi}_zone_${zi}_ov_${pi}`,
                 3,
@@ -490,12 +488,11 @@ export function auditSurveyPhotos(
           const eLabel = elem.elementCode || `Cấu kiện E-${ei + 1}`;
 
           if (elem.ctxPhotoUrl) {
-            const sharedOvIdx = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos.indexOf(elem.ctxPhotoUrl) : -1;
             checkAndAdd(
               `floor_${fi}_elem_${ei}_ctx`,
               3,
               s3Title,
-              `Ảnh bối cảnh cấu kiện [${fName}] > [${eLabel}]${sharedOvIdx >= 0 ? ` (dùng chung ảnh tổng quan #${sharedOvIdx + 1})` : ''}`,
+              `Ảnh bối cảnh cấu kiện [${fName}] > [${eLabel}]`,
               elem.ctxPhotoUrl,
               elem.ctxPhotoCode,
               (newUrl) =>
@@ -504,10 +501,9 @@ export function auditSurveyPhotos(
                   if (floors[fi]?.structuralElements?.[ei]) {
                     const elems = [...floors[fi].structuralElements!];
                     const curElem = { ...elems[ei], ctxPhotoUrl: newUrl };
-                    // Ảnh tổng quan dùng chung với CTX không có dòng riêng, phải đồng bộ cùng lúc tại đây
-                    if (Array.isArray(curElem.overviewPhotos)) {
-                      const ovs = curElem.overviewPhotos.map((u) => (u === elem.ctxPhotoUrl ? newUrl : u));
-                      if (!ovs[0]) ovs[0] = newUrl;
+                    if (Array.isArray(curElem.overviewPhotos) && (curElem.overviewPhotos[0] === elem.ctxPhotoUrl || !curElem.overviewPhotos[0])) {
+                      const ovs = [...curElem.overviewPhotos];
+                      ovs[0] = newUrl;
                       curElem.overviewPhotos = ovs;
                     }
                     elems[ei] = curElem;
@@ -521,7 +517,6 @@ export function auditSurveyPhotos(
           // Ảnh tổng quan cấu kiện E
           if (Array.isArray(elem.overviewPhotos)) {
             elem.overviewPhotos.forEach((ovUrl, pi) => {
-              if (elem.ctxPhotoUrl && ovUrl === elem.ctxPhotoUrl) return;
               checkAndAdd(
                 `floor_${fi}_elem_${ei}_ov_${pi}`,
                 3,
@@ -944,47 +939,23 @@ export async function retryUploadSinglePhoto(
     }
 
     const record = await getOfflinePhoto(localId);
-
-    // Ảnh đã lên Cloud nhưng mất mapping: dùng lại URL cũ, không upload lại để tránh tạo object trùng
-    if (record?.cloudUrl && retryLocalId) {
-      await uploadQueue.promoteUrlInStores(retryLocalId, record.cloudUrl, record.metadata);
-      item.updateInStore(record.cloudUrl);
-      return record.cloudUrl;
-    }
-
     if (record && record.blob) {
       blob = record.blob;
-    } else if (item.url.startsWith('blob:http')) {
+    } else if (item.url.startsWith('blob:')) {
       try {
         const resp = await fetch(item.url);
         if (resp.ok) {
           blob = await resp.blob();
         }
-      } catch (err) {
-        console.error('[photoSyncAudit:RetryUpload] Không đọc được Blob URL của ảnh:', err);
-      }
+      } catch (_e) {}
     }
   } else if (item.isBase64) {
     blob = base64ToBlob(item.url);
   }
 
   if (!blob) {
-    const { usePhase1SurveyStore } = await import('../store/usePhase1SurveyStore');
-    await usePhase1SurveyStore.getState().recoverUnsyncedPhotos();
-    const recoveredUrl = retryLocalId ? getKnownCloudUrl(retryLocalId) : null;
-    if (recoveredUrl) {
-      item.updateInStore(recoveredUrl);
-      return recoveredUrl;
-    }
-
-    const { isSubmitted, photoRecovery } = usePhase1SurveyStore.getState();
-    if (isSubmitted) {
-      throw new Error('Hồ sơ đã nộp nên không thể tự gắn lại ảnh. Thiết bị này không có ảnh gốc, vui lòng liên hệ Zone Admin.');
-    }
     throw new Error(
-      photoRecovery.status === 'UNAVAILABLE'
-        ? 'Thiết bị này không có ảnh gốc và chưa kết nối được kho lưu trữ để tìm ảnh. Ảnh chưa bị mất, vui lòng liên hệ Zone Admin.'
-        : 'Thiết bị này không có ảnh gốc và hệ thống chưa tìm thấy ảnh khớp trên kho lưu trữ. Vui lòng liên hệ Zone Admin.'
+      'Dữ liệu ảnh gốc không có trên thiết bị này. Ảnh đang lưu tạm trong bộ nhớ của thiết bị (điện thoại) đã chụp khảo sát. Vui lòng mở lại hồ sơ trên thiết bị đó để tải lên Cloud.'
     );
   }
 

@@ -10,8 +10,6 @@ interface Props {
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
-  /** Chưa đủ điểm VI thì không suy ra BRA từ ma trận (Tòa nhà mẹ chưa chấm điểm). */
-  isScoreUnavailable?: boolean;
 }
 
 export const AuditStep8Conclusions: React.FC<Props> = ({
@@ -19,7 +17,6 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   formState,
   handleNestedFieldChange,
   isFieldDirty,
-  isScoreUnavailable = false,
 }) => {
   const checkDirty = (fieldKey: string, subKey?: string) => {
     return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
@@ -122,13 +119,10 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   const computedBraCode = braMatrixEval.riskLevel.toUpperCase().replace(/\s+/g, '_');
   const rawBraStr = String(exec.braStatus || '').trim().toUpperCase().replace(/\s+/g, '_');
   const isBraDirtyInStep8 = Boolean(isFieldDirty?.('executiveSummary', 'braStatus'));
-  const isBraRawMissing = !rawBraStr || rawBraStr === 'PENDING';
   const currentBra =
-    isScoreUnavailable && isBraRawMissing
-      ? '---'
-      : isBraRawMissing || (isDistanceOrGroupDirty && !isBraDirtyInStep8)
-        ? computedBraCode
-        : rawBraStr;
+    !rawBraStr || rawBraStr === 'PENDING' || (isDistanceOrGroupDirty && !isBraDirtyInStep8)
+      ? computedBraCode
+      : rawBraStr;
 
   const summaryConclusions = exec.summaryConclusions ?? formState.summaryConclusions ?? '';
   const keyRisksDefectsText = exec.keyRisksDefectsText ?? formState.keyRisksDefectsText ?? '';

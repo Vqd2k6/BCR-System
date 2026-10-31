@@ -22,7 +22,7 @@ import {
 } from '../utils/photoSyncAudit';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
-import { useResolvedPhotoUrl } from '../../../core/storage/useResolvedPhotoUrl';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
 import api from '../../../services/api';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 
@@ -36,22 +36,44 @@ interface CloudPhotoSyncModalProps {
   onNavigateToStep: (step: number) => void;
   isFromSubmitAttempt?: boolean;
   onProceedSubmitAnyway?: () => void;
-  /** Chỉ bật khi danh sách ảnh lấy từ store Phase 1: việc tự tìm ảnh chạy trên hồ sơ của store này */
-  autoRecover?: boolean;
 }
-
-const RECOVERY_ITEM_STATUS_TEXT = {
-  RUNNING: 'Đang tìm trên kho lưu trữ',
-  UNAVAILABLE: 'Chưa kiểm tra được kho lưu trữ',
-  DONE: 'Chưa tìm thấy ảnh khớp trên kho lưu trữ',
-};
 
 const SyncPhotoThumbnailItem: React.FC<{
   url: string;
   fieldTitle: string;
   onClick: () => void;
 }> = ({ url, fieldTitle, onClick }) => {
-  const { displayUrl: currentSrc, isResolving } = useResolvedPhotoUrl(url);
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(url));
+  const [isResolving, setIsResolving] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (url) {
+      const immediate = getSafeDisplayUrl(url);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+        setIsResolving(false);
+      }
+      resolveOfflinePhotoUrl(url)
+        .then((resolved) => {
+          if (isSubscribed) {
+            if (resolved) setDisplayUrl(resolved);
+            setIsResolving(false);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) setIsResolving(false);
+        });
+    } else {
+      setDisplayUrl('');
+      setIsResolving(false);
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [url]);
+
+  const currentSrc = displayUrl || getSafeDisplayUrl(url);
 
   return (
     <div
@@ -87,11 +109,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
   onNavigateToStep,
   isFromSubmitAttempt = false,
   onProceedSubmitAnyway,
-  autoRecover = false,
 }) => {
   const storageInfo = useStorageInfo();
   const unsyncedRemotePhotos = usePhase1SurveyStore((state) => state.unsyncedRemotePhotos);
-  const photoRecovery = usePhase1SurveyStore((state) => state.photoRecovery);
   const [activeTab, setActiveTab] = useState<'UNSYNCED' | 'SYNCED' | 'ALL'>('UNSYNCED');
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isRetryingAll, setIsRetryingAll] = useState(false);
@@ -105,14 +125,6 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       setActiveTab('ALL');
     }
   }, [unsyncedPhotos.length, isOpen]);
-
-  // Mở bảng kiểm tra là tự tìm ảnh thiếu trên kho. Server đã ghi kết quả vào bản nháp, ở đây không cần lưu lại.
-  const hasUnsyncedPhotos = unsyncedPhotos.length > 0;
-  useEffect(() => {
-    if (isOpen && autoRecover && hasUnsyncedPhotos) {
-      void usePhase1SurveyStore.getState().recoverUnsyncedPhotos();
-    }
-  }, [isOpen, autoRecover, hasUnsyncedPhotos]);
 
   if (!isOpen) return null;
 
@@ -264,19 +276,8 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
             />
           </div>
 
-          {/* Trạng thái tự tìm ảnh trên kho lưu trữ */}
-          {unsyncedCount > 0 && photoRecovery.status !== 'IDLE' && (
-            <p className="text-xs font-medium text-slate-600 mt-2">
-              {photoRecovery.status === 'RUNNING'
-                ? 'Đang tự tìm các ảnh này trên kho lưu trữ...'
-                : photoRecovery.status === 'UNAVAILABLE'
-                ? 'Chưa kết nối được kho lưu trữ để tìm ảnh. Ảnh chưa bị mất, vui lòng liên hệ Zone Admin.'
-                : 'Đã tìm trên kho lưu trữ nhưng chưa có ảnh khớp chính xác. Vui lòng liên hệ Zone Admin.'}
-            </p>
-          )}
-
-          {/* Cảnh báo ảnh của KSV trước chưa lên Cloud: đã tìm trên kho thì chỉ dùng dòng trạng thái ở trên */}
-          {photoRecovery.status === 'IDLE' && unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && unsyncedCount > 0 && (
+          {/* Cảnh báo ảnh của KSV trước chưa lên Cloud */}
+          {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && unsyncedCount > 0 && (
             <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs mt-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
@@ -414,8 +415,6 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                             <AlertCircle size={12} className="text-amber-600 shrink-0" />
                             {item.isBase64
                               ? `Chưa đồng bộ (Lưu tạm Base64 trên máy)`
-                              : photoRecovery.status !== 'IDLE'
-                              ? RECOVERY_ITEM_STATUS_TEXT[photoRecovery.status]
                               : unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0
                               ? `Chưa lên Cloud (Lưu trên máy của ${unsyncedRemotePhotos.ownerSurveyorName})`
                               : `Chưa đồng bộ (Lưu tạm Offline trên thiết bị)`}

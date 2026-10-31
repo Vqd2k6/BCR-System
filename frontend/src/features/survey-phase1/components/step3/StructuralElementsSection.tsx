@@ -15,7 +15,6 @@ import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, S
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
-import { confirmOverviewPhotoRemoval } from '../../../../components/common/photo-capture/confirmOverviewPhotoRemoval';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -587,17 +586,14 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     actions={
                       <button
                         type="button"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          const removal = await confirmOverviewPhotoRemoval({
-                            overviewPhotos: activeElement.overviewPhotos,
-                            ctxPhotoUrl: activeElement.ctxPhotoUrl,
-                            defectCount: activeElement.defects?.length || 0,
-                            index: pIdx,
-                            ownerCode: activeElement.elementCode,
-                          });
-                          if (removal) onUpdateElement(activeElementIndex, removal);
+                          const deletedUrl = activeElement.overviewPhotos[pIdx];
+                          const updated = activeElement.overviewPhotos.filter((_, i) => i !== pIdx);
+                          const newCtx =
+                            activeElement.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeElement.ctxPhotoUrl;
+                          onUpdateElement(activeElementIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }}
                         className="absolute top-1.5 right-1.5 p-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto z-30 flex items-center justify-center active:scale-95 shadow-xs"
                         title="Xóa ảnh"
@@ -622,11 +618,6 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       // [ND-04] Sử dụng Trụ cột 1 (upsertPhotoUrlList) thay thế nguyên tử qua meta.replacesUri,
                       // loại bỏ hoàn toàn biến lastTempOverviewUriRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
                       const replacesUri = meta?.replacesUri;
-
-                      // Upload xong muộn khi KSV đã chuyển cấu kiện: ảnh không thuộc cấu kiện đang mở.
-                      // promoteUrlInStores đã thăng cấp đúng vị trí, nối thêm ở đây sẽ làm ảnh nhảy sang cấu kiện khác.
-                      if (replacesUri && !curPhotos.includes(replacesUri)) return;
-
                       const updated = upsertPhotoUrlList(curPhotos, url, meta);
 
                       // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp

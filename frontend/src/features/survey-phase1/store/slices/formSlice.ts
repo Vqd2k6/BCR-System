@@ -312,9 +312,6 @@ export const createFormSlice: StateCreator<
                   },
                 });
               }
-              if (unmapped.length > 0) {
-                void get().recoverUnsyncedPhotos();
-              }
             }
           } else {
             if (serverRes.unsyncedPhotosInfo && serverRes.unsyncedPhotosInfo.pendingCount > 0) {

@@ -3,7 +3,6 @@ import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../../common/errors/problem-details';
 import { ReportSnapshotService } from '../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from './report-consistency-gate';
-import { fetchCondoUnitAbsenceMap } from '../condo/condo-absence.resolver';
 
 const APPROVED_LOCKED_MESSAGE =
   'Hồ sơ đã được phê duyệt (APPROVED) và khóa bất biến. Chỉ Super Admin mới có quyền Mở khóa (Unlock) trước khi thay đổi.';
@@ -59,7 +58,7 @@ export class AuditReviewService {
       } else if (level === 'MASTER_AREA') {
         whereClause += ` AND (bu.unit_type = 'MASTER' OR bu.unit_code LIKE 'M-%' OR r.report_type = 'MASTER_AREA')`;
       } else if (level === 'CONDO_UNIT') {
-        whereClause += ` AND (bu.unit_type = 'UNIT' OR (bu.unit_type IS NULL AND (bu.unit_code LIKE 'U-%' OR r.report_type IN ('CONDO_UNIT', 'UNIT_CHILD'))))`;
+        whereClause += ` AND (bu.unit_type = 'UNIT' OR bu.unit_code LIKE 'U-%' OR r.report_type IN ('CONDO_UNIT', 'UNIT_CHILD'))`;
       } else if (level === 'ABSENT') {
         whereClause += ` AND (r.is_refused_or_absent = TRUE OR bu.status::text IN ('POSTPONED_ABSENT', 'POSTPONED_ABSENT_VERIFIED') OR p.survey_status::text IN ('POSTPONED_ABSENT', 'POSTPONED_ABSENT_VERIFIED'))`;
       } else if (level === 'CRITICAL') {
@@ -321,14 +320,8 @@ export class AuditReviewService {
     `;
 
     const res = await Database.query(query, params);
-    const absenceMap = await fetchCondoUnitAbsenceMap(
-      res.rows.filter((row) => row.unit_id).map((row) => String(row.report_id))
-    );
     return {
-      items: res.rows.map((row) => ({
-        ...row,
-        absence_state: absenceMap.get(String(row.report_id))?.state ?? null,
-      })),
+      items: res.rows,
       totalCount,
     };
   }
@@ -537,10 +530,8 @@ export class AuditReviewService {
     let absenceLogsRes: any = { rows: [] };
     try {
       absenceLogsRes = await Database.query(
-        `SELECT * FROM survey_absence_logs
-         WHERE parcel_id = $1 AND unit_id IS NOT DISTINCT FROM $2
-         ORDER BY recorded_at DESC;`,
-        [report.parcel_id, report.unit_id ?? null]
+        `SELECT * FROM survey_absence_logs WHERE parcel_id = $1 ORDER BY recorded_at DESC;`,
+        [report.parcel_id]
       );
     } catch (e: any) {
       console.warn('⚠️ [AUDIT SERVICE] survey_absence_logs fallback:', e?.message);

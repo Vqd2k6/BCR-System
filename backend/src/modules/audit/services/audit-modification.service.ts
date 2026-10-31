@@ -5,7 +5,7 @@ import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
-import { parseMeters, resolvePolygonGeometryUpdate } from './audit-geometry-sync.helpers';
+import { calculateDistancesFromPolygon } from '../utils/metro-spatial.utils';
 
 export interface PhotoActionItem {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';
@@ -101,6 +101,17 @@ function toOptionalNumber(value: unknown, fieldName: string, options?: { integer
     throw new BadRequestError(`Giá trị của trường "${fieldName}" không hợp lệ: ${String(value)}`);
   }
   return parsed;
+}
+
+function parseMeters(val: unknown): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  const s = String(val).trim();
+  if (!s || /không có ga/i.test(s)) return null;
+  const match = s.replace(/,/g, '.').match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
 }
 
 function mutateSurveyJsonPhoto(
@@ -290,8 +301,101 @@ export class AuditModificationService {
 
     // 3.0.1. Kiểm tra và tự động tính toán lại cự ly trắc địa nếu có toạ độ đa giác mới (Q2)
     const uUpdates = payload.updates || {};
-    const { didPolygonCoordsChange, recalculatedCenterlineM, recalculatedOuterM, newCadastralGeoJsonStr } =
-      resolvePolygonGeometryUpdate(uUpdates, existingJson, mergedJson);
+    const candidateCoords = Array.isArray(uUpdates.parcelCoordinates) && uUpdates.parcelCoordinates.length >= 3
+      ? uUpdates.parcelCoordinates
+      : (Array.isArray(uUpdates.polygonCoords) && uUpdates.polygonCoords.length >= 3 ? uUpdates.polygonCoords : null);
+
+    const existingPolyCoords = Array.isArray(existingJson.parcelCoordinates) && existingJson.parcelCoordinates.length >= 3
+      ? existingJson.parcelCoordinates
+      : (Array.isArray(existingJson.polygonCoords) && existingJson.polygonCoords.length >= 3 ? existingJson.polygonCoords : null);
+    const didPolygonCoordsChange = Boolean(
+      candidateCoords &&
+      (!existingPolyCoords || JSON.stringify(candidateCoords) !== JSON.stringify(existingPolyCoords))
+    );
+
+    let recalculatedCenterlineM: number | null = null;
+    let recalculatedOuterM: number | null = null;
+    let newCadastralGeoJsonStr: string | null = null;
+
+    if (candidateCoords) {
+      const metroRes = calculateDistancesFromPolygon(candidateCoords);
+      const manualCenterlineM = parseMeters(uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM);
+      const manualOuterM = parseMeters(uUpdates.clearanceOffsetDistance ?? uUpdates.stationEdgeDistance);
+
+      if (manualCenterlineM !== null && (!didPolygonCoordsChange || String(uUpdates.metroOffsetDistance ?? '') !== String(existingJson.metroOffsetDistance ?? ''))) {
+        recalculatedCenterlineM = manualCenterlineM;
+        mergedJson.metroOffsetDistance = String(uUpdates.metroOffsetDistance ?? `${manualCenterlineM.toFixed(1)}m`);
+      } else {
+        recalculatedCenterlineM = metroRes.centerlineDist;
+        if (recalculatedCenterlineM !== null) {
+          mergedJson.metroOffsetDistance = `${recalculatedCenterlineM.toFixed(1)}m`;
+        }
+      }
+
+      if (manualOuterM !== null && (!didPolygonCoordsChange || String(uUpdates.clearanceOffsetDistance ?? '') !== String(existingJson.clearanceOffsetDistance ?? ''))) {
+        recalculatedOuterM = manualOuterM;
+        mergedJson.clearanceOffsetDistance = String(uUpdates.clearanceOffsetDistance ?? `${manualOuterM.toFixed(1)}m`);
+        mergedJson.stationEdgeDistance = String(uUpdates.stationEdgeDistance ?? mergedJson.clearanceOffsetDistance);
+      } else {
+        recalculatedOuterM = metroRes.outerBoundaryDist;
+        if (recalculatedOuterM !== null) {
+          mergedJson.clearanceOffsetDistance = `${recalculatedOuterM.toFixed(1)}m`;
+          mergedJson.stationEdgeDistance = `${recalculatedOuterM.toFixed(1)}m`;
+        } else {
+          mergedJson.clearanceOffsetDistance = 'Không có ga trong khu vực';
+        }
+      }
+
+      const explicitGpsChanged = Boolean(
+        uUpdates.gpsCoords &&
+        (!existingJson.gpsCoords ||
+          Number(uUpdates.gpsCoords.lat ?? uUpdates.gpsCoords.latitude) !== Number(existingJson.gpsCoords.lat ?? existingJson.gpsCoords.latitude) ||
+          Number(uUpdates.gpsCoords.lng ?? uUpdates.gpsCoords.longitude) !== Number(existingJson.gpsCoords.lng ?? existingJson.gpsCoords.longitude))
+      );
+      if (!explicitGpsChanged || didPolygonCoordsChange) {
+        const bestPt = candidateCoords[0];
+        if (Array.isArray(bestPt) && bestPt.length >= 2) {
+          mergedJson.gpsCoords = {
+            lat: Number(Number(bestPt[0]).toFixed(6)),
+            lng: Number(Number(bestPt[1]).toFixed(6)),
+          };
+        }
+      }
+
+      mergedJson.parcelCoordinates = candidateCoords;
+      mergedJson.polygonCoords = candidateCoords;
+
+      const ringCoords: [number, number][] = candidateCoords.map((pt: [number, number]) => [pt[1], pt[0]]);
+      const firstPt = ringCoords[0];
+      const lastPt = ringCoords[ringCoords.length - 1];
+      if (firstPt[0] !== lastPt[0] || firstPt[1] !== lastPt[1]) {
+        ringCoords.push([firstPt[0], firstPt[1]]);
+      }
+      newCadastralGeoJsonStr = JSON.stringify({
+        type: 'Polygon',
+        coordinates: [ringCoords],
+      });
+    } else if (
+      uUpdates.metroOffsetDistance !== undefined ||
+      uUpdates.clearanceOffsetDistance !== undefined ||
+      uUpdates.manualMetroDistanceM !== undefined ||
+      uUpdates.distanceToMetroM !== undefined
+    ) {
+      if (
+        uUpdates.metroOffsetDistance !== undefined ||
+        uUpdates.manualMetroDistanceM !== undefined ||
+        uUpdates.distanceToMetroM !== undefined
+      ) {
+        recalculatedCenterlineM = parseMeters(
+          uUpdates.metroOffsetDistance ?? uUpdates.manualMetroDistanceM ?? uUpdates.distanceToMetroM
+        );
+      }
+      if (uUpdates.clearanceOffsetDistance !== undefined) {
+        recalculatedOuterM = parseMeters(uUpdates.clearanceOffsetDistance);
+        mergedJson.clearanceOffsetDistance = String(uUpdates.clearanceOffsetDistance);
+        mergedJson.stationEdgeDistance = String(uUpdates.clearanceOffsetDistance);
+      }
+    }
 
     // 3.1. Gatekeeper CAT 1/2: Bắt buộc phải có ít nhất 1 bản vẽ hoàn công
     const targetCatScore = payload.updates?.foundationCatScore ??

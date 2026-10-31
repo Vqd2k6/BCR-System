@@ -10,7 +10,6 @@ import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
 import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPreview';
 import { ProgressReportExportButton } from '../../progress-report';
 import { ZoneSvgPreviewModal } from './modals/ZoneSvgPreviewModal';
-import { ZoneMinutesTab } from './phase1-export/components/ZoneMinutesTab';
 import { getSvgExportDisabledReason } from '../utils/zoneSvgTechnicalExporter';
 import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
 
@@ -24,13 +23,6 @@ export type {
   ActionFeedbackMessage,
   ModalFeedbackMessage,
 };
-
-type ModuleTab = 'REPORTS' | 'MINUTES';
-
-const MODULE_TABS: { value: ModuleTab; label: string }[] = [
-  { value: 'REPORTS', label: 'Báo Cáo Kỹ Thuật (Phase 1)' },
-  { value: 'MINUTES', label: 'Biên Bản Hiện Trường' },
-];
 
 export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
   initialZoneId = 'ZONE_01',
@@ -102,7 +94,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
 
   const [auditStudioReportId, setAuditStudioReportId] = useState<string | null>(null);
   const [showSvgExportModal, setShowSvgExportModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<ModuleTab>('REPORTS');
 
   const canExportSvg = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels.length);
@@ -123,31 +114,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         onDismissActionMessage={() => setActionMessage(null)}
       />
 
-      {canExportSvg && (
-        <div className="flex gap-1 border-b border-slate-200">
-          {MODULE_TABS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setActiveTab(value)}
-              className={`-mb-px border-b-2 px-4 py-2 text-xs font-bold transition-colors cursor-pointer ${
-                activeTab === value
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'MINUTES' && canExportSvg && (
-        <ZoneMinutesTab zoneId={selectedZone} onZoneChange={setSelectedZone} hideZoneSelect={hideZoneSelect} />
-      )}
-
-      {activeTab === 'REPORTS' && (
-        <>
       {/* 2. Thanh lọc phân khu, trạng thái & tìm kiếm */}
       <Phase1FilterToolbar
         selectedZone={selectedZone}
@@ -188,8 +154,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         onOpenPreview={handleOpenPreview}
         onExportSinglePdf={handleExportSinglePdf}
       />
-        </>
-      )}
 
       {/* 5. Modal xem trước bản in PDF, chỉnh sửa trực tiếp & JSON payload */}
       <Phase1PreviewModal

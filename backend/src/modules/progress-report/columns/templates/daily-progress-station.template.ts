@@ -3,7 +3,7 @@ import { COL } from '../common.columns';
 
 /**
  * Template "Tiến độ khảo sát ngày theo Ga":
- * 28 cột A → AB (tách "Tình trạng hiện tại" (ECS) và "Mức độ đánh giá rủi ro" (BRA)),
+ * 29 cột A → AC (tách "Tình trạng hiện tại" (ECS) và "Mức độ đánh giá rủi ro" (BRA)),
  * chú giải 3 dòng (ECS / BRA / Trạng thái KS), header 2 tầng, bảng tổng hợp cuối sheet.
  */
 export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
@@ -51,27 +51,28 @@ export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
     COL.houseNumber, // E
     COL.street, // F
     COL.ward, // G
-    COL.buildingName, // H
-    COL.ownerName, // I
-    COL.ownerPhone, // J
-    COL.usage, // K
-    COL.length, // L
-    COL.width, // M
-    COL.height, // N
-    COL.foundationType, // O
-    COL.foundationDepth, // P
-    COL.floors, // Q
-    COL.totalRooms, // R
-    COL.year, // S
-    COL.condition, // T - Tình trạng hiện tại (ECS)
-    COL.braRisk, // U - Mức độ đánh giá rủi ro (BRA)
-    COL.designUnit, // V
-    COL.constructionUnit, // W
-    COL.asBuilt, // X
-    COL.distCenterline, // Y
-    COL.distEdge, // Z
-    COL.surveyProgress, // AA
-    COL.notes, // AB
+    COL.quarter, // H
+    COL.buildingName, // I
+    COL.ownerName, // J
+    COL.ownerPhone, // K
+    COL.usage, // L
+    COL.length, // M
+    COL.width, // N
+    COL.height, // O
+    COL.foundationType, // P
+    COL.foundationDepth, // Q
+    COL.floors, // R
+    COL.totalRooms, // S
+    COL.year, // T
+    COL.condition, // U - Tình trạng hiện tại (ECS)
+    COL.braRisk, // V - Mức độ đánh giá rủi ro (BRA)
+    COL.designUnit, // W
+    COL.constructionUnit, // X
+    COL.asBuilt, // Y
+    COL.distCenterline, // Z
+    COL.distEdge, // AA
+    COL.surveyProgress, // AB
+    COL.notes, // AC
   ],
   includeSummary: true,
 };

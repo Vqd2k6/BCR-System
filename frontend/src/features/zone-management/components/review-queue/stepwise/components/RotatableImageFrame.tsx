@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Check } from 'lucide-react';
-import { useResolvedPhotoUrl } from '../../../../../../core/storage/useResolvedPhotoUrl';
+import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../../../../../core/storage/offlinePhotoStorage';
 import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface RotatableImageFrameProps {
@@ -54,8 +54,28 @@ export const RotatableImageFrame: React.FC<RotatableImageFrameProps> = ({
   const studioCtx = useAuditStudioImgOptional();
   const rawSrc = src || url || '';
   const effectiveSrc = studioCtx && rawSrc ? studioCtx.resolveEffectiveStudioUrl(rawSrc) : rawSrc;
-  const { displayUrl } = useResolvedPhotoUrl(effectiveSrc);
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(effectiveSrc));
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({ w: 4, h: 3 });
+
+  useEffect(() => {
+    let isMounted = true;
+    if (effectiveSrc) {
+      const immediate = getSafeDisplayUrl(effectiveSrc);
+      if (immediate && isMounted) {
+        setDisplayUrl(immediate);
+      }
+      resolveOfflinePhotoUrl(effectiveSrc).then((resolved) => {
+        if (isMounted && resolved) {
+          setDisplayUrl(resolved);
+        }
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveSrc]);
 
   const normRot = ((rotation % 360) + 360) % 360;
   const isQuarterTurn = normRot === 90 || normRot === 270;

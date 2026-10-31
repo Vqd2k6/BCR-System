@@ -77,7 +77,6 @@ export interface CondoParentMasterSummary {
   buildingName: string | null;
   projectParcelCode: string;
   addressText: string;
-  standardizedAddress: string | null;
   aboveFloors: number | null;
   undergroundFloors: number | null;
   constructionYear: number | null;
@@ -178,7 +177,6 @@ export interface CondoRollbackPayload {
   password?: string;
   adminPassword?: string;
   reason: string;
-  confirmZoneWipe?: boolean;
 }
 
 export interface CondoWarningFlag {

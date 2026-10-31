@@ -1606,11 +1606,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       ? (current.residentStatus === 'CHỦ_HỘ_Ở' || current.residentStatus === 'CHO_THUÊ' ? 'VẮNG_MẶT_KHÓA_CỬA' : current.residentStatus)
       : (current.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' ? 'CHỦ_HỘ_Ở' : current.residentStatus);
 
-    // Chủ hộ không có mặt nên câu đồng ý mặc định của form thường không còn đúng
     get().applyFormData({
       isAbsentee: isAbsent,
       residentStatus: newResidentStatus,
-      ...(isAbsent ? { ownerFeedback: '' } : {}),
     });
     set({ currentStep: 1 });
   },

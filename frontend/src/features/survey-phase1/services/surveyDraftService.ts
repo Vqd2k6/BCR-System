@@ -2,12 +2,6 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import { api } from '../../../services/api';
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 
-export interface OrphanPhotoRecoveryResult {
-  status: 'DONE' | 'UNAVAILABLE' | 'NO_DRAFT' | 'NOTHING_TO_RECOVER';
-  recovered: Record<string, string>;
-  unresolved: { localId: string; reason: string; candidates: string[] }[];
-}
-
 export interface DraftResponseData {
   hasDraft: boolean;
   isLocked?: boolean;
@@ -104,16 +98,6 @@ export const surveyDraftService = {
    */
   async takeoverDraft(payload: TakeoverDraftPayload) {
     const res = await api.post('/surveys/draft/takeover', payload);
-    return res.data?.data || res.data;
-  },
-
-  /**
-   * Nhờ server tìm trên kho lưu trữ các ảnh mà bản nháp chỉ còn blob:local://
-   */
-  async recoverOrphanPhotos(parcelId: string, unitId?: string | null): Promise<OrphanPhotoRecoveryResult> {
-    const res = await api.post(`/surveys/draft/${parcelId}/recover-orphan-photos`, {
-      unitId: unitId || undefined,
-    });
     return res.data?.data || res.data;
   },
 

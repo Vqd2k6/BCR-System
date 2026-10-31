@@ -122,14 +122,10 @@ export function usePhotoUpload({
             setUploadStatus('UPLOADING');
           } else {
             // Không tìm thấy ảnh trong IndexedDB trên thiết bị này (Guest hoặc thiết bị khác)
-            // Ô ảnh dùng chung instance giữa các Vùng: phải bỏ preview cũ, không để lộ ảnh của vùng khác
-            setLocalPreview(null);
             setUploadStatus('IDLE');
           }
         })
-        .catch((err: unknown) => {
-          console.error('[usePhotoUpload:ResolvePreview] Không thể phân giải ảnh:', err);
-          setLocalPreview(null);
+        .catch((_e) => {
           setUploadStatus('IDLE');
         });
     } else if (value && value.startsWith('data:image')) {

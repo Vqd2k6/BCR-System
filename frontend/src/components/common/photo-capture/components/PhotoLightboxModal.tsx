@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Download, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { downloadWatermarkedImage } from '../../../../utils/cleanImageCompressor';
-import { useResolvedPhotoUrl } from '../../../../core/storage/useResolvedPhotoUrl';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
 import { resolvePhotoTimestamp } from '../../../../utils/photoTimestampHelper';
 
 interface PhotoLightboxModalProps {
@@ -49,11 +49,32 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   onMouseUp,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(imageUrl));
+
   // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
-  const { displayUrl: currentDisplaySrc } = useResolvedPhotoUrl(imageUrl);
+  useEffect(() => {
+    let isSubscribed = true;
+    if (imageUrl) {
+      const immediate = getSafeDisplayUrl(imageUrl);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+      }
+      resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
+        if (isSubscribed && resolved) {
+          setDisplayUrl(resolved);
+        }
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [imageUrl]);
 
   if (!isOpen || !imageUrl) return null;
 
+  const currentDisplaySrc = displayUrl || getSafeDisplayUrl(imageUrl);
 
   const handleDownload = async () => {
     try {

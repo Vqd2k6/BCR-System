@@ -1,6 +1,5 @@
 import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { CadZonePin } from '../../../../../../components/canvas/FloorCadPinningCanvas';
 import type {
   AuditPhotoActionParams,
   AuditPhotoHistoryParams,
@@ -21,28 +20,9 @@ import type {
   StepwiseSignatures,
   StepwiseVi,
 } from '../../stepwise/types';
-import type { StudioCommittedPhotoInfo } from '../../stepwise/context/AuditStudioImgContext';
 
 export type CondoAuditEntityKind = 'BUILDING_MASTER' | 'MASTER_AREA' | 'CONDO_UNIT';
 export type CondoEntityKind = CondoAuditEntityKind;
-
-export type CondoAbsenceState = 'ABSENT' | 'ACCESS_HISTORY' | 'SUSPECTED' | 'NORMAL';
-export type CondoAbsenceDecisionValue = 'ABSENT' | 'NOT_ABSENT';
-
-export interface CondoAbsenceView {
-  state: CondoAbsenceState;
-  signals: string[];
-  decision: CondoAbsenceDecisionValue | null;
-  isHardAbsent: boolean;
-  hasUnknownOwnerName: boolean;
-  hasUnknownOwnerPhone: boolean;
-}
-
-export interface CondoAbsenceDecision {
-  decision: CondoAbsenceDecisionValue;
-  reason: string;
-  decidedAt: string;
-}
 
 export interface CondoParentMasterSummary {
   masterReportId: string | null;
@@ -105,13 +85,10 @@ export interface CondoDefectItemData {
   defectCode: string;
   defectType: string;
   screeningCategory?: string;
-  widthMaxMm: number | null;
-  lengthMm: number | null;
+  widthMaxMm: number;
+  lengthMm: number;
   crackDirection?: string;
   activityState?: string;
-  functionalImpactE6?: number | null;
-  structuralSignificanceE2?: number | null;
-  materialDegradationE4?: number | null;
   hasScaleCard: boolean;
   isStructuralCritical: boolean;
   cuPhotoUrl?: string | null;
@@ -136,7 +113,8 @@ export interface CondoDamageZoneItemData {
   ctxPhotoCode?: string;
   burlandGrade: number;
   functionalImpactRepairNeeded: boolean;
-  overviewPhotos?: string[];
+  pinX?: number | null;
+  pinY?: number | null;
   notes?: string;
   isDeleted?: boolean;
   historyCount?: number;
@@ -154,8 +132,9 @@ export interface CondoStructuralElementItemData {
   dimensionsText?: string;
   ctxPhotoUrl?: string | null;
   ctxPhotoCode?: string;
+  pinX?: number | null;
+  pinY?: number | null;
   hasDamage: boolean;
-  overviewPhotos?: string[];
   notes?: string;
   isDeleted?: boolean;
   historyCount?: number;
@@ -168,9 +147,6 @@ export interface CondoStructuralElementItemData {
  */
 export interface CondoMasterFormState {
   projectParcelCode: string;
-  standardizedAddress: string;
-  keepKsvBoundaryConfirmed: boolean;
-  keepKsvBoundaryReason: string;
   officialCadastralCode: string;
   buildingName: string;
   houseNumber: string;
@@ -181,16 +157,15 @@ export interface CondoMasterFormState {
   managementContactName: string;
   managementContactPhone: string;
   accessLimitation: StepwiseAccessLimitation;
-  adjacentBuildings: Record<string, { details?: string; note?: string; notes?: string; [key: string]: unknown }>;
   identificationPhotos: StepwiseIdentificationPhotos;
   photoP01: StepwiseIdentificationPhotoItem;
   photoP02: StepwiseIdentificationPhotoItem;
   photoP03: StepwiseIdentificationPhotoItem;
   photoP04: StepwiseIdentificationPhotoItem;
-  aboveFloors: number | null;
-  undergroundFloors: number | null;
-  podiumFloors: number | null;
-  totalUnits: number | null;
+  aboveFloors: number;
+  undergroundFloors: number;
+  podiumFloors: number;
+  totalUnits: number;
   constructionYear: string;
   isEstimatedYear: boolean;
   constructionAreaM2: string | number;
@@ -200,7 +175,7 @@ export interface CondoMasterFormState {
   usageFunction: string;
   structureSystem: string;
   foundationType: string;
-  foundationCatScore: number | null;
+  foundationCatScore: number;
   foundationDepthM: string | number;
   foundationSpacingM: string | number;
   pileDimensionMm: string;
@@ -240,11 +215,6 @@ export interface CondoAreaFormState {
   boundingBox: { x: number; y: number; width: number; height: number } | null;
   overviewPhotos: string[];
   croppedCadUrl: string;
-  /** Bản vẽ KSV đã ghim Z (`floors[0].cadSketchPhotoUrl`), tọa độ ghim tính theo ảnh này. */
-  sketchCadUrl: string;
-  structuralCadUrl: string;
-  cadZonePins: CadZonePin[];
-  cadElementPins: CadZonePin[];
   damageZones: CondoDamageZoneItemData[];
   structuralElements: CondoStructuralElementItemData[];
   burlandSummary: StepwiseBurlandSummary;
@@ -255,93 +225,47 @@ export interface CondoAreaFormState {
   [key: string]: unknown;
 }
 
-export interface CondoUnitDoorJamming {
-  hasJamming: boolean;
-  /** Mã trạng thái của form khảo sát: NORMAL, JAMMED, RUBBING_FLOOR, CRACKED_GLASS. */
-  status: string;
-  statusLabel: string;
-  locations: string;
-  severity: string;
-  photoUrl: string;
-  notes: string;
-}
-
-export interface CondoUnitLeakageItem {
-  id: string;
-  leakageCode: string;
-  location: string;
-  description: string;
-  suspectedUpperUnitCode: string;
-  ctxPhotoUrl: string;
-  cuPhotoUrl: string;
-}
-
-export interface CondoUnitWaterLeakage {
-  hasLeakage: boolean;
-  items: CondoUnitLeakageItem[];
-}
-
-export interface CondoUnitBeamSagging {
-  hasSagging: boolean;
-  level: number | null;
-  sagMm: number | null;
-  spanM: number | null;
-  ratioText: string;
-  position: string;
-  photoUrl: string;
-  notes: string;
-}
-
-export interface CondoUnitAbsenteeView {
-  reasonCode: string;
-  reason: string;
-  notes: string;
-  witnessName: string;
-  witnessRole: string;
-  witnessPhone: string;
-  noticeDelivered: boolean;
-  rescheduleDate: string;
-  attemptCount: number | null;
-  photos: string[];
-}
-
 /**
- * FormState chuẩn hóa cho Module 3: Studio Thẩm định Căn Hộ Con (CONDO_UNIT).
- * `doorJamming` và `waterLeakageFromUpperFloor` là dạng hiển thị; `buildCondoUnitUpdatesPayload` đổi về khóa form khi lưu.
+ * FormState chuẩn hóa cho Module 3: Studio Thẩm định Căn Hộ Con (CONDO_UNIT - 4 Bước + Vắng mặt)
  */
 export interface CondoUnitFormState {
   unitCode: string;
-  displayCode: string;
-  floorNumber: number | null;
+  floorNumber: number;
   ownerName: string;
   ownerPhone: string;
-  ownerIdCard: string;
-  residentStatus: string;
-  unitAreaM2: number | null;
+  residentRole: string;
+  occupancyStatus: string;
   isRefusedOrAbsent: boolean;
-  absence: CondoAbsenceView;
-  absenceDecision: CondoAbsenceDecision | null;
-  absenteeInfo: CondoUnitAbsenteeView | null;
+  absenceReason: string;
   absenceLogs: StepwiseAbsenceLogItem[];
-  doorJamming: CondoUnitDoorJamming;
-  waterLeakageFromUpperFloor: CondoUnitWaterLeakage;
-  beamSagging: CondoUnitBeamSagging;
-  settlementObserved: string;
-  settlementNotes: string;
-  historyInterview: StepwiseHistoryInterview;
-  hasSensitiveEquipment: boolean;
-  sensitiveEquipmentDesc: string;
-  interiorRenovationHistory: { hasRenovated: boolean; description: string };
+  absenteeNoticePhotos: string[];
+  doorJamming: {
+    hasJamming: boolean;
+    locations: string;
+    severity: string;
+    photoUrl: string;
+    notes: string;
+  };
+  waterLeakageFromUpperFloor: {
+    hasLeakage: boolean;
+    sourceLocation: string;
+    suspectedUpperUnitCode: string;
+    photoUrl: string;
+    notes: string;
+  };
+  beamSagging: {
+    hasSagging: boolean;
+    level: number;
+    sagMm: string | number;
+    position: string;
+    photoUrl: string;
+    notes: string;
+  };
   photoP01: StepwiseIdentificationPhotoItem;
   photoP04: StepwiseIdentificationPhotoItem;
   roomLayoutUrl: string;
-  structuralCadUrl: string;
-  cadZonePins: CadZonePin[];
-  cadElementPins: CadZonePin[];
-  isFloorCadFallback: boolean;
   roomLayoutNotes: string;
   damageZones: CondoDamageZoneItemData[];
-  structuralElements: CondoStructuralElementItemData[];
   burlandSummary: StepwiseBurlandSummary;
   summaryConclusions: string;
   engineeringRecommendations: string;
@@ -373,19 +297,18 @@ export interface CondoAuditStepProps<TFormState extends Record<string, unknown>>
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onOpenEngineeringJudgement?: () => void;
   onOpenMasterReportById?: (masterReportId: string) => void;
-  onRefresh?: () => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
 }
 
 export interface CondoStepRegistryItem<TFormState extends Record<string, unknown>> {
-  /** Trùng ID và số bước của Nhà dân: `step-N` và `0N`, được phép nhảy số. */
   stepId: string;
-  number: string;
+  stepNumber: number;
   title: string;
+  subtitle?: string;
+  navLabel: string;
   icon: LucideIcon;
-  /** Step tự render `<section>` (step gắn thẳng từ Nhà dân), shell không bọc thêm khung. */
-  selfFramed?: boolean;
+  dirtyWatchKeys: Array<keyof TFormState & string>;
   Component: React.FC<CondoAuditStepProps<TFormState>>;
 }
 
@@ -411,5 +334,4 @@ export interface CondoStudioEntryProps {
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
   onDiscardAllStagedPhotos?: () => void;
   onSwitchReportId?: (newReportId: string) => void;
-  registerStudioCommitHandler?: (handler: (items: StudioCommittedPhotoInfo[]) => void) => void;
 }

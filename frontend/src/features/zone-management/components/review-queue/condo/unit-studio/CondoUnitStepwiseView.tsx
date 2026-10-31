@@ -6,7 +6,6 @@ import {
   recomputeCondoUnitBurlandOnChange,
   buildCondoUnitUpdatesPayload,
 } from './condo-unit.normalizer';
-import { resolveCondoAbsenceView } from './condo-unit.adapters';
 import { CONDO_UNIT_STEPS } from './condo-unit.steps-registry';
 import type {
   CondoFloorPlanItem,
@@ -14,8 +13,6 @@ import type {
   CondoStudioEntryProps,
   CondoUnitFormState,
 } from '../types/condo-audit.types';
-
-const ABSENT_UNIT_STEP_IDS = ['step-1', 'step-9'];
 
 export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   data,
@@ -30,16 +27,11 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   onDirtyChange,
   stagedPhotoActions = [],
   onUndoPhotoAction,
-  onRefresh,
-  registerStudioCommitHandler,
 }) => {
-  // Căn vắng chỉ có định danh và biên bản: các bước nội thất là dữ liệu điền cho đủ form của hồ sơ cũ
-  const isAbsentUnit = resolveCondoAbsenceView(data).state === 'ABSENT';
-  const visibleSteps = useMemo(
-    () => (isAbsentUnit ? CONDO_UNIT_STEPS.filter((s) => ABSENT_UNIT_STEP_IDS.includes(s.stepId)) : CONDO_UNIT_STEPS),
-    [isAbsentUnit]
+  const stepIds = useMemo(
+    () => CONDO_UNIT_STEPS.map((s) => s.stepId),
+    []
   );
-  const stepIds = useMemo(() => visibleSteps.map((s) => s.stepId), [visibleSteps]);
 
   const {
     isEditMode,
@@ -57,7 +49,6 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   } = useCondoBaseAuditForm<CondoUnitFormState>({
     data,
     stepIds,
-    registerStudioCommitHandler,
     normalizeData: normalizeCondoUnitData,
     recomputeDerivedOnChange: recomputeCondoUnitBurlandOnChange,
     buildUpdatesPayload: buildCondoUnitUpdatesPayload,
@@ -92,15 +83,11 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
           ? `Căn hộ ${formState.unitCode} — ${formState.ownerName}`
           : `Căn hộ ${formState.unitCode}`
       }
-      entityCode={formState.unitCode || data.unitCode || '---'}
-      entitySubtitle={
-        isAbsentUnit
-          ? `Tầng ${formState.floorNumber ?? '---'} • Không tiếp cận được căn hộ`
-          : `Tầng ${formState.floorNumber ?? '---'} • ${activeZonesCount} vùng hư hại Z • Burland Grade ${formState.burlandSummary.localMaxGrade}`
-      }
+      entityCode={formState.unitCode || data.unitCode || 'UNIT'}
+      entitySubtitle={`Tầng ${formState.floorNumber} • ${activeZonesCount} vùng hư hại Z • Burland Grade ${formState.burlandSummary.localMaxGrade}`}
       status={data.status}
       isParentLocked={Boolean(data.parentBuildingInfo?.isLocked)}
-      steps={visibleSteps}
+      steps={CONDO_UNIT_STEPS}
       activeStepId={activeStepId}
       onSelectStep={scrollToStep}
       isEditMode={isEditMode}
@@ -115,7 +102,6 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
         formState,
         data,
         reportId,
-        onRefresh,
         parentMasterSummary,
         floorPlans,
         handleFieldChange,

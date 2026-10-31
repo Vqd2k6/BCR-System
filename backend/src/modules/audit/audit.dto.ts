@@ -29,7 +29,6 @@ export const ExecuteFinalSealDto = z.object({
 export const RollbackVersionDto = z.object({
   adminPassword: z.string().min(1, 'Bắt buộc nhập mật khẩu tài khoản để xác thực quyền khôi phục'),
   rollbackReason: z.string().min(5, 'Lý do hoàn nguyên kỹ thuật phải từ 5 ký tự trở lên'),
-  confirmZoneWipe: z.boolean().optional(),
 });
 
 export const AdminSurveyEditDto = z.object({

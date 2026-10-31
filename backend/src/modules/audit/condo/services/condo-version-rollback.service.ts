@@ -9,11 +9,6 @@ import {
 import { CondoAuditEntityKind, CondoRollbackPayload } from '../condo-audit.types';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
 import { CondoPhotoLineageService } from './condo-photo-lineage.service';
-import {
-  assertCondoSnapshotRestorable,
-  countActiveZoneItems,
-  normalizeCondoSnapshot,
-} from './condo-snapshot-restore.helpers';
 
 export class CondoVersionRollbackService {
   /**
@@ -33,12 +28,9 @@ export class CondoVersionRollbackService {
     success: boolean;
     message: string;
     targetVersionNumber: number;
-    newVersionNumber: number | null;
+    newVersionNumber: number;
     reportId: string;
     entityKind: CondoAuditEntityKind;
-    isJsonOnly: boolean;
-    requiresZoneWipeConfirmation?: boolean;
-    activeZoneCount?: number;
   }> {
     const resolved = await CondoCrudEngineService.resolveCondoReportContext(reportId);
     if (!resolved) {
@@ -113,47 +105,14 @@ export class CondoVersionRollbackService {
         ? (JSON.parse(targetVer.snapshot_data) as Record<string, unknown>)
         : targetVer.snapshot_data || {};
 
-    const snapshot = normalizeCondoSnapshot(snapshotObj);
-    assertCondoSnapshotRestorable(snapshot);
-
-    // Phiên bản đích không có Z/E nào có thể đúng, nhưng sẽ xóa mềm toàn bộ dữ liệu hiện tại: Admin phải xác nhận
-    if (countActiveZoneItems(snapshot) === 0 && !payload.confirmZoneWipe) {
-      const activeRes = await Database.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM damage_zones WHERE report_id = $1 AND is_deleted IS NOT TRUE;`,
-        [actualReportId]
-      );
-      const activeZoneCount = activeRes.rows[0]?.count ?? 0;
-      if (activeZoneCount > 0) {
-        return {
-          success: false,
-          message: `Phiên bản v${targetVersionNumber} không có vùng hư hại hoặc cấu kiện nào. Khôi phục sẽ xóa ${activeZoneCount} mục đang có.`,
-          targetVersionNumber,
-          newVersionNumber: null,
-          reportId: actualReportId,
-          entityKind,
-          isJsonOnly: snapshot.isJsonOnly,
-          requiresZoneWipeConfirmation: true,
-          activeZoneCount,
-        };
-      }
-    }
-
-    const laterSwapRes = await Database.query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM survey_report_versions
-       WHERE report_id = $1 AND version_tag = 'UNIT_CAD_SPATIAL_SWAP' AND version_number > $2;`,
-      [actualReportId, targetVersionNumber]
-    );
-    const currentJson: Record<string, unknown> =
-      typeof context.survey_data_json === 'string'
-        ? (JSON.parse(context.survey_data_json) as Record<string, unknown>)
-        : context.survey_data_json || {};
-
     return Database.transaction(async (client) => {
       // 1. Khôi phục dữ liệu SQL + JSONB theo đúng Strategy của cấp thực thể (không làm hỏng parcels khi rollback căn hộ/khu vực chung)
-      const { restoredSurveyJson } = await strategy.restoreSnapshotInTransaction(client, context, snapshot, adminId, {
-        restoreCadPosition: (laterSwapRes.rows[0]?.count ?? 0) === 0,
-        currentJson,
-      });
+      const { restoredSurveyJson } = await strategy.restoreSnapshotInTransaction(
+        client,
+        context,
+        snapshotObj,
+        adminId
+      );
 
       // 2. Đồng bộ trạng thái ACTIVE / SUPERSEDED trên survey_photo_registry
       await CondoPhotoLineageService.syncPhotoRegistryOnRollbackInTx(
@@ -220,14 +179,11 @@ export class CondoVersionRollbackService {
 
       return {
         success: true,
-        message: snapshot.isJsonOnly
-          ? `Đã khôi phục dữ liệu khảo sát và Z/E/D về phiên bản v${targetVersionNumber}; các bảng khác giữ nguyên vì bản chụp không chứa dữ liệu của chúng. Phiên bản mới là v${nextVer}.`
-          : `Đã khôi phục hồ sơ [${entityKind}] về phiên bản v${targetVersionNumber} thành công! Phiên bản mới được ghi nhận là v${nextVer}.`,
+        message: `Đã khôi phục hồ sơ [${entityKind}] về phiên bản v${targetVersionNumber} thành công! Phiên bản mới được ghi nhận là v${nextVer}.`,
         targetVersionNumber,
         newVersionNumber: nextVer,
         reportId: actualReportId,
         entityKind,
-        isJsonOnly: snapshot.isJsonOnly,
       };
     });
   }

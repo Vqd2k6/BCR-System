@@ -15,7 +15,6 @@ import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import type { GisParcel } from '../../../components/gis/shared/types';
 import { ShieldAlert } from 'lucide-react';
 import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
-import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from '../../../utils/zoneScope';
 
 interface Props {
   parcels?: GisParcel[];
@@ -93,20 +92,16 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     return 'ZONE_01';
   };
 
-  const lockedZone = getLockedZone(user);
-  const isUnassigned = isUnassignedZoneAdmin(user);
-
   const [selectedZone, setSelectedZone] = useState<string>(() => {
-    const fallback = resolveDefaultZone(user?.assignedZoneId);
     const nav = getNavigationFromUrl();
-    if (nav.zone) return resolveInitialZone(user, nav.zone, fallback);
+    if (nav.zone) return nav.zone.toUpperCase();
     try {
       const savedZone = sessionStorage.getItem('ksqh_zone_admin_selected_zone');
-      if (savedZone) return resolveInitialZone(user, savedZone, fallback);
+      if (savedZone) return savedZone.toUpperCase();
     } catch {
       // ignore
     }
-    return resolveInitialZone(user, null, fallback);
+    return resolveDefaultZone(user?.assignedZoneId);
   });
 
   // Intelligence stats state
@@ -228,9 +223,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    if (isUnassigned) return;
     fetchLiveIntelligence(selectedZone);
-  }, [selectedZone, isUnassigned, fetchLiveIntelligence]);
+  }, [selectedZone, fetchLiveIntelligence]);
 
   // Handle click-to-filter from Dashboard
   const handleDashboardFilterClick = (cat: string, val: string, label: string) => {
@@ -258,7 +252,6 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   };
 
   const handleZoneChange = (z: string, clearFilter = false) => {
-    if (lockedZone) return;
     setSelectedZone(z);
     try {
       sessionStorage.setItem('ksqh_zone_admin_selected_zone', z);
@@ -286,27 +279,13 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       if (nav.nav && nav.nav !== activeNav) {
         setActiveNav(nav.nav);
       }
-      if (!lockedZone && nav.zone && nav.zone !== selectedZone) {
+      if (nav.zone && nav.zone !== selectedZone) {
         setSelectedZone(nav.zone);
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeNav, selectedZone, lockedZone]);
-
-  if (isUnassigned) {
-    return (
-      <div className="max-w-2xl mx-auto my-12 p-8 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-4 shadow-sm">
-        <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-inner">
-          <ShieldAlert size={32} />
-        </div>
-        <h2 className="text-lg font-bold text-amber-900">Tài Khoản Chưa Được Phân Công Phân Khu</h2>
-        <p className="text-xs text-amber-700 leading-relaxed max-w-md mx-auto">
-          Vui lòng liên hệ Super Admin để được gán phân khu quản lý trước khi sử dụng phân hệ này.
-        </p>
-      </div>
-    );
-  }
+  }, [activeNav, selectedZone]);
 
   return (
     <ZoneAdminAppShell

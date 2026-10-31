@@ -1,13 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AuditStepwiseData, DiffItem } from '../../stepwise/types';
-import type { StudioCommittedPhotoInfo } from '../../stepwise/context/AuditStudioImgContext';
-import { deepReplaceUrlsInValue } from '../../stepwise/hooks/useAuditStepwiseForm';
 
 interface UseCondoBaseAuditFormOptions<TFormState extends Record<string, unknown>> {
   data: AuditStepwiseData;
   stepIds: string[];
-  /** Đăng ký nhận ảnh Studio Img vừa xử lý để đưa vào nháp, không tải lại làm mất phần đang sửa. */
-  registerStudioCommitHandler?: (handler: (items: StudioCommittedPhotoInfo[]) => void) => void;
   normalizeData: (data: AuditStepwiseData) => TFormState;
   recomputeDerivedOnChange?: (nextState: TFormState, changedKey: string) => TFormState;
   buildUpdatesPayload?: (
@@ -26,7 +22,6 @@ interface UseCondoBaseAuditFormOptions<TFormState extends Record<string, unknown
 export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>>({
   data,
   stepIds,
-  registerStudioCommitHandler,
   normalizeData,
   recomputeDerivedOnChange,
   buildUpdatesPayload,
@@ -232,50 +227,6 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
     },
     [dirtyFields]
   );
-
-  useEffect(() => {
-    if (!registerStudioCommitHandler) return;
-    registerStudioCommitHandler((committedItems) => {
-      if (committedItems.length === 0) return;
-      const replaceMap = new Map<string, string>();
-      const enhancedPhotos: Record<string, StudioCommittedPhotoInfo> = {};
-      const enhancedByOriginal: Record<string, string> = {};
-      committedItems.forEach((item) => {
-        enhancedPhotos[item.enhancedUrl] = item;
-        if (item.originalUrl) {
-          replaceMap.set(item.originalUrl.trim(), item.enhancedUrl);
-          enhancedByOriginal[item.originalUrl] = item.enhancedUrl;
-        }
-        if (item.previousUrl) {
-          replaceMap.set(item.previousUrl.trim(), item.enhancedUrl);
-          enhancedByOriginal[item.previousUrl] = item.enhancedUrl;
-        }
-      });
-
-      setFormState((prev) => {
-        const nextEnhanced = { ...(prev.studioEnhancedPhotos as object | undefined), ...enhancedPhotos };
-        const nextByOriginal = { ...(prev.studioEnhancedByOriginal as object | undefined), ...enhancedByOriginal };
-        return {
-          ...(deepReplaceUrlsInValue(prev, replaceMap) as TFormState),
-          studioEnhancedPhotos: nextEnhanced,
-          studioEnhancedByOriginal: nextByOriginal,
-        };
-      });
-      setDirtyFields((prev) => ({
-        ...prev,
-        studioEnhancedPhotos: {
-          label: `Hiệu chỉnh chất lượng ảnh qua Studio Img (${committedItems.length} ảnh)`,
-          oldValue: initialStateRef.current.studioEnhancedPhotos,
-          newValue: enhancedPhotos,
-        },
-        studioEnhancedByOriginal: {
-          label: 'Liên kết ảnh gốc với ảnh Studio Img',
-          oldValue: initialStateRef.current.studioEnhancedByOriginal,
-          newValue: enhancedByOriginal,
-        },
-      }));
-    });
-  }, [registerStudioCommitHandler]);
 
   const computeDiffPayloadAndUpdates = useCallback(() => {
     const diffItems: DiffItem[] = Object.entries(dirtyFields).map(([field, info]) => ({

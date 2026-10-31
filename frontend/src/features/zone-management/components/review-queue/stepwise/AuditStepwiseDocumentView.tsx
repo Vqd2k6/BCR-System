@@ -9,12 +9,17 @@ import {
   Hash,
   FileCheck2,
   PenTool,
+  Edit3,
+  Undo2,
+  Save,
+  CheckCircle2,
   Compass,
   ChevronDown,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Sparkles,
 } from 'lucide-react';
-import { AuditStudioSidebar } from './ui/AuditStudioSidebar';
 import { Button } from '../../../../../core/components/ui/Button';
 import { useAuditStepwiseForm } from './hooks/useAuditStepwiseForm';
 import { usePhotoOrientationAudit, type PhotoOrientationViolation } from './hooks/usePhotoOrientationAudit';
@@ -140,6 +145,8 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   // Floating modal state for orientation guidance & collapsible compact sidebar
   const [isOrientationPanelOpen, setIsOrientationPanelOpen] = React.useState(false);
   const [isStep4Expanded, setIsStep4Expanded] = React.useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const sidebarNavRef = React.useRef<HTMLElement | null>(null);
 
   // Phím tắt E: Bật/tắt chế độ Edit nhanh khi không đang gõ chữ trong ô nhập liệu
   React.useEffect(() => {
@@ -182,12 +189,25 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     [isHoldingSKey, resolveEffectiveStudioUrl, toggleSelectPhoto, onOpenPhotoZoom]
   );
 
-  // Tự động mở cây Bước 04 khi Thẩm định viên cuộn tới
+  // Tự động mở cây Bước 04 và tự cuộn nội bộ thanh sidebar bên trái (không dùng scrollIntoView để tránh hủy cuộn mượt của #audit-studio-scroll-container)
   React.useEffect(() => {
     if (activeNavStep === 'step-4') {
       setIsStep4Expanded(true);
     }
-  }, [activeNavStep]);
+    const navEl = sidebarNavRef.current;
+    if (!navEl) return;
+    const targetNavId = activeSubNavId || activeNavStep;
+    const activeBtn = navEl.querySelector<HTMLElement>(`[data-nav-id="${targetNavId}"]`);
+    if (activeBtn) {
+      const navRect = navEl.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+      if (btnRect.top < navRect.top + 8) {
+        navEl.scrollTop += btnRect.top - navRect.top - 12;
+      } else if (btnRect.bottom > navRect.bottom - 8) {
+        navEl.scrollTop += btnRect.bottom - navRect.bottom + 12;
+      }
+    }
+  }, [activeNavStep, activeSubNavId]);
 
   // Kiểm toán hướng ảnh Nhà Dân Thường theo quy chuẩn thời gian thực (formState + stagedPhotoActions)
   const {
@@ -347,205 +367,443 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   return (
     <div className="relative flex flex-col lg:flex-row gap-4 w-full min-h-[600px] min-w-0 max-w-full">
       {/* 1. Thanh điều hướng Jump-links bên trái (Thiết kế gọn gàng, có nút thu nhỏ & chấm tròn vàng cảnh báo) */}
-      <AuditStudioSidebar
-        heading="9 Bước Khảo Sát"
-        steps={stepsList.map((st) => ({ ...st, hasWarning: stepWarningSet.has(st.id) }))}
-        activeStepId={activeNavStep}
-        activeNavKey={activeSubNavId}
-        onSelectStep={(stepId) => {
-          scrollToStep(stepId);
-          if (stepId === 'step-4') setIsStep4Expanded(true);
-        }}
-        isLocked={data?.status === 'APPROVED'}
-        isEditMode={isEditMode}
-        onToggleEditMode={() => setIsEditMode(!isEditMode)}
-        pendingCount={totalPendingChanges}
-        stagedPhotoCount={stagedPhotoActions?.length || 0}
-        onSave={handleReviewSave}
-        onDiscard={() => {
-          handleDiscard(false);
-          onDiscardAllStagedPhotos?.();
-        }}
-        renderTopSlot={(isSidebarCollapsed) => (
-          <>
-            {/* Nút mở bảng điều khiển Kiểm toán Hướng Ảnh A4 (Floating Drawer/Modal) */}
-    {violations.length > 0 && (
-      <button
-        type="button"
-        onClick={() => setIsOrientationPanelOpen(true)}
-        title={`Hướng Ảnh A4 (${violations.length} ảnh cần kiểm tra)`}
-        className={`w-full rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer border shrink-0 ${
-          isSidebarCollapsed ? 'p-1.5 justify-center relative' : 'px-2.5 py-1.5'
-        } ${
-          hasStrictViolations
-            ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs'
-            : 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100'
+      <div
+        className={`w-full shrink-0 transition-all duration-200 ${
+          isSidebarCollapsed ? 'lg:w-14' : 'lg:w-56'
         }`}
       >
-        {isSidebarCollapsed ? (
-          <>
-            <Compass className="w-4 h-4 text-amber-600 animate-pulse" />
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
-              {violations.length}
-            </span>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Compass className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
-              <span className="truncate">Hướng Ảnh ({violations.length})</span>
-            </div>
-            <span
-              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                strictViolations.length > 0 ? 'bg-amber-200 text-amber-900' : 'bg-sky-200 text-sky-900'
-              }`}
-            >
-              {strictViolations.length > 0 ? `${strictViolations.length} Bắt Buộc` : 'Gợi ý'}
-            </span>
-          </>
-        )}
-      </button>
-    )}
-          </>
-        )}
-        renderStepAddon={(stepId) =>
-          stepId === 'step-4' ? (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsStep4Expanded((prev) => !prev);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsStep4Expanded((prev) => !prev);
-                }
-              }}
-              className="p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer rounded"
-            >
-              {isStep4Expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            </span>
-          ) : null
-        }
-        renderStepChildren={(stepId, isSidebarCollapsed) =>
-          stepId === 'step-4' && isStep4Expanded && !isSidebarCollapsed ? (
-            /* Cây danh mục con cho Bước 4: Từng tầng với CAD_Z -> Z -> CAD_E -> E */
-      <div className="pl-2.5 pr-0.5 py-1 space-y-1.5 border-l-2 border-sky-200 ml-2.5 my-0.5">
-        {floorsList.map((fl, fIdx) => {
-          const floorDomId = `step-4-floor-${fIdx}`;
-          const cadZDomId = `step-4-floor-${fIdx}-cad-z`;
-          const zonesDomId = `step-4-floor-${fIdx}-zones`;
-          const cadEDomId = `step-4-floor-${fIdx}-cad-e`;
-          const elementsDomId = `step-4-floor-${fIdx}-elements`;
-          const isFloorActive =
-            activeSubNavId === floorDomId ||
-            activeSubNavId.startsWith(`${floorDomId}-`);
-          const hasFloorWarning = subNavWarningSet.has(floorDomId);
-          const hasCadZWarning = subNavWarningSet.has(cadZDomId);
-          const hasZonesWarning = subNavWarningSet.has(zonesDomId);
-          const hasCadEWarning = subNavWarningSet.has(cadEDomId);
-          const hasElementsWarning = subNavWarningSet.has(elementsDomId);
+        <div className="sticky top-2 max-h-[calc(100vh-3.75rem)] flex flex-col bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/90 shadow-sm p-2.5 gap-2">
+          {/* Header Sidebar + Nút Thu Nhỏ / Mở Rộng */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 shrink-0 gap-1">
+            {!isSidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-black uppercase text-sky-700 tracking-wider block truncate">
+                  Mục Lục Thẩm Định
+                </span>
+                <h4 className="text-xs font-black text-slate-800 truncate">9 Bước Khảo Sát</h4>
+              </div>
+            )}
 
-          return (
-            <div key={fl.id || fIdx} className="space-y-0.5">
+            <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
+              {/* Nút bật/tắt chế độ sửa hoặc badge đã khóa duyệt */}
+              {data?.status === 'APPROVED' ? (
+                <span
+                  title="Đã Khóa Duyệt"
+                  className="px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1 shadow-2xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  {!isSidebarCollapsed && <span>Đã Khóa</span>}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  title={isEditMode ? 'Đang ở Chế Độ Sửa (Bấm hoặc nhấn phím E để tắt)' : 'Bật Chế Độ Sửa (Phím tắt: E)'}
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer ${
+                    isEditMode
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <Edit3 className="w-3 h-3 shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <>
+                      <span>{isEditMode ? 'Đang Sửa' : 'Sửa'}</span>
+                      <kbd
+                        className={`ml-0.5 px-1 py-0.2 rounded text-[9px] font-mono ${
+                          isEditMode
+                            ? 'bg-amber-600/80 text-white border border-amber-400/60'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}
+                      >
+                        E
+                      </kbd>
+                    </>
+                  )}
+                </button>
+              )}
+
               <button
                 type="button"
-                data-nav-id={floorDomId}
-                onClick={() => scrollToElement(floorDomId)}
-                className={`w-full text-left text-[10px] font-black uppercase tracking-wider flex items-center justify-between gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                  isFloorActive
-                    ? 'text-sky-800 bg-sky-100/70'
-                    : 'text-slate-700 hover:text-sky-700'
-                }`}
+                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                title={isSidebarCollapsed ? 'Mở rộng mục lục bên trái' : 'Thu gọn mục lục bên trái'}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors cursor-pointer shrink-0"
               >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                      isFloorActive ? 'bg-sky-600 ring-2 ring-sky-300' : 'bg-sky-500'
-                    }`}
-                  />
-                  <span className="truncate">{fl.floorName || `Tầng ${fIdx + 1}`}</span>
-                </div>
-                {hasFloorWarning && (
-                  <span
-                    className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30 shrink-0"
-                    title="Tầng này có ảnh hoặc mục cần kiểm tra"
-                  />
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen className="w-4 h-4" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4" />
                 )}
               </button>
-              <div className="space-y-0.5 pl-1.5 border-l border-slate-200">
-                <button
-                  type="button"
-                  data-nav-id={cadZDomId}
-                  onClick={() => scrollToElement(cadZDomId)}
-                  className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
-                    activeSubNavId === cadZDomId
-                      ? 'bg-sky-600 text-white font-bold shadow-2xs'
-                      : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
-                  }`}
-                >
-                  <span className="truncate">CAD_Z Kiến Trúc</span>
-                  {hasCadZWarning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  data-nav-id={zonesDomId}
-                  onClick={() => scrollToElement(zonesDomId)}
-                  className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
-                    activeSubNavId === zonesDomId
-                      ? 'bg-sky-600 text-white font-bold shadow-2xs'
-                      : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
-                  }`}
-                >
-                  <span className="truncate">Vùng Z ({(fl.zones || []).length})</span>
-                  {hasZonesWarning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  data-nav-id={cadEDomId}
-                  onClick={() => scrollToElement(cadEDomId)}
-                  className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
-                    activeSubNavId === cadEDomId
-                      ? 'bg-amber-600 text-white font-bold shadow-2xs'
-                      : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
-                  }`}
-                >
-                  <span className="truncate">CAD_E Kết Cấu</span>
-                  {hasCadEWarning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  data-nav-id={elementsDomId}
-                  onClick={() => scrollToElement(elementsDomId)}
-                  className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
-                    activeSubNavId === elementsDomId
-                      ? 'bg-amber-600 text-white font-bold shadow-2xs'
-                      : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
-                  }`}
-                >
-                  <span className="truncate">Cấu kiện E ({(fl.structuralElements || []).length})</span>
-                  {hasElementsWarning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
-                  )}
-                </button>
-              </div>
             </div>
-          );
-        })}
-      </div>
-          ) : null
-        }
-      />
+          </div>
 
+          {/* Nút Studio Img: Xử lý ảnh đã chọn (Nhấn giữ S + Click ảnh ở mọi chế độ View/Edit) */}
+          <button
+            type="button"
+            onClick={() => setIsStudioModalOpen(true)}
+            title="Mở Studio Img • Nhấn giữ phím S + Click vào ảnh bất kỳ để chọn/bỏ chọn đưa vào Studio"
+            className={`w-full rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer border shrink-0 ${
+              isSidebarCollapsed ? 'p-1.5 justify-center relative' : 'px-2.5 py-1.5'
+            } ${
+              isHoldingSKey
+                ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-400/60 shadow-sm'
+                : selectedPhotos.length > 0
+                  ? 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200/90 hover:bg-indigo-50/70 hover:text-indigo-800 hover:border-indigo-200'
+            }`}
+          >
+            {isSidebarCollapsed ? (
+              <>
+                <Sparkles
+                  className={`w-4 h-4 ${
+                    isHoldingSKey
+                      ? 'text-white animate-spin'
+                      : selectedPhotos.length > 0
+                        ? 'text-indigo-600'
+                        : 'text-slate-500'
+                  }`}
+                />
+                {selectedPhotos.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                    {selectedPhotos.length}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isHoldingSKey
+                        ? 'text-white animate-pulse'
+                        : selectedPhotos.length > 0
+                          ? 'text-indigo-600'
+                          : 'text-slate-500'
+                    }`}
+                  />
+                  <span className="truncate">
+                    {isHoldingSKey ? 'Đang giữ S • Click ảnh' : 'Studio Img'}
+                  </span>
+                </div>
+                <span
+                  className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${
+                    isHoldingSKey
+                      ? 'bg-white/20 text-white'
+                      : selectedPhotos.length > 0
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-200/80 text-slate-600 font-mono'
+                  }`}
+                >
+                  {selectedPhotos.length > 0 ? `${selectedPhotos.length} ảnh` : 'S+Click'}
+                </span>
+              </>
+            )}
+          </button>
+
+          {/* Nút mở bảng điều khiển Kiểm toán Hướng Ảnh A4 (Floating Drawer/Modal) */}
+          {violations.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsOrientationPanelOpen(true)}
+              title={`Hướng Ảnh A4 (${violations.length} ảnh cần kiểm tra)`}
+              className={`w-full rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer border shrink-0 ${
+                isSidebarCollapsed ? 'p-1.5 justify-center relative' : 'px-2.5 py-1.5'
+              } ${
+                hasStrictViolations
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs'
+                  : 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100'
+              }`}
+            >
+              {isSidebarCollapsed ? (
+                <>
+                  <Compass className="w-4 h-4 text-amber-600 animate-pulse" />
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                    {violations.length}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Compass className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
+                    <span className="truncate">Hướng Ảnh ({violations.length})</span>
+                  </div>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                      strictViolations.length > 0 ? 'bg-amber-200 text-amber-900' : 'bg-sky-200 text-sky-900'
+                    }`}
+                  >
+                    {strictViolations.length > 0 ? `${strictViolations.length} Bắt Buộc` : 'Gợi ý'}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Danh sách 9 bước (Cuộn độc lập và tự động nhảy theo vị trí cuộn của TDV) */}
+          <nav
+            ref={sidebarNavRef}
+            className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-0.5 scrollbar-thin"
+          >
+            {stepsList.map((st) => {
+              const Icon = st.icon;
+              const isActive = activeNavStep === st.id;
+              const isStep4 = st.id === 'step-4';
+              const hasStepWarning = stepWarningSet.has(st.id);
+
+              return (
+                <div key={st.id} className="space-y-0.5">
+                  <button
+                    type="button"
+                    data-nav-id={st.id}
+                    title={`${st.number}. ${st.title}${hasStepWarning ? ' (Có cảnh báo cần kiểm tra)' : ''}`}
+                    onClick={() => {
+                      scrollToStep(st.id);
+                      if (isStep4) setIsStep4Expanded(true);
+                    }}
+                    className={`w-full text-left rounded-xl text-[11px] font-semibold transition-all flex items-center group cursor-pointer relative ${
+                      isSidebarCollapsed ? 'p-2 justify-center' : 'px-2.5 py-1.5 justify-between'
+                    } ${
+                      isActive
+                        ? 'bg-sky-50 text-sky-900 font-bold border border-sky-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
+                    }`}
+                  >
+                    {isSidebarCollapsed ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                        <span className="text-[9px] font-mono leading-none">{st.number}</span>
+                        {hasStepWarning && (
+                          <span
+                            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30"
+                            title="Mục này đang có cảnh báo cần kiểm tra"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                          <span className="truncate">{st.title}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                          {hasStepWarning && (
+                            <span
+                              className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30 shrink-0"
+                              title="Mục này đang có cảnh báo hoặc ảnh cần kiểm tra"
+                            />
+                          )}
+                          {isStep4 && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsStep4Expanded((prev) => !prev);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setIsStep4Expanded((prev) => !prev);
+                                }
+                              }}
+                              className="p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer rounded"
+                            >
+                              {isStep4Expanded ? (
+                                <ChevronDown className="w-3 h-3" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3" />
+                              )}
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] font-mono px-1 py-0.5 rounded ${
+                              isActive
+                                ? 'bg-sky-200/80 text-sky-900 font-bold'
+                                : 'text-slate-400 group-hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {st.number}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Cây danh mục con cho Bước 4: Từng tầng với CAD_Z -> Z -> CAD_E -> E */}
+                  {isStep4 && isStep4Expanded && !isSidebarCollapsed && (
+                    <div className="pl-2.5 pr-0.5 py-1 space-y-1.5 border-l-2 border-sky-200 ml-2.5 my-0.5">
+                      {floorsList.map((fl, fIdx) => {
+                        const floorDomId = `step-4-floor-${fIdx}`;
+                        const cadZDomId = `step-4-floor-${fIdx}-cad-z`;
+                        const zonesDomId = `step-4-floor-${fIdx}-zones`;
+                        const cadEDomId = `step-4-floor-${fIdx}-cad-e`;
+                        const elementsDomId = `step-4-floor-${fIdx}-elements`;
+                        const isFloorActive =
+                          activeSubNavId === floorDomId ||
+                          activeSubNavId.startsWith(`${floorDomId}-`);
+                        const hasFloorWarning = subNavWarningSet.has(floorDomId);
+                        const hasCadZWarning = subNavWarningSet.has(cadZDomId);
+                        const hasZonesWarning = subNavWarningSet.has(zonesDomId);
+                        const hasCadEWarning = subNavWarningSet.has(cadEDomId);
+                        const hasElementsWarning = subNavWarningSet.has(elementsDomId);
+
+                        return (
+                          <div key={fl.id || fIdx} className="space-y-0.5">
+                            <button
+                              type="button"
+                              data-nav-id={floorDomId}
+                              onClick={() => scrollToElement(floorDomId)}
+                              className={`w-full text-left text-[10px] font-black uppercase tracking-wider flex items-center justify-between gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                                isFloorActive
+                                  ? 'text-sky-800 bg-sky-100/70'
+                                  : 'text-slate-700 hover:text-sky-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isFloorActive ? 'bg-sky-600 ring-2 ring-sky-300' : 'bg-sky-500'
+                                  }`}
+                                />
+                                <span className="truncate">{fl.floorName || `Tầng ${fIdx + 1}`}</span>
+                              </div>
+                              {hasFloorWarning && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30 shrink-0"
+                                  title="Tầng này có ảnh hoặc mục cần kiểm tra"
+                                />
+                              )}
+                            </button>
+                            <div className="space-y-0.5 pl-1.5 border-l border-slate-200">
+                              <button
+                                type="button"
+                                data-nav-id={cadZDomId}
+                                onClick={() => scrollToElement(cadZDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
+                                  activeSubNavId === cadZDomId
+                                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
+                                }`}
+                              >
+                                <span className="truncate">CAD_Z Kiến Trúc</span>
+                                {hasCadZWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={zonesDomId}
+                                onClick={() => scrollToElement(zonesDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
+                                  activeSubNavId === zonesDomId
+                                    ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-sky-700 hover:bg-sky-50'
+                                }`}
+                              >
+                                <span className="truncate">Vùng Z ({(fl.zones || []).length})</span>
+                                {hasZonesWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={cadEDomId}
+                                onClick={() => scrollToElement(cadEDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between font-mono cursor-pointer transition-colors ${
+                                  activeSubNavId === cadEDomId
+                                    ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <span className="truncate">CAD_E Kết Cấu</span>
+                                {hasCadEWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                data-nav-id={elementsDomId}
+                                onClick={() => scrollToElement(elementsDomId)}
+                                className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] flex items-center justify-between cursor-pointer transition-colors ${
+                                  activeSubNavId === elementsDomId
+                                    ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                                    : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <span className="truncate">Cấu kiện E ({(fl.structuralElements || []).length})</span>
+                                {hasElementsWarning && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 shrink-0" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+
+          {/* Thanh công cụ Lưu / Hủy khi có thay đổi - GIỮ BẢO LƯU KHI TẮT CHẾ ĐỘ SỬA */}
+          {totalPendingChanges > 0 && (
+            <div className="pt-2.5 border-t border-amber-200/80 bg-amber-500/10 -mx-2.5 -mb-2.5 p-2.5 rounded-b-2xl space-y-1.5 border-b border-x border-amber-200/80 shrink-0">
+              {isSidebarCollapsed ? (
+                <button
+                  type="button"
+                  onClick={handleReviewSave}
+                  title={`Lưu Diff (${totalPendingChanges} sửa đổi)`}
+                  className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex flex-col items-center justify-center gap-0.5 transition-colors shadow-xs cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{totalPendingChanges}</span>
+                </button>
+              ) : (
+                <>
+                  <div className="text-[10px] font-bold text-amber-950 flex items-center justify-between">
+                    <div className="flex items-center gap-1 truncate">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      <span className="truncate">
+                        {totalPendingChanges} sửa đổi
+                        {stagedPhotoActions && stagedPhotoActions.length > 0 ? ` (${stagedPhotoActions.length} ảnh)` : ''}
+                      </span>
+                    </div>
+                    {!isEditMode && (
+                      <span className="text-[9px] font-bold text-amber-800 bg-amber-200/60 px-1 py-0.5 rounded shrink-0">
+                        Chưa lưu
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDiscard(false);
+                        onDiscardAllStagedPhotos?.();
+                      }}
+                      className="flex-1 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Hủy</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReviewSave}
+                      className="flex-1 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <Save className="w-3 h-3" />
+                      <span>Lưu ({totalPendingChanges})</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
       <div className="flex-1 space-y-6 min-w-0 max-w-full overflow-x-hidden">

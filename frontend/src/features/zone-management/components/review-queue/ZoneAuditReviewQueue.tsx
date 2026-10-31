@@ -62,7 +62,6 @@ export interface PendingSubmissionItem {
   status: string;
   parcel_status: string;
   is_refused_or_absent: boolean;
-  absence_state?: 'ABSENT' | 'ACCESS_HISTORY' | 'SUSPECTED' | 'NORMAL' | null;
   absence_attempt_count: number;
   survey_date: string | null;
   created_at: string;

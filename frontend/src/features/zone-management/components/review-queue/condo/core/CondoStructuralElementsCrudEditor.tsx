@@ -1,86 +1,72 @@
-import React, { useRef, useState } from 'react';
-import { getNextAvailablePinCode } from '../../../../../../components/canvas/FloorCadPinningCanvas';
-import { Plus, Trash2, RotateCcw, ShieldAlert, CheckCircle2, EyeOff } from 'lucide-react';
+import React, { useState } from 'react';
 import {
-  STRUCT_DEFECT_TYPES,
-  STRUCT_SCREENING_CATEGORIES,
-} from '../../stepwise/constants/defect-taxonomy';
-import { rotatePinCoords } from '../../stepwise/utils/pinCoordinates';
-import { AuditField, withCurrentOption } from '../../stepwise/ui/AuditField';
+  Plus,
+  Trash2,
+  RotateCcw,
+  Camera,
+  History,
+  Maximize2,
+  ShieldAlert,
+  CheckCircle2,
+  EyeOff,
+} from 'lucide-react';
+import type {
+  AuditPhotoActionParams,
+  AuditPhotoHistoryParams,
+} from '../../stepwise/types';
 import type {
   CondoDefectItemData,
   CondoStructuralElementItemData,
 } from '../types/condo-audit.types';
-import { CondoCadPinSection } from './CondoCadPinSection';
-import { CondoDefectStripSection } from './CondoDefectStripSection';
-import type { CondoCadPinControls } from './useCondoCadPins';
-import type { CondoPhotoHandlers } from './CondoPhotoCard';
 
-const ELEMENT_TYPE_OPTIONS = [
-  { value: 'Cột BTCT', label: 'Cột chịu lực BTCT' },
-  { value: 'Dầm BTCT', label: 'Dầm chính / Dầm phụ BTCT' },
-  { value: 'Vách cứng / Lõi thang', label: 'Vách cứng / Lõi thang máy' },
-  { value: 'Sàn BTCT', label: 'Bản sàn BTCT / Sàn tầng hầm' },
-  { value: 'Tường chắn hầm', label: 'Tường vây / Tường chắn tầng hầm' },
-];
-
-interface CondoStructuralElementsCrudEditorProps extends CondoPhotoHandlers {
+interface CondoStructuralElementsCrudEditorProps {
+  isEditMode: boolean;
   elements: CondoStructuralElementItemData[];
   defaultFloorName?: string;
-  pinControls: CondoCadPinControls;
   onChangeElements: (
     nextElements: CondoStructuralElementItemData[],
     actionLabel: string
   ) => void;
+  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
 }
 
 export const CondoStructuralElementsCrudEditor: React.FC<
   CondoStructuralElementsCrudEditorProps
 > = ({
+  isEditMode,
   elements,
-  defaultFloorName = '',
-  pinControls,
+  defaultFloorName = 'Tầng 1',
   onChangeElements,
-  ...photoHandlers
+  onOpenPhotoZoom,
+  onOpenPhotoAction,
+  onOpenPhotoHistory,
 }) => {
-  const { isEditMode, onOpenPhotoAction } = photoHandlers;
-  const { elementBoard, undoState } = pinControls;
   const [showDeleted, setShowDeleted] = useState(false);
-  const [highlightedElementCode, setHighlightedElementCode] = useState<string | null>(null);
-  const elementsRef = useRef(elements);
-  elementsRef.current = elements;
 
   const visibleElements = elements.filter((el) => showDeleted || !el.isDeleted);
   const deletedElementsCount = elements.filter((el) => el.isDeleted).length;
 
-  const handleAddElement = (cadPosition?: { x: number; y: number }) => {
-    const eCode = getNextAvailablePinCode(
-      elementBoard.pins,
-      'E',
-      elements.map((el) => el.elementCode)
-    );
+  const handleAddElement = () => {
+    const nextIdx = elements.length + 1;
+    const eCode = `E-${String(nextIdx).padStart(2, '0')}`;
     const newEl: CondoStructuralElementItemData = {
-      id: `elem_${Date.now()}_${eCode}`,
+      id: `elem_${Date.now()}_${nextIdx}`,
       elementCode: eCode,
       floorName: defaultFloorName,
-      roomName: '',
-      elementType: '',
-      materialType: '',
-      dimensionsText: '',
+      roomName: 'Trục kết cấu chính',
+      elementType: 'Cột BTCT',
+      materialType: 'BTCT',
+      dimensionsText: '600x600mm',
       ctxPhotoUrl: null,
       ctxPhotoCode: `${eCode}-CTX`,
+      pinX: null,
+      pinY: null,
       hasDamage: false,
-      overviewPhotos: [],
-      notes: '',
       defects: [],
     };
     onChangeElements([...elements, newEl], `Thêm mới cấu kiện chịu lực ${eCode}`);
-    if (cadPosition) elementBoard.addCadPin(eCode, cadPosition.x, cadPosition.y);
-  };
-
-  const selectElementPin = (code: string) => {
-    setHighlightedElementCode(code);
-    document.getElementById(`condo-element-${code}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleUpdateElementField = (
@@ -108,33 +94,23 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     );
   };
 
-  const handleAddElementDefect = (el: CondoStructuralElementItemData, ctxPosition?: { x: number; y: number }) => {
-    const defectCodes = (el.defects || []).map((d) => d.defectCode);
-    const dCode = getNextAvailablePinCode(
-      defectCodes.map((code) => ({ defectCode: code })),
-      'D',
-      defectCodes
-    );
-    const defectId = `eldef_${Date.now()}_${dCode}`;
+  const handleAddElementDefect = (el: CondoStructuralElementItemData) => {
+    const dIdx = (el.defects?.length || 0) + 1;
+    const dCode = `D-${String(dIdx).padStart(2, '0')}`;
     const newDef: CondoDefectItemData = {
-      id: defectId,
+      id: `eldef_${Date.now()}_${dIdx}`,
       defectCode: dCode,
-      defectType: STRUCT_DEFECT_TYPES[0],
-      screeningCategory: STRUCT_SCREENING_CATEGORIES[0],
-      widthMaxMm: null,
-      lengthMm: null,
-      crackDirection: 'Ngang',
-      activityState: 'U',
-      structuralSignificanceE2: null,
-      materialDegradationE4: null,
-      notes: '',
-      hasScaleCard: false,
+      defectType: 'CRACK_STRUCTURAL_BEAM_COLUMN',
+      screeningCategory: 'CRACK_STRUCTURAL_BEAM_COLUMN',
+      widthMaxMm: 0.8,
+      lengthMm: 400,
+      crackDirection: 'DIAGONAL',
+      activityState: 'ACTIVE',
+      hasScaleCard: true,
       isStructuralCritical: true,
       cuPhotoUrl: null,
       cuPhotos: [],
       cuPhotoCode: `${el.elementCode}-${dCode}-CU`,
-      pinX: ctxPosition?.x ?? null,
-      pinY: ctxPosition?.y ?? null,
     };
     const next = elements.map((item) =>
       item.id === el.id
@@ -148,65 +124,6 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     onChangeElements(
       next,
       `Thêm khuyết tật ${dCode} trên cấu kiện ${el.elementCode}`
-    );
-    if (ctxPosition) {
-      onOpenPhotoAction?.({
-        initialMode: 'ADD',
-        category: 'DEFECT_CU',
-        targetPhotoType: 'DEFECT_CU_PHOTO',
-        targetPhotoId: defectId,
-        defectId,
-        defectCode: dCode,
-        zoneCode: el.elementCode,
-        initialPinX: ctxPosition.x,
-        initialPinY: ctxPosition.y,
-        photoTitle: `Khuyết tật ${dCode} (${el.elementCode})`,
-      });
-    }
-  };
-
-  const applyDefectPin = (elementId: string, defectId: string, x: number, y: number, label: string) =>
-    onChangeElements(
-      elementsRef.current.map((el) =>
-        el.id !== elementId
-          ? el
-          : { ...el, defects: (el.defects || []).map((d) => (d.id === defectId ? { ...d, pinX: x, pinY: y } : d)) }
-      ),
-      label
-    );
-
-  const handleMoveDefectPin = (el: CondoStructuralElementItemData, defectId: string, x: number, y: number) => {
-    const defect = (el.defects || []).find((d) => d.id === defectId);
-    if (!defect) return;
-    const { pinX, pinY, defectCode } = defect;
-    undoState.pushUndo(() =>
-      applyDefectPin(el.id, defectId, Number(pinX), Number(pinY), `Hoàn tác ghim ${defectCode} (${el.elementCode})`)
-    );
-    applyDefectPin(el.id, defectId, x, y, `Điều chỉnh ghim ${defectCode} (${el.elementCode})`);
-  };
-
-  const handleRotateElementCtx = (
-    el: CondoStructuralElementItemData,
-    rotationKey: string,
-    currentRotation: number
-  ) => {
-    const previousDefects = el.defects || [];
-    const restore = (defects: CondoDefectItemData[], rotation: number, label: string) => {
-      pinControls.setRotation(rotationKey, rotation);
-      onChangeElements(
-        elementsRef.current.map((item) => (item.id === el.id ? { ...item, defects } : item)),
-        label
-      );
-    };
-    undoState.pushUndo(() => restore(previousDefects, currentRotation, `Hoàn tác xoay CTX ${el.elementCode}`));
-    restore(
-      previousDefects.map((d) => {
-        if (!d.pinX && !d.pinY) return d;
-        const next = rotatePinCoords(Number(d.pinX), Number(d.pinY));
-        return { ...d, pinX: next.x, pinY: next.y };
-      }),
-      (currentRotation + 90) % 360,
-      `Xoay CTX ${el.elementCode} 90° và đổi tọa độ ghim D`
     );
   };
 
@@ -259,18 +176,24 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-black text-slate-800">
-            Cấu kiện chịu lực (E):{' '}
-            <span className="font-mono text-amber-700">{elements.filter((e) => !e.isDeleted).length} cấu kiện</span>
+          <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+            Cấu kiện chịu lực được kiểm tra (E):{' '}
+            <span className="font-mono text-amber-600 dark:text-amber-400">
+              {elements.filter((e) => !e.isDeleted).length} cấu kiện
+            </span>
           </span>
           {deletedElementsCount > 0 && (
             <button
               type="button"
               onClick={() => setShowDeleted(!showDeleted)}
-              className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 cursor-pointer"
+              className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 border border-slate-200 flex items-center gap-1 cursor-pointer"
             >
               <EyeOff className="w-3 h-3" />
-              <span>{showDeleted ? 'Ẩn cấu kiện đã xóa' : `Hiện cấu kiện đã xóa (${deletedElementsCount})`}</span>
+              <span>
+                {showDeleted
+                  ? 'Ẩn cấu kiện đã xóa'
+                  : `Hiện cấu kiện đã xóa (${deletedElementsCount})`}
+              </span>
             </button>
           )}
         </div>
@@ -278,148 +201,372 @@ export const CondoStructuralElementsCrudEditor: React.FC<
         {isEditMode && (
           <button
             type="button"
-            onClick={() => handleAddElement()}
+            onClick={handleAddElement}
             className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Thêm Cấu Kiện (E)</span>
+            <span>Thêm Cấu Kiện Chịu Lực (E)</span>
           </button>
         )}
       </div>
 
-      <CondoCadPinSection
-        board={elementBoard}
-        tone="element"
-        title="CAD Kết cấu (E)"
-        activeCodes={elements.filter((el) => !el.isDeleted).map((el) => el.elementCode)}
-        isEditMode={isEditMode}
-        canUndo={undoState.canUndo}
-        onUndo={undoState.undo}
-        onAddAt={(x, y) => handleAddElement({ x, y })}
-        onSelectPin={selectElementPin}
-        onOpenPhotoZoom={photoHandlers.onOpenPhotoZoom}
-      />
-
       {visibleElements.length === 0 ? (
-        <div className="p-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 text-center space-y-1.5">
+        <div className="p-6 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 text-center space-y-1.5">
           <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto" />
-          <div className="text-xs font-bold text-slate-700">Khảo sát không ghi nhận cấu kiện chịu lực (E)</div>
+          <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
+            Chưa ghi nhận cấu kiện chịu lực (E) có bất thường trong khu vực này
+          </div>
+          <p className="text-[11px] text-slate-500">
+            {isEditMode
+              ? 'Nhấn "Thêm Cấu Kiện Chịu Lực (E)" để bổ sung Cột, Dầm, Vách cứng hoặc Lõi thang máy.'
+              : 'Các cấu kiện cột, dầm, vách cứng trong phân vùng đang ở trạng thái ổn định.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
           {visibleElements.map((el) => {
             const isElDeleted = Boolean(el.isDeleted);
-            const canEditElement = isEditMode && !isElDeleted;
-            const ctxRotationKey = `element_f0_e${el.elementCode}_ctx`;
-            const ctxRotation = pinControls.getRotation(ctxRotationKey);
+            const activeDefs = (el.defects || []).filter(
+              (d) => showDeleted || !d.isDeleted
+            );
 
             return (
               <div
                 key={el.id}
-                id={`condo-element-${el.elementCode}`}
-                className={`scroll-mt-6 rounded-2xl p-4 sm:p-5 space-y-4 transition-all ${
+                className={`rounded-2xl border p-4 space-y-3 ${
                   isElDeleted
-                    ? 'opacity-70 border border-dashed border-rose-300 bg-rose-50/20'
-                    : 'bg-white border border-slate-200 shadow-2xs'
-                } ${highlightedElementCode === el.elementCode ? 'ring-4 ring-amber-400' : ''}`}
+                    ? 'bg-rose-50/40 border-rose-300 opacity-75'
+                    : 'bg-amber-50/30 dark:bg-slate-800/40 border-amber-200/80 dark:border-slate-750'
+                }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-black bg-amber-600 text-white">
                       {el.elementCode}
+                    </span>
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                      {el.elementType} — {el.roomName}
                     </span>
                     {el.hasDamage && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
                         <ShieldAlert className="w-3 h-3" /> Có hư hại kết cấu
                       </span>
                     )}
-                    {isElDeleted && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">ĐÃ XÓA MỀM</span>
-                    )}
                   </div>
+
                   {isEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleDeleteElement(el)}
-                      className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border cursor-pointer transition-colors ${
-                        isElDeleted
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
-                          : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
-                      }`}
-                    >
-                      {isElDeleted ? <RotateCcw className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      <span>{isElDeleted ? 'Khôi phục Cấu Kiện' : 'Xóa Cấu Kiện'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {!isElDeleted && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddElementDefect(el)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Thêm Vết Nứt Kết Cấu (D)</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDeleteElement(el)}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        {isElDeleted ? (
+                          <>
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Khôi phục</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3 h-3" />
+                            <span>Xóa cấu kiện</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
 
+                {/* Metadata Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <AuditField
-                    label="Loại cấu kiện"
-                    type="select"
-                    value={el.elementType}
-                    options={withCurrentOption(ELEMENT_TYPE_OPTIONS, el.elementType)}
-                    isEditMode={canEditElement}
-                    onChange={(val) =>
-                      handleUpdateElementField(el.id, 'elementType', val, `Loại cấu kiện ${el.elementCode}`)
-                    }
-                  />
-                  <AuditField
-                    label="Vị trí / Trục"
-                    value={el.roomName}
-                    isEditMode={canEditElement}
-                    onChange={(val) =>
-                      handleUpdateElementField(el.id, 'roomName', val, `Vị trí cấu kiện ${el.elementCode}`)
-                    }
-                  />
-                  <AuditField
-                    label="Vật liệu"
-                    value={el.materialType}
-                    isEditMode={canEditElement}
-                    onChange={(val) =>
-                      handleUpdateElementField(el.id, 'materialType', val, `Vật liệu cấu kiện ${el.elementCode}`)
-                    }
-                  />
-                  <AuditField
-                    label="Tiết diện / Kích thước"
-                    value={el.dimensionsText}
-                    mono
-                    isEditMode={canEditElement}
-                    onChange={(val) =>
-                      handleUpdateElementField(el.id, 'dimensionsText', val, `Kích thước cấu kiện ${el.elementCode}`)
-                    }
-                  />
-                  <AuditField
-                    label="Ghi chú cấu kiện"
-                    className="md:col-span-4"
-                    value={el.notes}
-                    isEditMode={canEditElement}
-                    onChange={(val) => handleUpdateElementField(el.id, 'notes', val, `Ghi chú cấu kiện ${el.elementCode}`)}
-                  />
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                      Loại cấu kiện chịu lực
+                    </label>
+                    {isEditMode && !isElDeleted ? (
+                      <select
+                        value={el.elementType}
+                        onChange={(e) =>
+                          handleUpdateElementField(
+                            el.id,
+                            'elementType',
+                            e.target.value,
+                            `Loại cấu kiện ${el.elementCode}`
+                          )
+                        }
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                      >
+                        <option value="Cột BTCT">Cột chịu lực BTCT</option>
+                        <option value="Dầm BTCT">Dầm chính / Dầm phụ BTCT</option>
+                        <option value="Vách cứng / Lõi thang">Vách cứng / Lõi thang máy</option>
+                        <option value="Sàn BTCT">Bản sàn BTCT / Sàn tầng hầm</option>
+                        <option value="Tường chắn hầm">Tường vây / Tường chắn tầng hầm</option>
+                      </select>
+                    ) : (
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {el.elementType}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                      Trục / Vị trí định vị
+                    </label>
+                    {isEditMode && !isElDeleted ? (
+                      <input
+                        type="text"
+                        value={el.roomName}
+                        onChange={(e) =>
+                          handleUpdateElementField(
+                            el.id,
+                            'roomName',
+                            e.target.value,
+                            `Vị trí cấu kiện ${el.elementCode}`
+                          )
+                        }
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                      />
+                    ) : (
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {el.roomName}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                      Kích thước tiết diện (mm)
+                    </label>
+                    {isEditMode && !isElDeleted ? (
+                      <input
+                        type="text"
+                        value={el.dimensionsText || ''}
+                        onChange={(e) =>
+                          handleUpdateElementField(
+                            el.id,
+                            'dimensionsText',
+                            e.target.value,
+                            `Tiết diện cấu kiện ${el.elementCode}`
+                          )
+                        }
+                        placeholder="VD: 600x800mm"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                      />
+                    ) : (
+                      <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100">
+                        {el.dimensionsText || 'Chưa ghi nhận'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                      Ảnh cấu kiện ({el.elementCode}-CTX)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {el.ctxPhotoUrl ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPhotoZoom(
+                              el.ctxPhotoUrl!,
+                              `Ảnh cấu kiện ${el.elementCode} (${el.elementType})`,
+                              el.ctxPhotoCode || el.elementCode
+                            )
+                          }
+                          className="relative w-14 h-10 rounded-lg overflow-hidden border border-slate-300 group cursor-pointer"
+                        >
+                          <img
+                            src={el.ctxPhotoUrl}
+                            alt={el.elementCode}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                            <Maximize2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-amber-600 font-semibold">
+                          Chưa có ảnh
+                        </span>
+                      )}
+
+                      {onOpenPhotoAction && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPhotoAction({
+                              initialMode: el.ctxPhotoUrl ? 'REPLACE' : 'ADD',
+                              category: 'ELEMENT_CTX',
+                              targetPhotoType: 'ELEMENT_CTX_PHOTO',
+                              targetPhotoId: el.id,
+                              zoneCode: el.elementCode,
+                              currentPhotoUrl: el.ctxPhotoUrl || undefined,
+                              currentPhotoCode: el.ctxPhotoCode || `${el.elementCode}-CTX`,
+                              photoTitle: `Ảnh cấu kiện chịu lực ${el.elementCode}`,
+                            })
+                          }
+                          className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Camera className="w-3 h-3 text-amber-600" />
+                          <span>{el.ctxPhotoUrl ? 'Thay ảnh' : 'Thêm ảnh'}</span>
+                        </button>
+                      )}
+
+                      {onOpenPhotoHistory && (el.hasHistory || el.ctxPhotoUrl) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPhotoHistory({
+                              photoCode: el.ctxPhotoCode || el.elementCode,
+                              photoType: 'ELEMENT_CTX_PHOTO',
+                              photoTitle: `Lịch sử ảnh cấu kiện ${el.elementCode}`,
+                              currentPhotoUrl: el.ctxPhotoUrl || undefined,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 cursor-pointer"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <CondoDefectStripSection
-                  {...photoHandlers}
-                  kind="element"
-                  parentId={el.id}
-                  parentCode={el.elementCode}
-                  ctxPhotoUrl={el.ctxPhotoUrl}
-                  ctxPhotoCode={el.ctxPhotoCode}
-                  overviewPhotos={el.overviewPhotos || []}
-                  hasHistory={el.hasHistory}
-                  historyCount={el.historyCount}
-                  defects={(el.defects || []).filter((d) => showDeleted || !d.isDeleted)}
-                  canEdit={canEditElement}
-                  ctxRotation={ctxRotation}
-                  onRotateCtx={() => handleRotateElementCtx(el, ctxRotationKey, ctxRotation)}
-                  onAddDefectAt={(x, y) => handleAddElementDefect(el, { x, y })}
-                  onMoveDefectPin={(defectId, x, y) => handleMoveDefectPin(el, defectId, x, y)}
-                  onAddDefect={() => handleAddElementDefect(el)}
-                  onDefectFieldChange={(defectId, field, value, label) =>
-                    handleUpdateElementDefectField(el.id, defectId, field, value, label)
-                  }
-                  onToggleDeleteDefect={(defect) => handleToggleDeleteElementDefect(el, defect)}
-                />
+                {/* Structural Element Defects */}
+                {activeDefs.length > 0 && (
+                  <div className="pt-2 border-t border-amber-200/70 space-y-2">
+                    <div className="text-[11px] font-black text-amber-900 dark:text-amber-300 uppercase">
+                      Khuyết tật trên cấu kiện {el.elementCode} ({activeDefs.length})
+                    </div>
+                    {activeDefs.map((defect) => {
+                      const isDefDeleted = Boolean(defect.isDeleted);
+                      const cuUrl =
+                        defect.cuPhotoUrl ||
+                        (Array.isArray(defect.cuPhotos) && defect.cuPhotos[0]) ||
+                        null;
+                      return (
+                        <div
+                          key={defect.id}
+                          className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-10 gap-2 items-center text-xs"
+                        >
+                          <div className="md:col-span-2 font-mono font-black text-rose-700">
+                            {el.elementCode}/{defect.defectCode}
+                          </div>
+                          <div className="md:col-span-3 flex items-center gap-2">
+                            <span>W (mm):</span>
+                            {isEditMode && !isDefDeleted ? (
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={defect.widthMaxMm}
+                                onChange={(e) =>
+                                  handleUpdateElementDefectField(
+                                    el.id,
+                                    defect.id,
+                                    'widthMaxMm',
+                                    Number(e.target.value),
+                                    `Bề rộng vết nứt ${el.elementCode}/${defect.defectCode}`
+                                  )
+                                }
+                                className="w-20 px-2 py-1 rounded border border-slate-300 font-mono text-xs"
+                              />
+                            ) : (
+                              <strong className="font-mono text-rose-600">
+                                {defect.widthMaxMm} mm
+                              </strong>
+                            )}
+                          </div>
+                          <div className="md:col-span-3 flex items-center gap-2">
+                            <span>L (mm):</span>
+                            {isEditMode && !isDefDeleted ? (
+                              <input
+                                type="number"
+                                step="10"
+                                value={defect.lengthMm}
+                                onChange={(e) =>
+                                  handleUpdateElementDefectField(
+                                    el.id,
+                                    defect.id,
+                                    'lengthMm',
+                                    Number(e.target.value),
+                                    `Chiều dài vết nứt ${el.elementCode}/${defect.defectCode}`
+                                  )
+                                }
+                                className="w-24 px-2 py-1 rounded border border-slate-300 font-mono text-xs"
+                              />
+                            ) : (
+                              <strong className="font-mono">{defect.lengthMm} mm</strong>
+                            )}
+                          </div>
+                          <div className="md:col-span-2 flex items-center justify-end gap-1.5">
+                            {cuUrl && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onOpenPhotoZoom(
+                                    cuUrl,
+                                    `Ảnh cận cảnh ${el.elementCode}/${defect.defectCode}`,
+                                    defect.cuPhotoCode || defect.defectCode
+                                  )
+                                }
+                                className="w-10 h-8 rounded overflow-hidden border border-slate-300 cursor-pointer"
+                              >
+                                <img
+                                  src={cuUrl}
+                                  alt={defect.defectCode}
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            )}
+                            {onOpenPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onOpenPhotoAction({
+                                    initialMode: cuUrl ? 'REPLACE' : 'ADD',
+                                    category: 'DEFECT_CU',
+                                    targetPhotoType: 'DEFECT_CU_PHOTO',
+                                    targetPhotoId: defect.id,
+                                    defectId: defect.id,
+                                    defectCode: defect.defectCode,
+                                    zoneCode: el.elementCode,
+                                    currentPhotoUrl: cuUrl || undefined,
+                                    photoTitle: `Ảnh cận cảnh ${el.elementCode}/${defect.defectCode}`,
+                                  })
+                                }
+                                className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-amber-600" />
+                              </button>
+                            )}
+                            {isEditMode && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDeleteElementDefect(el, defect)}
+                                className="p-1.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -428,3 +575,4 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     </div>
   );
 };
+

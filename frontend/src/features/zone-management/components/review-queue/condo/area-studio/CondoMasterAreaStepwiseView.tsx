@@ -27,8 +27,6 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
   onDirtyChange,
   stagedPhotoActions = [],
   onUndoPhotoAction,
-  onRefresh,
-  registerStudioCommitHandler,
 }) => {
   const stepIds = useMemo(
     () => CONDO_AREA_STEPS.map((s) => s.stepId),
@@ -51,7 +49,6 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
   } = useCondoBaseAuditForm<CondoAreaFormState>({
     data,
     stepIds,
-    registerStudioCommitHandler,
     normalizeData: normalizeCondoAreaData,
     recomputeDerivedOnChange: recomputeCondoAreaBurlandOnChange,
     buildUpdatesPayload: buildCondoAreaUpdatesPayload,
@@ -82,8 +79,8 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
   return (
     <CondoStepwiseStudioShell<CondoAreaFormState>
       entityKind="MASTER_AREA"
-      entityTitle={formState.areaName || formState.unitCode}
-      entityCode={formState.unitCode || data.unitCode || '---'}
+      entityTitle={formState.areaName || 'Khu vực kỹ thuật / hành lang chung'}
+      entityCode={formState.unitCode || data.unitCode || 'MA'}
       entitySubtitle={`Tầng ${formState.floorNumber} • ${activeZonesCount} vùng Z • ${activeElemsCount} cấu kiện E • Burland Grade ${formState.burlandSummary.localMaxGrade}`}
       status={data.status}
       isParentLocked={Boolean(data.parentBuildingInfo?.isLocked)}
@@ -102,7 +99,6 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
         formState,
         data,
         reportId,
-        onRefresh,
         parentMasterSummary,
         floorPlans,
         handleFieldChange,

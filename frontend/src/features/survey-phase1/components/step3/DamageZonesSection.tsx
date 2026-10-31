@@ -15,7 +15,6 @@ import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCc
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
-import { confirmOverviewPhotoRemoval } from '../../../../components/common/photo-capture/confirmOverviewPhotoRemoval';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -462,17 +461,14 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                     actions={
                       <button
                         type="button"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          const removal = await confirmOverviewPhotoRemoval({
-                            overviewPhotos: activeZone.overviewPhotos,
-                            ctxPhotoUrl: activeZone.ctxPhotoUrl,
-                            defectCount: activeZone.defects?.length || 0,
-                            index: pIdx,
-                            ownerCode: activeZone.zoneCode,
-                          });
-                          if (removal) onUpdateZone(activeZoneIndex, removal);
+                          const deletedUrl = activeZone.overviewPhotos[pIdx];
+                          const updated = activeZone.overviewPhotos.filter((_, i) => i !== pIdx);
+                          const newCtx =
+                            activeZone.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeZone.ctxPhotoUrl;
+                          onUpdateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }}
                         className="absolute top-1.5 right-1.5 p-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto z-30 flex items-center justify-center active:scale-95 shadow-xs"
                         title="Xóa ảnh"
@@ -497,11 +493,6 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       // [ND-04] Sử dụng Trụ cột 1 (upsertPhotoUrlList) thay thế nguyên tử qua meta.replacesUri,
                       // loại bỏ hoàn toàn biến lastTempOverviewUriRef gây lỗi ghi đè mất ảnh trước khi chụp liên tiếp.
                       const replacesUri = meta?.replacesUri;
-
-                      // Upload xong muộn khi KSV đã chuyển vùng: ảnh không thuộc vùng đang mở.
-                      // promoteUrlInStores đã thăng cấp đúng vị trí, nối thêm ở đây sẽ làm ảnh nhảy sang vùng khác.
-                      if (replacesUri && !curPhotos.includes(replacesUri)) return;
-
                       const updated = upsertPhotoUrlList(curPhotos, url, meta);
 
                       // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp

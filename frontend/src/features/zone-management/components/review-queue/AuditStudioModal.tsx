@@ -33,7 +33,6 @@ import {
   CondoAuditStudioEntry,
   resolveCondoEntityKind,
 } from './condo/CondoAuditStudioEntry';
-import { resolveCondoAbsenceView } from './condo/unit-studio/condo-unit.adapters';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActionModal';
@@ -51,11 +50,10 @@ interface Props {
 
 export const AuditStudioModal: React.FC<Props> = ({
   isOpen,
-  reportId: requestedReportId,
+  reportId,
   onClose,
   onRefreshList,
 }) => {
-  const [reportId, setReportId] = useState(requestedReportId);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AuditStepwiseData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -193,10 +191,6 @@ export const AuditStudioModal: React.FC<Props> = ({
   // Nếu Admin đã chấp nhận địa chỉ chuẩn hóa A4 (standardizedAddress) và khóa 4 ô con gốc KSV thì ghi nhận đã chuẩn hóa hợp lệ.
   const currentAddressEval = React.useMemo(() => {
     if (!data) return null;
-    // Căn hộ và Khu vực chung kế thừa địa chỉ từ Tòa mẹ, tại đó Admin không sửa được
-    const condoKind = resolveCondoEntityKind(data);
-    if (condoKind === 'CONDO_UNIT' || condoKind === 'MASTER_AREA') return null;
-
     const sJson = data.surveyJson || data.survey_data_json || {};
     const acceptedStandardizedAddress =
       pendingDirtyData.updates.standardizedAddress !== undefined
@@ -264,10 +258,6 @@ export const AuditStudioModal: React.FC<Props> = ({
       console.error('[AuditStudioModal] Failed to fetch versions:', err);
     }
   };
-
-  useEffect(() => {
-    setReportId(requestedReportId);
-  }, [requestedReportId]);
 
   useEffect(() => {
     if (isOpen && reportId) {
@@ -528,7 +518,6 @@ export const AuditStudioModal: React.FC<Props> = ({
       ['BUILDING_MASTER', 'CONDO_MASTER', 'MASTER_AREA'].includes(reportTypeForOwnerCheck) ||
       data?.unitInfo?.unit_type === 'MASTER'
   );
-  const isAbsentCondoUnit = resolveCondoAbsenceView(data).state === 'ABSENT';
   const isMissingRealOwnerName = Boolean(
     data &&
       !isSpecialOrMasterForOwnerCheck &&
@@ -742,8 +731,7 @@ export const AuditStudioModal: React.FC<Props> = ({
               </button>
             )}
 
-            {/* Nút Phê Duyệt Hồ Sơ (Approve) trên Header: căn vắng chỉ đi qua luồng Xác Thực Hồ Sơ Vắng Chủ */}
-            {!(isAbsentCondoUnit && data?.status !== 'APPROVED') && (
+            {/* Nút Phê Duyệt Hồ Sơ (Approve) trên Header */}
             <button
               type="button"
               disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}
@@ -776,7 +764,6 @@ export const AuditStudioModal: React.FC<Props> = ({
                         : 'Phê Duyệt Hồ Sơ'}
               </span>
             </button>
-            )}
 
             {/* Menu 3 Chấm (...) Gộp Quản lý phiên bản & Nhật ký */}
             <div className="relative">
@@ -964,17 +951,6 @@ export const AuditStudioModal: React.FC<Props> = ({
                     }}
                     onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
                     onOpenRejectModal={() => setShowRejectModal(true)}
-                    onSwitchReportId={(nextReportId) => {
-                      if (
-                        totalDiffCount > 0 &&
-                        !window.confirm('Chuyển hồ sơ sẽ bỏ các thay đổi chưa lưu. Bạn có chắc chắn?')
-                      ) {
-                        return;
-                      }
-                      setStagedPhotoActions([]);
-                      setStagedPhotoDiffs([]);
-                      setReportId(nextReportId);
-                    }}
                     onDirtyChange={setPendingDirtyData}
                     stagedPhotoActions={stagedPhotoActions}
                     onUndoPhotoAction={handleUndoPhotoAction}

@@ -79,7 +79,6 @@
           <span data-toc-target="sec-xii">{{tocPageNumbers.sectionXII}}</span>
         </li>
         {{/if}}
-        {{#unless condoUnitAbsent}}
         <li class="toc-item appendix">
           <span>PHỤ LỤC 1: HỒ SƠ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (NHÓM CÓ VẾT NỨT)</span>
           <span data-toc-target="pl-1">{{#if tocPageNumbers.appendix1New}}{{tocPageNumbers.appendix1New}}{{else}}{{tocPageNumbers.appendix2}}{{/if}}</span>
@@ -88,7 +87,6 @@
           <span>PHỤ LỤC 2: HỒ SƠ ẢNH LƯU TRỮ ĐỐI CHỨNG (NHÓM KHÔNG NỨT)</span>
           <span data-toc-target="pl-2">{{#if tocPageNumbers.appendix2New}}{{tocPageNumbers.appendix2New}}{{else}}{{tocPageNumbers.appendix2}}{{/if}}</span>
         </li>
-        {{/unless}}
         <li class="toc-item appendix">
           <span>PHỤ LỤC 3: THIẾT BỊ KHẢO SÁT CHUYÊN DỤNG (SURVEY EQUIPMENT &amp; CALIBRATION)</span>
           <span data-toc-target="pl-3">{{#if tocPageNumbers.appendix3New}}{{tocPageNumbers.appendix3New}}{{else if tocPageNumbers.appendix3}}{{tocPageNumbers.appendix3}}{{else}}{{tocPageNumbers.appendix4}}{{/if}}</span>

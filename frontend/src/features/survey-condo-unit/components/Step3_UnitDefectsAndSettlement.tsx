@@ -6,7 +6,6 @@ import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
 import { createCondoUnitPhotoOptions } from '../../../components/common/photo-capture/domain/photoIdentityPolicy';
 import { upsertPhotoUrlList } from '../../../components/common/photo-capture/domain/photoCollectionMutator';
-import { confirmOverviewPhotoRemoval } from '../../../components/common/photo-capture/confirmOverviewPhotoRemoval';
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
@@ -1791,17 +1790,16 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                               !isReadOnly ? (
                                 <button
                                   type="button"
-                                  onClick={async (e) => {
+                                  onClick={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
-                                    const removal = await confirmOverviewPhotoRemoval({
-                                      overviewPhotos: activeElement.overviewPhotos,
-                                      ctxPhotoUrl: activeElement.ctxPhotoUrl,
-                                      defectCount: activeElement.defects?.length || 0,
-                                      index: i,
-                                      ownerCode: activeElement.elementCode,
+                                    const updated = (activeElement.overviewPhotos || []).filter((_, idx) => idx !== i);
+                                    const newCtx =
+                                      activeElement.ctxPhotoUrl === url ? updated[0] || '' : activeElement.ctxPhotoUrl;
+                                    updateElement(activeElementIndex, {
+                                      overviewPhotos: updated,
+                                      ctxPhotoUrl: newCtx,
                                     });
-                                    if (removal) updateElement(activeElementIndex, removal);
                                   }}
                                   className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded-md text-xs cursor-pointer shadow-md hover:bg-rose-700 pointer-events-auto z-30 transition-transform active:scale-95 flex items-center justify-center"
                                   title="Xóa ảnh này"

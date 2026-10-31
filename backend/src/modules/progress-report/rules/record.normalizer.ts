@@ -11,7 +11,6 @@ import {
 import { mapSurveyProgress } from './survey-status.mapper';
 import { resolveAlignmentSide, resolveStationCode } from './alignment-side';
 import { resolveOwnerName, resolveOwnerPhone } from './owner-name.resolver';
-import { normalizeUsageFunction } from './usage-normalizer';
 
 /**
  * Chuẩn hóa 1 bản ghi thô thành ProgressRecord:
@@ -21,7 +20,6 @@ import { normalizeUsageFunction } from './usage-normalizer';
  */
 
 export const UNKNOWN_FOUNDATION = 'Không rõ';
-const MISSING_MARK = '---';
 
 export function mapFoundationLabel(raw: string): string {
   const s = raw.toLowerCase();
@@ -102,30 +100,6 @@ function buildNotes(row: RawProgressRow, inaccessible: boolean): string {
   return buildHistoryNotes(row);
 }
 
-/** Dòng tòa mẹ: thông số nền tảng căn hộ con kế thừa; thiếu hồ sơ tòa mẹ thì để "---", không suy đoán. */
-function buildMasterLabel(row: RawProgressRow, buildingName: string, street: string, ward: string): string {
-  const master = row.masterJson;
-  const house = text(row.parcelHouseNumber);
-  const nameHasHouse = Boolean(house) && buildingName.toLowerCase().includes(house.toLowerCase());
-  const address = [nameHasHouse ? '' : house, street, ward ? `Phường ${ward}` : ''].filter(Boolean).join(', ');
-  const title = [buildingName, address].filter(Boolean).join(' - ').toUpperCase() || MISSING_MARK;
-
-  const foundation = mapFoundationLabel(firstText(getPath(master, 'foundationType'), row.masterFoundationCategory));
-  const depth = firstNumber(getPath(master, 'foundationDepthM'), row.masterFoundationDepth);
-  const foundationText = [foundation, depth !== null && depth > 0 ? `sâu ${depth}m` : ''].filter(Boolean).join(', ');
-  const floors = firstNumber(getPath(master, 'aboveFloors'), row.masterFloorCount);
-  const tiltX = toNumber(getPath(master, 'settlementTilt.buildingTilt.xPermille'));
-  const tiltY = toNumber(getPath(master, 'settlementTilt.buildingTilt.yPermille'));
-  const tilt = [tiltX !== null ? `X ${tiltX}‰` : '', tiltY !== null ? `Y ${tiltY}‰` : ''].filter(Boolean).join(' / ');
-
-  return [
-    `TÒA NHÀ: ${title}`,
-    `Móng: ${foundationText || MISSING_MARK}`,
-    `Số tầng: ${floors ?? MISSING_MARK}`,
-    `Độ nghiêng: ${tilt || MISSING_MARK}`,
-  ].join(' | ');
-}
-
 function collectActivityDates(row: RawProgressRow): Date[] {
   return [
     row.reportCreatedAt,
@@ -180,11 +154,11 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
         getPath(row.masterJson, 'buildingName'),
         row.masterBuildingName,
         getPath(json, 'parentBuildingInfo.buildingName'),
-        /chung cư/i.test(row.parcelHouseNumber ?? '') ? row.parcelHouseNumber : row.parcelHouseNumber ? `Chung cư ${row.parcelHouseNumber}` : ''
+        row.parcelHouseNumber ? `Chung cư ${row.parcelHouseNumber}` : ''
       )
     : firstText(getPath(json, 'buildingName'), row.specBuildingName);
 
-  const usageFunction = normalizeUsageFunction(firstText(getPath(json, 'usageFunction'), row.specLandUseFunction), isUnit);
+  const usageFunction = firstText(getPath(json, 'usageFunction'), row.specLandUseFunction, isUnit ? 'Nhà ở' : '');
 
   const foundationRaw = isUnit ? '' : firstText(getPath(json, 'foundationType'), row.specFoundationCategory);
   const foundationType = isUnit || !row.reportId ? '' : mapFoundationLabel(foundationRaw);
@@ -275,6 +249,7 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     houseNumber,
     street,
     ward,
+    quarter: '',
     buildingName,
     ownerName: resolveOwnerName(row),
     ownerPhone: resolveOwnerPhone(row),
@@ -300,6 +275,5 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     hasFoundationInfo,
     isSurveyed: isSurveyedReport,
     activityDates: collectActivityDates(row),
-    masterLabel: isUnit ? buildMasterLabel(row, buildingName, street, ward) : null,
   };
 }

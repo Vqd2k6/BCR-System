@@ -6,10 +6,7 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import { api } from '../../services/api';
 import {
   getAllPendingPhotos,
-  getKnownCloudUrl,
-  getUploadedPhotosWithCloudUrl,
   markOfflinePhotoUploaded,
-  markPhotoMappingRestored,
   deleteOfflinePhoto,
   revokeManagedBlobUrl,
   replaceLocalUriInObject,
@@ -74,8 +71,6 @@ class UploadQueueService {
    * Tự động quét IndexedDB và tiếp tục tải các ảnh offline chưa hoàn tất
    */
   public async resumePendingOfflineUploads(): Promise<number> {
-    await this.restoreLostCloudMappings();
-
     try {
       const pending = await getAllPendingPhotos();
       if (!pending || pending.length === 0) return 0;
@@ -107,29 +102,7 @@ class UploadQueueService {
     }
   }
 
-  /**
-   * Ảnh đã lên Cloud nhưng thiết bị mất mapping (hoặc chụp trước khi có cơ chế mapping):
-   * dùng lại cloudUrl còn trong IndexedDB để thăng cấp bản nháp và đẩy mapping lên server.
-   */
-  private async restoreLostCloudMappings(): Promise<void> {
-    try {
-      const uploaded = await getUploadedPhotosWithCloudUrl();
-      for (const record of uploaded) {
-        if (record.cloudUrl && !getKnownCloudUrl(record.id)) {
-          await this.promoteUrlInStores(record.id, record.cloudUrl, record.metadata);
-        }
-        await markPhotoMappingRestored(record.id);
-      }
-    } catch (err) {
-      console.error('[UploadQueue:RestoreMappings] Lỗi khôi phục mapping ảnh đã upload:', err);
-    }
-  }
-
-  // Gom theo từng thửa/căn: mapping của thửa này không được gửi vào bản nháp của thửa khác
-  private pendingServerMappings = new Map<
-    string,
-    { parcelId: string; unitId: string | null; mappings: Record<string, string> }
-  >();
+  private pendingServerMappings: Record<string, string> = {};
   private serverMappingDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
@@ -236,29 +209,20 @@ class UploadQueueService {
     }
 
     // 6. Gom nhóm và đẩy ánh xạ Cloud lên máy chủ (để mọi thiết bị khác đều tự động nhận diện Cloud URL)
-    if (!activeParcelId) {
-      // Mapping bền đã nằm trên thiết bị (bước 0), bản nháp sẽ tự vá ở lần đồng bộ tiếp theo
-      console.error(`[UploadQueue:QueueMapping] Không xác định được thửa của ảnh ${localId}, chưa đẩy mapping lên server.`);
-      return;
-    }
-
-    const groupKey = `${activeParcelId}|${activeUnitId || ''}`;
-    const group = this.pendingServerMappings.get(groupKey) || {
-      parcelId: activeParcelId,
-      unitId: activeUnitId,
-      mappings: {},
-    };
-    group.mappings[localId] = publicUrl;
-    this.pendingServerMappings.set(groupKey, group);
-
+    this.pendingServerMappings[localId] = publicUrl;
     if (this.serverMappingDebounceTimer) {
       clearTimeout(this.serverMappingDebounceTimer);
     }
     this.serverMappingDebounceTimer = setTimeout(() => {
-      const groupsToSend = Array.from(this.pendingServerMappings.values());
-      this.pendingServerMappings.clear();
-      for (const { parcelId, unitId, mappings } of groupsToSend) {
-        void surveyDraftService.savePhotoMappings(parcelId, unitId, mappings, getDeviceId());
+      const mappingsToSend = { ...this.pendingServerMappings };
+      this.pendingServerMappings = {};
+      if (activeParcelId && Object.keys(mappingsToSend).length > 0) {
+        void surveyDraftService.savePhotoMappings(
+          activeParcelId,
+          activeUnitId,
+          mappingsToSend,
+          getDeviceId()
+        );
       }
     }, 1500);
   }

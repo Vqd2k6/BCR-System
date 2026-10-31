@@ -21,13 +21,17 @@ import {
 } from './cadastral.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { maskParcelPii } from '../../common/utils/pii.utils';
-import { resolveZoneMapScope } from './utils/zone-scope.utils';
 
 export class CadastralController {
   static async getZoneMap(req: Request, res: Response, next: NextFunction) {
     try {
       const isGuest = req.user?.role === 'GUEST';
-      const zoneId = resolveZoneMapScope(req.user, req.query.zoneId as string | undefined);
+      let zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
+      // Nếu là GUEST và đã được gán Zone cụ thể (không phải ALL / ALL_ZONES) thì bắt buộc theo Zone đó
+      const guestAssigned = (req.user?.assignedZoneId || '').trim().toUpperCase();
+      if (isGuest && guestAssigned && guestAssigned !== 'ALL' && guestAssigned !== 'ALL_ZONES') {
+        zoneId = req.user!.assignedZoneId!;
+      }
       const status = req.query.status as string;
       const parcels = await CadastralService.listParcelsInZone(zoneId, status);
       const data = isGuest ? parcels.map(maskParcelPii) : parcels;

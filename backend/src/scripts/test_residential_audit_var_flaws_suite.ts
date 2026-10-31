@@ -3,7 +3,7 @@ import { AuditReviewService } from '../modules/audit/services/audit-review.servi
 import { AuditModificationService } from '../modules/audit/services/audit-modification.service';
 import { AuditVersionService } from '../modules/audit/services/audit-version.service';
 import { ScoringService } from '../modules/scoring/scoring.service';
-import { ReportSnapshotService } from '../modules/report/snapshot/report-snapshot.service';
+import { ReportSnapshotService } from '../modules/report/report-snapshot.service';
 import { ConflictError, BadRequestError, ForbiddenError, NotFoundError } from '../common/errors/problem-details';
 import { CryptoUtils } from '../common/utils/crypto.utils';
 
@@ -873,18 +873,18 @@ async function runTestSuite() {
     // ============================================================================
     console.log('\n--- BẮT ĐẦU NHÓM 5: QUY TRÌNH BIÊN BẢN VẮNG MẶT (TC 41 - 50) ---');
 
-    await assertTest('Logic 5', 'TC41', 'approveAbsenteeReport giữ nguyên bản ghi ECS gốc trong risk_score_cards', async () => {
+    await assertTest('Logic 5', 'TC41', 'approveAbsenteeReport xóa điểm ECS về NULL trong risk_score_cards (xóa bảng điểm)', async () => {
       const { reportId } = await createTestResidential('41');
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt 3 lần có công an khu vực ký');
       const cardRes = await client.query<{ total_ecs_score: number }>(`SELECT total_ecs_score FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
-      expect(cardRes.rows.length).toBe(1);
+      expect(cardRes.rows.length).toBe(0);
     });
 
-    await assertTest('Logic 5', 'TC42', 'approveAbsenteeReport giữ nguyên bản ghi VI gốc trong risk_score_cards', async () => {
+    await assertTest('Logic 5', 'TC42', 'approveAbsenteeReport xóa hoàn toàn bảng điểm VI để không tính điểm rủi ro giả định', async () => {
       const { reportId } = await createTestResidential('42');
       await AuditReviewService.approveAbsenteeReport(reportId, adminId, 'Xác nhận vắng mặt');
       const cardRes = await client.query<{ avg_vi_score: number; vi_class: string }>(`SELECT avg_vi_score, vi_class FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
-      expect(cardRes.rows.length).toBe(1);
+      expect(cardRes.rows.length).toBe(0);
     });
 
     await assertTest('Logic 5', 'TC43', 'approveAbsenteeReport cập nhật trạng thái thửa đất thành POSTPONED_ABSENT_VERIFIED', async () => {

@@ -50,7 +50,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
   const isMasterApproved = masterReportStatus === 'APPROVED';
 
   return (
-    <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50/70 via-white to-teal-50/40 p-4 shadow-xs space-y-3">
+    <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50/70 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/30 p-4 shadow-xs space-y-3">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Left: Master Report Identity & Status */}
         <div className="flex items-start gap-3">
@@ -59,7 +59,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-black uppercase tracking-wider text-indigo-700">
+              <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
                 Hồ Sơ Gốc Tòa Nhà Mẹ (Building Master - 5 Bước)
               </span>
               {isMasterApproved ? (
@@ -80,9 +80,9 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
               )}
             </div>
 
-            <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+            <div className="text-xs text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
               <span>
-                Khối tháp: <strong className="text-slate-900">{towerName}</strong> ({towerParcelCode})
+                Khối tháp: <strong className="text-slate-900 dark:text-white">{towerName}</strong> ({towerParcelCode})
               </span>
               {parentMasterSummary && (
                 <>
@@ -102,7 +102,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
                   <span>•</span>
                   <span>
                     Hạng móng:{' '}
-                    <strong className="text-indigo-700">
+                    <strong className="text-indigo-700 dark:text-indigo-300">
                       CAT {parentMasterSummary.foundationCatScore ?? '--'}
                     </strong>
                   </span>
@@ -140,7 +140,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
               <button
                 type="button"
                 onClick={() => onPreviewMasterReport(masterReportId)}
-                className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
                 <Eye className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Xem Báo Cáo Tòa Mẹ</span>
@@ -151,7 +151,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
           <button
             type="button"
             onClick={onOpenFloorMatrix}
-            className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-3 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-800 dark:text-teal-200 border border-teal-200 dark:border-teal-800 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <Grid className="w-3.5 h-3.5 text-teal-600" />
             <span>Ma Trận Tầng &amp; CAD ({floorPlanCount} tầng)</span>
@@ -172,7 +172,7 @@ export const CondoMasterSummaryBanner: React.FC<CondoMasterSummaryBannerProps> =
               className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 border transition-all cursor-pointer ${
                 isReadyForFinalSeal
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-sm animate-pulse'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
               }`}
             >
               <ShieldCheck className="w-4 h-4" />

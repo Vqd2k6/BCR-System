@@ -134,36 +134,6 @@ export function removePhotoObjectAtIndex<T extends { url: string }>(
   };
 }
 
-export type OverviewPhotoRemovalPlan =
-  | { blocked: 'CTX_HAS_PINS' }
-  | { blocked?: undefined; overviewPhotos: string[]; ctxPhotoUrl: string };
-
-/**
- * Tính kết quả xóa một ảnh tổng quan. Ảnh CTX đang mang ghim D không được xóa:
- * tọa độ ghim gắn với đúng ảnh đó, tự đổi sang ảnh khác là làm sai lệch chứng cứ.
- */
-export function planOverviewPhotoRemoval(params: {
-  overviewPhotos: readonly string[] | undefined | null;
-  ctxPhotoUrl: string | undefined | null;
-  defectCount: number;
-  index: number;
-}): OverviewPhotoRemovalPlan {
-  const { overviewPhotos, ctxPhotoUrl, defectCount, index } = params;
-  const baseList = Array.isArray(overviewPhotos) ? overviewPhotos : [];
-  const removedUrl = baseList[index];
-  const isCtxPhoto = Boolean(removedUrl) && removedUrl === ctxPhotoUrl;
-
-  if (isCtxPhoto && defectCount > 0) {
-    return { blocked: 'CTX_HAS_PINS' };
-  }
-
-  const updated = baseList.filter((_, idx) => idx !== index);
-  return {
-    overviewPhotos: updated,
-    ctxPhotoUrl: isCtxPhoto ? updated[0] || '' : ctxPhotoUrl || '',
-  };
-}
-
 /**
  * Tính số thứ tự (photoIndex) tiếp theo không trùng lặp cho danh sách ảnh nhiều tấm.
  * Đảm bảo kể cả khi xóa ảnh ở giữa (VD: có _01, _02 rồi xóa _01 còn [_02]),

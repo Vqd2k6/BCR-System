@@ -10,14 +10,8 @@ export interface RenderedFile {
   extension: string;
 }
 
-/** Một sheet của file xuất: 1 zone = 1 sheet, toàn tuyến = mỗi zone 1 sheet độc lập. */
-export interface RenderSheet {
-  name: string;
-  table: ResolvedTable;
-}
-
 export interface ProgressRenderer {
   readonly format: string;
-  render(sheets: RenderSheet[]): Promise<RenderedFile>;
+  render(table: ResolvedTable): Promise<RenderedFile>;
 }
 

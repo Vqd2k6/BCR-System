@@ -42,8 +42,6 @@ interface Props {
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onConfirmAbsenteeSurvey?: () => void;
-  /** Hồ sơ chung cư tự quyết định trạng thái vắng; nhật ký vắng chỉ là lịch sử tiếp cận, không phải kết luận. */
-  absenteeView?: { isAbsentee: boolean; title: string; description: string };
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
@@ -62,7 +60,6 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   onOpenPhotoReplace,
   onOpenPhotoAction,
   onOpenPhotoHistory,
-  absenteeView,
   isFieldDirty,
   stagedPhotoRotations = {},
   onRotatePhoto,
@@ -88,12 +85,10 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
           reason: 'Giấy thông báo vắng mặt hiện trường',
         }));
   const isAbsentee =
-    absenteeView?.isAbsentee ??
-    (Boolean(formState.isRefusedOrAbsent) ||
-      formState.status === 'POSTPONED_ABSENT' ||
-      absenceLogs.length > 0 ||
-      addedAbsenceNoticePhotos.length > 0);
-  const hasAbsenceRecords = absenceLogs.length > 0 || addedAbsenceNoticePhotos.length > 0;
+    Boolean(formState.isRefusedOrAbsent) ||
+    formState.status === 'POSTPONED_ABSENT' ||
+    absenceLogs.length > 0 ||
+    addedAbsenceNoticePhotos.length > 0;
 
   // Working minutes photos
   const rawPhotos: (string | { url?: string; photoUrl?: string; photoCode?: string; caption?: string })[] =
@@ -961,11 +956,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Trạng thái có mặt:</span>
                 <span className={`font-bold ${isAbsentee ? 'text-amber-700' : 'text-emerald-700'}`}>
-                  {isAbsentee
-                    ? 'Vắng mặt thực địa'
-                    : ownerSignatureUrl || rawPhotos.length > 0
-                      ? 'Có mặt ký biên bản'
-                      : 'Chưa có chữ ký'}
+                  {isAbsentee ? 'Vắng mặt thực địa' : 'Có mặt ký biên bản'}
                 </span>
               </div>
 
@@ -1147,7 +1138,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   />
                 ) : (
                   <span className="font-bold text-slate-800">
-                    {witnessName || '---'}
+                    {witnessName || (isAbsentee ? 'Cán bộ TDP / Địa chính' : 'Không có')}
                   </span>
                 )}
               </div>
@@ -1303,13 +1294,13 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
         </div>
 
         {/* 3. TRƯỜNG HỢP VẮNG MẶT (GỌN GÀNG, ĐÍNH KÈM GIẤY BÁO DÁN CỬA NẾU CÓ) */}
-        {(isAbsentee || (absenteeView && hasAbsenceRecords)) && (
+        {isAbsentee && (
           <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-purple-700" />
                 <span className="text-xs font-black uppercase text-purple-900">
-                  {absenteeView?.title ?? 'Ghi Nhận Khảo Sát Ngoại Quan (Chủ Hộ Vắng Mặt)'}
+                  Ghi Nhận Khảo Sát Ngoại Quan (Chủ Hộ Vắng Mặt)
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -1352,8 +1343,8 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
             </div>
             <p className="text-xs text-purple-800">
-              {absenteeView?.description ??
-                'Công trình được khảo sát ngoại quan do chủ hộ vắng mặt tại thời điểm thực địa. Biên bản khảo sát được lưu chiểu kèm giấy thông báo hoặc xác nhận của tổ dân phố/chính quyền địa phương.'}
+              Công trình được khảo sát ngoại quan do chủ hộ vắng mặt tại thời điểm thực địa.
+              Biên bản khảo sát được lưu chiểu kèm giấy thông báo hoặc xác nhận của tổ dân phố/chính quyền địa phương.
             </p>
 
             {/* Danh sách lần liên hệ / dán giấy hẹn */}

@@ -2,27 +2,7 @@ import type {
   AuditStepwiseData,
   StepwiseIdentificationPhotoItem,
 } from '../../stepwise/types';
-import { firstNonEmptyString, toNumberOrNull, toOptionalNumber, toRecord } from '../core/condo-normalize.utils';
 import type { CondoMasterFormState } from '../types/condo-audit.types';
-
-const RISK_RATING_SUFFIX = /_RISK$/;
-
-/** Thiếu bất kỳ thành phần nào thì không có tổng: không suy ra điểm từ số mặc định. */
-function sumIfComplete(values: Array<number | undefined>): number | undefined {
-  return values.every((v) => v !== undefined)
-    ? values.reduce<number>((acc, v) => acc + Number(v), 0)
-    : undefined;
-}
-
-function classifyEcs(totalEcs: number | undefined): string {
-  if (totalEcs === undefined) return '';
-  return totalEcs <= 5 ? 'GOOD' : totalEcs <= 10 ? 'MEDIUM' : totalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL';
-}
-
-function classifyVi(avgVi: number | undefined): string {
-  if (avgVi === undefined) return '';
-  return avgVi > 3.25 ? 'VERY_HIGH' : avgVi > 2.5 ? 'HIGH' : avgVi > 1.5 ? 'MEDIUM' : 'LOW';
-}
 
 function toPhotoObj(
   raw: unknown,
@@ -55,10 +35,9 @@ export function normalizeCondoMasterData(
   const deform = (data.deformation ||
     data.leftPane?.deformation ||
     {}) as Record<string, unknown>;
-  // JSON giữ đủ mức và diễn giải; hàng SQL chỉ có cờ true/false nên chỉ dùng khi hồ sơ chưa có JSON phỏng vấn
-  const interview = (sJson.historyInterview ||
-    data.historyInterview ||
+  const interview = (data.historyInterview ||
     data.leftPane?.interview ||
+    sJson.historyInterview ||
     {}) as Record<string, unknown>;
   const idPhotos = (data.identificationPhotos ||
     data.rightPane?.identificationPhotos ||
@@ -72,8 +51,17 @@ export function normalizeCondoMasterData(
   const rawCatEnum = String(
     specs.foundationCategory || specs.foundation_category || ''
   );
-  const catMatch = rawCatEnum.match(/^CAT_([1-5])/);
-  const parsedCatScore = toNumberOrNull(sJson.foundationCatScore) ?? (catMatch ? Number(catMatch[1]) : null);
+  const parsedCatScore =
+    Number(sJson.foundationCatScore) ||
+    (rawCatEnum.startsWith('CAT_1')
+      ? 1
+      : rawCatEnum.startsWith('CAT_2')
+        ? 2
+        : rawCatEnum.startsWith('CAT_3')
+          ? 3
+          : rawCatEnum.startsWith('CAT_4')
+            ? 4
+            : 5);
 
   const rawAsBuilt = Array.isArray(sJson.asBuiltDrawingPhotos)
     ? sJson.asBuiltDrawingPhotos
@@ -103,10 +91,6 @@ export function normalizeCondoMasterData(
       ? (sJson.settlementTilt as Record<string, unknown>)
       : {};
 
-  const rawDiffSettlement = toRecord(rawSettlementTilt.diffSettlement);
-  const rawBuildingTilt = toRecord(rawSettlementTilt.buildingTilt);
-  const rawMonitoring = toRecord(rawSettlementTilt.needAdditionalMonitoring);
-
   const ecsJson =
     sJson.ecs && typeof sJson.ecs === 'object'
       ? (sJson.ecs as Record<string, unknown>)
@@ -120,27 +104,48 @@ export function normalizeCondoMasterData(
       ? (sJson.executiveSummary as Record<string, unknown>)
       : {};
 
-  const e1 = toOptionalNumber(ecsJson.e1 ?? riskCard.e1_burland_score);
-  const e2 = toOptionalNumber(ecsJson.e2 ?? riskCard.e2_structure_score);
-  const e3 = toOptionalNumber(ecsJson.e3 ?? riskCard.e3_deformation_score);
-  const e4 = toOptionalNumber(ecsJson.e4 ?? riskCard.e4_material_score);
-  const e5 = toOptionalNumber(ecsJson.e5 ?? riskCard.e5_history_score);
-  const e6 = toOptionalNumber(ecsJson.e6 ?? riskCard.e6_overall_function_score);
-  const totalEcs =
-    toOptionalNumber(ecsJson.totalEcs ?? riskCard.total_ecs_score) ?? sumIfComplete([e1, e2, e3, e4, e5, e6]);
-  const ecsClass = firstNonEmptyString(ecsJson.ecsClass, riskCard.ecs_class) || classifyEcs(totalEcs);
+  const e1 = Number(ecsJson.e1 ?? riskCard.e1_burland_score ?? 0);
+  const e2 = Number(ecsJson.e2 ?? riskCard.e2_structural_score ?? 0);
+  const e3 = Number(ecsJson.e3 ?? riskCard.e3_deformation_score ?? 0);
+  const e4 = Number(ecsJson.e4 ?? riskCard.e4_material_degradation_score ?? 0);
+  const e5 = Number(ecsJson.e5 ?? riskCard.e5_historical_sensitivity_score ?? 0);
+  const e6 = Number(ecsJson.e6 ?? riskCard.e6_functional_impact_score ?? 0);
+  const totalEcs = Number(
+    ecsJson.totalEcs ?? riskCard.total_ecs ?? e1 + e2 + e3 + e4 + e5 + e6
+  );
+  const ecsClass = String(
+    ecsJson.ecsClass ??
+      riskCard.ecs_class ??
+      (totalEcs <= 5
+        ? 'GOOD'
+        : totalEcs <= 10
+          ? 'MEDIUM'
+          : totalEcs <= 16
+            ? 'DEFICIENT'
+            : 'CRITICAL')
+  );
 
-  const v1 = toOptionalNumber(viJson.v1 ?? riskCard.v1_importance_score);
-  const v2 = toOptionalNumber(viJson.v2 ?? riskCard.v2_structure_score);
-  const v3 = toOptionalNumber(viJson.v3 ?? riskCard.v3_foundation_score ?? parsedCatScore);
-  const v4 = toOptionalNumber(viJson.v4 ?? riskCard.v4_age_score);
-  const v5 = toOptionalNumber(viJson.v5 ?? riskCard.v5_ecs_score);
-  const v6 = toOptionalNumber(viJson.v6 ?? riskCard.v6_sensitivity_score);
-  const totalVi = sumIfComplete([v1, v2, v3, v4, v5, v6]);
-  const avgVi =
-    toOptionalNumber(viJson.avgVi ?? viJson.viAvg ?? riskCard.avg_vi_score) ??
-    (totalVi !== undefined ? Number((totalVi / 6).toFixed(2)) : undefined);
-  const viClass = firstNonEmptyString(viJson.viClass, riskCard.vi_class) || classifyVi(avgVi);
+  const v1 = Number(viJson.v1 ?? riskCard.v1_importance_score ?? 3);
+  const v2 = Number(viJson.v2 ?? riskCard.v2_structure_type_score ?? 2);
+  const v3 = Number(viJson.v3 ?? riskCard.v3_foundation_score ?? parsedCatScore);
+  const v4 = Number(viJson.v4 ?? riskCard.v4_age_height_score ?? 3);
+  const v5 = Number(viJson.v5 ?? riskCard.v5_existing_condition_score ?? 2);
+  const v6 = Number(viJson.v6 ?? riskCard.v6_historical_modification_score ?? 1);
+  const totalVi = v1 + v2 + v3 + v4 + v5 + v6;
+  const avgVi = Number(
+    viJson.avgVi ?? riskCard.avg_vi ?? Number((totalVi / 6).toFixed(2))
+  );
+  const viClass = String(
+    viJson.viClass ??
+      riskCard.vi_class ??
+      (avgVi > 3.25
+        ? 'VERY_HIGH'
+        : avgVi > 2.5
+          ? 'HIGH'
+          : avgVi > 1.5
+            ? 'MEDIUM'
+            : 'LOW')
+  );
 
   return {
     projectParcelCode: String(
@@ -159,9 +164,6 @@ export function normalizeCondoMasterData(
     ),
     houseNumber: String(data.houseNumber || sJson.houseNumber || ''),
     street: String(data.street || sJson.street || ''),
-    standardizedAddress: typeof sJson.standardizedAddress === 'string' ? sJson.standardizedAddress : '',
-    keepKsvBoundaryConfirmed: sJson.keepKsvBoundaryConfirmed === true,
-    keepKsvBoundaryReason: typeof sJson.keepKsvBoundaryReason === 'string' ? sJson.keepKsvBoundaryReason : '',
     ward: String(data.ward || sJson.ward || ''),
     district: String(data.district || sJson.district || ''),
     managementBoardName: String(
@@ -174,22 +176,22 @@ export function normalizeCondoMasterData(
     accessLimitation:
       sJson.accessLimitation && typeof sJson.accessLimitation === 'object'
         ? (sJson.accessLimitation as CondoMasterFormState['accessLimitation'])
-        : { notes: '' },
-    adjacentBuildings:
-      sJson.adjacentBuildings && typeof sJson.adjacentBuildings === 'object'
-        ? (sJson.adjacentBuildings as CondoMasterFormState['adjacentBuildings'])
-        : {},
+        : { type: 'FULL_100', isRestricted: false, notes: '' },
     identificationPhotos: idPhotos,
     photoP01: toPhotoObj(idPhotos.photoP01 || sJson.photoP01, 'P-01'),
     photoP02: toPhotoObj(idPhotos.photoP02 || sJson.photoP02, 'P-02'),
     photoP03: toPhotoObj(idPhotos.photoP03 || sJson.photoP03, 'P-03'),
     photoP04: toPhotoObj(idPhotos.photoP04 || sJson.photoP04, 'P-04'),
-    aboveFloors: toNumberOrNull(sJson.aboveFloors ?? specs.floorCount ?? specs.floor_count),
-    undergroundFloors: toNumberOrNull(
-      sJson.undergroundFloors ?? specs.basementCount ?? specs.basement_count
+    aboveFloors: Number(
+      sJson.aboveFloors ?? specs.floorCount ?? specs.floor_count ?? 15
     ),
-    podiumFloors: toNumberOrNull(sJson.podiumFloors),
-    totalUnits: toNumberOrNull(sJson.totalUnits ?? data.parentBuildingInfo?.totalUnits),
+    undergroundFloors: Number(
+      sJson.undergroundFloors ?? specs.basementCount ?? specs.basement_count ?? 1
+    ),
+    podiumFloors: Number(sJson.podiumFloors ?? 2),
+    totalUnits: Number(
+      sJson.totalUnits ?? data.parentBuildingInfo?.totalUnits ?? 100
+    ),
     constructionYear: String(
       sJson.constructionYear ??
         specs.yearOfConstruction ??
@@ -222,25 +224,25 @@ export function normalizeCondoMasterData(
       sJson.objectGroup ??
         specs.buildingGrade ??
         specs.building_grade ??
-        ''
+        'IMPORTANT'
     ),
     usageFunction: String(
       sJson.usageFunction ??
         specs.landUseFunction ??
         specs.land_use_function ??
-        ''
+        'RESIDENTIAL_CONDO'
     ),
     structureSystem: String(
       sJson.structureSystem ??
         specs.structuralSystem ??
         specs.structural_system ??
-        ''
+        'RC_FRAME_SHEAR_WALL'
     ),
     foundationType: String(
       sJson.foundationType ??
         specs.foundationCategory ??
         specs.foundation_category ??
-        ''
+        'BORED_PILE'
     ),
     foundationCatScore: parsedCatScore,
     foundationDepthM: String(
@@ -264,38 +266,109 @@ export function normalizeCondoMasterData(
     ),
     asBuiltDrawingPhotos,
     historyInterview: {
-      ...interview,
-      renovationLoad: toOptionalNumber(interview.renovationLoad ?? interview.renovation_load_score),
-      renovationNotes: String(interview.renovationNotes ?? interview.renovation_details ?? ''),
-      majorRepair: toOptionalNumber(interview.majorRepair ?? interview.major_repair_score),
-      repairNotes: String(interview.repairNotes ?? interview.major_repair_notes ?? ''),
-      pastSettlement: toOptionalNumber(interview.pastSettlement ?? interview.past_settlement_score),
-      settlementNotes: String(interview.settlementNotes ?? interview.past_settlement_notes ?? ''),
-      neighborDamage: toOptionalNumber(interview.neighborDamage ?? interview.neighbor_damage_score),
-      neighborNotes: String(interview.neighborNotes ?? interview.neighbor_damage_notes ?? ''),
-      fireFloodIncident: toOptionalNumber(interview.fireFloodIncident ?? interview.fire_flood_score),
-      fireFloodNotes: String(interview.fireFloodNotes ?? interview.fire_flood_notes ?? ''),
+      renovationLoad: Number(
+        interview.renovationLoad ?? interview.renovation_load_score ?? 0
+      ),
+      renovationNotes: String(
+        interview.renovationNotes ?? interview.renovation_details ?? ''
+      ),
+      majorRepair: Number(
+        interview.majorRepair ?? interview.major_repair_score ?? 0
+      ),
+      repairNotes: String(
+        interview.repairNotes ?? interview.major_repair_notes ?? ''
+      ),
+      pastSettlement: Number(
+        interview.pastSettlement ?? interview.past_settlement_score ?? 0
+      ),
+      settlementNotes: String(
+        interview.settlementNotes ?? interview.past_settlement_notes ?? ''
+      ),
+      neighborDamage: Number(
+        interview.neighborDamage ?? interview.neighbor_damage_score ?? 0
+      ),
+      neighborNotes: String(
+        interview.neighborNotes ?? interview.neighbor_damage_notes ?? ''
+      ),
+      fireFloodIncident: Number(
+        interview.fireFloodIncident ?? interview.fire_flood_score ?? 0
+      ),
+      fireFloodNotes: String(
+        interview.fireFloodNotes ?? interview.fire_flood_notes ?? ''
+      ),
     },
     settlementTilt: {
-      ...rawSettlementTilt,
       diffSettlement: {
-        ...rawDiffSettlement,
-        level: toOptionalNumber(rawDiffSettlement.level ?? deform.diff_settlement_level),
-        position: firstNonEmptyString(rawDiffSettlement.position, deform.diff_settlement_position),
-        notes: firstNonEmptyString(rawDiffSettlement.notes, deform.diff_settlement_notes),
+        level: Number(
+          (rawSettlementTilt.diffSettlement as Record<string, unknown> | undefined)
+            ?.level ??
+            deform.diff_settlement_level ??
+            0
+        ),
+        position: String(
+          (rawSettlementTilt.diffSettlement as Record<string, unknown> | undefined)
+            ?.position ??
+            deform.diff_settlement_position ??
+            ''
+        ),
+        notes: String(
+          (rawSettlementTilt.diffSettlement as Record<string, unknown> | undefined)
+            ?.notes ??
+            deform.diff_settlement_notes ??
+            ''
+        ),
       },
       buildingTilt: {
-        ...rawBuildingTilt,
-        level: toOptionalNumber(rawBuildingTilt.level ?? deform.building_tilt_level),
-        xPermille: toOptionalNumber(rawBuildingTilt.xPermille ?? deform.tilt_angle_x ?? deform.tilt_x_permille),
-        yPermille: toOptionalNumber(rawBuildingTilt.yPermille ?? deform.tilt_angle_y ?? deform.tilt_y_permille),
-        direction: firstNonEmptyString(rawBuildingTilt.direction, deform.tilt_direction),
-        notes: firstNonEmptyString(rawBuildingTilt.notes, deform.tilt_notes),
+        level: Number(
+          (rawSettlementTilt.buildingTilt as Record<string, unknown> | undefined)
+            ?.level ??
+            deform.building_tilt_level ??
+            0
+        ),
+        xPermille: Number(
+          (rawSettlementTilt.buildingTilt as Record<string, unknown> | undefined)
+            ?.xPermille ??
+            deform.tilt_x_permille ??
+            0
+        ),
+        yPermille: Number(
+          (rawSettlementTilt.buildingTilt as Record<string, unknown> | undefined)
+            ?.yPermille ??
+            deform.tilt_y_permille ??
+            0
+        ),
+        direction: String(
+          (rawSettlementTilt.buildingTilt as Record<string, unknown> | undefined)
+            ?.direction ??
+            deform.tilt_direction ??
+            ''
+        ),
+        notes: String(
+          (rawSettlementTilt.buildingTilt as Record<string, unknown> | undefined)
+            ?.notes ??
+            deform.tilt_notes ??
+            ''
+        ),
       },
       needAdditionalMonitoring: {
-        ...rawMonitoring,
-        required: Boolean(rawMonitoring.required ?? deform.need_additional_monitoring ?? false),
-        notes: firstNonEmptyString(rawMonitoring.notes, deform.monitoring_notes),
+        required: Boolean(
+          (
+            rawSettlementTilt.needAdditionalMonitoring as
+              | Record<string, unknown>
+              | undefined
+          )?.required ??
+            deform.need_additional_monitoring ??
+            false
+        ),
+        notes: String(
+          (
+            rawSettlementTilt.needAdditionalMonitoring as
+              | Record<string, unknown>
+              | undefined
+          )?.notes ??
+            deform.monitoring_notes ??
+            ''
+        ),
       },
     },
     surveyScope:
@@ -343,17 +416,12 @@ export function normalizeCondoMasterData(
       viClass,
     },
     executiveSummary: {
-      ...execJson,
-      braStatus: firstNonEmptyString(
-        execJson.braStatus,
-        data.braStatus,
-        riskCard.building_risk_assessment_bra
-      )
-        .toUpperCase()
-        .replace(RISK_RATING_SUFFIX, ''),
-      constructionImpactStatus: firstNonEmptyString(
-        execJson.constructionImpactStatus,
-        riskCard.construction_impact_level_i ? `I${riskCard.construction_impact_level_i}` : ''
+      braStatus: String(
+        execJson.braStatus || data.braStatus || riskCard.bra_rating || 'MEDIUM'
+      ),
+      constructionImpactStatus: String(
+        execJson.constructionImpactStatus ||
+          (riskCard.impact_level_i ? `I${riskCard.impact_level_i}` : 'I2')
       ),
       summaryConclusions: String(
         execJson.summaryConclusions ||
@@ -366,11 +434,6 @@ export function normalizeCondoMasterData(
           data.engineeringRecommendations ||
           sJson.engineeringRecommendations ||
           ''
-      ),
-      specificRecommendationsText: firstNonEmptyString(
-        execJson.specificRecommendationsText,
-        data.engineeringRecommendations,
-        sJson.engineeringRecommendations
       ),
     },
     summaryConclusions: String(
@@ -419,43 +482,77 @@ export function recomputeCondoMasterScoresOnChange(
   const curVi = { ...next.vi };
 
   if (changedKey === 'foundationCatScore') {
-    curVi.v3 =
-      next.foundationCatScore !== null
-        ? Math.min(4, Math.max(1, Number(next.foundationCatScore)))
-        : undefined;
+    curVi.v3 = Math.min(4, Math.max(1, Number(next.foundationCatScore || 3)));
   }
 
   if (changedKey.startsWith('settlementTilt.')) {
-    const levels = [
-      toOptionalNumber(next.settlementTilt.diffSettlement?.level),
-      toOptionalNumber(next.settlementTilt.buildingTilt?.level),
-    ].filter((lv): lv is number => lv !== undefined);
-    curEcs.e3 = levels.length > 0 ? Math.max(...levels) : undefined;
+    const diffLv = Number(next.settlementTilt.diffSettlement?.level ?? 0);
+    const tiltLv = Number(next.settlementTilt.buildingTilt?.level ?? 0);
+    curEcs.e3 = Math.max(diffLv, tiltLv);
   }
 
   if (changedKey.startsWith('historyInterview.')) {
     const h = next.historyInterview;
-    const levels = [h.renovationLoad, h.majorRepair, h.pastSettlement, h.fireFloodIncident].filter(
-      (lv): lv is number => typeof lv === 'number'
+    curEcs.e5 = Math.min(
+      4,
+      Math.max(
+        Number(h.renovationLoad || 0),
+        Number(h.majorRepair || 0),
+        Number(h.pastSettlement || 0),
+        Number(h.fireFloodIncident || 0)
+      )
     );
-    curEcs.e5 = levels.length > 0 ? Math.min(4, Math.max(...levels)) : undefined;
   }
 
-  const totalEcs = sumIfComplete([curEcs.e1, curEcs.e2, curEcs.e3, curEcs.e4, curEcs.e5, curEcs.e6]);
-  const ecsClass = classifyEcs(totalEcs);
+  const totalEcs =
+    Number(curEcs.e1 || 0) +
+    Number(curEcs.e2 || 0) +
+    Number(curEcs.e3 || 0) +
+    Number(curEcs.e4 || 0) +
+    Number(curEcs.e5 || 0) +
+    Number(curEcs.e6 || 0);
+  const ecsClass =
+    totalEcs <= 5
+      ? 'GOOD'
+      : totalEcs <= 10
+        ? 'MEDIUM'
+        : totalEcs <= 16
+          ? 'DEFICIENT'
+          : 'CRITICAL';
   curEcs.totalEcs = totalEcs;
   curEcs.ecsClass = ecsClass;
 
-  if (!changedKey.startsWith('vi.v5') && ecsClass) {
-    curVi.v5 = ecsClass === 'CRITICAL' ? 4 : ecsClass === 'DEFICIENT' ? 3 : ecsClass === 'MEDIUM' ? 2 : 1;
+  if (!changedKey.startsWith('vi.v5')) {
+    curVi.v5 =
+      ecsClass === 'CRITICAL'
+        ? 4
+        : ecsClass === 'DEFICIENT'
+          ? 3
+          : ecsClass === 'MEDIUM'
+            ? 2
+            : 1;
   }
 
-  const totalVi = sumIfComplete([curVi.v1, curVi.v2, curVi.v3, curVi.v4, curVi.v5, curVi.v6]);
-  const avgVi = totalVi !== undefined ? Number((totalVi / 6).toFixed(2)) : undefined;
+  const totalVi =
+    Number(curVi.v1 || 3) +
+    Number(curVi.v2 || 2) +
+    Number(curVi.v3 || 3) +
+    Number(curVi.v4 || 3) +
+    Number(curVi.v5 || 2) +
+    Number(curVi.v6 || 1);
+  const avgVi = Number((totalVi / 6).toFixed(2));
+  const viClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' =
+    avgVi > 3.25
+      ? 'VERY_HIGH'
+      : avgVi > 2.5
+        ? 'HIGH'
+        : avgVi > 1.5
+          ? 'MEDIUM'
+          : 'LOW';
 
   curVi.totalVi = totalVi;
   curVi.avgVi = avgVi;
-  curVi.viClass = classifyVi(avgVi);
+  curVi.viClass = viClass;
 
   next.ecs = curEcs;
   next.vi = curVi;

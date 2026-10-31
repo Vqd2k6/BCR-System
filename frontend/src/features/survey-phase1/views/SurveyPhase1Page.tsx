@@ -1303,7 +1303,6 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           setIsPhotoSyncModalOpen(false);
         }}
         isFromSubmitAttempt={isPhotoSyncFromSubmit}
-        autoRecover
         onProceedSubmitAnyway={() => {
           setIsPhotoSyncModalOpen(false);
           executeFinalSubmit();

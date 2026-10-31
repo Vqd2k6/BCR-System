@@ -141,8 +141,6 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
               const val = e.target.value;
               if (isResidentStatus(val)) {
                 updateFormData({ residentStatus: val });
-                // Không vào được căn thì đi luồng vắng ngay, tránh KSV phải điền bừa form nội thất để nộp
-                if (val === 'VẮNG_MẶT_KHÓA_CỬA' || val === 'BỎ_TRỐNG_CHƯA_VỀ_Ở') setAbsenteeMode(true);
               }
             }}
             options={[

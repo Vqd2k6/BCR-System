@@ -1,13 +1,12 @@
 import ExcelJS from 'exceljs';
 import type { ResolvedTable } from '../columns/column.types';
 import type { CellStyle, SummaryRow } from '../progress-report.types';
-import type { ProgressRenderer, RenderedFile, RenderSheet } from './renderer.types';
+import type { ProgressRenderer, RenderedFile } from './renderer.types';
 
 /**
  * EXCEL RENDERER – vẽ ResolvedTable thành .xlsx bám sát file mẫu:
  * tiêu đề gộp A1:AB3, chú giải Row 5–6, header 2 tầng Row 8–9 (nền #95DCF7),
- * dữ liệu từ Row 11 (xen dòng Phần I/II và dòng tòa mẹ), bảng tổng hợp cuối sheet với công thức % chống chia 0.
- * Mỗi RenderSheet là 1 sheet độc lập; xuất toàn tuyến có nhiều sheet.
+ * dữ liệu từ Row 11, bảng tổng hợp cuối sheet với công thức % chống chia 0.
  */
 
 const FONT_NAME = 'Times New Roman';
@@ -18,9 +17,6 @@ const HEADER_ROW_1 = 8;
 const HEADER_ROW_2 = 9;
 const DATA_START_ROW = 11;
 const SUMMARY_GAP = 3;
-const DIVIDER_ROW_HEIGHT = 24;
-const DIVIDER_FILLS = { SECTION: 'FFF1F5F9', MASTER: 'FFEDE9FE' } as const;
-const MAX_SHEET_NAME_LENGTH = 31;
 /** Mã khổ giấy A3 theo chuẩn OOXML (exceljs không khai báo A3 trong const enum PaperSize). */
 const EXCEL_PAPER_A3 = 8 as number as ExcelJS.PaperSize;
 
@@ -60,39 +56,15 @@ function mergeAndSet(
   }
 }
 
-/** Tên sheet hợp lệ của Excel: bỏ ký tự cấm, tối đa 31 ký tự, không trùng (không phân biệt hoa thường). */
-function uniqueSheetName(name: string, used: Set<string>): string {
-  const base = name.replace(/[\\/*?:[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_SHEET_NAME_LENGTH).trim() || 'Sheet';
-  let candidate = base;
-  for (let n = 2; used.has(candidate.toLowerCase()); n++) {
-    const suffix = ` (${n})`;
-    candidate = `${base.slice(0, MAX_SHEET_NAME_LENGTH - suffix.length).trim()}${suffix}`;
-  }
-  used.add(candidate.toLowerCase());
-  return candidate;
-}
-
 export class ExcelProgressRenderer implements ProgressRenderer {
   readonly format = 'xlsx';
 
-  async render(sheets: RenderSheet[]): Promise<RenderedFile> {
+  async render(table: ResolvedTable): Promise<RenderedFile> {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Metro 2 BCS Platform – Progress Report';
     wb.created = new Date();
     wb.calcProperties.fullCalcOnLoad = true;
-    const usedNames = new Set<string>();
-    for (const sheet of sheets) this.renderSheet(wb, uniqueSheetName(sheet.name, usedNames), sheet.table);
-
-    const arrayBuffer = await wb.xlsx.writeBuffer();
-    return {
-      buffer: Buffer.from(arrayBuffer as ArrayBuffer),
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      extension: 'xlsx',
-    };
-  }
-
-  private renderSheet(wb: ExcelJS.Workbook, name: string, table: ResolvedTable): void {
-    const ws = wb.addWorksheet(name, {
+    const ws = wb.addWorksheet('Trang tính1', {
       views: [{ state: 'frozen', ySplit: HEADER_ROW_2, xSplit: 0 }],
       pageSetup: { orientation: 'landscape', paperSize: EXCEL_PAPER_A3, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
     });
@@ -107,6 +79,13 @@ export class ExcelProgressRenderer implements ProgressRenderer {
     this.renderHeader(ws, table);
     const lastDataRow = this.renderRows(ws, table);
     if (table.summary) this.renderSummary(ws, table, lastDataRow + SUMMARY_GAP);
+
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer as ArrayBuffer),
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extension: 'xlsx',
+    };
   }
 
   private renderTitle(ws: ExcelJS.Worksheet, table: ResolvedTable, colCount: number): void {
@@ -154,24 +133,8 @@ export class ExcelProgressRenderer implements ProgressRenderer {
   }
 
   private renderRows(ws: ExcelJS.Worksheet, table: ResolvedTable): number {
-    let r = DATA_START_ROW;
-    let nextDivider = 0;
-    const writeDividers = (rowIndex: number): void => {
-      while (nextDivider < table.dividers.length && table.dividers[nextDivider].beforeRowIndex === rowIndex) {
-        const divider = table.dividers[nextDivider];
-        mergeAndSet(ws, r, 1, r, table.columns.length, divider.label, {
-          bold: true,
-          size: divider.kind === 'SECTION' ? 12 : 11,
-          fillArgb: DIVIDER_FILLS[divider.kind],
-        });
-        ws.getRow(r).height = DIVIDER_ROW_HEIGHT;
-        r += 1;
-        nextDivider += 1;
-      }
-    };
-
     table.rows.forEach((row, idx) => {
-      writeDividers(idx);
+      const r = DATA_START_ROW + idx;
       row.values.forEach((value, c) => {
         const colDef = table.columns[c];
         const extra: CellStyle | undefined = row.styles[c];
@@ -184,9 +147,8 @@ export class ExcelProgressRenderer implements ProgressRenderer {
           numFmt: value instanceof Date || typeof value === 'number' ? extra?.numFmt ?? colDef.numFmt : undefined,
         });
       });
-      r += 1;
     });
-    return Math.max(r - 1, DATA_START_ROW);
+    return DATA_START_ROW + Math.max(table.rows.length, 1) - 1;
   }
 
   private renderSummary(ws: ExcelJS.Worksheet, table: ResolvedTable, startRow: number): void {
@@ -212,8 +174,7 @@ export class ExcelProgressRenderer implements ProgressRenderer {
       mergeAndSet(ws, h2, c + 1, h2, c + 1, '%', head);
     });
     mergeAndSet(ws, h1, 14, h2, 18, 'GHI CHÚ', head);
-    ws.getRow(h1).height = 64;
-    ws.getRow(h2).height = 30;
+    ws.getRow(h1).height = 48;
 
     const firstGroupRow = h2 + 1;
     summary.groups.forEach((g, idx) => {

@@ -899,24 +899,12 @@ export const VersionComparisonModal: React.FC<Props> = ({
     setIsRollingBack(true);
     setRollbackError('');
     try {
-      const submitRollback = (confirmZoneWipe: boolean) =>
-        api.post(`/admin/reports/${reportId}/versions/${selectedVerNumber}/rollback`, {
-          adminPassword: adminPassword.trim(),
-          rollbackReason: rollbackReason.trim(),
-          ...(confirmZoneWipe ? { confirmZoneWipe: true } : {}),
-        });
-
-      let res = await submitRollback(false);
-      const zoneWipeNotice = res.data?.data?.requiresZoneWipeConfirmation ? String(res.data.data.message) : '';
-      if (zoneWipeNotice) {
-        if (!window.confirm(`${zoneWipeNotice} Bạn có chắc muốn tiếp tục?`)) return;
-        res = await submitRollback(true);
-      }
+      const res = await api.post(`/admin/reports/${reportId}/versions/${selectedVerNumber}/rollback`, {
+        adminPassword: adminPassword.trim(),
+        rollbackReason: rollbackReason.trim(),
+      });
 
       if (res.data?.success) {
-        if (res.data?.data?.isJsonOnly) {
-          window.alert(String(res.data.data.message));
-        }
         setShowRollbackPrompt(false);
         onRollbackSuccess();
         onClose();

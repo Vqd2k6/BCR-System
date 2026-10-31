@@ -5,8 +5,7 @@ import { ImageZoomModal } from '../common/ImageZoomModal';
 import { ImageAnnotationModal } from '../common/ImageAnnotationModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
-import { saveOfflinePhoto, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
-import { useResolvedPhotoUrl } from '../../core/storage/useResolvedPhotoUrl';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, saveOfflinePhoto, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
 import { resolvePhotoStorageTarget } from '../common/photo-capture/domain/photoIdentityPolicy';
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
@@ -96,7 +95,25 @@ const CuPhotoThumbnailItem: React.FC<{
   onAnnotate?: (pIdx: number, url: string, code?: string) => void;
   onRemove: (idx: number) => void;
 }> = ({ photoUrl, pIdx, isPrimary, pCode, timestamp, defectCode, readOnly, onZoom, onAnnotate, onRemove }) => {
-  const { displayUrl: currentSrc } = useResolvedPhotoUrl(photoUrl);
+  const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (photoUrl) {
+      const immediate = getSafeDisplayUrl(photoUrl);
+      if (immediate && isSubscribed) setDisplayUrl(immediate);
+      resolveOfflinePhotoUrl(photoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setDisplayUrl(resolved);
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [photoUrl]);
+
+  const currentSrc = displayUrl || getSafeDisplayUrl(photoUrl);
 
   return (
     <div
@@ -277,7 +294,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
   const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string; pIdx?: number; timestamp?: string } | null>(null);
   const [annotatingCuPhoto, setAnnotatingCuPhoto] = useState<{ pIdx: number; url: string; code?: string } | null>(null);
-  const { displayUrl: safeCtxUrl } = useResolvedPhotoUrl(ctxPhotoUrl);
+  const [safeCtxUrl, setSafeCtxUrl] = useState<string>(() => getSafeDisplayUrl(ctxPhotoUrl));
   const [isImageLoaded, setIsImageLoaded] = useState<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
 
@@ -308,6 +325,22 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     pinCounterScale,
     containerTouchAction,
   } = useInteractiveCanvasZoom();
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (ctxPhotoUrl) {
+      const immediate = getSafeDisplayUrl(ctxPhotoUrl);
+      if (immediate && isSubscribed) setSafeCtxUrl(immediate);
+      resolveOfflinePhotoUrl(ctxPhotoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setSafeCtxUrl(resolved);
+      });
+    } else {
+      setSafeCtxUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [ctxPhotoUrl]);
 
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
   const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
@@ -867,7 +900,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
-        {safeCtxUrl ? (
+        {(safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)) ? (
           <div
             ref={tightBoxRef}
             onClick={handleTightBoxClick}
@@ -883,7 +916,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             }`}
           >
             <img
-              src={safeCtxUrl}
+              src={safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)}
               alt="Context Photo for Defects"
               onLoad={() => setIsImageLoaded(true)}
               className="max-h-[480px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
