@@ -458,4 +458,69 @@ export class SurveyDraftRepository {
 
     return { success: true, count: Object.keys(mappings).length };
   }
+
+  /**
+   * Gắn lại ảnh mồ côi vào bản nháp và ghi vết kiểm toán trong cùng một transaction.
+   * Khóa dòng và kiểm tra lại trạng thái: hồ sơ đã nộp giữa chừng thì không được phép sửa.
+   */
+  static async applyRecoveredPhotos(
+    reportId: string,
+    recovered: Record<string, { key: string; url: string; epochMs: number }>,
+    actorId: string,
+    clientIp?: string | null
+  ): Promise<boolean> {
+    const mappings = Object.fromEntries(Object.entries(recovered).map(([localId, item]) => [localId, item.url]));
+
+    return Database.transaction(async (client) => {
+      const res = await client.query(
+        `SELECT survey_data_json
+         FROM base_survey_reports
+         WHERE id = $1 AND status IN ('DRAFT', 'REJECTED')
+         FOR UPDATE;`,
+        [reportId]
+      );
+      if (res.rows.length === 0) return false;
+
+      const raw = res.rows[0].survey_data_json;
+      const current: Record<string, unknown> = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+
+      const replaceLocalUris = (target: unknown): unknown => {
+        if (typeof target === 'string') {
+          if (target.startsWith('blob:local://')) {
+            const rawId = target.replace('blob:local://', '').split('?')[0];
+            return mappings[rawId] || target;
+          }
+          return target;
+        }
+        if (Array.isArray(target)) return target.map(replaceLocalUris);
+        if (target && typeof target === 'object') {
+          const obj = target as Record<string, unknown>;
+          return Object.fromEntries(Object.keys(obj).map((k) => [k, replaceLocalUris(obj[k])]));
+        }
+        return target;
+      };
+
+      const updated = replaceLocalUris(current) as Record<string, unknown>;
+      updated._photoMappings = {
+        ...((current._photoMappings as Record<string, string>) || {}),
+        ...mappings,
+      };
+
+      await client.query(
+        `UPDATE base_survey_reports
+         SET survey_data_json = $2,
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [reportId, JSON.stringify(updated)]
+      );
+
+      await client.query(
+        `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, client_ip, diff_payload)
+         VALUES ('SURVEY_REPORT', $1, 'RECOVER_ORPHAN_PHOTOS', $2, $3, $4::jsonb);`,
+        [reportId, actorId, clientIp || null, JSON.stringify({ recovered })]
+      );
+
+      return true;
+    });
+  }
 }

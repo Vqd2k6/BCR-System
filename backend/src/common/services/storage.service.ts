@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -453,6 +453,40 @@ export class StorageService {
       sizeBytes,
       mimeType,
     };
+  }
+
+  /**
+   * Có đủ cấu hình để đọc bucket hay không. Cố ý không xét STORAGE_TYPE: máy local vẫn được
+   * đọc bucket để cứu ảnh, trong khi ảnh test mới vẫn ghi ra đĩa local.
+   */
+  public static canListObjects(): boolean {
+    const { endpoint, accessKeyId, secretAccessKey, bucket } = config.storage.s3;
+    return Boolean(endpoint && accessKeyId && secretAccessKey && bucket);
+  }
+
+  /**
+   * Liệt kê toàn bộ key theo tiền tố (chỉ đọc)
+   */
+  public static async listObjectKeys(prefix: string): Promise<string[]> {
+    const client = this.getS3Client();
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const response = await client.send(
+        new ListObjectsV2Command({
+          Bucket: config.storage.s3.bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        })
+      );
+      for (const item of response.Contents || []) {
+        if (item.Key) keys.push(item.Key);
+      }
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    return keys;
   }
 
   /**

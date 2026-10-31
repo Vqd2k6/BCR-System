@@ -20,6 +20,7 @@ export interface OfflinePhotoRecord {
   cloudUrl?: string;
   uploadedAt?: number;
   deviceId?: string;
+  mappingRestoredAt?: number;
 }
 
 const DB_NAME = 'Metro2_Offline_Photos';
@@ -249,6 +250,58 @@ export async function getAllPendingPhotos(): Promise<OfflinePhotoRecord[]> {
 }
 
 /**
+ * Lấy các ảnh đã tải lên Cloud (có cloudUrl) nhưng chưa từng được khôi phục mapping.
+ * Các bản ghi này bị resumePendingOfflineUploads bỏ qua, nên nếu mất mapping thì
+ * bản nháp sẽ kẹt mãi ở blob:local:// dù ảnh đã nằm trên Cloud.
+ */
+export async function getUploadedPhotosWithCloudUrl(): Promise<OfflinePhotoRecord[]> {
+  try {
+    const db = await getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const all = (req.result || []) as OfflinePhotoRecord[];
+        resolve(all.filter((r) => r.uploadStatus === 'UPLOADED' && Boolean(r.cloudUrl) && !r.mappingRestoredAt));
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.error('[OfflinePhotoStorage:ListUploaded] Lỗi lấy danh sách ảnh đã upload:', err);
+    return [];
+  }
+}
+
+/**
+ * Đánh dấu đã khôi phục mapping để mỗi bản ghi chỉ xử lý một lần
+ * (bản ghi không bị dọn, nếu không sẽ phát lại toàn bộ mapping sau mỗi lần mở ứng dụng)
+ */
+export async function markPhotoMappingRestored(id: string): Promise<void> {
+  try {
+    const db = await getDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(id);
+
+      req.onsuccess = () => {
+        const record = req.result as OfflinePhotoRecord | undefined;
+        if (record) {
+          record.mappingRestoredAt = Date.now();
+          store.put(record);
+        }
+        resolve();
+      };
+      req.onerror = () => resolve();
+    });
+  } catch (err) {
+    console.error(`[OfflinePhotoStorage:MarkRestored] Lỗi đánh dấu mapping ${id}:`, err);
+  }
+}
+
+/**
  * Quản lý vòng đời URL Blob trong RAM (ObjectURL Registry)
  * Đảm bảo mọi URL tạm thời được giải phóng triệt để khi không còn dùng
  */
@@ -338,6 +391,18 @@ export function getKnownCloudUrl(localId: string): string | null {
   } catch (_e) {
     return null;
   }
+}
+
+/**
+ * Định nghĩa DUY NHẤT của "ảnh đã lưu an toàn": badge đồng bộ và Kiểm Tra Ảnh phải cùng dùng
+ * hàm này và luôn xét URI thật của ảnh, không xét URL đang hiển thị.
+ */
+export function isPersistedPhotoUrl(uri?: string | null): boolean {
+  if (!uri || typeof uri !== 'string') return false;
+  if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('/uploads')) {
+    return true;
+  }
+  return Boolean(getKnownCloudUrl(extractLocalIdFromUri(uri)));
 }
 
 /**
