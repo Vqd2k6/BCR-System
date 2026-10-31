@@ -607,6 +607,8 @@ export interface FloorPlanDefectReport {
 
 export interface Appendix3SignedRecord {
   surveyTime: string;
+  address: BilingualText;
+  contactPhone: string;
   ownerRepresentative: BilingualText;
   localAuthority: BilingualText;
   supervisionConsultant: BilingualText;
@@ -713,8 +715,20 @@ export interface TocPageNumbers {
   pagePl3?: number;
 }
 
+export interface CondoUnitAbsentReport {
+  reason: string;
+  notes: string;
+  attemptCount: number | null;
+  witnessName: string;
+  witnessRole: string;
+  witnessPhone: string;
+  noticeDelivered: boolean;
+  rescheduleDate: string;
+}
+
 export interface ReportViewModel {
   metadata: ReportMetadata;
+  condoUnitAbsent?: CondoUnitAbsentReport | null;
   scenarioFlags: ReportScenarioFlags;
   tocPageNumbers: TocPageNumbers;
   signatures3Party: ApprovalSignatureItem[];

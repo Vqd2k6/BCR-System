@@ -177,7 +177,7 @@ export class AuditService {
     reportId: string,
     versionNumber: number,
     adminId: string,
-    payload: { reason: string; password?: string },
+    payload: { reason: string; password?: string; confirmZoneWipe?: boolean },
     clientIp?: string
   ) {
     if (await CondoAuditFacade.isCondoReport(reportId)) {

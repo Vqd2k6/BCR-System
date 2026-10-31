@@ -19,6 +19,12 @@ import { Appendix1PhotoMapper } from './appendices/appendix-1-photos.mapper';
 import { FloorDefectMapper } from './appendices/appendix-2/floor-defect.mapper';
 import { Appendix3And4Mapper } from './appendices/appendix-3-4-records.mapper';
 import { ScenarioFlagsAndTocMapper } from './sections/scenario-flags-and-toc.mapper';
+import {
+  CONDO_UNIT_ABSENT_ACCESS_AREAS,
+  CONDO_UNIT_ABSENT_ACCESS_CLASSIFICATION,
+  CONDO_UNIT_ABSENT_CONCLUSION,
+  mapCondoUnitAbsentReport,
+} from './sections/condo-unit-absent.mapper';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
 
 export { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime };
@@ -231,6 +237,17 @@ export class ReportViewModelMapper {
     section9.accessAreas = appendix4.accessAreas;
     section9.accessClassification = appendix4.accessClassification;
 
+    const condoUnitAbsent = mapCondoUnitAbsentReport(rawReport, json);
+    if (condoUnitAbsent) {
+      section2.floorAreaDisplay = { vi: 'Chưa đo đạc (không tiếp cận được căn hộ)', en: 'Not measured (unit not accessible)' };
+      section9.conclusions = [CONDO_UNIT_ABSENT_CONCLUSION];
+      section9.accessAreas = CONDO_UNIT_ABSENT_ACCESS_AREAS;
+      section9.accessClassification = CONDO_UNIT_ABSENT_ACCESS_CLASSIFICATION;
+      section9.limitations = [];
+      section9.recommendations = [];
+      section9.pendingFieldDesignItems = [];
+    }
+
     // 12. Bộ cờ kịch bản thích ứng & Mục lục động
     const scenarioFlags = ScenarioFlagsAndTocMapper.mapScenarioFlags(
       json,
@@ -252,6 +269,7 @@ export class ReportViewModelMapper {
 
     return {
       metadata,
+      condoUnitAbsent,
       scenarioFlags,
       tocPageNumbers,
       signatures3Party,

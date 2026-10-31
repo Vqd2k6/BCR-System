@@ -185,8 +185,8 @@ export const Step2_CondoUnitAbsentee: React.FC = () => {
             options={[
               { value: 'VẮNG_MẶT_KHÓA_CỬA', label: 'Vắng mặt khóa cửa ngoài (Không tiếp cận được)' },
               { value: 'BỎ_TRỐNG_CHƯA_VỀ_Ở', label: 'Căn hộ bỏ trống / Chưa có người về ở' },
-              { value: 'CHO_THUÊ', label: 'Cho thuê (Khách thuê vắng mặt)' },
-              { value: 'CHỦ_HỘ_Ở', label: 'Chủ hộ ở (Chủ hộ vắng mặt)' },
+              { value: 'CHO_THUÊ', label: 'Cho thuê (vắng tại thời điểm khảo sát)' },
+              { value: 'CHỦ_HỘ_Ở', label: 'Chủ hộ ở (vắng tại thời điểm khảo sát)' },
             ]}
           />
         </div>

@@ -264,6 +264,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
   const isAbsentRow = (item: PendingSubmissionItem) =>
     Boolean(
       item.is_refused_or_absent ||
+        item.absence_state === 'ABSENT' ||
+        item.absence_state === 'SUSPECTED' ||
         item.status === 'POSTPONED_ABSENT' ||
         item.unit_status === 'POSTPONED_ABSENT' ||
         item.unit_status === 'POSTPONED_ABSENT_VERIFIED'
@@ -398,30 +400,30 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
   return (
     <div className="space-y-4">
       {/* Breadcrumbs Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-2 flex-wrap text-xs">
           <button
             type="button"
             onClick={onBackToTowers}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Danh sách các tòa</span>
           </button>
-          <span className="text-slate-300 dark:text-slate-600">/</span>
+          <span className="text-slate-300">/</span>
           <span className="text-slate-500 font-medium">Chung Cư</span>
-          <span className="text-slate-300 dark:text-slate-600">/</span>
-          <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-100">
+          <span className="text-slate-300">/</span>
+          <div className="flex items-center gap-1.5 font-bold text-slate-800">
             <Building2 className="w-4 h-4 text-indigo-600" />
             <span>{towerItem.house_number || towerItem.project_parcel_code}</span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-teal-100 text-teal-800 border border-teal-200">
               {towerItem.project_parcel_code}
             </span>
           </div>
         </div>
 
         {progressMeta.isLocked && (
-          <div className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 flex items-center gap-1.5 w-fit">
+          <div className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 w-fit">
             <Lock className="w-3.5 h-3.5 text-emerald-600" />
             <span>TÒA ĐÃ KHÓA SỔ PHÁP LÝ (BẤT BIẾN)</span>
           </div>
@@ -448,7 +450,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       />
 
       {/* Filter Tabs, Floor Selector & Search */}
-      <div className="space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Search + Floor Filter */}
           <div className="flex items-center gap-2 flex-1 max-w-xl">
@@ -459,7 +461,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Tìm theo mã căn (U-12.04), khu chung (MA-B1), chủ hộ, KSV..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
             </div>
 
@@ -471,7 +473,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 onChange={(e) =>
                   setSelectedFloor(e.target.value === 'ALL' ? null : Number(e.target.value))
                 }
-                className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
               >
                 <option value="ALL">Tất cả các tầng ({availableFloors.length})</option>
                 {availableFloors.map((fl) => (
@@ -486,7 +488,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
           <button
             type="button"
             onClick={fetchTowerUnitsAndProgress}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer shrink-0 self-end md:self-auto"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer shrink-0 self-end md:self-auto"
             title="Làm mới danh sách căn"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
@@ -501,7 +503,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'ALL'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <span>Tất cả</span>
@@ -514,7 +516,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'MASTER_AREA'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -528,7 +530,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'CONDO_UNIT'
                 ? 'bg-teal-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <DoorOpen className="w-3.5 h-3.5" />
@@ -542,7 +544,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'PENDING'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -556,7 +558,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'CRITICAL'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -570,7 +572,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'ABSENT'
                 ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <UserX className="w-3.5 h-3.5" />
@@ -584,7 +586,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'GRADE_0'
                 ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -598,7 +600,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'REJECTED'
                 ? 'bg-rose-700 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <XCircle className="w-3.5 h-3.5" />
@@ -612,7 +614,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'APPROVED'
                 ? 'bg-emerald-700 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -623,9 +625,9 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
       </div>
 
       {/* Main Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden relative">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden relative">
         {errorMsg && (
-          <div className="p-4 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-b border-red-200 text-xs flex items-center justify-between">
+          <div className="p-4 bg-red-50 text-red-700 border-b border-red-200 text-xs flex items-center justify-between">
             <span>{errorMsg}</span>
             <button
               onClick={fetchTowerUnitsAndProgress}
@@ -639,7 +641,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 font-bold uppercase text-[11px] tracking-wider">
+              <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-3 w-16 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <input
@@ -666,7 +668,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 <th className="py-3 px-3 text-right">Thao Tác Thẩm Định</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center text-slate-400">
@@ -680,8 +682,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 <tr>
                   <td colSpan={8} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <DoorOpen className="w-10 h-10 text-slate-300 dark:text-slate-700" />
-                      <span className="font-bold text-slate-600 dark:text-slate-400">
+                      <DoorOpen className="w-10 h-10 text-slate-300" />
+                      <span className="font-bold text-slate-600">
                         Không có căn hộ hoặc khu vực dùng chung nào trong bộ lọc này
                       </span>
                     </div>
@@ -714,10 +716,10 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
 
         {/* Pagination Bar */}
         {filteredItems.length > 0 && (
-          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <div>
-              Hiển thị <strong className="text-slate-800 dark:text-slate-200">{paginatedItems.length}</strong> trên tổng số{' '}
-              <strong className="text-slate-800 dark:text-slate-200">{filteredItems.length}</strong> hạng mục của tòa
+              Hiển thị <strong className="text-slate-800">{paginatedItems.length}</strong> trên tổng số{' '}
+              <strong className="text-slate-800">{filteredItems.length}</strong> hạng mục của tòa
             </div>
 
             <div className="flex items-center gap-1">
@@ -725,7 +727,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(1)}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Trang đầu"
               >
                 <ChevronsLeft className="w-4 h-4" />
@@ -734,13 +736,13 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Trang trước"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <span className="px-3 py-1 font-bold text-slate-700 dark:text-slate-300">
+              <span className="px-3 py-1 font-bold text-slate-700">
                 Trang {currentPage} / {totalPages}
               </span>
 
@@ -748,7 +750,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Trang kế"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -757,7 +759,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(totalPages)}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Trang cuối"
               >
                 <ChevronsRight className="w-4 h-4" />

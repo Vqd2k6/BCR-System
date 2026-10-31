@@ -10,7 +10,8 @@
     "check:zero-any": "node scripts/check-zero-any.js",
     "check:ui": "node scripts/check-ui-interactions.js",
     "check:catch": "node scripts/check-catch-clauses.js",
-    "check:theme": "node scripts/check-theme-colors.js"
+    "check:theme": "node scripts/check-theme-colors.js",
+    "test:condo-adapters": "esbuild scripts/condo-adapters.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/condo-adapters.test.cjs --log-level=warning && node node_modules/.cache/condo-adapters.test.cjs"
   },
   "dependencies": {
     "axios": "^1.6.8",

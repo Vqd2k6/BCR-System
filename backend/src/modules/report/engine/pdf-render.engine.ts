@@ -12,6 +12,8 @@ export interface PdfRenderOptions {
   buildingId: string;
   reportNo: string;
   headerTitle?: string;
+  /** HTML đã nhúng sẵn mọi ảnh: networkidle không hoàn tất với data URI lớn nên chỉ chờ sự kiện load. */
+  selfContainedHtml?: boolean;
 }
 
 function resolveChromeExecutablePath(): string | undefined {
@@ -74,7 +76,7 @@ export class PdfRenderEngine {
     }
   }
 
-  public static async renderHtmlToPdf(html: string, _options: PdfRenderOptions): Promise<Buffer> {
+  public static async renderHtmlToPdf(html: string, options: PdfRenderOptions): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
 
@@ -86,7 +88,7 @@ export class PdfRenderEngine {
       });
 
       await page.setContent(html, {
-        waitUntil: ['domcontentloaded', 'networkidle2'],
+        waitUntil: options.selfContainedHtml ? ['domcontentloaded', 'load'] : ['domcontentloaded', 'networkidle2'],
         timeout: 45000,
       });
 

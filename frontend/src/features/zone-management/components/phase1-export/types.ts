@@ -160,6 +160,44 @@ export interface ExportParcelItem {
   updatedAt?: string;
 }
 
+export type MinutesCategory = 'MINUTES' | 'ABSENTEE' | 'NONE';
+
+export interface MinutesListItem {
+  key: string;
+  reportId: string | null;
+  parcelCode: string;
+  unitCode: string | null;
+  reportType: string | null;
+  reportStatus: string | null;
+  category: MinutesCategory;
+  label: string | null;
+  docPageCount: number;
+  fileName: string | null;
+  note: string | null;
+}
+
+export type MinutesJobState = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REVOKED';
+
+export interface MinutesJobStatus {
+  id: string;
+  zoneId: string;
+  status: MinutesJobState;
+  progressDone: number;
+  progressTotal: number;
+  failedCount: number;
+  currentItem: string | null;
+  fileSizeBytes: number | null;
+  checksumSha256: string | null;
+  errorMessage: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface ZoneMinutesSummary {
+  items: MinutesListItem[];
+  latestJob: MinutesJobStatus | null;
+}
+
 export interface BatchResultData {
   batchCode: string;
   downloadUrl: string;

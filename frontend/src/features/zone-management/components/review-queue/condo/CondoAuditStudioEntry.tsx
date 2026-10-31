@@ -34,11 +34,14 @@ export function resolveCondoEntityKind(
     return rawEntityKind;
   }
 
+  // unit_type là nguồn chuẩn; tiền tố mã chỉ áp dụng cho bản ghi chưa có unit_type
+  const unitType = data.unitInfo?.unit_type;
   const isMasterArea = Boolean(
-    data.unitInfo?.unit_type === 'MASTER' ||
+    unitType === 'MASTER' ||
       data.reportType === 'MASTER_AREA' ||
-      data.unitInfo?.unit_code?.startsWith('M-') ||
-      data.unitInfo?.unit_code?.startsWith('MA-')
+      (!unitType &&
+        (data.unitInfo?.unit_code?.startsWith('M-') ||
+          data.unitInfo?.unit_code?.startsWith('MA-')))
   );
   if (isMasterArea) return 'MASTER_AREA';
 
@@ -116,9 +119,18 @@ const CondoAuditStudioEntryInner: React.FC<CondoStudioEntryProps> = (props) => {
     [isHoldingSKey, resolveEffectiveStudioUrl, toggleSelectPhoto, props]
   );
 
+  const studioCommitHandlerRef = React.useRef<((items: StudioCommittedPhotoInfo[]) => void) | null>(null);
+  const registerStudioCommitHandler = React.useCallback(
+    (handler: (items: StudioCommittedPhotoInfo[]) => void) => {
+      studioCommitHandlerRef.current = handler;
+    },
+    []
+  );
+
   const enhancedProps: CondoStudioEntryProps = {
     ...props,
     onOpenPhotoZoom: handlePhotoZoomOrStudioSelect,
+    registerStudioCommitHandler,
   };
 
   return (
@@ -134,8 +146,10 @@ const CondoAuditStudioEntryInner: React.FC<CondoStudioEntryProps> = (props) => {
       <AuditStudioImgModal
         isOpen={isStudioModalOpen}
         onClose={() => setIsStudioModalOpen(false)}
-        onCommittedSuccess={() => {
-          props.onRefresh();
+        onCommittedSuccess={(committedItems) => {
+          if (committedItems && committedItems.length > 0) {
+            studioCommitHandlerRef.current?.(committedItems);
+          }
         }}
       />
       {isHoldingSKey && (

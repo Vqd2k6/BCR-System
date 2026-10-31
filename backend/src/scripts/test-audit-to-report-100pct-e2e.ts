@@ -863,7 +863,7 @@ async function main() {
       assertIncludes(vm.appendix3.ownerRepresentative.vi, 'Lê Thị Minh Nguyệt', 'appendix3.ownerRepresentative');
       assertIncludes(vm.appendix3.localAuthority.vi, 'Ông Phạm Văn Chính - Tổ trưởng Tổ dân phố 14', 'appendix3.localAuthority');
       assertIncludes(vm.appendix3.supervisionConsultant.vi, 'KS. Hoàng Minh Tuấn - Tư vấn giám sát hiện trường', 'appendix3.supervisionConsultant');
-      assertIncludes(vm.appendix3.surveyUnit.vi, 'KS. Trần Quốc Bảo', 'appendix3.surveyUnit');
+      assertEqual(vm.appendix3.surveyUnit.vi, 'Liên danh CRLG – CRSRI – TT', 'appendix3.surveyUnit');
       assertEqual(vm.appendix3.fieldComments.vi, 'Gia đình hoàn toàn đồng ý với biên bản đo đạc hiện trạng ngày 20/03/2026', 'appendix3.fieldComments');
       assertEqual(vm.appendix3.signedRecordPages.length, 2, 'appendix3.signedRecordPages count');
       assertEqual(vm.appendix3.signedRecordPages[0].url, '/uploads/test/s9_minutes_p1.jpg', 'appendix3.signedRecordPages[0].url');

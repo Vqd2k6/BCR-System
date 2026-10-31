@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Cloud,
@@ -14,7 +14,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
+import { useResolvedPhotoUrl } from '../../../../core/storage/useResolvedPhotoUrl';
 import {
   auditMasterAreaPhotos,
   retryUploadMasterAreaPhoto,
@@ -49,21 +49,7 @@ const PhotoThumbnailCell: React.FC<{ url: string; title: string; onClick: () => 
   title,
   onClick,
 }) => {
-  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(url));
-
-  useEffect(() => {
-    let isSubscribed = true;
-    if (url) {
-      const immediate = getSafeDisplayUrl(url);
-      if (immediate && isSubscribed) setDisplayUrl(immediate);
-      resolveOfflinePhotoUrl(url).then((resolved) => {
-        if (isSubscribed && resolved) setDisplayUrl(resolved);
-      });
-    }
-    return () => {
-      isSubscribed = false;
-    };
-  }, [url]);
+  const { displayUrl } = useResolvedPhotoUrl(url);
 
   return (
     <div

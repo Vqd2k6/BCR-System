@@ -8,7 +8,9 @@
 
 import type { PoolClient } from 'pg';
 import { Database } from '../../../../database/db';
+import { BadRequestError } from '../../../../common/errors/problem-details';
 import { normalizeComponentType, normalizeFoundationCategory, normalizeStructuralSystem } from '../../../survey/survey.dto';
+import type { NormalizedCondoSnapshot } from '../services/condo-snapshot-restore.helpers';
 import type {
   CondoEntityKind,
   CondoParentMasterSummary,
@@ -47,9 +49,169 @@ export interface ICondoEntityAuditStrategy {
   restoreSnapshotInTransaction(
     client: PoolClient,
     report: CondoReportContextRow,
-    snapshotData: Record<string, unknown>,
-    adminId: string
+    snapshot: NormalizedCondoSnapshot,
+    adminId: string,
+    options: CondoRestoreOptions
   ): Promise<{ restoredSurveyJson: Record<string, unknown> }>;
+}
+
+export interface CondoRestoreOptions {
+  /** `false` khi có hoán đổi CAD sau phiên bản đích: vị trí giữ nguyên để không đè lên căn đã hoán đổi. */
+  restoreCadPosition: boolean;
+  currentJson: Record<string, unknown>;
+}
+
+/**
+ * Ghi các trường Admin đã sửa vào `survey_data_json` theo danh sách trắng của từng thực thể.
+ * Object được gộp một cấp để giữ các khóa con mà form thẩm định không nạp (VD: `photos`, `surveyDate`).
+ */
+export function mergeCondoEditableJson(
+  mergedJson: Record<string, unknown>,
+  updates: Record<string, unknown>,
+  editableKeys: readonly string[]
+): void {
+  const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+    typeof val === 'object' && val !== null && !Array.isArray(val);
+
+  for (const key of editableKeys) {
+    const next = updates[key];
+    if (next === undefined) continue;
+    const cur = mergedJson[key];
+    mergedJson[key] = isPlainObject(cur) && isPlainObject(next) ? { ...cur, ...next } : next;
+  }
+}
+
+type CondoJsonRecord = Record<string, unknown>;
+
+function toRecordArray(val: unknown): CondoJsonRecord[] {
+  return Array.isArray(val)
+    ? val.filter((item): item is CondoJsonRecord => typeof item === 'object' && item !== null)
+    : [];
+}
+
+function collectFromFloors(json: CondoJsonRecord, key: 'zones' | 'structuralElements'): CondoJsonRecord[] {
+  return toRecordArray(json.floors).flatMap((floor) => toRecordArray(floor[key]));
+}
+
+/**
+ * Đọc Z từ mọi hình dạng JSON của Chung cư (`damageZones` thẩm định, `zones` form Căn hộ, `floors[]` form Khu vực).
+ * Lấy nguồn không rỗng đầu tiên, vì các khóa còn lại có thể là bản cũ hoặc mảng rỗng do snapshot lỗi để lại.
+ */
+export function readCondoZonesFromJson(json: CondoJsonRecord): CondoJsonRecord[] {
+  for (const source of [toRecordArray(json.damageZones), toRecordArray(json.zones), collectFromFloors(json, 'zones')]) {
+    if (source.length > 0) return source;
+  }
+  return [];
+}
+
+export function readCondoElementsFromJson(json: CondoJsonRecord): CondoJsonRecord[] {
+  const flat = toRecordArray(json.structuralElements);
+  return flat.length > 0 ? flat : collectFromFloors(json, 'structuralElements');
+}
+
+/** `updates` chỉ chứa khóa đã sửa, nên thiếu khóa zone nghĩa là Admin không đụng tới Z/E/D. */
+export function hasCondoZoneUpdates(updates: CondoJsonRecord): boolean {
+  return (
+    Array.isArray(updates.damageZones) ||
+    Array.isArray(updates.structuralElements) ||
+    Array.isArray(updates.floors)
+  );
+}
+
+/**
+ * Chặn payload mảng rỗng xóa sạch dữ liệu đang có.
+ * Xóa hợp lệ luôn giữ phần tử trong mảng kèm cờ `isDeleted`, nên mảng rỗng chỉ có thể là lỗi tạo payload.
+ */
+export async function assertCondoZonesNotWiped(
+  client: PoolClient,
+  reportId: string,
+  updates: CondoJsonRecord
+): Promise<void> {
+  const emptyZones = Array.isArray(updates.damageZones) && updates.damageZones.length === 0;
+  const emptyElements = Array.isArray(updates.structuralElements) && updates.structuralElements.length === 0;
+  if (!emptyZones && !emptyElements) return;
+
+  const activeRes = await client.query<{ zones: number; elements: number }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE zone_code NOT LIKE 'E%')::int AS zones,
+       COUNT(*) FILTER (WHERE zone_code LIKE 'E%')::int AS elements
+     FROM damage_zones
+     WHERE report_id = $1 AND is_deleted IS NOT TRUE;`,
+    [reportId]
+  );
+  const active = activeRes.rows[0];
+  if ((emptyZones && active.zones > 0) || (emptyElements && active.elements > 0)) {
+    throw new BadRequestError(
+      'Dữ liệu gửi lên không còn vùng hư hại hoặc cấu kiện nào trong khi hồ sơ đang có. Hệ thống từ chối lưu để tránh mất dữ liệu.'
+    );
+  }
+}
+
+/**
+ * Báo cáo PDF chỉ đọc `json.floors[].zones`, nên mọi Z/E đã thẩm định phải được chiếu về đây.
+ * Phần tử đã xóa mềm được giữ trong `damageZones` để đối soát, không đưa vào báo cáo.
+ */
+export function projectCondoZonesToFloors(json: CondoJsonRecord, defaultFloorName: string): void {
+  const zones = readCondoZonesFromJson(json);
+  const elements = readCondoElementsFromJson(json);
+  if (Array.isArray(json.zones)) json.zones = zones;
+
+  const isActive = (item: CondoJsonRecord) => !item.isDeleted && !item.is_deleted;
+  const activeZones = zones.filter(isActive);
+  const activeElements = elements.filter(isActive);
+  const floors = toRecordArray(json.floors);
+
+  if (floors.length <= 1) {
+    const floor = floors[0] || {};
+    json.floors = [
+      {
+        ...floor,
+        floorName: floor.floorName || floor.floor_name || defaultFloorName,
+        cadSketchPhotoUrl: floor.cadSketchPhotoUrl || json.unitCadUrl || json.cadSketchPhotoUrl || '',
+        cadStructuralSketchPhotoUrl:
+          floor.cadStructuralSketchPhotoUrl || json.unitStructuralCadUrl || json.cadStructuralSketchPhotoUrl || '',
+        cadZonePins: floor.cadZonePins ?? json.cadZonePins ?? [],
+        cadElementPins: floor.cadElementPins ?? json.cadElementPins ?? [],
+        zones: activeZones,
+        structuralElements: activeElements,
+      },
+    ];
+    return;
+  }
+
+  const floorNameOf = (item: CondoJsonRecord) => String(item.floorName || item.floor_name || '');
+  const knownFloorNames = new Set(floors.map(floorNameOf));
+  const belongsTo = (item: CondoJsonRecord, floor: CondoJsonRecord, idx: number) => {
+    const itemFloor = floorNameOf(item);
+    return itemFloor === floorNameOf(floor) || (idx === 0 && !knownFloorNames.has(itemFloor));
+  };
+  json.floors = floors.map((floor, idx) => ({
+    ...floor,
+    zones: activeZones.filter((item) => belongsTo(item, floor, idx)),
+    structuralElements: activeElements.filter((item) => belongsTo(item, floor, idx)),
+  }));
+}
+
+/** Ghim Z/E vừa sửa phải có ở `floors[0]`, nơi Phụ lục 2 và form Khu vực đọc. */
+export function applyCondoPinUpdatesToFloors(
+  json: CondoJsonRecord,
+  updates: CondoJsonRecord,
+  defaultFloorName: string
+): void {
+  const hasPinUpdates = updates.cadZonePins !== undefined || updates.cadElementPins !== undefined;
+  if (!hasPinUpdates) return;
+  projectCondoZonesToFloors(json, defaultFloorName);
+  const floors = toRecordArray(json.floors);
+  if (floors.length === 0) return;
+  json.floors = floors.map((floor, idx) =>
+    idx === 0
+      ? {
+          ...floor,
+          ...(updates.cadZonePins !== undefined ? { cadZonePins: updates.cadZonePins } : {}),
+          ...(updates.cadElementPins !== undefined ? { cadElementPins: updates.cadElementPins } : {}),
+        }
+      : floor
+  );
 }
 
 /**
@@ -160,6 +322,8 @@ export async function fetchParentMasterSummary(parcelId: string): Promise<CondoP
   const execObj = (mJson.executiveSummary as Record<string, unknown>) || {};
 
   const addrParts = [p?.house_number, p?.street, p?.ward, p?.district].filter(Boolean);
+  const standardizedAddress =
+    typeof mJson.standardizedAddress === 'string' ? mJson.standardizedAddress.trim() : '';
 
   return {
     hasMasterReport: Boolean(mRow?.id),
@@ -168,7 +332,8 @@ export async function fetchParentMasterSummary(parcelId: string): Promise<CondoP
     isMasterApproved: mRow?.status === 'APPROVED',
     buildingName: String(mJson.buildingName || specsRow?.building_name || p?.project_parcel_code || 'Tòa nhà chung cư'),
     projectParcelCode: p?.project_parcel_code || '',
-    addressText: addrParts.join(', ') || 'Chưa cập nhật địa chỉ',
+    addressText: standardizedAddress || addrParts.join(', ') || 'Chưa cập nhật địa chỉ',
+    standardizedAddress: standardizedAddress || null,
     aboveFloors:
       mJson.aboveFloors !== undefined && mJson.aboveFloors !== null
         ? Number(mJson.aboveFloors)
@@ -328,6 +493,9 @@ export async function syncCondoZonesElementsAndDefectsInTx(
           ? overviewList[0]
           : String((overviewList[0] as Record<string, unknown>)?.url || '')
         : '';
+    const overviewUrls = overviewList
+      .map((photo) => (typeof photo === 'string' ? photo : String((photo as Record<string, unknown>)?.url || '')))
+      .filter(Boolean);
     const ctxUrl = String(item.ctxPhotoUrl || item.ctx_photo_url || item.photoUrl || firstOverview || '').trim();
 
     const rawDefects = Array.isArray(item.defects) ? (item.defects as Array<Record<string, unknown>>) : [];
@@ -372,7 +540,8 @@ export async function syncCondoZonesElementsAndDefectsInTx(
            ctx_photo_url = COALESCE(NULLIF($8, ''), ctx_photo_url),
            ctx_photo_code = COALESCE($9, ctx_photo_code),
            notes = $10,
-           is_deleted = $11
+           is_deleted = $11,
+           overview_photos_json = $13
          WHERE id = $12;`,
         [
           code,
@@ -387,6 +556,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
           item.notes ? String(item.notes) : null,
           isItemDeleted,
           targetZoneId,
+          JSON.stringify(overviewUrls),
         ]
       );
     } else {
@@ -394,8 +564,8 @@ export async function syncCondoZonesElementsAndDefectsInTx(
         `INSERT INTO damage_zones (
            report_id, zone_code, floor_name, room_name, component_type,
            wall_material, functional_impact_repair_needed, burland_grade,
-           ctx_photo_url, ctx_photo_code, notes, is_deleted
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           ctx_photo_url, ctx_photo_code, notes, is_deleted, overview_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING id;`,
         [
           reportId,
@@ -410,6 +580,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
           item.ctxPhotoCode || item.ctx_photo_code ? String(item.ctxPhotoCode || item.ctx_photo_code) : null,
           item.notes ? String(item.notes) : null,
           isItemDeleted,
+          JSON.stringify(overviewUrls),
         ]
       );
       targetZoneId = zIns.rows[0].id;
@@ -451,6 +622,9 @@ export async function syncCondoZonesElementsAndDefectsInTx(
       const isCrit = Boolean(d.isStructuralCritical ?? d.is_structural_critical ?? wMax >= 2.0);
       const pinCol = String(d.pinColor || d.pin_color || '#ef4444');
       const cuCode = d.cuPhotoCode || d.cu_photo_code ? String(d.cuPhotoCode || d.cu_photo_code) : null;
+      const defectNotes = d.notes ? String(d.notes) : null;
+      const rawE6 = d.functionalImpactE6 ?? d.functional_impact_e6;
+      const functionalImpactE6 = rawE6 !== undefined && rawE6 !== null && rawE6 !== '' ? String(rawE6) : null;
 
       const matchedDefId = resolveDefectId(d.id, targetZoneId, dCode);
       let targetDefectId: string;
@@ -465,7 +639,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
              is_structural_critical = $13, cu_photo_url = COALESCE(NULLIF($14, ''), cu_photo_url),
              extra_photo_url = COALESCE($15, extra_photo_url), pin_color = $16,
              cu_photo_code = COALESCE($17, cu_photo_code), cu_photos_json = $18,
-             is_deleted = $19
+             is_deleted = $19, notes = $21, functional_impact_e6 = $22
            WHERE id = $20;`,
           [
             dCode,
@@ -488,6 +662,8 @@ export async function syncCondoZonesElementsAndDefectsInTx(
             JSON.stringify(cuListForJson),
             isDefectDeleted,
             targetDefectId,
+            defectNotes,
+            functionalImpactE6,
           ]
         );
       } else {
@@ -497,8 +673,8 @@ export async function syncCondoZonesElementsAndDefectsInTx(
              crack_direction, width_max_mm, length_mm, activity_state,
              material_degradation_e4, structural_significance_e2, has_scale_card,
              is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
-             cu_photo_code, cu_photos_json, is_deleted
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+             cu_photo_code, cu_photos_json, is_deleted, notes, functional_impact_e6
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
            RETURNING id;`,
           [
             targetZoneId,
@@ -521,6 +697,8 @@ export async function syncCondoZonesElementsAndDefectsInTx(
             cuCode,
             JSON.stringify(cuListForJson),
             isDefectDeleted,
+            defectNotes,
+            functionalImpactE6,
           ]
         );
         targetDefectId = dIns.rows[0].id;
@@ -540,16 +718,13 @@ export async function syncCondoZonesElementsAndDefectsInTx(
   const hasFloors = Array.isArray(sourceContainer.floors) && (sourceContainer.floors as unknown[]).length > 0;
 
   if (hasFlatZones || hasFlatElements) {
+    // Chỉ sửa một trong hai nhóm thì nhóm còn lại lấy từ JSON hiện tại, tránh bị xóa mềm ở bước dưới
     const flatZones = Array.isArray(sourceContainer.damageZones)
       ? (sourceContainer.damageZones as Array<Record<string, unknown>>)
-      : Array.isArray(mergedJson.damageZones)
-        ? (mergedJson.damageZones as Array<Record<string, unknown>>)
-        : [];
+      : readCondoZonesFromJson(mergedJson);
     const flatElements = Array.isArray(sourceContainer.structuralElements)
       ? (sourceContainer.structuralElements as Array<Record<string, unknown>>)
-      : Array.isArray(mergedJson.structuralElements)
-        ? (mergedJson.structuralElements as Array<Record<string, unknown>>)
-        : [];
+      : readCondoElementsFromJson(mergedJson);
 
     for (const z of flatZones) {
       await upsertZoneOrElement(z, false);
@@ -560,6 +735,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
 
     mergedJson.damageZones = flatZones;
     mergedJson.structuralElements = flatElements;
+    projectCondoZonesToFloors(mergedJson, defaultFloorName);
   } else if (hasFloors) {
     const floors = sourceContainer.floors as Array<Record<string, unknown>>;
     for (const fl of floors) {

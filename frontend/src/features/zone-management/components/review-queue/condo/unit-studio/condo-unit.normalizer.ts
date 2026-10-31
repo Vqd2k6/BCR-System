@@ -3,52 +3,20 @@ import type {
   StepwiseAbsenceLogItem,
   StepwiseIdentificationPhotoItem,
 } from '../../stepwise/types';
-import { calcBurlandGradeFromWidthFrontend } from '../core/CondoZonesDefectsCrudEditor';
-import type {
-  CondoDamageZoneItemData,
-  CondoDefectItemData,
-  CondoUnitFormState,
-} from '../types/condo-audit.types';
-
-function mapRawUnitDefects(rawDefs: unknown, parentId: string): CondoDefectItemData[] {
-  if (!Array.isArray(rawDefs)) return [];
-  return rawDefs.map((item, idx) => {
-    const d = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
-    const code = String(d.defectCode || d.defect_code || `D-${String(idx + 1).padStart(2, '0')}`);
-    const cuUrl = String(
-      d.cuPhotoUrl ||
-        d.cu_photo_url ||
-        (Array.isArray(d.cuPhotos) && d.cuPhotos[0] ? d.cuPhotos[0] : '') ||
-        ''
-    );
-    return {
-      id: String(d.id || `${parentId}_${code}`),
-      defectCode: code,
-      defectType: String(
-        d.defectType || d.screeningCategory || d.screening_category || 'CRACK_PLASTER_SHRINKAGE'
-      ),
-      screeningCategory: String(d.screeningCategory || d.defectType || 'CRACK_PLASTER_SHRINKAGE'),
-      widthMaxMm: Number(d.widthMaxMm ?? d.width_max_mm ?? 0),
-      lengthMm: Number(d.lengthMm ?? d.length_mm ?? 0),
-      crackDirection: String(d.crackDirection || d.crack_direction || 'DIAGONAL'),
-      activityState: String(d.activityState || d.activity_state || 'STABLE'),
-      hasScaleCard: Boolean(d.hasScaleCard ?? d.has_scale_card ?? true),
-      isStructuralCritical: Boolean(d.isStructuralCritical ?? d.is_structural_critical ?? false),
-      cuPhotoUrl: cuUrl || null,
-      cuPhotos: Array.isArray(d.cuPhotos)
-        ? (d.cuPhotos as string[])
-        : cuUrl
-          ? [cuUrl]
-          : [],
-      cuPhotoCode: d.cuPhotoCode ? String(d.cuPhotoCode) : undefined,
-      pinX: d.pinX !== undefined && d.pinX !== null ? Number(d.pinX) : null,
-      pinY: d.pinY !== undefined && d.pinY !== null ? Number(d.pinY) : null,
-      isDeleted: Boolean(d.isDeleted ?? d.is_deleted ?? false),
-      historyCount: Number(d.historyCount ?? 0),
-      hasHistory: Boolean(d.hasHistory),
-    };
-  });
-}
+import { calcBurlandGradeFromWidthFrontend } from '../core/condo-zone.mappers';
+import { firstNonEmptyString, toNumberOrNull, toRecord } from '../core/condo-normalize.utils';
+import { splitCondoZonesAndElements } from '../core/condo-zone.mappers';
+import type { CondoUnitFormState } from '../types/condo-audit.types';
+import {
+  adaptUnitAbsentee,
+  resolveCondoAbsenceView,
+  adaptUnitBeamSagging,
+  adaptUnitDoorJamming,
+  adaptUnitLeakage,
+  resolveUnitCadUrl,
+  toSurveyDoorJammingPayload,
+  toSurveyLeakagePayload,
+} from './condo-unit.adapters';
 
 function toUnitPhotoObj(
   raw: unknown,
@@ -72,80 +40,32 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
     data.survey_data_json ||
     data.leftPane?.surveyJson ||
     {}) as Record<string, unknown>;
-  const unitInfo = (data.unitInfo || {}) as Record<string, unknown>;
-  const sigs = (data.leftPane?.signatures || sJson.signatures || {}) as Record<string, unknown>;
-  const idPhotos = (data.identificationPhotos ||
-    data.rightPane?.identificationPhotos ||
-    sJson.identificationPhotos ||
-    {}) as Record<string, unknown>;
-
-  const floorNum = Number(
-    unitInfo.floor_number ??
-      sJson.floorNumber ??
-      sJson.floor_number ??
-      1
+  const leftPane = toRecord(data.leftPane);
+  const unitInfo = toRecord(data.unitInfo);
+  const sigs = toRecord(leftPane.signatures ?? sJson.signatures);
+  const idPhotos = toRecord(
+    data.identificationPhotos || data.rightPane?.identificationPhotos || sJson.identificationPhotos
   );
 
-  // Vùng hư hại Kiến trúc căn hộ (Z)
-  const rawZonesSource = Array.isArray(data.leftPane?.damageZones) && data.leftPane.damageZones.length > 0
-    ? data.leftPane.damageZones
-    : Array.isArray(sJson.damageZones)
-      ? sJson.damageZones
-      : [];
+  const floorNum = toNumberOrNull(unitInfo.floor_number ?? sJson.floorNumber ?? sJson.floor_number);
+  const defaultFloorName = floorNum !== null ? `Tầng ${floorNum}` : '';
 
-  const damageZones: CondoDamageZoneItemData[] = rawZonesSource.map((raw, idx) => {
-    const rawItem = (raw || {}) as Record<string, unknown>;
-    const code = String(
-      rawItem.zone_code || rawItem.zoneCode || `Z-${String(idx + 1).padStart(2, '0')}`
-    );
-    const id = String(rawItem.id || `unit_zone_${idx + 1}`);
-    const defs = mapRawUnitDefects(rawItem.defects, id);
-    return {
-      id,
-      zoneCode: code,
-      floorName: String(rawItem.floor_name || rawItem.floorName || `Tầng ${floorNum}`),
-      roomName: String(rawItem.room_name || rawItem.roomName || 'Phòng khách'),
-      componentType: String(rawItem.component_type || rawItem.componentType || 'Tường'),
-      wallMaterial: String(rawItem.wall_material || rawItem.wallMaterial || 'Gạch xây tô vữa'),
-      ctxPhotoUrl: String(rawItem.ctx_photo_url || rawItem.ctxPhotoUrl || '') || null,
-      ctxPhotoCode: String(rawItem.ctx_photo_code || rawItem.ctxPhotoCode || `${code}-CTX`),
-      burlandGrade: Number(rawItem.burland_grade ?? rawItem.burlandGrade ?? 0),
-      functionalImpactRepairNeeded: Boolean(
-        rawItem.functional_impact_repair_needed ?? rawItem.functionalImpactRepairNeeded ?? false
-      ),
-      pinX: rawItem.pin_x !== undefined && rawItem.pin_x !== null ? Number(rawItem.pin_x) : null,
-      pinY: rawItem.pin_y !== undefined && rawItem.pin_y !== null ? Number(rawItem.pin_y) : null,
-      isDeleted: Boolean(rawItem.is_deleted ?? rawItem.isDeleted ?? false),
-      historyCount: Number(rawItem.historyCount ?? 0),
-      hasHistory: Boolean(rawItem.hasHistory),
-      defects: defs,
-    };
-  });
-
-  const rawDoorJamming =
-    sJson.doorJamming && typeof sJson.doorJamming === 'object'
-      ? (sJson.doorJamming as Record<string, unknown>)
-      : {};
-  const rawWaterLeakage =
-    sJson.waterLeakageFromUpperFloor && typeof sJson.waterLeakageFromUpperFloor === 'object'
-      ? (sJson.waterLeakageFromUpperFloor as Record<string, unknown>)
-      : {};
-  const rawBeamSagging =
-    sJson.beamSagging && typeof sJson.beamSagging === 'object'
-      ? (sJson.beamSagging as Record<string, unknown>)
-      : data.leftPane?.beamSagging && typeof data.leftPane.beamSagging === 'object'
-        ? (data.leftPane.beamSagging as Record<string, unknown>)
-        : {};
+  const rawZonesSource = Array.isArray(leftPane.damageZones) && leftPane.damageZones.length > 0
+    ? leftPane.damageZones
+    : sJson.damageZones ?? sJson.zones;
+  const { damageZones, structuralElements } = splitCondoZonesAndElements(
+    rawZonesSource,
+    Array.isArray(leftPane.structuralElements) && leftPane.structuralElements.length > 0
+      ? leftPane.structuralElements
+      : sJson.structuralElements,
+    defaultFloorName
+  );
 
   const rawAbsenceLogs = Array.isArray(sJson.absenceLogs)
     ? (sJson.absenceLogs as StepwiseAbsenceLogItem[])
-    : Array.isArray(data.leftPane?.absenceLogs)
-      ? data.leftPane.absenceLogs
+    : Array.isArray(leftPane.absenceLogs)
+      ? (leftPane.absenceLogs as StepwiseAbsenceLogItem[])
       : [];
-
-  const rawNoticePhotos = Array.isArray(sJson.absenteeNoticePhotos)
-    ? (sJson.absenteeNoticePhotos as string[])
-    : [];
 
   const burlandSummary =
     sJson.burlandSummary && typeof sJson.burlandSummary === 'object'
@@ -156,78 +76,66 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
           controllingDefectsCount: 0,
         };
 
+  const { cadUrl, isFloorCadFallback } = resolveUnitCadUrl(sJson, unitInfo);
+  const absence = resolveCondoAbsenceView(data);
+  const absenteeInfo = absence.state === 'ABSENT' || absence.state === 'ACCESS_HISTORY' ? adaptUnitAbsentee(sJson) : null;
+  const renovation = toRecord(sJson.interiorRenovationHistory);
+
   return recomputeCondoUnitBurlandOnChange(
     {
-      unitCode: String(unitInfo.unit_code || data.unitCode || sJson.unitCode || 'A-101'),
+      unitCode: firstNonEmptyString(unitInfo.unit_code, data.unitCode, sJson.unitCode),
+      displayCode: firstNonEmptyString(unitInfo.display_code, sJson.displayCode),
       floorNumber: floorNum,
-      ownerName: String(unitInfo.owner_name || data.ownerName || sJson.ownerName || ''),
-      ownerPhone: String(unitInfo.owner_phone || data.ownerPhone || sJson.ownerPhone || ''),
-      residentRole: String(sJson.residentRole || sJson.occupancyRole || 'OWNER'),
-      occupancyStatus: String(
-        unitInfo.occupancy_status || sJson.occupancyStatus || 'OCCUPIED_OWNER'
-      ),
-      isRefusedOrAbsent: Boolean(
-        sJson.isRefusedOrAbsent ??
-          data.leftPane?.isRefusedOrAbsent ??
-          (data.status === 'POSTPONED_ABSENT' ||
-            data.status === 'POSTPONED_ABSENT_VERIFIED')
-      ),
-      absenceReason: String(sJson.absenceReason || data.leftPane?.absenceReason || ''),
+      ownerName: firstNonEmptyString(unitInfo.owner_name, data.ownerName, sJson.ownerName),
+      ownerPhone: firstNonEmptyString(unitInfo.owner_phone, data.ownerPhone, sJson.ownerPhone),
+      ownerIdCard: firstNonEmptyString(unitInfo.owner_id_card, sJson.ownerIdCard),
+      residentStatus: firstNonEmptyString(unitInfo.resident_status, sJson.residentStatus),
+      unitAreaM2: toNumberOrNull(sJson.unitAreaM2 ?? unitInfo.unit_area_m2),
+      isRefusedOrAbsent: absence.state === 'ABSENT',
+      absence,
+      absenceDecision: (sJson.absenceDecision as CondoUnitFormState['absenceDecision']) ?? null,
+      absenteeInfo,
       absenceLogs: rawAbsenceLogs,
-      absenteeNoticePhotos: rawNoticePhotos,
-      doorJamming: {
-        hasJamming: Boolean(rawDoorJamming.hasJamming ?? false),
-        locations: String(rawDoorJamming.locations || ''),
-        severity: String(rawDoorJamming.severity || 'MINOR'),
-        photoUrl: String(rawDoorJamming.photoUrl || ''),
-        notes: String(rawDoorJamming.notes || ''),
+      doorJamming: adaptUnitDoorJamming(sJson),
+      waterLeakageFromUpperFloor: adaptUnitLeakage(sJson),
+      beamSagging: adaptUnitBeamSagging(sJson.beamSagging ?? leftPane.beamSagging),
+      settlementObserved: firstNonEmptyString(sJson.settlementObserved),
+      settlementNotes: firstNonEmptyString(sJson.settlementNotes),
+      historyInterview: toRecord(sJson.historyInterview ?? leftPane.interview),
+      hasSensitiveEquipment: Boolean(sJson.hasSensitiveEquipment),
+      sensitiveEquipmentDesc: firstNonEmptyString(sJson.sensitiveEquipmentDesc),
+      interiorRenovationHistory: {
+        hasRenovated: Boolean(renovation.hasRenovated),
+        description: firstNonEmptyString(renovation.description),
       },
-      waterLeakageFromUpperFloor: {
-        hasLeakage: Boolean(rawWaterLeakage.hasLeakage ?? false),
-        sourceLocation: String(rawWaterLeakage.sourceLocation || ''),
-        suspectedUpperUnitCode: String(rawWaterLeakage.suspectedUpperUnitCode || ''),
-        photoUrl: String(rawWaterLeakage.photoUrl || ''),
-        notes: String(rawWaterLeakage.notes || ''),
-      },
-      beamSagging: {
-        hasSagging: Boolean(rawBeamSagging.hasSagging ?? Number(rawBeamSagging.level ?? 0) > 0),
-        level: Number(rawBeamSagging.level ?? 0),
-        sagMm: (rawBeamSagging.sagMm as string | number) ?? 0,
-        position: String(rawBeamSagging.position || ''),
-        photoUrl: String(rawBeamSagging.photoUrl || ''),
-        notes: String(rawBeamSagging.notes || ''),
-      },
-      photoP01: toUnitPhotoObj(
-        idPhotos.photoP01 || idPhotos.p01 || sJson.photoP01,
-        'P-01'
-      ),
-      photoP04: toUnitPhotoObj(
-        idPhotos.photoP04 || idPhotos.p04 || sJson.photoP04,
-        'P-04'
-      ),
-      roomLayoutUrl: String(
-        sJson.roomLayoutUrl ||
-          sJson.unitLayoutSketchUrl ||
-          unitInfo.floor_cad_url ||
-          ''
-      ),
-      roomLayoutNotes: String(sJson.roomLayoutNotes || ''),
+      photoP01: toUnitPhotoObj(idPhotos.photoP01 || idPhotos.p01 || sJson.photoP01, 'P-01'),
+      photoP04: toUnitPhotoObj(idPhotos.photoP04 || idPhotos.p04 || sJson.photoP04, 'P-04'),
+      roomLayoutUrl: cadUrl,
+      structuralCadUrl: firstNonEmptyString(sJson.unitStructuralCadUrl),
+      cadZonePins: Array.isArray(sJson.cadZonePins) ? (sJson.cadZonePins as CondoUnitFormState['cadZonePins']) : [],
+      cadElementPins: Array.isArray(sJson.cadElementPins) ? (sJson.cadElementPins as CondoUnitFormState['cadElementPins']) : [],
+      isFloorCadFallback,
+      roomLayoutNotes: firstNonEmptyString(sJson.roomLayoutNotes),
       damageZones,
+      structuralElements,
       burlandSummary,
-      summaryConclusions: String(data.summaryConclusions || sJson.summaryConclusions || ''),
-      engineeringRecommendations: String(
-        data.engineeringRecommendations || sJson.engineeringRecommendations || ''
+      summaryConclusions: firstNonEmptyString(data.summaryConclusions, sJson.summaryConclusions),
+      engineeringRecommendations: firstNonEmptyString(
+        data.engineeringRecommendations,
+        sJson.engineeringRecommendations
       ),
-      ownerFeedback: String(sJson.ownerFeedback || data.leftPane?.ownerFeedback || ''),
+      ownerFeedback: firstNonEmptyString(sJson.ownerFeedback, sigs.ownerFeedback, leftPane.ownerFeedback),
       signatures: {
-        surveyorName: String(sigs.surveyorName || data.surveyorName || ''),
-        surveyorPhone: String(sigs.surveyorPhone || data.surveyorPhone || ''),
-        surveyorSignature: String(sigs.surveyorSignature || data.surveyorSignatureUrl || ''),
-        ownerName: String(sigs.ownerName || unitInfo.owner_name || data.ownerName || ''),
-        ownerSignature: String(sigs.ownerSignature || data.ownerSignatureUrl || ''),
+        surveyorName: firstNonEmptyString(sigs.surveyorName, data.surveyorName),
+        surveyorPhone: firstNonEmptyString(sigs.surveyorPhone, data.surveyorPhone),
+        surveyorSignature: firstNonEmptyString(sigs.surveyorSignature, data.surveyorSignatureUrl, sJson.surveyorSignature),
+        ownerName: firstNonEmptyString(sigs.ownerName, unitInfo.owner_name, data.ownerName),
+        ownerSignature: firstNonEmptyString(sigs.ownerSignature, data.ownerSignatureUrl, sJson.ownerSignature),
         workingMinutesPhotos: Array.isArray(sigs.workingMinutesPhotos)
           ? (sigs.workingMinutesPhotos as CondoUnitFormState['signatures']['workingMinutesPhotos'])
-          : [],
+          : Array.isArray(sJson.workingMinutesPhotos)
+            ? (sJson.workingMinutesPhotos as CondoUnitFormState['signatures']['workingMinutesPhotos'])
+            : [],
       },
       photoRotations:
         sJson.photoRotations && typeof sJson.photoRotations === 'object'
@@ -268,6 +176,20 @@ export function recomputeCondoUnitBurlandOnChange(
     }
   }
 
+  for (const el of state.structuralElements || []) {
+    if (el.isDeleted) continue;
+    for (const d of el.defects || []) {
+      if (d.isDeleted) continue;
+      totalActiveDefects += 1;
+      const g = calcBurlandGradeFromWidthFrontend(Number(d.widthMaxMm || 0), true);
+      if (g > maxGrade) {
+        maxGrade = g;
+        governingCode = `${el.elementCode}/${d.defectCode}`;
+      }
+      hasStructCrit = true;
+    }
+  }
+
   // Nếu có võng dầm/sàn mức >= 2 thì nâng cảnh báo kỹ sư kết cấu
   if (state.beamSagging?.hasSagging && Number(state.beamSagging.level) >= 2) {
     hasStructCrit = true;
@@ -302,8 +224,40 @@ export function buildCondoUnitUpdatesPayload(
     }
   }
 
-  if (dirtyKeys.includes('damageZones') || dirtyKeys.some((k) => k.startsWith('beamSagging'))) {
+  if (
+    dirtyKeys.includes('damageZones') ||
+    dirtyKeys.includes('structuralElements') ||
+    dirtyKeys.some((k) => k.startsWith('beamSagging'))
+  ) {
     updates.burlandSummary = formState.burlandSummary;
+  }
+
+  if (dirtyKeys.includes('ownerFeedback')) {
+    updates.ownerRemarks = formState.ownerFeedback;
+  }
+
+  if (updates.doorJamming !== undefined) {
+    Object.assign(updates, toSurveyDoorJammingPayload(formState.doorJamming));
+  }
+
+  if (updates.waterLeakageFromUpperFloor !== undefined) {
+    delete updates.waterLeakageFromUpperFloor;
+    updates.upperFloorWaterLeakage = toSurveyLeakagePayload(formState.waterLeakageFromUpperFloor);
+  }
+
+  const absentee = formState.absenteeInfo;
+  if (updates.absenteeInfo !== undefined && absentee) {
+    updates.isAbsentee = true;
+    updates.absenteeInfo = {
+      absenceReason: absentee.reasonCode,
+      notes: absentee.notes,
+      witnessName: absentee.witnessName,
+      witnessRole: absentee.witnessRole,
+      witnessPhone: absentee.witnessPhone,
+      noticeDelivered: absentee.noticeDelivered,
+      rescheduleDate: absentee.rescheduleDate,
+      attemptCount: absentee.attemptCount,
+    };
   }
 
   return updates;

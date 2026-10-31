@@ -91,7 +91,7 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[120] isolate flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="relative z-[121] w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative z-[121] w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -120,9 +120,9 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
         {/* Body */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs">
           {sealedResult ? (
-            <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 space-y-3 text-center">
+            <div className="p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-500 space-y-3 text-center">
               <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-              <div className="text-sm font-black text-emerald-900 dark:text-emerald-200">
+              <div className="text-sm font-black text-emerald-900">
                 ĐÃ NIÊM PHONG &amp; KHÓA SỔ PHÁP LÝ TOÀN TÒA THÀNH CÔNG!
               </div>
               <div className="p-3 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[11px] break-all border border-slate-800">
@@ -144,12 +144,12 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                 <div
                   className={`p-3.5 rounded-xl border ${
                     masterReportStatus === 'APPROVED'
-                      ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800'
-                      : 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800'
+                      ? 'bg-emerald-50/70 border-emerald-300'
+                      : 'bg-amber-50/70 border-amber-300'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span className="font-black text-slate-800 flex items-center gap-1.5">
                       <Building2 className="w-4 h-4 text-indigo-600" />
                       1. Hồ sơ Tòa nhà mẹ (Master)
                     </span>
@@ -163,7 +163,7 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5">
+                  <p className="text-[11px] text-slate-600 mt-1.5">
                     Hồ sơ thông số gốc 5 bước của khối tháp (Quy mô, Hạng móng CAT, Lún nghiêng, ECS/VI/BRA).
                   </p>
                   {masterReportId && masterReportStatus !== 'APPROVED' && onOpenReportStudio && (
@@ -184,19 +184,19 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                 <div
                   className={`p-3.5 rounded-xl border ${
                     completedItems === totalItems && totalItems > 0
-                      ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800'
-                      : 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800'
+                      ? 'bg-emerald-50/70 border-emerald-300'
+                      : 'bg-amber-50/70 border-amber-300'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-slate-800 dark:text-slate-100">
+                    <span className="font-black text-slate-800">
                       2. Khu vực chung &amp; Căn hộ con
                     </span>
-                    <span className="font-mono font-black text-xs text-indigo-700 dark:text-indigo-300">
+                    <span className="font-mono font-black text-xs text-indigo-700">
                       {completedItems} / {totalItems} mục
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5">
+                  <p className="text-[11px] text-slate-600 mt-1.5">
                     100% phân vùng dùng chung (M-xxx) và căn hộ con (U-xxx) phải đạt APPROVED hoặc POSTPONED_ABSENT_VERIFIED.
                   </p>
                 </div>
@@ -204,8 +204,8 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
 
               {/* Danh sách Blocking Items nếu chưa đủ điều kiện */}
               {blockingItems.length > 0 && (
-                <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20 p-3.5 space-y-2">
-                  <div className="font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 space-y-2">
+                  <div className="font-black text-rose-800 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>
                       Đang còn {blockingItems.length} hạng mục chưa hoàn tất thẩm định (Chặn khóa sổ):
@@ -215,14 +215,14 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                     {blockingItems.map((item) => (
                       <div
                         key={`${item.id}_${item.unitCode}`}
-                        className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-rose-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                        className="p-2 rounded-lg bg-white border border-rose-200 flex items-center justify-between gap-2"
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-black text-slate-900 dark:text-slate-100">
+                            <span className="font-mono font-black text-slate-900">
                               {item.unitCode}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
                               {item.status}
                             </span>
                             {item.floorNumber !== null && (
@@ -231,7 +231,7 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-rose-700 dark:text-rose-400 mt-0.5">
+                          <div className="text-[11px] text-rose-700 mt-0.5">
                             {item.reason}
                           </div>
                         </div>
@@ -257,7 +257,7 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
               {/* Ô nhập ghi chú niêm phong khi đủ điều kiện */}
               {isReadyForFinalSeal && (
                 <div className="space-y-2 pt-1">
-                  <label className="block font-bold text-slate-800 dark:text-slate-200">
+                  <label className="block font-bold text-slate-800">
                     Biên bản / Ghi chú Niêm phong Pháp lý Khối tháp (Tùy chọn):
                   </label>
                   <textarea
@@ -265,9 +265,9 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
                     value={sealNotes}
                     onChange={(e) => setSealNotes(e.target.value)}
                     placeholder="Nhập ghi chú nghiệm thu tổng thể tòa nhà trước khi khóa sổ bất biến SHA-256..."
-                    className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100"
+                    className="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-900"
                   />
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 text-[11px] text-amber-900 dark:text-amber-300 flex items-start gap-2">
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
                     <KeyRound className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <span>
                       <strong>Lưu ý pháp lý:</strong> Sau khi bấm{' '}
@@ -289,11 +289,11 @@ export const CondoFinalSealModal: React.FC<CondoFinalSealModalProps> = ({
 
         {/* Footer */}
         {!sealedResult && (
-          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
+          <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer"
+              className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold cursor-pointer"
             >
               Đóng
             </button>

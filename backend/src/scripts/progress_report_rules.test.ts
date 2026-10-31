@@ -36,6 +36,9 @@ import {
   parseGeoJsonOuterRingLngLat,
 } from "../modules/progress-report/geo/alignment-geometry";
 import { calculateSummary } from "../modules/progress-report/summary/summary.calculator";
+import { normalizeUsageFunction } from "../modules/progress-report/rules/usage-normalizer";
+import { arrangeRecords } from "../modules/progress-report/rules/record.arranger";
+import { DAILY_PROGRESS_STATION_TEMPLATE } from "../modules/progress-report/columns/templates/daily-progress-station.template";
 import { DEFAULT_PROGRESS_CONFIG as CFG } from "../modules/progress-report/config/default-config";
 import { progressReportConfigSchema } from "../modules/progress-report/config/config.schema";
 import type { RawProgressRow } from "../modules/progress-report/progress-report.types";
@@ -407,18 +410,17 @@ const tests: Array<[string, () => void]> = [
     },
   ],
   [
-    "Các cột chốt để trống khi không có dữ liệu: Khu phố, Dài, Tổng số phòng, ĐV thiết kế, ĐV thi công",
+    "Các cột chốt để trống khi không có dữ liệu: Dài, Tổng số phòng, ĐV thiết kế, ĐV thi công",
     () => {
       const rec = normalizeRecord(raw(), CFG);
       assert.deepEqual(
         [
-          rec.quarter,
           rec.lengthM,
           rec.totalRooms,
           rec.designUnit,
           rec.constructionUnit,
         ],
-        ["", null, null, "", ""],
+        [null, null, "", ""],
       );
       assert.equal(rec.ownerName, "Nguyễn Văn A");
     },
@@ -568,6 +570,121 @@ const tests: Array<[string, () => void]> = [
       assert.equal(s.total.surveyed, 1);
       assert.equal(s.total.inaccessible, 1);
       assert.equal(s.groups[0].label, "Phải Tuyến");
+    },
+  ],
+  [
+    "Template 28 cột A → AB, không còn Khu Phố",
+    () => {
+      const keys = DAILY_PROGRESS_STATION_TEMPLATE.columns.map((c) => c.key);
+      assert.equal(keys.length, 28);
+      assert.equal(keys.includes("quarter"), false);
+      assert.equal(keys[7], "buildingName");
+      assert.equal(keys[27], "notes");
+    },
+  ],
+  [
+    "Công năng: đủ 13 lựa chọn form và các giá trị Khác thật",
+    () => {
+      const cases: Array<[string, string]> = [
+        ["Nhà ở gia đình", "Nhà ở gia đình"],
+        ["Nhà bỏ trống", "Nhà bỏ trống"],
+        ["Chung cư / Toà nhiều căn hộ", "Chung cư"],
+        ["Cửa hàng / Shop / Bách hóa", "Cửa hàng / Kinh doanh"],
+        ["Quán ăn / Nhà hàng / Cafe", "Cửa hàng / Kinh doanh"],
+        ["Văn phòng / Trụ sở cty", "Văn phòng"],
+        ["Khách sạn / Nhà nghỉ / Căn hộ DV", "Khách sạn / Nhà nghỉ"],
+        ["Bệnh viện / Y tế", "Bệnh viện / Y tế"],
+        ["Trường học / Đào tạo", "Trường học / Đào tạo"],
+        ["Kho hàng / Xưởng sản xuất", "Kho hàng / Xưởng sản xuất"],
+        ["Cơ sở tôn giáo (Chùa, Nhà thờ)", "Cơ sở tôn giáo (Chùa, Nhà thờ)"],
+        ["Công trình công cộng", "Công trình công cộng"],
+        ["Khác: kho hàng", "Kho hàng / Xưởng sản xuất"],
+        ["Khác: cho thuê", "cho thuê"],
+        ["Khác: Nhà ở, Nhà cho thuê", "Nhà ở gia đình"],
+        ["Khác: nhà ở , cửa hàng neca", "Hỗn hợp (Ở / Cửa hàng / VP)"],
+        ["Nhà ở kết hợp kinh doanh", "Hỗn hợp (Ở / Cửa hàng / VP)"],
+        ["Cửa hàng/Văn phòng", "Hỗn hợp (Ở / Cửa hàng / VP)"],
+        ["Công ty/Văn phòng", "Văn phòng"],
+        ["Đất thương mại dịch vụ", "Cửa hàng / Kinh doanh"],
+        ["Bệnh viện nhân dân", "Bệnh viện nhân dân"],
+        ["Phòng khám đa khoa", "Phòng khám đa khoa"],
+        ["Văn phòng".normalize("NFD"), "Văn phòng"],
+      ];
+      for (const [input, expected] of cases) assert.equal(normalizeUsageFunction(input, false), expected, input);
+    },
+  ],
+  [
+    "Công năng: trống thì để trống với tòa nhà, không suy diễn nhà ở",
+    () => {
+      assert.equal(normalizeUsageFunction("", false), "");
+      assert.equal(normalizeUsageFunction(null, false), "");
+      assert.equal(normalizeUsageFunction("Khác: ", false), "");
+      assert.equal(normalizeUsageFunction("", true), "Căn hộ chung cư");
+      assert.equal(normalizeUsageFunction("Nhà ở gia đình", true), "Căn hộ chung cư");
+      assert.equal(normalizeUsageFunction("Cửa hàng / Shop / Bách hóa", true), "Cửa hàng / Kinh doanh");
+    },
+  ],
+  [
+    "Tòa mẹ: thiếu hồ sơ hiện ---, không lặp chữ Chung cư",
+    () => {
+      const rec = normalizeRecord(
+        raw({ kind: "CONDO_UNIT", unitId: "u1", parcelHouseNumber: "Chung cư 522-588", reportJson: {} }),
+        CFG,
+      );
+      assert.equal(rec.buildingName, "Chung cư 522-588");
+      assert.equal(
+        rec.masterLabel,
+        "TÒA NHÀ: CHUNG CƯ 522-588 - CÁCH MẠNG THÁNG TÁM, PHƯỜNG NHIÊU LỘC | Móng: --- | Số tầng: --- | Độ nghiêng: ---",
+      );
+    },
+  ],
+  [
+    "Tòa mẹ: đọc móng, số tầng, độ nghiêng từ hồ sơ BUILDING_MASTER",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          kind: "CONDO_UNIT",
+          unitId: "u1",
+          reportJson: {},
+          masterJson: {
+            buildingName: "Chung cư A",
+            foundationType: "PC - Móng cọc ép BTCT",
+            foundationDepthM: 12,
+            aboveFloors: 9,
+            settlementTilt: { buildingTilt: { xPermille: 1.5, yPermille: "" } },
+          },
+        }),
+        CFG,
+      );
+      assert.ok(rec.masterLabel?.includes("Móng: Móng cọc, sâu 12m | Số tầng: 9 | Độ nghiêng: X 1.5‰"));
+    },
+  ],
+  [
+    "Bố cục: nhà dân trước, căn hộ gom theo tòa, dòng phân khối đúng vị trí",
+    () => {
+      const unit = (parcelId: string, floor: number) =>
+        normalizeRecord(raw({ kind: "CONDO_UNIT", parcelId, unitId: `${parcelId}-${floor}`, unitFloorNumber: floor }), CFG);
+      const house = (parcelId: string) => normalizeRecord(raw({ parcelId }), CFG);
+      const input = [unit("t1", 1), house("h1"), unit("t2", 1), unit("t1", 2), house("h2")];
+      const { ordered, dividers } = arrangeRecords(input);
+      assert.deepEqual(ordered.map((r) => r.unitId ?? r.parcelId), ["h1", "h2", "t1-1", "t1-2", "t2-1"]);
+      assert.deepEqual(dividers.map((d) => [d.beforeRowIndex, d.kind]), [
+        [0, "SECTION"],
+        [2, "SECTION"],
+        [2, "MASTER"],
+        [4, "MASTER"],
+      ]);
+    },
+  ],
+  [
+    "Bố cục: khối rỗng không sinh tiêu đề",
+    () => {
+      assert.deepEqual(arrangeRecords([]), { ordered: [], dividers: [] });
+      const onlyHouses = arrangeRecords([normalizeRecord(raw(), CFG)]);
+      assert.equal(onlyHouses.dividers.length, 1);
+      const onlyUnits = arrangeRecords([normalizeRecord(raw({ kind: "CONDO_UNIT", unitId: "u1" }), CFG)]);
+      assert.deepEqual(onlyUnits.dividers.map((d) => d.kind), ["SECTION", "MASTER"]);
+      assert.equal(onlyUnits.dividers[0].beforeRowIndex, 0);
     },
   ],
 ];

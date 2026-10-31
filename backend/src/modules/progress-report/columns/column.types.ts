@@ -50,6 +50,13 @@ export interface ProgressTemplate {
   includeSummary: boolean;
 }
 
+/** Dòng trình bày chèn trước dòng dữ liệu `beforeRowIndex` (Phần I/II, tòa mẹ chung cư). */
+export interface TableDivider {
+  beforeRowIndex: number;
+  kind: 'SECTION' | 'MASTER';
+  label: string;
+}
+
 /** Bảng đã resolve – định dạng trung lập, renderer (Excel/PDF/CSV) chỉ việc vẽ. */
 export interface ResolvedTable {
   templateId: string;
@@ -59,6 +66,7 @@ export interface ResolvedTable {
   legend: LegendRow[];
   columns: Array<Pick<ColumnDefinition, 'key' | 'header' | 'group' | 'width' | 'numFmt' | 'align'>>;
   rows: Array<{ values: CellValue[]; styles: Array<CellStyle | undefined> }>;
+  dividers: TableDivider[];
   summary: ProgressSummary | null;
   colors: ProgressReportConfig['colors'];
 }

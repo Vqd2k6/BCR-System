@@ -17,7 +17,7 @@ import type { StudioCommittedPhotoInfo } from '../context/AuditStudioImgContext'
 
 export type { DiffItem };
 
-function deepReplaceUrlsInValue(val: unknown, replaceMap: Map<string, string>): unknown {
+export function deepReplaceUrlsInValue(val: unknown, replaceMap: Map<string, string>): unknown {
   if (!val || replaceMap.size === 0) return val;
   if (typeof val === 'string') {
     const trimmed = val.trim();
