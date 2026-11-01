@@ -394,9 +394,10 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
       await syncHistoryInterviewInTx(client, reportId, json, String(renovation.description || ''));
     }
 
-    if (!isJsonRecord(leftPane.buildingSpecs)) {
+    const unitArea = toFiniteNumberOrNull(json.unitAreaM2);
+    if (!isJsonRecord(leftPane.buildingSpecs) && unitArea !== null) {
       await client.query(`UPDATE building_specifications SET construction_area_m2 = $1 WHERE report_id = $2;`, [
-        toFiniteNumberOrNull(json.unitAreaM2),
+        unitArea,
         reportId,
       ]);
     }

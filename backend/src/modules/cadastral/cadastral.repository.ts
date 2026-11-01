@@ -728,7 +728,10 @@ export class CadastralRepository {
         const { SurveyPackageMapper } = await import('../survey/survey-package.mapper');
         const { SurveyDefectsRepository } = await import('../survey/repositories/survey-defects.repository');
         const step1Photos = SurveyPackageMapper.mapStep1Photos(rawSurveyObj);
-        await SurveyDefectsRepository.saveIdentificationPhotos(savedReportIdForRelational, step1Photos);
+        // Hồ sơ vắng có thể đã ở SUBMITTED; đây là lần ghi đầu của chính lượt nộp, không phải sửa hồ sơ đã khóa
+        await SurveyDefectsRepository.saveIdentificationPhotos(savedReportIdForRelational, step1Photos, {
+          allowLockedReport: true,
+        });
         const specs = SurveyPackageMapper.mapBuildingSpecs(rawSurveyObj);
         await SurveyDefectsRepository.saveBuildingSpecs(savedReportIdForRelational, specs);
         const def = SurveyPackageMapper.mapDeformation(rawSurveyObj);

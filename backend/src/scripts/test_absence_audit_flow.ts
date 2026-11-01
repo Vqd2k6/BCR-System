@@ -56,6 +56,9 @@ async function createAbsentParcel(suffix: string, adminId: string, photos: strin
     `SELECT id, status::text AS status, submitted_at FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL;`,
     [parcelId]
   );
+  // Bước cuối của đồng bộ bảng quan hệ: thiếu hàng này là luồng nộp vắng đã dừng giữa chừng
+  const scopeRes = await Database.query(`SELECT 1 FROM survey_scopes WHERE report_id = $1;`, [reportRes.rows[0].id]);
+  assert.strictEqual(scopeRes.rows.length, 1, 'Nộp vắng phải đồng bộ đủ bảng quan hệ');
   return { parcelId, report: reportRes.rows[0] };
 }
 
