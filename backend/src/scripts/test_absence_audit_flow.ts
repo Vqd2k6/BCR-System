@@ -8,7 +8,12 @@ import { AuditReviewService } from '../modules/audit/services/audit-review.servi
 import { CadastralRepository } from '../modules/cadastral/cadastral.repository';
 import { ReportSnapshotService } from '../modules/report/snapshot/report-snapshot.service';
 import { applyCondoReportContext } from '../modules/report/snapshot/condo-absent-projection';
-import { resolveAbsenceEvidence } from '../modules/audit/absence-evidence';
+import { isResidentialAbsentSurvey, resolveAbsenceEvidence } from '../modules/audit/absence-evidence';
+import { AuditModificationService } from '../modules/audit/services/audit-modification.service';
+import { CondoUnitAuditStrategy } from '../modules/audit/condo/strategies/condo-unit.strategy';
+import { fetchCondoUnitAbsenceMap } from '../modules/audit/condo/condo-absence.resolver';
+import type { CondoReportContextRow } from '../modules/audit/condo/condo-audit.types';
+import { CryptoUtils } from '../common/utils/crypto.utils';
 
 const NOTICE_PHOTO = 'https://example.com/giay-hen.jpg';
 
@@ -146,6 +151,120 @@ async function main(): Promise<void> {
   assert.strictEqual(reopened.rows[0].json.surveyCaseType, 'NORMAL');
   assert.strictEqual(reopened.rows[0].json.absenceDecision.decision, 'NOT_ABSENT');
   assert.strictEqual(reopened.rows[0].json.photoP01.url, 'https://example.com/p01.jpg');
+
+  // Admin đổi loại hình nhà dân
+  const editorPassword = 'Absence@Test1';
+  const editorRes = await Database.query<{ id: string }>(
+    `INSERT INTO users (username, email, password_hash, full_name, role)
+     VALUES ($1, $2, $3, 'Thẩm Định Viên Thử', 'ZONE_ADMIN') RETURNING id;`,
+    [`absence_editor_${Date.now()}`, `absence_editor_${Date.now()}@test.local`, await CryptoUtils.hashPassword(editorPassword)]
+  );
+  const editorId = editorRes.rows[0].id;
+  const edit = (reportId: string, updates: Record<string, unknown>) =>
+    AuditModificationService.applyAdminSurveyEdit(reportId, editorId, {
+      adminPassword: editorPassword,
+      editReason: 'Kiểm thử đổi loại hình',
+      diffPayload: [],
+      updates,
+    });
+  const readJson = async (reportId: string) =>
+    (await Database.query<{ json: Record<string, any> }>(
+      `SELECT survey_data_json AS json FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    )).rows[0].json;
+  const validReason = { reason: 'Đối chiếu ảnh hiện trường và tổ trưởng' };
+
+  // Hồ sơ KSV nộp nhánh vắng chỉ quay lại qua Mở Lại
+  const locked = await createAbsentParcel('C', adminId, [NOTICE_PHOTO]);
+  await expectRejected(() => edit(locked.report.id, { surveyCaseType: 'NORMAL', absenceDecision: validReason }), /Mở Lại/);
+
+  // Hồ sơ thường: đổi sang vắng rồi đổi lại
+  const normalParcel = await Database.query<{ id: string }>(
+    `INSERT INTO parcels (zone_id, project_parcel_code, house_number, street, survey_status, location_geom)
+     VALUES ('ZONE_01', $1, '2', 'Đường Thử', 'NOT_SURVEYED', ST_SetSRID(ST_Point(106.66, 10.76), 4326)) RETURNING id;`,
+    [`TEST-ABS-N-${Date.now()}`]
+  );
+  const normalReport = await Database.query<{ id: string }>(
+    `INSERT INTO base_survey_reports (parcel_id, surveyor_id, status, report_code, survey_data_json)
+     VALUES ($1, $2, 'SUBMITTED', $3, $4) RETURNING id;`,
+    [
+      normalParcel.rows[0].id,
+      adminId,
+      `REP-ABS-N-${Date.now().toString().slice(-6)}`,
+      JSON.stringify({
+        surveyCaseType: 'NORMAL',
+        settlementTilt: { diffSettlement: { level: 1 }, beamSagging: { level: 2 } },
+      }),
+    ]
+  );
+  const normalId = normalReport.rows[0].id;
+  await expectRejected(() => edit(normalId, { surveyCaseType: 'ABSENTEE' }), /lý do/);
+  await expectRejected(() => edit(normalId, { surveyCaseType: 'ABSENTEE', absenceDecision: { reason: 'ngắn' } }), /lý do/);
+  await edit(normalId, { surveyCaseType: 'ABSENTEE', absenceDecision: { ...validReason, decidedBy: 'gia-mao' } });
+  const flipped = await readJson(normalId);
+  assert.strictEqual(flipped.isAbsenteeSurvey, true);
+  assert.strictEqual(flipped.absenceDecision.decision, 'ABSENT');
+  assert.strictEqual(flipped.absenceDecision.decidedBy, editorId, 'Người quyết định do backend ghi');
+
+  await expectRejected(() => edit(normalId, { floors: [] }), /không có dữ liệu/);
+  await edit(normalId, { settlementTilt: { diffSettlement: { level: 3 }, beamSagging: { level: 5 } } });
+  const tilted = await readJson(normalId);
+  assert.strictEqual(tilted.settlementTilt.diffSettlement.level, 3);
+  assert.strictEqual(tilted.settlementTilt.beamSagging.level, 2, 'Không sửa được võng dầm của nhà vắng');
+
+  await edit(normalId, { surveyCaseType: 'NORMAL', absenceDecision: validReason });
+  const restored = await readJson(normalId);
+  assert.strictEqual(restored.isAbsenteeSurvey, false);
+  assert.strictEqual(isResidentialAbsentSurvey(restored), false, 'Đổi lại phải thoát hẳn nhánh vắng');
+  assert.strictEqual(restored.absenceDecision.decision, 'NOT_ABSENT');
+
+  // Căn hộ: kiểm tra khóa nội thất theo kết luận sau khi áp dụng lượt sửa (chỉ đọc)
+  const unitReports = await Database.query<{ id: string }>(
+    `SELECT id FROM base_survey_reports WHERE unit_id IS NOT NULL AND deleted_at IS NULL LIMIT 500;`
+  );
+  const unitAbsence = await fetchCondoUnitAbsenceMap(unitReports.rows.map((row) => row.id));
+  const normalUnitId = Array.from(unitAbsence.entries()).find(
+    ([, value]) => value.state === 'NORMAL' && !value.hasRoomDefect
+  )?.[0];
+  assert.ok(normalUnitId, 'Cần 1 căn thường trong DB bản sao');
+  const strategy = new CondoUnitAuditStrategy();
+  const unitContext = { report_id: normalUnitId } as CondoReportContextRow;
+  const absentDecision = { decision: 'ABSENT', reason: validReason.reason, decidedAt: '' };
+  await strategy.validateBeforeModify(unitContext, { doorJammingStatus: 'JAMMED' }, []);
+  await expectRejected(
+    () => strategy.validateBeforeModify(unitContext, { absenceDecision: { decision: 'ABSENT', reason: 'ngắn' } }, []),
+    /lý do/
+  );
+  await strategy.validateBeforeModify(unitContext, { absenceDecision: absentDecision, displayCode: 'P.101' }, []);
+  await expectRejected(
+    () => strategy.validateBeforeModify(unitContext, { absenceDecision: absentDecision, doorJammingStatus: 'JAMMED' }, []),
+    /doorJammingStatus/
+  );
+  await expectRejected(
+    () => strategy.validateBeforeModify(unitContext, { residentStatus: 'VẮNG_MẶT_KHÓA_CỬA', damageZones: [] }, []),
+    /damageZones/
+  );
+
+  // Căn có khuyết tật trong phòng: đổi sang vắng phải kèm quyết định, nếu không tải lại vẫn hiện đủ form
+  const roomDefectUnitId = Array.from(unitAbsence.entries()).find(
+    ([, value]) => value.state === 'NORMAL' && value.hasRoomDefect && !value.decision
+  )?.[0];
+  assert.ok(roomDefectUnitId, 'Cần 1 căn thường có khuyết tật trong phòng trong DB bản sao');
+  const roomDefectContext = { report_id: roomDefectUnitId } as CondoReportContextRow;
+  await expectRejected(
+    () => strategy.validateBeforeModify(roomDefectContext, { residentStatus: 'VẮNG_MẶT_KHÓA_CỬA' }, []),
+    /xác nhận Vắng Chủ/
+  );
+  await strategy.validateBeforeModify(
+    roomDefectContext,
+    { residentStatus: 'VẮNG_MẶT_KHÓA_CỬA', absenceDecision: absentDecision },
+    []
+  );
+  await strategy.validateBeforeModify(
+    roomDefectContext,
+    { residentStatus: 'VẮNG_MẶT_KHÓA_CỬA', absenceDecision: { ...absentDecision, decision: 'NOT_ABSENT' } },
+    []
+  );
 
   console.log('✅ test_absence_audit_flow: toàn bộ kịch bản đạt');
 }
