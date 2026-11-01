@@ -21,6 +21,8 @@ import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
+import { readCustomRestrictedAreas, splitLegacyRestrictedArea } from '../../../../../survey-phase1/utils/accessLimitation';
+import { CustomRestrictedAreaList } from '../../../../../survey-phase1/components/step6/CustomRestrictedAreaList';
 import { computePolygonAreaM2, normalizeQuadEdges, getDistanceM } from '../../../../../../components/gis/shared/geoMath';
 
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseAccessLimitation, StepwiseGisMutationConfirmed } from '../types';
@@ -55,6 +57,8 @@ const ACCESS_LIMIT_PRESETS = [
   'Khác (Nhập chi tiết...)',
 ];
 
+const OTHER_RESTRICTED_AREA = 'Khác (Nhập chi tiết...)';
+
 const RESTRICTED_AREAS_PRESETS = [
   'Các tầng lầu trên cao',
   'Mái / Sân thượng',
@@ -62,6 +66,7 @@ const RESTRICTED_AREAS_PRESETS = [
   'Phòng ngủ / Khu vực riêng tư',
   'Phòng kho khóa cửa',
   'Gian bếp phía sau',
+  OTHER_RESTRICTED_AREA,
 ];
 
 export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
@@ -82,6 +87,10 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 
   const access: StepwiseAccessLimitation = formState.accessLimitation || {};
   const mutation: StepwiseGisMutationConfirmed = formState.gisMutationConfirmed || {};
+  // Hồ sơ cũ chỉ có khu vực khác trong thẻ của ghi chú; ghi chú giữ nguyên cho tới khi Admin sửa ô này
+  const legacyArea = splitLegacyRestrictedArea(access.notes);
+  const customRestrictedAreas = readCustomRestrictedAreas(access);
+  const hasOtherRestrictedArea = (access.restrictedAreas || []).some((area) => area.startsWith('Khác'));
   const activeFloors = useMemo(
     () => (formState.floors || []).filter((fl) => !isSoftDeleted(fl)),
     [formState.floors]
@@ -482,6 +491,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                       handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', '');
                       handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', []);
                       handleNestedFieldChange('accessLimitation', 'restrictedFloorLevels', 'Tầng hạn chế', []);
+                      handleNestedFieldChange('accessLimitation', 'customRestrictedAreas', 'Khu vực khác', []);
                       handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú hạn chế', '');
                     }
                   }}
@@ -600,6 +610,18 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                     )}
                   </div>
                 )}
+                {hasOtherRestrictedArea && (
+                  <CustomRestrictedAreaList
+                    items={customRestrictedAreas}
+                    readOnly={!isEditMode}
+                    onChange={(items) => {
+                      handleNestedFieldChange('accessLimitation', 'customRestrictedAreas', 'Khu vực khác', items);
+                      if (legacyArea.customRestrictedAreas.length > 0) {
+                        handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú hạn chế', legacyArea.notes);
+                      }
+                    }}
+                  />
+                )}
               </div>
 
               {/* Tầng hạn chế */}
@@ -611,10 +633,12 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                   const restrictedFloors: string[] = Array.isArray(access.restrictedFloorLevels)
                     ? (access.restrictedFloorLevels as string[])
                     : [];
+                  // KSV thường chọn tầng chưa khảo sát, nên phải gộp nhãn đã lưu thì Admin mới thấy và bỏ tick được
+                  const floorNames = activeFloors.map((fl: FloorSurveyData, fIdx: number) => fl.floorName || `Tầng ${fIdx + 1}`);
+                  const floorOptions = [...floorNames, ...restrictedFloors.filter((fl) => !floorNames.includes(fl))];
                   return isEditMode ? (
                     <div className="flex flex-wrap gap-2">
-                      {activeFloors.map((fl: FloorSurveyData | { floorId?: string; floorName?: string }, fIdx: number) => {
-                        const floorName = fl.floorName || `Tầng ${fIdx + 1}`;
+                      {floorOptions.map((floorName: string, fIdx: number) => {
                         const isSelected = restrictedFloors.includes(floorName);
                         return (
                           <label

@@ -120,6 +120,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
   // Case Type
   const caseType = formState.surveyCaseType || sJson.surveyCaseType || (data?.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL');
 
+  // Hồ sơ KSV đã nộp nhánh vắng không có dữ liệu nội thất nên chỉ quay lại qua Mở Lại Khảo Sát
+  const isCaseLocked = data?.isRefusedOrAbsent === true;
+
   // P01: Biển số nhà
   const p01Raw = toPhotoObj(identificationPhotos.photoP01 || sJson.photoP01);
   const p01IsNa = Boolean(p01Raw.notApplicable ?? p01Raw.isNotApplicable);
@@ -340,7 +343,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isEditMode ? (
+          {isEditMode && isCaseLocked && (
+            <span className="text-[11px] font-semibold text-slate-500">Đổi loại hình: dùng Mở Lại Khảo Sát ở cuối hồ sơ</span>
+          )}
+          {isEditMode && !isCaseLocked ? (
             <div className="flex items-center gap-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase">Loại hình:</label>
               <select

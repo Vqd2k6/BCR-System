@@ -26,6 +26,7 @@ import {
 } from './context/AuditStudioImgContext';
 import { AuditStudioImgModal } from './components/AuditStudioImgModal';
 import { AbsenceVerificationPanel } from './components/AbsenceVerificationPanel';
+import { AbsentExcludedDataPanel } from '../condo/core/CondoAbsentExcludedDataPanel';
 import { CondoPhotoCard } from '../condo/core/CondoPhotoCard';
 import { AuditStep1Identification } from './steps/AuditStep1Identification';
 import { AuditStep2OwnerInterview } from './steps/AuditStep2OwnerInterview';
@@ -57,6 +58,7 @@ export interface AuditStepwiseDocumentViewProps {
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }) => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
@@ -126,6 +128,9 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     formState,
     dirtyFields,
     dirtyCount,
+    isResidentialAbsent,
+    isAbsenceCaseChanged,
+    saveBlockReason,
     isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
@@ -146,7 +151,6 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     setIsStudioModalOpen,
   } = useAuditStudioImg();
 
-  const isResidentialAbsent = (data as AuditStepwiseData)?.isResidentialAbsent === true;
   const absenceEvidence = (data as AuditStepwiseData)?.absenceEvidence;
 
   // Floating modal state for orientation guidance & collapsible compact sidebar
@@ -287,7 +291,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   React.useEffect(() => {
     if (!onDirtyChange) return;
     const { diffItems, updatesPayload } = getDiffPayload();
-    const sig = `${dirtyCount}-${dirtyFields.size}-${diffItems.length}`;
+    const sig = `${dirtyCount}-${dirtyFields.size}-${diffItems.length}-${saveBlockReason ?? ''}`;
     if (prevDirtySigRef.current === sig) return;
     prevDirtySigRef.current = sig;
 
@@ -297,8 +301,9 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
       updates: updatesPayload,
       discardAll: (silent = false) => handleDiscard(silent),
       discardDiffItem: (fieldKey: string) => discardDiffItem(fieldKey),
+      saveBlockReason,
     });
-  }, [dirtyCount, dirtyFields, onDirtyChange, getDiffPayload, handleDiscard, discardDiffItem]);
+  }, [dirtyCount, dirtyFields, onDirtyChange, getDiffPayload, handleDiscard, discardDiffItem, saveBlockReason]);
 
   const allSteps = [
     { id: 'step-1', number: '01', title: 'Nhận Diện & Hiện Trạng Tổng Quan', icon: Home },
@@ -314,6 +319,21 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   const stepsList = isResidentialAbsent
     ? allSteps.filter((st) => (ABSENT_RESIDENTIAL_STEP_IDS as readonly string[]).includes(st.id))
     : allSteps;
+
+  React.useEffect(() => {
+    if (isResidentialAbsent && !(ABSENT_RESIDENTIAL_STEP_IDS as readonly string[]).includes(activeNavStep)) {
+      scrollToStep('step-1');
+    }
+  }, [isResidentialAbsent, activeNavStep, scrollToStep]);
+
+  const absenceCaseReason = String((formState.absenceDecision as { reason?: string } | undefined)?.reason || '');
+  const originalEcs = (sJson.ecs || {}) as Record<string, unknown>;
+  const excludedDataRows = [
+    { label: 'Năm xây dựng', value: String(sJson.constructionYear ?? '---') },
+    { label: 'Hệ kết cấu', value: String(sJson.structureSystem ?? '---') },
+    { label: 'Cấp móng (CAT)', value: String(sJson.foundationCatScore ?? '---') },
+    { label: 'ECS đã lưu', value: `${String(originalEcs.totalEcs ?? '---')} (${String(originalEcs.ecsClass ?? '---')})` },
+  ];
 
   const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
   const floorsList = rawFloors.length > 0 ? rawFloors : [{ id: 'floor-default', floorName: 'Tầng trệt' } as FloorSurveyData];
@@ -568,11 +588,32 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
 
       {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
       <div className="flex-1 space-y-6 min-w-0 max-w-full overflow-x-hidden">
+        {isEditMode && isAbsenceCaseChanged && (
+          <div className="p-4 rounded-xl border border-purple-300 bg-purple-50 space-y-2">
+            <div className="text-xs font-black text-purple-950">
+              {isResidentialAbsent ? 'Chuyển hồ sơ sang nhánh Vắng mặt' : 'Chuyển hồ sơ về nhánh Có mặt'} (chưa lưu)
+            </div>
+            <input
+              type="text"
+              value={absenceCaseReason}
+              onChange={(e) =>
+                handleFieldChange('absenceDecision', 'Lý do đổi loại hình vắng mặt', {
+                  decision: isResidentialAbsent ? 'ABSENT' : 'NOT_ABSENT',
+                  reason: e.target.value,
+                  decidedAt: new Date().toISOString(),
+                })
+              }
+              placeholder="Lý do đổi loại hình (tối thiểu 10 ký tự, bắt buộc)..."
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-purple-300 text-xs font-semibold text-slate-800"
+            />
+          </div>
+        )}
+
         {isResidentialAbsent && (
           <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-1">
             <div className="text-sm font-black text-amber-950">CHƯA ĐÁNH GIÁ KỸ THUẬT (DO VẮNG CHỦ NHÀ)</div>
             <p className="text-xs text-amber-900">
-              Lý do: <strong>{String(sJson.customAbsenteeReason || sJson.absenteeReason || '---')}</strong>
+              Lý do: <strong>{String(sJson.customAbsenteeReason || sJson.absenteeReason || absenceCaseReason || '---')}</strong>
             </p>
             <p className="text-xs text-amber-900">
               Không có điểm ECS, VI, BRA. Không có khuyết tật trong hồ sơ không đồng nghĩa công trình không hư hại.
@@ -751,8 +792,10 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
               missingEvidence={absenceEvidence?.missing ?? []}
               isVerified={data?.status === 'APPROVED'}
               isApproved={data?.status === 'APPROVED'}
+              hasUnsavedChanges={dirtyCount > 0}
               onRefresh={onRefresh}
             />
+            <AbsentExcludedDataPanel rows={excludedDataRows} />
           </section>
         )}
       </div>

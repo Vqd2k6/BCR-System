@@ -108,6 +108,9 @@ export interface StepwiseAccessLimitation {
   mainReason?: string;
   restrictedReasons?: string[];
   restrictedAreas?: string[];
+  restrictedFloorLevels?: string[];
+  customRestrictedAreas?: string[];
+  customRestrictedArea?: string;
   customRestrictedReason?: string;
   notes?: string;
   evidencePhotos?: Array<{ url: string; photoCode?: string; notes?: string }>;

@@ -1,16 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { getNextAvailablePinCode } from '../../../../../../components/canvas/FloorCadPinningCanvas';
 import { Plus, Trash2, RotateCcw, ShieldAlert, CheckCircle2, EyeOff } from 'lucide-react';
-import {
-  STRUCT_DEFECT_TYPES,
-  STRUCT_SCREENING_CATEGORIES,
-} from '../../stepwise/constants/defect-taxonomy';
+import { deriveDefectE6 } from '../../../../../../components/canvas/defectTaxonomy';
 import { rotatePinCoords } from '../../stepwise/utils/pinCoordinates';
 import { AuditField, withCurrentOption } from '../../stepwise/ui/AuditField';
 import type {
   CondoDefectItemData,
   CondoStructuralElementItemData,
 } from '../types/condo-audit.types';
+import { compareCodes } from './condo-normalize.utils';
 import { CondoCadPinSection } from './CondoCadPinSection';
 import { CondoDefectStripSection } from './CondoDefectStripSection';
 import type { CondoCadPinControls } from './useCondoCadPins';
@@ -74,7 +72,10 @@ export const CondoStructuralElementsCrudEditor: React.FC<
       notes: '',
       defects: [],
     };
-    onChangeElements([...elements, newEl], `Thêm mới cấu kiện chịu lực ${eCode}`);
+    onChangeElements(
+      [...elements, newEl].sort((a, b) => compareCodes(a.elementCode, b.elementCode)),
+      `Thêm mới cấu kiện chịu lực ${eCode}`
+    );
     if (cadPosition) elementBoard.addCadPin(eCode, cadPosition.x, cadPosition.y);
   };
 
@@ -108,62 +109,13 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     );
   };
 
-  const handleAddElementDefect = (el: CondoStructuralElementItemData, ctxPosition?: { x: number; y: number }) => {
-    const defectCodes = (el.defects || []).map((d) => d.defectCode);
-    const dCode = getNextAvailablePinCode(
-      defectCodes.map((code) => ({ defectCode: code })),
-      'D',
-      defectCodes
-    );
-    const defectId = `eldef_${Date.now()}_${dCode}`;
-    const newDef: CondoDefectItemData = {
-      id: defectId,
-      defectCode: dCode,
-      defectType: STRUCT_DEFECT_TYPES[0],
-      screeningCategory: STRUCT_SCREENING_CATEGORIES[0],
-      widthMaxMm: null,
-      lengthMm: null,
-      crackDirection: 'Ngang',
-      activityState: 'U',
-      structuralSignificanceE2: null,
-      materialDegradationE4: null,
-      notes: '',
-      hasScaleCard: false,
-      isStructuralCritical: true,
-      cuPhotoUrl: null,
-      cuPhotos: [],
-      cuPhotoCode: `${el.elementCode}-${dCode}-CU`,
-      pinX: ctxPosition?.x ?? null,
-      pinY: ctxPosition?.y ?? null,
-    };
-    const next = elements.map((item) =>
-      item.id === el.id
-        ? {
-            ...item,
-            hasDamage: true,
-            defects: [...(item.defects || []), newDef],
-          }
-        : item
-    );
+  const handleDefectsChange = (el: CondoStructuralElementItemData, defects: CondoDefectItemData[], label: string) =>
     onChangeElements(
-      next,
-      `Thêm khuyết tật ${dCode} trên cấu kiện ${el.elementCode}`
+      elementsRef.current.map((item) =>
+        item.id === el.id ? { ...item, defects, hasDamage: defects.some((d) => !d.isDeleted) } : item
+      ),
+      label
     );
-    if (ctxPosition) {
-      onOpenPhotoAction?.({
-        initialMode: 'ADD',
-        category: 'DEFECT_CU',
-        targetPhotoType: 'DEFECT_CU_PHOTO',
-        targetPhotoId: defectId,
-        defectId,
-        defectCode: dCode,
-        zoneCode: el.elementCode,
-        initialPinX: ctxPosition.x,
-        initialPinY: ctxPosition.y,
-        photoTitle: `Khuyết tật ${dCode} (${el.elementCode})`,
-      });
-    }
-  };
 
   const applyDefectPin = (elementId: string, defectId: string, x: number, y: number, label: string) =>
     onChangeElements(
@@ -220,7 +172,13 @@ export const CondoStructuralElementsCrudEditor: React.FC<
     const next = elements.map((el) => {
       if (el.id !== elementId) return el;
       const nextDefs = (el.defects || []).map((d) =>
-        d.id === defectId ? { ...d, [field]: value } : d
+        {
+          if (d.id !== defectId) return d;
+          const next = { ...d, [field]: value };
+          return field === 'screeningCategory' || field === 'defectType'
+            ? { ...next, functionalImpactE6: deriveDefectE6(next.screeningCategory || '', next.defectType || '') }
+            : next;
+        }
       );
       return {
         ...el,
@@ -412,9 +370,15 @@ export const CondoStructuralElementsCrudEditor: React.FC<
                   canEdit={canEditElement}
                   ctxRotation={ctxRotation}
                   onRotateCtx={() => handleRotateElementCtx(el, ctxRotationKey, ctxRotation)}
-                  onAddDefectAt={(x, y) => handleAddElementDefect(el, { x, y })}
+                  allDefects={el.defects || []}
+                  onDefectsChange={(defects, label) => handleDefectsChange(el, defects, label)}
                   onMoveDefectPin={(defectId, x, y) => handleMoveDefectPin(el, defectId, x, y)}
-                  onAddDefect={() => handleAddElementDefect(el)}
+                  onUseOverviewAsCtx={(url) =>
+                    onChangeElements(
+                      elementsRef.current.map((item) => (item.id === el.id ? { ...item, ctxPhotoUrl: url } : item)),
+                      `Dùng ảnh tổng quan làm CTX ${el.elementCode}`
+                    )
+                  }
                   onDefectFieldChange={(defectId, field, value, label) =>
                     handleUpdateElementDefectField(el.id, defectId, field, value, label)
                   }

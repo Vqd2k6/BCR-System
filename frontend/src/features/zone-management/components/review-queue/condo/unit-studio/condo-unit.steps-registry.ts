@@ -14,7 +14,7 @@ import { UnitStep09SignaturesAbsentee } from './steps/UnitStep09SignaturesAbsent
 // Cùng số bước với Nhà dân; Metro/GIS và ECS/VI kế thừa từ Tòa nhà mẹ
 export const CONDO_UNIT_STEPS: CondoStepRegistryItem<CondoUnitFormState>[] = [
   { stepId: 'step-1', number: '01', title: 'Nhận Diện & Hiện Trạng Tổng Quan', icon: Home, Component: UnitStep01Identification },
-  { stepId: 'step-2', number: '02', title: 'Đo Biến Dạng & Thấm Dột', icon: Activity, Component: UnitStep02Deformation },
+  { stepId: 'step-2', number: '02', title: 'Đo Biến Dạng Trong Căn', icon: Activity, Component: UnitStep02Deformation },
   { stepId: 'step-3', number: '03', title: 'Phỏng Vấn Chủ Hộ', icon: User, Component: UnitStep03Interview },
   { stepId: 'step-4', number: '04', title: 'Phòng, Vùng Z & Cấu Kiện E', icon: Layers, Component: UnitStep04RoomsZonesElements },
   { stepId: 'step-5', number: '05', title: 'Khuyết Tật Bề Mặt & Nứt Burland', icon: Award, Component: UnitStep05Burland },

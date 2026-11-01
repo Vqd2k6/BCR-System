@@ -2,6 +2,7 @@ import React from 'react';
 import { Camera, MapPin } from 'lucide-react';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
+import { isFilled } from '../../core/condo-normalize.utils';
 import { CondoParentInheritancePanel } from '../../core/CondoParentInheritancePanel';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
 import type {
@@ -89,15 +90,22 @@ export const AreaStep01Identification: React.FC<CondoAuditStepProps<CondoAreaFor
             options={withCurrentOption(ACCESS_STATUS_OPTIONS, formState.accessStatus)}
             isEditMode={isEditMode}
             isDirty={isFieldDirty('accessStatus')}
-            onChange={(val) => handleFieldChange('accessStatus', 'Mức độ tiếp cận', val)}
+            onChange={(val) => {
+              handleFieldChange('accessStatus', 'Mức độ tiếp cận', val);
+              if (val === 'FULL' && isFilled(formState.lockedReason)) {
+                handleFieldChange('lockedReason', 'Lý do giới hạn tiếp cận', '');
+              }
+            }}
           />
-          <AuditField
-            label="Lý do giới hạn tiếp cận"
-            value={formState.lockedReason}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('lockedReason')}
-            onChange={(val) => handleFieldChange('lockedReason', 'Lý do giới hạn tiếp cận', val)}
-          />
+          {(['PARTIAL', 'LOCKED'].includes(formState.accessStatus) || isFilled(formState.lockedReason)) && (
+            <AuditField
+              label="Lý do giới hạn tiếp cận"
+              value={formState.lockedReason}
+              isEditMode={isEditMode}
+              isDirty={isFieldDirty('lockedReason')}
+              onChange={(val) => handleFieldChange('lockedReason', 'Lý do giới hạn tiếp cận', val)}
+            />
+          )}
           <AuditField
             label="Mô tả vị trí"
             type="textarea"

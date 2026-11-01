@@ -36,12 +36,17 @@ export interface CondoAbsenceView {
   isHardAbsent: boolean;
   hasUnknownOwnerName: boolean;
   hasUnknownOwnerPhone: boolean;
+  hasRoomDefect: boolean;
+  hasResidentStatusSignal: boolean;
+  hasOtherSoftSignal: boolean;
+  hasSuspicion: boolean;
 }
 
 export interface CondoAbsenceDecision {
   decision: CondoAbsenceDecisionValue;
   reason: string;
   decidedAt: string;
+  decidedBy?: string;
 }
 
 export interface CondoParentMasterSummary {
@@ -319,7 +324,10 @@ export interface CondoUnitFormState {
   residentStatus: string;
   unitAreaM2: number | null;
   isRefusedOrAbsent: boolean;
+  /** Kết luận backend lúc tải hồ sơ; kết luận hiện hành lấy qua `resolveCondoFormAbsence`. */
   absence: CondoAbsenceView;
+  /** Giá trị lúc tải: JSON và bảng căn hộ có thể lệch nên chỉ coi `residentStatus` là mới khi Admin thật sự đổi. */
+  loadedResidentStatus: string;
   absenceDecision: CondoAbsenceDecision | null;
   absenteeInfo: CondoUnitAbsenteeView | null;
   absenceLogs: StepwiseAbsenceLogItem[];
@@ -367,6 +375,7 @@ export interface CondoAuditStepProps<TFormState extends Record<string, unknown>>
   ) => void;
   isFieldDirty: (fieldKey: string, subKey?: string) => boolean;
   discardField: (fieldKey: string) => void;
+  hasUnsavedChanges?: boolean;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string, rotation?: number) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
@@ -406,6 +415,7 @@ export interface CondoStudioEntryProps {
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }) => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;

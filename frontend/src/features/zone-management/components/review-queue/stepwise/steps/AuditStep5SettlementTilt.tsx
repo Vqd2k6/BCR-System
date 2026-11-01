@@ -153,7 +153,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc Mốc
             </h3>
             <p className="text-[11px] text-slate-500">
-              Đo đạc trắc địa độ nghiêng tổng thể 2 phương X/Y, độ chênh lún móng, độ võng dầm kết cấu và hệ thống mốc quan trắc
+              {hideInteriorMeasures
+                ? 'Quan sát lún chênh và nghiêng từ ngoài nhà, không có số đo bên trong'
+                : 'Đo đạc trắc địa độ nghiêng tổng thể 2 phương X/Y, độ chênh lún móng, độ võng dầm kết cấu và hệ thống mốc quan trắc'}
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff, ZoomIn, Plus, RotateCcw, PenTool } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
@@ -72,6 +72,16 @@ export interface DefectItem {
   isDeleted?: boolean;
 }
 
+/** Hồ sơ cũ mang nhãn ngoài danh mục hiện tại: vẫn phải hiện đúng nhãn đó, không để trống thành chưa phân loại. */
+const withCurrentLabel = (labels: string[], current: string): string[] =>
+  current && !labels.includes(current) ? [...labels, current] : labels;
+
+/** Thẩm định không được tự tải ảnh: ảnh CU phải qua hàng chờ diff để giữ xác nhận mật khẩu và lineage pháp lý. */
+export interface DefectCuPhotoBridge {
+  hasPendingPhoto: (defect: DefectItem) => boolean;
+  onRequestPhoto: (defect: DefectItem) => void;
+}
+
 interface Props {
   ctxPhotoUrl: string;
   defects: DefectItem[];
@@ -82,6 +92,7 @@ interface Props {
   floorName?: string;
   zoneOrElementCode?: string;
   watermarkOptions?: Partial<MetroWatermarkOptions>;
+  cuPhotoBridge?: DefectCuPhotoBridge;
 }
 
 const CuPhotoThumbnailItem: React.FC<{
@@ -212,63 +223,31 @@ const CuPhotoThumbnailItem: React.FC<{
   );
 };
 
-const ARCH_SCREENING_CATEGORIES = [
-  'Nứt tường gạch / Vữa trát hoàn thiện',
-  'Nứt tiếp giáp khuôn cửa / Trần',
-  'Nứt vỡ gạch ốp lát / Đá ốp',
-  'Bong rộp / Bong tróc gạch ốp lát',
-  'Thấm dột / Ẩm mốc bề mặt',
-  'Kẹt cửa / Cong vênh phụ kiện',
-  'Khác',
-];
-
-const ARCH_DEFECT_TYPES = [
-  'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
-  'Nứt ziczac theo mạch vữa gạch',
-  'Nứt góc cửa sổ / Cửa đi',
-  'Nứt tiếp giáp Cột - Tường gạch',
-  'Nứt tiếp giáp Dầm - Tường gạch',
-  'Bong rộp sơn vôi / Ẩm mốc loang lổ',
-  'Bong tách gạch ốp tường / Gạch lát nền',
-  'Nứt trần thạch cao / Khe tiếp giáp la phông',
-  'Khác',
-];
-
-const STRUCT_SCREENING_CATEGORIES = [
-  'Nứt cấu kiện kết cấu chịu lực (Cột/Dầm/Sàn)',
-  'Vỡ bê tông / Trơ rỉ cốt thép chịu lực',
-  'Nứt nút khung / Mối nối liên kết chịu lực',
-  'Võng uốn dầm sàn / Biến dạng cấu kiện',
-  'Nứt gãy cổ cột / Móng tiếp giáp nền',
-  'Khác',
-];
-
-const STRUCT_DEFECT_TYPES = [
-  'Nứt xiên 45° chịu cắt gần đầu cột / gối dầm (Nguy hiểm)',
-  'Nứt dọc thân cột bê tông (Quá tải nén dọc)',
-  'Nứt uốn giữa nhịp dầm / Đáy bản sàn chịu lực',
-  'Nứt toác / Bong bê tông lộ cốt thép gỉ sét',
-  'Nứt tách mép tấm sàn BTCT chịu lực',
-  'Nứt tách rời nút khung Cột - Dầm',
-  'Nứt gãy chân cột / Cổ móng',
-  'Lỏng rơ bu lông / Rách mối hàn liên kết thép',
-  'Khác',
-];
-
 import { isCrackRelated } from './defectHelpers';
+import {
+  ARCH_DEFECT_TYPES,
+  ARCH_SCREENING_CATEGORIES,
+  deriveDefectE6,
+  describeDefectE6,
+  getDefectTypesForCategory,
+  isLeakTypeMissing,
+  STRUCT_DEFECT_TYPES,
+  STRUCT_SCREENING_CATEGORIES,
+} from './defectTaxonomy';
 export { isCrackRelated };
 
 
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,
   defects = [],
-  onChange,
+  onChange: onDefectsChange,
   readOnly = false,
   mode = 'ARCHITECTURAL',
   parcelCode,
   floorName,
   zoneOrElementCode,
   watermarkOptions,
+  cuPhotoBridge,
 }) => {
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
@@ -277,15 +256,35 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
   const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string; pIdx?: number; timestamp?: string } | null>(null);
   const [annotatingCuPhoto, setAnnotatingCuPhoto] = useState<{ pIdx: number; url: string; code?: string } | null>(null);
-  const { displayUrl: safeCtxUrl } = useResolvedPhotoUrl(ctxPhotoUrl);
-  const [isImageLoaded, setIsImageLoaded] = useState<boolean>(false);
+  const { displayUrl: safeCtxUrl, isResolving: isResolvingCtx } = useResolvedPhotoUrl(ctxPhotoUrl);
+  const [imgFailed, setImgFailed] = useState<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [safeCtxUrl]);
+
+  // Ảnh mất/hỏng: ghim nằm trên ảnh nên mất theo, D chuyển sang danh sách để vẫn xem, sửa, xóa được
+  const photoUnavailable = !isResolvingCtx && (!safeCtxUrl || imgFailed);
 
   // Bọc mảng safeDefects phòng thủ tuyệt đối chống null/undefined hoặc object lạ
   const safeDefects = useMemo(() => {
     if (!Array.isArray(defects)) return [];
     return defects.filter((d): d is DefectItem => Boolean(d && typeof d === 'object'));
   }, [defects]);
+
+  // E6 chỉ suy lại cho D mới hoặc D vừa đổi loại: D cũ giữ nguyên giá trị đã lưu để không đổi điểm hồ sơ đã nộp
+  const emitDefects = (next: DefectItem[]) => {
+    const previousByCode = new Map(safeDefects.map((d) => [d.defectCode, d]));
+    onDefectsChange(
+      next.map((d) => {
+        const previous = previousByCode.get(d.defectCode);
+        const isTypeChanged =
+          !previous || previous.screeningCategory !== d.screeningCategory || previous.defectType !== d.defectType;
+        return isTypeChanged ? { ...d, functionalImpactE6: deriveDefectE6(d.screeningCategory, d.defectType) } : d;
+      })
+    );
+  };
 
   // Hook Zoom & Pan Tương tác Bất biến Tọa độ
   const {
@@ -331,7 +330,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           pinX: coords.x,
           pinY: coords.y,
         };
-        onChange(updated);
+        emitDefects(updated);
       }
       return;
     }
@@ -381,7 +380,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
     const updated = [...safeDefects];
     updated[selectedDefectIndex] = cloned;
-    onChange(updated);
+    emitDefects(updated);
   };
 
   const INHERITABLE_DEFECT_FIELDS: (keyof DefectItem)[] = [
@@ -445,7 +444,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     };
 
     const updated = [...safeDefects, newDefect];
-    onChange(updated);
+    emitDefects(updated);
     setSelectedDefectIndex(updated.length - 1);
     setIsAddingPin(false);
     setTimeout(() => {
@@ -455,8 +454,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const removeDefect = (index: number) => {
     if (readOnly) return;
+    if (!confirm(`Xóa khuyết tật ${safeDefects[index]?.defectCode || ''} cùng toàn bộ số đo và ảnh cận cảnh đã ghi?`)) return;
     const updated = safeDefects.filter((_, i) => i !== index);
-    onChange(updated);
+    emitDefects(updated);
     if (selectedDefectIndex === index) {
       setSelectedDefectIndex(null);
     } else if (selectedDefectIndex !== null && selectedDefectIndex > index) {
@@ -490,7 +490,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       }
     }
 
-    onChange(updated);
+    emitDefects(updated);
   };
 
   const handleResetFieldToPrevious = (field: keyof DefectItem) => {
@@ -510,7 +510,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         updated[k] = nextDefect;
       }
     }
-    onChange(updated);
+    emitDefects(updated);
   };
 
   const handleResetAllToPrevious = () => {
@@ -549,7 +549,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       updated[k] = nextDefect;
     }
 
-    onChange(updated);
+    emitDefects(updated);
   };
 
   const handleBulkApplyDownstreamDefects = () => {
@@ -595,7 +595,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         customizedFields: [],
       };
     });
-    onChange(updated);
+    emitDefects(updated);
   };
 
   const selectedDefect =
@@ -680,7 +680,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         cuPhotoTimestamps: currentTimestamps,
         capturedAt: currentTimestamps[0] || originalTimestamp,
       };
-      onChange(next);
+      emitDefects(next);
 
       // 4. Đẩy vào hàng đợi upload ngầm lên Cloudflare R2 / S3
       uploadQueue.enqueue(blob, targetFilename, {
@@ -751,7 +751,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   // Kiểm tra xem 1 điểm D đã điền đầy đủ mọi trường bắt buộc chưa
   const isDefectFilled = (d: DefectItem) => {
     const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-    const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
+    const hasPhoto = Boolean(
+      d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0) || cuPhotoBridge?.hasPendingPhoto(d)
+    );
     const baseOk = Boolean(
       hasPhoto &&
       d.notes &&
@@ -759,8 +761,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       d.screeningCategory &&
       (d.screeningCategory !== 'Khác' || (d.customScreeningCategory && d.customScreeningCategory.trim().length > 0)) &&
       d.defectType &&
-      d.functionalImpactE6 !== '' &&
-      d.functionalImpactE6 !== undefined
+      !isLeakTypeMissing(d.screeningCategory, d.defectType)
     );
     if (!baseOk) return false;
 
@@ -805,7 +806,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {ctxPhotoUrl && (
+            {ctxPhotoUrl && !photoUnavailable && (
               <button
                 type="button"
                 onClick={() =>
@@ -815,7 +816,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     code: zoneOrElementCode,
                   })
                 }
-                className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all shadow-2xs"
+                className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
                 title="Phóng to ảnh bối cảnh để soi chi tiết"
               >
                 <ZoomIn className="w-3.5 h-3.5 text-slate-500" />
@@ -827,7 +828,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setShowPins(!showPins)}
-              className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border ${
+              className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${
                 showPins
                   ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   : 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-400'
@@ -838,18 +839,20 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               <span>{showPins ? 'Ẩn ghim D' : 'Hiện ghim D'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsAddingPin(!isAddingPin)}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
-                isAddingPin
-                  ? 'bg-red-600 text-white ring-2 ring-red-400'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
-              }`}
-            >
-              <Crosshair className="w-3.5 h-3.5" />
-              <span>{isAddingPin ? `Đang bật chạm chấm ${nextDefectCode}` : `Bật chạm chấm ${nextDefectCode}`}</span>
-            </button>
+            {!photoUnavailable && (
+              <button
+                type="button"
+                onClick={() => setIsAddingPin(!isAddingPin)}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                  isAddingPin
+                    ? 'bg-red-600 text-white ring-2 ring-red-400'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+              >
+                <Crosshair className="w-3.5 h-3.5" />
+                <span>{isAddingPin ? `Đang bật chạm chấm ${nextDefectCode}` : `Bật chạm chấm ${nextDefectCode}`}</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -867,7 +870,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
-        {safeCtxUrl ? (
+        {safeCtxUrl && !imgFailed ? (
           <div
             ref={tightBoxRef}
             onClick={handleTightBoxClick}
@@ -885,7 +888,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <img
               src={safeCtxUrl}
               alt="Context Photo for Defects"
-              onLoad={() => setIsImageLoaded(true)}
+              onError={() => {
+                console.error('[DefectPinningCanvas:CtxPhoto] Không tải được ảnh bối cảnh:', safeCtxUrl);
+                setImgFailed(true);
+              }}
               className="max-h-[480px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
             />
 
@@ -922,7 +928,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     e.stopPropagation();
                     try {
                       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-                    } catch (_) {}
+                    } catch (err) {
+                      console.warn('[DefectPinningCanvas:ReleasePointer] Không nhả được con trỏ:', err);
+                    }
                     setDraggingDefectIndex(null);
                   }}
                   style={{
@@ -986,6 +994,43 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               );
             })}
           </div>
+        ) : photoUnavailable ? (
+          <div className="w-full min-h-[300px] flex flex-col items-center justify-center gap-3 p-4 text-center">
+            <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-slate-700">Ảnh bối cảnh không khả dụng trên thiết bị này</p>
+              <p className="text-[11px] text-slate-500">
+                {readOnly
+                  ? 'Các ghim D không hiển thị được trên ảnh. Vui lòng liên hệ Zone Admin nếu ảnh vẫn thiếu.'
+                  : cuPhotoBridge
+                  ? 'Chọn mã D bên dưới để xem, sửa hoặc xóa.'
+                  : 'Chọn mã D bên dưới để xem, sửa hoặc xóa. Để chấm ghim, hãy đóng cửa sổ này và chụp lại hoặc chọn ảnh bối cảnh khác.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {safeDefects.map((d, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDefectIndex(idx);
+                    setTimeout(() => {
+                      detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 60);
+                  }}
+                  className={`px-2 py-1 rounded font-mono text-xs font-bold border transition-all cursor-pointer ${
+                    selectedDefectIndex === idx
+                      ? 'bg-red-600 text-white border-red-600'
+                      : isDefectFilled(d)
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  {d.defectCode}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="w-full min-h-[300px] flex items-center justify-center text-slate-400 text-xs">
             Đang tải ảnh bối cảnh...
@@ -993,7 +1038,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         )}
 
         {/* Bottom-left Interactive Zoom & Pan Toolbar */}
-        {Boolean(safeCtxUrl || ctxPhotoUrl) && (
+        {Boolean(safeCtxUrl || ctxPhotoUrl) && !photoUnavailable && (
           <CanvasZoomToolbar
             zoomScale={zoomScale}
             onZoomIn={handleZoomIn}
@@ -1108,7 +1153,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 disabled={readOnly}
               >
                 <option value="">--- Chọn nhóm chỉ báo ---</option>
-                {screeningCategories.map((c) => (
+                {withCurrentLabel(screeningCategories, selectedDefect.screeningCategory).map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1147,7 +1192,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 disabled={readOnly}
               >
                 <option value="">--- Chọn dạng nứt / khuyết tật ---</option>
-                {commonDefectTypes.map((t) => (
+                {withCurrentLabel(
+                  getDefectTypesForCategory(selectedDefect.screeningCategory, commonDefectTypes),
+                  selectedDefect.defectType
+                ).map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
@@ -1336,46 +1384,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             )}
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Ảnh hưởng chức năng *
-                </label>
-                <InfoPopover title="Ảnh hưởng chức năng sử dụng (Nguồn tính E6)" size="md">
-                  <p><strong>Bản chất:</strong> Hậu quả của khuyết tật đến công năng sinh hoạt thực tế (thấm dột, kẹt cửa, thoát nạn, đường ống).</p>
-                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Góp phần vào chỉ số tổng thể E6 cùng với tình trạng thấm dột, kẹt cửa toàn nhà.</p>
-                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
-                    <li><strong>Không ảnh hưởng:</strong> Sinh hoạt, vận hành bình thường.</li>
-                    <li><strong>Ẩm mốc:</strong> Ẩm mốc bề mặt nhẹ.</li>
-                    <li><strong>Thấm nước:</strong> Thấm ẩm tường, dầm hoặc sàn bê tông.</li>
-                    <li><strong>Dột nước:</strong> Nước dột chảy thành dòng khi trời mưa hoặc rò từ tầng trên.</li>
-                    <li><strong>Rò rỉ nước tràn:</strong> Rò rỉ nước gây ngập, nguy cơ chập cháy điện.</li>
-                    <li><strong>Kẹt cửa:</strong> Cửa đi/cửa sổ bị chèn ép, khó đóng mở hoặc kẹt cứng.</li>
-                  </ul>
-                </InfoPopover>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Ảnh hưởng chức năng (tự suy từ loại)</label>
+              <div className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
+                {describeDefectE6(selectedDefect.functionalImpactE6 === '' ? undefined : selectedDefect.functionalImpactE6)}
               </div>
-              <select
-                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined
-                    ? 'border-amber-400 bg-amber-50/30'
-                    : 'border-emerald-500 bg-emerald-50/15'
-                }`}
-                value={selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined ? '' : selectedDefect.functionalImpactE6}
-                onChange={(e) =>
-                  updateSelectedDefect(
-                    'functionalImpactE6',
-                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
-                  )
-                }
-                disabled={readOnly}
-              >
-                <option value="">--- Chọn ảnh hưởng chức năng ---</option>
-                <option value={0}>Không ảnh hưởng chức năng</option>
-                <option value={1}>Ẩm mốc</option>
-                <option value={2}>Thấm nước</option>
-                <option value={3}>Dột nước</option>
-                <option value={4}>Rò rỉ nước tràn</option>
-                <option value={5}>Kẹt cửa</option>
-              </select>
             </div>
           </div>
 
@@ -1409,7 +1421,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 cuPhotoCode: nextCodes[0] || '',
                 capturedAt: nextTimestamps[0] || captureTime,
               };
-              onChange(next);
+              emitDefects(next);
             };
 
             const handleRemoveCuPhoto = (indexToRemove: number) => {
@@ -1428,7 +1440,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 cuPhotoCode: nextCodes[0] || '',
                 capturedAt: nextTimestamps[0] || '',
               };
-              onChange(next);
+              emitDefects(next);
             };
 
             return (
@@ -1470,7 +1482,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                             pCode={pCode}
                             timestamp={pTimestamp}
                             defectCode={selectedDefect.defectCode}
-                            readOnly={readOnly}
+                            readOnly={readOnly || Boolean(cuPhotoBridge)}
                             onZoom={(url, title, code, ts) =>
                               setZoomModalImage({ url, title, code, pIdx, timestamp: ts || pTimestamp })
                             }
@@ -1485,6 +1497,15 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   )}
 
                   {/* Slot chụp thêm ảnh mới */}
+                  {cuPhotoBridge ? (
+                    <button
+                      type="button"
+                      onClick={() => cuPhotoBridge.onRequestPhoto(selectedDefect)}
+                      className="w-full px-3 py-2 rounded-xl border border-dashed border-emerald-400 bg-emerald-50/50 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      {cuPhotoBridge.hasPendingPhoto(selectedDefect) ? '+ Thêm ảnh CU (đã có ảnh chờ lưu)' : '+ Thêm ảnh cận cảnh CU có thước đo'}
+                    </button>
+                  ) : (
                   <PhotoCaptureInput
                     key={`photo_input_${selectedDefect.defectCode}_${currentCuPhotos.length}`}
                     label={
@@ -1510,6 +1531,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     height="190px"
                     required={currentCuPhotos.length === 0}
                   />
+                  )}
                 </div>
 
                 <div>
@@ -1534,7 +1556,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           })()}
 
           {/* Action footer: Chấm điểm mới quay trở lại canvas phía trên */}
-          {!readOnly && (
+          {!readOnly && !photoUnavailable && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
               <span className="text-xs text-slate-500">
                 Đang sửa thông tin <strong>{selectedDefect.defectCode}</strong>. Bấm nút bên cạnh để chấm điểm khuyết tật mới.
@@ -1545,7 +1567,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   setIsAddingPin(true);
                   containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Crosshair className="w-4 h-4" />
                 <span>+ Chấm điểm khuyết tật mới ({nextDefectCode})</span>
@@ -1565,7 +1587,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           timestamp={zoomModalImage.timestamp}
           onClose={() => setZoomModalImage(null)}
           onAnnotate={
-            !readOnly && zoomModalImage.pIdx !== undefined
+            !readOnly && !cuPhotoBridge && zoomModalImage.pIdx !== undefined
               ? () => {
                   const targetPIdx = zoomModalImage.pIdx!;
                   setAnnotatingCuPhoto({

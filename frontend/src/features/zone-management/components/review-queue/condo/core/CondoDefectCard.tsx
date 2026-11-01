@@ -1,3 +1,4 @@
+import { describeDefectE6, getDefectTypesForCategory } from '../../../../../../components/canvas/defectTaxonomy';
 import React from 'react';
 import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
@@ -115,7 +116,10 @@ export const CondoDefectCard: React.FC<CondoDefectCardProps> = ({
           label="Dạng khuyết tật"
           type="select"
           value={defect.defectType}
-          options={withCurrentOption(toOptions(isElement ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES), defect.defectType)}
+          options={withCurrentOption(
+            toOptions(getDefectTypesForCategory(defect.screeningCategory || '', isElement ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES)),
+            defect.defectType
+          )}
           isEditMode={canEdit}
           onChange={(val) => onFieldChange('defectType', val, `Dạng khuyết tật ${code} (${parentCode})`)}
         />
@@ -182,12 +186,9 @@ export const CondoDefectCard: React.FC<CondoDefectCardProps> = ({
           </>
         ) : (
           <AuditField
-            label="Ảnh hưởng công năng E6"
-            type="number"
-            mono
-            value={defect.functionalImpactE6}
-            isEditMode={canEdit}
-            onChange={(val) => onFieldChange('functionalImpactE6', toNumberOrNull(val), `Chỉ số E6 ${code} (${parentCode})`)}
+            label="Ảnh hưởng công năng E6 (tự suy từ loại)"
+            value={describeDefectE6(defect.functionalImpactE6)}
+            isEditMode={false}
           />
         )}
         <AuditField

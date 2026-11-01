@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCheck, UserX } from 'lucide-react';
+import { AlertTriangle, CheckCheck, RotateCcw, UserX } from 'lucide-react';
 import type { CondoAbsenceDecisionValue, CondoAbsenceState } from '../types/condo-audit.types';
 
 const MIN_REASON_LENGTH = 10;
 
-const STATE_COPY: Partial<Record<CondoAbsenceState, { title: string; description: string }>> = {
+const STATE_COPY: Record<CondoAbsenceState, { title: string; description: string }> = {
+  NORMAL: {
+    title: 'Căn Hộ Đã Khảo Sát',
+    description: 'Nếu thực tế KSV không tiếp cận được căn hộ, hãy xác nhận vắng chủ. Các bước nội thất sẽ được ẩn, dữ liệu gốc vẫn giữ nguyên.',
+  },
   SUSPECTED: {
     title: 'Nghi Vắng Chủ: Cần Xác Định',
     description: 'Hồ sơ không có dấu hiệu vắng rõ ràng nhưng dữ liệu không đáng tin. Hệ thống không tự kết luận, vui lòng đối chiếu ảnh hiện trường.',
@@ -19,18 +23,37 @@ const STATE_COPY: Partial<Record<CondoAbsenceState, { title: string; description
   },
 };
 
+const REQUIRED_DECISION_COPY = {
+  title: 'Cần Chốt Trước Khi Lưu: Căn Này Có Khuyết Tật Trong Phòng',
+  description:
+    'Nếu KSV không vào được căn, chọn Vắng Chủ: các bước nội thất sẽ ẩn, dữ liệu gốc giữ nguyên. Nếu từng vắng nhưng đã vào được, chọn Đã Khảo Sát để giữ đủ các bước.',
+};
+
 interface Props {
   state: CondoAbsenceState;
   signals: string[];
   isEditMode: boolean;
+  hasPendingDecision: boolean;
+  /** Admin vừa đổi sang vắng ở căn có khuyết tật trong phòng: phải chốt mới lưu được. */
+  isDecisionRequired?: boolean;
   onDecide: (decision: CondoAbsenceDecisionValue, reason: string) => void;
+  onUndoDecision?: () => void;
 }
 
 /** Phân loại tự động dựa trên dữ liệu đã lẫn lộn nên Admin phải luôn chốt lại được, kèm lý do lưu vết. */
-export const CondoAbsenceDecisionCard: React.FC<Props> = ({ state, signals, isEditMode, onDecide }) => {
+export const CondoAbsenceDecisionCard: React.FC<Props> = ({
+  state,
+  signals,
+  isEditMode,
+  hasPendingDecision,
+  isDecisionRequired = false,
+  onDecide,
+  onUndoDecision,
+}) => {
   const [reason, setReason] = useState('');
-  const copy = STATE_COPY[state];
-  if (!copy) return null;
+  const copy = isDecisionRequired ? REQUIRED_DECISION_COPY : STATE_COPY[state];
+  // Căn thường không có gì cần Admin chốt khi chỉ đọc
+  if (state === 'NORMAL' && !isEditMode) return null;
 
   const trimmedReason = reason.trim();
   const canDecide = isEditMode && trimmedReason.length >= MIN_REASON_LENGTH;
@@ -56,7 +79,24 @@ export const CondoAbsenceDecisionCard: React.FC<Props> = ({ state, signals, isEd
         </ul>
       )}
 
-      {isEditMode ? (
+      {isEditMode && hasPendingDecision ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-[11px] font-semibold text-amber-800">
+            Quyết định chưa lưu: giao diện đang xem trước, hệ thống kết luận lại sau khi lưu.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setReason('');
+              onUndoDecision?.();
+            }}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Hoàn Tác</span>
+          </button>
+        </div>
+      ) : isEditMode ? (
         <>
           <input
             type="text"
@@ -75,15 +115,17 @@ export const CondoAbsenceDecisionCard: React.FC<Props> = ({ state, signals, isEd
               <UserX className="w-3.5 h-3.5" />
               <span>Xác Nhận Vắng Chủ</span>
             </button>
-            <button
-              type="button"
-              disabled={!canDecide}
-              onClick={() => onDecide('NOT_ABSENT', trimmedReason)}
-              className={`${buttonClass} bg-emerald-600 text-white hover:bg-emerald-700`}
-            >
-              <CheckCheck className="w-3.5 h-3.5" />
-              <span>Xác Nhận Đã Khảo Sát</span>
-            </button>
+            {state !== 'NORMAL' && (
+              <button
+                type="button"
+                disabled={!canDecide}
+                onClick={() => onDecide('NOT_ABSENT', trimmedReason)}
+                className={`${buttonClass} bg-emerald-600 text-white hover:bg-emerald-700`}
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Xác Nhận Đã Khảo Sát</span>
+              </button>
+            )}
           </div>
         </>
       ) : (

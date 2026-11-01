@@ -1,10 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { getNextAvailablePinCode } from '../../../../../../components/canvas/FloorCadPinningCanvas';
 import { Plus, Trash2, RotateCcw, CheckCircle2, MapPin, EyeOff } from 'lucide-react';
-import {
-  ARCH_DEFECT_TYPES,
-  ARCH_SCREENING_CATEGORIES,
-} from '../../stepwise/constants/defect-taxonomy';
+import { deriveDefectE6 } from '../../../../../../components/canvas/defectTaxonomy';
 import { rotatePinCoords } from '../../stepwise/utils/pinCoordinates';
 import { AuditField, withCurrentOption } from '../../stepwise/ui/AuditField';
 import type {
@@ -12,9 +8,9 @@ import type {
   CondoDefectItemData,
 } from '../types/condo-audit.types';
 import { calcBurlandGradeFromWidthFrontend } from './condo-zone.mappers';
-import { CondoCadPinSection } from './CondoCadPinSection';
 import { CondoDefectStripSection } from './CondoDefectStripSection';
 import type { CondoCadPinControls } from './useCondoCadPins';
+import type { CondoZoneBoardActions } from './useCondoZoneBoardActions';
 import type { CondoPhotoHandlers } from './CondoPhotoCard';
 
 const COMPONENT_TYPE_OPTIONS = [
@@ -36,22 +32,21 @@ const WALL_MATERIAL_OPTIONS = [
 
 interface CondoZonesDefectsCrudEditorProps extends CondoPhotoHandlers {
   zones: CondoDamageZoneItemData[];
-  defaultFloorName?: string;
   pinControls: CondoCadPinControls;
+  zoneActions: CondoZoneBoardActions;
   onChangeZones: (nextZones: CondoDamageZoneItemData[], actionLabel: string) => void;
 }
 
 export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorProps> = ({
   zones,
-  defaultFloorName = '',
   pinControls,
+  zoneActions,
   onChangeZones,
   ...photoHandlers
 }) => {
   const { isEditMode, onOpenPhotoAction } = photoHandlers;
   const { zoneBoard, undoState } = pinControls;
   const [showDeleted, setShowDeleted] = useState(false);
-  const [highlightedZoneCode, setHighlightedZoneCode] = useState<string | null>(null);
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
 
@@ -74,36 +69,6 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
       functionalImpactRepairNeeded:
         zone.functionalImpactRepairNeeded || maxG >= 3,
     };
-  };
-
-  const handleAddZone = (cadPosition?: { x: number; y: number }) => {
-    const zCode = getNextAvailablePinCode(
-      zoneBoard.pins,
-      'Z',
-      zones.map((z) => z.zoneCode)
-    );
-    const newZone: CondoDamageZoneItemData = {
-      id: `zone_${Date.now()}_${zCode}`,
-      zoneCode: zCode,
-      floorName: defaultFloorName,
-      roomName: '',
-      componentType: '',
-      wallMaterial: '',
-      ctxPhotoUrl: null,
-      ctxPhotoCode: `${zCode}-CTX`,
-      burlandGrade: 0,
-      functionalImpactRepairNeeded: false,
-      overviewPhotos: [],
-      notes: '',
-      defects: [],
-    };
-    onChangeZones([...zones, newZone], `Thêm mới vùng hư hại ${zCode}`);
-    if (cadPosition) zoneBoard.addCadPin(zCode, cadPosition.x, cadPosition.y);
-  };
-
-  const selectZonePin = (code: string) => {
-    setHighlightedZoneCode(code);
-    document.getElementById(`condo-zone-${code}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleUpdateZoneField = (
@@ -132,56 +97,11 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
     );
   };
 
-  const handleAddDefect = (zone: CondoDamageZoneItemData, ctxPosition?: { x: number; y: number }) => {
-    const defectCodes = (zone.defects || []).map((d) => d.defectCode);
-    const dCode = getNextAvailablePinCode(
-      defectCodes.map((code) => ({ defectCode: code })),
-      'D',
-      defectCodes
+  const handleDefectsChange = (zone: CondoDamageZoneItemData, defects: CondoDefectItemData[], label: string) =>
+    onChangeZones(
+      zonesRef.current.map((z) => (z.id === zone.id ? recomputeZoneBurland({ ...z, defects }) : z)),
+      label
     );
-    const defectId = `def_${Date.now()}_${dCode}`;
-    const newDefect: CondoDefectItemData = {
-      id: defectId,
-      defectCode: dCode,
-      defectType: ARCH_DEFECT_TYPES[0],
-      screeningCategory: ARCH_SCREENING_CATEGORIES[0],
-      widthMaxMm: null,
-      lengthMm: null,
-      crackDirection: 'Ngang',
-      activityState: 'U',
-      functionalImpactE6: null,
-      notes: '',
-      hasScaleCard: false,
-      isStructuralCritical: false,
-      cuPhotoUrl: null,
-      cuPhotos: [],
-      cuPhotoCode: `${zone.zoneCode}-${dCode}-CU`,
-      pinX: ctxPosition?.x ?? null,
-      pinY: ctxPosition?.y ?? null,
-    };
-    const nextZones = zones.map((z) => {
-      if (z.id !== zone.id) return z;
-      return recomputeZoneBurland({
-        ...z,
-        defects: [...(z.defects || []), newDefect],
-      });
-    });
-    onChangeZones(nextZones, `Thêm vết nứt ${dCode} vào vùng ${zone.zoneCode}`);
-    if (ctxPosition) {
-      onOpenPhotoAction?.({
-        initialMode: 'ADD',
-        category: 'DEFECT_CU',
-        targetPhotoType: 'DEFECT_CU_PHOTO',
-        targetPhotoId: defectId,
-        defectId,
-        defectCode: dCode,
-        zoneCode: zone.zoneCode,
-        initialPinX: ctxPosition.x,
-        initialPinY: ctxPosition.y,
-        photoTitle: `Khuyết tật ${dCode} (${zone.zoneCode})`,
-      });
-    }
-  };
 
   const applyDefectPin = (zoneId: string, defectId: string, x: number, y: number, label: string) =>
     onChangeZones(
@@ -233,9 +153,13 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
   ) => {
     const nextZones = zones.map((z) => {
       if (z.id !== zoneId) return z;
-      const nextDefs = (z.defects || []).map((d) =>
-        d.id === defectId ? { ...d, [field]: value } : d
-      );
+      const nextDefs = (z.defects || []).map((d) => {
+        if (d.id !== defectId) return d;
+        const next = { ...d, [field]: value };
+        return field === 'screeningCategory' || field === 'defectType'
+          ? { ...next, functionalImpactE6: deriveDefectE6(next.screeningCategory || '', next.defectType || '') }
+          : next;
+      });
       return recomputeZoneBurland({ ...z, defects: nextDefs });
     });
     onChangeZones(nextZones, label);
@@ -285,7 +209,7 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
         {isEditMode && (
           <button
             type="button"
-            onClick={() => handleAddZone()}
+            onClick={() => zoneActions.addZone()}
             className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -293,19 +217,6 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
           </button>
         )}
       </div>
-
-      <CondoCadPinSection
-        board={zoneBoard}
-        tone="zone"
-        title="CAD Kiến trúc (Z)"
-        activeCodes={zones.filter((z) => !z.isDeleted).map((z) => z.zoneCode)}
-        isEditMode={isEditMode}
-        canUndo={undoState.canUndo}
-        onUndo={undoState.undo}
-        onAddAt={(x, y) => handleAddZone({ x, y })}
-        onSelectPin={selectZonePin}
-        onOpenPhotoZoom={photoHandlers.onOpenPhotoZoom}
-      />
 
       {visibleZones.length === 0 ? (
         <div className="p-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 text-center space-y-1.5">
@@ -330,7 +241,7 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
                   isZoneDeleted
                     ? 'opacity-70 border border-dashed border-rose-300 bg-rose-50/20'
                     : 'bg-white border border-slate-200 shadow-2xs'
-                } ${highlightedZoneCode === zone.zoneCode ? 'ring-4 ring-emerald-400' : ''}`}
+                } ${zoneActions.highlightedZoneCode === zone.zoneCode ? 'ring-4 ring-emerald-400' : ''}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -414,9 +325,12 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
                   canEdit={canEditZone}
                   ctxRotation={ctxRotation}
                   onRotateCtx={() => handleRotateZoneCtx(zone, ctxRotationKey, ctxRotation)}
-                  onAddDefectAt={(x, y) => handleAddDefect(zone, { x, y })}
+                  allDefects={zone.defects || []}
+                  onDefectsChange={(defects, label) => handleDefectsChange(zone, defects, label)}
+                  onUseOverviewAsCtx={(url) =>
+                    handleUpdateZoneField(zone.id, 'ctxPhotoUrl', url, `Dùng ảnh tổng quan làm CTX ${zone.zoneCode}`)
+                  }
                   onMoveDefectPin={(defectId, x, y) => handleMoveDefectPin(zone, defectId, x, y)}
-                  onAddDefect={() => handleAddDefect(zone)}
                   onDefectFieldChange={(defectId, field, value, label) =>
                     handleUpdateDefectField(zone.id, defectId, field, value, label)
                   }

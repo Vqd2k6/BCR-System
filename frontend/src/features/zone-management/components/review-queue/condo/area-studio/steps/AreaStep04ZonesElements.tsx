@@ -2,8 +2,10 @@ import React from 'react';
 import { Layers, Map as MapIcon, Upload } from 'lucide-react';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
 import { CondoStructuralElementsCrudEditor } from '../../core/CondoStructuralElementsCrudEditor';
+import { CondoZoneCadSection } from '../../core/CondoZoneCadSection';
 import { CondoZonesDefectsCrudEditor } from '../../core/CondoZonesDefectsCrudEditor';
 import { useCondoCadPins } from '../../core/useCondoCadPins';
+import { useCondoZoneBoardActions } from '../../core/useCondoZoneBoardActions';
 import type {
   CondoAreaFormState,
   CondoAuditStepProps,
@@ -39,6 +41,14 @@ export const AreaStep04ZonesElements: React.FC<CondoAuditStepProps<CondoAreaForm
     photoRotations: formState.photoRotations,
     handleFieldChange,
   });
+  const onChangeZones = (nextZones: CondoAreaFormState['damageZones'], actionLabel: string) =>
+    handleFieldChange('damageZones', actionLabel, nextZones);
+  const zoneActions = useCondoZoneBoardActions({
+    zones: formState.damageZones,
+    defaultFloorName,
+    zoneBoard: pinControls.zoneBoard,
+    onChangeZones,
+  });
 
   return (
     <>
@@ -62,15 +72,22 @@ export const AreaStep04ZonesElements: React.FC<CondoAuditStepProps<CondoAreaForm
             <span>{formState.croppedCadUrl ? 'Cập nhật bản vẽ' : 'Tải lên bản vẽ'}</span>
           </button>
         )}
+        <CondoZoneCadSection
+          zones={formState.damageZones}
+          zoneActions={zoneActions}
+          pinControls={pinControls}
+          isEditMode={isEditMode}
+          onOpenPhotoZoom={onOpenPhotoZoom}
+        />
       </AuditSubsection>
 
       <AuditSubsection icon={Layers} title="4.2. Vùng Hư Hại Kiến Trúc (Z)">
         <CondoZonesDefectsCrudEditor
           {...photoHandlers}
           zones={formState.damageZones}
-          defaultFloorName={defaultFloorName}
           pinControls={pinControls}
-          onChangeZones={(nextZones, actionLabel) => handleFieldChange('damageZones', actionLabel, nextZones)}
+          zoneActions={zoneActions}
+          onChangeZones={onChangeZones}
         />
       </AuditSubsection>
 

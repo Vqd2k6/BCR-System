@@ -67,6 +67,7 @@ export function normalizeCondoMasterData(
   const sigs = (data.leftPane?.signatures ||
     sJson.signatures ||
     {}) as Record<string, unknown>;
+  const surveySigs = (sJson.signatures || {}) as Record<string, unknown>;
   const riskCard = (data.leftPane?.riskScoreCard || {}) as Record<string, unknown>;
 
   const rawCatEnum = String(
@@ -398,6 +399,11 @@ export function normalizeCondoMasterData(
         sigs.ownerSignature || data.ownerSignatureUrl || ''
       ),
       ownerFeedback: String(sigs.ownerFeedback || data.ownerRemarks || ''),
+      witnessName: String(sigs.witnessName || ''),
+      witnessRole: String(sigs.witnessRole || ''),
+      witnessPhone: String(sigs.witnessPhone || ''),
+      // leftPane.signatures đã chuẩn hóa không có chữ ký người làm chứng
+      witnessSignature: String(surveySigs.witnessSignature || surveySigs.witnessSignatureUrl || ''),
       workingMinutesPhotos: Array.isArray(sigs.workingMinutesPhotos)
         ? (sigs.workingMinutesPhotos as CondoMasterFormState['signatures']['workingMinutesPhotos'])
         : [],

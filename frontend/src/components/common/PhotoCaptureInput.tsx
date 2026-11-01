@@ -47,6 +47,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   readOnly,
   allowPdf = false,
   pdfFloorName,
+  confirmBeforeReplace,
 }) => {
   const phase1ReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
   const condoUnitReadOnly = useCondoUnitSurveyStore ? useCondoUnitSurveyStore((s) => s.isReadOnly) : false;
@@ -486,6 +487,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           onStartAnnotating={() => setIsAnnotating(true)}
           onClear={handleClear}
           onRetryUpload={handleRetryUpload}
+          confirmBeforeReplace={confirmBeforeReplace}
         />
       ) : (
         /* Empty State */

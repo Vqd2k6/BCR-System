@@ -4,6 +4,7 @@ import { SmartAddressSuggestionCard } from '../../../stepwise/components/SmartAd
 import { useAddressStandardization } from '../../../stepwise/hooks/useAddressStandardization';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
+import { isFilled } from '../../core/condo-normalize.utils';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
 import type {
   CondoAuditStepProps,
@@ -163,16 +164,18 @@ export const MasterStep01Identification: React.FC<CondoAuditStepProps<CondoMaste
               handleNestedFieldChange('accessLimitation', 'type', 'Mức độ tiếp cận khối tháp', val)
             }
           />
-          <AuditField
-            label="Ghi chú giới hạn tiếp cận"
-            className="md:col-span-2"
-            value={access.notes}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('accessLimitation', 'notes')}
-            onChange={(val) =>
-              handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú tiếp cận khối tháp', val)
-            }
-          />
+          {(access.type !== 'FULL_100' || isFilled(access.notes)) && (
+            <AuditField
+              label="Ghi chú giới hạn tiếp cận"
+              className="md:col-span-2"
+              value={access.notes}
+              isEditMode={isEditMode}
+              isDirty={isFieldDirty('accessLimitation', 'notes')}
+              onChange={(val) =>
+                handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú tiếp cận khối tháp', val)
+              }
+            />
+          )}
         </div>
       </AuditSubsection>
 

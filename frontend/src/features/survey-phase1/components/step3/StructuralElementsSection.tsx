@@ -16,6 +16,9 @@ import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
 import { confirmOverviewPhotoRemoval } from '../../../../components/common/photo-capture/confirmOverviewPhotoRemoval';
+import { CtxFromOverviewPicker } from './CtxFromOverviewPicker';
+import { confirmClearDefects } from './confirmClearDefects';
+import { confirmCtxReplace } from './confirmCtxReplace';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -661,12 +664,20 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
+                    disabled={isReadOnly}
                     checked={
                       activeElement.hasDamage ||
                       (activeElement.defects && activeElement.defects.length > 0)
                     }
                     onChange={(e) => {
                       const checked = e.target.checked;
+                      const defectCount = activeElement.defects?.length || 0;
+                      if (!checked && defectCount > 0) {
+                        if (confirmClearDefects({ ownerCode: `Cấu kiện ${activeElement.elementCode}`, defectCount })) {
+                          onUpdateElement(activeElementIndex, { hasDamage: false, defects: [] });
+                        }
+                        return;
+                      }
                       onUpdateElement(activeElementIndex, {
                         hasDamage: checked,
                         ctxPhotoUrl:
@@ -700,7 +711,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
                       onClick={() => {
-                        if (!activeElement.ctxPhotoUrl) {
+                        if (!activeElement.ctxPhotoUrl && !activeElement.defects?.length) {
                           alert(`Vui lòng chụp hoặc chọn ảnh bối cảnh cấu kiện cho ${activeElement.elementCode} trước khi chấm điểm và ghi sổ khuyết tật kết cấu!`);
                           return;
                         }
@@ -717,6 +728,13 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     label={`Ảnh bối cảnh cấu kiện để thả ghim cho ${activeElement.elementCode}:`}
                     value={activeElement.ctxPhotoUrl || ''}
                     photoCode={activeElement.ctxPhotoCode}
+                    confirmBeforeReplace={() =>
+                      confirmCtxReplace({
+                        defectCount: activeElement.defects?.length || 0,
+                        ctxPhotoUrl: activeElement.ctxPhotoUrl,
+                        overviewPhotos: activeElement.overviewPhotos,
+                      })
+                    }
                     onChange={(url, code) =>
                       onUpdateElement(activeElementIndex, {
                         ctxPhotoUrl: url,
@@ -734,6 +752,14 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       photoIndex: 1,
                     }}
                     height="140px"
+                  />
+
+                  <CtxFromOverviewPicker
+                    overviewPhotos={activeElement.overviewPhotos}
+                    ctxPhotoUrl={activeElement.ctxPhotoUrl}
+                    defectCount={activeElement.defects?.length || 0}
+                    readOnly={isReadOnly}
+                    onSelect={(url, overviewPhotos) => onUpdateElement(activeElementIndex, { ctxPhotoUrl: url, ctxPhotoCode: '', overviewPhotos })}
                   />
                 </div>
               )}

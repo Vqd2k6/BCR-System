@@ -31,6 +31,21 @@ import type {
 } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
+export interface AbsentMergedField {
+  value: string;
+  isEditable: boolean;
+  isDirty: boolean;
+  onChange: (val: string) => void;
+}
+
+/** Căn hộ vắng gộp khối trùng ngay trong bố cục chung để thứ tự thẩm định khớp nhà dân và căn thường. */
+export interface CondoAbsentMergeProps {
+  witness: { name: AbsentMergedField; role: AbsentMergedField; phone: AbsentMergedField };
+  fieldNotes: AbsentMergedField;
+  ownerFeedbackNote: string;
+  extraEvidence: React.ReactNode;
+}
+
 interface Props {
   isEditMode?: boolean;
   formState: AuditStepwiseFormState;
@@ -44,6 +59,7 @@ interface Props {
   onConfirmAbsenteeSurvey?: () => void;
   /** Hồ sơ chung cư tự quyết định trạng thái vắng; nhật ký vắng chỉ là lịch sử tiếp cận, không phải kết luận. */
   absenteeView?: { isAbsentee: boolean; title: string; description: string };
+  condoAbsentMerge?: CondoAbsentMergeProps;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number) => void;
@@ -63,6 +79,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   onOpenPhotoAction,
   onOpenPhotoHistory,
   absenteeView,
+  condoAbsentMerge,
   isFieldDirty,
   stagedPhotoRotations = {},
   onRotatePhoto,
@@ -331,6 +348,24 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
     return isFieldDirty(fieldKey) || isFieldDirty('signatures', fieldKey);
   };
 
+  const canEditSignatureFields = isEditMode && Boolean(handleFieldChange || handleNestedFieldChange);
+  const toSignatureField = (fieldKey: string, label: string, value: string): AbsentMergedField => ({
+    value,
+    isEditable: canEditSignatureFields,
+    isDirty: checkDirty(fieldKey),
+    onChange: (val) => updateSigAndRootField(fieldKey, label, val),
+  });
+  const witnessNameField = condoAbsentMerge?.witness.name ?? toSignatureField('witnessName', 'Người làm chứng', witnessName);
+  const witnessRoleField =
+    condoAbsentMerge?.witness.role ?? toSignatureField('witnessRole', 'Chức vụ người làm chứng', witnessRole);
+  const witnessPhoneField =
+    condoAbsentMerge?.witness.phone ?? toSignatureField('witnessPhone', 'SĐT người làm chứng', witnessPhone);
+  const isWitnessDirty = witnessNameField.isDirty || witnessRoleField.isDirty || witnessPhoneField.isDirty;
+
+  // Căn vắng không có biên bản ký; khi có ảnh thì vẫn hiện để đối chiếu, và chế độ sửa vẫn thêm được
+  const showMinutesGallery = !condoAbsentMerge || isEditMode || allMinutesItems.length > 0;
+  const showOwnerCard = !condoAbsentMerge || Boolean(ownerSignatureUrl || ownerSigAction);
+
   return (
     <section id="step-9" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Hidden file inputs for add / replace photos */}
@@ -375,6 +410,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
 
       <div className="p-5 space-y-6">
         {/* 1. KHỐI TRỌNG TÂM: BỘ SƯU TẬP ẢNH CHỤP BIÊN BẢN HIỆN TRƯỜNG */}
+        {showMinutesGallery && (
         <div className="p-4 sm:p-5 rounded-2xl bg-sky-50/30 border border-sky-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sky-100">
             <div className="flex items-center gap-2">
@@ -697,9 +733,10 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* 2. THÔNG TIN XÁC NHẬN CÁC BÊN (Gọn gàng, không dùng khung ký stylus) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${showOwnerCard ? 'lg:grid-cols-3' : ''}`}>
           {/* Cán bộ Khảo Sát Viên */}
           <div
             className={`p-4 rounded-xl border transition-all space-y-3 ${
@@ -911,6 +948,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
           </div>
 
           {/* Đại diện Chủ Hộ / Công Trình */}
+          {showOwnerCard && (
           <div
             className={`p-4 rounded-xl border transition-all space-y-3 ${
               checkDirty('ownerName') || checkDirty('ownerPhone')
@@ -1113,11 +1151,12 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               ) : null}
             </div>
           </div>
+          )}
 
           {/* Người Làm Chứng / Xác Nhận Địa Phương */}
           <div
             className={`p-4 rounded-xl border transition-all space-y-3 ${
-              checkDirty('witnessName') || checkDirty('witnessRole') || checkDirty('witnessPhone')
+              isWitnessDirty
                 ? 'bg-amber-50/30 border-amber-400 ring-1 ring-amber-300'
                 : 'bg-slate-50 border-slate-200'
             }`}
@@ -1126,59 +1165,57 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-purple-700" />
                 <span className="text-xs font-black uppercase text-slate-800">
-                  3. Người Làm Chứng / Địa Phương
+                  {showOwnerCard ? 3 : 2}. Người Làm Chứng / Địa Phương
                 </span>
               </div>
-              {(checkDirty('witnessName') || checkDirty('witnessRole') || checkDirty('witnessPhone')) && (
-                <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
-              )}
+              {isWitnessDirty && <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>}
             </div>
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Họ và tên:</span>
-                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
+                {witnessNameField.isEditable ? (
                   <input
                     type="text"
-                    value={witnessName}
-                    onChange={(e) => updateSigAndRootField('witnessName', 'Người làm chứng', e.target.value)}
+                    value={witnessNameField.value}
+                    onChange={(e) => witnessNameField.onChange(e.target.value)}
                     placeholder="Tên người làm chứng..."
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
                 ) : (
                   <span className="font-bold text-slate-800">
-                    {witnessName || '---'}
+                    {witnessNameField.value || '---'}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Chức vụ / Đơn vị:</span>
-                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
+                {witnessRoleField.isEditable ? (
                   <input
                     type="text"
-                    value={witnessRole}
-                    onChange={(e) => updateSigAndRootField('witnessRole', 'Chức vụ người làm chứng', e.target.value)}
+                    value={witnessRoleField.value}
+                    onChange={(e) => witnessRoleField.onChange(e.target.value)}
                     placeholder="VD: Tổ trưởng TDP 12"
                     className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[160px]"
                   />
                 ) : (
-                  <span className="text-slate-700">{witnessRole || 'Không có'}</span>
+                  <span className="text-slate-700">{witnessRoleField.value || 'Không có'}</span>
                 )}
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại:</span>
-                {isEditMode && (handleFieldChange || handleNestedFieldChange) ? (
+                {witnessPhoneField.isEditable ? (
                   <input
                     type="text"
-                    value={witnessPhone}
-                    onChange={(e) => updateSigAndRootField('witnessPhone', 'SĐT người làm chứng', e.target.value)}
+                    value={witnessPhoneField.value}
+                    onChange={(e) => witnessPhoneField.onChange(e.target.value)}
                     placeholder="SĐT..."
                     className="p-1 text-xs font-mono text-slate-800 bg-white border border-slate-300 rounded text-right max-w-[140px]"
                   />
                 ) : (
-                  <span className="font-mono text-slate-700">{witnessPhone || '---'}</span>
+                  <span className="font-mono text-slate-700">{witnessPhoneField.value || '---'}</span>
                 )}
               </div>
 
@@ -1622,7 +1659,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   );
                 })}
               </div>
-            ) : (
+            ) : condoAbsentMerge ? null : (
               <div className="p-6 text-center bg-white rounded-xl border border-dashed border-purple-300 space-y-2">
                 <AlertTriangle className="w-6 h-6 text-purple-400 mx-auto" />
                 <p className="text-xs font-semibold text-purple-900">
@@ -1667,10 +1704,51 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 </div>
               </div>
             )}
+            {condoAbsentMerge?.extraEvidence}
           </div>
         )}
 
         {/* 4. Ý KIẾN VÀ GHI CHÚ PHẢN HỒI CỦA CHỦ HỘ */}
+        {condoAbsentMerge ? (
+          <div
+            className={`p-4 rounded-xl border transition-all space-y-2 ${
+              condoAbsentMerge.fieldNotes.isDirty
+                ? 'bg-amber-50/30 border-amber-400 ring-1 ring-amber-300'
+                : 'bg-blue-50/60 border-blue-200'
+            }`}
+          >
+            <div className="flex items-center justify-between text-blue-900 font-bold text-xs">
+              <div className="flex items-center gap-1.5">
+                <MessageSquare className="w-4 h-4 text-blue-700" />
+                <span>Ý Kiến & Ghi Chú Hiện Trường Của Khảo Sát Viên:</span>
+              </div>
+              {condoAbsentMerge.fieldNotes.isDirty && (
+                <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
+              )}
+            </div>
+            {condoAbsentMerge.fieldNotes.isEditable ? (
+              <textarea
+                rows={2}
+                value={condoAbsentMerge.fieldNotes.value}
+                onChange={(e) => condoAbsentMerge.fieldNotes.onChange(e.target.value)}
+                placeholder="Ghi chú vắng chủ..."
+                className="w-full p-2.5 text-xs text-slate-800 bg-white border border-blue-300 rounded-lg focus:outline-sky-500"
+              />
+            ) : (
+              <p className="text-xs text-slate-800 whitespace-pre-wrap bg-white p-3 rounded-lg border border-blue-100 font-medium">
+                {condoAbsentMerge.fieldNotes.value || 'Không có ghi chú vắng chủ'}
+              </p>
+            )}
+            {condoAbsentMerge.ownerFeedbackNote && (
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-blue-900">KSV ghi ở ô Ý kiến (không in ra báo cáo):</p>
+                <p className="text-xs text-slate-800 whitespace-pre-wrap bg-white p-3 rounded-lg border border-blue-100 font-medium">
+                  {condoAbsentMerge.ownerFeedbackNote}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
         <div
           className={`p-4 rounded-xl border transition-all space-y-2 ${
             checkDirty('ownerFeedback')
@@ -1701,6 +1779,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </p>
           )}
         </div>
+        )}
 
         {/* 5. TIÊU CHUẨN PHÁP LÝ LIÊN DANH */}
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-500 flex items-center gap-2">

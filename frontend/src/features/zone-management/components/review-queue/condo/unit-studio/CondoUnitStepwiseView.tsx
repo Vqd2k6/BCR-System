@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useCondoBaseAuditForm } from '../core/useCondoBaseAuditForm';
 import { CondoStepwiseStudioShell } from '../core/CondoStepwiseStudioShell';
 import {
+  getCondoUnitSaveBlockReason,
   normalizeCondoUnitData,
   recomputeCondoUnitBurlandOnChange,
   buildCondoUnitUpdatesPayload,
+  isCondoUnitDirtyKeyActive,
+  resolveCondoFormAbsence,
 } from './condo-unit.normalizer';
-import { resolveCondoAbsenceView } from './condo-unit.adapters';
 import { CONDO_UNIT_STEPS } from './condo-unit.steps-registry';
 import type {
   CondoFloorPlanItem,
@@ -16,6 +18,8 @@ import type {
 } from '../types/condo-audit.types';
 
 const ABSENT_UNIT_STEP_IDS = ['step-1', 'step-9'];
+// Hook giữ đủ các bước vì nhánh vắng chỉ biết được sau khi có formState; scrollspy tự bỏ qua bước đang ẩn
+const ALL_STEP_IDS = CONDO_UNIT_STEPS.map((s) => s.stepId);
 
 export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   data,
@@ -33,14 +37,6 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   onRefresh,
   registerStudioCommitHandler,
 }) => {
-  // Căn vắng chỉ có định danh và biên bản: các bước nội thất là dữ liệu điền cho đủ form của hồ sơ cũ
-  const isAbsentUnit = resolveCondoAbsenceView(data).state === 'ABSENT';
-  const visibleSteps = useMemo(
-    () => (isAbsentUnit ? CONDO_UNIT_STEPS.filter((s) => ABSENT_UNIT_STEP_IDS.includes(s.stepId)) : CONDO_UNIT_STEPS),
-    [isAbsentUnit]
-  );
-  const stepIds = useMemo(() => visibleSteps.map((s) => s.stepId), [visibleSteps]);
-
   const {
     isEditMode,
     setIsEditMode,
@@ -56,13 +52,36 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
     computeDiffPayloadAndUpdates,
   } = useCondoBaseAuditForm<CondoUnitFormState>({
     data,
-    stepIds,
+    stepIds: ALL_STEP_IDS,
     registerStudioCommitHandler,
     normalizeData: normalizeCondoUnitData,
     recomputeDerivedOnChange: recomputeCondoUnitBurlandOnChange,
     buildUpdatesPayload: buildCondoUnitUpdatesPayload,
+    isDirtyKeyActive: isCondoUnitDirtyKeyActive,
+    getSaveBlockReason: getCondoUnitSaveBlockReason,
     onDirtyChange,
   });
+
+  // Căn vắng chỉ có định danh và biên bản: các bước nội thất là dữ liệu điền cho đủ form của hồ sơ cũ
+  const absence = useMemo(() => resolveCondoFormAbsence(formState), [formState]);
+  const isAbsentUnit = absence.state === 'ABSENT';
+  const visibleSteps = useMemo(
+    () => (isAbsentUnit ? CONDO_UNIT_STEPS.filter((s) => ABSENT_UNIT_STEP_IDS.includes(s.stepId)) : CONDO_UNIT_STEPS),
+    [isAbsentUnit]
+  );
+  const stepFormState = useMemo(
+    () => ({
+      ...formState,
+      absence,
+      isRefusedOrAbsent: isAbsentUnit,
+      absenteeInfo: isAbsentUnit || absence.state === 'ACCESS_HISTORY' ? formState.absenteeInfo : null,
+    }),
+    [formState, absence, isAbsentUnit]
+  );
+
+  useEffect(() => {
+    if (!visibleSteps.some((s) => s.stepId === activeStepId)) scrollToStep('step-1');
+  }, [visibleSteps, activeStepId, scrollToStep]);
 
   const floorPlans = (
     Array.isArray((data as Record<string, unknown>).floorPlans)
@@ -78,6 +97,11 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
   ) as CondoParentMasterSummary | undefined;
 
   const handleSaveDiff = () => {
+    const blockReason = getCondoUnitSaveBlockReason(formState);
+    if (blockReason) {
+      window.alert(blockReason);
+      return;
+    }
     const { diffItems, updates } = computeDiffPayloadAndUpdates();
     onOpenDiffModal(diffItems, updates);
   };
@@ -112,7 +136,7 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
       onOpenEngineeringJudgement={onOpenEngineeringJudgement}
       stepProps={{
         isEditMode,
-        formState,
+        formState: stepFormState,
         data,
         reportId,
         onRefresh,
@@ -122,6 +146,7 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
         handleNestedFieldChange,
         isFieldDirty,
         discardField,
+        hasUnsavedChanges: dirtyCount > 0,
         onOpenPhotoZoom,
         onOpenPhotoReplace,
         onOpenPhotoAction,

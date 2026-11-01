@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { AuditStepwiseData, DiffItem } from '../../stepwise/types';
 import type { StudioCommittedPhotoInfo } from '../../stepwise/context/AuditStudioImgContext';
 import { deepReplaceUrlsInValue } from '../../stepwise/hooks/useAuditStepwiseForm';
@@ -14,12 +14,17 @@ interface UseCondoBaseAuditFormOptions<TFormState extends Record<string, unknown
     formState: TFormState,
     dirtyFields: Record<string, { label: string; oldValue: unknown; newValue: unknown }>
   ) => Record<string, unknown>;
+  /** Trường đã sửa nhưng không còn thuộc nhánh hiện tại thì giữ trong form, không đưa vào diff. */
+  isDirtyKeyActive?: (key: string, formState: TFormState) => boolean;
+  /** Trả về lý do khi form chưa đủ điều kiện lưu, để mọi đường lưu cùng chặn trước bước nhập mật khẩu. */
+  getSaveBlockReason?: (formState: TFormState) => string | null;
   onDirtyChange?: (dirtyData: {
     dirtyCount: number;
     diffItems: DiffItem[];
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }) => void;
 }
 
@@ -30,6 +35,8 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
   normalizeData,
   recomputeDerivedOnChange,
   buildUpdatesPayload,
+  getSaveBlockReason,
+  isDirtyKeyActive,
   onDirtyChange,
 }: UseCondoBaseAuditFormOptions<TFormState>) {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -277,8 +284,13 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
     });
   }, [registerStudioCommitHandler]);
 
+  const activeDirtyFields = useMemo(() => {
+    if (!isDirtyKeyActive) return dirtyFields;
+    return Object.fromEntries(Object.entries(dirtyFields).filter(([key]) => isDirtyKeyActive(key, formState)));
+  }, [dirtyFields, formState, isDirtyKeyActive]);
+
   const computeDiffPayloadAndUpdates = useCallback(() => {
-    const diffItems: DiffItem[] = Object.entries(dirtyFields).map(([field, info]) => ({
+    const diffItems: DiffItem[] = Object.entries(activeDirtyFields).map(([field, info]) => ({
       field,
       label: info.label,
       oldValue: info.oldValue,
@@ -287,9 +299,9 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
 
     let updates: Record<string, unknown> = {};
     if (buildUpdatesPayload) {
-      updates = buildUpdatesPayload(formState, dirtyFields);
+      updates = buildUpdatesPayload(formState, activeDirtyFields);
     } else {
-      for (const [key] of Object.entries(dirtyFields)) {
+      for (const [key] of Object.entries(activeDirtyFields)) {
         if (key.includes('.')) {
           const [parentKey] = key.split('.');
           updates[parentKey] = formState[parentKey];
@@ -300,7 +312,7 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
     }
 
     return { diffItems, updates };
-  }, [dirtyFields, formState, buildUpdatesPayload]);
+  }, [activeDirtyFields, formState, buildUpdatesPayload]);
 
   // Đồng bộ trạng thái dirty lên AuditStudioModal
   useEffect(() => {
@@ -312,8 +324,9 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
       updates,
       discardAll,
       discardDiffItem: discardField,
+      saveBlockReason: getSaveBlockReason?.(formState) ?? null,
     });
-  }, [dirtyFields, formState, computeDiffPayloadAndUpdates, discardAll, discardField, onDirtyChange]);
+  }, [dirtyFields, formState, computeDiffPayloadAndUpdates, discardAll, discardField, onDirtyChange, getSaveBlockReason]);
 
   return {
     isEditMode,
@@ -323,7 +336,7 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
     initialState,
     formState,
     dirtyFields,
-    dirtyCount: Object.keys(dirtyFields).length,
+    dirtyCount: Object.keys(activeDirtyFields).length,
     handleFieldChange,
     handleNestedFieldChange,
     isFieldDirty,

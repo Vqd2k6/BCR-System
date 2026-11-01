@@ -122,6 +122,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
     restrictedFloorLevels: [],
     mainReason: '',
     notes: '',
+    customRestrictedAreas: [],
   },
   gisMutationConfirmed: {
     type: 'MATCH',

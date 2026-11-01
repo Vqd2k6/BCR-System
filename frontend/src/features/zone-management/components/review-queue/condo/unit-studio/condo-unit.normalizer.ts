@@ -5,10 +5,12 @@ import type {
 } from '../../stepwise/types';
 import { calcBurlandGradeFromWidthFrontend } from '../core/condo-zone.mappers';
 import { firstNonEmptyString, toNumberOrNull, toRecord } from '../core/condo-normalize.utils';
-import { splitCondoZonesAndElements } from '../core/condo-zone.mappers';
-import type { CondoUnitFormState } from '../types/condo-audit.types';
+import { resolveRawCondoElements, splitCondoZonesAndElements } from '../core/condo-zone.mappers';
+import type { CondoAbsenceView, CondoUnitFormState } from '../types/condo-audit.types';
 import {
   adaptUnitAbsentee,
+  EMPTY_UNIT_ABSENTEE,
+  previewCondoAbsence,
   resolveCondoAbsenceView,
   adaptUnitBeamSagging,
   adaptUnitDoorJamming,
@@ -16,7 +18,43 @@ import {
   resolveUnitCadUrl,
   toSurveyDoorJammingPayload,
   toSurveyLeakagePayload,
+  needsCondoAbsenceDecision,
 } from './condo-unit.adapters';
+
+// Những gì KSV thực sự ghi nhận được với căn vắng; khớp ABSENT_UNIT_EDITABLE_KEYS ở condo-unit.strategy.ts của backend
+const ABSENT_UNIT_EDITABLE_KEYS = new Set([
+  'displayCode',
+  'residentStatus',
+  'absenceDecision',
+  'absenteeInfo',
+  'isAbsentee',
+  'signatures',
+  'surveyDate',
+  'photoRotations',
+  'studioEnhancedPhotos',
+  'studioEnhancedByOriginal',
+]);
+
+/** Kết luận vắng chủ theo form hiện tại, gồm cả thay đổi chưa lưu. */
+export function resolveCondoFormAbsence(state: CondoUnitFormState): CondoAbsenceView {
+  return previewCondoAbsence(state.absence, {
+    decision: state.absenceDecision?.decision ?? null,
+    residentStatus: state.residentStatus === state.loadedResidentStatus ? undefined : state.residentStatus,
+  });
+}
+
+export function getCondoUnitSaveBlockReason(state: CondoUnitFormState): string | null {
+  return needsCondoAbsenceDecision(resolveCondoFormAbsence(state), state.residentStatus, state.loadedResidentStatus)
+    ? 'Căn hộ có khuyết tật trong phòng: hãy xác nhận Vắng Chủ hoặc Đã Khảo Sát ở Mục 1.2 trước khi lưu.'
+    : null;
+}
+
+/** Lọc khi tính diff, không xóa form: Admin chuyển case qua lại thì phần đã sửa vẫn còn. */
+export function isCondoUnitDirtyKeyActive(key: string, state: CondoUnitFormState): boolean {
+  const rootKey = key.split('.')[0];
+  if (resolveCondoFormAbsence(state).state === 'ABSENT') return ABSENT_UNIT_EDITABLE_KEYS.has(rootKey);
+  return rootKey !== 'absenteeInfo';
+}
 
 function toUnitPhotoObj(
   raw: unknown,
@@ -43,6 +81,7 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
   const leftPane = toRecord(data.leftPane);
   const unitInfo = toRecord(data.unitInfo);
   const sigs = toRecord(leftPane.signatures ?? sJson.signatures);
+  const surveySigs = toRecord(sJson.signatures);
   const idPhotos = toRecord(
     data.identificationPhotos || data.rightPane?.identificationPhotos || sJson.identificationPhotos
   );
@@ -55,9 +94,7 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
     : sJson.damageZones ?? sJson.zones;
   const { damageZones, structuralElements } = splitCondoZonesAndElements(
     rawZonesSource,
-    Array.isArray(leftPane.structuralElements) && leftPane.structuralElements.length > 0
-      ? leftPane.structuralElements
-      : sJson.structuralElements,
+    resolveRawCondoElements(leftPane.structuralElements, sJson),
     defaultFloorName
   );
 
@@ -78,7 +115,9 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
 
   const { cadUrl, isFloorCadFallback } = resolveUnitCadUrl(sJson, unitInfo);
   const absence = resolveCondoAbsenceView(data);
-  const absenteeInfo = absence.state === 'ABSENT' || absence.state === 'ACCESS_HISTORY' ? adaptUnitAbsentee(sJson, rawAbsenceLogs) : null;
+  // Luôn dựng để Step 9 có dữ liệu ngay khi Admin chuyển căn thường sang vắng
+  const absenteeInfo = adaptUnitAbsentee(sJson, rawAbsenceLogs) ?? EMPTY_UNIT_ABSENTEE;
+  const residentStatus = firstNonEmptyString(unitInfo.resident_status, sJson.residentStatus);
   const renovation = toRecord(sJson.interiorRenovationHistory);
 
   return recomputeCondoUnitBurlandOnChange(
@@ -89,7 +128,8 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
       ownerName: firstNonEmptyString(unitInfo.owner_name, data.ownerName, sJson.ownerName),
       ownerPhone: firstNonEmptyString(unitInfo.owner_phone, data.ownerPhone, sJson.ownerPhone),
       ownerIdCard: firstNonEmptyString(unitInfo.owner_id_card, sJson.ownerIdCard),
-      residentStatus: firstNonEmptyString(unitInfo.resident_status, sJson.residentStatus),
+      residentStatus,
+      loadedResidentStatus: residentStatus,
       unitAreaM2: toNumberOrNull(sJson.unitAreaM2 ?? unitInfo.unit_area_m2),
       isRefusedOrAbsent: absence.state === 'ABSENT',
       absence,
@@ -131,6 +171,11 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
         surveyorSignature: firstNonEmptyString(sigs.surveyorSignature, data.surveyorSignatureUrl, sJson.surveyorSignature),
         ownerName: firstNonEmptyString(sigs.ownerName, unitInfo.owner_name, data.ownerName),
         ownerSignature: firstNonEmptyString(sigs.ownerSignature, data.ownerSignatureUrl, sJson.ownerSignature),
+        witnessName: firstNonEmptyString(sigs.witnessName),
+        witnessRole: firstNonEmptyString(sigs.witnessRole),
+        witnessPhone: firstNonEmptyString(sigs.witnessPhone),
+        // leftPane.signatures đã chuẩn hóa không có chữ ký người làm chứng
+        witnessSignature: firstNonEmptyString(surveySigs.witnessSignature, surveySigs.witnessSignatureUrl),
         workingMinutesPhotos: Array.isArray(sigs.workingMinutesPhotos)
           ? (sigs.workingMinutesPhotos as CondoUnitFormState['signatures']['workingMinutesPhotos'])
           : Array.isArray(sJson.workingMinutesPhotos)

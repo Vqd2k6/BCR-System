@@ -123,6 +123,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }>({
     dirtyCount: 0,
     diffItems: [],
@@ -579,6 +580,10 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   const handleSaveDiffFirst = () => {
     setShowUnsavedChangesWarning(false);
+    if (pendingDirtyData.saveBlockReason) {
+      window.alert(pendingDirtyData.saveBlockReason);
+      return;
+    }
     const hasRotations = Object.keys(orientationAudit.stagedPhotoRotations).length > 0;
     const surveyJsonObj = ((data?.survey_data_json || data || {}) as Record<string, unknown>);
     const existingPhotoRotations = (surveyJsonObj.photoRotations || {}) as Record<string, number>;

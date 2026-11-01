@@ -5,6 +5,8 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select, Textarea } from '../../../core/components/ui/FormControls';
 import { CadastralGISBoundaryEditor } from '../../../components/gis/CadastralGISBoundaryEditor';
 import { Map, ShieldCheck, AlertCircle, Edit3, Building, Home, CheckCircle2 } from 'lucide-react';
+import { buildRestrictedFloorOptions, normalizeAccessLimitation } from '../utils/accessLimitation';
+import { CustomRestrictedAreaList } from './step6/CustomRestrictedAreaList';
 
 const ACCESS_LIMIT_PRESETS = [
   'Chỉ đồng ý cho xem tầng trệt (Không cho lên lầu)',
@@ -36,32 +38,27 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
     !formData.unitId;
 
   const scope = formData.surveyScope;
-  const access = formData.accessLimitation;
+  const normalizedAccess = normalizeAccessLimitation(formData.accessLimitation);
 
-  const [customRestrictedArea, setCustomRestrictedArea] = useState(() => {
-    if (access?.customRestrictedArea) return access.customRestrictedArea;
-    const match = (access?.notes || '').match(/\[Khu vực khác:\s*(.+?)\]/);
-    return match ? match[1] : '';
-  });
   const [customMainReason, setCustomMainReason] = useState('');
 
   // Tự động nhận diện danh sách tầng của công trình:
   // - Các tầng đã có ở Bước 3 (formData.floors): đánh dấu isAlreadySurveyed = true
   // - Các tầng cao hơn (dựa trên formData.aboveFloors và extraFloorsCount): isAlreadySurveyed = false cho phép chọn
-  const surveyedCount = formData.floors.length;
-  const totalBuildingFloorsCount = Math.max(formData.aboveFloors || 0, surveyedCount, 3) + extraFloorsCount;
-
-  const allBuildingFloors = Array.from({ length: totalBuildingFloorsCount }, (_, i) => {
-    const isAlreadySurveyed = i < surveyedCount;
-    const floorLabel = isAlreadySurveyed
-      ? formData.floors[i].floorName || `Tầng ${i + 1}`
-      : `Tầng ${i + 1} (Lầu ${i})`;
-    return {
-      index: i + 1,
-      label: floorLabel,
-      isAlreadySurveyed,
-    };
+  const allBuildingFloors = buildRestrictedFloorOptions({
+    floorNames: formData.floors.map((floor, i) => floor.floorName || `Tầng ${i + 1}`),
+    aboveFloors: formData.aboveFloors || 0,
+    extraFloorsCount,
+    storedLabels: normalizedAccess.restrictedFloorLevels || [],
   });
+
+  // Bản nháp kiểu cũ: mọi lần ghi bên dưới đều mang khu vực đã tách và nhãn tầng chuẩn
+  const access = {
+    ...normalizedAccess,
+    restrictedFloorLevels: allBuildingFloors
+      .filter((floor) => floor.storedLabels.length > 0)
+      .map((floor) => floor.label),
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -192,23 +189,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
 
                 {/* Nhập text khi chọn Khác */}
                 {access.restrictedAreas?.includes('Khác (Nhập chi tiết...)') && (
-                  <div className="mt-2.5 animate-in fade-in">
-                    <Input
-                      id="input-custom-restricted-area"
-                      placeholder="Mô tả cụ thể khu vực bị hạn chế tiếp cận..."
-                      value={customRestrictedArea}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCustomRestrictedArea(val);
-                        const curNotes = (access.notes || '').replace(/\[Khu vực khác:\s*.*?\]/g, '').trim();
-                        const newNotes = val ? (curNotes ? `${curNotes} [Khu vực khác: ${val}]` : `[Khu vực khác: ${val}]`) : curNotes;
+                  <div className="mt-2.5">
+                    <CustomRestrictedAreaList
+                      items={access.customRestrictedAreas || []}
+                      readOnly={isReadOnly}
+                      onChange={(customRestrictedAreas) =>
                         updateFormData({
-                          accessLimitation: {
-                            ...access,
-                            notes: newNotes,
-                          },
-                        });
-                      }}
+                          accessLimitation: { ...access, customRestrictedAreas },
+                        })
+                      }
                     />
                   </div>
                 )}
@@ -233,7 +222,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {allBuildingFloors.map((floorItem) => {
                       const isSurveyed = floorItem.isAlreadySurveyed;
-                      const isChecked = access.restrictedFloorLevels?.includes(floorItem.label) || false;
+                      const isChecked = floorItem.storedLabels.length > 0;
 
                       return (
                         <label
@@ -432,16 +421,17 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
             onStatusChange={(status) => {
-              updateFormData({
+              updateFormData((prev) => ({
+                ...prev,
                 gisMutationConfirmed: {
-                  ...formData.gisMutationConfirmed,
+                  ...prev.gisMutationConfirmed,
                   type: status,
                   details: {
-                    ...formData.gisMutationConfirmed.details,
+                    ...prev.gisMutationConfirmed.details,
                     activeProposalType: status,
                   },
                 },
-              });
+              }));
             }}
             mutationData={{
               ...formData.gisMutationConfirmed.details,
@@ -468,18 +458,22 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               activeProposalType: formData.gisMutationConfirmed.details?.activeProposalType || formData.gisMutationConfirmed.type,
             }}
             onMutationDataChange={(data) => {
-              const nextType = data.activeProposalType || formData.gisMutationConfirmed.type;
-              updateFormData({
-                gisMutationConfirmed: {
-                  ...formData.gisMutationConfirmed,
-                  type: nextType,
-                  notes: data.splitReason || data.mergeReason || formData.gisMutationConfirmed.notes,
-                  details: {
-                    ...formData.gisMutationConfirmed.details,
-                    ...data,
-                    activeProposalType: nextType,
+              // Phản hồi mã có thể về muộn, nên đọc trạng thái mới nhất thay vì formData của lần render cũ
+              updateFormData((prev) => {
+                const nextType = data.activeProposalType || prev.gisMutationConfirmed.type;
+                return {
+                  ...prev,
+                  gisMutationConfirmed: {
+                    ...prev.gisMutationConfirmed,
+                    type: nextType,
+                    notes: data.splitReason || data.mergeReason || prev.gisMutationConfirmed.notes,
+                    details: {
+                      ...prev.gisMutationConfirmed.details,
+                      ...data,
+                      activeProposalType: nextType,
+                    },
                   },
-                },
+                };
               });
             }}
           />

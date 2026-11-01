@@ -12,6 +12,7 @@ interface AbsenceVerificationPanelProps {
   missingEvidence: string[];
   isVerified: boolean;
   isApproved: boolean;
+  hasUnsavedChanges?: boolean;
   onRefresh?: () => void;
 }
 
@@ -23,6 +24,7 @@ export const AbsenceVerificationPanel: React.FC<AbsenceVerificationPanelProps> =
   missingEvidence,
   isVerified,
   isApproved,
+  hasUnsavedChanges = false,
   onRefresh,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,8 +36,8 @@ export const AbsenceVerificationPanel: React.FC<AbsenceVerificationPanelProps> =
   const hasMissingEvidence = missingEvidence.length > 0;
   const trimmedWaiver = waiverReason.trim();
   const trimmedReopen = reopenReason.trim();
-  const canVerify = !isSubmitting && (!hasMissingEvidence || trimmedWaiver.length >= MIN_REASON_LENGTH);
-  const canReopen = !isSubmitting && trimmedReopen.length >= MIN_REASON_LENGTH;
+  const canVerify = !isSubmitting && !hasUnsavedChanges && (!hasMissingEvidence || trimmedWaiver.length >= MIN_REASON_LENGTH);
+  const canReopen = !isSubmitting && !hasUnsavedChanges && trimmedReopen.length >= MIN_REASON_LENGTH;
 
   const handleVerify = async () => {
     setIsSubmitting(true);
@@ -105,6 +107,13 @@ export const AbsenceVerificationPanel: React.FC<AbsenceVerificationPanelProps> =
             className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-rose-300 text-xs font-semibold text-slate-800"
           />
         </div>
+      )}
+
+      {/* Backend chỉ công nhận trạng thái đã lưu, xác nhận lúc này sẽ dựa trên phân loại cũ */}
+      {hasUnsavedChanges && (
+        <p className="text-[11px] font-semibold text-amber-800">
+          Còn thay đổi chưa lưu: lưu trước khi xác nhận hoặc mở lại khảo sát.
+        </p>
       )}
 
       <div className="flex flex-wrap gap-2">

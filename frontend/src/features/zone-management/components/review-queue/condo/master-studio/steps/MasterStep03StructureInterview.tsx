@@ -1,20 +1,17 @@
 import React from 'react';
 import { Building, FileImage, History, Layers } from 'lucide-react';
+import { STRUCTURE_SYSTEMS } from '../../../../../../survey-phase1/constants/surveyOptionsConstants';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
-import { toNumberOrNull } from '../../core/condo-normalize.utils';
+import { isFilled, isInterviewNotesVisible, toNumberOrNull } from '../../core/condo-normalize.utils';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
 import type {
   CondoAuditStepProps,
   CondoMasterFormState,
 } from '../../types/condo-audit.types';
 
-const STRUCTURE_OPTIONS = [
-  { value: 'RC_FRAME_SHEAR_WALL', label: 'Khung - Vách cứng BTCT + Lõi thang' },
-  { value: 'RC_FRAME', label: 'Khung chịu lực BTCT toàn khối' },
-  { value: 'PRECAST_PANEL', label: 'Lắp ghép tấm lớn (Chung cư cũ)' },
-  { value: 'STEEL_COMPOSITE', label: 'Kết cấu liên hợp Thép - BTCT' },
-];
+// Bỏ mục `Other`: chọn mục đó sẽ lưu nguyên nhãn, còn giá trị KSV tự nhập vẫn hiện qua withCurrentOption
+const STRUCTURE_OPTIONS = STRUCTURE_SYSTEMS.slice(0, 4).map((system) => ({ value: system, label: system }));
 
 const CAT_OPTIONS = [
   { value: '1', label: 'CAT 1 — Móng cọc sâu có hồ sơ hoàn công đầy đủ' },
@@ -182,31 +179,41 @@ export const MasterStep03StructureInterview: React.FC<CondoAuditStepProps<CondoM
 
       <AuditSubsection icon={History} title="3.4. Phỏng Vấn Lịch Sử Vận Hành (Ban Quản Lý)">
         <div className="space-y-3">
-          {HISTORY_ITEMS.map((item) => (
-            <div key={item.levelKey} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <AuditField
-                label={item.label}
-                type="select"
-                value={history[item.levelKey] as number | undefined}
-                options={HISTORY_LEVEL_OPTIONS}
-                isEditMode={isEditMode}
-                isDirty={isFieldDirty('historyInterview', item.levelKey)}
-                onChange={(val) =>
-                  handleNestedFieldChange('historyInterview', item.levelKey, item.label, toNumberOrNull(val))
-                }
-              />
-              <AuditField
-                label="Diễn giải"
-                className="md:col-span-2"
-                value={history[item.notesKey] as string | undefined}
-                isEditMode={isEditMode}
-                isDirty={isFieldDirty('historyInterview', item.notesKey)}
-                onChange={(val) =>
-                  handleNestedFieldChange('historyInterview', item.notesKey, `Diễn giải: ${item.label}`, val)
-                }
-              />
-            </div>
-          ))}
+          {HISTORY_ITEMS.map((item) => {
+            const notes = history[item.notesKey] as string | undefined;
+            return (
+              <div key={item.levelKey} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <AuditField
+                  label={item.label}
+                  type="select"
+                  value={history[item.levelKey] as number | undefined}
+                  options={HISTORY_LEVEL_OPTIONS}
+                  isEditMode={isEditMode}
+                  isDirty={isFieldDirty('historyInterview', item.levelKey)}
+                  onChange={(val) => {
+                    const level = toNumberOrNull(val);
+                    handleNestedFieldChange('historyInterview', item.levelKey, item.label, level);
+                    // Báo cáo vẫn in diễn giải ở Mức 0, nên chỉ ẩn ô là chưa đủ
+                    if (!level && isFilled(notes)) {
+                      handleNestedFieldChange('historyInterview', item.notesKey, `Diễn giải: ${item.label}`, '');
+                    }
+                  }}
+                />
+                {isInterviewNotesVisible(history[item.levelKey], notes) && (
+                  <AuditField
+                    label="Diễn giải"
+                    className="md:col-span-2"
+                    value={notes}
+                    isEditMode={isEditMode}
+                    isDirty={isFieldDirty('historyInterview', item.notesKey)}
+                    onChange={(val) =>
+                      handleNestedFieldChange('historyInterview', item.notesKey, `Diễn giải: ${item.label}`, val)
+                    }
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </AuditSubsection>
     </>
