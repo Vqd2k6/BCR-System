@@ -1,6 +1,7 @@
 import { Database } from '../../../database/db';
 import { PoolClient } from 'pg';
 import { SurveyMutationRepository } from './survey-mutation.repository';
+import { overlayZoneCtxFromJson } from '../zone-ctx.utils';
 
 export class SurveyBaseRepository {
   private static columnCache = new Map<string, boolean>();
@@ -179,13 +180,14 @@ export class SurveyBaseRepository {
     const zonesRes = await Database.query(
       `SELECT z.*,
               COALESCE(
-                json_agg(d.*) FILTER (WHERE d.id IS NOT NULL AND (d.is_deleted = false OR d.is_deleted IS NULL)),
+                json_agg(d.* ORDER BY d.defect_code) FILTER (WHERE d.id IS NOT NULL AND (d.is_deleted = false OR d.is_deleted IS NULL)),
                 '[]'
               ) AS defects
        FROM damage_zones z
        LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
        WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL)
-       GROUP BY z.id;`,
+       GROUP BY z.id
+       ORDER BY z.floor_name, z.zone_code;`,
       [actualReportId]
     );
     const deformRes = await Database.query(
@@ -227,7 +229,7 @@ export class SurveyBaseRepository {
       buildingSpecs,
       historicalSensitivity: historyRes.rows[0] || null,
       floorSurveys: floorsRes.rows,
-      damageZones: zonesRes.rows,
+      damageZones: overlayZoneCtxFromJson(zonesRes.rows, base.survey_data_json, base.project_parcel_code),
       deformation: deformRes.rows[0] || null,
       riskScores: scoresRes.rows[0] || null,
       phase2Details: p2DetailsRes.rows[0] || null,

@@ -3,7 +3,7 @@ import { Building2, ExternalLink, Lock } from 'lucide-react';
 import { AuditField } from '../../stepwise/ui/AuditField';
 import type { AuditStepwiseData } from '../../stepwise/types';
 import type { CondoParentMasterSummary } from '../types/condo-audit.types';
-import { firstNonEmptyString } from './condo-normalize.utils';
+import { firstNonEmptyString, toRecord } from './condo-normalize.utils';
 
 interface CondoParentInheritancePanelProps {
   data: AuditStepwiseData;
@@ -22,6 +22,8 @@ export const CondoParentInheritancePanel: React.FC<CondoParentInheritancePanelPr
   const masterStatus = firstNonEmptyString(parent?.masterStatus, parentInfo?.masterStatus);
   const isMasterApproved = masterStatus === 'APPROVED' || masterStatus === 'COMPLETED';
   const isLocked = Boolean(parent?.isLocked || parentInfo?.isLocked);
+  const surveyParentInfo = toRecord(toRecord(data.surveyJson).parentInfo);
+  const isInheritanceConfirmed = surveyParentInfo.isConfirmed === true;
   const floorsText =
     parent?.aboveFloors !== null && parent?.aboveFloors !== undefined
       ? `${parent.aboveFloors} nổi / ${parent.undergroundFloors ?? parent.basementFloors ?? '---'} hầm`
@@ -45,6 +47,11 @@ export const CondoParentInheritancePanel: React.FC<CondoParentInheritancePanelPr
           {isLocked && (
             <span className="text-emerald-700 text-[11px] font-bold flex items-center gap-0.5">
               <Lock className="w-3 h-3" /> Đã khóa sổ
+            </span>
+          )}
+          {'isConfirmed' in surveyParentInfo && (
+            <span className={`text-[11px] font-bold ${isInheritanceConfirmed ? 'text-emerald-700' : 'text-amber-700'}`}>
+              {isInheritanceConfirmed ? 'KSV đã xác nhận kế thừa' : 'KSV chưa xác nhận kế thừa'}
             </span>
           )}
         </div>

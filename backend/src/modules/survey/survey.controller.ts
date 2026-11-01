@@ -285,6 +285,7 @@ export class SurveyController {
       });
 
       let reportId: string;
+      let writeOptions: { allowLockedReport?: boolean } = {};
       const userRole = req.user?.role || 'SURVEYOR';
 
       if (
@@ -300,6 +301,7 @@ export class SurveyController {
 
         // Zone Admin hoặc Super Admin: Cho phép điều chỉnh tại chỗ (In-Place Update)
         reportId = existingReport.report.id;
+        writeOptions = { allowLockedReport: true };
         await Database.query(
           `UPDATE base_survey_reports
            SET export_revision = export_revision + 1,
@@ -322,7 +324,7 @@ export class SurveyController {
       // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04
       await runPersistStep('ảnh định danh P01-P04', async () => {
         const step1Photos = SurveyPackageMapper.mapStep1Photos(surveyData);
-        await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
+        await SurveyService.saveIdentificationPhotos(reportId, step1Photos, writeOptions);
       });
 
       // 3. Map and Save Thông số kết cấu công trình
@@ -342,7 +344,7 @@ export class SurveyController {
 
       if (resolvedFloors && Array.isArray(resolvedFloors)) {
         const floorsToSave = resolvedFloors;
-        await runPersistStep('khảo sát tầng/vùng/khuyết tật', () => SurveyService.saveFloorSurveys(reportId, floorsToSave), true);
+        await runPersistStep('khảo sát tầng/vùng/khuyết tật', () => SurveyService.saveFloorSurveys(reportId, floorsToSave, writeOptions), true);
       }
 
       // 4. Map and Save Biến dạng & Lún nghiêng

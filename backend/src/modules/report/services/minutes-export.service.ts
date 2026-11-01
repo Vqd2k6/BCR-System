@@ -338,7 +338,9 @@ export class MinutesExportService {
     }
 
     for (const page of appendix3.signedRecordPages) {
-      page.base64 = await ReportImageResolver.loadImageStrict(page.url, page.rotation);
+      page.base64 = await ReportImageResolver.loadImageStrict(page.url, page.rotation, {
+        ensurePortrait: true,
+      });
     }
 
     const identity = await Database.query<{ project_parcel_code: string; unit_code: string | null }>(

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
+import { CONDO_UNIT_WITNESS_ROLES } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
@@ -302,6 +303,15 @@ export const CondoUnitAbsenteeReviewView: React.FC<Props> = ({
                   Hẹn lại: {new Date(absInfo.rescheduleDate).toLocaleString('vi-VN')}
                 </span>
               )}
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-slate-500 block">Người chứng kiến:</span>
+              <span className="font-bold text-slate-800 text-xs mt-0.5 block">{absInfo?.witnessName || '---'}</span>
+              <span className="text-[11px] text-slate-600 block mt-0.5">
+                {CONDO_UNIT_WITNESS_ROLES.find((r) => r.value === absInfo?.witnessRole)?.label || '---'}
+                {absInfo?.witnessPhone ? ` • ${absInfo.witnessPhone}` : ''}
+              </span>
             </div>
           </div>
 

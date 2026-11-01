@@ -2,7 +2,7 @@
  * test_orphan_photo_matcher.ts
  * Kiểm thử bộ ghép ảnh mồ côi. Dữ liệu theo đúng hồ sơ C&C-05-B-0002 (Z-03 Tầng trệt, Z-05 Tầng 1).
  */
-import { collectOrphanTargets, matchOrphanTargets } from '../modules/survey/orphan-photo-matcher';
+import { collectOrphanTargets, matchOrphanByCaptureTime, matchOrphanTargets, parcelStoragePrefixes } from '../modules/survey/orphan-photo-matcher';
 
 const BASE = 'https://pub-test.r2.dev';
 const FOLDER = 'surveys/C_C-05-B-0002/CTX';
@@ -194,5 +194,16 @@ check(
   z03Six.targets.length === 2 && z03SixMatched.recovered[OV1]?.key === z03Orphan1 && z03SixMatched.recovered[OV3]?.key === z03Orphan3,
   z03SixMatched
 );
+
+const AREA = 'projects/METRO2_HCM/buildings/C_C-05-B-0129/floors/B01/master-areas';
+const areaCu = `${AREA}/M-001/defects/M2__C_C-05-B-0129__B01__M-001__Z01__D-01__CU__04__1791683386433_ab2f.jpg`;
+const otherArea = `${AREA}/M-010/defects/M2__C_C-05-B-0129__G__M-010__Z01__D-01__CU__01__1791683386500_cd12.jpg`;
+const byCapture = (scope: string | null, referenced: string[] = []) =>
+  matchOrphanByCaptureTime(1791683386421, [areaCu, otherArea], new Set(referenced), scope);
+check('Thư mục thửa gồm cả surveys và projects', parcelStoragePrefixes('C&C-05-B-0129').includes('projects/METRO2_HCM/buildings/C_C-05-B-0129/'), null);
+check('Theo thời điểm chụp: đúng khu vực M-001', byCapture('M-001').length === 1 && byCapture('M-001')[0] === areaCu, byCapture('M-001'));
+check('Không giới hạn khu vực thì có 2 ứng viên', byCapture(null).length === 2, byCapture(null));
+check('Object đã được tham chiếu bị loại', byCapture('M-001', [areaCu]).length === 0, null);
+check('Ngoài cửa sổ 1 giây bị loại', matchOrphanByCaptureTime(1791683380000, [areaCu], new Set()).length === 0, null);
 
 console.log(`\n🎉 HOÀN TẤT: ${passed} kiểm thử đều đạt.`);

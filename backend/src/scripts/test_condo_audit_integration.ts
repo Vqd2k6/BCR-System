@@ -9,6 +9,9 @@ import type { PoolClient } from 'pg';
 import { Database } from '../database/db';
 import { classifyCondoEntityKind } from '../modules/audit/condo/condo-entity-classifier';
 import { CondoCrudEngineService } from '../modules/audit/condo/services/condo-crud-engine.service';
+import { CondoPhotoLineageService } from '../modules/audit/condo/services/condo-photo-lineage.service';
+import { assertSingleCtxTarget } from '../modules/audit/services/audit-modification.service';
+import { assertSurveyContentWritable, recordCtxChangeInTx } from '../modules/survey/repositories/survey-photo-preservation';
 import { assertCondoSnapshotRestorable, normalizeCondoSnapshot } from '../modules/audit/condo/services/condo-snapshot-restore.helpers';
 import { AuditReviewService } from '../modules/audit/services/audit-review.service';
 
@@ -133,6 +136,93 @@ async function main(): Promise<void> {
     assert.equal((await one(client, `SELECT owner_remarks FROM base_survey_reports WHERE id = $1;`, [unitId])).owner_remarks, 'Đồng ý');
     const spec = await one(client, `SELECT construction_area_m2 FROM building_specifications WHERE report_id = $1;`, [unitId]);
     if (spec) assert.equal(Number(spec.construction_area_m2), 72.5);
+  });
+
+  await inRollback('Unit: chuyển về trạng thái không thì xóa sạch ở mọi nơi', async (client) => {
+    const json: Record<string, unknown> = {
+      ...unitJson(),
+      beamSagging: { hasSagging: true, location: 'Dầm khách', sagMm: 8, spanM: 4, photoUrl: 'sag.jpg' },
+      historyInterview: { renovationDescription: 'Làm lại bếp', sensitiveEquipment: { has: true, description: 'Đàn' } },
+      hasSensitiveEquipment: true,
+      sensitiveEquipmentDesc: 'Đàn',
+    };
+    await unitStrategy.applyCrudInTransaction(
+      client,
+      unitContext,
+      json,
+      {
+        beamSagging: { hasSagging: false, level: 0, sagMm: null, spanM: null, ratioText: '', position: '', notes: '' },
+        settlementObserved: 'NONE',
+        settlementNotes: '',
+        // Chỉ gửi cờ: mô tả vẫn phải rỗng ở cả 2 nơi
+        hasSensitiveEquipment: false,
+        interiorRenovationHistory: { hasRenovated: false, description: '' },
+      },
+      'test'
+    );
+    const beam = json.beamSagging as Record<string, unknown>;
+    assert.equal(beam.location, '');
+    assert.equal(beam.photoUrl, 'sag.jpg');
+    const interview = json.historyInterview as { renovationDescription: string; sensitiveEquipment: Record<string, unknown> };
+    assert.equal(interview.renovationDescription, '');
+    assert.equal(json.sensitiveEquipmentDesc, '');
+    assert.deepEqual(interview.sensitiveEquipment, { has: false, description: '' });
+    const def = await one(client, `SELECT beam_deflection_mm, notes FROM deformation_assessments WHERE report_id = $1;`, [unitId]);
+    assert.equal(Number(def.beam_deflection_mm), 0);
+    assert.ok(!String(def.notes ?? '').includes('NONE'));
+    assert.ok(!String(def.notes ?? '').includes('Dầm khách'));
+  });
+
+  await inRollback('CTX: thay ảnh chỉ đổi đúng vùng của hồ sơ, JSON dạng zones nhận ảnh mới', async (client) => {
+    const zone = await one(client, `SELECT id, zone_code FROM damage_zones WHERE report_id = $1 AND zone_code LIKE 'Z-%' AND is_deleted IS NOT TRUE LIMIT 1;`, [unitId]);
+    assert.ok(zone);
+    const other = await one(client, `SELECT id, ctx_photo_url FROM damage_zones WHERE report_id <> $1 AND zone_code = $2 AND is_deleted IS NOT TRUE LIMIT 1;`, [unitId, zone.zone_code]);
+    const actor = await one(client, `SELECT id FROM users ORDER BY created_at ASC LIMIT 1;`, []);
+    const json: Record<string, unknown> = {
+      ...unitJson(),
+      damageZones: undefined,
+      zones: [{ id: zone.id, zoneCode: zone.zone_code, ctxPhotoUrl: 'https://cdn/cu.jpg' }],
+    };
+    const newUrl = 'https://cdn/moi.jpg';
+    await CondoPhotoLineageService.applyPhotoActionInTx(client, unitId, unitContext.parcel_id, actor.id, json, {
+      action: 'REPLACE',
+      category: 'ZONE_CTX',
+      targetPhotoType: 'ZONE_CTX',
+      targetPhotoId: zone.id,
+      newPhotoUrl: newUrl,
+      reason: 'Kiểm thử',
+    });
+    assert.equal((await one(client, `SELECT ctx_photo_url FROM damage_zones WHERE id = $1;`, [zone.id])).ctx_photo_url, newUrl);
+    assert.equal((json.zones as Array<{ ctxPhotoUrl: string }>)[0].ctxPhotoUrl, newUrl);
+    if (other) {
+      assert.equal((await one(client, `SELECT ctx_photo_url FROM damage_zones WHERE id = $1;`, [other.id])).ctx_photo_url, other.ctx_photo_url);
+    }
+  });
+
+  await inRollback('CTX: đổi qua form lưu thẩm định vẫn có lịch sử registry', async (client) => {
+    const zone = await one(client, `SELECT id, zone_code, ctx_photo_url FROM damage_zones WHERE report_id = $1 AND zone_code LIKE 'Z-%' AND is_deleted IS NOT TRUE LIMIT 1;`, [unitId]);
+    const newUrl = 'https://cdn/tu-form.jpg';
+    await recordCtxChangeInTx(client, unitId, zone.id, newUrl, 'Kiểm thử');
+    const row = await one(client, `SELECT action_type, status, replacement_for_url FROM survey_photo_registry WHERE report_id = $1 AND photo_url = $2;`, [unitId, newUrl]);
+    assert.equal(row.status, 'ACTIVE');
+    assert.equal(row.action_type, zone.ctx_photo_url ? 'REPLACE' : 'ADD');
+    assert.equal(row.replacement_for_url, zone.ctx_photo_url || null);
+  });
+
+  await inRollback('Lưu phiếu: hồ sơ đã nộp bị chặn nếu không phải Admin sửa tại chỗ', async (client) => {
+    await client.query(`UPDATE base_survey_reports SET status = 'SUBMITTED' WHERE id = $1;`, [unitId]);
+    await assert.rejects(assertSurveyContentWritable(client, unitId), /đã nộp/);
+    await assertSurveyContentWritable(client, unitId, { allowLockedReport: true });
+  });
+
+  await inRollback('CTX: cùng mã trên 2 tầng mà không kèm tầng thì bị chặn', async (client) => {
+    await client.query(
+      `INSERT INTO damage_zones (report_id, zone_code, floor_name, room_name, ctx_photo_url)
+       SELECT $1, 'Z-98', fl, 'Kiểm thử', '' FROM unnest(ARRAY['Tầng A', 'Tầng B']) AS fl;`,
+      [unitId]
+    );
+    await assert.rejects(assertSingleCtxTarget(client, unitId, null, 'Z-98', null), /nhiều tầng/);
+    await assertSingleCtxTarget(client, unitId, null, 'Z-98', 'Tầng A');
   });
 
   await inRollback('Unit: đổi mã trùng bị chặn, đổi tầng cập nhật vị trí', async (client) => {

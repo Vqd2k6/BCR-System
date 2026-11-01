@@ -10,6 +10,7 @@ import {
   BilingualText,
 } from '../../report.types';
 import type { StandardTextContent } from '../../../report_config/report-config.types';
+import { readCustomRestrictedAreas } from '../../../survey/access-limitation.utils';
 
 export class Section9ConclusionMapper {
   public static map(
@@ -114,17 +115,15 @@ export class Section9ConclusionMapper {
       if (inaccessible && inaccessible !== 'NONE' && inaccessible !== 'None' && inaccessible !== 'Không') {
         let areaItems: string[] = Array.isArray(inaccessible) ? [...inaccessible] : [String(inaccessible)];
 
-        const customArea = json.accessLimitation?.customRestrictedArea ||
-          (() => {
-            const notesStr = String(json.accessLimitation?.notes || rawReport.accessibility_limitations || '');
-            const match = notesStr.match(/\[Khu vực khác:\s*(.+?)\]/);
-            return match ? match[1].trim() : '';
-          })();
+        const customAreas = readCustomRestrictedAreas({
+          ...json.accessLimitation,
+          notes: json.accessLimitation?.notes || rawReport.accessibility_limitations,
+        });
 
         areaItems = areaItems.map(item => {
           if (item.includes('Khác (Nhập chi tiết...)') || item === 'Khác') {
-            if (customArea) {
-              return `Khác (${customArea})`;
+            if (customAreas.length > 0) {
+              return `Khác (${customAreas.join('; ')})`;
             }
             const notesStr = (json.accessLimitation?.notes || rawReport.accessibility_limitations || '').trim();
             if (notesStr && !notesStr.startsWith('[')) {

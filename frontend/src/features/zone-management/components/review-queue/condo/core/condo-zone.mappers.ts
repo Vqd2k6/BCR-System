@@ -3,7 +3,7 @@ import type {
   CondoDefectItemData,
   CondoStructuralElementItemData,
 } from '../types/condo-audit.types';
-import { firstNonEmptyString, toNumberOrNull, toRecord } from './condo-normalize.utils';
+import { compareCodes, firstNonEmptyString, toNumberOrNull, toRecord } from './condo-normalize.utils';
 
 export function calcBurlandGradeFromWidthFrontend(
   widthMm: number,
@@ -28,7 +28,7 @@ function toPhotoUrls(raw: unknown): string[] {
 
 export function mapRawCondoDefects(rawDefs: unknown, parentId: string): CondoDefectItemData[] {
   if (!Array.isArray(rawDefs)) return [];
-  return rawDefs.map((item, idx) => {
+  const defects = rawDefs.map((item, idx) => {
     const d = toRecord(item);
     const code = firstNonEmptyString(d.defectCode, d.defect_code) || `D-${String(idx + 1).padStart(2, '0')}`;
     const cuPhotos = toPhotoUrls(d.cuPhotos ?? d.cu_photos_json);
@@ -58,6 +58,7 @@ export function mapRawCondoDefects(rawDefs: unknown, parentId: string): CondoDef
       hasHistory: Boolean(d.hasHistory),
     };
   });
+  return defects.sort((a, b) => compareCodes(a.defectCode, b.defectCode));
 }
 
 function mapRawZone(rawItem: Record<string, unknown>, id: string, code: string, floorName: string): CondoDamageZoneItemData {
@@ -113,6 +114,19 @@ function mapRawElement(
   };
 }
 
+/** Bản nộp của Khu vực chung chỉ giữ E trong `floors[]`, nên hàng SQL và khóa phẳng đều có thể rỗng. */
+export function resolveRawCondoElements(paneElements: unknown, surveyJson: Record<string, unknown>): unknown[] {
+  if (Array.isArray(paneElements) && paneElements.length > 0) return paneElements;
+  if (Array.isArray(surveyJson.structuralElements) && surveyJson.structuralElements.length > 0) {
+    return surveyJson.structuralElements;
+  }
+  const floors = Array.isArray(surveyJson.floors) ? surveyJson.floors : [];
+  return floors.flatMap((floor) => {
+    const elements = toRecord(floor).structuralElements;
+    return Array.isArray(elements) ? elements : [];
+  });
+}
+
 /**
  * Tách danh sách phẳng thành Vùng Z và Cấu kiện E (mã `E-xx`), rồi bổ sung E từ nguồn riêng nếu chưa có.
  */
@@ -146,5 +160,7 @@ export function splitCondoZonesAndElements(
     structuralElements.push(mapRawElement(rawItem, id, code, defaultFloorName));
   });
 
+  damageZones.sort((a, b) => compareCodes(a.zoneCode, b.zoneCode));
+  structuralElements.sort((a, b) => compareCodes(a.elementCode, b.elementCode));
   return { damageZones, structuralElements };
 }

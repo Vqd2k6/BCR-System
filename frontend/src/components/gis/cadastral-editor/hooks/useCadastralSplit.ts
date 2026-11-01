@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import L from 'leaflet';
 import { api } from '../../../../services/api';
 import type { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
@@ -41,6 +41,14 @@ export const useCadastralSplit = ({
   const [_isLoadingCodes, setIsLoadingCodes] = useState<boolean>(false);
 
   const [activeTarget, setActiveTarget] = useState<'A' | 'B'>('A');
+
+  // Phản hồi mã có thể về sau khi KSV đã kéo đỉnh, nên phải ghép vào dữ liệu mới nhất
+  const latestMutationDataRef = useRef(mutationData);
+  const latestOnMutationDataChangeRef = useRef(onMutationDataChange);
+  useEffect(() => {
+    latestMutationDataRef.current = mutationData;
+    latestOnMutationDataChangeRef.current = onMutationDataChange;
+  });
 
   const getDefaultPolygons = useCallback((): { polyA: [number, number][]; polyB: [number, number][] } => {
     return splitQuadHorizontal(realActiveCoords, 0.6);
@@ -96,6 +104,8 @@ export const useCadastralSplit = ({
 
   // Lấy mã dự án mở rộng Max Zone + 1
   useEffect(() => {
+    // Mã Lô B chỉ dùng cho tab Tách thửa; gọi ở MATCH sẽ ghi Lô A/B giả vào hồ sơ
+    if (boundaryStatus !== 'SPLIT') return;
     let isMounted = true;
     const fetchCodes = async () => {
       try {
@@ -116,9 +126,10 @@ export const useCadastralSplit = ({
           };
           setMaxZoneInfo(zoneInfo);
 
-          if (!mutationData.isSubmitted) {
-            const currentChildren = mutationData.splitChildren || [];
-            const isNewB = mutationData.residualKind === 'NEW_BUILDING';
+          const latestMutationData = latestMutationDataRef.current;
+          if (!latestMutationData.isSubmitted) {
+            const currentChildren = latestMutationData.splitChildren || [];
+            const isNewB = latestMutationData.residualKind === 'NEW_BUILDING';
             const officialCodeB = zoneInfo.nextCode || codes[0] || `${parcelData.projectParcelCode}-B`;
 
             if (currentChildren.length === 0) {
@@ -149,9 +160,9 @@ export const useCadastralSplit = ({
                     : `Đất thừa tách từ ${parcelData.projectParcelCode}`,
                 },
               ];
-              onMutationDataChange({
-                ...mutationData,
-                residualKind: mutationData.residualKind || 'NON_BUILDING',
+              latestOnMutationDataChangeRef.current({
+                ...latestMutationData,
+                residualKind: latestMutationData.residualKind || 'NON_BUILDING',
                 splitChildren: initChildren,
               });
             } else {
@@ -165,10 +176,17 @@ export const useCadastralSplit = ({
                   residualKind: (isNewB ? 'NEW_BUILDING' : 'NON_BUILDING') as 'NON_BUILDING' | 'NEW_BUILDING',
                 };
               });
-              onMutationDataChange({
-                ...mutationData,
-                splitChildren: updated,
-              });
+              const hasCodeChange = updated.some(
+                (child, idx) =>
+                  child.suggestedCode !== currentChildren[idx].suggestedCode ||
+                  child.residualKind !== currentChildren[idx].residualKind
+              );
+              if (hasCodeChange) {
+                latestOnMutationDataChangeRef.current({
+                  ...latestMutationData,
+                  splitChildren: updated,
+                });
+              }
             }
           }
         }
@@ -199,7 +217,7 @@ export const useCadastralSplit = ({
     return () => {
       isMounted = false;
     };
-  }, [boundaryStatus, parcelData.projectParcelCode, parcelData.zoneId, parcel, activeParcelId]);
+  }, [boundaryStatus, parcelData.projectParcelCode, parcelData.zoneId, parcel?.zoneId, parcel?.zone_id, activeParcelId]);
 
   const calculatedAreaA = useMemo(() => {
     if (polyAVertices.length < 3) return 0;

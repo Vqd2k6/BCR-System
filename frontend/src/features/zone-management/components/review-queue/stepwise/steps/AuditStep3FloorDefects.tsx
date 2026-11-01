@@ -1,3 +1,4 @@
+import { deriveDefectE6, describeDefectE6 } from '../../../../../../components/canvas/defectTaxonomy';
 import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../../../../../survey-phase1/types/phase1.types';
 import type { DefectItem } from '../../../../../../components/canvas/DefectPinningCanvas';
 import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../components/canvas/FloorCadPinningCanvas';
@@ -770,7 +771,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       pin_y: pinY,
       materialDegradationE4: 0,
       structuralSignificanceE2: 1,
-      functionalImpactE6: 1,
+      functionalImpactE6: deriveDefectE6(ARCH_SCREENING_CATEGORIES[0], ARCH_DEFECT_TYPES[0]),
       isStructuralCritical: false,
       crackDirection: 'Ngang',
       activityState: 'S',
@@ -850,7 +851,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       pin_y: pinY,
       materialDegradationE4: 1,
       structuralSignificanceE2: 1,
-      functionalImpactE6: 1,
+      functionalImpactE6: deriveDefectE6(STRUCT_SCREENING_CATEGORIES[0], STRUCT_DEFECT_TYPES[0]),
       isStructuralCritical: true,
       crackDirection: 'Ngang',
       activityState: 'S',
@@ -908,6 +909,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       if (field === 'screeningCategory' || field === 'defectType') {
         const nextCat = field === 'screeningCategory' ? String(val || '') : d.screeningCategory;
         const nextType = field === 'defectType' ? String(val || '') : d.defectType;
+        nextD.functionalImpactE6 = deriveDefectE6(nextCat || '', nextType || '');
         if (!isCrackRelated(nextCat, nextType)) {
           nextD.widthMaxMm = 0;
           nextD.lengthMm = 0;
@@ -979,7 +981,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             pin_y: 50,
             materialDegradationE4: 0,
             structuralSignificanceE2: 1,
-            functionalImpactE6: 1,
+            functionalImpactE6: deriveDefectE6(ARCH_SCREENING_CATEGORIES[0], ARCH_DEFECT_TYPES[0]),
             isStructuralCritical: false,
             crackDirection: 'Ngang',
             activityState: 'S',
@@ -1202,7 +1204,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           pin_y: 50,
           materialDegradationE4: 1,
           structuralSignificanceE2: 1,
-          functionalImpactE6: 1,
+          functionalImpactE6: deriveDefectE6(STRUCT_SCREENING_CATEGORIES[0], STRUCT_DEFECT_TYPES[0]),
           isStructuralCritical: true,
           crackDirection: 'Ngang',
           activityState: 'S',
@@ -2647,18 +2649,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-200/60">
                                           <div>
                                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                                              Ảnh hưởng công năng (E6: 0-5):
+                                              Ảnh hưởng công năng E6 (tự suy từ loại):
                                             </label>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              max="5"
-                                              value={d.functionalImpactE6 ?? 0}
-                                              onChange={(e) =>
-                                                handleDefectChange(flIdx, z.id || zCode, defectKey, 'functionalImpactE6', Math.min(5, Math.max(0, parseInt(e.target.value, 10) || 0)), `${dCode} Chỉ số E6`)
-                                              }
-                                              className="w-full p-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs text-slate-800"
-                                            />
+                                            <div className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                                              {describeDefectE6(d.functionalImpactE6 === '' ? undefined : d.functionalImpactE6)}
+                                            </div>
                                           </div>
                                           <div className="sm:col-span-2">
                                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">

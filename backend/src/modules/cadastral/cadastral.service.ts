@@ -294,7 +294,7 @@ export class CadastralService {
 
       const repRes = await client.query<{ id: string; survey_data_json: any }>(
         `SELECT id, survey_data_json FROM base_survey_reports 
-         WHERE parcel_id = $1 
+         WHERE parcel_id = $1 AND unit_id IS NULL
          ORDER BY created_at DESC LIMIT 1 FOR UPDATE;`,
         [parcelId]
       );

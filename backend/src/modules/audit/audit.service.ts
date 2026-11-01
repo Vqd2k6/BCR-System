@@ -61,8 +61,15 @@ export class AuditService {
     return AuditReviewService.rejectReport(reportId, adminId, rejectionReason);
   }
 
-  static revertReportToDraft(identifier: string, adminId: string, reason?: string, unitId?: string | null, actorRole?: string) {
-    return AuditReviewService.revertReportToDraft(identifier, adminId, reason, unitId, actorRole);
+  static revertReportToDraft(
+    identifier: string,
+    adminId: string,
+    reason?: string,
+    unitId?: string | null,
+    actorRole?: string,
+    reopenAbsentSurvey = false
+  ) {
+    return AuditReviewService.revertReportToDraft(identifier, adminId, reason, unitId, actorRole, reopenAbsentSurvey);
   }
 
   static getProgressAnalytics(zoneId?: string) {

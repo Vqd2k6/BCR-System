@@ -173,9 +173,10 @@ export class AuditController {
       const parsed = RevertReportToDraftDto.safeParse(req.body);
       const unitId = parsed.success ? parsed.data.unitId || undefined : undefined;
       const reason = parsed.success ? parsed.data.reason : undefined;
+      const reopenAbsentSurvey = parsed.success ? parsed.data.reopenAbsentSurvey === true : false;
       const adminId = req.user!.userId;
 
-      const result = await AuditService.revertReportToDraft(id, adminId, reason, unitId, req.user!.role);
+      const result = await AuditService.revertReportToDraft(id, adminId, reason, unitId, req.user!.role, reopenAbsentSurvey);
       res.status(200).json({
         success: true,
         data: result,

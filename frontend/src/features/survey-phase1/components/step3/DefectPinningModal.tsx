@@ -41,7 +41,8 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
 }) => {
   const isStoreReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const effectiveReadOnly = readOnly !== undefined ? readOnly : isStoreReadOnly;
-  if (!isOpen || !ctxPhotoUrl) return null;
+  // Còn D thì vẫn mở dù mất ảnh CTX, để xem, sửa, xóa được qua danh sách trong canvas
+  if (!isOpen || (!ctxPhotoUrl && defects.length === 0)) return null;
 
   const isStructural = mode === 'STRUCTURAL';
   const badgeColor = isStructural ? 'bg-amber-700' : 'bg-emerald-700';
@@ -75,7 +76,7 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
 
         <div className="flex-1 overflow-y-auto p-4">
           <DefectPinningCanvas
-            ctxPhotoUrl={ctxPhotoUrl}
+            ctxPhotoUrl={ctxPhotoUrl || ''}
             defects={defects}
             mode={mode}
             parcelCode={projectParcelCode}

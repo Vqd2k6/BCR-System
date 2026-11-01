@@ -716,6 +716,9 @@ export interface TocPageNumbers {
 }
 
 export interface CondoUnitAbsentReport {
+  isResidential: boolean;
+  entityNoun: BilingualText;
+  exteriorObservations: { label: string; value: string }[];
   reason: string;
   notes: string;
   attemptCount: number | null;

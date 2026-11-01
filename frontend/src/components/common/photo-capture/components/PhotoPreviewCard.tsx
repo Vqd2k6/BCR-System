@@ -37,6 +37,7 @@ interface PhotoPreviewCardProps {
   onStartAnnotating: () => void;
   onClear: () => void;
   onRetryUpload?: () => void;
+  confirmBeforeReplace?: () => boolean;
 }
 
 export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
@@ -61,6 +62,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   onStartAnnotating,
   onClear,
   onRetryUpload,
+  confirmBeforeReplace,
 }) => {
   const storageInfo = useStorageInfo();
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -78,6 +80,11 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   }, [isMoreMenuOpen]);
 
   const safeSrc = localPreview || getSafeDisplayUrl(value);
+
+  const handleReplaceLabelClick = (e: React.MouseEvent<HTMLLabelElement>) => {
+    setIsMoreMenuOpen(false);
+    if (confirmBeforeReplace && !confirmBeforeReplace()) e.preventDefault();
+  };
 
   return (
     <div
@@ -311,6 +318,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (confirmBeforeReplace && !confirmBeforeReplace()) return;
             onTriggerCapture();
           }}
           title="Mở camera chụp lại ảnh này (có zoom 2 ngón tay)"
@@ -475,7 +483,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               {/* Chụp bằng máy ảnh máy (Native) */}
               <label
                 htmlFor={cameraInputId}
-                onClick={() => setIsMoreMenuOpen(false)}
+                onClick={handleReplaceLabelClick}
                 style={{
                   width: '100%',
                   padding: '0.4rem 0.6rem',
@@ -500,7 +508,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               {/* Chọn ảnh từ máy */}
               <label
                 htmlFor={galleryInputId}
-                onClick={() => setIsMoreMenuOpen(false)}
+                onClick={handleReplaceLabelClick}
                 style={{
                   width: '100%',
                   padding: '0.4rem 0.6rem',

@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, ShieldOff } from 'lucide-react';
+import { getMeaningfulOwnerFeedback } from '../unit-studio/condo-unit.adapters';
 import type { CondoUnitFormState } from '../types/condo-audit.types';
 
-interface Props {
-  formState: CondoUnitFormState;
+interface ExcludedRow {
+  label: string;
+  value: React.ReactNode;
 }
 
 /** Dữ liệu cũ KSV phải điền cho đủ form: không dùng để thẩm định, chỉ giữ để Admin đối chiếu. */
-export const CondoAbsentExcludedDataPanel: React.FC<Props> = ({ formState }) => {
+export const AbsentExcludedDataPanel: React.FC<{ rows: ExcludedRow[] }> = ({ rows }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const zones = formState.damageZones.filter((zone) => !zone.isDeleted);
   const Chevron = isOpen ? ChevronDown : ChevronRight;
 
   return (
@@ -21,7 +22,7 @@ export const CondoAbsentExcludedDataPanel: React.FC<Props> = ({ formState }) => 
       >
         <ShieldOff className="w-4 h-4 text-slate-500 shrink-0" />
         <span className="flex-1 text-xs font-black uppercase text-slate-700">
-          Dữ Liệu Ngoài Phạm Vi Vắng Chủ (Không Có Giá Trị Pháp Lý)
+          Dữ Liệu Ngoài Phạm Vi Vắng Mặt (Không Có Giá Trị Pháp Lý)
         </span>
         <Chevron className="w-4 h-4 text-slate-500" />
       </button>
@@ -31,17 +32,33 @@ export const CondoAbsentExcludedDataPanel: React.FC<Props> = ({ formState }) => 
           <p className="text-[11px] text-slate-500">
             Phần này được giữ nguyên trong CSDL nhưng không hiển thị khi thẩm định và không in ra báo cáo.
           </p>
-          <div>Số vùng đã nhập: <strong>{zones.length}</strong></div>
-          {zones.length > 0 && (
-            <div>
-              Khu vực:{' '}
-              <strong>{zones.map((zone) => zone.roomName || zone.zoneCode).join(', ')}</strong>
+          {rows.map((row) => (
+            <div key={row.label}>
+              {row.label}: <strong>{row.value}</strong>
             </div>
-          )}
-          <div>Burland lớn nhất đã nhập: <strong>{formState.burlandSummary.localMaxGrade ?? '---'}</strong></div>
-          <div>Ý kiến chủ hộ đã nhập: <strong>{formState.ownerFeedback || '---'}</strong></div>
+          ))}
         </div>
       )}
     </section>
+  );
+};
+
+export const CondoAbsentExcludedDataPanel: React.FC<{ formState: CondoUnitFormState }> = ({ formState }) => {
+  const zones = formState.damageZones.filter((zone) => !zone.isDeleted);
+  return (
+    <AbsentExcludedDataPanel
+      rows={[
+        { label: 'Số vùng đã nhập', value: zones.length },
+        ...(zones.length > 0
+          ? [{ label: 'Khu vực', value: zones.map((zone) => zone.roomName || zone.zoneCode).join(', ') }]
+          : []),
+        { label: 'Burland lớn nhất đã nhập', value: formState.burlandSummary.localMaxGrade ?? '---' },
+        { label: 'Tên chủ hộ đã nhập', value: formState.ownerName || '---' },
+        { label: 'SĐT chủ hộ đã nhập', value: formState.ownerPhone || '---' },
+        ...(getMeaningfulOwnerFeedback(formState.ownerFeedback)
+          ? []
+          : [{ label: 'Ý kiến chủ hộ đã nhập', value: formState.ownerFeedback || '---' }]),
+      ]}
+    />
   );
 };

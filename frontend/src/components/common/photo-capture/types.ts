@@ -33,6 +33,7 @@ export interface PhotoCaptureProps {
   readOnly?: boolean;
   allowPdf?: boolean;
   pdfFloorName?: string;
+  confirmBeforeReplace?: () => boolean; // Hỏi trước khi thay ảnh đang có; trả false để giữ nguyên ảnh
 }
 
 export type UploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';

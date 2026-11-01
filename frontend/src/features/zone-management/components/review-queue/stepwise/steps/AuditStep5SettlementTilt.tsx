@@ -35,6 +35,7 @@ interface Props {
   stagedPhotoRotations?: Record<string, number>;
   onRotatePhoto?: (photoKey: string, newRotation: number, photoUrl?: string) => void;
   violationsMap?: Map<string, PhotoOrientationViolation>;
+  hideInteriorMeasures?: boolean;
 }
 
 export const isDataSourceMatched = (selectedSources: string[], target: string): boolean => {
@@ -67,6 +68,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   stagedPhotoRotations = {},
   onRotatePhoto,
   violationsMap,
+  hideInteriorMeasures = false,
 }) => {
   const st: StepwiseSettlementTilt = formState.settlementTilt || {};
   const tilt = st.buildingTilt || {};
@@ -151,7 +153,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc Mốc
             </h3>
             <p className="text-[11px] text-slate-500">
-              Đo đạc trắc địa độ nghiêng tổng thể 2 phương X/Y, độ chênh lún móng, độ võng dầm kết cấu và hệ thống mốc quan trắc
+              {hideInteriorMeasures
+                ? 'Quan sát lún chênh và nghiêng từ ngoài nhà, không có số đo bên trong'
+                : 'Đo đạc trắc địa độ nghiêng tổng thể 2 phương X/Y, độ chênh lún móng, độ võng dầm kết cấu và hệ thống mốc quan trắc'}
             </p>
           </div>
         </div>
@@ -734,6 +738,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           </div>
 
           {/* 3. Độ võng dầm / bản sàn */}
+          {!hideInteriorMeasures && (
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3.5">
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
@@ -1017,6 +1022,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               <strong className="text-purple-800 font-mono">max(Lún {lDiff}, Nghiêng {lTilt}, Võng {lSag}) = {calculatedE3}/4</strong>
             </div>
           </div>
+          )}
         </div>
 
         {/* 2.2. TRƯỜNG HỢP NGOẠI LỆ / HIỆN TRẠNG BẤT THƯỜNG KHÁC */}

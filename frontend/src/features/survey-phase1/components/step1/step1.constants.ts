@@ -71,6 +71,12 @@ export const DATA_SOURCES = [
   'Chủ nhà cung cấp',
 ];
 
+export const ABSENTEE_REASON_CODES: Record<string, string> = {
+  'Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)': 'HOMEOWNER_ABSENT',
+  'Chủ hộ đi làm, không có người lớn ở nhà': 'HOMEOWNER_ABSENT',
+  'Từ chối phối hợp khảo sát': 'REFUSED_ACCESS',
+};
+
 export const ABSENTEE_REASONS = [
   'Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)',
   'Chủ hộ đi làm, không có người lớn ở nhà',

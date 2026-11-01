@@ -3,7 +3,9 @@ import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import {
   isResidentStatus,
   isCondoUnitAbsenceReason,
+  isCondoUnitWitnessRole,
   CONDO_UNIT_ABSENCE_REASONS,
+  CONDO_UNIT_WITNESS_ROLES,
 } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -53,6 +55,7 @@ export const Step2_CondoUnitAbsentee: React.FC = () => {
     Boolean(formData.unitCode?.trim()) &&
     Boolean(formData.displayCode?.trim()) &&
     Boolean(absInfo.absenceReason) &&
+    Boolean(absInfo.witnessName?.trim()) &&
     (absInfo.absenceReason !== 'OTHER' || Boolean(absInfo.customReason?.trim() || absInfo.notes?.trim()));
 
   return (
@@ -298,6 +301,39 @@ export const Step2_CondoUnitAbsentee: React.FC = () => {
             value={absInfo.notes || ''}
             onChange={(e) => updateAbsenteeInfo({ notes: e.target.value })}
             className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-slate-50/50"
+          />
+        </div>
+
+        {/* Người chứng kiến tại hiện trường */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div id="input-witnessName">
+            <Input
+              label="Họ Tên Người Chứng Kiến *"
+              placeholder="VD: Nguyễn Văn B"
+              value={absInfo.witnessName || ''}
+              disabled={isReadOnly}
+              onChange={(e) => updateAbsenteeInfo({ witnessName: e.target.value })}
+            />
+          </div>
+          <Select
+            label="Vai Trò / Đơn Vị *"
+            value={absInfo.witnessRole || 'BUILDING_MANAGEMENT'}
+            disabled={isReadOnly}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (isCondoUnitWitnessRole(val)) {
+                updateAbsenteeInfo({ witnessRole: val });
+              }
+            }}
+            options={CONDO_UNIT_WITNESS_ROLES.map((r) => ({ value: r.value, label: r.label }))}
+          />
+          <Input
+            label="Số Điện Thoại Người Chứng Kiến"
+            type="tel"
+            placeholder="VD: 0901234567"
+            value={absInfo.witnessPhone || ''}
+            disabled={isReadOnly}
+            onChange={(e) => updateAbsenteeInfo({ witnessPhone: e.target.value })}
           />
         </div>
 

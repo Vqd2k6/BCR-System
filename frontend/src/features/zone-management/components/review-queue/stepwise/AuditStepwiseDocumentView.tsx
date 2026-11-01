@@ -25,6 +25,9 @@ import {
   type StudioCommittedPhotoInfo,
 } from './context/AuditStudioImgContext';
 import { AuditStudioImgModal } from './components/AuditStudioImgModal';
+import { AbsenceVerificationPanel } from './components/AbsenceVerificationPanel';
+import { AbsentExcludedDataPanel } from '../condo/core/CondoAbsentExcludedDataPanel';
+import { CondoPhotoCard } from '../condo/core/CondoPhotoCard';
 import { AuditStep1Identification } from './steps/AuditStep1Identification';
 import { AuditStep2OwnerInterview } from './steps/AuditStep2OwnerInterview';
 import { AuditStep3FloorDefects } from './steps/AuditStep3FloorDefects';
@@ -36,6 +39,9 @@ import { AuditStep8Conclusions } from './steps/AuditStep8Conclusions';
 import { AuditStep9SignaturesAbsence } from './steps/AuditStep9SignaturesAbsence';
 import type { DiffItem, AuditStepwiseData, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from './types';
 import type { FloorSurveyData } from '../../../../survey-phase1/types/phase1.types';
+
+// KSV nhà dân vắng dừng ở Bước 1: định danh, ngoại thất và lún nghiêng quan sát từ ngoài nhà
+const ABSENT_RESIDENTIAL_STEP_IDS = ['step-1', 'step-2', 'step-9'] as const;
 
 export interface AuditStepwiseDocumentViewProps {
   data: AuditStepwiseData | Record<string, unknown>;
@@ -52,6 +58,7 @@ export interface AuditStepwiseDocumentViewProps {
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }) => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
@@ -107,6 +114,10 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   onDiscardAllStagedPhotos,
   onOrientationAuditChange,
 }) => {
+  const sJson = ((data as Record<string, unknown>)?.surveyJson ||
+    (data as Record<string, unknown>)?.survey_data_json ||
+    {}) as Record<string, unknown>;
+
   const {
     isEditMode,
     setIsEditMode,
@@ -117,6 +128,9 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     formState,
     dirtyFields,
     dirtyCount,
+    isResidentialAbsent,
+    isAbsenceCaseChanged,
+    saveBlockReason,
     isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
@@ -136,6 +150,8 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     isStudioModalOpen,
     setIsStudioModalOpen,
   } = useAuditStudioImg();
+
+  const absenceEvidence = (data as AuditStepwiseData)?.absenceEvidence;
 
   // Floating modal state for orientation guidance & collapsible compact sidebar
   const [isOrientationPanelOpen, setIsOrientationPanelOpen] = React.useState(false);
@@ -201,7 +217,12 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     stagedPhotoRotations,
     setPhotoRotation,
     getPhotoRotation,
-  } = usePhotoOrientationAudit(data as Record<string, unknown>, formState, stagedPhotoActions);
+  } = usePhotoOrientationAudit(
+    data as Record<string, unknown>,
+    formState,
+    stagedPhotoActions,
+    isResidentialAbsent ? ABSENT_RESIDENTIAL_STEP_IDS : undefined
+  );
 
   // Đồng bộ góc xoay vào formState.photoRotations để làm tăng dirtyCount và lưu đầy đủ qua mọi nút Lưu Diff
   const handleRotatePhoto = React.useCallback(
@@ -270,7 +291,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
   React.useEffect(() => {
     if (!onDirtyChange) return;
     const { diffItems, updatesPayload } = getDiffPayload();
-    const sig = `${dirtyCount}-${dirtyFields.size}-${diffItems.length}`;
+    const sig = `${dirtyCount}-${dirtyFields.size}-${diffItems.length}-${saveBlockReason ?? ''}`;
     if (prevDirtySigRef.current === sig) return;
     prevDirtySigRef.current = sig;
 
@@ -280,10 +301,11 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
       updates: updatesPayload,
       discardAll: (silent = false) => handleDiscard(silent),
       discardDiffItem: (fieldKey: string) => discardDiffItem(fieldKey),
+      saveBlockReason,
     });
-  }, [dirtyCount, dirtyFields, onDirtyChange, getDiffPayload, handleDiscard, discardDiffItem]);
+  }, [dirtyCount, dirtyFields, onDirtyChange, getDiffPayload, handleDiscard, discardDiffItem, saveBlockReason]);
 
-  const stepsList = [
+  const allSteps = [
     { id: 'step-1', number: '01', title: 'Nhận Diện & Hiện Trạng Tổng Quan', icon: Home },
     { id: 'step-2', number: '02', title: 'Đo Biến Dạng & Lún Nghiêng', icon: Activity },
     { id: 'step-3', number: '03', title: 'Kết Cấu & Phỏng Vấn', icon: User },
@@ -293,6 +315,24 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     { id: 'step-7', number: '07', title: 'Bảng Điểm Kỹ Thuật ECS & VI', icon: Hash },
     { id: 'step-8', number: '08', title: 'Kết Luận & Đề Xuất Thẩm Định', icon: FileCheck2 },
     { id: 'step-9', number: '09', title: 'Biên Bản Hiện Trường Đã Ký', icon: PenTool },
+  ];
+  const stepsList = isResidentialAbsent
+    ? allSteps.filter((st) => (ABSENT_RESIDENTIAL_STEP_IDS as readonly string[]).includes(st.id))
+    : allSteps;
+
+  React.useEffect(() => {
+    if (isResidentialAbsent && !(ABSENT_RESIDENTIAL_STEP_IDS as readonly string[]).includes(activeNavStep)) {
+      scrollToStep('step-1');
+    }
+  }, [isResidentialAbsent, activeNavStep, scrollToStep]);
+
+  const absenceCaseReason = String((formState.absenceDecision as { reason?: string } | undefined)?.reason || '');
+  const originalEcs = (sJson.ecs || {}) as Record<string, unknown>;
+  const excludedDataRows = [
+    { label: 'Năm xây dựng', value: String(sJson.constructionYear ?? '---') },
+    { label: 'Hệ kết cấu', value: String(sJson.structureSystem ?? '---') },
+    { label: 'Cấp móng (CAT)', value: String(sJson.foundationCatScore ?? '---') },
+    { label: 'ECS đã lưu', value: `${String(originalEcs.totalEcs ?? '---')} (${String(originalEcs.ecsClass ?? '---')})` },
   ];
 
   const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
@@ -326,7 +366,6 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
 
     const warningFlags = (data as Record<string, unknown>)?.auditWarningFlags as Record<string, boolean> | undefined;
     if (warningFlags && !Array.isArray(warningFlags)) {
-      const sJson = (data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>;
       const isAddrStandardized = Boolean(formState.standardizedAddress || sJson.standardizedAddress);
       if ((warningFlags.hasAddressStandardizationNotice && !isAddrStandardized) || warningFlags.missingIdPhotos) {
         sSet.add('step-1');
@@ -340,7 +379,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     }
 
     return { stepWarningSet: sSet, subNavWarningSet: subSet };
-  }, [violations, data, formState.standardizedAddress]);
+  }, [violations, data, formState.standardizedAddress, sJson.standardizedAddress]);
 
   const totalPendingChanges = dirtyCount + (stagedPhotoActions?.length || 0);
 
@@ -348,7 +387,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     <div className="relative flex flex-col lg:flex-row gap-4 w-full min-h-[600px] min-w-0 max-w-full">
       {/* 1. Thanh điều hướng Jump-links bên trái (Thiết kế gọn gàng, có nút thu nhỏ & chấm tròn vàng cảnh báo) */}
       <AuditStudioSidebar
-        heading="9 Bước Khảo Sát"
+        heading={isResidentialAbsent ? 'Hồ Sơ Vắng Mặt' : '9 Bước Khảo Sát'}
         steps={stepsList.map((st) => ({ ...st, hasWarning: stepWarningSet.has(st.id) }))}
         activeStepId={activeNavStep}
         activeNavKey={activeSubNavId}
@@ -549,6 +588,39 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
 
       {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
       <div className="flex-1 space-y-6 min-w-0 max-w-full overflow-x-hidden">
+        {isEditMode && isAbsenceCaseChanged && (
+          <div className="p-4 rounded-xl border border-purple-300 bg-purple-50 space-y-2">
+            <div className="text-xs font-black text-purple-950">
+              {isResidentialAbsent ? 'Chuyển hồ sơ sang nhánh Vắng mặt' : 'Chuyển hồ sơ về nhánh Có mặt'} (chưa lưu)
+            </div>
+            <input
+              type="text"
+              value={absenceCaseReason}
+              onChange={(e) =>
+                handleFieldChange('absenceDecision', 'Lý do đổi loại hình vắng mặt', {
+                  decision: isResidentialAbsent ? 'ABSENT' : 'NOT_ABSENT',
+                  reason: e.target.value,
+                  decidedAt: new Date().toISOString(),
+                })
+              }
+              placeholder="Lý do đổi loại hình (tối thiểu 10 ký tự, bắt buộc)..."
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-purple-300 text-xs font-semibold text-slate-800"
+            />
+          </div>
+        )}
+
+        {isResidentialAbsent && (
+          <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-1">
+            <div className="text-sm font-black text-amber-950">CHƯA ĐÁNH GIÁ KỸ THUẬT (DO VẮNG CHỦ NHÀ)</div>
+            <p className="text-xs text-amber-900">
+              Lý do: <strong>{String(sJson.customAbsenteeReason || sJson.absenteeReason || absenceCaseReason || '---')}</strong>
+            </p>
+            <p className="text-xs text-amber-900">
+              Không có điểm ECS, VI, BRA. Không có khuyết tật trong hồ sơ không đồng nghĩa công trình không hư hại.
+            </p>
+          </div>
+        )}
+
         {/* Bước 01: Nhận Diện & Hiện Trạng Tổng Quan */}
         <AuditStep1Identification
           isEditMode={isEditMode}
@@ -584,8 +656,11 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
           stagedPhotoRotations={stagedPhotoRotations}
           onRotatePhoto={handleRotatePhoto}
           violationsMap={violationsMap}
+          hideInteriorMeasures={isResidentialAbsent}
         />
 
+        {!isResidentialAbsent && (
+          <>
         {/* Bước 03: Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ */}
         <AuditStep2OwnerInterview
           isEditMode={isEditMode}
@@ -669,6 +744,8 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
           handleFieldChange={handleFieldChange}
           isFieldDirty={isFieldDirty}
         />
+          </>
+        )}
 
         {/* Bước 09: Biên Bản Hiện Trường Đã Ký (Hình Chụp Biên Bản) */}
         <AuditStep9SignaturesAbsence
@@ -688,6 +765,39 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
           violationsMap={violationsMap}
           {...({ stagedPhotoActions, onUndoPhotoAction } as Record<string, unknown>)}
         />
+
+        {isResidentialAbsent && (
+          <section className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <h3 className="text-xs font-black uppercase text-slate-800">Thẩm Định Hồ Sơ Vắng Mặt</h3>
+            {absenceEvidence && absenceEvidence.photos.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {absenceEvidence.photos.map((url, idx) => (
+                  <CondoPhotoCard
+                    key={url}
+                    isEditMode={false}
+                    onOpenPhotoZoom={handlePhotoZoomOrStudioSelect}
+                    url={url}
+                    photoCode={`VC-${String(idx + 1).padStart(2, '0')}`}
+                    title={`Ảnh giấy hẹn / biên bản vắng ${idx + 1}`}
+                    category="ABSENTEE"
+                    targetPhotoType="ABSENTEE_MINUTES"
+                    badgeColor="slate"
+                  />
+                ))}
+              </div>
+            )}
+            <AbsenceVerificationPanel
+              reportId={reportId}
+              entityLabel={`thửa ${String(formState.projectParcelCode || '')}`}
+              missingEvidence={absenceEvidence?.missing ?? []}
+              isVerified={data?.status === 'APPROVED'}
+              isApproved={data?.status === 'APPROVED'}
+              hasUnsavedChanges={dirtyCount > 0}
+              onRefresh={onRefresh}
+            />
+            <AbsentExcludedDataPanel rows={excludedDataRows} />
+          </section>
+        )}
       </div>
 
       {/* Floating Pill khi đang nhấn giữ phím S */}

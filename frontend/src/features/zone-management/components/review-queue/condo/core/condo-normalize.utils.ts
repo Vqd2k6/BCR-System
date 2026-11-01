@@ -26,6 +26,21 @@ export function firstNonEmptyString(...values: unknown[]): string {
   return '';
 }
 
+/** KSV lưu số đo mặc định là 0, nên 0 tính là chưa có số đo. */
+export function isFilled(val: unknown): boolean {
+  return typeof val === 'number' ? val > 0 : firstNonEmptyString(val) !== '';
+}
+
+/** Ô phụ thuộc điều kiện vẫn phải hiện khi đang có dữ liệu, để không giấu chứng cứ đã ghi. */
+export function isInterviewNotesVisible(level: unknown, notes: unknown): boolean {
+  return Number(level) > 0 || isFilled(notes);
+}
+
+/** Thứ tự tự nhiên của mã Z/E/D: `Z-02` đứng trước `Z-10`. */
+export function compareCodes(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 export function toStringArray(val: unknown): string[] {
   if (!Array.isArray(val)) return [];
   return val

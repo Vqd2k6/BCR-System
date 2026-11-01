@@ -1,13 +1,13 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, DoorClosed, Droplets, Plus, Ruler, Trash2 } from 'lucide-react';
+import { AlertTriangle, DoorClosed, Droplets, Ruler } from 'lucide-react';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
-import { toNumberOrNull } from '../../core/condo-normalize.utils';
+import { isFilled, toNumberOrNull } from '../../core/condo-normalize.utils';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
+import { isBeamDetailVisible, isSettlementNotesVisible } from '../condo-unit.adapters';
 import type {
   CondoAuditStepProps,
   CondoUnitFormState,
-  CondoUnitLeakageItem,
 } from '../../types/condo-audit.types';
 
 const SAG_LEVEL_LABELS = [
@@ -31,13 +31,6 @@ const DOOR_STATUS_OPTIONS = [
   { value: 'CRACKED_GLASS', label: 'Nứt kính cửa' },
 ];
 
-const NoFinding: React.FC<{ text: string }> = ({ text }) => (
-  <div className="flex items-center gap-2 text-xs text-emerald-700">
-    <CheckCircle2 className="w-4 h-4 shrink-0" />
-    <span>{text}</span>
-  </div>
-);
-
 export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormState>> = ({
   isEditMode,
   formState,
@@ -48,72 +41,50 @@ export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormSt
 }) => {
   const { doorJamming, waterLeakageFromUpperFloor: leakage, beamSagging: beam } = formState;
 
-  const changeLeakageItems = (items: CondoUnitLeakageItem[], label: string) =>
-    handleFieldChange('waterLeakageFromUpperFloor', label, { hasLeakage: items.length > 0, items });
+  // KSV nay ghi kẹt cửa, thấm dột bằng D trong Z/E; 2 khối này chỉ còn để đọc chứng cứ của hồ sơ cũ
+  const hasLegacyDoorJam = doorJamming.hasJamming;
+  const hasLegacyLeakage = leakage.hasLeakage || leakage.items.length > 0;
+  const deformationSectionNumber = 1 + Number(hasLegacyDoorJam) + Number(hasLegacyLeakage);
 
-  const updateLeakageItem = (itemId: string, patch: Partial<CondoUnitLeakageItem>, label: string) =>
-    changeLeakageItems(
-      leakage.items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)),
-      label
-    );
-
-  const addLeakageItem = () => {
-    const nextIdx = leakage.items.length + 1;
-    changeLeakageItems(
-      [
-        ...leakage.items,
-        {
-          id: `leakage_${Date.now()}_${nextIdx}`,
-          leakageCode: `WL-${String(nextIdx).padStart(2, '0')}`,
-          location: '',
-          description: '',
-          suspectedUpperUnitCode: '',
-          ctxPhotoUrl: '',
-          cuPhotoUrl: '',
-        },
-      ],
-      `Thêm vị trí thấm WL-${String(nextIdx).padStart(2, '0')}`
-    );
+  // Báo cáo coi sagMm > 0 là có võng, nên về Mức 0 phải xóa số đo chứ không chỉ ẩn ô; ảnh SAG-01 giữ lại
+  const clearBeamDetails = () => {
+    if (isFilled(beam.sagMm)) handleNestedFieldChange('beamSagging', 'sagMm', 'Độ võng dầm/sàn (mm)', null);
+    if (isFilled(beam.spanM)) handleNestedFieldChange('beamSagging', 'spanM', 'Nhịp dầm/sàn (m)', null);
+    if (isFilled(beam.ratioText)) handleNestedFieldChange('beamSagging', 'ratioText', 'Tỉ số võng f/L', '');
+    if (isFilled(beam.position)) handleNestedFieldChange('beamSagging', 'position', 'Vị trí dầm/sàn võng', '');
+    if (isFilled(beam.notes)) handleNestedFieldChange('beamSagging', 'notes', 'Ghi chú võng dầm/sàn', '');
   };
 
   return (
     <>
-      <AuditSubsection icon={DoorClosed} title="2.1. Kẹt Cửa, Biến Dạng Khung Cửa">
-        {isEditMode || doorJamming.hasJamming ? (
+      {hasLegacyDoorJam && (
+      <AuditSubsection icon={DoorClosed} title="2.1. Kẹt Cửa, Biến Dạng Khung Cửa" hint="Dữ liệu cũ, chỉ đọc">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <AuditField
               label="Hiện trạng"
               type="select"
               value={doorJamming.status}
               options={withCurrentOption(DOOR_STATUS_OPTIONS, doorJamming.status)}
-              isEditMode={isEditMode}
-              isDirty={isFieldDirty('doorJamming', 'status')}
-              onChange={(val) => handleNestedFieldChange('doorJamming', 'status', 'Hiện trạng kẹt cửa', val)}
+              isEditMode={false}
             />
             <AuditField
               label="Vị trí"
               value={doorJamming.locations}
-              isEditMode={isEditMode}
-              isDirty={isFieldDirty('doorJamming', 'locations')}
-              onChange={(val) => handleNestedFieldChange('doorJamming', 'locations', 'Vị trí cửa bị kẹt', val)}
+              isEditMode={false}
             />
             <AuditField
               label="Ghi chú"
               value={doorJamming.notes}
-              isEditMode={isEditMode}
-              isDirty={isFieldDirty('doorJamming', 'notes')}
-              onChange={(val) => handleNestedFieldChange('doorJamming', 'notes', 'Ghi chú kẹt cửa', val)}
+              isEditMode={false}
             />
           </div>
-        ) : (
-          <NoFinding text={doorJamming.statusLabel ? `Khảo sát ghi nhận: ${doorJamming.statusLabel}` : 'Khảo sát không ghi nhận kẹt cửa.'} />
-        )}
       </AuditSubsection>
-
+      )}
+      {hasLegacyLeakage && (
       <AuditSubsection
         icon={Droplets}
-        title="2.2. Thấm Nước Từ Sàn Tầng Trên"
-        hint={leakage.hasLeakage ? `${leakage.items.length} vị trí` : undefined}
+        title={`2.${hasLegacyDoorJam ? 2 : 1}. Thấm Nước Từ Sàn Tầng Trên`}
+        hint={`Dữ liệu cũ, chỉ đọc • ${leakage.items.length} vị trí`}
       >
         {leakage.items.length > 0 ? (
           <div className="space-y-3">
@@ -127,37 +98,19 @@ export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormSt
                     <AuditField
                       label="Vị trí"
                       value={item.location}
-                      isEditMode={isEditMode}
-                      onChange={(val) => updateLeakageItem(item.id, { location: val }, `Vị trí thấm ${code}`)}
+                      isEditMode={false}
                     />
                     <AuditField
                       label="Mô tả"
                       value={item.description}
-                      isEditMode={isEditMode}
-                      onChange={(val) => updateLeakageItem(item.id, { description: val }, `Mô tả thấm ${code}`)}
+                      isEditMode={false}
                     />
                     <AuditField
                       label="Căn tầng trên nghi ngờ"
                       value={item.suspectedUpperUnitCode}
                       mono
-                      isEditMode={isEditMode}
-                      onChange={(val) => updateLeakageItem(item.id, { suspectedUpperUnitCode: val }, `Căn tầng trên nghi ngờ ${code}`)}
+                      isEditMode={false}
                     />
-                    {isEditMode && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          changeLeakageItems(
-                            leakage.items.filter((other) => other.id !== item.id),
-                            `Xóa vị trí thấm ${code}`
-                          )
-                        }
-                        className="justify-self-start px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Xóa vị trí</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -165,22 +118,10 @@ export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormSt
           </div>
         ) : leakage.hasLeakage ? (
           <div className="text-xs font-semibold text-amber-800">Khảo sát đánh dấu có thấm nhưng chưa có chi tiết vị trí.</div>
-        ) : (
-          <NoFinding text="Khảo sát không ghi nhận thấm nước từ tầng trên." />
-        )}
-        {isEditMode && (
-          <button
-            type="button"
-            onClick={addLeakageItem}
-            className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Thêm vị trí thấm</span>
-          </button>
-        )}
+        ) : null}
       </AuditSubsection>
-
-      <AuditSubsection icon={Ruler} title="2.3. Độ Võng Dầm / Sàn & Lún Quan Sát">
+      )}
+      <AuditSubsection icon={Ruler} title={`2.${deformationSectionNumber}. Độ Võng Dầm / Sàn & Lún Quan Sát`} hint="Phiếu KSV: Bước 3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <AuditField
             label="Cấp độ võng"
@@ -193,51 +134,56 @@ export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormSt
               const level = toNumberOrNull(val);
               handleNestedFieldChange('beamSagging', 'level', 'Cấp độ võng dầm/sàn', level);
               handleNestedFieldChange('beamSagging', 'hasSagging', 'Hiện tượng võng dầm/sàn', Number(level) > 0);
+              if (!level) clearBeamDetails();
             }}
           />
-          <AuditField
-            label="Độ võng đo được"
-            type="number"
-            unit="mm"
-            mono
-            value={beam.sagMm}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('beamSagging', 'sagMm')}
-            onChange={(val) => handleNestedFieldChange('beamSagging', 'sagMm', 'Độ võng dầm/sàn (mm)', toNumberOrNull(val))}
-          />
-          <AuditField
-            label="Nhịp dầm / sàn"
-            type="number"
-            unit="m"
-            mono
-            value={beam.spanM}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('beamSagging', 'spanM')}
-            onChange={(val) => handleNestedFieldChange('beamSagging', 'spanM', 'Nhịp dầm/sàn (m)', toNumberOrNull(val))}
-          />
-          <AuditField
-            label="Tỉ số f/L"
-            mono
-            value={beam.ratioText}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('beamSagging', 'ratioText')}
-            onChange={(val) => handleNestedFieldChange('beamSagging', 'ratioText', 'Tỉ số võng f/L', val)}
-          />
-          <AuditField
-            label="Vị trí dầm / sàn"
-            value={beam.position}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('beamSagging', 'position')}
-            onChange={(val) => handleNestedFieldChange('beamSagging', 'position', 'Vị trí dầm/sàn võng', val)}
-          />
-          <AuditField
-            label="Ghi chú kỹ thuật"
-            className="md:col-span-2"
-            value={beam.notes}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('beamSagging', 'notes')}
-            onChange={(val) => handleNestedFieldChange('beamSagging', 'notes', 'Ghi chú võng dầm/sàn', val)}
-          />
+          {isBeamDetailVisible(beam) && (
+            <>
+              <AuditField
+                label="Độ võng đo được"
+                type="number"
+                unit="mm"
+                mono
+                value={beam.sagMm}
+                isEditMode={isEditMode}
+                isDirty={isFieldDirty('beamSagging', 'sagMm')}
+                onChange={(val) => handleNestedFieldChange('beamSagging', 'sagMm', 'Độ võng dầm/sàn (mm)', toNumberOrNull(val))}
+              />
+              <AuditField
+                label="Nhịp dầm / sàn"
+                type="number"
+                unit="m"
+                mono
+                value={beam.spanM}
+                isEditMode={isEditMode}
+                isDirty={isFieldDirty('beamSagging', 'spanM')}
+                onChange={(val) => handleNestedFieldChange('beamSagging', 'spanM', 'Nhịp dầm/sàn (m)', toNumberOrNull(val))}
+              />
+              <AuditField
+                label="Tỉ số f/L"
+                mono
+                value={beam.ratioText}
+                isEditMode={isEditMode}
+                isDirty={isFieldDirty('beamSagging', 'ratioText')}
+                onChange={(val) => handleNestedFieldChange('beamSagging', 'ratioText', 'Tỉ số võng f/L', val)}
+              />
+              <AuditField
+                label="Vị trí dầm / sàn"
+                value={beam.position}
+                isEditMode={isEditMode}
+                isDirty={isFieldDirty('beamSagging', 'position')}
+                onChange={(val) => handleNestedFieldChange('beamSagging', 'position', 'Vị trí dầm/sàn võng', val)}
+              />
+              <AuditField
+                label="Ghi chú kỹ thuật"
+                className="md:col-span-2"
+                value={beam.notes}
+                isEditMode={isEditMode}
+                isDirty={isFieldDirty('beamSagging', 'notes')}
+                onChange={(val) => handleNestedFieldChange('beamSagging', 'notes', 'Ghi chú võng dầm/sàn', val)}
+              />
+            </>
+          )}
           <AuditField
             label="Lún quan sát trong căn"
             type="select"
@@ -245,16 +191,23 @@ export const UnitStep02Deformation: React.FC<CondoAuditStepProps<CondoUnitFormSt
             options={withCurrentOption(SETTLEMENT_OPTIONS, formState.settlementObserved)}
             isEditMode={isEditMode}
             isDirty={isFieldDirty('settlementObserved')}
-            onChange={(val) => handleFieldChange('settlementObserved', 'Lún quan sát trong căn', val)}
+            onChange={(val) => {
+              handleFieldChange('settlementObserved', 'Lún quan sát trong căn', val);
+              if (val === 'NONE' && isFilled(formState.settlementNotes)) {
+                handleFieldChange('settlementNotes', 'Ghi chú lún quan sát', '');
+              }
+            }}
           />
-          <AuditField
-            label="Ghi chú lún"
-            className="md:col-span-2"
-            value={formState.settlementNotes}
-            isEditMode={isEditMode}
-            isDirty={isFieldDirty('settlementNotes')}
-            onChange={(val) => handleFieldChange('settlementNotes', 'Ghi chú lún quan sát', val)}
-          />
+          {isSettlementNotesVisible(formState.settlementObserved, formState.settlementNotes) && (
+            <AuditField
+              label="Ghi chú lún"
+              className="md:col-span-2"
+              value={formState.settlementNotes}
+              isEditMode={isEditMode}
+              isDirty={isFieldDirty('settlementNotes')}
+              onChange={(val) => handleFieldChange('settlementNotes', 'Ghi chú lún quan sát', val)}
+            />
+          )}
         </div>
 
         {beam.photoUrl && (

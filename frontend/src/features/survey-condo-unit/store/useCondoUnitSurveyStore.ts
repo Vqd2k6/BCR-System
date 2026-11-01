@@ -21,6 +21,7 @@ import { getErrorMessage } from '@/utils/errorUtils';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { isCadastralOwnerPlaceholder, resolveOwnerName } from '../../survey-phase1/utils/stepValidator';
+import { DEFAULT_CONDO_OWNER_FEEDBACK } from '../utils/condoOwnerFeedback';
 
 interface CondoUnitSurveyStore {
   currentStep: number;
@@ -569,7 +570,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   settlementNotes: '',
   surveyorSignature: '',
   ownerSignature: '',
-  ownerFeedback: 'Đồng ý với hiện trạng ghi nhận tại căn hộ',
+  ownerFeedback: DEFAULT_CONDO_OWNER_FEEDBACK,
   surveyDate: new Date().toLocaleDateString('vi-VN'),
   workingMinutesPhotos: [],
 

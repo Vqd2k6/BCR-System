@@ -11,6 +11,7 @@ export const RejectReportDto = z.object({
 export const RevertReportToDraftDto = z.object({
   unitId: z.string().optional().nullable(),
   reason: z.string().optional(),
+  reopenAbsentSurvey: z.boolean().optional(),
 });
 
 export const BatchApproveUnitsDto = z.object({

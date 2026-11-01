@@ -41,6 +41,31 @@ export const CONDO_UNIT_ABSENT_CONCLUSION: BilingualText = {
   en: 'The unit could not be accessed at the time of survey. Its interior condition was not assessed and no ECS, VI or BRA score applies.',
 };
 
+export const RESIDENTIAL_ABSENT_ACCESS_AREAS = [
+  {
+    area: { vi: 'Ngoại thất / Mặt tiền công trình', en: 'Exterior / Facade' },
+    accessed: true,
+    notAccessed: false,
+    remark: { vi: 'Quan sát từ ngoài nhà', en: 'Observed from outside' },
+  },
+  {
+    area: { vi: 'Bên trong công trình', en: 'Building interior' },
+    accessed: false,
+    notAccessed: true,
+    remark: { vi: 'Không tiếp cận được', en: 'Not accessible' },
+  },
+];
+
+export const RESIDENTIAL_ABSENT_ACCESS_CLASSIFICATION: BilingualText = {
+  vi: 'Không tiếp cận được bên trong công trình',
+  en: 'Building interior not accessible',
+};
+
+export const RESIDENTIAL_ABSENT_CONCLUSION: BilingualText = {
+  vi: 'Không tiếp cận được bên trong công trình tại thời điểm khảo sát. Hồ sơ chỉ ghi nhận ngoại thất, không đánh giá hiện trạng bên trong và không có điểm ECS, VI, BRA.',
+  en: 'The building interior could not be accessed at the time of survey. Only the exterior was recorded; interior condition was not assessed and no ECS, VI or BRA score applies.',
+};
+
 function text(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
 }
@@ -51,6 +76,14 @@ function formatDate(val: unknown): string {
   return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleDateString('vi-VN') : raw;
 }
 
+function describeExteriorObservation(item: unknown): string {
+  const record = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+  const notes = text(record.notes);
+  const level = Number(record.level);
+  const levelText = Number.isFinite(level) ? `Mức ${level}/4 theo quan sát ngoài nhà` : '';
+  return [levelText, notes].filter(Boolean).join(' - ');
+}
+
 /** Chỉ trình bày phần luồng vắng thu thập được; trường không có thì để trống, mẫu in tự hiện `---`. */
 export function mapCondoUnitAbsentReport(rawReport: any, json: any): CondoUnitAbsentReport | null {
   if (!rawReport.condoUnitAbsent) return null;
@@ -59,7 +92,11 @@ export function mapCondoUnitAbsentReport(rawReport: any, json: any): CondoUnitAb
   const logs: any[] = Array.isArray(rawReport.absenceLogs) ? rawReport.absenceLogs : [];
   const latestLog = logs[0] ?? {};
 
-  const reasonCode = text(info.absenceReason) || text(json.absenteeReason) || text(latestLog.absence_reason);
+  const isResidential = rawReport.residentialAbsent === true;
+  const signatures = json.signatures && typeof json.signatures === 'object' ? json.signatures : {};
+  const settlement = json.settlementTilt && typeof json.settlementTilt === 'object' ? json.settlementTilt : {};
+  const reasonCode =
+    text(info.absenceReason) || text(json.customAbsenteeReason) || text(json.absenteeReason) || text(latestLog.absence_reason);
   const reason =
     reasonCode === 'OTHER'
       ? text(info.customReason) || text(info.notes)
@@ -67,10 +104,22 @@ export function mapCondoUnitAbsentReport(rawReport: any, json: any): CondoUnitAb
   const witnessRole = text(info.witnessRole) || text(latestLog.witness_role);
 
   return {
+    isResidential,
+    entityNoun: isResidential ? { vi: 'công trình', en: 'building' } : { vi: 'căn hộ', en: 'unit' },
+    exteriorObservations: isResidential
+      ? [
+          { label: 'Lún chênh quan sát ngoài nhà / Differential settlement', value: describeExteriorObservation(settlement.diffSettlement) },
+          { label: 'Nghiêng quan sát ngoài nhà / Building tilt', value: describeExteriorObservation(settlement.buildingTilt) },
+        ]
+      : [],
     reason,
     notes: text(info.notes) || text(latestLog.notes),
     attemptCount: Math.max(Number(info.attemptCount) || 0, Number(latestLog.attempt_count) || 0, logs.length) || null,
-    witnessName: text(info.witnessName) || text(latestLog.witness_name),
+    witnessName:
+      text(info.witnessName) ||
+      text(latestLog.witness_name) ||
+      text(signatures.witnessName) ||
+      text(signatures.localAuthority?.fullName),
     witnessRole: WITNESS_ROLE_LABELS[witnessRole] || witnessRole,
     witnessPhone: text(info.witnessPhone) || text(latestLog.witness_phone),
     noticeDelivered: Boolean(info.noticeDelivered ?? latestLog.notice_delivered),

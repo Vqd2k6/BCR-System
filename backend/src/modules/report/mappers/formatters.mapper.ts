@@ -93,3 +93,24 @@ export function extractPhotoDateTime(photoUrl?: string, itemShotAt?: any, fallba
   return formatWatermarkDateTime(fallbackDate) || '';
 }
 
+/**
+ * Chuẩn hóa họ tên người tiếng Việt:
+ * 1. Bỏ khoảng trắng và dấu thừa ở cuối tên.
+ * 2. Viết hoa chữ cái đầu của các từ đang gõ thường.
+ * Ví dụ: "Võ hữu thuận." -> "Võ Hữu Thuận"
+ *        "nguyễn thị thu thảo" -> "Nguyễn Thị Thu Thảo"
+ */
+export function formatPersonName(name: string | null | undefined): string {
+  if (!name || typeof name !== 'string') return '';
+  // Chỉ bỏ dấu thừa cuối tên và viết hoa từ gõ thường: `KS.`, `UBND`, `A. Hùng/ B` là nội dung của tên, phải giữ nguyên
+  const cleaned = name.replace(/\s+/g, ' ').trim().replace(/[\s.,;:_|*#$@!?-]+$/, '');
+  if (!cleaned) return '';
+  return cleaned
+    .split(' ')
+    .map((word) =>
+      word === word.toLocaleLowerCase('vi-VN') ? word.charAt(0).toLocaleUpperCase('vi-VN') + word.slice(1) : word
+    )
+    .join(' ');
+}
+
+

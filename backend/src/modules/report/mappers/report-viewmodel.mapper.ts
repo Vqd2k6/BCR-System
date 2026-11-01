@@ -24,6 +24,9 @@ import {
   CONDO_UNIT_ABSENT_ACCESS_CLASSIFICATION,
   CONDO_UNIT_ABSENT_CONCLUSION,
   mapCondoUnitAbsentReport,
+  RESIDENTIAL_ABSENT_ACCESS_AREAS,
+  RESIDENTIAL_ABSENT_ACCESS_CLASSIFICATION,
+  RESIDENTIAL_ABSENT_CONCLUSION,
 } from './sections/condo-unit-absent.mapper';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
 
@@ -239,10 +242,16 @@ export class ReportViewModelMapper {
 
     const condoUnitAbsent = mapCondoUnitAbsentReport(rawReport, json);
     if (condoUnitAbsent) {
-      section2.floorAreaDisplay = { vi: 'Chưa đo đạc (không tiếp cận được căn hộ)', en: 'Not measured (unit not accessible)' };
-      section9.conclusions = [CONDO_UNIT_ABSENT_CONCLUSION];
-      section9.accessAreas = CONDO_UNIT_ABSENT_ACCESS_AREAS;
-      section9.accessClassification = CONDO_UNIT_ABSENT_ACCESS_CLASSIFICATION;
+      section2.floorAreaDisplay = {
+        vi: `Chưa đo đạc (không tiếp cận được ${condoUnitAbsent.entityNoun.vi})`,
+        en: `Not measured (${condoUnitAbsent.entityNoun.en} not accessible)`,
+      };
+      const { isResidential } = condoUnitAbsent;
+      section9.conclusions = [isResidential ? RESIDENTIAL_ABSENT_CONCLUSION : CONDO_UNIT_ABSENT_CONCLUSION];
+      section9.accessAreas = isResidential ? RESIDENTIAL_ABSENT_ACCESS_AREAS : CONDO_UNIT_ABSENT_ACCESS_AREAS;
+      section9.accessClassification = isResidential
+        ? RESIDENTIAL_ABSENT_ACCESS_CLASSIFICATION
+        : CONDO_UNIT_ABSENT_ACCESS_CLASSIFICATION;
       section9.limitations = [];
       section9.recommendations = [];
       section9.pendingFieldDesignItems = [];

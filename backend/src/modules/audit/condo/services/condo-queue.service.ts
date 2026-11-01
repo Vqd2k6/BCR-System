@@ -3,8 +3,15 @@ import { NotFoundError } from '../../../../common/errors/problem-details';
 import { CondoFloorMatrixRow } from '../condo-audit.types';
 import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
 import { CONDO_AREA_UNIT_SQL, isCondoAreaUnit } from '../condo-entity-classifier';
-import { fetchParentMasterSummary } from '../strategies/condo-entity-strategy.interface';
+import {
+  fetchParentMasterSummary,
+  readCondoElementsFromJson,
+  readCondoZonesFromJson,
+} from '../strategies/condo-entity-strategy.interface';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
+
+const WATER_DEFECT_TYPES = ['Thấm nước', 'Dột nước', 'Rò rỉ nước tràn'];
+const DOOR_SCREENING_CATEGORY = 'Kẹt cửa / Cong vênh phụ kiện';
 
 export class CondoQueueService {
   /**
@@ -94,12 +101,18 @@ export class CondoQueueService {
     }
 
     if (entityKind === 'CONDO_UNIT') {
+      // KSV ghi kẹt cửa, thấm dột bằng D; ẩm mốc bề mặt không phải dấu hiệu nước từ tầng trên
+      const activeDefects = [...readCondoZonesFromJson(surveyJson), ...readCondoElementsFromJson(surveyJson)]
+        .filter((item) => !item.isDeleted && !item.is_deleted)
+        .flatMap((item) => (Array.isArray(item.defects) ? (item.defects as Array<Record<string, unknown>>) : []))
+        .filter((defect) => !defect.isDeleted && !defect.is_deleted);
       const auditLeak = surveyJson.waterLeakageFromUpperFloor as Record<string, unknown> | undefined;
       const surveyLeak = surveyJson.upperFloorWaterLeakage as Record<string, unknown> | undefined;
       const hasWaterLeak =
         Boolean(auditLeak?.hasLeakage) ||
         Boolean(surveyLeak?.has) ||
-        (Array.isArray(surveyLeak?.leakageItems) && surveyLeak.leakageItems.length > 0);
+        (Array.isArray(surveyLeak?.leakageItems) && surveyLeak.leakageItems.length > 0) ||
+        activeDefects.some((defect) => WATER_DEFECT_TYPES.includes(String(defect.defectType)));
       if (hasWaterLeak) {
         existingWarnings.push({
           code: 'UPPER_FLOOR_WATER_LEAKAGE',
@@ -113,7 +126,8 @@ export class CondoQueueService {
       const surveyDoorJam = surveyJson.doorJammingStatus;
       const hasDoorJam =
         Boolean(auditDoorJam?.hasJamming) ||
-        (typeof surveyDoorJam === 'string' && surveyDoorJam !== '' && surveyDoorJam !== 'NORMAL');
+        (typeof surveyDoorJam === 'string' && surveyDoorJam !== '' && surveyDoorJam !== 'NORMAL') ||
+        activeDefects.some((defect) => defect.screeningCategory === DOOR_SCREENING_CATEGORY);
       if (hasDoorJam) {
         existingWarnings.push({
           code: 'DOOR_JAMMING_STRUCTURAL',

@@ -1,7 +1,7 @@
 import type { AuditStepwiseData } from '../../stepwise/types';
 import { calcBurlandGradeFromWidthFrontend } from '../core/condo-zone.mappers';
 import { toRecord } from '../core/condo-normalize.utils';
-import { splitCondoZonesAndElements } from '../core/condo-zone.mappers';
+import { resolveRawCondoElements, splitCondoZonesAndElements } from '../core/condo-zone.mappers';
 import type { CondoAreaFormState } from '../types/condo-audit.types';
 
 export function normalizeCondoAreaData(data: AuditStepwiseData): CondoAreaFormState {
@@ -31,9 +31,7 @@ export function normalizeCondoAreaData(data: AuditStepwiseData): CondoAreaFormSt
     Array.isArray(leftPane.damageZones) && leftPane.damageZones.length > 0
       ? leftPane.damageZones
       : sJson.damageZones ?? sJson.zones,
-    Array.isArray(leftPane.structuralElements) && leftPane.structuralElements.length > 0
-      ? leftPane.structuralElements
-      : sJson.structuralElements,
+    resolveRawCondoElements(leftPane.structuralElements, sJson),
     `Tầng ${floorNum}`
   );
 

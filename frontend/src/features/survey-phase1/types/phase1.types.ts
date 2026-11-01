@@ -354,6 +354,8 @@ export interface Phase1SurveyFormData {
     restrictedFloorLevels: string[];
     mainReason: string;
     notes: string;
+    customRestrictedAreas?: string[];
+    /** Chỉ còn để đọc bản nháp cũ, không ghi mới. */
     customRestrictedArea?: string;
   };
   gisMutationConfirmed: {

@@ -123,6 +123,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
     discardDiffItem?: (fieldKey: string) => void;
+    saveBlockReason?: string | null;
   }>({
     dirtyCount: 0,
     diffItems: [],
@@ -528,7 +529,7 @@ export const AuditStudioModal: React.FC<Props> = ({
       ['BUILDING_MASTER', 'CONDO_MASTER', 'MASTER_AREA'].includes(reportTypeForOwnerCheck) ||
       data?.unitInfo?.unit_type === 'MASTER'
   );
-  const isAbsentCondoUnit = resolveCondoAbsenceView(data).state === 'ABSENT';
+  const isAbsentReport = resolveCondoAbsenceView(data).state === 'ABSENT' || data?.isResidentialAbsent === true;
   const isMissingRealOwnerName = Boolean(
     data &&
       !isSpecialOrMasterForOwnerCheck &&
@@ -579,6 +580,10 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   const handleSaveDiffFirst = () => {
     setShowUnsavedChangesWarning(false);
+    if (pendingDirtyData.saveBlockReason) {
+      window.alert(pendingDirtyData.saveBlockReason);
+      return;
+    }
     const hasRotations = Object.keys(orientationAudit.stagedPhotoRotations).length > 0;
     const surveyJsonObj = ((data?.survey_data_json || data || {}) as Record<string, unknown>);
     const existingPhotoRotations = (surveyJsonObj.photoRotations || {}) as Record<string, number>;
@@ -743,7 +748,7 @@ export const AuditStudioModal: React.FC<Props> = ({
             )}
 
             {/* Nút Phê Duyệt Hồ Sơ (Approve) trên Header: căn vắng chỉ đi qua luồng Xác Thực Hồ Sơ Vắng Chủ */}
-            {!(isAbsentCondoUnit && data?.status !== 'APPROVED') && (
+            {!(isAbsentReport && data?.status !== 'APPROVED') && (
             <button
               type="button"
               disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0 || isMissingRealOwnerName}

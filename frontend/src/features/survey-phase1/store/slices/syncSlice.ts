@@ -2,6 +2,7 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import type { StateCreator } from 'zustand';
 import type { Phase1SurveyStore, SyncSlice } from '../types';
 import { surveyDraftService } from '../../services/surveyDraftService';
+import type { DraftResponseData } from '../../services/surveyDraftService';
 import { sanitizeSurveyDataForSync, uploadQueue } from '../../../../core/services/uploadQueueService';
 import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
@@ -11,6 +12,54 @@ import { saveUploadedPhotoMapping, healLocalPhotoUris, findUnsyncedPhotoPaths } 
 
 // Lần gọi đến khi đang tìm phải chờ kết quả, nếu thoát sớm "Tải lại" sẽ báo không tìm thấy dù chưa tìm xong
 let recoveryInFlight: Promise<void> | null = null;
+
+// Nạp bản nháp trên server vào form khi người dùng trở thành chủ phiên (tiếp quản hoặc admin mở khóa chỉnh sửa)
+const applyServerDraft = (
+  set: Parameters<StateCreator<Phase1SurveyStore, [], [], SyncSlice>>[0],
+  get: () => Phase1SurveyStore,
+  draft: NonNullable<DraftResponseData['draft']>,
+  photoMappings?: Record<string, string>
+) => {
+  const { formData, currentUnitId } = get();
+  const serverData = draft.surveyData;
+  const targetStep = draft.currentStep >= 1 && draft.currentStep <= 8 ? draft.currentStep : 1;
+
+  // Lưu toàn bộ photoMappings từ server vào persistent mapping của thiết bị mới
+  const incomingMappings: Record<string, string> = {
+    ...(photoMappings || {}),
+    ...(((serverData as Record<string, unknown>)?._photoMappings as Record<string, string>) || {}),
+  };
+  for (const [localId, publicUrl] of Object.entries(incomingMappings)) {
+    if (localId && publicUrl) {
+      saveUploadedPhotoMapping(localId, publicUrl);
+    }
+  }
+
+  set((state) => {
+    const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
+    const recalculatedEcs = calculateEcsScore(merged);
+    const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+    merged.ecs = recalculatedEcs;
+    merged.vi = recalculatedVi;
+
+    return {
+      formData: merged,
+      currentStep: targetStep,
+      syncVersion: draft.syncVersion,
+      syncStatus: 'SAVED',
+      lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
+      isHandoverModalOpen: false,
+      handoverInfo: null,
+      unsyncedRemotePhotos: null,
+      isDirty: false,
+      hasServerHydrated: true,
+    };
+  });
+
+  const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
+  saveSurveyDraft(draftKey, { ...serverData, _savedStep: targetStep });
+  void get().recoverUnsyncedPhotos();
+};
 
 export const createSyncSlice: StateCreator<
   Phase1SurveyStore,
@@ -150,50 +199,60 @@ export const createSyncSlice: StateCreator<
       });
 
       if (res && res.draft) {
-        const serverData = res.draft.surveyData;
-        const targetStep = res.draft.currentStep >= 1 && res.draft.currentStep <= 8 ? res.draft.currentStep : 1;
-
-        // Lưu toàn bộ photoMappings từ server vào persistent mapping của thiết bị mới
-        const incomingMappings: Record<string, string> = {
-          ...(res.photoMappings || {}),
-          ...((serverData?._photoMappings as Record<string, string>) || {}),
-        };
-        for (const [localId, publicUrl] of Object.entries(incomingMappings)) {
-          if (localId && publicUrl) {
-            saveUploadedPhotoMapping(localId, publicUrl);
-          }
-        }
-
-        set((state) => {
-          const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
-          const recalculatedEcs = calculateEcsScore(merged);
-          const recalculatedVi = calculateViScore(merged, recalculatedEcs);
-          merged.ecs = recalculatedEcs;
-          merged.vi = recalculatedVi;
-
-          return {
-            formData: merged,
-            currentStep: targetStep,
-            syncVersion: res.draft.syncVersion,
-            syncStatus: 'SAVED',
-            lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
-            isHandoverModalOpen: false,
-            handoverInfo: null,
-            unsyncedRemotePhotos: null,
-            isDirty: false,
-            hasServerHydrated: true,
-          };
-        });
-
-        const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
-        saveSurveyDraft(draftKey, { ...serverData, _savedStep: targetStep });
-        void get().recoverUnsyncedPhotos();
+        applyServerDraft(set, get, res.draft, res.photoMappings);
         return true;
       }
       return false;
     } catch (err: unknown) {
       console.error('[SurveyPhase1Store] Takeover failed:', err);
       throw err;
+    }
+  },
+
+  requestEditUnlock: async () => {
+    const { formData, currentUnitId } = get();
+    if (!formData.parcelId) return false;
+
+    try {
+      const serverRes = await surveyDraftService.fetchDraft(formData.parcelId, currentUnitId);
+
+      if (serverRes.isLocked) {
+        set({
+          isLockedByOther: true,
+          lockedInfo: {
+            surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
+            phone: serverRes.activeSurveyorPhone,
+            minutesAgo: serverRes.minutesAgo || 1,
+            message: serverRes.message,
+          },
+        });
+        return false;
+      }
+
+      if (serverRes.requiresHandover) {
+        set({
+          isHandoverModalOpen: true,
+          handoverInfo: {
+            fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
+            fromSurveyorPhone: serverRes.fromSurveyorPhone,
+            currentStep: serverRes.currentStep || 1,
+            securityCode: serverRes.securityCode || '',
+            updatedAt: serverRes.updatedAt || '',
+          },
+        });
+        return false;
+      }
+
+      if (serverRes.draft) {
+        applyServerDraft(set, get, serverRes.draft, serverRes.photoMappings);
+      } else {
+        set({ hasServerHydrated: true });
+      }
+      return true;
+    } catch (err: unknown) {
+      console.error('[SurveyPhase1Store:UnlockEdit] Không kiểm tra được khóa ca:', err);
+      alert(`Không thể mở khóa chỉnh sửa: ${getErrorMessage(err)}`);
+      return false;
     }
   },
 });

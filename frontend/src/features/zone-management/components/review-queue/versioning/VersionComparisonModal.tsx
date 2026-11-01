@@ -1331,6 +1331,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     {renderCompareRow('Mức độ tiếp cận khảo sát', getNestedSectionVal('accessLimitation', 'type', snapData, snapLeft, snapJson), getNestedSectionVal('accessLimitation', 'type', currentData, curLeft, curJson))}
                     {renderCompareRow('Lý do hạn chế tiếp cận', getNestedSectionVal('accessLimitation', 'mainReason', snapData, snapLeft, snapJson), getNestedSectionVal('accessLimitation', 'mainReason', currentData, curLeft, curJson))}
                     {renderCompareRow('Khu vực hạn chế tiếp cận', getNestedSectionVal('accessLimitation', 'restrictedAreas', snapData, snapLeft, snapJson), getNestedSectionVal('accessLimitation', 'restrictedAreas', currentData, curLeft, curJson))}
+                    {renderCompareRow('Khu vực khác', getNestedSectionVal('accessLimitation', 'customRestrictedAreas', snapData, snapLeft, snapJson), getNestedSectionVal('accessLimitation', 'customRestrictedAreas', currentData, curLeft, curJson))}
                     {renderCompareRow('Ghi chú tiếp cận', getNestedSectionVal('accessLimitation', 'notes', snapData, snapLeft, snapJson), getNestedSectionVal('accessLimitation', 'notes', currentData, curLeft, curJson))}
                     {renderCompareRow('Loại biến động ranh GIS', getNestedSectionVal('gisMutationConfirmed', 'type', snapData, snapLeft, snapJson), getNestedSectionVal('gisMutationConfirmed', 'type', currentData, curLeft, curJson))}
                     {renderCompareRow('Ghi chú biến động KSV', getNestedSectionVal('gisMutationConfirmed', 'surveyorNotes', snapData, snapLeft, snapJson), getNestedSectionVal('gisMutationConfirmed', 'surveyorNotes', currentData, curLeft, curJson))}
@@ -1915,6 +1916,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                   {renderSnapshotField('Mức độ tiếp cận', getNestedSectionVal('accessLimitation', 'type', snapData, snapLeft, snapJson))}
                   {renderSnapshotField('Lý do hạn chế tiếp cận', getNestedSectionVal('accessLimitation', 'mainReason', snapData, snapLeft, snapJson))}
                   {renderSnapshotField('Khu vực hạn chế tiếp cận', getNestedSectionVal('accessLimitation', 'restrictedAreas', snapData, snapLeft, snapJson))}
+                  {renderSnapshotField('Khu vực khác', getNestedSectionVal('accessLimitation', 'customRestrictedAreas', snapData, snapLeft, snapJson))}
                   {renderSnapshotField('Loại biến động ranh GIS', getNestedSectionVal('gisMutationConfirmed', 'type', snapData, snapLeft, snapJson))}
                   {renderSnapshotField('Ghi chú biến động GIS', getNestedSectionVal('gisMutationConfirmed', 'adminNotes', snapData, snapLeft, snapJson))}
                 </div>

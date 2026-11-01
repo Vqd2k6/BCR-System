@@ -10,6 +10,9 @@ import { confirmOverviewPhotoRemoval } from '../../../components/common/photo-ca
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
+import { CtxFromOverviewPicker } from '../../survey-phase1/components/step3/CtxFromOverviewPicker';
+import { confirmClearDefects } from '../../survey-phase1/components/step3/confirmClearDefects';
+import { confirmCtxReplace } from '../../survey-phase1/components/step3/confirmCtxReplace';
 import { FloorCadPinningCanvas, getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import {
   COMMON_ROOM_NAMES,
@@ -1261,7 +1264,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                           const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
                           const curPhotos: string[] = curZone?.overviewPhotos || [];
                           const updated = upsertPhotoUrlList(curPhotos, url, meta);
-                          updateZone(activeZoneIndex, { overviewPhotos: updated });
+                          const curCtx = curZone?.ctxPhotoUrl;
+                          const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
+                          updateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }
                       }}
                       watermarkOptions={createCondoUnitPhotoOptions({
@@ -1288,6 +1293,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     checked={activeZone.hasDamage || (activeZone.defects && activeZone.defects.length > 0)}
                     onChange={(e) => {
                       const checked = e.target.checked;
+                      const defectCount = activeZone.defects?.length || 0;
+                      if (!checked && defectCount > 0) {
+                        if (confirmClearDefects({ ownerCode: `Vùng ${activeZone.zoneCode}`, defectCount, burlandGrade: activeZone.burlandGrade })) {
+                          updateDefectsInZone(activeZone.id, []);
+                        }
+                        return;
+                      }
                       updateZone(activeZoneIndex, {
                         hasDamage: checked,
                         ctxPhotoUrl: activeZone.ctxPhotoUrl || activeZone.overviewPhotos?.[0] || '',
@@ -1317,7 +1329,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         className="bg-rose-600 hover:bg-rose-700 text-white cursor-pointer min-h-[40px]"
                         icon={<MapPin className="w-3.5 h-3.5" />}
                         onClick={() => {
-                          if (!activeZone.ctxPhotoUrl) {
+                          if (!activeZone.ctxPhotoUrl && !activeZone.defects?.length) {
                             alert(`Vui lòng chụp ảnh bối cảnh (Photo CTX) cho ${activeZone.zoneCode} trước khi chấm điểm và ghi sổ khuyết tật D-xx!`);
                             return;
                           }
@@ -1327,7 +1339,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             id: activeZone.id,
                             code: activeZone.zoneCode,
                             name: `${activeZone.roomName} - ${activeZone.componentType}`,
-                            ctxPhotoUrl: activeZone.ctxPhotoUrl,
+                            ctxPhotoUrl: activeZone.ctxPhotoUrl || '',
                             defects: activeZone.defects || [],
                           });
                         }}
@@ -1347,6 +1359,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       value={activeZone.ctxPhotoUrl || ''}
                       photoCode={activeZone.ctxPhotoCode}
                       readOnly={isReadOnly}
+                      confirmBeforeReplace={() =>
+                        confirmCtxReplace({
+                          defectCount: activeZone.defects?.length || 0,
+                          ctxPhotoUrl: activeZone.ctxPhotoUrl,
+                          overviewPhotos: activeZone.overviewPhotos,
+                        })
+                      }
                       onChange={(url, code) =>
                         updateZone(activeZoneIndex, {
                           ctxPhotoUrl: url,
@@ -1365,6 +1384,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         photoIndex: 1,
                       })}
                       height="120px"
+                    />
+
+                    <CtxFromOverviewPicker
+                      overviewPhotos={activeZone.overviewPhotos}
+                      ctxPhotoUrl={activeZone.ctxPhotoUrl}
+                      defectCount={activeZone.defects?.length || 0}
+                      readOnly={isReadOnly}
+                      onSelect={(url, overviewPhotos) => updateZone(activeZoneIndex, { ctxPhotoUrl: url, ctxPhotoCode: '', overviewPhotos })}
                     />
 
                     {/* Danh sách các khuyết tật D trong vùng */}
@@ -1415,6 +1442,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
+                                  if (!confirm(`Xóa khuyết tật ${d.defectCode || ''} cùng toàn bộ số đo và ảnh cận cảnh đã ghi?`)) return;
                                   const updatedDefects = (activeZone.defects || []).filter((_, idx) => idx !== dIdx);
                                   updateDefectsInZone(activeZone.id, updatedDefects);
                                 }}
@@ -1854,6 +1882,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         checked={activeElement.hasDamage || (activeElement.defects && activeElement.defects.length > 0)}
                         onChange={(e) => {
                           const checked = e.target.checked;
+                          const defectCount = activeElement.defects?.length || 0;
+                          if (!checked && defectCount > 0) {
+                            if (confirmClearDefects({ ownerCode: `Cấu kiện ${activeElement.elementCode}`, defectCount })) {
+                              updateDefectsInElement(activeElement.id, []);
+                            }
+                            return;
+                          }
                           updateElement(activeElementIndex, {
                             hasDamage: checked,
                             ctxPhotoUrl: activeElement.ctxPhotoUrl || activeElement.overviewPhotos?.[0] || '',
@@ -1883,7 +1918,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             className="bg-amber-600 hover:bg-amber-700 text-white cursor-pointer min-h-[40px]"
                             icon={<MapPin className="w-3.5 h-3.5" />}
                             onClick={() => {
-                              if (!activeElement.ctxPhotoUrl) {
+                              if (!activeElement.ctxPhotoUrl && !activeElement.defects?.length) {
                                 alert(`Vui lòng chụp ảnh bối cảnh (Photo CTX) cho cấu kiện ${activeElement.elementCode} trước khi chấm điểm khuyết tật!`);
                                 return;
                               }
@@ -1893,7 +1928,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                                 id: activeElement.id,
                                 code: activeElement.elementCode,
                                 name: `${activeElement.roomName} - ${activeElement.elementType}`,
-                                ctxPhotoUrl: activeElement.ctxPhotoUrl,
+                                ctxPhotoUrl: activeElement.ctxPhotoUrl || '',
                                 defects: activeElement.defects || [],
                               });
                             }}
@@ -1913,6 +1948,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                           value={activeElement.ctxPhotoUrl || ''}
                           photoCode={activeElement.ctxPhotoCode}
                           readOnly={isReadOnly}
+                          confirmBeforeReplace={() =>
+                            confirmCtxReplace({
+                              defectCount: activeElement.defects?.length || 0,
+                              ctxPhotoUrl: activeElement.ctxPhotoUrl,
+                              overviewPhotos: activeElement.overviewPhotos,
+                            })
+                          }
                           onChange={(url, code) =>
                             updateElement(activeElementIndex, {
                               ctxPhotoUrl: url,
@@ -1930,6 +1972,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             photoIndex: 1,
                           })}
                           height="120px"
+                        />
+
+                        <CtxFromOverviewPicker
+                          overviewPhotos={activeElement.overviewPhotos}
+                          ctxPhotoUrl={activeElement.ctxPhotoUrl}
+                          defectCount={activeElement.defects?.length || 0}
+                          readOnly={isReadOnly}
+                          onSelect={(url, overviewPhotos) => updateElement(activeElementIndex, { ctxPhotoUrl: url, ctxPhotoCode: '', overviewPhotos })}
                         />
 
                         {/* Danh sách khuyết tật trên cấu kiện E */}
@@ -1971,6 +2021,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      if (!confirm(`Xóa khuyết tật ${d.defectCode || ''} cùng toàn bộ số đo và ảnh cận cảnh đã ghi?`)) return;
                                       const updatedDefects = (activeElement.defects || []).filter((_, idx) => idx !== dIdx);
                                       updateDefectsInElement(activeElement.id, updatedDefects);
                                     }}

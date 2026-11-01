@@ -1,5 +1,6 @@
 import React from 'react';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
+import { CONDO_UNIT_WITNESS_ROLES } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
@@ -104,6 +105,15 @@ export const Step3_CondoUnitAbsenteeSubmit: React.FC<Props> = ({ onSubmitFinal, 
             <span className="text-slate-500 block">Số lần tiếp cận:</span>
             <span className="font-bold text-slate-800 text-sm mt-0.5 block">
               Lần thứ {absInfo?.attemptCount || 1}
+            </span>
+          </div>
+
+          <div className="p-2.5 bg-white rounded-xl border border-purple-100">
+            <span className="text-slate-500 block">Người chứng kiến:</span>
+            <span className="font-bold text-slate-800 text-sm mt-0.5 block">{absInfo?.witnessName || '---'}</span>
+            <span className="text-[11px] text-slate-600 block">
+              {CONDO_UNIT_WITNESS_ROLES.find((r) => r.value === absInfo?.witnessRole)?.label || '---'}
+              {absInfo?.witnessPhone ? ` • ${absInfo.witnessPhone}` : ''}
             </span>
           </div>
         </div>

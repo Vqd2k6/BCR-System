@@ -1,5 +1,8 @@
-import { firstNonEmptyString, isRecord, toNumberOrNull, toRecord, toStringArray } from '../core/condo-normalize.utils';
+import { firstNonEmptyString, isFilled, isRecord, toNumberOrNull, toRecord, toStringArray } from '../core/condo-normalize.utils';
+import { DEFAULT_CONDO_OWNER_FEEDBACK } from '@/features/survey-condo-unit/utils/condoOwnerFeedback';
+import type { StepwiseAbsenceLogItem } from '../../stepwise/types';
 import type {
+  CondoAbsenceDecisionValue,
   CondoAbsenceView,
   CondoUnitAbsenteeView,
   CondoUnitBeamSagging,
@@ -161,6 +164,32 @@ export function adaptUnitBeamSagging(raw: unknown): CondoUnitBeamSagging {
   };
 }
 
+/** KSV chỉ bật công tắc có võng, không chọn mức, nên không thể xét riêng `level`. */
+export function isBeamDetailVisible(beam: CondoUnitBeamSagging): boolean {
+  return (
+    beam.hasSagging ||
+    Number(beam.level) > 0 ||
+    [beam.sagMm, beam.spanM, beam.ratioText, beam.position, beam.notes].some(isFilled)
+  );
+}
+
+/** Cùng điều kiện với ô mô tả ở phiếu KSV. */
+export function isRenovationDescVisible(
+  renovation: { hasRenovated: boolean; description: string },
+  history: Record<string, unknown>
+): boolean {
+  return (
+    renovation.hasRenovated ||
+    Number(history.renovationLoad) > 0 ||
+    Number(history.majorRepair) > 0 ||
+    isFilled(renovation.description)
+  );
+}
+
+export function isSettlementNotesVisible(observed: string, notes: string): boolean {
+  return ['SLIGHT', 'NOTICEABLE', 'SEVERE'].includes(observed) || isFilled(notes);
+}
+
 export function resolveUnitCadUrl(
   sJson: Record<string, unknown>,
   unitInfo: Record<string, unknown>
@@ -185,6 +214,27 @@ const NORMAL_ABSENCE_VIEW: CondoAbsenceView = {
   isHardAbsent: false,
   hasUnknownOwnerName: false,
   hasUnknownOwnerPhone: false,
+  hasRoomDefect: false,
+  hasResidentStatusSignal: false,
+  hasOtherSoftSignal: false,
+  hasSuspicion: false,
+};
+
+const ABSENT_RESIDENT_STATUSES = ['VẮNG_MẶT_KHÓA_CỬA', 'BỎ_TRỐNG_CHƯA_VỀ_Ở'];
+const ADMIN_ABSENT_SIGNAL = 'Admin đã xác nhận vắng chủ';
+const RESIDENT_STATUS_SIGNAL_PREFIX = 'Trạng thái cư trú: ';
+
+export const EMPTY_UNIT_ABSENTEE: CondoUnitAbsenteeView = {
+  reasonCode: '',
+  reason: '',
+  notes: '',
+  witnessName: '',
+  witnessRole: '',
+  witnessPhone: '',
+  noticeDelivered: false,
+  rescheduleDate: '',
+  attemptCount: null,
+  photos: [],
 };
 
 /** Kết luận vắng chủ do backend quyết định; object `absenteeInfo` trong JSON luôn tồn tại nên không dùng để suy luận. */
@@ -193,7 +243,70 @@ export function resolveCondoAbsenceView(data: unknown): CondoAbsenceView {
   return typeof absence.state === 'string' ? (absence as unknown as CondoAbsenceView) : NORMAL_ABSENCE_VIEW;
 }
 
-export function adaptUnitAbsentee(sJson: Record<string, unknown>): CondoUnitAbsenteeView | null {
+/**
+ * Xem trước kết luận khi Admin đổi case chưa lưu, đúng thứ tự `resolveCondoUnitAbsence` của backend.
+ * `residentStatus` để undefined nghĩa là chưa đổi so với lúc tải.
+ */
+export function previewCondoAbsence(
+  base: CondoAbsenceView,
+  change: { decision: CondoAbsenceDecisionValue | null; residentStatus?: string }
+): CondoAbsenceView {
+  const { decision, residentStatus } = change;
+  const hasResidentSignal =
+    residentStatus === undefined ? base.hasResidentStatusSignal : ABSENT_RESIDENT_STATUSES.includes(residentStatus);
+  const hasSoftSignal = base.hasOtherSoftSignal || hasResidentSignal;
+
+  const resolveState = (): CondoAbsenceView['state'] => {
+    if (base.isHardAbsent || decision === 'ABSENT') return 'ABSENT';
+    if (decision === 'NOT_ABSENT') return hasSoftSignal ? 'ACCESS_HISTORY' : 'NORMAL';
+    if (hasSoftSignal) return base.hasRoomDefect ? 'ACCESS_HISTORY' : 'ABSENT';
+    return base.hasSuspicion ? 'SUSPECTED' : 'NORMAL';
+  };
+
+  const keptSignals = base.signals.filter(
+    (signal) =>
+      signal !== ADMIN_ABSENT_SIGNAL && (residentStatus === undefined || !signal.startsWith(RESIDENT_STATUS_SIGNAL_PREFIX))
+  );
+  return {
+    ...base,
+    state: resolveState(),
+    decision,
+    signals: [
+      ...(decision === 'ABSENT' && !base.isHardAbsent ? [ADMIN_ABSENT_SIGNAL] : []),
+      ...(residentStatus !== undefined && hasResidentSignal ? [`${RESIDENT_STATUS_SIGNAL_PREFIX}${residentStatus}`] : []),
+      ...keptSignals,
+    ],
+  };
+}
+
+export const ABSENCE_DECISION_LABEL = 'Quyết định phân loại vắng chủ';
+
+export function buildCondoAbsenceDecision(decision: CondoAbsenceDecisionValue, reason: string) {
+  return { decision, reason, decidedAt: new Date().toISOString() };
+}
+
+/**
+ * Căn có khuyết tật trong phòng được resolver giữ đủ bước khi chỉ đổi `residentStatus`, nên Admin đổi sang vắng
+ * mà không chốt thì tải lại vẫn thấy đủ form. Hệ thống không suy đoán thay, buộc Admin chọn trước khi lưu.
+ */
+export function needsCondoAbsenceDecision(
+  absence: CondoAbsenceView,
+  residentStatus: string,
+  loadedResidentStatus: string
+): boolean {
+  return (
+    residentStatus !== loadedResidentStatus &&
+    ABSENT_RESIDENT_STATUSES.includes(residentStatus) &&
+    absence.state === 'ACCESS_HISTORY' &&
+    absence.decision === null
+  );
+}
+
+/** Nhật ký vắng là bản ghi quan hệ của lượt tiếp cận nên bù được phần JSON hồ sơ cũ còn thiếu. */
+export function adaptUnitAbsentee(
+  sJson: Record<string, unknown>,
+  logs: StepwiseAbsenceLogItem[] = []
+): CondoUnitAbsenteeView | null {
   const info = isRecord(sJson.absenteeInfo) ? sJson.absenteeInfo : null;
   const isAbsentee =
     Boolean(sJson.isAbsentee) || Boolean(sJson.isRefusedOrAbsent) || sJson.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA';
@@ -204,22 +317,50 @@ export function adaptUnitAbsentee(sJson: Record<string, unknown>): CondoUnitAbse
     rawReason === 'OTHER'
       ? firstNonEmptyString(info?.customReason, info?.notes)
       : ABSENCE_REASON_LABELS[rawReason] || rawReason;
+  const latestLog = logs[0];
+  const signatures = toRecord(sJson.signatures);
   const photos = [
     ...toStringArray(info?.absenteeMinutesPhotos),
     ...toStringArray(sJson.absenteeMinutesPhotos),
     ...toStringArray(sJson.absenteeNoticePhotos),
+    ...logs.flatMap((log) => [...toStringArray(log.minutesPhotos), ...toStringArray(log.photoUrl ? [log.photoUrl] : [])]),
   ];
 
   return {
     reasonCode: rawReason,
     reason,
     notes: firstNonEmptyString(info?.notes),
-    witnessName: firstNonEmptyString(info?.witnessName),
-    witnessRole: firstNonEmptyString(info?.witnessRole),
-    witnessPhone: firstNonEmptyString(info?.witnessPhone),
-    noticeDelivered: Boolean(info?.noticeDelivered),
-    rescheduleDate: firstNonEmptyString(info?.rescheduleDate),
-    attemptCount: toNumberOrNull(info?.attemptCount),
+    // Khớp các nguồn `resolveAbsenceEvidence` tính là có người chứng kiến
+    witnessName: firstNonEmptyString(
+      info?.witnessName,
+      latestLog?.witness_name,
+      signatures.witnessName,
+      sJson.witnessName,
+      toRecord(signatures.localAuthority).fullName
+    ),
+    witnessRole: firstNonEmptyString(info?.witnessRole, latestLog?.witness_role, signatures.witnessRole, sJson.witnessRole),
+    witnessPhone: firstNonEmptyString(info?.witnessPhone, latestLog?.witness_phone, signatures.witnessPhone, sJson.witnessPhone),
+    noticeDelivered: Boolean(info?.noticeDelivered) || logs.some((log) => log.notice_delivered === true),
+    rescheduleDate: firstNonEmptyString(info?.rescheduleDate, latestLog?.reschedule_date),
+    attemptCount: toNumberOrNull(info?.attemptCount ?? latestLog?.attemptNumber),
     photos: Array.from(new Set(photos)),
   };
+}
+
+/** Câu điền sẵn của form không phải lời ghi nhận, căn vắng chỉ giữ nội dung KSV thực sự nhập. */
+export function getMeaningfulOwnerFeedback(value: unknown): string {
+  const text = firstNonEmptyString(value).trim();
+  return text === DEFAULT_CONDO_OWNER_FEEDBACK ? '' : text;
+}
+
+/** Thẻ nhật ký chỉ hiện một ảnh mỗi lượt; phần còn lại phải liệt kê thêm để không mất minh chứng. */
+export function getPhotosOutsideAbsenceLogs(photos: string[], logs: StepwiseAbsenceLogItem[]): string[] {
+  const shownInLogs = new Set(
+    logs.flatMap((log) => {
+      const record = log as Record<string, unknown>;
+      const url = firstNonEmptyString(log.photoUrl, record.photo_url, record.evidence_photo_url);
+      return url ? [url] : [];
+    })
+  );
+  return photos.filter((url) => !shownInLogs.has(url));
 }

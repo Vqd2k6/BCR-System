@@ -143,20 +143,40 @@ export class ReportImageResolver {
 
   /**
    * Nạp ảnh cho tài liệu pháp lý: không qua cache tĩnh để không giữ RAM trong xuất mẻ, và ném lỗi
-   * thay vì bỏ qua. Ảnh không xoay giữ nguyên byte gốc, không nén lại.
+   * thay vì bỏ qua.
+   * Hỗ trợ tự động xoay đứng (ensurePortrait: true):
+   * Sau khi xoay theo rotationDeg ban đầu, nếu ảnh vẫn có width > height (ảnh nằm ngang),
+   * hệ thống sẽ tự động xoay thêm 90 độ để chuyển thành khổ dọc phủ kín trang A4.
    */
-  public static async loadImageStrict(photoUrl: string, rotationDeg: number = 0): Promise<string> {
+  public static async loadImageStrict(
+    photoUrl: string,
+    rotationDeg: number = 0,
+    options?: { ensurePortrait?: boolean }
+  ): Promise<string> {
     const trimmed = photoUrl.trim();
     const normDeg = ((Number(rotationDeg) || 0) % 360 + 360) % 360;
     const { buffer, mime } = await this.readImageBytesStrict(trimmed);
-    await sharp(buffer).metadata();
 
-    if (normDeg === 0) {
+    let pipeline = sharp(buffer);
+    if (normDeg !== 0) {
+      pipeline = pipeline.rotate(normDeg);
+    }
+
+    let shouldRotatePortrait = false;
+    if (options?.ensurePortrait) {
+      const meta = await pipeline.metadata();
+      if (meta.width && meta.height && meta.width > meta.height) {
+        shouldRotatePortrait = true;
+        pipeline = pipeline.rotate(90);
+      }
+    }
+
+    if (normDeg === 0 && !shouldRotatePortrait) {
       return `data:${mime};base64,${buffer.toString('base64')}`;
     }
+
     const isPng = mime === 'image/png';
-    const pipeline = sharp(buffer).rotate(normDeg);
-    const rotated = isPng ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 92 }).toBuffer();
+    const rotated = isPng ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 95 }).toBuffer();
     return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${rotated.toString('base64')}`;
   }
 

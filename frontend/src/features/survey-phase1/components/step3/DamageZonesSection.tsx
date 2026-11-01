@@ -16,6 +16,9 @@ import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
 import { confirmOverviewPhotoRemoval } from '../../../../components/common/photo-capture/confirmOverviewPhotoRemoval';
+import { CtxFromOverviewPicker } from './CtxFromOverviewPicker';
+import { confirmClearDefects } from './confirmClearDefects';
+import { confirmCtxReplace } from './confirmCtxReplace';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -536,9 +539,17 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
+                    disabled={isReadOnly}
                     checked={activeZone.hasDamage || (activeZone.defects && activeZone.defects.length > 0)}
                     onChange={(e) => {
                       const checked = e.target.checked;
+                      const defectCount = activeZone.defects?.length || 0;
+                      if (!checked && defectCount > 0) {
+                        if (confirmClearDefects({ ownerCode: `Vùng ${activeZone.zoneCode}`, defectCount, burlandGrade: activeZone.burlandGrade })) {
+                          onUpdateZone(activeZoneIndex, { hasDamage: false, defects: [] });
+                        }
+                        return;
+                      }
                       onUpdateZone(activeZoneIndex, {
                         hasDamage: checked,
                         ctxPhotoUrl:
@@ -571,7 +582,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
                       onClick={() => {
-                        if (!activeZone.ctxPhotoUrl) {
+                        if (!activeZone.ctxPhotoUrl && !activeZone.defects?.length) {
                           alert(`Vui lòng chụp hoặc tải ảnh bối cảnh (Photo CTX) cho ${activeZone.zoneCode} trước khi chấm điểm và ghi sổ khuyết tật D-xx!`);
                           return;
                         }
@@ -588,6 +599,13 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                     label={`Ảnh bối cảnh chính để thả ghim nứt cho ${activeZone.zoneCode}:`}
                     value={activeZone.ctxPhotoUrl || ''}
                     photoCode={activeZone.ctxPhotoCode}
+                    confirmBeforeReplace={() =>
+                      confirmCtxReplace({
+                        defectCount: activeZone.defects?.length || 0,
+                        ctxPhotoUrl: activeZone.ctxPhotoUrl,
+                        overviewPhotos: activeZone.overviewPhotos,
+                      })
+                    }
                     onChange={(url, code) =>
                       onUpdateZone(activeZoneIndex, {
                         ctxPhotoUrl: url,
@@ -605,6 +623,14 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       photoIndex: 1,
                     }}
                     height="140px"
+                  />
+
+                  <CtxFromOverviewPicker
+                    overviewPhotos={activeZone.overviewPhotos}
+                    ctxPhotoUrl={activeZone.ctxPhotoUrl}
+                    defectCount={activeZone.defects?.length || 0}
+                    readOnly={isReadOnly}
+                    onSelect={(url, overviewPhotos) => onUpdateZone(activeZoneIndex, { ctxPhotoUrl: url, ctxPhotoCode: '', overviewPhotos })}
                   />
                 </div>
               )}

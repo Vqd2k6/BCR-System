@@ -9,6 +9,7 @@
 import type { PoolClient } from 'pg';
 import { Database } from '../../../../database/db';
 import { BadRequestError } from '../../../../common/errors/problem-details';
+import { recordCtxChangeInTx } from '../../../survey/repositories/survey-photo-preservation';
 import { normalizeComponentType, normalizeFoundationCategory, normalizeStructuralSystem } from '../../../survey/survey.dto';
 import type { NormalizedCondoSnapshot } from '../services/condo-snapshot-restore.helpers';
 import type {
@@ -58,6 +59,8 @@ export interface ICondoEntityAuditStrategy {
 export interface CondoRestoreOptions {
   /** `false` khi có hoán đổi CAD sau phiên bản đích: vị trí giữ nguyên để không đè lên căn đã hoán đổi. */
   restoreCadPosition: boolean;
+  /** Bản chụp của lần hoán đổi CAD mới nhất sau phiên bản đích, nếu có. */
+  laterSwapJson?: CondoJsonRecord | null;
   currentJson: Record<string, unknown>;
 }
 
@@ -487,16 +490,11 @@ export async function syncCondoZonesElementsAndDefectsInTx(
       : Array.isArray(item.overview_photos)
         ? item.overview_photos
         : [];
-    const firstOverview =
-      overviewList.length > 0
-        ? typeof overviewList[0] === 'string'
-          ? overviewList[0]
-          : String((overviewList[0] as Record<string, unknown>)?.url || '')
-        : '';
     const overviewUrls = overviewList
       .map((photo) => (typeof photo === 'string' ? photo : String((photo as Record<string, unknown>)?.url || '')))
       .filter(Boolean);
-    const ctxUrl = String(item.ctxPhotoUrl || item.ctx_photo_url || item.photoUrl || firstOverview || '').trim();
+    // Vùng không có D chỉ có ảnh tổng quan; không lấy ảnh đó làm CTX vì sẽ tạo mã `-CTX` cho ảnh KSV không chụp làm bối cảnh
+    const ctxUrl = String(item.ctxPhotoUrl || item.ctx_photo_url || item.photoUrl || '').trim();
 
     const rawDefects = Array.isArray(item.defects) ? (item.defects as Array<Record<string, unknown>>) : [];
     const activeDefects = rawDefects.filter((d) => !d.isDeleted && !d.is_deleted);
@@ -528,6 +526,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
 
     if (matchedZoneId) {
       targetZoneId = matchedZoneId;
+      await recordCtxChangeInTx(client, reportId, matchedZoneId, ctxUrl, `Đổi ảnh CTX ${code} khi lưu thẩm định`);
       await client.query(
         `UPDATE damage_zones SET
            zone_code = $1,

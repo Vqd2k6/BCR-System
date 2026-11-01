@@ -49,6 +49,42 @@ const getBurlandGradeFromWidth = (w: number): number => {
   return 5;
 };
 
+// Dữ liệu chỉ có được khi vào nhà; khớp RESIDENTIAL_ABSENT_INTERIOR_KEYS ở absence-evidence.ts của backend.
+// Dùng danh sách cấm vì Bước 1 có khóa động (chuẩn hóa địa chỉ, ranh thửa) mà whitelist sẽ âm thầm làm mất.
+const RESIDENTIAL_ABSENT_INTERIOR_KEYS = new Set([
+  'damageZones', 'zones', 'floors', 'floorSurvey', 'structuralElements', 'localDefects', 'overviewPhotos',
+  'cadZonePins', 'cadElementPins', 'burlandSummary', 'dominantBurlandGrade', 'historyInterview',
+  'interiorRenovationHistory', 'beamSagging', 'settlementObserved', 'settlementNotes', 'doorJammingStatus',
+  'doorJamming', 'upperFloorWaterLeakage', 'hasSensitiveEquipment', 'sensitiveEquipmentDesc', 'ecs', 'vi',
+  'vulnerabilityIndex', 'executiveSummary', 'braAssessment', 'braMatrix', 'impactAssessment', 'ownerFeedback',
+  'constructionYear', 'structureSystem', 'foundationCatScore', 'aboveFloors', 'undergroundFloors',
+  'summaryConclusions', 'engineeringRecommendations',
+]);
+const MIN_ABSENCE_CASE_REASON_LENGTH = 10;
+
+interface ResidentialCaseView {
+  isAbsent: boolean;
+  isAbsenceCaseChanged: boolean;
+}
+
+/** Backend là nguồn kết luận cho tới khi Admin thật sự đổi loại hình trên form. */
+function resolveResidentialCase(
+  form: Record<string, unknown>,
+  dirty: Record<string, unknown>,
+  isBackendAbsent: boolean
+): ResidentialCaseView {
+  const isAbsent = dirty.surveyCaseType ? form.surveyCaseType === 'ABSENTEE' : isBackendAbsent;
+  return { isAbsent, isAbsenceCaseChanged: isAbsent !== isBackendAbsent };
+}
+
+/** Lọc khi tính diff, không xóa form: Admin đổi case qua lại thì phần đã sửa vẫn còn. */
+function isResidentialDirtyKeyActive(key: string, residentialCase: ResidentialCaseView): boolean {
+  const topKey = key.split('.')[0];
+  if (topKey === 'absenceDecision') return residentialCase.isAbsenceCaseChanged;
+  if (!residentialCase.isAbsent) return true;
+  return !RESIDENTIAL_ABSENT_INTERIOR_KEYS.has(topKey) && !key.startsWith('settlementTilt.beamSagging');
+}
+
 const STEP_1_TO_5_SCORING_KEYS = new Set([
   'usageFunction',
   'surveyCaseType',
@@ -206,7 +242,7 @@ function recomputeDerivedPhase1State(
   }
 
   // 2. Nếu sửa dữ liệu nguồn ở Bước 1..5 -> tự động tính lại ECS, VI, Impact và BRA theo chuẩn FE Phase 1
-  if (STEP_1_TO_5_SCORING_KEYS.has(changedTopKey)) {
+  if (STEP_1_TO_5_SCORING_KEYS.has(changedTopKey) && updated.surveyCaseType !== 'ABSENTEE') {
     const rawHi = (updated.historyInterview || {}) as Record<string, unknown>;
     const normalizedHi = {
       ...rawHi,
@@ -425,6 +461,7 @@ export interface UseAuditStepwiseFormParams {
 }
 
 export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwiseFormParams) => {
+  const isBackendAbsent = data?.isResidentialAbsent === true;
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeNavStep, setActiveNavStep] = useState<string>('step-1');
   const [activeSubNavId, setActiveSubNavId] = useState<string>('');
@@ -763,7 +800,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
         return {
           ...rawExec,
-          braStatus: resolvedBra,
+          // Nhà chưa vào được thì không có căn cứ để tính BRA
+          braStatus: sJson.surveyCaseType === 'ABSENTEE' ? rawBra : resolvedBra,
           constructionImpactStatus: resolvedImpactLabel,
           isImpactOverridden: hasValidSavedOverride,
           impactOverrideReason: hasValidSavedOverride ? String(rawExec.impactOverrideReason || '') : '',
@@ -1040,6 +1078,10 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
   const getDiffPayload = useCallback(() => {
     const diffItems: DiffItem[] = [];
+    const residentialCase = resolveResidentialCase(formStateRef.current, dirtyFieldsRef.current, isBackendAbsent);
+    const activeDirtyEntries = Object.entries(dirtyFieldsRef.current).filter(([k]) =>
+      isResidentialDirtyKeyActive(k, residentialCase)
+    );
 
     const formatPhotoRotationKeyLabel = (rotKey: string): string => {
       if (rotKey.startsWith('photoP0')) {
@@ -1380,7 +1422,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       return items;
     };
 
-    Object.entries(dirtyFieldsRef.current).forEach(([k, v]) => {
+    activeDirtyEntries.forEach(([k, v]) => {
       if (k === 'studioEnhancedPhotos' || k === 'studioEnhancedByOriginal') {
         const oldEnhancedMap = (
           v.oldValue && typeof v.oldValue === 'object' ? v.oldValue : {}
@@ -1445,7 +1487,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     const updatesPayload: Record<string, unknown> = {};
     let hasScoringKeyChanged = false;
 
-    Object.keys(dirtyFieldsRef.current).forEach((k) => {
+    activeDirtyEntries.forEach(([k]) => {
       const topKey = k.includes('.') ? k.split('.')[0] : k;
       updatesPayload[topKey] = formStateRef.current[topKey];
       if (topKey === 'studioEnhancedPhotos' || topKey === 'studioEnhancedByOriginal') {
@@ -1469,6 +1511,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     // Luôn đính kèm các chỉ số dẫn xuất đã tính lại (burlandSummary, ecs, vi, executiveSummary) nếu có thay đổi
     const derivedKeys = ['burlandSummary', 'ecs', 'vi', 'executiveSummary'] as const;
     for (const dKey of derivedKeys) {
+      if (residentialCase.isAbsent) break;
       if (
         hasScoringKeyChanged ||
         JSON.stringify(formStateRef.current[dKey]) !== JSON.stringify(originalStateRef.current[dKey])
@@ -1485,11 +1528,38 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       };
     }
 
+    if (residentialCase.isAbsent) {
+      for (const key of Object.keys(updatesPayload)) {
+        if (RESIDENTIAL_ABSENT_INTERIOR_KEYS.has(key)) delete updatesPayload[key];
+      }
+      if (updatesPayload.settlementTilt) {
+        const originalTilt = originalStateRef.current.settlementTilt as Record<string, unknown> | undefined;
+        updatesPayload.settlementTilt = {
+          ...(updatesPayload.settlementTilt as Record<string, unknown>),
+          beamSagging: originalTilt?.beamSagging,
+        };
+      }
+    }
+
     return { diffItems, updatesPayload };
-  }, []);
+  }, [isBackendAbsent]);
+
+  const residentialCase = resolveResidentialCase(formState, dirtyFields, isBackendAbsent);
+  const absenceDecision = formState.absenceDecision as { reason?: string } | null | undefined;
+  const isAbsenceReasonMissing =
+    residentialCase.isAbsenceCaseChanged &&
+    String(absenceDecision?.reason || '').trim().length < MIN_ABSENCE_CASE_REASON_LENGTH;
 
   // Open review and diff modal
+  const saveBlockReason = isAbsenceReasonMissing
+    ? `Đổi loại hình vắng mặt cần lý do tối thiểu ${MIN_ABSENCE_CASE_REASON_LENGTH} ký tự.`
+    : null;
+
   const handleReviewSave = () => {
+    if (saveBlockReason) {
+      window.alert(saveBlockReason);
+      return;
+    }
     const { diffItems, updatesPayload } = getDiffPayload();
     onOpenDiffModal(diffItems, updatesPayload);
   };
@@ -1600,7 +1670,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     };
   }, []);
 
-  const dirtyCount = Object.keys(dirtyFields).length;
+  const dirtyCount = Object.keys(dirtyFields).filter((k) => isResidentialDirtyKeyActive(k, residentialCase)).length;
 
   return {
     isEditMode,
@@ -1613,6 +1683,9 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     formState,
     dirtyFields,
     dirtyCount,
+    isResidentialAbsent: residentialCase.isAbsent,
+    isAbsenceCaseChanged: residentialCase.isAbsenceCaseChanged,
+    saveBlockReason,
     isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,

@@ -196,12 +196,15 @@ export class CondoAreaAuditStrategy implements ICondoEntityAuditStrategy {
       structuralElements: snapshot.elements,
     };
     if (!options.restoreCadPosition) {
-      keepCurrentCadPosition(restoredJson, options.currentJson);
+      keepCurrentCadPosition(restoredJson, options.laterSwapJson ?? options.currentJson);
     }
 
     // 1. Cô lập thực thể: CHỈ cập nhật building_units của Khu vực chung, KHÔNG chạm vào parcels!
     if (report.unit_id) {
-      await restoreCondoBuildingUnitInTx(client, report.unit_id, report.parcel_id, snapshot, restoredJson, options);
+      await restoreCondoBuildingUnitInTx(client, report.unit_id, report.parcel_id, snapshot, restoredJson, {
+        ...options,
+        reportId: actualReportId,
+      });
     }
 
     // 2. Khôi phục Vùng Z, Cấu kiện E & Vết nứt D

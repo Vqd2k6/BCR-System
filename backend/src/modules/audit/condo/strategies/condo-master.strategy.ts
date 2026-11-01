@@ -572,6 +572,8 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
     const actualReportId = report.report_id;
     const { raw, leftPane } = snapshot;
     const parcelInfo = [raw.frozenParcel, raw.parcel, leftPane.parcel].find(isJsonRecord) || {};
+    // Tổng số căn chỉ nằm ở parentBuildingInfo của bản chụp
+    const parentInfo = isJsonRecord(raw.parentBuildingInfo) ? raw.parentBuildingInfo : {};
     const restoredJson: Record<string, unknown> = { ...snapshot.surveyJson };
 
     const pick = (...candidates: unknown[]) => candidates.find((val) => val !== undefined) ?? null;
@@ -612,7 +614,7 @@ export class CondoMasterAuditStrategy implements ICondoEntityAuditStrategy {
         toFiniteNumberOrNull(pick(parcelInfo.landAreaM2, parcelInfo.land_area_m2, restoredJson.landAreaM2)),
         toFiniteNumberOrNull(pick(parcelInfo.constructionAreaM2, parcelInfo.construction_area_m2, restoredJson.constructionAreaM2)),
         toFiniteNumberOrNull(pick(parcelInfo.floorCount, parcelInfo.floor_count, restoredJson.aboveFloors)),
-        toFiniteNumberOrNull(restoredJson.totalUnits),
+        toFiniteNumberOrNull(pick(parentInfo.totalUnits, parcelInfo.totalUnits, parcelInfo.total_units, restoredJson.totalUnits)),
         toFiniteNumberOrNull(pick(raw.distanceToCenterlineM, raw.distance_to_centerline_m)) ??
           parseMetersNumber(restoredJson.metroOffsetDistance),
         geoJsonText(raw.locationGeojson),

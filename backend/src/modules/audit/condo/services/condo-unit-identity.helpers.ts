@@ -35,28 +35,16 @@ export async function moveCondoUnitFloorInTx(
   mergedJson: JsonRecord,
   isMasterArea: boolean
 ): Promise<void> {
-  const plansRes = await client.query<{ id: string; floor_number: string | number | null; applicable_floors: unknown }>(
-    `SELECT id, floor_number, applicable_floors FROM building_floor_plans WHERE parcel_id = $1 AND deleted_at IS NULL;`,
-    [parcelId]
-  );
-  const directPlan = plansRes.rows.find((plan) => Number(plan.floor_number) === nextFloor);
-  const sharedPlan = plansRes.rows.find(
-    (plan) => Array.isArray(plan.applicable_floors) && plan.applicable_floors.map(Number).includes(nextFloor)
-  );
+  const planId = await resolveFloorPlanIdInTx(client, parcelId, nextFloor);
 
   await client.query(
     `UPDATE building_units SET
        floor_number = $1, floor_plan_id = $2, cad_bbox = NULL, cad_polygon = NULL, updated_at = NOW()
      WHERE id = $3;`,
-    [nextFloor, directPlan?.id ?? sharedPlan?.id ?? null, unitId]
+    [nextFloor, planId, unitId]
   );
 
-  await client.query(
-    `UPDATE floor_surveys
-     SET floor_order = $1, floor_name = CASE WHEN $2::boolean THEN floor_name ELSE $3 END
-     WHERE report_id = $4;`,
-    [nextFloor, isMasterArea, `Căn hộ ${displayLabel} (Tầng ${nextFloor})`, reportId]
-  );
+  await syncCondoFloorSurveyInTx(client, reportId, nextFloor, displayLabel, isMasterArea);
 
   mergedJson.floorNumber = nextFloor;
   mergedJson.cadBbox = null;
@@ -70,4 +58,31 @@ export async function moveCondoUnitFloorInTx(
       idx === 0 && isJsonRecord(floor) ? { ...floor, floorOrder: nextFloor, isCadLocked: false } : floor
     );
   }
+}
+
+export async function resolveFloorPlanIdInTx(client: PoolClient, parcelId: string, floor: number): Promise<string | null> {
+  const plansRes = await client.query<{ id: string; floor_number: string | number | null; applicable_floors: unknown }>(
+    `SELECT id, floor_number, applicable_floors FROM building_floor_plans WHERE parcel_id = $1 AND deleted_at IS NULL;`,
+    [parcelId]
+  );
+  const directPlan = plansRes.rows.find((plan) => Number(plan.floor_number) === floor);
+  const sharedPlan = plansRes.rows.find(
+    (plan) => Array.isArray(plan.applicable_floors) && plan.applicable_floors.map(Number).includes(floor)
+  );
+  return directPlan?.id ?? sharedPlan?.id ?? null;
+}
+
+export async function syncCondoFloorSurveyInTx(
+  client: PoolClient,
+  reportId: string,
+  floor: number,
+  displayLabel: string,
+  isMasterArea: boolean
+): Promise<void> {
+  await client.query(
+    `UPDATE floor_surveys
+     SET floor_order = $1, floor_name = CASE WHEN $2::boolean THEN floor_name ELSE $3 END
+     WHERE report_id = $4;`,
+    [floor, isMasterArea, `Căn hộ ${displayLabel} (Tầng ${floor})`, reportId]
+  );
 }

@@ -3,12 +3,14 @@ import { Camera, User } from 'lucide-react';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
 import { toNumberOrNull, toRecord } from '../../core/condo-normalize.utils';
+import { CondoAbsenceDecisionCard } from '../../core/CondoAbsenceDecisionCard';
 import { CondoParentInheritancePanel } from '../../core/CondoParentInheritancePanel';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
 import type {
   CondoAuditStepProps,
   CondoUnitFormState,
 } from '../../types/condo-audit.types';
+import { ABSENCE_DECISION_LABEL, buildCondoAbsenceDecision, needsCondoAbsenceDecision } from '../condo-unit.adapters';
 
 const RESIDENT_STATUS_OPTIONS = [
   { value: 'CHỦ_HỘ_Ở', label: 'Chủ hộ đang ở' },
@@ -34,11 +36,18 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
   const { state, hasUnknownOwnerName, hasUnknownOwnerPhone } = formState.absence;
   const isAbsentUnit = state === 'ABSENT';
   // Với căn vắng, tên/SĐT là KSV điền cho qua form: không trình bày như thông tin đã xác minh
-  const ownerNameValue = isAbsentUnit && hasUnknownOwnerName && !isEditMode ? '' : formState.ownerName;
-  const ownerPhoneValue = isAbsentUnit && hasUnknownOwnerPhone && !isEditMode ? '' : formState.ownerPhone;
+  const ownerNameValue = isAbsentUnit && hasUnknownOwnerName ? '' : formState.ownerName;
+  const ownerPhoneValue = isAbsentUnit && hasUnknownOwnerPhone ? '' : formState.ownerPhone;
   const ownerSuffix = isAbsentUnit ? ' (KSV nhập, chưa xác minh)' : '';
-  const unitAreaValue =
-    isAbsentUnit && !isEditMode ? toNumberOrNull(toRecord(data.unitInfo).unit_area_m2) : formState.unitAreaM2;
+  const unitAreaValue = isAbsentUnit ? toNumberOrNull(toRecord(data.unitInfo).unit_area_m2) : formState.unitAreaM2;
+  // Căn vắng chỉ được chuẩn hóa biển số và ảnh tiếp cận; thông tin còn lại chưa được xác minh tại căn
+  const isIdentityEditable = isEditMode && !isAbsentUnit;
+  // Admin vừa đổi sang vắng ở đây thì phải đổi lại được ngay trên ô này
+  const isResidentStatusEditable = isIdentityEditable || (isEditMode && isFieldDirty('residentStatus'));
+
+  const isDecisionRequired =
+    isEditMode &&
+    needsCondoAbsenceDecision(formState.absence, formState.residentStatus, formState.loadedResidentStatus);
 
   const photos = [
     { key: 'photoP01', code: 'P-01', type: 'P01_HOUSE_NUMBER', title: 'Biển số cửa căn hộ', item: formState.photoP01 },
@@ -76,13 +85,13 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
         </div>
       </AuditSubsection>
 
-      <AuditSubsection icon={User} title="1.2. Định Danh Căn Hộ & Chủ Hộ">
+      <AuditSubsection icon={User} title="1.2. Định Danh Căn Hộ & Chủ Hộ" hint="Phiếu KSV: Bước 2 (2.1, 2.2)">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <AuditField
             label="Mã căn hộ"
             value={formState.unitCode}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('unitCode')}
             onChange={(val) => handleFieldChange('unitCode', 'Mã căn hộ', val)}
           />
@@ -98,7 +107,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Tầng"
             type="number"
             value={formState.floorNumber}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('floorNumber')}
             onChange={(val) => handleFieldChange('floorNumber', 'Tầng căn hộ', toNumberOrNull(val))}
           />
@@ -107,7 +116,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             type="number"
             unit="m²"
             value={unitAreaValue}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('unitAreaM2')}
             onChange={(val) => handleFieldChange('unitAreaM2', 'Diện tích căn hộ', toNumberOrNull(val))}
           />
@@ -116,14 +125,14 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             type="select"
             value={formState.residentStatus}
             options={withCurrentOption(RESIDENT_STATUS_OPTIONS, formState.residentStatus)}
-            isEditMode={isEditMode}
+            isEditMode={isResidentStatusEditable}
             isDirty={isFieldDirty('residentStatus')}
             onChange={(val) => handleFieldChange('residentStatus', 'Tình trạng cư trú', val)}
           />
           <AuditField
             label={`Họ tên chủ hộ${ownerSuffix}`}
             value={ownerNameValue}
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerName')}
             onChange={(val) => handleFieldChange('ownerName', 'Họ tên chủ hộ căn hộ', val)}
           />
@@ -131,7 +140,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label={`Số điện thoại${ownerSuffix}`}
             value={ownerPhoneValue}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerPhone')}
             onChange={(val) => handleFieldChange('ownerPhone', 'Số điện thoại chủ hộ', val)}
           />
@@ -139,7 +148,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Số CCCD"
             value={formState.ownerIdCard}
             mono
-            isEditMode={isEditMode}
+            isEditMode={isIdentityEditable}
             isDirty={isFieldDirty('ownerIdCard')}
             onChange={(val) => handleFieldChange('ownerIdCard', 'Số CCCD chủ hộ', val)}
           />
@@ -153,6 +162,18 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
           <p className="text-xs text-amber-700 font-semibold">
             Đổi tầng sẽ xóa vị trí căn trên mặt bằng CAD cũ, cần đặt lại vị trí trong CAD Studio sau khi lưu.
           </p>
+        )}
+        {isDecisionRequired && (
+          <CondoAbsenceDecisionCard
+            state={state}
+            signals={formState.absence.signals}
+            isEditMode={isEditMode}
+            hasPendingDecision={false}
+            isDecisionRequired
+            onDecide={(decision, reason) =>
+              handleFieldChange('absenceDecision', ABSENCE_DECISION_LABEL, buildCondoAbsenceDecision(decision, reason))
+            }
+          />
         )}
       </AuditSubsection>
     </>

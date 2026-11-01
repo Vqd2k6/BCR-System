@@ -4,6 +4,7 @@ import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { AuditReviewService } from './audit-review.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
+import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
 
 export interface CreateSnapshotParams {
   versionNumber?: number;
@@ -381,9 +382,7 @@ export class AuditVersionService {
         const accType = accLim.type || sJson.surveyCase;
         if (accType === 'LIMITED') coverage = 'MOT_PHAN';
         else if (accType === 'ABSENT_REFUSED' || accType === 'ABSENTEE' || sJson.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
-        const inaccessible = Array.isArray(accLim.restrictedAreas) && accLim.restrictedAreas.length > 0
-          ? accLim.restrictedAreas.join(', ')
-          : (sJson.inaccessibleAreas ?? snap.inaccessible_areas ?? null);
+        const inaccessible = formatRestrictedAreas(accLim) ?? sJson.inaccessibleAreas ?? snap.inaccessible_areas ?? null;
         const limitations = accLim.mainReason
           ? (accLim.notes ? `${accLim.mainReason}: ${accLim.notes}` : accLim.mainReason)
           : (accLim.notes || sJson.accessibilityLimitations || snap.accessibility_limitations || null);

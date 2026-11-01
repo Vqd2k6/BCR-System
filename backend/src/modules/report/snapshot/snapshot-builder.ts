@@ -26,7 +26,13 @@ import {
   sha256Hex,
 } from './snapshot-scores.utils';
 import { fetchCondoUnitAbsenceMap } from '../../audit/condo/condo-absence.resolver';
-import { fetchMasterStandardizedAddress, projectCondoAbsentSurveyJson } from './condo-absent-projection';
+import {
+  fetchMasterStandardizedAddress,
+  projectCondoAbsentSurveyJson,
+  projectResidentialAbsentSurveyJson,
+} from './condo-absent-projection';
+import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
+import { overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
 
 export {
   type RiskCardRow,
@@ -54,12 +60,15 @@ export async function buildApprovedSnapshot(
 
   const unitId: string | null = repRes.rows[0]?.unit_id ?? null;
   const absence = (await fetchCondoUnitAbsenceMap([reportId], client)).get(reportId);
-  const isAbsentUnit = absence?.state === 'ABSENT';
-
   const rawSurveyJson = repRes.rows[0]?.survey_data_json;
-  const frozenSurveyDataJson = isAbsentUnit
-    ? projectCondoAbsentSurveyJson(asObject(rawSurveyJson))
-    : asObject(rawSurveyJson);
+  const isResidentialAbsent = !unitId && isResidentialAbsentSurvey(asObject(rawSurveyJson));
+  const isAbsentUnit = isResidentialAbsent || absence?.state === 'ABSENT';
+
+  const frozenSurveyDataJson = isResidentialAbsent
+    ? projectResidentialAbsentSurveyJson(asObject(rawSurveyJson))
+    : isAbsentUnit
+      ? projectCondoAbsentSurveyJson(asObject(rawSurveyJson))
+      : asObject(rawSurveyJson);
   // Căn hộ vắng không có bảng điểm: thẻ điểm hiện có là kết quả tính từ dữ liệu nội thất không có thật
   const cardRow = isAbsentUnit ? null : (cardRes.rows[0] ?? null);
   const burlandSummary = asObject(frozenSurveyDataJson.burlandSummary);
@@ -143,13 +152,14 @@ export async function buildApprovedSnapshot(
   const zonesRes = await client.query(
     `SELECT z.*,
             COALESCE(
-              json_agg(d.*) FILTER (WHERE d.id IS NOT NULL AND (d.is_deleted = false OR d.is_deleted IS NULL)),
+              json_agg(d.* ORDER BY d.defect_code) FILTER (WHERE d.id IS NOT NULL AND (d.is_deleted = false OR d.is_deleted IS NULL)),
               '[]'
             ) AS defects
      FROM damage_zones z
      LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
      WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL)
-     GROUP BY z.id;`,
+     GROUP BY z.id
+     ORDER BY z.floor_name, z.zone_code;`,
     [reportId]
   );
   const deformRes = await client.query(`SELECT * FROM deformation_assessments WHERE report_id = $1;`, [reportId]);
@@ -299,13 +309,14 @@ export async function buildApprovedSnapshot(
 
   const scopeRow = scopesRes.rows[0] as any;
   const repRow = repRes.rows[0];
+  const zonesWithCtx = overlayZoneCtxFromJson(zonesRes.rows, rawSurveyJson, frozenParcel?.projectParcelCode);
   const frozenReportData: Record<string, unknown> = {
     identificationPhotos: photosRes.rows,
     buildingSpecs: specsRes.rows[0] || null,
     historicalSensitivity: isAbsentUnit ? null : historyRes.rows[0] || null,
     floors: isAbsentUnit ? [] : floorsRes.rows,
-    damageZones: isAbsentUnit ? [] : zonesRes.rows,
-    damage_zones: isAbsentUnit ? [] : zonesRes.rows,
+    damageZones: isAbsentUnit ? [] : zonesWithCtx,
+    damage_zones: isAbsentUnit ? [] : zonesWithCtx,
     deformation: isAbsentUnit ? null : deformRes.rows[0] || null,
     riskScores: cardRow,
     phase2Details: p2DetailsRes.rows[0] || null,

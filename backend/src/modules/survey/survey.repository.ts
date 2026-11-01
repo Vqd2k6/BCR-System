@@ -1,4 +1,5 @@
 import { PoolClient } from 'pg';
+import type { SurveyWriteOptions } from './repositories/survey-photo-preservation';
 import { SurveyBaseRepository } from './repositories/survey-base.repository';
 import { SurveyDefectsRepository } from './repositories/survey-defects.repository';
 import { SurveyMutationRepository } from './repositories/survey-mutation.repository';
@@ -63,8 +64,8 @@ export class SurveyRepository {
   }
 
   // --- DEFECTS, SPECS & DAMAGE ZONES ---
-  public static async saveIdentificationPhotos(reportId: string, photos: any): Promise<void> {
-    return SurveyDefectsRepository.saveIdentificationPhotos(reportId, photos);
+  public static async saveIdentificationPhotos(reportId: string, photos: any, options?: SurveyWriteOptions): Promise<void> {
+    return SurveyDefectsRepository.saveIdentificationPhotos(reportId, photos, options);
   }
 
   public static async saveBuildingSpecs(reportId: string, specs: any): Promise<void> {
@@ -87,8 +88,8 @@ export class SurveyRepository {
     return SurveyDefectsRepository.saveSurveyScope(reportId, scopeData);
   }
 
-  public static async saveFloorSurveys(reportId: string, floors: any[]): Promise<void> {
-    return SurveyDefectsRepository.saveFloorSurveys(reportId, floors);
+  public static async saveFloorSurveys(reportId: string, floors: any[], options?: SurveyWriteOptions): Promise<void> {
+    return SurveyDefectsRepository.saveFloorSurveys(reportId, floors, options);
   }
 
   // --- FIELD MUTATIONS (SPLIT / MERGE) ---
@@ -148,5 +149,9 @@ export class SurveyRepository {
     note?: string
   ): Promise<any> {
     return SurveyDraftRepository.takeoverDraft(parcelId, unitId, newSurveyorId, note);
+  }
+
+  public static async ensureHandoverCode(reportId: string): Promise<string> {
+    return SurveyDraftRepository.ensureHandoverCode(reportId);
   }
 }

@@ -4,6 +4,8 @@ import { AuditDefectStrip } from '../../stepwise/ui/AuditDefectStrip';
 import { AuditPinBoard, type AuditBoardPin } from '../../stepwise/ui/AuditPinBoard';
 import { getOptimisticAddedPhotos, resolveOptimisticPhoto } from '../../stepwise/utils/optimisticPhotoResolver';
 import type { CondoDefectItemData } from '../types/condo-audit.types';
+import { mergeCanvasDefects, toCanvasDefect } from './condo-defect-canvas.adapters';
+import { CondoDefectCanvasModal } from './CondoDefectCanvasModal';
 import { CondoDefectCard } from './CondoDefectCard';
 import { CondoPhotoCard, type CondoPhotoHandlers } from './CondoPhotoCard';
 
@@ -20,9 +22,12 @@ interface CondoDefectStripSectionProps extends CondoPhotoHandlers {
   canEdit: boolean;
   ctxRotation: number;
   onRotateCtx: () => void;
-  onAddDefectAt: (x: number, y: number) => void;
   onMoveDefectPin: (defectId: string, x: number, y: number) => void;
-  onAddDefect: () => void;
+  /** Toàn bộ D của Z/E sau khi sửa trên canvas, gồm cả D đã xóa mềm. */
+  allDefects: CondoDefectItemData[];
+  onDefectsChange: (defects: CondoDefectItemData[], label: string) => void;
+  /** Giống KSV đánh dấu vùng có khuyết tật: ảnh tổng quan đầu tiên trở thành CTX. */
+  onUseOverviewAsCtx: (url: string) => void;
   onDefectFieldChange: (defectId: string, field: keyof CondoDefectItemData, value: unknown, label: string) => void;
   onToggleDeleteDefect: (defect: CondoDefectItemData) => void;
 }
@@ -41,16 +46,17 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
   canEdit,
   ctxRotation,
   onRotateCtx,
-  onAddDefectAt,
   onMoveDefectPin,
-  onAddDefect,
+  allDefects,
+  onDefectsChange,
+  onUseOverviewAsCtx,
   onDefectFieldChange,
   onToggleDeleteDefect,
   ...photoHandlers
 }) => {
   const { stagedPhotoActions, onUndoPhotoAction, onOpenPhotoZoom, onOpenPhotoAction, onOpenPhotoHistory } = photoHandlers;
   const [showCtxPins, setShowCtxPins] = useState(true);
-  const [isPinningCtx, setIsPinningCtx] = useState(false);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const [highlightedCode, setHighlightedCode] = useState<string | null>(null);
 
   const ctxContext = {
@@ -70,7 +76,7 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
       ? [{ code: defect.defectCode, x: Number(defect.pinX), y: Number(defect.pinY) }]
       : []
   );
-  const hasPins = defectPins.length > 0 || isPinningCtx;
+  const hasPins = defectPins.length > 0;
   const ctxWidthClass = !hasPins
     ? 'w-full sm:w-[calc((100%-2rem)/2.5)] min-w-[260px]'
     : kind === 'zone'
@@ -83,6 +89,29 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
     document
       .getElementById(`condo-defect-${parentCode}-${code}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  };
+
+  const cuContextOf = (defectId: string, defectCode: string) => ({
+    category: 'DEFECT_CU',
+    targetPhotoType: 'DEFECT_CU_PHOTO',
+    targetPhotoId: defectId,
+    defectId,
+    defectCode,
+    zoneCode: parentCode,
+  });
+
+  const openDefectCanvas = () => {
+    if (ctxUrl) {
+      setIsCanvasOpen(true);
+      return;
+    }
+    const firstOverview = overviewPhotos[0];
+    if (!firstOverview) {
+      window.alert(`Vui lòng thêm ảnh bối cảnh CTX cho ${parentCode} trước khi chấm điểm khuyết tật.`);
+      return;
+    }
+    onUseOverviewAsCtx(firstOverview);
+    setIsCanvasOpen(true);
   };
 
   const badgeColor = kind === 'zone' ? 'sky' : 'amber';
@@ -155,7 +184,7 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
           {canEdit && (
             <button
               type="button"
-              onClick={onAddDefect}
+              onClick={openDefectCanvas}
               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -220,17 +249,22 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsPinningCtx(!isPinningCtx)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
-                        isPinningCtx
-                          ? 'bg-rose-600 text-white animate-pulse'
-                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                      }`}
+                      onClick={openDefectCanvas}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
                     >
                       <Crosshair className="w-3 h-3" />
-                      <span>{isPinningCtx ? 'Đang ghim...' : 'Ghim D'}</span>
+                      <span>Ghim D</span>
                     </button>
                   </>
+                )}
+                {canEdit && !ctxUrl && overviewPhotos[0] && (
+                  <button
+                    type="button"
+                    onClick={() => onUseOverviewAsCtx(overviewPhotos[0])}
+                    className="px-2 py-0.5 rounded bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] font-bold cursor-pointer"
+                  >
+                    Dùng ảnh tổng quan làm CTX
+                  </button>
                 )}
                 {canEdit && onOpenPhotoAction && (
                   <button
@@ -271,13 +305,10 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
                 tone="defect"
                 isEditMode={canEdit}
                 showPins={showCtxPins}
-                isPinning={isPinningCtx}
+                isPinning={false}
                 selectedCode={highlightedCode}
                 maxHeightPx={560}
-                onAddAt={(x, y) => {
-                  setIsPinningCtx(false);
-                  onAddDefectAt(x, y);
-                }}
+                onAddAt={() => undefined}
                 onMove={(code, x, y) => {
                   const defect = findDefect(code);
                   if (defect) onMoveDefectPin(defect.id, x, y);
@@ -314,7 +345,7 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
               {canEdit && (
                 <button
                   type="button"
-                  onClick={onAddDefect}
+                  onClick={openDefectCanvas}
                   className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -325,6 +356,36 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
           )}
         </AuditDefectStrip>
       </div>
+
+      {isCanvasOpen && ctxUrl && (
+        <CondoDefectCanvasModal
+          mode={kind === 'zone' ? 'ARCHITECTURAL' : 'STRUCTURAL'}
+          parentCode={parentCode}
+          ctxPhotoUrl={ctxUrl}
+          defects={allDefects.filter((d) => !d.isDeleted).map((d) => toCanvasDefect(d, ctxRotation))}
+          cuPhotoBridge={{
+            hasPendingPhoto: (item) =>
+              getOptimisticAddedPhotos(stagedPhotoActions, cuContextOf(item.id || '', item.defectCode)).length > 0,
+            onRequestPhoto: (item) => {
+              const defectId = item.id || '';
+              onOpenPhotoAction?.({
+                ...cuContextOf(defectId, item.defectCode),
+                initialMode: 'ADD',
+                initialPinX: item.pinX,
+                initialPinY: item.pinY,
+                photoTitle: `Khuyết tật ${item.defectCode} (${parentCode})`,
+              });
+            },
+          }}
+          onChange={(items) =>
+            onDefectsChange(
+              mergeCanvasDefects(allDefects, items, parentCode, ctxRotation),
+              `Cập nhật khuyết tật D trên ảnh ${ctxCode}`
+            )
+          }
+          onClose={() => setIsCanvasOpen(false)}
+        />
+      )}
     </>
   );
 };
