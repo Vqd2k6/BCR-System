@@ -1,5 +1,6 @@
 import { SurveyRepository } from './survey.repository';
 import { Database } from '../../database/db';
+import type { SurveyWriteOptions } from './repositories/survey-photo-preservation';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
 import { assertParcelsNotExcludedByIds } from '../cadastral/utils/parcel-exclusion';
 
@@ -160,8 +161,8 @@ export class SurveyService {
     return report;
   }
 
-  static async saveIdentificationPhotos(reportId: string, photos: any) {
-    await SurveyRepository.saveIdentificationPhotos(reportId, photos);
+  static async saveIdentificationPhotos(reportId: string, photos: any, options?: SurveyWriteOptions) {
+    await SurveyRepository.saveIdentificationPhotos(reportId, photos, options);
     return {
       reportId,
       message: 'Đã lưu 4 ảnh định danh P01-P04, đa giác N điểm và phân tầng thành công',
@@ -177,8 +178,8 @@ export class SurveyService {
     };
   }
 
-  static async saveFloorSurveys(reportId: string, floors: any[]) {
-    await SurveyRepository.saveFloorSurveys(reportId, floors);
+  static async saveFloorSurveys(reportId: string, floors: any[], options?: SurveyWriteOptions) {
+    await SurveyRepository.saveFloorSurveys(reportId, floors, options);
     return {
       reportId,
       message: 'Đã lưu cấu trúc danh sách Tầng, ảnh tổng quan và bản vẽ CAD phác thảo phân vị trí Z thành công',
@@ -683,7 +684,9 @@ export class SurveyService {
   }) {
     const { SurveyDraftRepository } = await import('./repositories/survey-draft.repository');
     const { StorageService } = await import('../../common/services/storage.service');
-    const { collectOrphanTargets, matchOrphanTargets } = await import('./orphan-photo-matcher');
+    const { collectOrphanTargets, matchOrphanByCaptureTime, matchOrphanTargets, parcelStoragePrefixes } = await import(
+      './orphan-photo-matcher'
+    );
     const { config } = await import('../../config');
 
     if (!StorageService.canListObjects()) {
@@ -720,6 +723,34 @@ export class SurveyService {
       referencedKeys,
       config.storage.s3.publicUrl || ''
     );
+
+    // Ảnh không suy được tiền tố tên (Khu vực chung, biên bản) thì tìm theo thời điểm chụp trong thư mục của thửa
+    const noPrefix = unresolved.filter((item) => item.reason === 'NO_NAME_PREFIX');
+    if (noPrefix.length > 0) {
+      try {
+        const parcelRes = await Database.query<{ project_parcel_code: string; unit_code: string | null }>(
+          `SELECT p.project_parcel_code, bu.unit_code FROM parcels p
+           LEFT JOIN building_units bu ON bu.id = $2 WHERE p.id = $1;`,
+          [data.parcelId, data.unitId || null]
+        );
+        const parcel = parcelRes.rows[0];
+        const keys: string[] = [];
+        for (const prefix of parcel ? parcelStoragePrefixes(parcel.project_parcel_code) : []) {
+          keys.push(...(await StorageService.listObjectKeys(prefix)));
+        }
+        const baseUrl = (config.storage.s3.publicUrl || '').replace(/\/+$/, '');
+        for (const item of noPrefix) {
+          const capturedAtMs = targets.find((t) => t.localId === item.localId)?.capturedAtMs ?? 0;
+          const found = matchOrphanByCaptureTime(capturedAtMs, keys, referencedKeys, parcel?.unit_code);
+          const key = found[0];
+          if (found.length !== 1 || Object.values(recovered).some((value) => value.key === key)) continue;
+          recovered[item.localId] = { key, url: `${baseUrl}/${key}`, epochMs: capturedAtMs };
+          unresolved.splice(unresolved.indexOf(item), 1);
+        }
+      } catch (err) {
+        console.error('[SurveyService:RecoverOrphanPhotos] Không dò được theo thời điểm chụp:', err);
+      }
+    }
 
     if (Object.keys(recovered).length > 0) {
       const applied = await SurveyDraftRepository.applyRecoveredPhotos(draft.id, recovered, data.actorId, data.clientIp);

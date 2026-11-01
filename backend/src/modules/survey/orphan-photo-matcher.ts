@@ -82,6 +82,32 @@ function listPrefixFromPhotoCode(photoCode: unknown): string | null {
   return `surveys/${code}/${typeMatch[1]}/HCM_M2__${code}__${match[2]}`;
 }
 
+/** Thư mục của thửa trên kho: Nhà dân, biên bản dưới `surveys/`; Căn hộ, Khu vực chung dưới `projects/`. */
+export function parcelStoragePrefixes(parcelCode: string): string[] {
+  const folders = new Set([parcelCode, parcelCode.replace(/[^a-zA-Z0-9-]/g, '_'), parcelCode.replace(/[^a-zA-Z0-9-]/g, '')]);
+  return [...folders].flatMap((folder) => [`surveys/${folder}/`, `projects/METRO2_HCM/buildings/${folder}/`]);
+}
+
+const CAPTURE_MATCH_WINDOW_MS = 1_000;
+
+/**
+ * Tên object mang đúng thời điểm chụp, lệch vài mili giây, nên dùng được khi không suy ra tiền tố tên ảnh.
+ * `scopeSegment` giới hạn trong căn hoặc khu vực của hồ sơ, vì cả tòa dùng chung thư mục.
+ */
+export function matchOrphanByCaptureTime(
+  capturedAtMs: number,
+  keys: string[],
+  referencedKeys: Set<string>,
+  scopeSegment?: string | null
+): string[] {
+  return keys.filter((key) => {
+    if (referencedKeys.has(key)) return false;
+    if (scopeSegment && !key.includes(`/${scopeSegment}/`) && key.includes('/master-areas/')) return false;
+    const epochMs = Number(/_(\d{13})_/.exec(key)?.[1] ?? 0);
+    return epochMs >= capturedAtMs && epochMs < capturedAtMs + CAPTURE_MATCH_WINDOW_MS;
+  });
+}
+
 const urlOfItem = (item: unknown): unknown =>
   item && typeof item === 'object' ? (item as Record<string, unknown>).url : item;
 

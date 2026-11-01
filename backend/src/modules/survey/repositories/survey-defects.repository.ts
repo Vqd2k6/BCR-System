@@ -1,16 +1,27 @@
 import { Database } from '../../../database/db';
+import {
+  assertSurveyContentWritable,
+  collectReportPhotoUrls,
+  recordDroppedPhotosInTx,
+  type SurveyWriteOptions,
+} from './survey-photo-preservation';
 import { normalizeComponentType } from '../survey.dto';
 import { SurveyBaseRepository } from './survey-base.repository';
+import { formatRestrictedAreas } from '../access-limitation.utils';
 
 export class SurveyDefectsRepository {
   static async saveIdentificationPhotos(
     reportId: string,
-    photos: any
+    photos: any,
+    options?: SurveyWriteOptions
   ): Promise<void> {
     const hasPhotoCode = await SurveyBaseRepository.hasColumn('survey_identification_photos', 'photo_code');
 
     await Database.transaction(async (client) => {
-      // Xóa cũ và ghi mới
+      await assertSurveyContentWritable(client, reportId, options);
+      const photosBefore = await collectReportPhotoUrls(client, reportId);
+
+      // Bảng không có cột xóa mềm: ghi lại toàn bộ, URL bị bỏ được giữ vết ở registry ngay cuối transaction
       await client.query(`DELETE FROM survey_identification_photos WHERE report_id = $1;`, [reportId]);
 
       // Safe insert helper branching on verified column schema
@@ -189,6 +200,13 @@ export class SurveyDefectsRepository {
           [photos.houseNumber || null, photos.street || null, reportId]
         );
       }
+      await recordDroppedPhotosInTx(
+        client,
+        reportId,
+        photosBefore,
+        await collectReportPhotoUrls(client, reportId),
+        'Ảnh định danh được lưu lại từ phiếu khảo sát'
+      );
     });
   }
 
@@ -798,26 +816,7 @@ export class SurveyDefectsRepository {
     if (accType === 'LIMITED') coverage = 'MOT_PHAN';
     else if (accType === 'ABSENT_REFUSED' || accType === 'ABSENTEE' || scopeData?.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
 
-    const rawRestricted = Array.isArray(scopeData?.accessLimitation?.restrictedAreas)
-      ? scopeData.accessLimitation.restrictedAreas.map((area: string) => {
-          if (
-            (area === 'Các tầng trên' || area === 'Các tầng lầu trên cao' || area.startsWith('Các tầng')) &&
-            scopeData?.accessLimitation?.restrictedFloorLevels
-          ) {
-            return `${area} (${scopeData.accessLimitation.restrictedFloorLevels})`;
-          }
-          if (
-            (area === 'Khác' || area.startsWith('Khác')) &&
-            scopeData?.accessLimitation?.customRestrictedArea
-          ) {
-            return scopeData.accessLimitation.customRestrictedArea;
-          }
-          return area;
-        })
-      : [];
-    const inaccessible = rawRestricted.length > 0
-      ? rawRestricted.join(', ')
-      : (scopeData?.inaccessibleAreas || null);
+    const inaccessible = formatRestrictedAreas(scopeData?.accessLimitation) || scopeData?.inaccessibleAreas || null;
 
     const limitations = scopeData?.accessLimitation?.mainReason
       ? (scopeData.accessLimitation.notes ? `${scopeData.accessLimitation.mainReason}: ${scopeData.accessLimitation.notes}` : scopeData.accessLimitation.mainReason)
@@ -852,13 +851,16 @@ export class SurveyDefectsRepository {
     }
   }
 
-  static async saveFloorSurveys(reportId: string, floors: any[]): Promise<void> {
+  static async saveFloorSurveys(reportId: string, floors: any[], options?: SurveyWriteOptions): Promise<void> {
     const hasFloorStructCol = await SurveyBaseRepository.hasColumn('floor_surveys', 'has_structural_elements');
     const hasZoneNewCols = await SurveyBaseRepository.hasColumn('damage_zones', 'overview_photos_json');
     const hasCtxCodeCol = await SurveyBaseRepository.hasColumn('damage_zones', 'ctx_photo_code');
     const hasDefectNewCols = await SurveyBaseRepository.hasColumn('defect_items', 'functional_impact_e6');
 
     await Database.transaction(async (client) => {
+      await assertSurveyContentWritable(client, reportId, options);
+      const photosBefore = await collectReportPhotoUrls(client, reportId);
+
       // 1. Lưu danh sách tầng, sơ đồ CAD_01 và CAD_02
       await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [reportId]);
       for (let i = 0; i < floors.length; i++) {
@@ -949,16 +951,66 @@ export class SurveyDefectsRepository {
         }
       }
 
-      // [ND-06] Luôn dọn sạch damage_zones cũ của reportId trong Transaction trước khi kiểm tra allZones.length > 0
-      // (Đảm bảo khi KSV xóa hết các vùng Z/E trên giao diện rồi lưu thì DB cũng xóa sạch bản ghi cũ)
-      await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [reportId]);
+      // Giữ nguyên ID của vùng và khuyết tật còn tồn tại; phần KSV đã bỏ được xóa mềm ở cuối transaction
+      const existingZones = await client.query<{ id: string; zone_code: string; floor_name: string }>(
+        `SELECT id, zone_code, floor_name FROM damage_zones WHERE report_id = $1 ORDER BY is_deleted IS TRUE;`,
+        [reportId]
+      );
+      const defectsBefore = await client.query<{ id: string }>(
+        `SELECT d.id FROM defect_items d JOIN damage_zones z ON z.id = d.zone_id
+         WHERE z.report_id = $1 AND d.is_deleted IS NOT TRUE;`,
+        [reportId]
+      );
+      const keptZoneIds = new Set<string>();
+      const keptDefectIds = new Set<string>();
 
       if (allZones.length > 0) {
         for (const z of allZones) {
           const compType = normalizeComponentType(z.componentType || z.customComponentType);
 
+          const matchedZone = existingZones.rows.find(
+            (row) =>
+              !keptZoneIds.has(row.id) &&
+              row.zone_code === (z.zoneCode || 'Z-01') &&
+              row.floor_name === (z.floorName || 'Tầng trệt')
+          );
+          if (matchedZone) keptZoneIds.add(matchedZone.id);
+
           let zoneRes: { rows: Array<{ id: string }> };
-          if (hasZoneNewCols && hasCtxCodeCol) {
+          if (matchedZone) {
+            zoneRes = await client.query<{ id: string }>(
+              `UPDATE damage_zones SET
+                 room_name = $2, component_type = $3, wall_material = $4,
+                 functional_impact_repair_needed = $5, burland_grade = $6,
+                 ctx_photo_url = $7, notes = $8, is_deleted = false
+               WHERE id = $1
+               RETURNING id;`,
+              [
+                matchedZone.id,
+                z.roomName || 'Không gian chung',
+                compType,
+                z.wallMaterial || null,
+                Boolean(z.functionalImpactRepairNeeded),
+                Number(z.burlandGrade) || 0,
+                z.ctxPhotoUrl || '',
+                z.notes || null,
+              ]
+            );
+            if (hasZoneNewCols && hasCtxCodeCol) {
+              await client.query(
+                `UPDATE damage_zones SET
+                   ctx_photo_code = $2, overview_photos_json = $3, dimensions_text = $4, structural_integrity = $5
+                 WHERE id = $1;`,
+                [
+                  matchedZone.id,
+                  z.ctxPhotoCode || null,
+                  JSON.stringify(z.overviewPhotos || []),
+                  z.dimensions || null,
+                  z.structuralIntegrity || null,
+                ]
+              );
+            }
+          } else if (hasZoneNewCols && hasCtxCodeCol) {
             zoneRes = await client.query<{ id: string }>(
               `INSERT INTO damage_zones (
                  report_id, zone_code, floor_name, room_name, component_type,
@@ -1008,8 +1060,24 @@ export class SurveyDefectsRepository {
           }
 
           const zoneId = zoneRes.rows[0]?.id;
+          if (zoneId) keptZoneIds.add(zoneId);
           if (zoneId && z.defects && Array.isArray(z.defects)) {
+            const existingDefects = await client.query<{ id: string; defect_code: string }>(
+              `SELECT id, defect_code FROM defect_items WHERE zone_id = $1 ORDER BY is_deleted IS TRUE;`,
+              [zoneId]
+            );
             for (const d of z.defects) {
+              const matchedDefect = existingDefects.rows.find(
+                (row) => !keptDefectIds.has(row.id) && row.defect_code === (d.defectCode || 'D-01')
+              );
+              const writeDefect = async (insertSql: string, updateSql: string, params: unknown[]) => {
+                if (!matchedDefect) {
+                  await client.query(insertSql, params);
+                  return;
+                }
+                keptDefectIds.add(matchedDefect.id);
+                await client.query(updateSql, [matchedDefect.id, ...params.slice(1)]);
+              };
               const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
               const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || '';
               const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
@@ -1024,7 +1092,7 @@ export class SurveyDefectsRepository {
               const primaryCuCode = cuPhotoCodesList[0] || d.cuPhotoCode || null;
 
               if (hasDefectNewCols) {
-                await client.query(
+                await writeDefect(
                   `INSERT INTO defect_items (
                      zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
                      crack_direction, width_max_mm, length_mm, activity_state,
@@ -1032,6 +1100,14 @@ export class SurveyDefectsRepository {
                      is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
                      cu_photo_code, cu_photos_json, cu_photo_codes_json, notes, captured_at
                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23);`,
+                  `UPDATE defect_items SET
+                     defect_code = $2, pin_x = $3, pin_y = $4, screening_category = $5, defect_type = $6,
+                     crack_direction = $7, width_max_mm = $8, length_mm = $9, activity_state = $10,
+                     material_degradation_e4 = $11, structural_significance_e2 = $12, functional_impact_e6 = $13,
+                     has_scale_card = $14, is_structural_critical = $15, cu_photo_url = $16, extra_photo_url = $17,
+                     pin_color = $18, cu_photo_code = $19, cu_photos_json = $20, cu_photo_codes_json = $21,
+                     notes = $22, captured_at = $23, is_deleted = false
+                   WHERE id = $1;`,
                   [
                     zoneId,
                     d.defectCode || 'D-01',
@@ -1059,7 +1135,7 @@ export class SurveyDefectsRepository {
                   ]
                 );
               } else {
-                await client.query(
+                await writeDefect(
                   `INSERT INTO defect_items (
                      zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
                      crack_direction, width_max_mm, length_mm, activity_state,
@@ -1067,6 +1143,13 @@ export class SurveyDefectsRepository {
                      is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
                      cu_photo_code, cu_photos_json
                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
+                  `UPDATE defect_items SET
+                     defect_code = $2, pin_x = $3, pin_y = $4, screening_category = $5, defect_type = $6,
+                     crack_direction = $7, width_max_mm = $8, length_mm = $9, activity_state = $10,
+                     material_degradation_e4 = $11, structural_significance_e2 = $12, has_scale_card = $13,
+                     is_structural_critical = $14, cu_photo_url = $15, extra_photo_url = $16, pin_color = $17,
+                     cu_photo_code = $18, cu_photos_json = $19, is_deleted = false
+                   WHERE id = $1;`,
                   [
                     zoneId,
                     d.defectCode || 'D-01',
@@ -1094,6 +1177,22 @@ export class SurveyDefectsRepository {
           }
         }
       }
+
+      const staleDefectIds = defectsBefore.rows.map((row) => row.id).filter((id) => !keptDefectIds.has(id));
+      await client.query(`UPDATE defect_items SET is_deleted = true WHERE id = ANY($1::uuid[]);`, [staleDefectIds]);
+      await client.query(
+        `UPDATE damage_zones SET is_deleted = true
+         WHERE report_id = $1 AND NOT (id = ANY($2::uuid[])) AND is_deleted IS NOT TRUE;`,
+        [reportId, [...keptZoneIds]]
+      );
+
+      await recordDroppedPhotosInTx(
+        client,
+        reportId,
+        photosBefore,
+        await collectReportPhotoUrls(client, reportId),
+        'Phiếu khảo sát được lưu lại không còn ảnh này'
+      );
     });
   }
 }

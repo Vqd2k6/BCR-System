@@ -116,6 +116,32 @@ export class CondoVersionRollbackService {
     const snapshot = normalizeCondoSnapshot(snapshotObj);
     assertCondoSnapshotRestorable(snapshot);
 
+    // Bản hoán đổi CAD không chụp các cột văn bản, nên lấy từ bản đầy đủ gần nhất trước đó
+    if (snapshot.isJsonOnly) {
+      const earlierRes = await Database.query<{
+        summary: string | null;
+        recommendations: string | null;
+        remarks: string | null;
+      }>(
+        `SELECT snapshot_data->>'summaryConclusions' AS summary,
+                snapshot_data->>'engineeringRecommendations' AS recommendations,
+                snapshot_data->>'ownerRemarks' AS remarks
+         FROM survey_report_versions
+         WHERE report_id = $1 AND version_number < $2 AND snapshot_data ? 'leftPane'
+         ORDER BY version_number DESC LIMIT 1;`,
+        [actualReportId, targetVersionNumber]
+      );
+      const earlier = earlierRes.rows[0];
+      if (earlier) {
+        snapshot.raw = {
+          summaryConclusions: earlier.summary,
+          engineeringRecommendations: earlier.recommendations,
+          ownerRemarks: earlier.remarks,
+          ...snapshot.raw,
+        };
+      }
+    }
+
     // Phiên bản đích không có Z/E nào có thể đúng, nhưng sẽ xóa mềm toàn bộ dữ liệu hiện tại: Admin phải xác nhận
     if (countActiveZoneItems(snapshot) === 0 && !payload.confirmZoneWipe) {
       const activeRes = await Database.query<{ count: number }>(
@@ -138,11 +164,15 @@ export class CondoVersionRollbackService {
       }
     }
 
-    const laterSwapRes = await Database.query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM survey_report_versions
-       WHERE report_id = $1 AND version_tag = 'UNIT_CAD_SPATIAL_SWAP' AND version_number > $2;`,
+    const laterSwapRes = await Database.query<{ snapshot_data: Record<string, unknown> | string }>(
+      `SELECT snapshot_data FROM survey_report_versions
+       WHERE report_id = $1 AND version_tag = 'UNIT_CAD_SPATIAL_SWAP' AND version_number > $2
+       ORDER BY version_number DESC LIMIT 1;`,
       [actualReportId, targetVersionNumber]
     );
+    const laterSwapRaw = laterSwapRes.rows[0]?.snapshot_data;
+    const laterSwapJson: Record<string, unknown> | null =
+      typeof laterSwapRaw === 'string' ? (JSON.parse(laterSwapRaw) as Record<string, unknown>) : laterSwapRaw ?? null;
     const currentJson: Record<string, unknown> =
       typeof context.survey_data_json === 'string'
         ? (JSON.parse(context.survey_data_json) as Record<string, unknown>)
@@ -151,7 +181,8 @@ export class CondoVersionRollbackService {
     return Database.transaction(async (client) => {
       // 1. Khôi phục dữ liệu SQL + JSONB theo đúng Strategy của cấp thực thể (không làm hỏng parcels khi rollback căn hộ/khu vực chung)
       const { restoredSurveyJson } = await strategy.restoreSnapshotInTransaction(client, context, snapshot, adminId, {
-        restoreCadPosition: (laterSwapRes.rows[0]?.count ?? 0) === 0,
+        restoreCadPosition: !laterSwapJson,
+        laterSwapJson,
         currentJson,
       });
 

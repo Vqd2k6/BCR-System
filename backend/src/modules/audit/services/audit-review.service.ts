@@ -7,11 +7,36 @@ import { ReportConsistencyGate } from './report-consistency-gate';
 import { fetchCondoUnitAbsenceMap } from '../condo/condo-absence.resolver';
 import { isResidentialAbsentSurvey, resolveAbsenceEvidence, toAuditAbsenceLogView } from '../absence-evidence';
 import type { AbsenceLogEvidenceRow } from '../absence-evidence';
+import { readCondoElementsFromJson, readCondoZonesFromJson } from '../condo/strategies/condo-entity-strategy.interface';
+import { isForeignParcelUrl, overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
 
 const MIN_ABSENCE_WAIVER_REASON_LENGTH = 10;
 
 const APPROVED_LOCKED_MESSAGE =
   'Hồ sơ đã được phê duyệt (APPROVED) và khóa bất biến. Chỉ Super Admin mới có quyền Mở khóa (Unlock) trước khi thay đổi.';
+
+type ZonePhotoSource = { zone_code?: string; zoneCode?: string; floor_name?: string; overview_photos_json?: unknown };
+
+/**
+ * Hồ sơ nộp trước khi có cột `overview_photos_json` chỉ giữ ảnh tổng quan trong JSON. Thiếu bước này Studio thấy
+ * vùng trống, và lần lưu kế tiếp sẽ ghi đè mảng rỗng lên JSON gốc.
+ */
+function buildOverviewPhotoResolver(surveyJson: Record<string, unknown>) {
+  const byFloorAndCode = new Map<string, unknown[]>();
+  const byCode = new Map<string, unknown[]>();
+  for (const item of [...readCondoZonesFromJson(surveyJson), ...readCondoElementsFromJson(surveyJson)]) {
+    const photos = item.overviewPhotos;
+    if (!Array.isArray(photos) || photos.length === 0) continue;
+    const code = String(item.zoneCode || item.zone_code || item.elementCode || '');
+    byFloorAndCode.set(`${String(item.floorName || item.floor_name || '')}|${code}`, photos);
+    if (!byCode.has(code)) byCode.set(code, photos);
+  }
+  return (row: ZonePhotoSource): unknown[] => {
+    if (Array.isArray(row.overview_photos_json) && row.overview_photos_json.length > 0) return row.overview_photos_json;
+    const code = String(row.zone_code || row.zoneCode || '');
+    return byFloorAndCode.get(`${row.floor_name || ''}|${code}`) ?? byCode.get(code) ?? [];
+  };
+}
 
 export class AuditReviewService {
   /**
@@ -388,7 +413,7 @@ export class AuditReviewService {
          ORDER BY r.created_at DESC;`,
         [actualReportId]
       );
-      photoRegistryRows = regRes.rows;
+      photoRegistryRows = regRes.rows.filter((row: any) => !isForeignParcelUrl(row.photo_url, report.project_parcel_code));
     } catch (e: any) {
       console.warn('⚠️ [AUDIT REVIEW] survey_photo_registry query fallback:', e?.message);
     }
@@ -477,13 +502,15 @@ export class AuditReviewService {
                     'pinX', d.pin_x,
                     'pinY', d.pin_y
                   )
+                  ORDER BY d.defect_code
                 ) FILTER (WHERE d.id IS NOT NULL),
                 '[]'
               ) AS defects
        FROM damage_zones z
        LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
        WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND (z.zone_code NOT LIKE 'E%' OR z.zone_code IS NULL)
-       GROUP BY z.id;`,
+       GROUP BY z.id
+       ORDER BY z.floor_name, z.zone_code;`,
       [actualReportId]
     );
 
@@ -511,13 +538,15 @@ export class AuditReviewService {
                     'pinX', d.pin_x,
                     'pinY', d.pin_y
                   )
+                  ORDER BY d.defect_code
                 ) FILTER (WHERE d.id IS NOT NULL),
                 '[]'
               ) AS defects
        FROM damage_zones z
        LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
        WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND z.zone_code LIKE 'E%'
-       GROUP BY z.id;`,
+       GROUP BY z.id
+       ORDER BY z.floor_name, z.zone_code;`,
       [actualReportId]
     );
 
@@ -578,6 +607,8 @@ export class AuditReviewService {
     const surveyJson = typeof report.survey_data_json === 'string'
       ? JSON.parse(report.survey_data_json)
       : (report.survey_data_json || {});
+    zonesRes.rows = overlayZoneCtxFromJson(zonesRes.rows, surveyJson, report.project_parcel_code);
+    elementsRes.rows = overlayZoneCtxFromJson(elementsRes.rows, surveyJson, report.project_parcel_code);
 
     // ORCH-05: Đồng bộ góc xoay ảnh từ survey_photo_registry chỉ theo photo_code và photo_url định danh riêng biệt
     // Tuyệt đối KHÔNG gán theo photo_type dùng chung (WORKING_MINUTES, DEFECT_CU, SETTLEMENT_DIFF, v.v.)
@@ -790,6 +821,8 @@ export class AuditReviewService {
       allDamageZones = extracted;
     }
 
+    const resolveOverviewPhotos = buildOverviewPhotoResolver(surveyJson);
+
     const enrichedDamageZones = allDamageZones.map((z: any) => {
       const zHist = getPhotoHistoryFor(z.zone_code || z.zoneCode, z.id, z.ctx_photo_url);
       const rawDefects = Array.isArray(z.defects) ? z.defects : [];
@@ -805,6 +838,7 @@ export class AuditReviewService {
       });
       return {
         ...z,
+        overviewPhotos: resolveOverviewPhotos(z),
         ctxPhotoHistory: zHist,
         historyCount: zHist.historyCount,
         hasHistory: zHist.hasHistory,
@@ -828,6 +862,7 @@ export class AuditReviewService {
       });
       return {
         ...e,
+        overviewPhotos: resolveOverviewPhotos(e),
         ctxPhotoHistory: eHist,
         historyCount: eHist.historyCount,
         hasHistory: eHist.hasHistory,

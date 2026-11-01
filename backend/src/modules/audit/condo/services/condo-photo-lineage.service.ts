@@ -129,8 +129,16 @@ export class CondoPhotoLineageService {
         }
       };
 
+      // Form Căn hộ lưu ở `zones`, form Khu vực lưu trong `floors[]`; thiếu 2 nguồn này JSON giữ ảnh cũ
       syncZoneOrElemCtx(surveyJson.damageZones);
+      syncZoneOrElemCtx(surveyJson.zones);
       syncZoneOrElemCtx(surveyJson.structuralElements);
+      if (Array.isArray(surveyJson.floors)) {
+        for (const floor of surveyJson.floors as Array<Record<string, unknown>>) {
+          syncZoneOrElemCtx(floor.zones);
+          syncZoneOrElemCtx(floor.structuralElements);
+        }
+      }
     }
 
     // 2b'. Đồng bộ dải ảnh tổng quan của Z/E trên mảng phẳng, gồm cả cột SQL mà màn thẩm định ưu tiên đọc

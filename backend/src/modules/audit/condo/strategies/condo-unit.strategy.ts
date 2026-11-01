@@ -9,7 +9,9 @@
  */
 
 import type { PoolClient } from 'pg';
+import { BadRequestError } from '../../../../common/errors/problem-details';
 import { Database } from '../../../../database/db';
+import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
 import type { CondoPhotoActionItem, CondoReportContextRow } from '../condo-audit.types';
 import {
   isJsonRecord,
@@ -70,6 +72,21 @@ const UNIT_EDITABLE_JSON_KEYS = [
   'studioEnhancedByOriginal',
 ] as const;
 
+// Căn vắng không có dữ liệu nội thất để sửa; khớp whitelist ở condo-unit.normalizer.ts của frontend
+const ABSENT_UNIT_EDITABLE_KEYS = new Set([
+  'displayCode',
+  'residentStatus',
+  'absenceDecision',
+  'absenteeInfo',
+  'isAbsentee',
+  'signatures',
+  'surveyDate',
+  'photoRotations',
+  'studioEnhancedPhotos',
+  'studioEnhancedByOriginal',
+]);
+const MIN_ABSENCE_DECISION_REASON_LENGTH = 10;
+
 const HISTORY_UPDATE_KEYS = ['historyInterview', 'hasSensitiveEquipment', 'sensitiveEquipmentDesc', 'interiorRenovationHistory'];
 const DEFORMATION_UPDATE_KEYS = [
   'doorJammingStatus',
@@ -86,7 +103,7 @@ function buildUnitDeformationNotes(json: Record<string, unknown>): string | null
   const settlement = json.settlementObserved;
   const notes = [
     door && door !== 'NORMAL' ? `Cửa: ${String(door)}` : null,
-    settlement ? `Lún: ${String(settlement)} (${String(json.settlementNotes || '')})` : null,
+    settlement && settlement !== 'NONE' ? `Lún: ${String(settlement)} (${String(json.settlementNotes || '')})` : null,
     beam.position || beam.location ? `Võng dầm: ${String(beam.position || beam.location)}` : null,
   ].filter(Boolean);
   return notes.length > 0 ? notes.join('; ') : null;
@@ -96,11 +113,35 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
   readonly entityKind = 'CONDO_UNIT' as const;
 
   async validateBeforeModify(
-    _report: CondoReportContextRow,
-    _updates: Record<string, unknown>,
+    report: CondoReportContextRow,
+    updates: Record<string, unknown>,
     _photoActions: CondoPhotoActionItem[]
   ): Promise<void> {
     // Cho phép Admin lưu chỉnh sửa linh hoạt (kiểm tra tên chủ hộ thực hiện tại cổng Phê duyệt)
+    if (isJsonRecord(updates.absenceDecision)) {
+      const reason = String(updates.absenceDecision.reason || '').trim();
+      if (reason.length < MIN_ABSENCE_DECISION_REASON_LENGTH) {
+        throw new BadRequestError(
+          `Quyết định phân loại vắng chủ cần lý do tối thiểu ${MIN_ABSENCE_DECISION_REASON_LENGTH} ký tự.`
+        );
+      }
+    }
+
+    const absence = (await fetchCondoUnitAbsenceMap([report.report_id], undefined, updates)).get(report.report_id);
+    // Đổi sang vắng mà không chốt thì căn có khuyết tật trong phòng vẫn hiện đủ form, Admin tưởng đã chuyển xong
+    if (
+      absence?.state === 'ACCESS_HISTORY' &&
+      !absence.decision &&
+      absence.hasResidentStatusSignal &&
+      typeof updates.residentStatus === 'string'
+    ) {
+      throw new BadRequestError('Căn hộ có khuyết tật trong phòng: cần xác nhận Vắng Chủ hoặc Đã Khảo Sát trước khi lưu.');
+    }
+    if (absence?.state !== 'ABSENT') return;
+    const blockedKeys = Object.keys(updates).filter((key) => !ABSENT_UNIT_EDITABLE_KEYS.has(key));
+    if (blockedKeys.length > 0) {
+      throw new BadRequestError(`Căn hộ vắng chủ không có dữ liệu để sửa ở các trường: ${blockedKeys.join(', ')}.`);
+    }
   }
 
   async applyCrudInTransaction(
@@ -108,12 +149,21 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     report: CondoReportContextRow,
     mergedJson: Record<string, unknown>,
     updates: Record<string, unknown>,
-    _adminId: string
+    adminId: string
   ): Promise<void> {
     const actualReportId = report.report_id;
     const unitId = report.unit_id;
 
     mergeCondoEditableJson(mergedJson, updates, UNIT_EDITABLE_JSON_KEYS);
+
+    // Người và thời điểm quyết định là chứng cứ lưu vết nên không lấy từ client
+    if (isJsonRecord(updates.absenceDecision)) {
+      mergedJson.absenceDecision = {
+        ...updates.absenceDecision,
+        decidedBy: adminId,
+        decidedAt: new Date().toISOString(),
+      };
+    }
 
     // 1. Cô lập thực thể: Chỉ cập nhật bảng building_units của Căn hộ con (TUYỆT ĐỐI KHÔNG chạm vào parcels)
     if (unitId) {
@@ -196,12 +246,15 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     // 3. Báo cáo đọc độ võng qua settlementTilt.beamSagging (mô tả ở `description`) và thiết bị nhạy cảm trong historyInterview
     if (isJsonRecord(updates.beamSagging)) {
       const beam = mergedJson.beamSagging as Record<string, unknown>;
+      // Phiếu KSV lưu `location`, Studio sửa `position`; giữ khớp để vị trí đã xóa không bị đọc lại từ khóa cũ
+      if (updates.beamSagging.position !== undefined) beam.location = beam.position;
       mergedJson.settlementTilt = {
         ...(isJsonRecord(mergedJson.settlementTilt) ? mergedJson.settlementTilt : {}),
         beamSagging: { ...beam, description: beam.notes ?? beam.description ?? '' },
       };
     }
     if (updates.hasSensitiveEquipment !== undefined || updates.sensitiveEquipmentDesc !== undefined) {
+      if (mergedJson.hasSensitiveEquipment === false) mergedJson.sensitiveEquipmentDesc = '';
       const interview = isJsonRecord(mergedJson.historyInterview) ? mergedJson.historyInterview : {};
       mergedJson.historyInterview = {
         ...interview,
@@ -210,6 +263,13 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
           has: Boolean(mergedJson.hasSensitiveEquipment),
           description: String(mergedJson.sensitiveEquipmentDesc || ''),
         },
+      };
+    }
+    // Phiếu KSV dựng lại mô tả từ historyInterview, nên hồ sơ bị trả về sẽ hiện lại bản cũ nếu không đồng bộ
+    if (isJsonRecord(updates.interiorRenovationHistory) && updates.interiorRenovationHistory.description !== undefined) {
+      mergedJson.historyInterview = {
+        ...(isJsonRecord(mergedJson.historyInterview) ? mergedJson.historyInterview : {}),
+        renovationDescription: String(updates.interiorRenovationHistory.description || ''),
       };
     }
     if (updates.isAbsentee !== undefined) {
@@ -318,6 +378,46 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     }
   }
 
+  /**
+   * Bản chụp có thể không có hàng SQL: bản hoán đổi CAD chỉ lưu JSON, còn bản cũ có thể chụp lúc bảng con chưa có hàng.
+   * Báo cáo đọc các bảng này, nên thiếu hàng thì dựng lại từ JSON đã khôi phục thay vì giữ giá trị đang sửa.
+   */
+  private async restoreSqlFromJsonInTx(
+    client: PoolClient,
+    reportId: string,
+    snapshot: NormalizedCondoSnapshot,
+    json: Record<string, unknown>
+  ): Promise<void> {
+    const { leftPane } = snapshot;
+    if (!isJsonRecord(leftPane.interview)) {
+      const renovation = isJsonRecord(json.interiorRenovationHistory) ? json.interiorRenovationHistory : {};
+      await syncHistoryInterviewInTx(client, reportId, json, String(renovation.description || ''));
+    }
+
+    if (!isJsonRecord(leftPane.buildingSpecs)) {
+      await client.query(`UPDATE building_specifications SET construction_area_m2 = $1 WHERE report_id = $2;`, [
+        toFiniteNumberOrNull(json.unitAreaM2),
+        reportId,
+      ]);
+    }
+
+    if (isJsonRecord(leftPane.deformation)) return;
+    const beam = isJsonRecord(json.beamSagging) ? json.beamSagging : {};
+    await syncUnitDeformationInTx(client, reportId, {
+      notes: buildUnitDeformationNotes(json),
+      details: {
+        beamSagging: json.beamSagging ?? null,
+        doorJammingStatus: json.doorJammingStatus ?? null,
+        doorJamming: json.doorJamming ?? null,
+        upperFloorWaterLeakage: json.upperFloorWaterLeakage ?? null,
+        settlementObserved: json.settlementObserved ?? null,
+        settlementNotes: json.settlementNotes ?? null,
+      },
+      beamDeflectionMm: toFiniteNumberOrNull(beam.sagMm),
+      e3Score: toFiniteNumberOrNull(beam.level) ?? 0,
+    });
+  }
+
   async restoreSnapshotInTransaction(
     client: PoolClient,
     report: CondoReportContextRow,
@@ -332,12 +432,15 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
       structuralElements: snapshot.elements,
     };
     if (!options.restoreCadPosition) {
-      keepCurrentCadPosition(restoredJson, options.currentJson);
+      keepCurrentCadPosition(restoredJson, options.laterSwapJson ?? options.currentJson);
     }
 
     // 1. Cô lập thực thể: CHỈ khôi phục building_units của Căn hộ con, TUYỆT ĐỐI KHÔNG chạm vào parcels!
     if (report.unit_id) {
-      await restoreCondoBuildingUnitInTx(client, report.unit_id, report.parcel_id, snapshot, restoredJson, options);
+      await restoreCondoBuildingUnitInTx(client, report.unit_id, report.parcel_id, snapshot, restoredJson, {
+        ...options,
+        reportId: actualReportId,
+      });
     }
 
     // 2. Khôi phục Vùng hư hại Z, Cấu kiện E & Vết nứt D
@@ -357,6 +460,7 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     // 3. Khôi phục bảng con (hàng risk_score_cards trong bản chụp ghi đè e1 tính lại ở trên) và báo cáo
     await restoreCondoChildTablesInTx(client, actualReportId, snapshot, restoredJson, { includeSpecs: true });
     await restoreCondoReportFieldsInTx(client, actualReportId, snapshot, restoredJson);
+    await this.restoreSqlFromJsonInTx(client, actualReportId, snapshot, restoredJson);
 
     return { restoredSurveyJson: restoredJson };
   }

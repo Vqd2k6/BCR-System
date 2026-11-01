@@ -16,7 +16,7 @@ import {
 } from '../../report.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
-import { extractPhotoDateTime, parseSurveyDate } from '../formatters.mapper';
+import { extractPhotoDateTime, parseSurveyDate, formatPersonName } from '../formatters.mapper';
 import { resolveContactPhone, resolveRecordAddress } from '../sections/section-1-2-overview-spatial.mapper';
 import { resolveLocalRepresentative } from './local-authority.rules';
 import type { ReportContentConfig } from '../../../report_config/report-config.types';
@@ -137,14 +137,13 @@ export class Appendix3And4Mapper {
     const isRepCadastral = !rawRepName || /chủ\s*hộ\s*thửa/i.test(rawRepName) || /tờ\s*bản\s*đồ/i.test(rawRepName);
     const actualSignerName = isRepCadastral ? '' : rawRepName.trim();
     const ownerName = String(json.ownerName ?? json.signatures?.ownerName ?? rawReport.owner_name ?? '').trim();
-    const finalOwnerName = actualSignerName || ownerName || 'Chủ hộ';
-    const isOwnerItself = !actualSignerName || actualSignerName === ownerName;
-    const roleSuffixVi = isOwnerItself ? 'Chủ nhà' : 'Đại diện chủ sở hữu / Người sử dụng';
-    const roleSuffixEn = isOwnerItself ? 'Owner' : 'Owner Representative / Occupant';
+    const rawChosenName = actualSignerName || ownerName || 'Chủ hộ';
+    const finalOwnerName = formatPersonName(rawChosenName) || 'Chủ hộ';
 
-    const witnessName = String(json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '').trim();
+    const rawWitnessName = String(json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '').trim();
+    const witnessName = formatPersonName(rawWitnessName);
     const witnessRole = String(json.signatures?.localAuthority?.title || json.signatures?.witnessRole || json.witnessInfo?.role || json.witnessRole || '').trim();
-    const supName = json.signatures?.supervisionConsultant?.fullName;
+    const supName = formatPersonName(json.signatures?.supervisionConsultant?.fullName);
     const supTitle = json.signatures?.supervisionConsultant?.title;
     const localAuthorityText = witnessName
       ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}`
@@ -162,8 +161,8 @@ export class Appendix3And4Mapper {
       address: resolveRecordAddress(rawReport, json),
       contactPhone: resolveContactPhone(rawReport, json) || '--',
       ownerRepresentative: {
-        vi: isAbsentee ? `${finalOwnerName} (Vắng mặt tại thời điểm khảo sát)` : `${finalOwnerName} - ${roleSuffixVi}`,
-        en: isAbsentee ? `${finalOwnerName} (Absent during survey)` : `${finalOwnerName} - ${roleSuffixEn}`,
+        vi: isAbsentee ? `${finalOwnerName} (Vắng mặt tại thời điểm khảo sát)` : finalOwnerName,
+        en: isAbsentee ? `${finalOwnerName} (Absent during survey)` : finalOwnerName,
       },
       localAuthority: {
         vi: localAuthorityText,

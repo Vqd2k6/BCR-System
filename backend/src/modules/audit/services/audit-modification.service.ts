@@ -1,12 +1,15 @@
 import crypto from 'crypto';
 import { Database } from '../../../database/db';
+import type { PoolClient } from 'pg';
+import { recordCtxChangeInTx } from '../../survey/repositories/survey-photo-preservation';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
 import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
+import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
 import { parseMeters, resolvePolygonGeometryUpdate } from './audit-geometry-sync.helpers';
-import { isResidentialAbsentSurvey } from '../absence-evidence';
+import { applyResidentialCaseRules, isResidentialAbsentSurvey } from '../absence-evidence';
 
 export interface PhotoActionItem {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE' | 'ROTATE';
@@ -170,6 +173,46 @@ function computeSha256(input: string): string {
   return crypto.createHash('sha256').update(input || '').digest('hex');
 }
 
+/** Khớp theo mã mà không có tầng có thể trúng nhiều vùng, nên chặn lại thay vì ghi đè cả loạt. */
+export async function assertSingleCtxTarget(
+  client: PoolClient,
+  reportId: string,
+  targetId: string | null,
+  zoneCode: string | null,
+  floorName: string | null
+): Promise<void> {
+  const res = await client.query(
+    `SELECT COUNT(*)::int AS count FROM damage_zones
+     WHERE report_id = $1 AND (id::text = $2 OR (zone_code = $3 AND ($4::text IS NULL OR floor_name = $4)));`,
+    [reportId, targetId, zoneCode, floorName]
+  );
+  if (res.rows[0].count > 1) {
+    throw new BadRequestError(`Mã vùng ${zoneCode} có ở nhiều tầng: cần chỉ rõ vùng trước khi đổi ảnh CTX.`);
+  }
+}
+
+/** Studio đọc JSON trước cột SQL, nên hồ sơ lưu vùng ở mảng phẳng cũng phải nhận ảnh mới. */
+function syncFlatZoneCtx(
+  surveyJson: Record<string, unknown>,
+  targetId: string | null,
+  zoneCode: string | null,
+  floorName: string | null,
+  url: string
+): void {
+  for (const list of [surveyJson.damageZones, surveyJson.zones]) {
+    if (!Array.isArray(list)) continue;
+    for (const zone of list as Array<Record<string, unknown>>) {
+      const code = zone.zoneCode || zone.zone_code;
+      const floor = zone.floorName || zone.floor_name;
+      if (floorName && floor && floor !== floorName) continue;
+      if (zone.id === targetId || code === targetId || (zoneCode && code === zoneCode)) {
+        zone.ctxPhotoUrl = url;
+        if (zone.ctx_photo_url !== undefined) zone.ctx_photo_url = url;
+      }
+    }
+  }
+}
+
 export class AuditModificationService {
   /**
    * Cập nhật thông tin/ghi chú khảo sát từ Zone Admin
@@ -231,10 +274,11 @@ export class AuditModificationService {
       unit_id: string | null;
       report_type: string | null;
       status: string;
+      is_refused_or_absent: boolean | null;
       survey_data_json: any;
       updated_at_text: string;
     }>(
-      `SELECT id, parcel_id, unit_id, report_type, status, survey_data_json, updated_at::text AS updated_at_text
+      `SELECT id, parcel_id, unit_id, report_type, status, is_refused_or_absent, survey_data_json, updated_at::text AS updated_at_text
        FROM base_survey_reports
        WHERE (id = $1 OR parcel_id = $1)
        ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
@@ -277,6 +321,16 @@ export class AuditModificationService {
         diffCount: payload.diffPayload?.length || 0,
       },
     };
+
+    if (!report.unit_id) {
+      applyResidentialCaseRules({
+        isLockedAbsent: report.is_refused_or_absent === true,
+        existingJson,
+        mergedJson,
+        updates: payload.updates || {},
+        adminId,
+      });
+    }
 
     // 3.0. Bảo toàn chữ ký chủ hộ theo quyết định Q1 (không làm mất chữ ký khi admin chỉnh sửa thân báo cáo)
     if (existingJson.signatures?.ownerSignatureUrl && !mergedJson.signatures?.ownerSignatureUrl) {
@@ -552,6 +606,9 @@ export class AuditModificationService {
           mergedJson.accessLimitation.mainReason = '';
           mergedJson.accessLimitation.notes = '';
           mergedJson.accessLimitation.restrictedAreas = [];
+          mergedJson.accessLimitation.restrictedFloorLevels = [];
+          mergedJson.accessLimitation.customRestrictedAreas = [];
+          mergedJson.accessLimitation.customRestrictedArea = '';
           mergedJson.accessLimitation.scopeStatus = 'TOAN_BO';
         } else if (accType === 'EXTERNAL_ONLY' && mergedJson.accessLimitation && typeof mergedJson.accessLimitation === 'object') {
           mergedJson.accessLimitation.scopeStatus = 'CHI_NGOAI_VI';
@@ -559,9 +616,7 @@ export class AuditModificationService {
 
         const inaccessibleStr = isFull100
           ? null
-          : (Array.isArray(accLim.restrictedAreas) && accLim.restrictedAreas.length > 0
-              ? accLim.restrictedAreas.join(', ')
-              : (u.inaccessibleAreas !== undefined ? u.inaccessibleAreas : null));
+          : (formatRestrictedAreas(accLim) ?? (u.inaccessibleAreas !== undefined ? u.inaccessibleAreas : null));
         const limitationNotes = isFull100
           ? null
           : (accLim.notes !== undefined && accLim.notes !== ''
@@ -1073,6 +1128,7 @@ export class AuditModificationService {
 
               if (matchedZoneId) {
                 zoneId = matchedZoneId;
+                await recordCtxChangeInTx(client, actualReportId, matchedZoneId, z.ctxPhotoUrl || z.ctx_photo_url || '', `Đổi ảnh CTX ${zCode} khi lưu thẩm định`);
                 await client.query(
                   `UPDATE damage_zones SET
                      zone_code = $1, floor_name = $2, room_name = $3, component_type = $4,
@@ -1281,6 +1337,7 @@ export class AuditModificationService {
 
               if (matchedElZoneId) {
                 elZoneId = matchedElZoneId;
+                await recordCtxChangeInTx(client, actualReportId, matchedElZoneId, el.ctxPhotoUrl || el.ctx_photo_url || '', `Đổi ảnh CTX ${elCode} khi lưu thẩm định`);
                 await client.query(
                   `UPDATE damage_zones SET
                      zone_code = $1, floor_name = $2, room_name = $3, component_type = $4,
@@ -2998,12 +3055,14 @@ export class AuditModificationService {
           }
         }
       } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
+        await assertSingleCtxTarget(client, reportId, pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, paFloorCode);
         await client.query(
           `UPDATE damage_zones SET ctx_photo_url = $1, is_deleted = false
            WHERE report_id = $4
              AND (id::text = $2 OR (zone_code = $3 AND ($5::text IS NULL OR floor_name = $5)));`,
           [newUrl, pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, reportId, paFloorCode]
         );
+        syncFlatZoneCtx(surveyJson, pa.targetPhotoId || null, paZoneCode, paFloorCode, newUrl);
         if (Array.isArray(surveyJson.floors)) {
           for (const fl of surveyJson.floors) {
             const flName = fl.floorName || fl.floor_name || '';
@@ -3482,12 +3541,14 @@ export class AuditModificationService {
             }
           }
         } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
+          await assertSingleCtxTarget(client, reportId, pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, paFloorCode);
           await client.query(
             `UPDATE damage_zones SET ctx_photo_url = $1, is_deleted = false
              WHERE report_id = $4
                AND (id::text = $2 OR (zone_code = $3 AND ($5::text IS NULL OR floor_name = $5)));`,
             [url, pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, reportId, paFloorCode]
           );
+          syncFlatZoneCtx(surveyJson, pa.targetPhotoId || null, paZoneCode, paFloorCode, url);
           if (Array.isArray(surveyJson.floors)) {
             for (const fl of surveyJson.floors) {
               const flName = fl.floorName || fl.floor_name || '';
@@ -3831,12 +3892,14 @@ export class AuditModificationService {
           }
         }
       } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
+        await assertSingleCtxTarget(client, reportId, pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, paFloorCode);
         await client.query(
           `UPDATE damage_zones SET ctx_photo_url = '' 
            WHERE report_id = $3
              AND (id::text = $1 OR (zone_code = $2 AND ($4::text IS NULL OR floor_name = $4)));`,
           [pa.targetPhotoId || null, pa.targetPhotoId || paZoneCode || null, reportId, paFloorCode]
         );
+        syncFlatZoneCtx(surveyJson, pa.targetPhotoId || null, paZoneCode, paFloorCode, '');
         if (Array.isArray(surveyJson.floors)) {
           for (const fl of surveyJson.floors) {
             const flName = fl.floorName || fl.floor_name || '';
@@ -4717,12 +4780,14 @@ export class AuditModificationService {
       } else if (cat === 'ZONE_CTX' || type === 'CTX') {
         const zoneId = meta?.zone_id || meta?.targetPhotoId;
         if (zoneId) {
+          await assertSingleCtxTarget(client, actualReportId, zoneId, zoneId, null);
           await client.query(
             `UPDATE damage_zones 
              SET ctx_photo_url = $1, is_deleted = false 
              WHERE report_id = $3 AND (id::text = $2 OR zone_code = $2);`,
             [restoredUrl, zoneId, actualReportId]
           );
+          syncFlatZoneCtx(sData, zoneId, zoneId, null, restoredUrl);
           if (Array.isArray(sData.floors)) {
             for (const fl of sData.floors) {
               if (Array.isArray(fl.zones)) {

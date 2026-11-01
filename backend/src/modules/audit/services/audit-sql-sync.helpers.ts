@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -26,10 +27,18 @@ export async function syncSurveyScopeInTx(client: PoolClient, reportId: string, 
   }
 
   if (isFull100 && isJsonRecord(json.accessLimitation)) {
-    json.accessLimitation = { ...accessLimitation, mainReason: '', notes: '', restrictedAreas: [], scopeStatus: 'TOAN_BO' };
+    json.accessLimitation = {
+      ...accessLimitation,
+      mainReason: '',
+      notes: '',
+      restrictedAreas: [],
+      restrictedFloorLevels: [],
+      customRestrictedAreas: [],
+      customRestrictedArea: '',
+      scopeStatus: 'TOAN_BO',
+    };
   }
 
-  const restrictedAreas = Array.isArray(accessLimitation.restrictedAreas) ? accessLimitation.restrictedAreas : [];
   const reason = String(accessLimitation.mainReason || '').trim();
   const notes = String(accessLimitation.notes || '').trim();
 
@@ -44,7 +53,7 @@ export async function syncSurveyScopeInTx(client: PoolClient, reportId: string, 
     [
       reportId,
       coverage,
-      !isFull100 && restrictedAreas.length > 0 ? restrictedAreas.join(', ') : null,
+      isFull100 ? null : formatRestrictedAreas(accessLimitation),
       isFull100 ? null : [reason, notes].filter(Boolean).join(': ') || null,
       json.surveyScope !== undefined ? JSON.stringify(json.surveyScope) : null,
     ]

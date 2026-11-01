@@ -28,6 +28,11 @@ export interface CondoUnitAbsenceResult {
   isHardAbsent: boolean;
   hasUnknownOwnerName: boolean;
   hasUnknownOwnerPhone: boolean;
+  /** Các thành phần của kết luận, để giao diện xem trước đúng quy tắc khi Admin đổi case chưa lưu. */
+  hasRoomDefect: boolean;
+  hasResidentStatusSignal: boolean;
+  hasOtherSoftSignal: boolean;
+  hasSuspicion: boolean;
 }
 
 // Vùng này nằm ngoài căn hộ nên không phải bằng chứng đã tiếp cận được bên trong
@@ -97,6 +102,9 @@ export function resolveCondoUnitAbsence(input: CondoUnitAbsenceInput): CondoUnit
     POSTPONED_STATUSES.includes(String(input.unitStatus || '')) ||
     POSTPONED_STATUSES.includes(String(input.reportStatus || ''));
   const softSignals = collectSoftSignals(input);
+  const hasRoomDefect = input.roomDefectCount > 0;
+  const hasResidentStatusSignal = ABSENT_RESIDENT_STATUSES.includes(String(input.surveyJson.residentStatus || ''));
+  const suspicions = hasRoomDefect ? [] : collectSuspicions(input);
   const conclude = (state: CondoAbsenceState, signals: string[]): CondoUnitAbsenceResult => ({
     state,
     signals,
@@ -104,15 +112,17 @@ export function resolveCondoUnitAbsence(input: CondoUnitAbsenceInput): CondoUnit
     isHardAbsent,
     hasUnknownOwnerName: isUnknownOwnerName(input.surveyJson.ownerName),
     hasUnknownOwnerPhone: isUnknownOwnerPhone(input.surveyJson.ownerPhone),
+    hasRoomDefect,
+    hasResidentStatusSignal,
+    hasOtherSoftSignal: softSignals.length > (hasResidentStatusSignal ? 1 : 0),
+    hasSuspicion: suspicions.length > 0,
   });
 
   if (isHardAbsent) return conclude('ABSENT', ['Hồ sơ có cờ vắng mặt trong CSDL', ...softSignals]);
   if (decision === 'ABSENT') return conclude('ABSENT', ['Admin đã xác nhận vắng chủ', ...softSignals]);
   if (decision === 'NOT_ABSENT') return conclude(softSignals.length > 0 ? 'ACCESS_HISTORY' : 'NORMAL', softSignals);
 
-  const hasRoomDefect = input.roomDefectCount > 0;
   if (softSignals.length > 0) return conclude(hasRoomDefect ? 'ACCESS_HISTORY' : 'ABSENT', softSignals);
-  const suspicions = hasRoomDefect ? [] : collectSuspicions(input);
   return conclude(suspicions.length > 0 ? 'SUSPECTED' : 'NORMAL', suspicions);
 }
 
@@ -129,10 +139,14 @@ interface CondoUnitAbsenceRow {
   room_defect_count: string;
 }
 
-/** Chỉ trả về hồ sơ Căn hộ; Tòa mẹ và Khu vực chung không có khái niệm vắng chủ theo căn. */
+/**
+ * Chỉ trả về hồ sơ Căn hộ; Tòa mẹ và Khu vực chung không có khái niệm vắng chủ theo căn.
+ * `pendingUpdates` phủ lên JSON đã lưu để biết kết luận sau khi áp dụng một lượt sửa.
+ */
 export async function fetchCondoUnitAbsenceMap(
   reportIds: string[],
-  client?: PoolClient
+  client?: PoolClient,
+  pendingUpdates: Record<string, unknown> = {}
 ): Promise<Map<string, CondoUnitAbsenceResult>> {
   const result = new Map<string, CondoUnitAbsenceResult>();
   if (reportIds.length === 0) return result;
@@ -174,7 +188,7 @@ export async function fetchCondoUnitAbsenceMap(
         isRefusedOrAbsent: row.is_refused_or_absent === true,
         unitStatus: row.unit_status,
         reportStatus: row.report_status,
-        surveyJson,
+        surveyJson: { ...surveyJson, ...pendingUpdates },
         ownLogCount: Number(row.own_log_count),
         zoneCount: Number(row.zone_count),
         roomDefectCount: Number(row.room_defect_count),

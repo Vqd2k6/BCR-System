@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
+import { resolveFloorPlanIdInTx, syncCondoFloorSurveyInTx } from './condo-unit-identity.helpers';
 import { ConflictError } from '../../../../common/errors/problem-details';
-import { isJsonRecord, syncSurveyScopeInTx } from '../../services/audit-sql-sync.helpers';
+import { isJsonRecord, syncSurveyScopeInTx, toFiniteNumberOrNull } from '../../services/audit-sql-sync.helpers';
 import { readCondoElementsFromJson, readCondoZonesFromJson } from '../strategies/condo-entity-strategy.interface';
 
 type JsonRecord = Record<string, unknown>;
@@ -194,6 +195,8 @@ export async function restoreCondoReportFieldsInTx(
     surveyJson.engineeringRecommendations,
     executive.specificRecommendationsText
   );
+  // Bản chụp đầy đủ không có khóa nghĩa là lúc đó chưa có nội dung, nên phải trả về rỗng chứ không giữ chữ đang sửa
+  const isFullView = Object.keys(snapshot.leftPane).length > 0;
   const remarks = firstPresent(raw.ownerRemarks, surveyJson.ownerFeedback, surveyJson.ownerRemarks, signatures.ownerFeedback);
 
   await client.query(
@@ -214,9 +217,9 @@ export async function restoreCondoReportFieldsInTx(
       summary.value,
       recommendations.value,
       remarks.value,
-      summary.isPresent,
-      recommendations.isPresent,
-      remarks.isPresent,
+      summary.isPresent || isFullView,
+      recommendations.isPresent || isFullView,
+      remarks.isPresent || isFullView,
       reportId,
     ]
   );
@@ -250,10 +253,18 @@ export async function restoreCondoBuildingUnitInTx(
   parcelId: string,
   snapshot: NormalizedCondoSnapshot,
   restoredJson: JsonRecord,
-  options: { restoreCadPosition: boolean }
+  options: { reportId: string; restoreCadPosition: boolean; laterSwapJson?: JsonRecord | null }
 ): Promise<void> {
   const unitInfo = snapshot.unitInfo;
   const hasFullUnitRow = !snapshot.isJsonOnly && 'unit_code' in unitInfo;
+
+  // Bản hoán đổi lưu vị trí sau khi đổi, nên là nguồn đúng khi có hoán đổi sau phiên bản đích
+  const positionJson = options.laterSwapJson ?? (hasFullUnitRow ? null : restoredJson);
+  const floor = toFiniteNumberOrNull(positionJson ? positionJson.floorNumber : unitInfo.floor_number);
+  const bbox = positionJson ? positionJson.cadBbox : unitInfo.cad_bbox;
+  const polygon = positionJson ? positionJson.cadPolygon : unitInfo.cad_polygon;
+  const floorPlanId =
+    positionJson && floor !== null ? await resolveFloorPlanIdInTx(client, parcelId, floor) : unitInfo.floor_plan_id ?? null;
 
   if (!hasFullUnitRow) {
     await client.query(
@@ -263,18 +274,27 @@ export async function restoreCondoBuildingUnitInTx(
          owner_id_card = COALESCE($3, owner_id_card),
          resident_status = COALESCE($4, resident_status),
          display_code = COALESCE($5, display_code),
+         floor_number = COALESCE($6, floor_number),
+         floor_plan_id = CASE WHEN $6::numeric IS NULL THEN floor_plan_id ELSE $7::uuid END,
+         cad_bbox = CASE WHEN $6::numeric IS NULL THEN cad_bbox ELSE $8::jsonb END,
+         cad_polygon = CASE WHEN $6::numeric IS NULL THEN cad_polygon ELSE $9::jsonb END,
          status = 'SUBMITTED',
          updated_at = NOW()
-       WHERE id = $6;`,
+       WHERE id = $10;`,
       [
         restoredJson.ownerName ?? null,
         restoredJson.ownerPhone ?? null,
         restoredJson.ownerIdCard ?? null,
         restoredJson.residentStatus ?? null,
         restoredJson.displayCode ?? null,
+        floor,
+        floorPlanId,
+        bbox ? JSON.stringify(bbox) : null,
+        polygon ? JSON.stringify(polygon) : null,
         unitId,
       ]
     );
+    await syncRestoredFloorSurveyInTx(client, unitId, options.reportId, floor);
     return;
   }
 
@@ -309,12 +329,30 @@ export async function restoreCondoBuildingUnitInTx(
       unitInfo.owner_phone ?? null,
       unitInfo.owner_id_card ?? null,
       unitInfo.resident_status ?? null,
-      unitInfo.floor_number ?? null,
-      unitInfo.floor_plan_id ?? null,
-      unitInfo.cad_bbox ? JSON.stringify(unitInfo.cad_bbox) : null,
-      unitInfo.cad_polygon ? JSON.stringify(unitInfo.cad_polygon) : null,
-      options.restoreCadPosition,
+      floor,
+      floorPlanId,
+      bbox ? JSON.stringify(bbox) : null,
+      polygon ? JSON.stringify(polygon) : null,
+      options.restoreCadPosition || Boolean(options.laterSwapJson),
       unitId,
     ]
   );
+  await syncRestoredFloorSurveyInTx(client, unitId, options.reportId, floor);
+}
+
+async function syncRestoredFloorSurveyInTx(
+  client: PoolClient,
+  unitId: string,
+  reportId: string,
+  floor: number | null
+): Promise<void> {
+  if (floor === null) return;
+  const unitRes = await client.query<{ display_code: string | null; unit_code: string; unit_type: string | null }>(
+    `SELECT display_code, unit_code, unit_type FROM building_units WHERE id = $1;`,
+    [unitId]
+  );
+  const unit = unitRes.rows[0];
+  if (unit) {
+    await syncCondoFloorSurveyInTx(client, reportId, floor, unit.display_code || unit.unit_code, unit.unit_type === 'MASTER');
+  }
 }
