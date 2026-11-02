@@ -12,6 +12,7 @@ import {
   FloorPlanDefectReport,
   RoomOverviewPhotoItem,
 } from '../../../report.types';
+import { toBilingualNoZonesReason } from '../../../../survey/zone-exemption.utils';
 import { ReportImageResolver } from '../../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked, extractFloorCadPins } from './cad-pin.mapper';
 import { mapFloorZonesAndElements } from './defect-pair.mapper';
@@ -84,6 +85,9 @@ export class FloorDefectMapper {
           }
         : undefined;
 
+      const hasZones = fl.hasZones !== false;
+      const noZonesReason = hasZones ? undefined : toBilingualNoZonesReason(fl.noZonesReason);
+
       // 2. Trích xuất ghim CAD
       const { cadPins, cadStructuralPins } = extractFloorCadPins(fl, hasStructuralCadMap);
 
@@ -154,12 +158,18 @@ export class FloorDefectMapper {
         hasStructuralCadMap,
         hasStructuralElements,
         noStructuralElementsReason,
+        hasZones,
+        noZonesReason,
         hasDefects,
         hasSeparateDefectTableSheets,
         defectSummaryPages,
-        zeroDefectsNotice: hasDefects ? undefined : {
+        // Tầng miễn Z chưa được xem chi tiết nên không được kết luận là không có khuyết tật
+        zeroDefectsNotice: hasDefects ? undefined : hasZones ? {
           vi: 'Khảo sát hiện trường không phát hiện vết nứt, biến dạng hoặc khuyết tật kết cấu trên mặt bằng tầng.',
           en: 'Field survey recorded no cracks, deformation or structural defects on this floor plan.',
+        } : {
+          vi: 'Tầng hạn chế tiếp cận chi tiết, chỉ ghi nhận ảnh tổng quan. Chưa đánh giá khuyết tật bên trong các phòng.',
+          en: 'Detailed access restricted; floor overview photos recorded only. Room interiors were not assessed for defects.',
         },
         cadPins,
         cadStructuralPins,

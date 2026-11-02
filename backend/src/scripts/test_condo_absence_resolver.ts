@@ -41,6 +41,18 @@ function testRules(): void {
   assert.strictEqual(state({ zoneCount: 0, surveyJson: decide('NOT_ABSENT') }), 'NORMAL');
   assert.strictEqual(state({ ownLogCount: 2, surveyJson: decide('NOT_ABSENT') }), 'ACCESS_HISTORY');
   assert.strictEqual(state({ isRefusedOrAbsent: true, surveyJson: decide('NOT_ABSENT') }), 'ABSENT', 'Quyết định không gỡ được cờ DB');
+  // Tên Admin đã hiệu chỉnh không bị ẩn, nhưng nghi vấn vẫn xét bản gốc KSV
+  const corrected = resolveCondoUnitAbsence({
+    ...baseInput,
+    ownLogCount: 1,
+    surveyJson: { ownerName: 'Không rõ', ownerPhone: '1111', adminIdentityOverrides: { ownerName: 'Tên Admin', ownerPhone: null } },
+  });
+  assert.strictEqual(corrected.hasUnknownOwnerName, false);
+  assert.strictEqual(corrected.hasUnknownOwnerPhone, false);
+  assert.strictEqual(
+    state({ surveyJson: { ownerName: 'Không rõ', ownerPhone: '1111', adminIdentityOverrides: { ownerName: 'Tên Admin' } } }),
+    'SUSPECTED'
+  );
   console.log('✅ Quy tắc phân loại đúng');
 }
 

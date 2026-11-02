@@ -33,7 +33,7 @@ import {
   CondoAuditStudioEntry,
   resolveCondoEntityKind,
 } from './condo/CondoAuditStudioEntry';
-import { resolveCondoAbsenceView } from './condo/unit-studio/condo-unit.adapters';
+import { resolveCondoAbsenceView, resolvePendingCondoAbsenceState } from './condo/unit-studio/condo-unit.adapters';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActionModal';
@@ -505,9 +505,11 @@ export const AuditStudioModal: React.FC<Props> = ({
   // E3: Kiểm tra tên chủ hộ thực tế cho hồ sơ khảo sát thường (NORMAL)
   const sJsonForOwnerCheck = (data?.surveyJson || data?.survey_data_json || {}) as Record<string, unknown>;
   const parcelForOwnerCheck = data?.parcel as { ownerName?: string; owner_name?: string } | undefined;
-  const effectiveOwnerName =
-    pendingDirtyData.updates.ownerName !== undefined
-      ? String(pendingDirtyData.updates.ownerName)
+  // Admin đã hiệu chỉnh thì không đọc lại bản gốc, kể cả khi đã xóa tên
+  const ownerOverrides = (sJsonForOwnerCheck.adminIdentityOverrides ?? {}) as Record<string, unknown>;
+  const savedOwnerName =
+    'ownerName' in ownerOverrides
+      ? String(ownerOverrides.ownerName ?? '')
       : String(
           sJsonForOwnerCheck.ownerName ||
             data?.ownerName ||
@@ -515,6 +517,8 @@ export const AuditStudioModal: React.FC<Props> = ({
             parcelForOwnerCheck?.owner_name ||
             ''
         );
+  const effectiveOwnerName =
+    pendingDirtyData.updates.ownerName !== undefined ? String(pendingDirtyData.updates.ownerName) : savedOwnerName;
   const caseTypeForOwnerCheck = String(sJsonForOwnerCheck.surveyCaseType || '').toUpperCase();
   const residentStatusForOwnerCheck = String(sJsonForOwnerCheck.residentStatus || data?.unitInfo?.resident_status || '').toUpperCase();
   const reportTypeForOwnerCheck = String(data?.reportType || '').toUpperCase();
@@ -530,9 +534,12 @@ export const AuditStudioModal: React.FC<Props> = ({
       data?.unitInfo?.unit_type === 'MASTER'
   );
   const isAbsentReport = resolveCondoAbsenceView(data).state === 'ABSENT' || data?.isResidentialAbsent === true;
+  // Tên đọc từ form đang sửa nên trạng thái vắng cũng phải theo form, nếu không vừa đổi sang vắng sẽ bị báo sai
+  const isPendingAbsent = Boolean(data?.condoAbsence) && resolvePendingCondoAbsenceState(data, pendingDirtyData.updates) === 'ABSENT';
   const isMissingRealOwnerName = Boolean(
     data &&
       !isSpecialOrMasterForOwnerCheck &&
+      !isPendingAbsent &&
       (!effectiveOwnerName.trim() || isCadastralOwnerPlaceholder(effectiveOwnerName))
   );
 

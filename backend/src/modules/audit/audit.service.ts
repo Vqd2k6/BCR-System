@@ -1,4 +1,5 @@
 import { AuditAlertsService } from './services/audit-alerts.service';
+import { listReportPhotoPool } from './services/report-photo-pool';
 import { AuditReviewService } from './services/audit-review.service';
 import { AuditModificationService } from './services/audit-modification.service';
 import { AuditVersionService } from './services/audit-version.service';
@@ -44,6 +45,10 @@ export class AuditService {
   static async getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
     const baseView = await AuditReviewService.getSplitPaneAuditView(reportId, options);
     return CondoAuditFacade.enrichSplitPaneAuditView(reportId, baseView as Record<string, unknown>);
+  }
+
+  static async getReportPhotoPool(reportId: string) {
+    return listReportPhotoPool(reportId);
   }
 
   static async approveReport(reportId: string, adminId: string, judgementNotes?: string) {

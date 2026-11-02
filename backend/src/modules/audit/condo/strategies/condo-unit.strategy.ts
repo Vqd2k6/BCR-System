@@ -11,7 +11,7 @@
 import type { PoolClient } from 'pg';
 import { BadRequestError } from '../../../../common/errors/problem-details';
 import { Database } from '../../../../database/db';
-import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
+import { ADMIN_IDENTITY_OVERRIDE_KEYS, fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
 import type { CondoPhotoActionItem, CondoReportContextRow } from '../condo-audit.types';
 import {
   isJsonRecord,
@@ -76,6 +76,10 @@ const UNIT_EDITABLE_JSON_KEYS = [
 const ABSENT_UNIT_EDITABLE_KEYS = new Set([
   'displayCode',
   'residentStatus',
+  'ownerName',
+  'ownerPhone',
+  'ownerIdCard',
+  'unitAreaM2',
   'absenceDecision',
   'absenteeInfo',
   'isAbsentee',
@@ -128,6 +132,15 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     }
 
     const absence = (await fetchCondoUnitAbsenceMap([report.report_id], undefined, updates)).get(report.report_id);
+    const storedAbsence = (await fetchCondoUnitAbsenceMap([report.report_id])).get(report.report_id);
+    // Rời nhóm vắng sẽ hiện lại dữ liệu nội thất KSV điền cho đủ form, nên Admin phải chốt có lý do lưu vết
+    if (
+      storedAbsence?.state === 'ABSENT' &&
+      absence?.state !== 'ABSENT' &&
+      !(isJsonRecord(updates.absenceDecision) && updates.absenceDecision.decision === 'NOT_ABSENT')
+    ) {
+      throw new BadRequestError('Căn hộ đang vắng chủ: cần xác nhận Đã Khảo Sát kèm lý do trước khi đổi tình trạng cư trú.');
+    }
     // Đổi sang vắng mà không chốt thì căn có khuyết tật trong phòng vẫn hiện đủ form, Admin tưởng đã chuyển xong
     if (
       absence?.state === 'ACCESS_HISTORY' &&
@@ -144,15 +157,63 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
     }
   }
 
+  /**
+   * Định danh của hồ sơ vắng là căn cứ pháp lý nên hiệu chỉnh của Admin ghi vào lớp phủ, không chạm bản gốc.
+   * Xét cả kết luận đã lưu: Admin có thể vừa xóa dữ liệu vừa chuyển căn khỏi nhóm vắng trong một lần lưu.
+   */
+  private async routeIdentityToOverrides(
+    client: PoolClient,
+    reportId: string,
+    mergedJson: Record<string, unknown>,
+    updates: Record<string, unknown>,
+    adminId: string
+  ): Promise<Record<string, unknown>> {
+    const stored = await fetchCondoUnitAbsenceMap([reportId], client);
+    const pending = await fetchCondoUnitAbsenceMap([reportId], client, updates);
+    const usesOverrides =
+      stored.get(reportId)?.state === 'ABSENT' ||
+      pending.get(reportId)?.state === 'ABSENT' ||
+      isJsonRecord(mergedJson.adminIdentityOverrides);
+    if (!usesOverrides) return updates;
+
+    const remaining = { ...updates };
+    const changes: Record<string, unknown> = {};
+    for (const key of ADMIN_IDENTITY_OVERRIDE_KEYS) {
+      if (remaining[key] === undefined) continue;
+      changes[key] =
+        key === 'unitAreaM2'
+          ? toFiniteNumberOrNull(remaining[key])
+          : typeof remaining[key] === 'string' && remaining[key].trim()
+            ? remaining[key].trim()
+            : null;
+      delete remaining[key];
+    }
+    // Form gửi cả khối chữ ký khi sửa người làm chứng, trong đó tên chủ hộ đã là giá trị sau lớp phủ
+    if (isJsonRecord(remaining.signatures)) {
+      const { ownerName: _effectiveOwnerName, ...signatures } = remaining.signatures;
+      remaining.signatures = signatures;
+    }
+    if (Object.keys(changes).length > 0) {
+      mergedJson.adminIdentityOverrides = {
+        ...(isJsonRecord(mergedJson.adminIdentityOverrides) ? mergedJson.adminIdentityOverrides : {}),
+        ...changes,
+        updatedBy: adminId,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return remaining;
+  }
+
   async applyCrudInTransaction(
     client: PoolClient,
     report: CondoReportContextRow,
     mergedJson: Record<string, unknown>,
-    updates: Record<string, unknown>,
+    rawUpdates: Record<string, unknown>,
     adminId: string
   ): Promise<void> {
     const actualReportId = report.report_id;
     const unitId = report.unit_id;
+    const updates = await this.routeIdentityToOverrides(client, actualReportId, mergedJson, rawUpdates, adminId);
 
     mergeCondoEditableJson(mergedJson, updates, UNIT_EDITABLE_JSON_KEYS);
 
@@ -310,6 +371,24 @@ export class CondoUnitAuditStrategy implements ICondoEntityAuditStrategy {
         ...(isJsonRecord(mergedJson.signatures) ? mergedJson.signatures : {}),
         ownerFeedback: updates.ownerFeedback,
       };
+    }
+
+    // Đồng bộ người làm chứng hai chiều giữa absenteeInfo và signatures để lưu trọn vẹn
+    if (isJsonRecord(updates.absenteeInfo)) {
+      const abs = updates.absenteeInfo as Record<string, unknown>;
+      const sigsObj = isJsonRecord(mergedJson.signatures) ? { ...(mergedJson.signatures as Record<string, unknown>) } : {};
+      if (abs.witnessName !== undefined) sigsObj.witnessName = abs.witnessName;
+      if (abs.witnessRole !== undefined) sigsObj.witnessRole = abs.witnessRole;
+      if (abs.witnessPhone !== undefined) sigsObj.witnessPhone = abs.witnessPhone;
+      mergedJson.signatures = sigsObj;
+    }
+    if (isJsonRecord(updates.signatures)) {
+      const sigs = updates.signatures as Record<string, unknown>;
+      const absObj = isJsonRecord(mergedJson.absenteeInfo) ? { ...(mergedJson.absenteeInfo as Record<string, unknown>) } : {};
+      if (sigs.witnessName !== undefined) absObj.witnessName = sigs.witnessName;
+      if (sigs.witnessRole !== undefined) absObj.witnessRole = sigs.witnessRole;
+      if (sigs.witnessPhone !== undefined) absObj.witnessPhone = sigs.witnessPhone;
+      mergedJson.absenteeInfo = absObj;
     }
 
     // 4. Đồng bộ Dual-Write Vùng hư hại các phòng (Z) & Vết nứt (D)

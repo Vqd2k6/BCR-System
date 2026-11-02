@@ -1560,6 +1560,21 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 </div>
               </div>
 
+              {/* KSV miễn Z: chỉ đọc, Admin không đồng ý thì Trả về để KSV sửa */}
+              {fl.hasZones === false && (
+                <div className="p-3 rounded-2xl border border-amber-300 bg-amber-50/70 space-y-1">
+                  <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                    Miễn Vùng Z: Hạn Chế Tiếp Cận Chi Tiết
+                  </span>
+                  <p className="text-xs text-amber-900">
+                    <strong>Lý do KSV khai:</strong> {fl.noZonesReason || '---'}
+                  </p>
+                  <p className="text-[11px] text-amber-800">
+                    Tầng này chỉ có ảnh tổng quan. Nếu không đồng ý, hãy Trả về để KSV khảo sát lại.
+                  </p>
+                </div>
+              )}
+
               {/* ========================================================
                   MỤC 1: CAD_Z - SƠ ĐỒ MẶT BẰNG KIẾN TRÚC & GHIM VÙNG Z
                   ======================================================== */}
@@ -1774,7 +1789,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 ) : (
                   <div className="py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
                     <Layers className="w-7 h-7 text-slate-300" />
-                    <span className="text-xs italic">Chưa có bản vẽ CAD Kiến trúc (Z) cho {floorName}</span>
+                    <span className="text-xs italic">
+                      {fl.hasZones === false ? `Miễn CAD Kiến trúc (Z) cho ${floorName}` : `Chưa có bản vẽ CAD Kiến trúc (Z) cho ${floorName}`}
+                    </span>
                   </div>
                 )}
               </div>

@@ -48,7 +48,9 @@ export const CondoStructuralElementsCrudEditor: React.FC<
   const elementsRef = useRef(elements);
   elementsRef.current = elements;
 
-  const visibleElements = elements.filter((el) => showDeleted || !el.isDeleted);
+  const visibleElements = [...elements]
+    .filter((el) => showDeleted || !el.isDeleted)
+    .sort((a, b) => compareCodes(a.elementCode, b.elementCode));
   const deletedElementsCount = elements.filter((el) => el.isDeleted).length;
 
   const handleAddElement = (cadPosition?: { x: number; y: number }) => {

@@ -325,7 +325,9 @@ export class CondoQueueService {
          bu.unit_code,
          bu.unit_type,
          bu.floor_number,
-         bu.owner_name,
+         CASE WHEN r.identity_overrides ? 'ownerName'
+              THEN NULLIF(BTRIM(r.identity_overrides->>'ownerName'), '')
+              ELSE bu.owner_name END AS owner_name,
          bu.status,
          r.id AS report_id,
          r.status::text AS report_status,
@@ -341,7 +343,7 @@ export class CondoQueueService {
          ), 0) AS critical_defect_count
        FROM building_units bu
        LEFT JOIN LATERAL (
-         SELECT r_sub.id, r_sub.status,
+         SELECT r_sub.id, r_sub.status, r_sub.survey_data_json->'adminIdentityOverrides' AS identity_overrides,
            CASE WHEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade') ~ '^[0-9]+$'
                 THEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade')::int END AS burland_grade
          FROM base_survey_reports r_sub

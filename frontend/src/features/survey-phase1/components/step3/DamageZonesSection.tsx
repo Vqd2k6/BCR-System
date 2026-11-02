@@ -11,7 +11,7 @@ import {
 } from '../../../../components/canvas/FloorCadPinningCanvas';
 import type { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
-import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw } from 'lucide-react';
+import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw, ShieldAlert } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import { upsertPhotoUrlList } from '../../../../components/common/photo-capture/domain/photoCollectionMutator';
@@ -19,6 +19,7 @@ import { confirmOverviewPhotoRemoval } from '../../../../components/common/photo
 import { CtxFromOverviewPicker } from './CtxFromOverviewPicker';
 import { confirmClearDefects } from './confirmClearDefects';
 import { confirmCtxReplace } from './confirmCtxReplace';
+import { hasFloorZoneData, MIN_NO_ZONES_REASON_LENGTH, NO_ZONES_REASON_PRESETS } from '../../utils/zoneExemption';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -36,6 +37,7 @@ interface DamageZonesSectionProps {
   onPrevZone: () => void;
   onRequestAddNextZone: () => void;
   onOpenPinningModal: (zoneId: string) => void;
+  onToggleHasZones?: (hasZones: boolean, reason?: string) => void;
 }
 
 export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
@@ -54,9 +56,13 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
   onPrevZone,
   onRequestAddNextZone,
   onOpenPinningModal,
+  onToggleHasZones,
 }) => {
   const isReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const zones: DamageZoneData[] = currentFloor.zones || [];
+  const isZoneExempt = currentFloor.hasZones === false;
+  const canExempt = !hasFloorZoneData(currentFloor);
+  const noZonesReason = currentFloor.noZonesReason || '';
   const activeZone = zones[activeZoneIndex];
 
   const prevZone = activeZoneIndex > 0 ? zones[activeZoneIndex - 1] : undefined;
@@ -192,6 +198,87 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
         </div>
       </div>
 
+      {/* Tùy chọn miễn Vùng Z khi chủ nhà chỉ cho chụp tổng quan tầng */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="space-y-0.5">
+          <div className="text-xs font-bold text-slate-800">Khảo sát chi tiết phòng trên {currentFloor.floorName}:</div>
+          <p className="text-[11px] text-slate-500">
+            Chỉ chọn "Hạn chế (Miễn Z)" khi không được tiếp cận chi tiết. Tầng trống vẫn tạo Vùng Z như bình thường.
+          </p>
+          {!canExempt && !isReadOnly && (
+            <p className="text-[11px] text-amber-700 font-semibold">
+              Tầng đã có Vùng Z hoặc ghim CAD_01: cần tự xóa trước khi chọn miễn.
+            </p>
+          )}
+        </div>
+        {!isReadOnly && (
+          <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-300 shadow-2xs shrink-0">
+            <button
+              type="button"
+              onClick={() => onToggleHasZones?.(true)}
+              className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                !isZoneExempt ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>Có phân vùng Z</span>
+            </button>
+            <button
+              type="button"
+              disabled={!canExempt}
+              onClick={() => onToggleHasZones?.(false)}
+              className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all ${
+                canExempt ? 'cursor-pointer' : 'disabled:opacity-50 cursor-not-allowed'
+              } ${isZoneExempt ? 'bg-slate-800 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Hạn chế (Miễn Z)</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isZoneExempt ? (
+        <div id={`step3-no-zones-reason-${currentFloor.id}`} className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3">
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold text-emerald-900">
+              Đã xác nhận miễn CAD_01 & Vùng Z cho {currentFloor.floorName}
+            </h4>
+            <p className="text-xs text-emerald-700">
+              Ảnh tổng quan tầng vẫn bắt buộc. Hồ sơ sẽ được ghi nhận có hạn chế tiếp cận và không kết luận tầng này không có khuyết tật.
+            </p>
+          </div>
+          <div className="pt-2 border-t border-emerald-200/60 space-y-2">
+            <label className="text-[11px] font-bold text-slate-700 block">Lý do hạn chế tiếp cận chi tiết (bắt buộc):</label>
+            {!isReadOnly && (
+              <div className="flex flex-wrap gap-1.5">
+                {NO_ZONES_REASON_PRESETS.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => onToggleHasZones?.(false, reason)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                      noZonesReason === reason
+                        ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300'
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              type="text"
+              placeholder={`Hoặc nhập lý do thực tế (tối thiểu ${MIN_NO_ZONES_REASON_LENGTH} ký tự)...`}
+              value={noZonesReason}
+              disabled={isReadOnly}
+              onChange={(e) => onToggleHasZones?.(false, e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 disabled:opacity-50 cursor-text"
+            />
+          </div>
+        </div>
+      ) : (
+        <>
       {/* CAD_01 Inline Interactive Canvas */}
       <FloorCadPinningCanvas
         cadPhotoUrl={currentFloor.cadSketchPhotoUrl}
@@ -670,6 +757,8 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
           </div>
         ) : null}
       </div>
+        </>
+      )}
     </Card>
   );
 };

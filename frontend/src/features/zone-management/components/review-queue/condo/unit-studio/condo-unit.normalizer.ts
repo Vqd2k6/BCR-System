@@ -18,6 +18,7 @@ import {
   resolveUnitCadUrl,
   toSurveyDoorJammingPayload,
   toSurveyLeakagePayload,
+  isLeavingCondoAbsence,
   needsCondoAbsenceDecision,
 } from './condo-unit.adapters';
 
@@ -25,6 +26,10 @@ import {
 const ABSENT_UNIT_EDITABLE_KEYS = new Set([
   'displayCode',
   'residentStatus',
+  'ownerName',
+  'ownerPhone',
+  'ownerIdCard',
+  'unitAreaM2',
   'absenceDecision',
   'absenteeInfo',
   'isAbsentee',
@@ -35,6 +40,8 @@ const ABSENT_UNIT_EDITABLE_KEYS = new Set([
   'studioEnhancedByOriginal',
 ]);
 
+const IDENTITY_KEYS = ['ownerName', 'ownerPhone', 'ownerIdCard', 'unitAreaM2'] as const;
+
 /** Kết luận vắng chủ theo form hiện tại, gồm cả thay đổi chưa lưu. */
 export function resolveCondoFormAbsence(state: CondoUnitFormState): CondoAbsenceView {
   return previewCondoAbsence(state.absence, {
@@ -44,9 +51,13 @@ export function resolveCondoFormAbsence(state: CondoUnitFormState): CondoAbsence
 }
 
 export function getCondoUnitSaveBlockReason(state: CondoUnitFormState): string | null {
-  return needsCondoAbsenceDecision(resolveCondoFormAbsence(state), state.residentStatus, state.loadedResidentStatus)
-    ? 'Căn hộ có khuyết tật trong phòng: hãy xác nhận Vắng Chủ hoặc Đã Khảo Sát ở Mục 1.2 trước khi lưu.'
-    : null;
+  const absence = resolveCondoFormAbsence(state);
+  if (!needsCondoAbsenceDecision(absence, state.residentStatus, state.loadedResidentStatus, state.loadedAbsenceState)) {
+    return null;
+  }
+  return isLeavingCondoAbsence(absence, state.loadedAbsenceState)
+    ? 'Căn hộ đang vắng chủ: hãy xác nhận Đã Khảo Sát kèm lý do ở Mục 1.2 trước khi lưu.'
+    : 'Căn hộ có khuyết tật trong phòng: hãy xác nhận Vắng Chủ hoặc Đã Khảo Sát ở Mục 1.2 trước khi lưu.';
 }
 
 /** Lọc khi tính diff, không xóa form: Admin chuyển case qua lại thì phần đã sửa vẫn còn. */
@@ -117,7 +128,41 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
   const absence = resolveCondoAbsenceView(data);
   // Luôn dựng để Step 9 có dữ liệu ngay khi Admin chuyển căn thường sang vắng
   const absenteeInfo = adaptUnitAbsentee(sJson, rawAbsenceLogs) ?? EMPTY_UNIT_ABSENTEE;
+  const absJson = toRecord(sJson.absenteeInfo);
+  const resolvedWitnessName = firstNonEmptyString(
+    sigs.witnessName,
+    surveySigs.witnessName,
+    sJson.witnessName,
+    absJson.witnessName,
+    absenteeInfo?.witnessName
+  );
+  const resolvedWitnessRole = firstNonEmptyString(
+    sigs.witnessRole,
+    surveySigs.witnessRole,
+    sJson.witnessRole,
+    absJson.witnessRole,
+    absenteeInfo?.witnessRole
+  );
+  const resolvedWitnessPhone = firstNonEmptyString(
+    sigs.witnessPhone,
+    surveySigs.witnessPhone,
+    sJson.witnessPhone,
+    absJson.witnessPhone,
+    absenteeInfo?.witnessPhone
+  );
+
+  if (absenteeInfo) {
+    if (!absenteeInfo.witnessName && resolvedWitnessName) absenteeInfo.witnessName = resolvedWitnessName;
+    if (!absenteeInfo.witnessRole && resolvedWitnessRole) absenteeInfo.witnessRole = resolvedWitnessRole;
+    if (!absenteeInfo.witnessPhone && resolvedWitnessPhone) absenteeInfo.witnessPhone = resolvedWitnessPhone;
+  }
+
   const residentStatus = firstNonEmptyString(unitInfo.resident_status, sJson.residentStatus);
+  // Có khóa trong lớp phủ là Admin đã hiệu chỉnh, kể cả đã xóa: không đọc tiếp bản gốc hay chủ tòa mẹ
+  const identityOverrides = toRecord(sJson.adminIdentityOverrides);
+  const identityOverrideKeys = IDENTITY_KEYS.filter((key) => key in identityOverrides);
+  const resolveOwnerText = (key: 'ownerName' | 'ownerPhone' | 'ownerIdCard', original: string): string =>
+    key in identityOverrides ? firstNonEmptyString(identityOverrides[key]) : original;
   const renovation = toRecord(sJson.interiorRenovationHistory);
 
   return recomputeCondoUnitBurlandOnChange(
@@ -125,12 +170,20 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
       unitCode: firstNonEmptyString(unitInfo.unit_code, data.unitCode, sJson.unitCode),
       displayCode: firstNonEmptyString(unitInfo.display_code, sJson.displayCode),
       floorNumber: floorNum,
-      ownerName: firstNonEmptyString(unitInfo.owner_name, data.ownerName, sJson.ownerName),
-      ownerPhone: firstNonEmptyString(unitInfo.owner_phone, data.ownerPhone, sJson.ownerPhone),
-      ownerIdCard: firstNonEmptyString(unitInfo.owner_id_card, sJson.ownerIdCard),
+      ownerName: resolveOwnerText('ownerName', firstNonEmptyString(unitInfo.owner_name, data.ownerName, sJson.ownerName)),
+      ownerPhone: resolveOwnerText('ownerPhone', firstNonEmptyString(unitInfo.owner_phone, data.ownerPhone, sJson.ownerPhone)),
+      ownerIdCard: resolveOwnerText('ownerIdCard', firstNonEmptyString(unitInfo.owner_id_card, sJson.ownerIdCard)),
       residentStatus,
       loadedResidentStatus: residentStatus,
-      unitAreaM2: toNumberOrNull(sJson.unitAreaM2 ?? unitInfo.unit_area_m2),
+      loadedAbsenceState: absence.state,
+      ksvOriginalIdentity: {
+        ownerName: firstNonEmptyString(unitInfo.owner_name, sJson.ownerName),
+        ownerPhone: firstNonEmptyString(unitInfo.owner_phone, sJson.ownerPhone),
+        ownerIdCard: firstNonEmptyString(unitInfo.owner_id_card, sJson.ownerIdCard),
+        unitAreaM2: toNumberOrNull(sJson.unitAreaM2),
+      },
+      identityOverrideKeys,
+      unitAreaM2: toNumberOrNull('unitAreaM2' in identityOverrides ? identityOverrides.unitAreaM2 : sJson.unitAreaM2),
       isRefusedOrAbsent: absence.state === 'ABSENT',
       absence,
       absenceDecision: (sJson.absenceDecision as CondoUnitFormState['absenceDecision']) ?? null,
@@ -169,11 +222,11 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
         surveyorName: firstNonEmptyString(sigs.surveyorName, data.surveyorName),
         surveyorPhone: firstNonEmptyString(sigs.surveyorPhone, data.surveyorPhone),
         surveyorSignature: firstNonEmptyString(sigs.surveyorSignature, data.surveyorSignatureUrl, sJson.surveyorSignature),
-        ownerName: firstNonEmptyString(sigs.ownerName, unitInfo.owner_name, data.ownerName),
+        ownerName: resolveOwnerText('ownerName', firstNonEmptyString(sigs.ownerName, unitInfo.owner_name, data.ownerName)),
         ownerSignature: firstNonEmptyString(sigs.ownerSignature, data.ownerSignatureUrl, sJson.ownerSignature),
-        witnessName: firstNonEmptyString(sigs.witnessName),
-        witnessRole: firstNonEmptyString(sigs.witnessRole),
-        witnessPhone: firstNonEmptyString(sigs.witnessPhone),
+        witnessName: resolvedWitnessName,
+        witnessRole: resolvedWitnessRole,
+        witnessPhone: resolvedWitnessPhone,
         // leftPane.signatures đã chuẩn hóa không có chữ ký người làm chứng
         witnessSignature: firstNonEmptyString(surveySigs.witnessSignature, surveySigs.witnessSignatureUrl),
         workingMinutesPhotos: Array.isArray(sigs.workingMinutesPhotos)
@@ -302,6 +355,14 @@ export function buildCondoUnitUpdatesPayload(
       noticeDelivered: absentee.noticeDelivered,
       rescheduleDate: absentee.rescheduleDate,
       attemptCount: absentee.attemptCount,
+    };
+    // Đồng bộ người làm chứng sang signatures để lưu trọn vẹn cả hai khóa
+    const sigs = (updates.signatures || formState.signatures || {}) as Record<string, unknown>;
+    updates.signatures = {
+      ...sigs,
+      witnessName: absentee.witnessName,
+      witnessRole: absentee.witnessRole,
+      witnessPhone: absentee.witnessPhone,
     };
   }
 

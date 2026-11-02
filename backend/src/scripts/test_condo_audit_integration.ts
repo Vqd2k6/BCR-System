@@ -14,6 +14,9 @@ import { assertSingleCtxTarget } from '../modules/audit/services/audit-modificat
 import { assertSurveyContentWritable, recordCtxChangeInTx } from '../modules/survey/repositories/survey-photo-preservation';
 import { assertCondoSnapshotRestorable, normalizeCondoSnapshot } from '../modules/audit/condo/services/condo-snapshot-restore.helpers';
 import { AuditReviewService } from '../modules/audit/services/audit-review.service';
+import { fetchCondoUnitAbsenceMap } from '../modules/audit/condo/condo-absence.resolver';
+import { AuditVersionService } from '../modules/audit/services/audit-version.service';
+import { CryptoUtils } from '../common/utils/crypto.utils';
 
 dotenv.config();
 
@@ -48,6 +51,200 @@ async function pickReport(where: string): Promise<string> {
   );
   assert.ok(res.rows[0], `Không có hồ sơ thỏa: ${where}`);
   return res.rows[0].id;
+}
+
+/** Hiệu chỉnh định danh căn vắng chỉ nằm ở lớp phủ: bản gốc nguyên vẹn và rollback từng bước được. */
+async function testAbsentIdentityOverrides(): Promise<void> {
+  const rows = await Database.query<{ id: string }>(
+    `SELECT r.id FROM base_survey_reports r
+     JOIN building_units bu ON bu.id = r.unit_id JOIN parcels p ON p.id = r.parcel_id
+     WHERE bu.unit_type = 'UNIT' AND r.deleted_at IS NULL AND r.status <> 'APPROVED' AND COALESCE(p.is_locked, false) = false
+       AND EXISTS (SELECT 1 FROM damage_zones z WHERE z.report_id = r.id AND z.is_deleted IS NOT TRUE);`
+  );
+  const absence = await fetchCondoUnitAbsenceMap(rows.rows.map((row) => row.id));
+  const pick = (test: (item: NonNullable<ReturnType<typeof absence.get>>) => boolean): string => {
+    const found = [...absence.entries()].find(([, item]) => test(item));
+    assert.ok(found, 'Thiếu hồ sơ phù hợp cho kịch bản lớp phủ định danh');
+    return found[0];
+  };
+  const hardId = pick((item) => item.state === 'ABSENT' && item.isHardAbsent);
+  const statusOnlyId = pick(
+    (item) => item.state === 'ABSENT' && !item.isHardAbsent && item.hasResidentStatusSignal && !item.hasOtherSoftSignal && !item.decision
+  );
+  const normalId = pick((item) => item.state === 'NORMAL');
+
+  const contextOf = async (id: string) => {
+    const resolved = await CondoCrudEngineService.resolveCondoReportContext(id);
+    assert.ok(resolved);
+    return resolved.context;
+  };
+  const strategy = CondoCrudEngineService.getStrategy('CONDO_UNIT');
+  const hardContext = await contextOf(hardId);
+  const statusOnlyContext = await contextOf(statusOnlyId);
+  const normalContext = await contextOf(normalId);
+  const originalRow = (client: PoolClient, context: typeof hardContext) =>
+    one(
+      client,
+      `SELECT u.owner_name, u.owner_phone, u.owner_id_card, s.construction_area_m2
+       FROM building_units u LEFT JOIN building_specifications s ON s.report_id = $2 WHERE u.id = $1;`,
+      [context.unit_id, context.report_id]
+    );
+  const jsonOf = (context: typeof hardContext) => ({ ...(context.survey_data_json as Record<string, unknown>) });
+  const CLEAR = { ownerName: '', ownerPhone: '  ', ownerIdCard: '', unitAreaM2: 65.5 };
+  const NOT_ABSENT = { decision: 'NOT_ABSENT', reason: 'Admin đối chiếu ảnh hiện trường' };
+
+  await inRollback('Căn vắng: xóa định danh không đổi bản gốc, chỉ thêm lớp phủ', async (client) => {
+    const before = await originalRow(client, hardContext);
+    const json = jsonOf(hardContext);
+    const originalJson = jsonOf(hardContext);
+    await strategy.applyCrudInTransaction(client, hardContext, json, CLEAR, 'admin-test');
+    assert.deepEqual(await originalRow(client, hardContext), before);
+    for (const key of ['ownerName', 'ownerPhone', 'ownerIdCard', 'unitAreaM2']) assert.deepEqual(json[key], originalJson[key]);
+    const overrides = json.adminIdentityOverrides as Record<string, unknown>;
+    assert.equal(overrides.ownerName, null);
+    assert.equal(overrides.ownerPhone, null);
+    assert.equal(overrides.ownerIdCard, null);
+    assert.equal(overrides.unitAreaM2, 65.5);
+    assert.equal(overrides.updatedBy, 'admin-test');
+  });
+
+  await inRollback('Căn vắng: rollback v2 về v1 về v0 trả đúng lớp phủ từng bản', async (client) => {
+    const v0 = jsonOf(hardContext);
+    const v1 = { ...v0 };
+    await strategy.applyCrudInTransaction(client, hardContext, v1, { ownerIdCard: '' }, 'admin-test');
+    const v2 = JSON.parse(JSON.stringify(v1)) as Record<string, unknown>;
+    await strategy.applyCrudInTransaction(client, hardContext, v2, { ownerIdCard: '079000000000', ownerName: 'Tên Admin' }, 'admin-test');
+    assert.equal((v2.adminIdentityOverrides as Record<string, unknown>).ownerIdCard, '079000000000');
+
+    const restore = async (target: Record<string, unknown>, currentJson: Record<string, unknown>) =>
+      (await strategy.restoreSnapshotInTransaction(client, hardContext, normalizeCondoSnapshot(target), 'admin-test', {
+        restoreCadPosition: true,
+        currentJson,
+      })).restoredSurveyJson;
+    const atV1 = await restore(v1, v2);
+    assert.equal((atV1.adminIdentityOverrides as Record<string, unknown>).ownerIdCard, null);
+    assert.equal((atV1.adminIdentityOverrides as Record<string, unknown>).ownerName, undefined);
+    const atV0 = await restore(v0, atV1);
+    assert.equal(atV0.adminIdentityOverrides, undefined);
+    assert.equal(atV0.ownerIdCard, v0.ownerIdCard);
+    assert.equal(atV0.ownerName, v0.ownerName);
+  });
+
+  await inRollback('Căn vắng: khối chữ ký gửi kèm không ghi đè tên chủ hộ gốc', async (client) => {
+    const json = jsonOf(hardContext);
+    const originalSignatureName = (json.signatures as Record<string, unknown> | undefined)?.ownerName;
+    await strategy.applyCrudInTransaction(client, hardContext, json, { signatures: { ownerName: 'Tên Admin', witnessName: 'Nhân chứng' } }, 'admin-test');
+    const signatures = json.signatures as Record<string, unknown>;
+    assert.equal(signatures.ownerName, originalSignatureName);
+    assert.equal(signatures.witnessName, 'Nhân chứng');
+  });
+
+  await inRollback('Vừa xóa rác vừa rời nhóm vắng: bản gốc vẫn nguyên', async (client) => {
+    const before = await originalRow(client, statusOnlyContext);
+    const json = jsonOf(statusOnlyContext);
+    await strategy.applyCrudInTransaction(
+      client,
+      statusOnlyContext,
+      json,
+      { ownerIdCard: '', residentStatus: 'CHỦ_HỘ_Ở', absenceDecision: NOT_ABSENT },
+      'admin-test'
+    );
+    assert.equal((await originalRow(client, statusOnlyContext)).owner_id_card, before.owner_id_card);
+    assert.equal((json.adminIdentityOverrides as Record<string, unknown>).ownerIdCard, null);
+  });
+
+  await inRollback('Căn thường đổi sang vắng và xóa định danh trong một lần lưu: bản gốc nguyên vẹn', async (client) => {
+    const before = await originalRow(client, normalContext);
+    const json = jsonOf(normalContext);
+    const originalJson = jsonOf(normalContext);
+    const updates = { residentStatus: 'VẮNG_MẶT_KHÓA_CỬA', ownerName: '', ownerPhone: '', ownerIdCard: '' };
+    await strategy.validateBeforeModify(normalContext, updates, []);
+    await strategy.applyCrudInTransaction(client, normalContext, json, updates, 'admin-test');
+    const after = await originalRow(client, normalContext);
+    assert.equal(after.owner_name, before.owner_name);
+    assert.equal(after.owner_phone, before.owner_phone);
+    assert.equal(after.owner_id_card, before.owner_id_card);
+    assert.deepEqual(json.ownerName, originalJson.ownerName);
+    assert.equal((json.adminIdentityOverrides as Record<string, unknown>).ownerName, null);
+    assert.equal(json.residentStatus, 'VẮNG_MẶT_KHÓA_CỬA');
+  });
+
+  await inRollback('Căn thường sửa chủ hộ: ghi trực tiếp như cũ, không có lớp phủ', async (client) => {
+    const json = jsonOf(normalContext);
+    await strategy.applyCrudInTransaction(client, normalContext, json, { ownerName: 'Chủ Kiểm Thử' }, 'admin-test');
+    assert.equal((await originalRow(client, normalContext)).owner_name, 'Chủ Kiểm Thử');
+    assert.equal(json.ownerName, 'Chủ Kiểm Thử');
+    assert.equal(json.adminIdentityOverrides, undefined);
+  });
+
+  await inRollback('Client không tự ghi được lớp phủ', async (client) => {
+    await assert.rejects(strategy.validateBeforeModify(hardContext, { adminIdentityOverrides: { ownerName: 'X' } }, []));
+    const json = jsonOf(normalContext);
+    await strategy.applyCrudInTransaction(client, normalContext, json, { adminIdentityOverrides: { ownerName: 'X' } }, 'admin-test');
+    assert.equal(json.adminIdentityOverrides, undefined);
+  });
+
+  await inRollback('Rời nhóm vắng phải có quyết định, căn hard-absent vẫn lưu được', async () => {
+    await assert.rejects(strategy.validateBeforeModify(statusOnlyContext, { residentStatus: 'CHỦ_HỘ_Ở' }, []), /Đã Khảo Sát/);
+    await strategy.validateBeforeModify(statusOnlyContext, { residentStatus: 'CHỦ_HỘ_Ở', absenceDecision: NOT_ABSENT }, []);
+    await strategy.validateBeforeModify(hardContext, { residentStatus: 'CHỦ_HỘ_Ở' }, []);
+    const stillAbsent = await fetchCondoUnitAbsenceMap([hardId], undefined, { residentStatus: 'CHỦ_HỘ_Ở' });
+    assert.equal(stillAbsent.get(hardId)?.state, 'ABSENT');
+  });
+
+  await inRollback('Mở Lại Khảo Sát chuyển lớp phủ vào lưu trữ, không xóa', async (client) => {
+    const json = jsonOf(hardContext);
+    await strategy.applyCrudInTransaction(client, hardContext, json, { ownerIdCard: '' }, 'admin-test');
+    assert.ok(json.adminIdentityOverrides);
+    await client.query(`UPDATE base_survey_reports SET survey_data_json = $2::jsonb WHERE id = $1;`, [hardId, JSON.stringify(json)]);
+    await AuditReviewService['clearAbsentSurveyFlagsInTx'](client, hardId, hardContext.unit_id, 'admin-test', 'Chủ hộ đã liên hệ lại');
+    const reopened = await one(
+      client,
+      `SELECT survey_data_json->'adminIdentityOverrides' AS o, survey_data_json->'archivedAdminIdentityOverrides' AS a
+       FROM base_survey_reports WHERE id = $1;`,
+      [hardId]
+    );
+    assert.equal(reopened.o, null);
+    assert.equal(reopened.a.length, 1);
+    assert.equal(reopened.a[0].ownerIdCard, null);
+    assert.equal(reopened.a[0].archivedBy, 'admin-test');
+  });
+
+  // Không có bản gốc v0 thì không được ghi đè; chạy thật nên chọn hồ sơ chưa có v0 và không ghi gì
+  const noBaseline = await Database.query<{ id: string }>(
+    `SELECT r.id FROM base_survey_reports r JOIN building_units bu ON bu.id = r.unit_id JOIN parcels p ON p.id = r.parcel_id
+     WHERE bu.unit_type = 'UNIT' AND r.deleted_at IS NULL AND r.status <> 'APPROVED' AND COALESCE(p.is_locked, false) = false
+       AND NOT EXISTS (SELECT 1 FROM survey_report_versions v WHERE v.report_id = r.id AND v.version_tag = 'ORIGINAL_SUBMISSION')
+     LIMIT 1;`
+  );
+  const admin = await Database.query<{ id: string }>(`SELECT id FROM users WHERE status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1;`);
+  assert.ok(noBaseline.rows[0], 'Thiếu hồ sơ chưa có v0');
+  const noBaselineId = noBaseline.rows[0].id;
+  const realSnapshot = AuditVersionService.createSnapshot;
+  const realCompare = CryptoUtils.comparePassword;
+  const before = await Database.query(`SELECT survey_data_json::text AS j, updated_at FROM base_survey_reports WHERE id = $1;`, [noBaselineId]);
+  AuditVersionService.createSnapshot = (async () => {
+    throw new Error('Giả lập lỗi tạo v0');
+  }) as typeof AuditVersionService.createSnapshot;
+  CryptoUtils.comparePassword = (async () => true) as typeof CryptoUtils.comparePassword;
+  try {
+    await assert.rejects(
+      CondoCrudEngineService.applyCondoAdminSurveyEdit(noBaselineId, admin.rows[0].id, {
+        updates: { displayCode: 'KHONG-DUOC-GHI' },
+        adminPassword: 'x',
+        editReason: 'Kiểm thử chặn sửa khi thiếu v0',
+      } as Parameters<typeof CondoCrudEngineService.applyCondoAdminSurveyEdit>[2]),
+      /bản gốc v0/
+    );
+  } finally {
+    AuditVersionService.createSnapshot = realSnapshot;
+    CryptoUtils.comparePassword = realCompare;
+  }
+  const after = await Database.query(`SELECT survey_data_json::text AS j, updated_at FROM base_survey_reports WHERE id = $1;`, [noBaselineId]);
+  assert.equal(after.rows[0].j, before.rows[0].j);
+  assert.deepEqual(after.rows[0].updated_at, before.rows[0].updated_at);
+  passed += 1;
+  console.log('[PASS] Tạo v0 lỗi thì dừng lượt sửa, hồ sơ không đổi');
 }
 
 async function main(): Promise<void> {
@@ -372,6 +569,8 @@ async function main(): Promise<void> {
     assert.equal(restored.pile_dimensions_text, specBefore?.pile_dimensions_text ?? null);
     assert.equal((await one(client, `SELECT owner_name FROM parcels WHERE id = $1;`, [resolvedMaster.context.parcel_id])).owner_name, parcelBefore.owner_name);
   });
+
+  await testAbsentIdentityOverrides();
 
   console.log(`\nĐạt ${passed} kịch bản.`);
   process.exit(0);

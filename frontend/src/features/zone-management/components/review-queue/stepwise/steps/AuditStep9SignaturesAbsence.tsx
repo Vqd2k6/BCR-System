@@ -362,8 +362,8 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
     condoAbsentMerge?.witness.phone ?? toSignatureField('witnessPhone', 'SĐT người làm chứng', witnessPhone);
   const isWitnessDirty = witnessNameField.isDirty || witnessRoleField.isDirty || witnessPhoneField.isDirty;
 
-  // Căn vắng không có biên bản ký; khi có ảnh thì vẫn hiện để đối chiếu, và chế độ sửa vẫn thêm được
-  const showMinutesGallery = !condoAbsentMerge || isEditMode || allMinutesItems.length > 0;
+  // Căn vắng không có biên bản ký 3 bên: chỉ hiển thị thư viện ảnh biên bản khi thực tế có ảnh đã tải lên
+  const showMinutesGallery = condoAbsentMerge ? allMinutesItems.length > 0 : (isEditMode || allMinutesItems.length > 0);
   const showOwnerCard = !condoAbsentMerge || Boolean(ownerSignatureUrl || ownerSigAction);
 
   return (

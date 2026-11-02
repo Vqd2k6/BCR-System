@@ -11,6 +11,7 @@ import {
 } from '../../report.types';
 import type { StandardTextContent } from '../../../report_config/report-config.types';
 import { readCustomRestrictedAreas } from '../../../survey/access-limitation.utils';
+import { collectZoneExemptFloors } from '../../../survey/zone-exemption.utils';
 
 export class Section9ConclusionMapper {
   public static map(
@@ -107,6 +108,14 @@ export class Section9ConclusionMapper {
       limitationsList.push({
         vi: 'Khu vực tầng hầm: Chưa tiếp cận khảo sát',
         en: 'Basement area: Inaccessible / not surveyed',
+      });
+    }
+
+    // Suy từ Bước 3 nên in cả khi hồ sơ khai FULL_100
+    for (const floor of collectZoneExemptFloors(json?.floors)) {
+      limitationsList.push({
+        vi: `Tầng hạn chế tiếp cận chi tiết: ${floor.floorName} (Lý do: ${floor.reason.vi})`,
+        en: `Floor with restricted detailed access: ${floor.floorName} (Reason: ${floor.reason.en})`,
       });
     }
 

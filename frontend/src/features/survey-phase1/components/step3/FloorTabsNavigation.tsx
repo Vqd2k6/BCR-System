@@ -141,7 +141,7 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
                   isActive ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                {fl.zones?.length || 0} Z • {fl.structuralElements?.length || 0} E
+                {fl.hasZones === false ? 'Miễn Z' : `${fl.zones?.length || 0} Z`} • {fl.hasStructuralElements === false ? 'Miễn E' : `${fl.structuralElements?.length || 0} E`}
               </span>
 
               {/* Quick action buttons on active tab */}

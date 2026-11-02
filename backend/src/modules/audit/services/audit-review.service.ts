@@ -183,22 +183,28 @@ export class AuditReviewService {
         bu.display_code,
         bu.unit_type,
         bu.floor_number AS unit_floor_number,
-        COALESCE(
-          CASE
-            WHEN NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NOT NULL
-             AND BTRIM(r.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
-            THEN BTRIM(r.survey_data_json->>'ownerName')
-            ELSE NULL
-          END,
-          CASE
-            WHEN NULLIF(BTRIM(bu.owner_name), '') IS NOT NULL
-             AND BTRIM(bu.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
-            THEN BTRIM(bu.owner_name)
-            ELSE NULL
-          END,
-          bu.owner_name
-        ) AS unit_owner_name,
-        COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone) AS unit_owner_phone,
+        CASE WHEN r.survey_data_json->'adminIdentityOverrides' ? 'ownerName'
+          THEN NULLIF(BTRIM(r.survey_data_json->'adminIdentityOverrides'->>'ownerName'), '')
+          ELSE COALESCE(
+            CASE
+              WHEN NULLIF(BTRIM(r.survey_data_json->>'ownerName'), '') IS NOT NULL
+               AND BTRIM(r.survey_data_json->>'ownerName') !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+              THEN BTRIM(r.survey_data_json->>'ownerName')
+              ELSE NULL
+            END,
+            CASE
+              WHEN NULLIF(BTRIM(bu.owner_name), '') IS NOT NULL
+               AND BTRIM(bu.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
+              THEN BTRIM(bu.owner_name)
+              ELSE NULL
+            END,
+            bu.owner_name
+          )
+        END AS unit_owner_name,
+        CASE WHEN r.survey_data_json->'adminIdentityOverrides' ? 'ownerPhone'
+          THEN NULLIF(BTRIM(r.survey_data_json->'adminIdentityOverrides'->>'ownerPhone'), '')
+          ELSE COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone)
+        END AS unit_owner_phone,
         bu.status::text AS unit_status,
         bu.resident_status AS unit_resident_status,
         p.id AS parcel_id,
@@ -510,7 +516,7 @@ export class AuditReviewService {
        LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
        WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND (z.zone_code NOT LIKE 'E%' OR z.zone_code IS NULL)
        GROUP BY z.id
-       ORDER BY z.floor_name, z.zone_code;`,
+       ORDER BY COALESCE(z.floor_name, ''), LENGTH(z.zone_code), z.zone_code;`,
       [actualReportId]
     );
 
@@ -546,7 +552,7 @@ export class AuditReviewService {
        LEFT JOIN defect_items d ON z.id = d.zone_id AND (d.is_deleted = false OR d.is_deleted IS NULL)
        WHERE z.report_id = $1 AND (z.is_deleted = false OR z.is_deleted IS NULL) AND z.zone_code LIKE 'E%'
        GROUP BY z.id
-       ORDER BY z.floor_name, z.zone_code;`,
+       ORDER BY COALESCE(z.floor_name, ''), LENGTH(z.zone_code), z.zone_code;`,
       [actualReportId]
     );
 
@@ -872,14 +878,15 @@ export class AuditReviewService {
     });
 
     const sigJson = surveyJson.signatures || {};
+    const absJson = surveyJson.absenteeInfo || {};
     const normalizedSignatures = {
       surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || sigJson.surveyorSignature || null,
       surveyorSignatureUrl: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || sigJson.surveyorSignature || null,
       surveyorName: sigJson.surveyorName || surveyJson.surveyorName || sigJson.preparedBy?.fullName || report.surveyor_name || null,
       surveyorPhone: sigJson.surveyorPhone || surveyJson.surveyorPhone || sigJson.preparedBy?.phone || report.surveyor_phone || null,
-      witnessName: sigJson.witnessName || surveyJson.witnessName || sigJson.localAuthority?.fullName || null,
-      witnessRole: sigJson.witnessRole || surveyJson.witnessRole || sigJson.localAuthority?.role || null,
-      witnessPhone: sigJson.witnessPhone || surveyJson.witnessPhone || sigJson.localAuthority?.phone || null,
+      witnessName: sigJson.witnessName || surveyJson.witnessName || absJson.witnessName || sigJson.localAuthority?.fullName || null,
+      witnessRole: sigJson.witnessRole || surveyJson.witnessRole || absJson.witnessRole || sigJson.localAuthority?.role || null,
+      witnessPhone: sigJson.witnessPhone || surveyJson.witnessPhone || absJson.witnessPhone || sigJson.localAuthority?.phone || null,
       ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || sigJson.ownerSignature || null,
       ownerSignatureUrl: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || sigJson.ownerSignature || null,
       ownerName: sigJson.ownerName || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || report.owner_name || null,
@@ -1767,6 +1774,18 @@ export class AuditReviewService {
       resumedAt: new Date().toISOString(),
       absenceDecision: { decision: 'NOT_ABSENT', reason: reason.trim(), decidedBy: adminId, decidedAt: new Date().toISOString() },
     };
+    // KSV khảo sát lại thì hiệu chỉnh cũ không được che dữ liệu mới, nhưng vẫn phải giữ lại làm lưu vết
+    const overrides = reopenedJson.adminIdentityOverrides;
+    if (overrides && typeof overrides === 'object') {
+      const archived = Array.isArray(reopenedJson.archivedAdminIdentityOverrides)
+        ? reopenedJson.archivedAdminIdentityOverrides
+        : [];
+      reopenedJson.archivedAdminIdentityOverrides = [
+        ...archived,
+        { ...overrides, archivedAt: new Date().toISOString(), archivedBy: adminId },
+      ];
+      delete reopenedJson.adminIdentityOverrides;
+    }
     await client.query(`UPDATE base_survey_reports SET survey_data_json = $2::jsonb WHERE id = $1;`, [
       reportId,
       JSON.stringify(reopenedJson),

@@ -2,7 +2,7 @@ import React from 'react';
 import { Camera, User } from 'lucide-react';
 import { AuditField, withCurrentOption } from '../../../stepwise/ui/AuditField';
 import { AuditSubsection } from '../../../stepwise/ui/AuditStepSection';
-import { toNumberOrNull, toRecord } from '../../core/condo-normalize.utils';
+import { toNumberOrNull } from '../../core/condo-normalize.utils';
 import { CondoAbsenceDecisionCard } from '../../core/CondoAbsenceDecisionCard';
 import { CondoParentInheritancePanel } from '../../core/CondoParentInheritancePanel';
 import { CondoPhotoCard } from '../../core/CondoPhotoCard';
@@ -10,7 +10,12 @@ import type {
   CondoAuditStepProps,
   CondoUnitFormState,
 } from '../../types/condo-audit.types';
-import { ABSENCE_DECISION_LABEL, buildCondoAbsenceDecision, needsCondoAbsenceDecision } from '../condo-unit.adapters';
+import {
+  ABSENCE_DECISION_LABEL,
+  buildCondoAbsenceDecision,
+  isLeavingCondoAbsence,
+  needsCondoAbsenceDecision,
+} from '../condo-unit.adapters';
 
 const RESIDENT_STATUS_OPTIONS = [
   { value: 'CHỦ_HỘ_Ở', label: 'Chủ hộ đang ở' },
@@ -18,6 +23,13 @@ const RESIDENT_STATUS_OPTIONS = [
   { value: 'BỎ_TRỐNG_CHƯA_VỀ_Ở', label: 'Bỏ trống / Chưa về ở' },
   { value: 'VẮNG_MẶT_KHÓA_CỬA', label: 'Vắng mặt / Khóa cửa' },
 ];
+
+const IDENTITY_FIELD_LABELS = {
+  ownerName: 'Họ tên',
+  ownerPhone: 'SĐT',
+  ownerIdCard: 'CCCD',
+  unitAreaM2: 'Diện tích',
+};
 
 export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFormState>> = ({
   isEditMode,
@@ -35,19 +47,35 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
 }) => {
   const { state, hasUnknownOwnerName, hasUnknownOwnerPhone } = formState.absence;
   const isAbsentUnit = state === 'ABSENT';
-  // Với căn vắng, tên/SĐT là KSV điền cho qua form: không trình bày như thông tin đã xác minh
-  const ownerNameValue = isAbsentUnit && hasUnknownOwnerName ? '' : formState.ownerName;
-  const ownerPhoneValue = isAbsentUnit && hasUnknownOwnerPhone ? '' : formState.ownerPhone;
-  const ownerSuffix = isAbsentUnit ? ' (KSV nhập, chưa xác minh)' : '';
-  const unitAreaValue = isAbsentUnit ? toNumberOrNull(toRecord(data.unitInfo).unit_area_m2) : formState.unitAreaM2;
-  // Căn vắng chỉ được chuẩn hóa biển số và ảnh tiếp cận; thông tin còn lại chưa được xác minh tại căn
+  // Ở chế độ xem: với căn vắng, tên/SĐT là KSV điền nháp thì ẩn hoặc gắn nhãn
+  // Ở chế độ sửa: cho phép hiển thị đầy đủ giá trị thực tế để Admin có thể sửa hoặc xóa bỏ dữ liệu rác (như CCCD 1111)
+  const ownerNameValue = isEditMode
+    ? (formState.ownerName ?? '')
+    : (isAbsentUnit && hasUnknownOwnerName ? '' : (formState.ownerName ?? ''));
+  const ownerPhoneValue = isEditMode
+    ? (formState.ownerPhone ?? '')
+    : (isAbsentUnit && hasUnknownOwnerPhone ? '' : (formState.ownerPhone ?? ''));
+  const { identityOverrideKeys, ksvOriginalIdentity } = formState;
+  const getOwnerSuffix = (key: 'ownerName' | 'ownerPhone') =>
+    isAbsentUnit && !identityOverrideKeys.includes(key) ? ' (KSV nhập, chưa xác minh)' : '';
+  const originalIdentityNotes = identityOverrideKeys.map((key) => {
+    const value = ksvOriginalIdentity[key];
+    return `${IDENTITY_FIELD_LABELS[key]}: ${value === null || value === '' ? '---' : value}`;
+  });
+  // Hiệu chỉnh của Admin nằm ở lớp phủ riêng, giá trị KSV giữ nguyên nên rollback được
+  const isOwnerInfoEditable = isEditMode;
   const isIdentityEditable = isEditMode && !isAbsentUnit;
-  // Admin vừa đổi sang vắng ở đây thì phải đổi lại được ngay trên ô này
-  const isResidentStatusEditable = isIdentityEditable || (isEditMode && isFieldDirty('residentStatus'));
+  // Admin có thể đổi tình trạng cư trú bất kỳ lúc nào ở chế độ sửa
+  const isResidentStatusEditable = isEditMode;
 
   const isDecisionRequired =
     isEditMode &&
-    needsCondoAbsenceDecision(formState.absence, formState.residentStatus, formState.loadedResidentStatus);
+    needsCondoAbsenceDecision(
+      formState.absence,
+      formState.residentStatus,
+      formState.loadedResidentStatus,
+      formState.loadedAbsenceState
+    );
 
   const photos = [
     { key: 'photoP01', code: 'P-01', type: 'P01_HOUSE_NUMBER', title: 'Biển số cửa căn hộ', item: formState.photoP01 },
@@ -115,8 +143,8 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Diện tích căn hộ"
             type="number"
             unit="m²"
-            value={unitAreaValue}
-            isEditMode={isIdentityEditable}
+            value={formState.unitAreaM2}
+            isEditMode={isOwnerInfoEditable}
             isDirty={isFieldDirty('unitAreaM2')}
             onChange={(val) => handleFieldChange('unitAreaM2', 'Diện tích căn hộ', toNumberOrNull(val))}
           />
@@ -130,17 +158,17 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             onChange={(val) => handleFieldChange('residentStatus', 'Tình trạng cư trú', val)}
           />
           <AuditField
-            label={`Họ tên chủ hộ${ownerSuffix}`}
+            label={`Họ tên chủ hộ${getOwnerSuffix('ownerName')}`}
             value={ownerNameValue}
-            isEditMode={isIdentityEditable}
+            isEditMode={isOwnerInfoEditable}
             isDirty={isFieldDirty('ownerName')}
             onChange={(val) => handleFieldChange('ownerName', 'Họ tên chủ hộ căn hộ', val)}
           />
           <AuditField
-            label={`Số điện thoại${ownerSuffix}`}
+            label={`Số điện thoại${getOwnerSuffix('ownerPhone')}`}
             value={ownerPhoneValue}
             mono
-            isEditMode={isIdentityEditable}
+            isEditMode={isOwnerInfoEditable}
             isDirty={isFieldDirty('ownerPhone')}
             onChange={(val) => handleFieldChange('ownerPhone', 'Số điện thoại chủ hộ', val)}
           />
@@ -148,11 +176,16 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             label="Số CCCD"
             value={formState.ownerIdCard}
             mono
-            isEditMode={isIdentityEditable}
+            isEditMode={isOwnerInfoEditable}
             isDirty={isFieldDirty('ownerIdCard')}
             onChange={(val) => handleFieldChange('ownerIdCard', 'Số CCCD chủ hộ', val)}
           />
         </div>
+        {originalIdentityNotes.length > 0 && (
+          <p className="text-xs text-slate-500 font-semibold">
+            Bản gốc KSV (giữ nguyên, rollback được): {originalIdentityNotes.join(' • ')}
+          </p>
+        )}
         {isFieldDirty('unitCode') && (
           <p className="text-xs text-amber-700 font-semibold">
             Mã căn là khóa nhập CAD: nhập lại CAD với mã cũ sẽ tạo căn trùng. Mã báo cáo đã cấp vẫn giữ mã cũ.
@@ -170,6 +203,7 @@ export const UnitStep01Identification: React.FC<CondoAuditStepProps<CondoUnitFor
             isEditMode={isEditMode}
             hasPendingDecision={false}
             isDecisionRequired
+            isLeavingAbsence={isLeavingCondoAbsence(formState.absence, formState.loadedAbsenceState)}
             onDecide={(decision, reason) =>
               handleFieldChange('absenceDecision', ABSENCE_DECISION_LABEL, buildCondoAbsenceDecision(decision, reason))
             }

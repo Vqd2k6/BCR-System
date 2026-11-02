@@ -89,6 +89,8 @@ export interface FloorSurveyData {
   structuralElements?: StructuralElementData[];
   hasStructuralElements?: boolean; // Tùy chọn: Tầng có cấu kiện chịu lực riêng hay không (mặc định true, false cho tầng mái/sân thượng/tum)
   noStructuralElementsReason?: string; // Lý do miễn khảo sát cấu kiện chịu lực riêng (VD: Tầng mái không có cấu kiện riêng, Khung nhẹ/Mái tôn, v.v.)
+  hasZones?: boolean; // false khi chủ nhà chỉ cho chụp tổng quan tầng; hồ sơ cũ không có cờ được coi là true
+  noZonesReason?: string; // Lý do miễn khảo sát Vùng Z, KSV bắt buộc tự chọn hoặc nhập
   beamSagging?: {
     level?: number;
     location?: string;

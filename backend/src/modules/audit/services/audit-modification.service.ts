@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { replaceFloorSurveyRows } from '../../survey/repositories/floor-survey-rows';
 import { Database } from '../../../database/db';
 import type { PoolClient } from 'pg';
 import { recordCtxChangeInTx } from '../../survey/repositories/survey-photo-preservation';
@@ -213,6 +214,17 @@ function syncFlatZoneCtx(
   }
 }
 
+/** Dòng sổ cái của một ô: theo mã ảnh, hoặc theo URL nhưng ưu tiên đúng loại ô khi URL đang dùng chung. */
+const registrySlotMatch = (report: string, url: string, code: string, cat: string, type: string): string => `
+  photo_code = ${code} OR (photo_url = ${url} AND (
+    (photo_category = ${cat} AND photo_type = ${type})
+    OR NOT EXISTS (
+      SELECT 1 FROM survey_photo_registry same_slot
+      WHERE same_slot.report_id = ${report} AND same_slot.photo_url = ${url}
+        AND same_slot.photo_category = ${cat} AND same_slot.photo_type = ${type}
+    )
+  ))`;
+
 export class AuditModificationService {
   /**
    * Cập nhật thông tin/ghi chú khảo sát từ Zone Admin
@@ -398,7 +410,9 @@ export class AuditModificationService {
         });
       }
     } catch (seedV0Err: any) {
-      console.warn('[applyAdminSurveyEdit] Không thể tự động khởi tạo v0 trước chỉnh sửa:', seedV0Err?.message);
+      // Không có v0 thì giá trị gốc sẽ mất hẳn sau lượt ghi đè
+      console.error('[applyAdminSurveyEdit] Không tạo được v0:', seedV0Err);
+      throw new Error('Không tạo được bản gốc v0 nên dừng lượt sửa để bảo toàn dữ liệu. Vui lòng thử lại.');
     }
 
     const postCommitWarnings: string[] = [];
@@ -1493,27 +1507,7 @@ export class AuditModificationService {
 
           // Đồng bộ bảng SQL floor_surveys khi có danh sách tầng (u.floors)
           if (Array.isArray(u.floors) && u.floors.length > 0) {
-            await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [actualReportId]);
-            for (let i = 0; i < u.floors.length; i++) {
-              const fl = u.floors[i];
-              await client.query(
-                `INSERT INTO floor_surveys (
-                   report_id, floor_name, floor_order, overview_photos_json,
-                   cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-                [
-                  actualReportId,
-                  fl.floorName || fl.floor_name || `Tầng ${i + 1}`,
-                  i + 1,
-                  JSON.stringify(fl.overviewPhotos || []),
-                  fl.cadDrawingUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || null,
-                  JSON.stringify(fl.cadZonePins || []),
-                  fl.cadStructuralDrawingUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || null,
-                  JSON.stringify(fl.cadElementPins || []),
-                  fl.notes || null,
-                ]
-              );
-            }
+            await replaceFloorSurveyRows(client, actualReportId, u.floors);
             mergedJson.floors = u.floors;
             mergedJson.damageZones = u.floors.flatMap((fl: any) =>
               (Array.isArray(fl.zones) ? fl.zones : []).map((z: any) => ({
@@ -2069,7 +2063,9 @@ export class AuditModificationService {
         });
       }
     } catch (seedV0Err: any) {
-      console.warn('[saveStagedModifications] Không thể tự động khởi tạo v0 trước chỉnh sửa:', seedV0Err?.message);
+      // Không có v0 thì giá trị gốc sẽ mất hẳn sau lượt ghi đè
+      console.error('[saveStagedModifications] Không tạo được v0:', seedV0Err);
+      throw new Error('Không tạo được bản gốc v0 nên dừng lượt sửa để bảo toàn dữ liệu. Vui lòng thử lại.');
     }
 
     await Database.transaction(async (client) => {
@@ -3291,11 +3287,12 @@ export class AuditModificationService {
           );
         }
 
+        // Một URL có thể ở nhiều ô sau khi gán ảnh có sẵn: chỉ đánh dấu dòng của đúng ô đang sửa
         await client.query(
-          `UPDATE survey_photo_registry 
-           SET status = 'SUPERSEDED', superseded_by_url = $1, updated_at = NOW() 
-           WHERE report_id = $2 AND (photo_url = $3 OR photo_code = $4) AND status = 'ACTIVE';`,
-          [newUrl, reportId, oldUrl, photoCode]
+          `UPDATE survey_photo_registry
+           SET status = 'SUPERSEDED', superseded_by_url = $1, updated_at = NOW()
+           WHERE report_id = $2 AND status = 'ACTIVE' AND (${registrySlotMatch('$2', '$3', '$4', '$5', '$6')});`,
+          [newUrl, reportId, oldUrl, photoCode, cat, type]
         );
       }
 
@@ -4063,9 +4060,9 @@ export class AuditModificationService {
       // 3. Cập nhật survey_photo_registry: đánh dấu DELETED
       const regRes = await client.query(
         `UPDATE survey_photo_registry 
-         SET status = 'DELETED', is_deleted = true, deleted_at = NOW(), deleted_by_id = $1, action_reason = $2 
-         WHERE report_id = $3 AND (photo_url = $4 OR photo_code = $5);`,
-        [adminId, pa.reason, reportId, targetUrl, photoCode]
+         SET status = 'DELETED', is_deleted = true, deleted_at = NOW(), deleted_by_id = $1, action_reason = $2
+         WHERE report_id = $3 AND (${registrySlotMatch('$3', '$4', '$5', '$6', '$7')});`,
+        [adminId, pa.reason, reportId, targetUrl, photoCode, cat, type]
       );
 
       if (regRes.rowCount === 0) {

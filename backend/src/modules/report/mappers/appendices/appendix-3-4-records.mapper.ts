@@ -19,6 +19,7 @@ import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
 import { extractPhotoDateTime, parseSurveyDate, formatPersonName } from '../formatters.mapper';
 import { resolveContactPhone, resolveRecordAddress } from '../sections/section-1-2-overview-spatial.mapper';
 import { resolveLocalRepresentative } from './local-authority.rules';
+import { collectZoneExemptFloors } from '../../../survey/zone-exemption.utils';
 import type { ReportContentConfig } from '../../../report_config/report-config.types';
 
 export interface SignedRecordDocItem {
@@ -263,6 +264,7 @@ export class Appendix3And4Mapper {
     const basementNotAccessed = basementCount > 0 && !hasBaseScope;
 
     const hasLimitations = Boolean(
+      collectZoneExemptFloors(json?.floors).length > 0 ||
       !isFullAccess && (
         rawLimitation.type === 'LIMITED' ||
         rawLimitation.type === 'EXTERNAL_ONLY' ||

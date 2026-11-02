@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crosshair, Edit3, Eye, EyeOff, History, Maximize2, Plus, RotateCw, Undo2 } from 'lucide-react';
+import { Crosshair, Edit3, Eye, EyeOff, History, Image as ImageIcon, Maximize2, Plus, RotateCw, Undo2 } from 'lucide-react';
 import { AuditDefectStrip } from '../../stepwise/ui/AuditDefectStrip';
 import { AuditPinBoard, type AuditBoardPin } from '../../stepwise/ui/AuditPinBoard';
 import { getOptimisticAddedPhotos, resolveOptimisticPhoto } from '../../stepwise/utils/optimisticPhotoResolver';
@@ -320,8 +320,23 @@ export const CondoDefectStripSection: React.FC<CondoDefectStripSectionProps> = (
                 }}
               />
             ) : (
-              <div className="h-60 rounded-xl border border-dashed border-slate-300 flex items-center justify-center text-xs text-slate-400 italic">
-                Chưa có ảnh bối cảnh
+              <div className="h-60 rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center p-4 text-center space-y-2 bg-slate-50/50">
+                {overviewPhotos[0] && canEdit ? (
+                  <>
+                    <p className="text-xs text-slate-500 font-medium">Chưa có ảnh bối cảnh riêng</p>
+                    <button
+                      type="button"
+                      onClick={() => onUseOverviewAsCtx(overviewPhotos[0])}
+                      className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Dùng ảnh tổng quan ({parentCode}-OV-1) làm CTX</span>
+                    </button>
+                    <p className="text-[10px] text-slate-400">Cho phép kế thừa ảnh tổng quan để ghim khuyết tật D ngay lập tức</p>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">Chưa có ảnh bối cảnh</span>
+                )}
               </div>
             )}
           </div>

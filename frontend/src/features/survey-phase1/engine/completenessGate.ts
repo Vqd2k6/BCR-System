@@ -45,7 +45,9 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   const photoPassed = hasP01 && hasP02 && hasP04 && countZonesZ > 0;
 
   // 3. Khảo sát bên trong (Bước 5)
-  const isLimited = (data.accessLimitation?.type || 'FULL_100') !== 'FULL_100';
+  // Tầng miễn Z chưa được xem chi tiết nên không thể coi là tiếp cận 100%, kể cả khi khai báo FULL_100
+  const hasZoneExemptFloor = (data.floors || []).some((floor) => floor.hasZones === false);
+  const isLimited = (data.accessLimitation?.type || 'FULL_100') !== 'FULL_100' || hasZoneExemptFloor;
 
   // 4. Dữ liệu lún nghiêng (Đo nghiêng lấy theo tòa nhà mẹ)
   const settlementPassed = isCondoUnit ? true : !data.settlementTilt?.needAdditionalMonitoring?.required;

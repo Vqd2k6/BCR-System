@@ -86,6 +86,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
       cadElementPins: [],
       zones: [],
       structuralElements: [],
+      hasZones: true,
     },
   ],
 
