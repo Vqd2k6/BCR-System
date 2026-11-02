@@ -10,6 +10,8 @@ export interface JwtPayload {
   role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
   assignedZoneId?: string | null;
   fullName: string;
+  /** Khớp users.token_version; token cấp trước khi có claim này được tính là 0. */
+  tokenVersion?: number;
 }
 
 declare global {
@@ -42,9 +44,10 @@ export async function authenticateJwt(req: Request, _res: Response, next: NextFu
       assigned_zone_id: string | null;
       status: string;
       status_reason: string | null;
+      token_version: number;
       deleted_at: Date | null;
     }>(
-      `SELECT id, username, full_name, role, assigned_zone_id, status, status_reason, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
+      `SELECT id, username, full_name, role, assigned_zone_id, status, status_reason, token_version, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
       [decoded.userId]
     );
 
@@ -60,6 +63,10 @@ export async function authenticateJwt(req: Request, _res: Response, next: NextFu
           `Tài khoản đang ở trạng thái [${dbUser.status}], quyền truy cập đã bị thu hồi${reasonSuffix}`
         )
       );
+    }
+
+    if ((decoded.tokenVersion ?? 0) !== dbUser.token_version) {
+      return next(new UnauthorizedError('Mật khẩu tài khoản đã thay đổi, vui lòng đăng nhập lại'));
     }
 
     req.user = {
@@ -102,14 +109,20 @@ export async function optionalAuthenticateJwt(req: Request, _res: Response, next
       role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
       assigned_zone_id: string | null;
       status: string;
+      token_version: number;
       deleted_at: Date | null;
     }>(
-      `SELECT id, username, full_name, role, assigned_zone_id, status, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
+      `SELECT id, username, full_name, role, assigned_zone_id, status, token_version, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
       [decoded.userId]
     );
 
     const dbUser = userRes.rows[0];
-    if (dbUser && dbUser.deleted_at === null && dbUser.status === 'ACTIVE') {
+    if (
+      dbUser &&
+      dbUser.deleted_at === null &&
+      dbUser.status === 'ACTIVE' &&
+      (decoded.tokenVersion ?? 0) === dbUser.token_version
+    ) {
       req.user = {
         userId: dbUser.id,
         username: dbUser.username,

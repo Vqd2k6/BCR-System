@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ChevronRight,
   FlaskConical,
 } from 'lucide-react';
 import { ForensicImageLabModal } from '../../../image-lab/ForensicImageLabModal';
+import { ZoneAdminAccountMenu, getAccountZoneLabel } from './ZoneAdminAccountMenu';
+import type { UserProfile } from '../../../../context/AuthContext';
 
 interface Props {
   title: string;
@@ -12,13 +14,36 @@ interface Props {
   isLoading?: boolean;
   onRefresh?: () => void;
   onAlertClick?: () => void;
+  user: UserProfile | null;
+  onOpenChangePassword: () => void;
+  onLogout: () => void;
 }
 
 export const ZoneAdminTopBar: React.FC<Props> = ({
   title,
   selectedZone,
+  user,
+  onOpenChangePassword,
+  onLogout,
 }) => {
   const [showImageLabModal, setShowImageLabModal] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const displayName = user?.fullName || 'Zone Admin';
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+    if (showAccountMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAccountMenu]);
 
   return (
     <header className="h-16 px-4 sm:px-6 bg-white border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 shadow-xs z-20">
@@ -47,6 +72,42 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
           <FlaskConical size={15} className="text-indigo-600" />
           <span>Test Xử Lý Ảnh Nứt</span>
         </button>
+
+        <div ref={accountMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowAccountMenu((prev) => !prev)}
+            className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            title={displayName}
+            aria-expanded={showAccountMenu}
+          >
+            <span className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+              {displayName.charAt(0)}
+            </span>
+            <span className="text-left hidden lg:block max-w-40">
+              <span className="block text-xs font-bold text-slate-800 leading-tight truncate">{displayName}</span>
+              <span className="block text-[10px] text-slate-500 font-mono leading-tight mt-0.5 truncate">
+                {getAccountZoneLabel(user)}
+              </span>
+            </span>
+          </button>
+
+          {showAccountMenu && (
+            <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 animate-in fade-in zoom-in-95">
+              <ZoneAdminAccountMenu
+                user={user}
+                onOpenChangePassword={() => {
+                  setShowAccountMenu(false);
+                  onOpenChangePassword();
+                }}
+                onLogout={() => {
+                  setShowAccountMenu(false);
+                  onLogout();
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <ForensicImageLabModal

@@ -6,6 +6,7 @@ import {
 import { ZoneAdminTopBar } from './ZoneAdminTopBar';
 import { useAuth } from '../../../../context/AuthContext';
 import { getLockedZone } from '../../../../utils/zoneScope';
+import { ChangePasswordModal } from '../../../../components/profile/ChangePasswordModal';
 
 interface Props {
   activeNav: ZoneNavView;
@@ -29,6 +30,7 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
   children,
 }) => {
   const { user, logout } = useAuth();
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
@@ -82,6 +84,8 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         pendingCount={pendingCount}
         userName={user?.fullName || 'Zone Admin'}
         userRole={user?.role || 'ZONE_ADMIN'}
+        user={user}
+        onOpenChangePassword={() => setShowChangePasswordModal(true)}
         onLogout={logout}
       />
 
@@ -94,6 +98,9 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
           isLoading={isLoading}
           onRefresh={onRefresh}
           onAlertClick={() => onChangeNav('review')}
+          user={user}
+          onOpenChangePassword={() => setShowChangePasswordModal(true)}
+          onLogout={logout}
         />
 
         {/* Scrollable Viewport */}
@@ -115,6 +122,12 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
           )}
         </main>
       </div>
+
+      {/* Đặt ngoài header/sidebar để modal không bị giới hạn trong stacking context của chúng */}
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
     </div>
   );
 };
