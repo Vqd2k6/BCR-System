@@ -187,7 +187,9 @@ export class CondoCrudEngineService {
         });
       }
     } catch (seedErr: unknown) {
-      console.warn('[CondoCrudEngineService.applyCondoAdminSurveyEdit] Auto-seed v0 warning:', seedErr);
+      // Không có v0 thì giá trị gốc sẽ mất hẳn sau lượt ghi đè
+      console.error('[CondoCrudEngineService.applyCondoAdminSurveyEdit] Không tạo được v0:', seedErr);
+      throw new Error('Không tạo được bản gốc v0 nên dừng lượt sửa để bảo toàn dữ liệu. Vui lòng thử lại.');
     }
 
     const mergedJson: Record<string, unknown> = { ...existingJson };
@@ -331,7 +333,8 @@ export class CondoCrudEngineService {
         });
       }
     } catch (seedErr: unknown) {
-      console.warn('[CondoCrudEngineService.executeCondoPhotoAction] Auto-seed v0 warning:', seedErr);
+      console.error('[CondoCrudEngineService.executeCondoPhotoAction] Không tạo được v0:', seedErr);
+      throw new Error('Không tạo được bản gốc v0 nên dừng lượt sửa để bảo toàn dữ liệu. Vui lòng thử lại.');
     }
 
     const existingJson: Record<string, unknown> =

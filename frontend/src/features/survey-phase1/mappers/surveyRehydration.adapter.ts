@@ -205,6 +205,8 @@ export interface BackendFloorSurveyRow {
   cad_element_pins?: unknown;
   has_structural_elements?: boolean | null;
   no_structural_elements_reason?: string | null;
+  has_zones?: boolean | null;
+  no_zones_reason?: string | null;
   beam_sagging_json?: unknown;
 }
 
@@ -323,6 +325,8 @@ export function rehydrateFloorSurveysByCanonicalKey(
         fl.hasStructuralElements ?? beFloor?.has_structural_elements ?? true,
       noStructuralElementsReason:
         fl.noStructuralElementsReason || beFloor?.no_structural_elements_reason || '',
+      hasZones: fl.hasZones ?? beFloor?.has_zones ?? true,
+      noZonesReason: fl.noZonesReason || beFloor?.no_zones_reason || '',
       beamSagging: fl.beamSagging || parsedBeamSagging,
       zones: fl.zones || [],
       structuralElements: fl.structuralElements || [],

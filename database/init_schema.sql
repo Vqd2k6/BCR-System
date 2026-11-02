@@ -761,6 +761,10 @@ CREATE TABLE floor_surveys (
     cad_zone_pins_json JSONB DEFAULT '[]'::jsonb,   -- Mảng vị trí chấm zone Z trên bản vẽ CAD_01 [{zoneId, zoneCode, label, x, y}]
     cad_structural_drawing_url TEXT,                -- Ảnh bản vẽ phác thảo kết cấu tầng (CAD_02 / Sơ đồ kết cấu chịu lực)
     cad_element_pins_json JSONB DEFAULT '[]'::jsonb,-- Mảng vị trí chấm cấu kiện E trên bản vẽ CAD_02 [{elementId, elementCode, label, x, y}]
+    has_structural_elements BOOLEAN DEFAULT TRUE,   -- FALSE khi tầng được miễn khảo sát cấu kiện E
+    no_structural_elements_reason TEXT,
+    has_zones BOOLEAN DEFAULT TRUE,                 -- FALSE khi chủ nhà chỉ cho chụp tổng quan tầng (Miễn Z)
+    no_zones_reason TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

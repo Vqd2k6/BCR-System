@@ -88,9 +88,15 @@ export const UnitStep09SignaturesAbsentee: React.FC<CondoAuditStepProps<CondoUni
     value: string
   ): AbsentMergedField => ({
     value,
+    // Giá trị KSV đã khai là bản gốc nên không sửa đè, Admin chỉ bổ sung ô còn trống
     isEditable: isEditMode && !ksvAbsentee?.[key],
-    isDirty: isFieldDirty('absenteeInfo', key),
-    onChange: (val) => absenteeField(key, label, val),
+    isDirty: isFieldDirty('absenteeInfo', key) || isFieldDirty('signatures', key),
+    onChange: (val) => {
+      absenteeField(key, label, val);
+      if (handleNestedFieldChange) {
+        handleNestedFieldChange('signatures', key, label, val);
+      }
+    },
   });
 
   const extraEvidencePhotos = absentee ? getPhotosOutsideAbsenceLogs(absentee.photos, formState.absenceLogs) : [];

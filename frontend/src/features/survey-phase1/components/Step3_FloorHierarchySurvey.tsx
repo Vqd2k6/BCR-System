@@ -7,6 +7,7 @@ import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../
 import { FloorTabsNavigation } from './step3/FloorTabsNavigation';
 import { Step3FloorOverviewSection, type FloorOverviewPhotoItem } from './step3/Step3FloorOverviewSection';
 import { DamageZonesSection } from './step3/DamageZonesSection';
+import { hasFloorZoneData } from '../utils/zoneExemption';
 import { StructuralElementsSection } from './step3/StructuralElementsSection';
 import { SaggingMonitoringSection } from './step3/SaggingMonitoringSection';
 import { DefectPinningModal } from './step3/DefectPinningModal';
@@ -121,6 +122,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       zones: [],
       structuralElements: [],
       hasStructuralElements: true,
+      hasZones: true,
     };
     const nextFloors = [...formData.floors, newFloor];
     updateFormData({
@@ -678,6 +680,21 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     });
   };
 
+  // Lý do miễn Z là căn cứ pháp lý nên không điền sẵn: KSV phải tự chọn hoặc nhập
+  const handleToggleHasZones = (hasZones: boolean, reason?: string) => {
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      if (!cur || (!hasZones && hasFloorZoneData(cur))) return prev;
+      updatedFloors[activeFloorIndex] = {
+        ...cur,
+        hasZones,
+        noZonesReason: hasZones ? undefined : (reason ?? cur.noZonesReason ?? ''),
+      };
+      return { ...prev, floors: updatedFloors };
+    });
+  };
+
   // Modal active objects
   const pinningZoneObj = zones.find((z) => z.id === pinningZoneId);
   const pinningElementObj = structuralElements.find((e) => e.id === pinningElementId);
@@ -709,6 +726,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       {/* 3.1. Sơ đồ CAD_01 & Vùng Kiến Trúc Z */}
       <DamageZonesSection
         currentFloor={currentFloor}
+        onToggleHasZones={handleToggleHasZones}
         activeZoneIndex={activeZoneIndex}
         projectParcelCode={formData.projectParcelCode}
         onCadPhotoChange={(url, code) => {

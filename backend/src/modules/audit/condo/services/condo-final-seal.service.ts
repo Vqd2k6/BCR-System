@@ -8,7 +8,7 @@ import {
 import { ReportSnapshotService } from '../../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from '../../services/report-consistency-gate';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
-import { fetchCondoUnitAbsenceMap } from '../condo-absence.resolver';
+import { fetchCondoUnitAbsenceMap, hasIdentityOverride, resolveIdentityValue } from '../condo-absence.resolver';
 
 export class CondoFinalSealService {
   /**
@@ -94,7 +94,13 @@ export class CondoFinalSealService {
           ? fullReportContext.owner_name.trim()
           : null);
 
-      if (entityKind === 'CONDO_UNIT' && !isAbsentUnit && !resolvedRealOwnerName) {
+      // Chỉ cổng kiểm tên đọc lớp phủ: resolvedRealOwnerName còn được ghi xuống building_units nên phải giữ bản gốc
+      const hasOwnerNameOverride = hasIdentityOverride(surveyJson, 'ownerName');
+      const gateOwnerName = hasOwnerNameOverride
+        ? String(resolveIdentityValue(surveyJson, 'ownerName') ?? '').trim()
+        : resolvedRealOwnerName;
+
+      if (entityKind === 'CONDO_UNIT' && !isAbsentUnit && !gateOwnerName) {
         throw new BadRequestError(
           'Không thể phê duyệt: Căn hộ chưa có Tên chủ sở hữu / người đại diện hợp lệ. Vui lòng cập nhật tên chủ hộ tại Bước 1 hoặc trả về để khảo sát viên bổ sung.'
         );

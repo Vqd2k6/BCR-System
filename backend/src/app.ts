@@ -197,6 +197,7 @@ export function createApp(): express.Application {
   api.get('/admin/reports/audit-alerts', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listAuditAlerts);
   api.post('/admin/reports/batch-approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.batchApproveReports);
   api.get('/admin/reports/:id/audit-flags', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportAuditFlags);
+  api.get('/admin/reports/:id/photo-pool', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportPhotoPool);
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
   api.post('/admin/reports/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveReport);
   api.post('/admin/reports/:id/unlock-approved', authenticateJwt, requireRoles('SUPER_ADMIN'), AuditController.unlockApprovedReport);

@@ -1,4 +1,5 @@
 import { Database } from '../../../database/db';
+import { replaceFloorSurveyRows } from './floor-survey-rows';
 import {
   assertSurveyContentWritable,
   collectReportPhotoUrls,
@@ -852,7 +853,6 @@ export class SurveyDefectsRepository {
   }
 
   static async saveFloorSurveys(reportId: string, floors: any[], options?: SurveyWriteOptions): Promise<void> {
-    const hasFloorStructCol = await SurveyBaseRepository.hasColumn('floor_surveys', 'has_structural_elements');
     const hasZoneNewCols = await SurveyBaseRepository.hasColumn('damage_zones', 'overview_photos_json');
     const hasCtxCodeCol = await SurveyBaseRepository.hasColumn('damage_zones', 'ctx_photo_code');
     const hasDefectNewCols = await SurveyBaseRepository.hasColumn('defect_items', 'functional_impact_e6');
@@ -862,50 +862,7 @@ export class SurveyDefectsRepository {
       const photosBefore = await collectReportPhotoUrls(client, reportId);
 
       // 1. Lưu danh sách tầng, sơ đồ CAD_01 và CAD_02
-      await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [reportId]);
-      for (let i = 0; i < floors.length; i++) {
-        const f = floors[i];
-        if (hasFloorStructCol) {
-          await client.query(
-            `INSERT INTO floor_surveys (
-               report_id, floor_name, floor_order, overview_photos_json,
-               cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json,
-               has_structural_elements, no_structural_elements_reason, notes
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
-            [
-              reportId,
-              f.floorName || `Tầng ${i + 1}`,
-              i + 1,
-              JSON.stringify(f.overviewPhotos || []),
-              f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
-              JSON.stringify(f.cadZonePins || []),
-              f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
-              JSON.stringify(f.cadElementPins || []),
-              f.hasStructuralElements !== false,
-              f.noStructuralElementsReason || null,
-              f.notes || null,
-            ]
-          );
-        } else {
-          await client.query(
-            `INSERT INTO floor_surveys (
-               report_id, floor_name, floor_order, overview_photos_json,
-               cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-            [
-              reportId,
-              f.floorName || `Tầng ${i + 1}`,
-              i + 1,
-              JSON.stringify(f.overviewPhotos || []),
-              f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
-              JSON.stringify(f.cadZonePins || []),
-              f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
-              JSON.stringify(f.cadElementPins || []),
-              f.notes || null,
-            ]
-          );
-        }
-      }
+      await replaceFloorSurveyRows(client, reportId, floors);
 
       // 2. Lưu chi tiết Vùng Z (Damage Zones) và Khuyết tật D (Defect Items) từ các tầng
       const allZones: any[] = [];

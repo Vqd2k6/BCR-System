@@ -292,14 +292,33 @@ export function buildCondoAbsenceDecision(decision: CondoAbsenceDecisionValue, r
 export function needsCondoAbsenceDecision(
   absence: CondoAbsenceView,
   residentStatus: string,
-  loadedResidentStatus: string
+  loadedResidentStatus: string,
+  loadedAbsenceState: CondoAbsenceView['state']
 ): boolean {
-  return (
-    residentStatus !== loadedResidentStatus &&
-    ABSENT_RESIDENT_STATUSES.includes(residentStatus) &&
-    absence.state === 'ACCESS_HISTORY' &&
-    absence.decision === null
-  );
+  if (residentStatus === loadedResidentStatus || absence.decision !== null) return false;
+  return isLeavingCondoAbsence(absence, loadedAbsenceState) ||
+    (ABSENT_RESIDENT_STATUSES.includes(residentStatus) && absence.state === 'ACCESS_HISTORY');
+}
+
+/** Rời nhóm vắng sẽ hiện lại dữ liệu nội thất KSV điền cho đủ form; khớp validateBeforeModify ở backend. */
+export function isLeavingCondoAbsence(
+  absence: CondoAbsenceView,
+  loadedAbsenceState: CondoAbsenceView['state']
+): boolean {
+  return loadedAbsenceState === 'ABSENT' && absence.state !== 'ABSENT';
+}
+
+/** Kết luận vắng theo thay đổi chưa lưu, để cảnh báo ở thanh trên khớp với form đang sửa. */
+export function resolvePendingCondoAbsenceState(
+  data: unknown,
+  updates: Record<string, unknown>
+): CondoAbsenceView['state'] {
+  const saved = resolveCondoAbsenceView(data);
+  const pendingDecision = toRecord(updates.absenceDecision).decision;
+  return previewCondoAbsence(saved, {
+    decision: pendingDecision === 'ABSENT' || pendingDecision === 'NOT_ABSENT' ? pendingDecision : saved.decision,
+    residentStatus: typeof updates.residentStatus === 'string' ? updates.residentStatus : undefined,
+  }).state;
 }
 
 /** Nhật ký vắng là bản ghi quan hệ của lượt tiếp cận nên bù được phần JSON hồ sơ cũ còn thiếu. */

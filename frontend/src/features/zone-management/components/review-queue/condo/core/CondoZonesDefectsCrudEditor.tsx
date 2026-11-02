@@ -8,6 +8,7 @@ import type {
   CondoDefectItemData,
 } from '../types/condo-audit.types';
 import { calcBurlandGradeFromWidthFrontend } from './condo-zone.mappers';
+import { compareCodes } from './condo-normalize.utils';
 import { CondoDefectStripSection } from './CondoDefectStripSection';
 import type { CondoCadPinControls } from './useCondoCadPins';
 import type { CondoZoneBoardActions } from './useCondoZoneBoardActions';
@@ -50,7 +51,9 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
 
-  const visibleZones = zones.filter((z) => showDeleted || !z.isDeleted);
+  const visibleZones = [...zones]
+    .filter((z) => showDeleted || !z.isDeleted)
+    .sort((a, b) => compareCodes(a.zoneCode, b.zoneCode));
   const deletedZonesCount = zones.filter((z) => z.isDeleted).length;
 
   const recomputeZoneBurland = (zone: CondoDamageZoneItemData): CondoDamageZoneItemData => {

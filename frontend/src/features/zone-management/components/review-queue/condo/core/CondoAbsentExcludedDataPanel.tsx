@@ -53,8 +53,8 @@ export const CondoAbsentExcludedDataPanel: React.FC<{ formState: CondoUnitFormSt
           ? [{ label: 'Khu vực', value: zones.map((zone) => zone.roomName || zone.zoneCode).join(', ') }]
           : []),
         { label: 'Burland lớn nhất đã nhập', value: formState.burlandSummary.localMaxGrade ?? '---' },
-        { label: 'Tên chủ hộ đã nhập', value: formState.ownerName || '---' },
-        { label: 'SĐT chủ hộ đã nhập', value: formState.ownerPhone || '---' },
+        { label: 'Tên chủ hộ đã nhập', value: formState.ksvOriginalIdentity.ownerName || '---' },
+        { label: 'SĐT chủ hộ đã nhập', value: formState.ksvOriginalIdentity.ownerPhone || '---' },
         ...(getMeaningfulOwnerFeedback(formState.ownerFeedback)
           ? []
           : [{ label: 'Ý kiến chủ hộ đã nhập', value: formState.ownerFeedback || '---' }]),

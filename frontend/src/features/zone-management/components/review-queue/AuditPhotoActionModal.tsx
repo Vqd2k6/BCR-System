@@ -21,6 +21,9 @@ import {
   uploadStandardizedPhoto,
   type ProcessedPhotoResult,
 } from '@/utils/photoProcessing';
+import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
+import { AuditExistingPhotoPicker, type ReportPhotoPoolItem } from './AuditExistingPhotoPicker';
 
 export type PhotoActionMode = 'REPLACE' | 'ADD' | 'DELETE' | 'RESTORE';
 
@@ -138,6 +141,11 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
   const [replaceProcessed, setReplaceProcessed] = useState<ProcessedPhotoResult | null>(null);
 
   // State cho Tab Thêm Mới
+  const [photoSource, setPhotoSource] = useState<'UPLOAD' | 'POOL'>('UPLOAD');
+  const [poolPhotos, setPoolPhotos] = useState<ReportPhotoPoolItem[]>([]);
+  const [isPoolLoading, setIsPoolLoading] = useState<boolean>(false);
+  const [pickedUrls, setPickedUrls] = useState<string[]>([]);
+
   const [batchProcessed, setBatchProcessed] = useState<Array<ProcessedPhotoResult & { caption: string }>>([]);
 
   useEffect(() => {
@@ -151,8 +159,74 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       setDefectLengthMm('50');
       setReplaceProcessed(null);
       setBatchProcessed([]);
+      setPhotoSource('UPLOAD');
+      setPoolPhotos([]);
+      setPickedUrls([]);
     }
   }, [isOpen, initialMode]);
+
+  useEffect(() => {
+    if (!isOpen || photoSource !== 'POOL' || !reportId) return;
+    let isCancelled = false;
+    setIsPoolLoading(true);
+    api
+      .get(`/admin/reports/${reportId}/photo-pool`)
+      .then((res) => {
+        if (!isCancelled) setPoolPhotos(Array.isArray(res.data?.data) ? res.data.data : []);
+      })
+      .catch((err: unknown) => {
+        console.error('[AuditPhotoActionModal:loadPhotoPool] Không tải được ảnh trong hồ sơ', err);
+        if (!isCancelled) setErrorMessage(getErrorMessage(err));
+      })
+      .finally(() => {
+        if (!isCancelled) setIsPoolLoading(false);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, photoSource, reportId]);
+
+  const togglePickedUrl = (url: string) => {
+    setPickedUrls((prev) => {
+      if (activeTab === 'REPLACE') return prev[0] === url ? [] : [url];
+      return prev.includes(url) ? prev.filter((item) => item !== url) : [...prev, url];
+    });
+  };
+
+  const isPoolMode = photoSource === 'POOL' && activeTab !== 'DELETE';
+
+  // Sao chép ảnh đã có: không tải file mới, ô đang chứa ảnh giữ nguyên
+  const buildPoolPayload = (): PhotoActionPayload => ({
+    action: activeTab === 'REPLACE' ? 'REPLACE' : 'ADD',
+    category,
+    targetPhotoType,
+    targetPhotoId,
+    photoIndex,
+    defectId,
+    defectCode,
+    floorCode,
+    zoneCode,
+    oldPhotoUrl: activeTab === 'REPLACE' ? currentPhotoUrl : undefined,
+    newPhotoUrl: pickedUrls[0],
+    newPhotoUrls: activeTab === 'ADD' ? pickedUrls : undefined,
+    photoCode: currentPhotoCode || undefined,
+    reason,
+    pinX: initialPinX,
+    pinY: initialPinY,
+    widthMaxMm: activeTab === 'ADD' && isDefectCuPhoto ? Number(defectWidthMaxMm) : undefined,
+    lengthMm: activeTab === 'ADD' && isDefectCuPhoto ? Number(defectLengthMm) : undefined,
+    metadata: {
+      source: 'REPORT_PHOTO_POOL',
+      reusedFromUrl: pickedUrls[0],
+      floorCode,
+      zoneCode,
+      zoneId: zoneCode,
+      defectId,
+      defectCode,
+      targetPhotoId,
+      photoIndex,
+    },
+  });
 
   if (!isOpen) return null;
 
@@ -238,6 +312,24 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
 
     if (category === 'MINUTES' && reason.trim().length < 5) {
       setErrorMessage('Biên bản khảo sát hiện trường là căn cứ pháp lý quan trọng. Vui lòng nhập lý do điều chỉnh chi tiết tối thiểu 5 ký tự.');
+      return;
+    }
+
+    if (isPoolMode) {
+      if (pickedUrls.length === 0) {
+        setErrorMessage('Vui lòng chọn ảnh trong hồ sơ.');
+        return;
+      }
+      if (activeTab === 'ADD' && isDefectCuPhoto) {
+        const w = Number(defectWidthMaxMm);
+        const l = Number(defectLengthMm);
+        if (isNaN(w) || w <= 0 || isNaN(l) || l <= 0) {
+          setErrorMessage('Vui lòng nhập bề rộng lớn nhất (> 0 mm) và chiều dài (> 0 mm).');
+          return;
+        }
+      }
+      onConfirmAction(buildPoolPayload());
+      onClose();
       return;
     }
 
@@ -510,8 +602,51 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
             </div>
           )}
 
+          {/* Nguồn ảnh: tải từ máy hoặc lấy ảnh đã có trong hồ sơ */}
+          {activeTab !== 'DELETE' && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg w-fit">
+                {([
+                  ['UPLOAD', 'Tải từ máy'],
+                  ['POOL', 'Chọn ảnh trong hồ sơ'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setPhotoSource(value);
+                      setPickedUrls([]);
+                      // Ảnh lấy lại không có sẵn số đo: để trống buộc Admin nhập, tránh ghi số giả
+                      setDefectWidthMaxMm(value === 'POOL' ? '' : '0.2');
+                      setDefectLengthMm(value === 'POOL' ? '' : '50');
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold cursor-pointer transition-all ${
+                      photoSource === value ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {isPoolMode && (
+                <>
+                  <p className="text-[11px] text-slate-600">
+                    Ảnh được sao chép sang ô này, ô đang chứa ảnh giữ nguyên.
+                  </p>
+                  <AuditExistingPhotoPicker
+                    photos={poolPhotos}
+                    isLoading={isPoolLoading}
+                    selectedUrls={pickedUrls}
+                    excludedUrl={currentPhotoUrl}
+                    onToggle={togglePickedUrl}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
           {/* TAB 1: THAY THẾ ẢNH */}
-          {activeTab === 'REPLACE' && (
+          {activeTab === 'REPLACE' && !isPoolMode && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Ảnh hiện tại */}
@@ -596,7 +731,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           {/* TAB 2: THÊM ẢNH BỔ SUNG */}
           {activeTab === 'ADD' && (
             <div className="space-y-4">
-              <label className="w-full h-28 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors p-4 text-center">
+              {!isPoolMode && <label className="w-full h-28 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/30 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors p-4 text-center">
                 <Plus className="w-6 h-6 text-emerald-600" />
                 <span className="font-bold text-emerald-800 text-xs">Bấm để chọn 1 hoặc nhiều ảnh bổ sung</span>
                 <span className="text-[10px] text-slate-500">Hỗ trợ tải lên nhiều file cùng lúc (JPG, PNG, WebP)</span>
@@ -607,9 +742,9 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
                   onChange={handleBatchPhotoSelect}
                   className="hidden"
                 />
-              </label>
+              </label>}
 
-              {batchProcessed.length > 0 && (
+              {!isPoolMode && batchProcessed.length > 0 && (
                 <div className="space-y-2">
                   <span className="font-bold text-slate-700 text-[11px] block">
                     Đã chuẩn bị {batchProcessed.length} ảnh tải lên:
@@ -859,7 +994,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
               <>
                 <span>
                   {activeTab === 'REPLACE' ? 'Lưu Thay Thế Ảnh Vào Hàng Đợi Diff' : ''}
-                  {activeTab === 'ADD' ? `Lưu ${batchProcessed.length} Ảnh Vào Hàng Đợi Diff` : ''}
+                  {activeTab === 'ADD' ? `Lưu ${isPoolMode ? pickedUrls.length : batchProcessed.length} Ảnh Vào Hàng Đợi Diff` : ''}
                   {activeTab === 'DELETE' ? 'Xác Nhận Xóa Vào Hàng Đợi Diff' : ''}
                 </span>
                 <ArrowRight className="w-3.5 h-3.5" />

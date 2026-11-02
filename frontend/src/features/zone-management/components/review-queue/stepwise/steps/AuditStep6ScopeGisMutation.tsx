@@ -452,8 +452,8 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                     <Building className="w-3.5 h-3.5 text-slate-500" />
                     <span>{fl.floorName || `Tầng ${idx + 1}`}</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 font-semibold">
-                    {activeZonesCount} vùng Z
+                  <span className="text-[10px] text-slate-500 font-semibold" title={fl.noZonesReason}>
+                    {fl.hasZones === false ? 'Miễn Z' : `${activeZonesCount} vùng Z`}
                   </span>
                 </div>
               );
@@ -623,6 +623,22 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                   />
                 )}
               </div>
+
+              {/* Tầng miễn Z của KSV: chỉ đọc, Admin không đồng ý thì Trả về */}
+              {activeFloors.some((fl: FloorSurveyData) => fl.hasZones === false) && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-amber-950 block">
+                    Tầng hạn chế tiếp cận chi tiết (Miễn Z, KSV khai ở Bước 3):
+                  </span>
+                  {activeFloors
+                    .filter((fl: FloorSurveyData) => fl.hasZones === false)
+                    .map((fl: FloorSurveyData, idx: number) => (
+                      <p key={fl.id || idx} className="text-xs text-slate-700">
+                        <strong>{fl.floorName || `Tầng ${idx + 1}`}:</strong> {fl.noZonesReason || '---'}
+                      </p>
+                    ))}
+                </div>
+              )}
 
               {/* Tầng hạn chế */}
               <div className="space-y-1.5">

@@ -42,6 +42,13 @@ export interface CondoAbsenceView {
   hasSuspicion: boolean;
 }
 
+export interface CondoUnitIdentityValues {
+  ownerName: string;
+  ownerPhone: string;
+  ownerIdCard: string;
+  unitAreaM2: number | null;
+}
+
 export interface CondoAbsenceDecision {
   decision: CondoAbsenceDecisionValue;
   reason: string;
@@ -328,6 +335,12 @@ export interface CondoUnitFormState {
   absence: CondoAbsenceView;
   /** Giá trị lúc tải: JSON và bảng căn hộ có thể lệch nên chỉ coi `residentStatus` là mới khi Admin thật sự đổi. */
   loadedResidentStatus: string;
+  /** Kết luận lúc tải, để biết Admin đang đưa căn ra khỏi nhóm vắng và phải chốt có lý do. */
+  loadedAbsenceState: CondoAbsenceState;
+  /** Giá trị KSV và bảng căn hộ, luôn giữ nguyên dù Admin đã hiệu chỉnh qua lớp phủ. */
+  ksvOriginalIdentity: CondoUnitIdentityValues;
+  /** Các trường đã có hiệu chỉnh của Admin được lưu. */
+  identityOverrideKeys: (keyof CondoUnitIdentityValues)[];
   absenceDecision: CondoAbsenceDecision | null;
   absenteeInfo: CondoUnitAbsenteeView | null;
   absenceLogs: StepwiseAbsenceLogItem[];

@@ -110,6 +110,15 @@ export class AuditController {
     }
   }
 
+  static async getReportPhotoPool(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await AuditService.getReportPhotoPool(req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async approveReport(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

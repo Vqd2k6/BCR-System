@@ -2,6 +2,7 @@ import { Database } from '../../../database/db';
 import { PoolClient } from 'pg';
 import { SurveyMutationRepository } from './survey-mutation.repository';
 import { overlayZoneCtxFromJson } from '../zone-ctx.utils';
+import { mergeServerManagedKeysInTx } from '../server-managed-survey-keys';
 
 export class SurveyBaseRepository {
   private static columnCache = new Map<string, boolean>();
@@ -239,6 +240,7 @@ export class SurveyBaseRepository {
 
   static async submitReport(reportId: string, submitData: any): Promise<void> {
     await Database.transaction(async (client) => {
+      const mergedSurveyJson = await mergeServerManagedKeysInTx(client, reportId, submitData.surveyDataJson);
       await client.query(
         `UPDATE base_survey_reports
          SET status = 'SUBMITTED',
@@ -258,7 +260,7 @@ export class SurveyBaseRepository {
           submitData.ownerSignatureUrl || null,
           submitData.summaryConclusions || null,
           submitData.engineeringRecommendations || null,
-          submitData.surveyDataJson ? (typeof submitData.surveyDataJson === 'string' ? submitData.surveyDataJson : JSON.stringify(submitData.surveyDataJson)) : null,
+          mergedSurveyJson,
         ]
       );
 
@@ -394,6 +396,7 @@ export class SurveyBaseRepository {
     let newRevision = 1;
     await Database.transaction(async (client) => {
       // 1. Cập nhật base_survey_reports & tăng export_revision
+      const mergedSurveyJson = await mergeServerManagedKeysInTx(client, reportId, updateData.surveyDataJson);
       const revRes = await client.query(
         `UPDATE base_survey_reports
          SET export_revision = export_revision + 1,
@@ -409,7 +412,7 @@ export class SurveyBaseRepository {
           updateData.ownerRemarks !== undefined ? updateData.ownerRemarks : null,
           updateData.summaryConclusions !== undefined ? updateData.summaryConclusions : null,
           updateData.engineeringRecommendations !== undefined ? updateData.engineeringRecommendations : null,
-          updateData.surveyDataJson ? (typeof updateData.surveyDataJson === 'string' ? updateData.surveyDataJson : JSON.stringify(updateData.surveyDataJson)) : null,
+          mergedSurveyJson,
         ]
       );
 

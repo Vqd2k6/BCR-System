@@ -1,4 +1,5 @@
 import { Database } from '../../../database/db';
+import { replaceFloorSurveyRows } from '../../survey/repositories/floor-survey-rows';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError, ConflictError } from '../../../common/errors/problem-details';
 import { normalizeSurveyDate } from '../utils/survey-date.utils';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
@@ -982,27 +983,7 @@ export class AuditVersionService {
 
       // 4.8. Khôi phục floor_surveys, damage_zones (cả Z và E) và defect_items (đầy đủ pin_x, pin_y và mọi thuộc tính) từ snapshot
       if (Array.isArray(sJson.floors) && sJson.floors.length > 0) {
-        await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [actualReportId]);
-        for (let i = 0; i < sJson.floors.length; i++) {
-          const fl = sJson.floors[i];
-          await client.query(
-            `INSERT INTO floor_surveys (
-               report_id, floor_name, floor_order, overview_photos_json,
-               cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-            [
-              actualReportId,
-              fl.floorName || fl.floor_name || `Tầng ${i + 1}`,
-              i + 1,
-              JSON.stringify(fl.overviewPhotos || []),
-              fl.cadDrawingUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || null,
-              JSON.stringify(fl.cadZonePins || []),
-              fl.cadStructuralDrawingUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || null,
-              JSON.stringify(fl.cadElementPins || []),
-              fl.notes || null,
-            ]
-          );
-        }
+        await replaceFloorSurveyRows(client, actualReportId, sJson.floors);
       }
 
       const snapZones: any[] = [];

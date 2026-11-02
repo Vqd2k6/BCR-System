@@ -61,6 +61,23 @@ function readRecord(val: unknown): Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val) ? (val as Record<string, unknown>) : {};
 }
 
+/** Hiệu chỉnh của Admin trên hồ sơ vắng nằm riêng ở khóa này; giá trị KSV và bảng căn hộ giữ nguyên làm chứng cứ. */
+export const ADMIN_IDENTITY_OVERRIDE_KEYS = ['ownerName', 'ownerPhone', 'ownerIdCard', 'unitAreaM2'] as const;
+export type AdminIdentityOverrideKey = (typeof ADMIN_IDENTITY_OVERRIDE_KEYS)[number];
+
+export function readAdminIdentityOverrides(surveyJson: Record<string, unknown>): Record<string, unknown> {
+  return readRecord(surveyJson.adminIdentityOverrides);
+}
+
+/** Có khóa trong lớp phủ là Admin đã hiệu chỉnh, kể cả null nghĩa là đã xóa; khi đó không đọc tiếp bản gốc. */
+export function hasIdentityOverride(surveyJson: Record<string, unknown>, key: AdminIdentityOverrideKey): boolean {
+  return Object.prototype.hasOwnProperty.call(readAdminIdentityOverrides(surveyJson), key);
+}
+
+export function resolveIdentityValue(surveyJson: Record<string, unknown>, key: AdminIdentityOverrideKey): unknown {
+  return hasIdentityOverride(surveyJson, key) ? readAdminIdentityOverrides(surveyJson)[key] : surveyJson[key];
+}
+
 function collectSoftSignals(input: CondoUnitAbsenceInput): string[] {
   const json = input.surveyJson;
   const info = readRecord(json.absenteeInfo);
@@ -110,8 +127,8 @@ export function resolveCondoUnitAbsence(input: CondoUnitAbsenceInput): CondoUnit
     signals,
     decision,
     isHardAbsent,
-    hasUnknownOwnerName: isUnknownOwnerName(input.surveyJson.ownerName),
-    hasUnknownOwnerPhone: isUnknownOwnerPhone(input.surveyJson.ownerPhone),
+    hasUnknownOwnerName: isUnknownOwnerName(resolveIdentityValue(input.surveyJson, 'ownerName')),
+    hasUnknownOwnerPhone: isUnknownOwnerPhone(resolveIdentityValue(input.surveyJson, 'ownerPhone')),
     hasRoomDefect,
     hasResidentStatusSignal,
     hasOtherSoftSignal: softSignals.length > (hasResidentStatusSignal ? 1 : 0),

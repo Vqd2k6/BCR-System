@@ -82,13 +82,20 @@
         {{else}}
           <div style="border: 1px dashed #000000; background: #f9f9f9; padding: 12px; margin: 8px 0; text-align: center;">
             <div style="font-weight: bold; font-size: var(--fs-c1); margin-bottom: 2px;">
-              Chưa số hóa sơ đồ CAD mặt bằng tầng / CAD floor plan drawing not uploaded
+              {{#if this.hasZones}}Chưa số hóa sơ đồ CAD mặt bằng tầng / CAD floor plan drawing not uploaded{{else}}Miễn số hóa sơ đồ CAD kiến trúc do hạn chế tiếp cận chi tiết / Architectural CAD exempted due to restricted detailed access{{/if}}
             </div>
             <div style="font-size: var(--fs-e1); color: var(--c-sub);">
               Vị trí khảo sát và khuyết tật được định vị chi tiết theo mã phân vùng (Zone Z / Element E) trong các bảng và hồ sơ ảnh đối chiếu bên dưới.
             </div>
           </div>
         {{/if}}
+
+        {{#unless this.hasZones}}
+          <div style="background: #f9f9f9; border-left: 2pt solid #000000; padding: 6px 10px; margin: 6px 0; font-size: var(--fs-c1);">
+            <strong>Hạn chế tiếp cận chi tiết (Miễn Vùng Z):</strong> {{this.noZonesReason.vi}}<br>
+            <span class="text-muted" style="font-size: var(--fs-e1);"><strong>Restricted detailed access (Zone Z exempted):</strong> {{this.noZonesReason.en}}</span>
+          </div>
+        {{/unless}}
 
         {{#unless this.hasStructuralElements}}
           <div style="background: #f9f9f9; border-left: 2pt solid #000000; padding: 6px 10px; margin: 6px 0; font-size: var(--fs-c1);">

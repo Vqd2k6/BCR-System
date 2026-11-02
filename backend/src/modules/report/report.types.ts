@@ -573,6 +573,8 @@ export interface FloorPlanDefectReport {
   hasDefects: boolean;
   hasStructuralElements?: boolean;
   noStructuralElementsReason?: BilingualText;
+  hasZones?: boolean;
+  noZonesReason?: BilingualText;
   zeroDefectsNotice?: BilingualText;
   cadPins?: CadPinOverlayItem[];
   cadStructuralPins?: CadPinOverlayItem[];

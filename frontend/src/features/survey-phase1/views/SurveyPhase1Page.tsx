@@ -138,6 +138,8 @@ interface BackendFloorSurveyRecord {
   cad_element_pins?: Array<Record<string, unknown>>;
   has_structural_elements?: boolean;
   no_structural_elements_reason?: string;
+  has_zones?: boolean;
+  no_zones_reason?: string;
   beam_sagging_json?: Record<string, unknown>;
   zones?: DamageZoneData[];
   structural_elements?: Array<Record<string, unknown>>;
@@ -711,6 +713,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     cadElementPins: (f.cad_element_pins_json || f.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
                     hasStructuralElements: f.has_structural_elements ?? true,
                     noStructuralElementsReason: f.no_structural_elements_reason || '',
+                    hasZones: f.has_zones ?? true,
+                    noZonesReason: f.no_zones_reason || '',
                     beamSagging: f.beam_sagging_json as FloorSurveyData['beamSagging'],
                     zones: zonesByFloor[f.floor_name || ''] || zonesByFloor[f.floorName || ''] || zonesByFloor[f.id] || f.zones || [],
                     structuralElements: elementsByFloor[f.floor_name || ''] || elementsByFloor[f.floorName || ''] || elementsByFloor[f.id] || ((f.structural_elements || []) as unknown as FloorSurveyData['structuralElements']),

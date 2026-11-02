@@ -29,6 +29,12 @@ const REQUIRED_DECISION_COPY = {
     'Nếu KSV không vào được căn, chọn Vắng Chủ: các bước nội thất sẽ ẩn, dữ liệu gốc giữ nguyên. Nếu từng vắng nhưng đã vào được, chọn Đã Khảo Sát để giữ đủ các bước.',
 };
 
+const LEAVING_ABSENCE_COPY = {
+  title: 'Cần Chốt Trước Khi Lưu: Căn Này Đang Vắng Chủ',
+  description:
+    'Đổi tình trạng cư trú sẽ đưa căn ra khỏi nhóm vắng và hiện lại dữ liệu nội thất KSV đã nhập. Chọn Đã Khảo Sát nếu KSV thực tế đã vào được căn, nếu không hãy chọn Vắng Chủ.',
+};
+
 interface Props {
   state: CondoAbsenceState;
   signals: string[];
@@ -36,6 +42,8 @@ interface Props {
   hasPendingDecision: boolean;
   /** Admin vừa đổi sang vắng ở căn có khuyết tật trong phòng: phải chốt mới lưu được. */
   isDecisionRequired?: boolean;
+  /** Bắt buộc chốt vì Admin đang đưa căn ra khỏi nhóm vắng, không phải vì khuyết tật trong phòng. */
+  isLeavingAbsence?: boolean;
   onDecide: (decision: CondoAbsenceDecisionValue, reason: string) => void;
   onUndoDecision?: () => void;
 }
@@ -47,11 +55,13 @@ export const CondoAbsenceDecisionCard: React.FC<Props> = ({
   isEditMode,
   hasPendingDecision,
   isDecisionRequired = false,
+  isLeavingAbsence = false,
   onDecide,
   onUndoDecision,
 }) => {
   const [reason, setReason] = useState('');
-  const copy = isDecisionRequired ? REQUIRED_DECISION_COPY : STATE_COPY[state];
+  const requiredCopy = isLeavingAbsence ? LEAVING_ABSENCE_COPY : REQUIRED_DECISION_COPY;
+  const copy = isDecisionRequired ? requiredCopy : STATE_COPY[state];
   // Căn thường không có gì cần Admin chốt khi chỉ đọc
   if (state === 'NORMAL' && !isEditMode) return null;
 

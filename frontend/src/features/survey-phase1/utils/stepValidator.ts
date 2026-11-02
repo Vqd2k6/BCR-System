@@ -1,4 +1,5 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
+import { getZoneExemptFloors, MIN_NO_ZONES_REASON_LENGTH } from './zoneExemption';
 import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
 /**
@@ -987,8 +988,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
           });
         }
 
-        // 1. Kiểm tra điểm chấm trên CAD_01 và Vùng Z
-        if (cadZonePins.length === 0 && zones.length === 0) {
+        // 1. Tầng miễn Z không có CAD_01 và Z, nhưng lý do là căn cứ pháp lý nên không được bỏ trống
+        if (floor.hasZones === false) {
+          if ((floor.noZonesReason || '').trim().length < MIN_NO_ZONES_REASON_LENGTH) {
+            missing.push({
+              fieldId: 'step3-floor-cad-section',
+              label: `3.1. Lý do miễn Vùng Z (${floorTitle})`,
+              step: 3,
+              floorIndex: fIdx,
+              subSection: 'cad-zone',
+              description: `Tầng ${floorTitle} đã miễn Vùng Z: cần chọn hoặc nhập lý do hạn chế tiếp cận tối thiểu ${MIN_NO_ZONES_REASON_LENGTH} ký tự.`,
+              isBlocking: true,
+            });
+          }
+        } else if (cadZonePins.length === 0 && zones.length === 0) {
           missing.push({
             fieldId: 'step3-floor-cad-section',
             label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
@@ -1190,6 +1203,16 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
   }
 
   if (step === 5) {
+    if (getZoneExemptFloors(formData.floors).length > 0 && (formData.accessLimitation?.type || 'FULL_100') === 'FULL_100') {
+      missing.push({
+        fieldId: 'accessType',
+        label: '5.2. Hạn chế tiếp cận',
+        step: 5,
+        description: 'Công trình có tầng miễn Vùng Z nên không thể khai báo tiếp cận 100%. Vui lòng chọn "Có hạn chế tiếp cận một phần".',
+        isBlocking: true,
+      });
+    }
+
     if (!formData.surveyScope?.surveyedFloors || formData.surveyScope.surveyedFloors.length === 0) {
       missing.push({
         fieldId: 'input-surveyedFloors',

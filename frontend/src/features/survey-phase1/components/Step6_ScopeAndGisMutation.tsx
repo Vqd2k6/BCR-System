@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -7,6 +7,7 @@ import { CadastralGISBoundaryEditor } from '../../../components/gis/CadastralGIS
 import { Map, ShieldCheck, AlertCircle, Edit3, Building, Home, CheckCircle2 } from 'lucide-react';
 import { buildRestrictedFloorOptions, normalizeAccessLimitation } from '../utils/accessLimitation';
 import { CustomRestrictedAreaList } from './step6/CustomRestrictedAreaList';
+import { getZoneExemptFloors } from '../utils/zoneExemption';
 
 const ACCESS_LIMIT_PRESETS = [
   'Chỉ đồng ý cho xem tầng trệt (Không cho lên lầu)',
@@ -60,6 +61,14 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
       .map((floor) => floor.label),
   };
 
+  // Tầng miễn Z suy từ Bước 3 nên không để KSV tick tay, tránh quên hoặc lệch với báo cáo
+  const zoneExemptFloors = getZoneExemptFloors(formData.floors);
+  const hasZoneExemptFloor = zoneExemptFloors.length > 0;
+  useEffect(() => {
+    if (!hasZoneExemptFloor || isReadOnly || access.type !== 'FULL_100') return;
+    updateFormData({ accessLimitation: { ...access, type: 'LIMITED' } });
+  }, [hasZoneExemptFloor, isReadOnly, access, updateFormData]);
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       {/* 5.1. Phạm vi đã khảo sát */}
@@ -91,8 +100,10 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                   <Building className="w-4 h-4 text-slate-600" />
                   <span>{floor.floorName}</span>
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Đã khảo sát
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  floor.hasZones === false ? 'text-amber-800 bg-amber-100' : 'text-emerald-700 bg-emerald-100'
+                }`}>
+                  {floor.hasZones === false ? 'Tiếp cận tổng quan (Miễn Z)' : 'Đã khảo sát'}
                 </span>
               </div>
             ))}
@@ -119,7 +130,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
             {[
               { value: 'FULL_100', label: '1. Không có hạn chế (Tiếp cận 100%)' },
               { value: 'LIMITED', label: '2. Có hạn chế tiếp cận một phần' },
-            ].map((opt) => (
+            ].filter((opt) => !(hasZoneExemptFloor && opt.value === 'FULL_100')).map((opt) => (
               <label
                 key={opt.value}
                 className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer text-xs font-bold transition-all ${
@@ -202,6 +213,20 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Tầng miễn Z tự ghi nhận vào báo cáo, không cần tick */}
+              {hasZoneExemptFloor && (
+                <div className="p-3 bg-white rounded-xl border border-amber-300 space-y-1.5">
+                  <span className="text-xs font-bold text-amber-900 block">
+                    Tầng hạn chế tiếp cận chi tiết (tự động từ Bước 3):
+                  </span>
+                  {zoneExemptFloors.map((floor) => (
+                    <p key={floor.id} className="text-xs text-slate-700">
+                      <strong>{floor.floorName}:</strong> {floor.noZonesReason || 'Chưa có lý do, cần bổ sung ở Bước 3'}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Phân rã tầng lầu bị hạn chế (Khi tick chọn "Các tầng lầu trên cao") */}
               {access.restrictedAreas?.includes('Các tầng lầu trên cao') && (

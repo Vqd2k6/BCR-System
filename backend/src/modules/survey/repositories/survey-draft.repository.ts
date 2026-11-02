@@ -1,4 +1,5 @@
 import { Database } from '../../../database/db';
+import { carryServerManagedSurveyKeys } from '../server-managed-survey-keys';
 import { SurveyBaseRepository } from './survey-base.repository';
 
 export class SurveyDraftRepository {
@@ -190,7 +191,7 @@ export class SurveyDraftRepository {
          RETURNING *;`,
         [
           existing.id,
-          JSON.stringify(incomingData),
+          JSON.stringify(carryServerManagedSurveyKeys(existingData, incomingData)),
           data.currentStep,
           data.surveyorId,
         ]
