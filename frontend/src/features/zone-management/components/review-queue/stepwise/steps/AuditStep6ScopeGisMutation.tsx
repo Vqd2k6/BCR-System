@@ -1,6 +1,6 @@
 import type { FloorSurveyData } from '../../../../../survey-phase1/types/phase1.types';
 import type { GisParcel } from '../../../../../../components/gis/shared/types';
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   MapPin,
   ShieldCheck,
@@ -21,7 +21,13 @@ import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
-import { readCustomRestrictedAreas, splitLegacyRestrictedArea } from '../../../../../survey-phase1/utils/accessLimitation';
+import {
+  ACCESS_LIMIT_PRESETS,
+  ACCESS_REASON_OTHER,
+  parseAccessMainReason,
+  readCustomRestrictedAreas,
+  splitLegacyRestrictedArea,
+} from '../../../../../survey-phase1/utils/accessLimitation';
 import { CustomRestrictedAreaList } from '../../../../../survey-phase1/components/step6/CustomRestrictedAreaList';
 import { computePolygonAreaM2, normalizeQuadEdges, getDistanceM } from '../../../../../../components/gis/shared/geoMath';
 
@@ -45,17 +51,6 @@ interface Props {
   onRefresh?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
-
-const ACCESS_LIMIT_PRESETS = [
-  'Chỉ đồng ý cho xem tầng trệt (Không cho lên lầu)',
-  'Chủ nhà đi vắng / Khóa cửa',
-  'Chủ nhà không cho phép tiếp cận các phòng riêng',
-  'Khu vực nguy hiểm / Kết cấu mất an toàn',
-  'Phòng kho / Phòng thờ khóa cửa',
-  'Kẹt cửa / Mất chìa khóa',
-  'Khu vực chứa tài sản nhạy cảm',
-  'Khác (Nhập chi tiết...)',
-];
 
 const OTHER_RESTRICTED_AREA = 'Khác (Nhập chi tiết...)';
 
@@ -95,6 +90,17 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     () => (formState.floors || []).filter((fl) => !isSoftDeleted(fl)),
     [formState.floors]
   );
+
+  // Chọn "Khác" khi chưa gõ thì mainReason vẫn rỗng, cần cờ riêng để ô nhập không biến mất
+  const [isOtherReason, setIsOtherReason] = useState(false);
+  useEffect(() => {
+    if (!isEditMode) setIsOtherReason(false);
+  }, [isEditMode]);
+  const parsedMainReason = parseAccessMainReason(access.mainReason);
+  const showOtherReasonInput = isOtherReason || parsedMainReason.kind === 'OTHER';
+  // Tầng miễn Z chưa được xem chi tiết nên không thể khai tiếp cận 100%; hồ sơ đang FULL_100 giữ option để hiện đúng giá trị
+  const hideFullAccessOption =
+    access.type !== 'FULL_100' && activeFloors.some((fl: FloorSurveyData) => fl.hasZones === false);
 
   // Giải quyết tọa độ GPS thực địa (ưu tiên formState.gpsCoords đã chuẩn hóa từ hook hoặc chuỗi "lat, lng")
   const parsedGpsCoords = useMemo<{ lat: number; lng: number; accuracy?: number }>(() => {
@@ -488,6 +494,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                     const nextType = e.target.value;
                     handleNestedFieldChange('accessLimitation', 'type', 'Mức độ tiếp cận', nextType);
                     if (nextType === 'FULL_100') {
+                      setIsOtherReason(false);
                       handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', '');
                       handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', []);
                       handleNestedFieldChange('accessLimitation', 'restrictedFloorLevels', 'Tầng hạn chế', []);
@@ -497,7 +504,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                   }}
                   className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
                 >
-                  <option value="FULL_100">1. Không có hạn chế (Tiếp cận 100%)</option>
+                  {!hideFullAccessOption && <option value="FULL_100">1. Không có hạn chế (Tiếp cận 100%)</option>}
                   <option value="LIMITED">2. Có hạn chế tiếp cận một phần</option>
                   <option value="EXTERNAL_ONLY">3. Chỉ quan sát ngoại quan bên ngoài</option>
                 </select>
@@ -521,41 +528,47 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             </div>
 
             {/* Nguyên nhân chính */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-700 block">
-                Nguyên nhân chính hạn chế:
-              </label>
-              {isEditMode ? (
-                <div className="space-y-1">
-                  <select
-                    value={access.mainReason && ACCESS_LIMIT_PRESETS.includes(access.mainReason) ? access.mainReason : 'Khác (Nhập chi tiết...)'}
-                    onChange={(e) => {
-                      if (e.target.value !== 'Khác (Nhập chi tiết...)') {
-                        handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value);
-                      }
-                    }}
-                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
-                  >
-                    {ACCESS_LIMIT_PRESETS.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={access.mainReason || ''}
-                    onChange={(e) =>
-                      handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value)
-                    }
-                    placeholder="Nhập chi tiết nguyên nhân nếu chọn khác..."
-                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                  />
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
-                  {access.mainReason || 'Không có ghi nhận nguyên nhân'}
-                </div>
-              )}
-            </div>
+            {access.type !== 'FULL_100' && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-700 block">
+                  Nguyên nhân chính hạn chế:
+                </label>
+                {isEditMode ? (
+                  <div className="space-y-1">
+                    <select
+                      value={showOtherReasonInput ? ACCESS_REASON_OTHER : parsedMainReason.text}
+                      onChange={(e) => {
+                        const isOther = e.target.value === ACCESS_REASON_OTHER;
+                        setIsOtherReason(isOther);
+                        handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', isOther ? '' : e.target.value);
+                      }}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer"
+                    >
+                      <option value="">-- Chọn nguyên nhân chính --</option>
+                      {ACCESS_LIMIT_PRESETS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    {showOtherReasonInput && (
+                      <input
+                        type="text"
+                        value={parsedMainReason.text}
+                        onChange={(e) => {
+                          setIsOtherReason(true);
+                          handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value);
+                        }}
+                        placeholder="Nhập chi tiết nguyên nhân hạn chế..."
+                        className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
+                    {access.mainReason || 'Không có ghi nhận nguyên nhân'}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Chi tiết khu vực hạn chế & Tầng hạn chế */}
@@ -697,26 +710,28 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           )}
 
           {/* Ghi chú diễn giải */}
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold text-slate-700 block">
-              Ghi chú hiện trường chi tiết của KSV:
-            </span>
-            {isEditMode ? (
-              <textarea
-                rows={2}
-                value={access.notes || ''}
-                onChange={(e) =>
-                  handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú hạn chế', e.target.value)
-                }
-                placeholder="Nhập ghi chú chi tiết làm cơ sở pháp lý..."
-                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
-              />
-            ) : (
-              <p className="text-xs text-slate-700 p-2.5 bg-white rounded-xl border border-slate-200 italic">
-                {access.notes || 'Không có ghi chú thêm.'}
-              </p>
-            )}
-          </div>
+          {access.type !== 'FULL_100' && (
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-700 block">
+                Ghi chú hiện trường chi tiết của KSV:
+              </span>
+              {isEditMode ? (
+                <textarea
+                  rows={2}
+                  value={access.notes || ''}
+                  onChange={(e) =>
+                    handleNestedFieldChange('accessLimitation', 'notes', 'Ghi chú hạn chế', e.target.value)
+                  }
+                  placeholder="Nhập ghi chú chi tiết làm cơ sở pháp lý..."
+                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
+                />
+              ) : (
+                <p className="text-xs text-slate-700 p-2.5 bg-white rounded-xl border border-slate-200 italic">
+                  {access.notes || 'Không có ghi chú thêm.'}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 6.3. Biến động thửa đất GIS */}

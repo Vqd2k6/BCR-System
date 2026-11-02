@@ -1,5 +1,6 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { getZoneExemptFloors, MIN_NO_ZONES_REASON_LENGTH } from './zoneExemption';
+import { parseAccessMainReason } from './accessLimitation';
 import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
 /**
@@ -1209,6 +1210,16 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '5.2. Hạn chế tiếp cận',
         step: 5,
         description: 'Công trình có tầng miễn Vùng Z nên không thể khai báo tiếp cận 100%. Vui lòng chọn "Có hạn chế tiếp cận một phần".',
+        isBlocking: true,
+      });
+    }
+
+    if (formData.accessLimitation?.type === 'LIMITED' && parseAccessMainReason(formData.accessLimitation.mainReason).kind === 'EMPTY') {
+      missing.push({
+        fieldId: 'select-access-main-reason',
+        label: '5.2. Nguyên nhân chính hạn chế',
+        step: 5,
+        description: 'Vui lòng chọn nguyên nhân chính hạn chế tiếp cận. Nếu chọn "Khác", cần nhập rõ nguyên nhân thực tế.',
         isBlocking: true,
       });
     }

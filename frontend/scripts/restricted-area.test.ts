@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  ACCESS_REASON_OTHER,
   addCustomRestrictedArea,
   buildRestrictedFloorOptions,
   normalizeAccessLimitation,
+  parseAccessMainReason,
   readCustomRestrictedAreas,
   splitLegacyRestrictedArea,
 } from '../src/features/survey-phase1/utils/accessLimitation';
@@ -72,5 +74,16 @@ assert.deepEqual(addCustomRestrictedArea(['A'], '  Phòng   WC lầu 3 '), ['A',
 const list = ['Phòng WC'];
 assert.equal(addCustomRestrictedArea(list, 'phòng wc'), list);
 assert.equal(addCustomRestrictedArea(list, '   '), list);
+
+assert.deepEqual(parseAccessMainReason(''), { kind: 'EMPTY', text: '' });
+assert.deepEqual(parseAccessMainReason(undefined), { kind: 'EMPTY', text: '' });
+assert.deepEqual(parseAccessMainReason('   '), { kind: 'EMPTY', text: '' });
+assert.deepEqual(parseAccessMainReason('Khác: '), { kind: 'EMPTY', text: '' });
+assert.deepEqual(parseAccessMainReason(ACCESS_REASON_OTHER), { kind: 'EMPTY', text: '' });
+assert.deepEqual(parseAccessMainReason('Khác: Người thuê không về'), { kind: 'OTHER', text: 'Người thuê không về' });
+assert.deepEqual(parseAccessMainReason('Khá'), { kind: 'OTHER', text: 'Khá' });
+assert.deepEqual(parseAccessMainReason('Người sử dụng đi vắng'), { kind: 'OTHER', text: 'Người sử dụng đi vắng' });
+assert.deepEqual(parseAccessMainReason('Chủ nhà đi vắng / Khóa cửa'), { kind: 'PRESET', text: 'Chủ nhà đi vắng / Khóa cửa' });
+assert.equal(parseAccessMainReason('Người thuê ').text, 'Người thuê ', 'Giữ dấu cách cuối để gõ được nhiều từ');
 
 console.log('restricted-area: OK');
