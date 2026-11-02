@@ -14,9 +14,12 @@ import {
   LogOut,
   User,
   ExternalLink,
+  KeyRound,
 } from 'lucide-react';
 import { ThemeSwitcher } from '../../../../components/common/ThemeSwitcher';
 import { METRO_22_ZONES } from '../../../survey-phase1/constants/metroGisConstants';
+import { ZoneAdminAccountMenu } from './ZoneAdminAccountMenu';
+import type { UserProfile } from '../../../../context/AuthContext';
 
 export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export';
 
@@ -33,6 +36,8 @@ interface Props {
   criticalCount?: number;
   userName?: string;
   userRole?: string;
+  user: UserProfile | null;
+  onOpenChangePassword: () => void;
   onLogout?: () => void;
 }
 
@@ -48,6 +53,8 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
   criticalCount = 0,
   userName = 'Zone Admin',
   userRole = 'ZONE_ADMIN',
+  user,
+  onOpenChangePassword,
   onLogout,
 }) => {
   const [showUserPopover, setShowUserPopover] = useState(false);
@@ -231,34 +238,50 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
       </nav>
 
       {/* 4. Footer User Info & Theme */}
-      <div className="p-3 border-t border-slate-100 bg-white relative">
+      <div ref={popoverRef} className="p-3 border-t border-slate-100 bg-white relative">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <button
-              type="button"
-              onClick={() => isCollapsed && setShowUserPopover(!showUserPopover)}
-              className={`w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 ${isCollapsed ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400' : ''}`}
-              title={userName}
-            >
+          <button
+            type="button"
+            onClick={() => setShowUserPopover(!showUserPopover)}
+            className="group flex items-center gap-2.5 min-w-0 text-left rounded-xl cursor-pointer"
+            title={userName}
+            aria-expanded={showUserPopover}
+          >
+            <span className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 group-hover:ring-2 group-hover:ring-indigo-400">
               {userName.charAt(0)}
-            </button>
+            </span>
             {!isCollapsed && (
-              <div className="truncate">
-                <div className="text-xs font-bold text-slate-800 truncate">{userName}</div>
-                <div className="text-[10px] text-slate-500 font-mono truncate">{userRole}</div>
-              </div>
+              <span className="block min-w-0">
+                <span className="block text-xs font-bold text-slate-800 truncate">{userName}</span>
+                <span className="block text-[10px] text-slate-500 font-mono truncate">{userRole}</span>
+              </span>
             )}
-          </div>
+          </button>
 
-          {!isCollapsed && onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-              title="Đăng xuất"
-            >
-              <LogOut size={14} />
-            </button>
+          {!isCollapsed && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUserPopover(false);
+                  onOpenChangePassword();
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                title="Đổi mật khẩu"
+              >
+                <KeyRound size={14} />
+              </button>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  title="Đăng xuất"
+                >
+                  <LogOut size={14} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -268,30 +291,25 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Popover khi sidebar đang thu gọn */}
-        {isCollapsed && showUserPopover && (
-          <div
-            ref={popoverRef}
-            className="absolute left-full bottom-2 ml-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 space-y-2.5"
-          >
-            <div className="border-b border-slate-100 pb-2">
-              <div className="text-xs font-bold text-slate-900 truncate">{userName}</div>
-              <div className="text-[10px] text-slate-500 font-mono truncate">{userRole}</div>
-            </div>
-            <ThemeSwitcher showLabel={true} />
-            {onLogout && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUserPopover(false);
-                  onLogout();
-                }}
-                className="w-full py-1.5 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-red-200 cursor-pointer"
-              >
-                <LogOut size={13} />
-                <span>Đăng xuất</span>
-              </button>
-            )}
+        {/* Popover tài khoản: sidebar mở rộng đã có sẵn ThemeSwitcher ở footer */}
+        {showUserPopover && (
+          <div className="absolute left-full bottom-2 ml-3 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 animate-in fade-in zoom-in-95">
+            <ZoneAdminAccountMenu
+              user={user}
+              showThemeSwitcher={isCollapsed}
+              onOpenChangePassword={() => {
+                setShowUserPopover(false);
+                onOpenChangePassword();
+              }}
+              onLogout={
+                onLogout
+                  ? () => {
+                      setShowUserPopover(false);
+                      onLogout();
+                    }
+                  : undefined
+              }
+            />
           </div>
         )}
       </div>

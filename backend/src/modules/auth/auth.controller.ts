@@ -69,10 +69,17 @@ export class AuthController {
       const userId = req.user!.userId;
       const userRole = req.user?.role;
 
-      // Bảo vệ pháp lý: Khảo sát viên không được tự ý sửa đổi SĐT hoặc Chữ ký số mẫu
-      if (userRole === 'SURVEYOR' && (req.body.phone !== undefined || req.body.signatureImageUrl !== undefined)) {
+      // Bảo vệ pháp lý: Họ tên, SĐT và chữ ký Khảo sát viên in trên báo cáo, do Quản trị viên cấp
+      if (userRole === 'SURVEYOR') {
         throw new ForbiddenError(
-          'Khảo sát viên hiện trường không được phép tự ý thay đổi Số điện thoại hoặc Chữ ký số pháp lý. Vui lòng liên hệ Quản trị viên Ban QLDA Metro 2.'
+          'Khảo sát viên hiện trường không được phép tự ý thay đổi thông tin cá nhân. Vui lòng liên hệ Quản trị viên Ban QLDA Metro 2.'
+        );
+      }
+
+      // Bảo vệ pháp lý: Họ tên và chữ ký Zone Admin in trên báo cáo, Zone Admin chỉ được tự đổi mật khẩu
+      if (userRole === 'ZONE_ADMIN') {
+        throw new ForbiddenError(
+          'Zone Admin không được phép tự thay đổi thông tin cá nhân. Vui lòng liên hệ Super Admin.'
         );
       }
 
@@ -118,6 +125,7 @@ export class AuthController {
       res.status(200).json({
         success: true,
         message: result.message,
+        data: { accessToken: result.accessToken, expiresIn: result.expiresIn },
       });
     } catch (error) {
       next(error);

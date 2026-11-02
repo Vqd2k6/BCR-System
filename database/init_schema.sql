@@ -283,6 +283,7 @@ CREATE TABLE users (
     signature_image_url TEXT,
     created_by_user_id UUID REFERENCES users(id),
     surveyor_code VARCHAR(16),
+    token_version INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ

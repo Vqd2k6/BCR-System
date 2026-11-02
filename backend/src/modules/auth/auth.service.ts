@@ -47,6 +47,21 @@ export function toSafeUserDto(user: any): SafeUserDto {
   };
 }
 
+function signAccessToken(user: UserEntity, tokenVersion: number = user.token_version ?? 0): string {
+  const payload: JwtPayload = {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    assignedZoneId: user.assigned_zone_id,
+    fullName: user.full_name,
+    tokenVersion,
+  };
+
+  return jwt.sign(payload, config.jwt.secret, {
+    expiresIn: config.jwt.expiresIn as any,
+  });
+}
+
 export class AuthService {
   static async login(
     username: string,
@@ -160,17 +175,7 @@ export class AuthService {
       throw new UnauthorizedError('Tên đăng nhập hoặc mật khẩu không chính xác');
     }
 
-    const payload: JwtPayload = {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      assignedZoneId: user.assigned_zone_id,
-      fullName: user.full_name,
-    };
-
-    const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn as any,
-    });
+    const accessToken = signAccessToken(user);
 
     const rawRefreshToken = CryptoUtils.generateRandomToken(40);
     const refreshTokenHash = CryptoUtils.sha256(rawRefreshToken);
@@ -216,17 +221,7 @@ export class AuthService {
       throw new UnauthorizedError('Tài khoản người dùng đã bị khóa hoặc không tồn tại');
     }
 
-    const payload: JwtPayload = {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      assignedZoneId: user.assigned_zone_id,
-      fullName: user.full_name,
-    };
-
-    const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn as any,
-    });
+    const accessToken = signAccessToken(user);
 
     return {
       accessToken,
@@ -291,24 +286,22 @@ export class AuthService {
     }
 
     const newPasswordHash = await CryptoUtils.hashPassword(newPassword);
-    await AuthRepository.updatePassword(userId, newPasswordHash);
-    await AuthRepository.revokeUserSessions(userId);
-
-    await AuthRepository.logSystemAudit({
-      entityType: 'USER',
-      entityId: userId,
-      action: 'USER_CHANGED_OWN_PASSWORD',
-      performedByUserId: userId,
-      clientIp: clientIp || null,
+    const tokenVersion = await AuthRepository.applyOwnPasswordChange(userId, newPasswordHash, {
+      clientIp,
       diffPayload: {
         username: user.username,
         role: user.role,
         selfService: true,
       },
     });
+    if (tokenVersion === null) {
+      throw new NotFoundError('Không tìm thấy tài khoản người dùng');
+    }
 
     return {
       message: 'Đổi mật khẩu tài khoản thành công',
+      accessToken: signAccessToken(user, tokenVersion),
+      expiresIn: 604800,
     };
   }
 

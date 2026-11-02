@@ -80,7 +80,11 @@ api.interceptors.response.use(
         'color: #f59e0b; font-weight: bold;',
         'color: inherit;'
       );
-      if (typeof window !== 'undefined' && !url?.includes('/auth/login')) {
+      // Request gửi bằng token cũ về sau khi token đã được thay (vừa đổi mật khẩu) thì không khóa phiên mới
+      const sentAuth = error.config?.headers?.Authorization;
+      const currentToken = localStorage.getItem('metro2_access_token');
+      const isStaleToken = Boolean(sentAuth && currentToken && sentAuth !== `Bearer ${currentToken}`);
+      if (typeof window !== 'undefined' && !url?.includes('/auth/login') && !isStaleToken) {
         window.dispatchEvent(
           new CustomEvent('metro2:auth-unauthorized', {
             detail: {

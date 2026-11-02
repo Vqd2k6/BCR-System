@@ -1,4 +1,35 @@
 const LEGACY_AREA_TAGS = /\[Khu vực khác:\s*(.*?)\]/g;
+const LEGACY_OTHER_REASON_PREFIX = /^\s*Khác:\s*/;
+
+/** Nhãn chọn trên dropdown, không lưu vào `mainReason` vì Mục IX in nguyên văn trường này. */
+export const ACCESS_REASON_OTHER = 'Khác (Nhập chi tiết...)';
+
+export const ACCESS_LIMIT_PRESETS = [
+  'Chỉ đồng ý cho xem tầng trệt (Không cho lên lầu)',
+  'Chủ nhà đi vắng / Khóa cửa',
+  'Chủ nhà không cho phép tiếp cận các phòng riêng',
+  'Khu vực nguy hiểm / Kết cấu mất an toàn',
+  'Phòng kho / Phòng thờ khóa cửa',
+  'Kẹt cửa / Mất chìa khóa',
+  'Khu vực chứa tài sản nhạy cảm',
+  ACCESS_REASON_OTHER,
+];
+
+export interface ParsedAccessMainReason {
+  kind: 'EMPTY' | 'PRESET' | 'OTHER';
+  /** Không trim để ô nhập tự do gõ được dấu cách giữa các từ. */
+  text: string;
+}
+
+/** Bản cũ lưu lý do tự do kèm tiền tố `Khác: `; chỉ bỏ tiền tố khi đọc, không ghi lại hồ sơ. */
+export const parseAccessMainReason = (raw: string | null | undefined): ParsedAccessMainReason => {
+  const value = raw || '';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === ACCESS_REASON_OTHER) return { kind: 'EMPTY', text: '' };
+  if (ACCESS_LIMIT_PRESETS.includes(trimmed)) return { kind: 'PRESET', text: trimmed };
+  const text = value.replace(LEGACY_OTHER_REASON_PREFIX, '');
+  return text.trim() ? { kind: 'OTHER', text } : { kind: 'EMPTY', text: '' };
+};
 
 interface CustomAreaFields {
   notes?: string;

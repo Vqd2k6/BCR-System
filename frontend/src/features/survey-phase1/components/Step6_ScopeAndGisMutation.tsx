@@ -5,20 +5,15 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select, Textarea } from '../../../core/components/ui/FormControls';
 import { CadastralGISBoundaryEditor } from '../../../components/gis/CadastralGISBoundaryEditor';
 import { Map, ShieldCheck, AlertCircle, Edit3, Building, Home, CheckCircle2 } from 'lucide-react';
-import { buildRestrictedFloorOptions, normalizeAccessLimitation } from '../utils/accessLimitation';
+import {
+  ACCESS_LIMIT_PRESETS,
+  ACCESS_REASON_OTHER,
+  buildRestrictedFloorOptions,
+  normalizeAccessLimitation,
+  parseAccessMainReason,
+} from '../utils/accessLimitation';
 import { CustomRestrictedAreaList } from './step6/CustomRestrictedAreaList';
 import { getZoneExemptFloors } from '../utils/zoneExemption';
-
-const ACCESS_LIMIT_PRESETS = [
-  'Chỉ đồng ý cho xem tầng trệt (Không cho lên lầu)',
-  'Chủ nhà đi vắng / Khóa cửa',
-  'Chủ nhà không cho phép tiếp cận các phòng riêng',
-  'Khu vực nguy hiểm / Kết cấu mất an toàn',
-  'Phòng kho / Phòng thờ khóa cửa',
-  'Kẹt cửa / Mất chìa khóa',
-  'Khu vực chứa tài sản nhạy cảm',
-  'Khác (Nhập chi tiết...)',
-];
 
 const RESTRICTED_AREAS_PRESETS = [
   'Các tầng lầu trên cao',
@@ -41,7 +36,8 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
   const scope = formData.surveyScope;
   const normalizedAccess = normalizeAccessLimitation(formData.accessLimitation);
 
-  const [customMainReason, setCustomMainReason] = useState('');
+  // Chọn "Khác" khi chưa gõ thì mainReason vẫn rỗng, cần cờ riêng để ô nhập không biến mất
+  const [isOtherReason, setIsOtherReason] = useState(false);
 
   // Tự động nhận diện danh sách tầng của công trình:
   // - Các tầng đã có ở Bước 3 (formData.floors): đánh dấu isAlreadySurveyed = true
@@ -68,6 +64,9 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
     if (!hasZoneExemptFloor || isReadOnly || access.type !== 'FULL_100') return;
     updateFormData({ accessLimitation: { ...access, type: 'LIMITED' } });
   }, [hasZoneExemptFloor, isReadOnly, access, updateFormData]);
+
+  const parsedMainReason = parseAccessMainReason(access.mainReason);
+  const showOtherReasonInput = isOtherReason || parsedMainReason.kind === 'OTHER';
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -146,6 +145,21 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                   checked={access.type === opt.value}
                   onChange={() => {
                     if (isReadOnly) return;
+                    if (opt.value === 'FULL_100') {
+                      setIsOtherReason(false);
+                      updateFormData({
+                        accessLimitation: {
+                          ...access,
+                          type: 'FULL_100',
+                          mainReason: '',
+                          notes: '',
+                          restrictedAreas: [],
+                          restrictedFloorLevels: [],
+                          customRestrictedAreas: [],
+                        },
+                      });
+                      return;
+                    }
                     updateFormData({
                       accessLimitation: { ...access, type: opt.value as "FULL_100" | "LIMITED" | "ABSENT_REFUSED" },
                     });
@@ -297,35 +311,31 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 <Select
                   id="select-access-main-reason"
                   label="Nguyên Nhân Chính Hạn Chế Tiếp Cận"
-                  value={
-                    ACCESS_LIMIT_PRESETS.slice(0, 7).includes(access.mainReason)
-                      ? access.mainReason
-                      : 'Khác (Nhập chi tiết...)'
-                  }
+                  value={showOtherReasonInput ? ACCESS_REASON_OTHER : parsedMainReason.text}
                   onChange={(e) => {
-                    if (e.target.value === 'Khác (Nhập chi tiết...)') {
-                      updateFormData({
-                        accessLimitation: { ...access, mainReason: 'Khác: ' },
-                      });
-                    } else {
-                      updateFormData({
-                        accessLimitation: { ...access, mainReason: e.target.value },
-                      });
-                    }
+                    const isOther = e.target.value === ACCESS_REASON_OTHER;
+                    setIsOtherReason(isOther);
+                    updateFormData({
+                      accessLimitation: { ...access, mainReason: isOther ? '' : e.target.value },
+                    });
                   }}
-                  options={ACCESS_LIMIT_PRESETS.map((p) => ({ value: p, label: p }))}
+                  options={[
+                    { value: '', label: '-- Chọn nguyên nhân chính --' },
+                    ...ACCESS_LIMIT_PRESETS.map((p) => ({ value: p, label: p })),
+                  ]}
                 />
-                {access.mainReason.startsWith('Khác') && (
+                {showOtherReasonInput && (
                   <div className="mt-2 animate-in fade-in">
                     <Input
                       id="input-custom-access-reason"
                       placeholder="Nhập nguyên nhân hạn chế tiếp cận thực tế..."
-                      value={access.mainReason}
-                      onChange={(e) =>
+                      value={parsedMainReason.text}
+                      onChange={(e) => {
+                        setIsOtherReason(true);
                         updateFormData({
                           accessLimitation: { ...access, mainReason: e.target.value },
-                        })
-                      }
+                        });
+                      }}
                     />
                   </div>
                 )}

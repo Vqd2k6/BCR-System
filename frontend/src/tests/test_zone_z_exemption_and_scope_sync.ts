@@ -70,6 +70,20 @@ assert.equal(has(missing(5, form([exemptFloor], 'LIMITED')), 'Hạn chế tiếp
 assert.equal(has(missing(5, form([floor({})], 'FULL_100')), 'Hạn chế tiếp cận'), false);
 assert.equal(getZoneExemptFloors(form([exemptFloor, floor({ id: 'f2' })]).floors).length, 1);
 
+// Nguyên nhân chính bắt buộc khi LIMITED, kể cả hồ sơ bị ép LIMITED do tầng miễn Z
+const withReason = (data: Phase1SurveyFormData, mainReason: string): Phase1SurveyFormData => ({
+  ...data,
+  accessLimitation: { ...data.accessLimitation, mainReason },
+});
+const REASON_LABEL = 'Nguyên nhân chính hạn chế';
+assert.ok(has(missing(5, form([floor({})], 'LIMITED')), REASON_LABEL), 'LIMITED chưa chọn nguyên nhân bị chặn');
+assert.ok(has(missing(5, form([exemptFloor], 'LIMITED')), REASON_LABEL), 'Tầng miễn Z vẫn cần nguyên nhân');
+assert.ok(has(missing(5, withReason(form([floor({})], 'LIMITED'), 'Khác: ')), REASON_LABEL), 'Tiền tố Khác trống bị chặn');
+assert.ok(has(missing(5, withReason(form([floor({})], 'LIMITED'), '   ')), REASON_LABEL), 'Chỉ có dấu cách bị chặn');
+assert.equal(has(missing(5, withReason(form([floor({})], 'LIMITED'), 'Chủ nhà đi vắng / Khóa cửa')), REASON_LABEL), false);
+assert.equal(has(missing(5, withReason(form([floor({})], 'LIMITED'), 'Người thuê không mở cửa')), REASON_LABEL), false);
+assert.equal(has(missing(5, form([floor({})], 'FULL_100')), REASON_LABEL), false, 'FULL_100 không cần nguyên nhân');
+
 // Cổng dữ liệu: dù hồ sơ khai FULL_100 cũng không được ALLOW khi có tầng miễn
 const baseGate = {
   foundationCatScore: 3,

@@ -15,6 +15,7 @@ export interface UserEntity {
   signature_image_url?: string | null;
   created_by_user_id?: string | null;
   surveyor_code?: string | null;
+  token_version?: number;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -303,10 +304,40 @@ export class AuthRepository {
 
   static async updatePassword(id: string, passwordHash: string): Promise<boolean> {
     const res = await Database.query(
-      `UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL;`,
+      `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL;`,
       [id, passwordHash]
     );
     return (res.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Đổi mật khẩu của chính mình trong 1 transaction: mật khẩu, thu hồi phiên và audit cùng thành công hoặc cùng rollback.
+   * Ghi audit trực tiếp bằng client vì logSystemAudit nuốt lỗi, không dùng được bên trong transaction.
+   */
+  static async applyOwnPasswordChange(
+    userId: string,
+    passwordHash: string,
+    audit: { clientIp?: string | null; diffPayload: Record<string, unknown> }
+  ): Promise<number | null> {
+    return Database.transaction(async (client) => {
+      const res = await client.query<{ token_version: number }>(
+        `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = NOW()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING token_version;`,
+        [userId, passwordHash]
+      );
+      const tokenVersion = res.rows[0]?.token_version;
+      if (tokenVersion === undefined) return null;
+
+      await client.query(`UPDATE user_sessions SET is_revoked = TRUE WHERE user_id = $1;`, [userId]);
+      await client.query(
+        `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, client_ip, diff_payload)
+         VALUES ($1, $2, $3, $4, $5, $6);`,
+        ['USER', userId, 'USER_CHANGED_OWN_PASSWORD', userId, audit.clientIp || null, JSON.stringify(audit.diffPayload)]
+      );
+      return tokenVersion;
+    });
   }
 
   static async softDeleteUser(id: string): Promise<boolean> {

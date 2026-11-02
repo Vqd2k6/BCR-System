@@ -173,11 +173,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const changePassword = async (currentPassword: string, newPassword: string, confirmPassword: string) => {
-    await api.post('/auth/change-password', {
+    const res = await api.post<{ success: boolean; data?: { accessToken?: string } }>('/auth/change-password', {
       currentPassword,
       newPassword,
       confirmPassword,
     });
+    // Mật khẩu đổi xong thì token cũ bị thu hồi: thay token mới ngay để giữ phiên hiện tại
+    const accessToken = res.data?.data?.accessToken;
+    if (accessToken) {
+      setToken(accessToken);
+      localStorage.setItem('metro2_access_token', accessToken);
+    }
   };
 
   const logout = () => {
