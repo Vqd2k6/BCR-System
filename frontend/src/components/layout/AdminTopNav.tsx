@@ -17,6 +17,7 @@ import { UserProfileModal } from '../profile/UserProfileModal';
 import { ChangePasswordModal } from '../profile/ChangePasswordModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
 import { ForensicImageLabModal } from '../../features/image-lab/ForensicImageLabModal';
+import { CadLabLauncher } from '../../features/cad-lab';
 
 interface Props {
   activeTab: string;
@@ -121,6 +122,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
             <FlaskConical size={15} />
             <span>Test Xử Lý Ảnh Nứt</span>
           </button>
+          <CadLabLauncher variant="dark-nav" />
         </nav>
 
         {/* User Profile Dropdown */}

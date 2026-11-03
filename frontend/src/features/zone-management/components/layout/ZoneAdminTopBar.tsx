@@ -4,6 +4,7 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { ForensicImageLabModal } from '../../../image-lab/ForensicImageLabModal';
+import { CadLabLauncher } from '../../../cad-lab';
 import { ZoneAdminAccountMenu, getAccountZoneLabel } from './ZoneAdminAccountMenu';
 import type { UserProfile } from '../../../../context/AuthContext';
 
@@ -72,6 +73,7 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
           <FlaskConical size={15} className="text-indigo-600" />
           <span>Test Xử Lý Ảnh Nứt</span>
         </button>
+        <CadLabLauncher variant="light-bar" />
 
         <div ref={accountMenuRef} className="relative">
           <button

@@ -151,7 +151,7 @@ export class ClientImageLabService {
   /**
    * Nạp Blob ảnh từ File hoặc URL (Tự động vượt rào cản CORS của Cloudflare R2)
    */
-  private static async fetchImageBlob(file: File | null, imageUrl: string): Promise<Blob> {
+  public static async fetchImageBlob(file: File | null, imageUrl: string): Promise<Blob> {
     if (file) {
       return file;
     }

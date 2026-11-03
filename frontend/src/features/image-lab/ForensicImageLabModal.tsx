@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Upload,
@@ -636,7 +637,8 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
+  // Gắn thẳng vào body: modal nằm trong thanh trên có z-index thấp vẫn phủ được Sidebar
+  return createPortal(
     <div className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <div className="bg-white text-slate-900 w-full max-w-[1720px] h-[95vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
         {/* 1. Header Bar (Light Mode) */}
@@ -1622,6 +1624,7 @@ export const ForensicImageLabModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

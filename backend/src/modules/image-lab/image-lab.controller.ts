@@ -15,6 +15,13 @@ import {
 } from './image-lab.service';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { Database } from '../../database/db';
+import { resolveZoneMapScope } from '../cadastral/utils/zone-scope.utils';
+import {
+  CadSketchCatalogService,
+  clampCadSketchLimit,
+  clampCadSketchOffset,
+  parseCadSketchType,
+} from './cad-sketch-catalog.service';
 
 const VALID_PRESETS: ImageLabPreset[] = [
   'AUTO_SMART',
@@ -241,6 +248,30 @@ export class ImageLabController {
       });
     } catch (err: unknown) {
       console.error('[ImageLabController:getRecentSurveyPhotos] Lỗi lấy danh sách ảnh mẫu:', err);
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/v1/image-lab/cad-sketches?zone=&type=&q=&limit=&offset=
+   * Danh mục bản vẽ CAD trong dự án cho CAD Lab. Zone Admin chỉ thấy Zone được gán.
+   */
+  public static async getProjectCadSketches(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const requestedZone = String(req.query?.zone || '').trim() || 'ALL';
+      const zone = resolveZoneMapScope(req.user, requestedZone);
+      const limit = clampCadSketchLimit(req.query?.limit);
+      const offset = clampCadSketchOffset(req.query?.offset);
+      const { total, items } = await CadSketchCatalogService.list({
+        zone,
+        type: parseCadSketchType(req.query?.type),
+        search: String(req.query?.q || '').trim().slice(0, 60),
+        limit,
+        offset,
+      });
+      res.status(200).json({ success: true, meta: { total, limit, offset, zone }, data: items });
+    } catch (err: unknown) {
+      console.error('[ImageLabController:getProjectCadSketches] Lỗi lấy danh mục bản vẽ CAD:', err);
       next(err);
     }
   }
