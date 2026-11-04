@@ -15,13 +15,14 @@ import {
   User,
   ExternalLink,
   KeyRound,
+  UserCheck,
 } from 'lucide-react';
 import { ThemeSwitcher } from '../../../../components/common/ThemeSwitcher';
 import { METRO_22_ZONES } from '../../../survey-phase1/constants/metroGisConstants';
 import { ZoneAdminAccountMenu } from './ZoneAdminAccountMenu';
 import type { UserProfile } from '../../../../context/AuthContext';
 
-export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export';
+export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export' | 'attendance';
 
 interface Props {
   activeNav: ZoneNavView;
@@ -33,6 +34,8 @@ interface Props {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   pendingCount?: number;
+  /** Số ca chấm công chờ hậu kiểm (badge mục Quản Lý Chấm Công). */
+  attendancePendingCount?: number;
   criticalCount?: number;
   userName?: string;
   userRole?: string;
@@ -50,6 +53,7 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
   isCollapsed,
   onToggleCollapse,
   pendingCount = 0,
+  attendancePendingCount = 0,
   criticalCount = 0,
   userName = 'Zone Admin',
   userRole = 'ZONE_ADMIN',
@@ -101,6 +105,13 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
       label: 'Danh Sách Thửa Đất',
       icon: List,
       badge: null,
+    },
+    {
+      id: 'attendance' as ZoneNavView,
+      label: 'Quản Lý Chấm Công',
+      icon: UserCheck,
+      badge: attendancePendingCount > 0 ? attendancePendingCount : null,
+      badgeColor: 'bg-amber-500 text-white',
     },
     {
       id: 'export' as ZoneNavView,

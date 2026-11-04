@@ -4,7 +4,8 @@ import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, Us
 import { UserProfileModal } from '../profile/UserProfileModal';
 import { ChangePasswordModal } from '../profile/ChangePasswordModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
-import { METRO_ZONE_CENTROIDS, getVietnamDateString } from '../../core/utils/metroZoneUtils';
+import { METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
+import { useTodayAttendance, useTodayCompanionCount } from '@/features/attendance';
 
 interface Props {
   title?: string;
@@ -26,51 +27,10 @@ export const SurveyorNavbar: React.FC<Props> = ({
   isCheckedInToday,
 }) => {
   const { user, logout } = useAuth();
-  const todayStr = getVietnamDateString();
-  const [isCompanionCheckedIn, setIsCompanionCheckedIn] = useState<boolean>(() => {
-    try {
-      return !!localStorage.getItem(`metro2_companion_checkin_${todayStr}`);
-    } catch (err: unknown) {
-      console.error('[SurveyorNavbar:initCompanionStatus] Error reading companion check-in:', err);
-      return false;
-    }
-  });
-  const [isCheckedOutToday, setIsCheckedOutToday] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
-      if (!raw) return false;
-      const parsed = JSON.parse(raw) as { checkOutTime?: string };
-      return Boolean(parsed?.checkOutTime);
-    } catch (err: unknown) {
-      console.error('[SurveyorNavbar:initCheckOutStatus] Error reading check-out status:', err);
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    const syncCompanionStatus = () => {
-      try {
-        const currentToday = getVietnamDateString();
-        setIsCompanionCheckedIn(!!localStorage.getItem(`metro2_companion_checkin_${currentToday}`));
-        const rawToday = localStorage.getItem(`metro2_today_checkin_${currentToday}`);
-        if (rawToday) {
-          const parsed = JSON.parse(rawToday) as { checkOutTime?: string };
-          setIsCheckedOutToday(Boolean(parsed?.checkOutTime));
-        } else {
-          setIsCheckedOutToday(false);
-        }
-      } catch (err: unknown) {
-        console.error('[SurveyorNavbar:syncCompanionStatus] Error syncing companion check-in:', err);
-      }
-    };
-    syncCompanionStatus();
-    window.addEventListener('metro2-attendance-updated', syncCompanionStatus);
-    window.addEventListener('storage', syncCompanionStatus);
-    return () => {
-      window.removeEventListener('metro2-attendance-updated', syncCompanionStatus);
-      window.removeEventListener('storage', syncCompanionStatus);
-    };
-  }, [todayStr]);
+  // Trạng thái ca hôm nay lấy từ store chung của phân hệ Chấm công (gắn theo user + ngày VN)
+  const todayAttendance = useTodayAttendance(user?.id);
+  const isCompanionCheckedIn = useTodayCompanionCount(user?.id) > 0;
+  const isCheckedOutToday = Boolean(todayAttendance?.hasCheckedOut);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);

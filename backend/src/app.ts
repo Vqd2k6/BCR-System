@@ -188,6 +188,12 @@ export function createApp(): express.Application {
   api.get('/admin/analytics/progress', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getProgressAnalytics);
   api.get('/admin/attendance', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.listCheckIns);
   api.get('/admin/attendance/summary', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getAttendanceSummary);
+  api.get('/admin/attendance/summary/export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.exportSummaryCsv);
+  api.get('/admin/attendance/counters', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getCounters);
+  api.post('/admin/attendance/batch-verify-clean', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.batchVerifyClean);
+  api.get('/admin/attendance/periods/status', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getPeriodStatus);
+  api.post('/admin/attendance/periods/lock', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.lockPeriod);
+  api.post('/admin/attendance/periods/unlock', authenticateJwt, requireRoles('SUPER_ADMIN'), AttendanceController.unlockPeriod);
   api.get('/admin/attendance/:id', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getCheckInDetail);
   api.post('/admin/attendance/:id/verify', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.verifyCheckIn);
 

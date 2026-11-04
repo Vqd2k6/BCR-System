@@ -10,10 +10,10 @@ import {
 import {
   resolveAttendancePhotoUrl,
   formatWorkDurationMinutes,
-} from '../../../../core/utils/metroZoneUtils';
+} from '@/core/utils/metroZoneUtils';
 
-import type { User as DomainUser } from '../../../../core/types/domain.types';
-import type { AttendanceRecord, CompanionRecord } from '../types';
+import type { User as DomainUser } from '@/core/types/domain.types';
+import type { AttendanceRecord, CompanionRecord } from '../../types/attendance.types';
 
 interface AttendanceHistoryTableProps {
   historyTab: 'surveyor' | 'companion';
@@ -162,6 +162,11 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                         Cách Ga: <strong>{distance}m</strong>
                         {isOutOfBoundItem && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                       </div>
+                      {(status === 'REJECTED' || status === 'FLAGGED_WARNING') && h.verification_notes && (
+                        <div style={{ fontSize: '0.7rem', color: status === 'REJECTED' ? 'rgb(var(--text-red-700))' : 'rgb(var(--text-amber-700))', marginTop: '2px' }}>
+                          Admin ghi chú: &quot;{h.verification_notes}&quot;
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -174,7 +179,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                     ) : status === 'FLAGGED_WARNING' || status === 'FLAGGED' ? (
                       <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                         <AlertTriangle size={12} />
-                        Gắn cờ
+                        Nhắc nhở
                       </span>
                     ) : status === 'REJECTED' ? (
                       <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -184,7 +189,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                     ) : (
                       <span className="badge badge-warning" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                         <Clock size={12} />
-                        Đã ghi nhận
+                        Chờ duyệt
                       </span>
                     )}
                   </div>

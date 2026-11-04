@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../../../services/api';
-import { useAuth } from '../../../../context/AuthContext';
-import { getErrorMessage } from '../../../../utils/errorUtils';
+import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { getErrorMessage } from '@/utils/errorUtils';
 import {
   getZoneCentroid,
   calculateDistanceMeters,
@@ -10,9 +10,9 @@ import {
   resolveAttendanceGps,
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
-} from '../../../../core/utils/metroZoneUtils';
-import type { CompanionRecord } from '../types';
-import type { AttendanceRecord } from '../../../../views/surveyor/timekeeping/types';
+} from '@/core/utils/metroZoneUtils';
+import type { AttendanceRecord, CompanionRecord } from '../../types/attendance.types';
+import { attendanceCacheKey } from '../../store/useAttendanceSessionStore';
 
 interface UseCompanionCheckInStateProps {
   isOpen: boolean;
@@ -46,10 +46,12 @@ export const useCompanionCheckInState = ({
   const { user } = useAuth();
   const effectiveZoneId = zoneId || user?.assignedZoneId || 'ZONE_09';
   const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(effectiveZoneId));
+  // Zone ngoài phân công (server xác nhận) → bắt buộc lý do khi điểm danh người đi kèm
+  const [isZoneOutsideAssignment, setIsZoneOutsideAssignment] = useState<boolean>(false);
 
   const todayStr = getVietnamDateString();
-  const storageKey = `metro2_companion_checkin_${todayStr}`;
-  const changeCountKey = `metro2_companion_checkin_count_${todayStr}`;
+  const storageKey = attendanceCacheKey('companion', user?.id, todayStr);
+  const changeCountKey = attendanceCacheKey('companion_count', user?.id, todayStr);
 
   const [companionName, setCompanionName] = useState<string>('');
   const [companionRole, setCompanionRole] = useState<string>('Cán bộ đo đạc & Ghi chép');
@@ -67,7 +69,7 @@ export const useCompanionCheckInState = ({
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(false);
   const [changeCount, setChangeCount] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem(`metro2_companion_checkin_count_${todayStr}`);
+      const saved = localStorage.getItem(changeCountKey);
       return saved ? parseInt(saved, 10) : 0;
     } catch (err: unknown) {
       console.error('[useCompanionCheckInState:initCount] Error reading count:', err);
@@ -92,7 +94,9 @@ export const useCompanionCheckInState = ({
             zoneId: string;
             zoneName: string;
             centroid: { lat: number; lng: number };
+            isWithinAssignment?: boolean | null;
           };
+          setIsZoneOutsideAssignment(zData.isWithinAssignment === false);
           setTargetZone({
             zoneId: zData.zoneId,
             zoneName: zData.zoneName,
@@ -283,8 +287,13 @@ export const useCompanionCheckInState = ({
       return;
     }
 
-    if (distanceMeters > 500 && !outOfBoundsReason.trim()) {
-      setSubmitError('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
+    const needsReason = distanceMeters > 500 || isZoneOutsideAssignment;
+    if (needsReason && !outOfBoundsReason.trim()) {
+      setSubmitError(
+        distanceMeters > 500
+          ? 'Vui lòng nhập lý do chấm công ngoài phạm vi 500m.'
+          : 'Vui lòng nhập lý do chấm công tại phân khu ngoài phân công.'
+      );
       return;
     }
 
@@ -297,8 +306,9 @@ export const useCompanionCheckInState = ({
         zoneId: targetZone.zoneId,
         gpsLatitude: gpsCoordinates.lat,
         gpsLongitude: gpsCoordinates.lng,
+        gpsAccuracyMeters: gpsCoordinates.accuracy,
         selfiePhotoUrl: selfieUrl,
-        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
+        notes: needsReason ? outOfBoundsReason.trim() : undefined,
         isCompanion: true,
         companionName: companionName.trim(),
         companionRole,
@@ -315,8 +325,7 @@ export const useCompanionCheckInState = ({
           ? Math.round(resData.distanceToCenterMeters)
           : distanceMeters;
       const storedPhotoUrl = resolveAttendancePhotoUrl(resData?.selfiePhotoUrl) || selfieUrl;
-      const finalStatus =
-        resData?.verificationStatus || (finalDistance > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION');
+      const finalStatus = resData?.verificationStatus || 'PENDING_VERIFICATION';
 
       const newRecord: CompanionRecord = {
         id: resData?.checkInId || `comp-${Date.now()}`,
@@ -331,7 +340,7 @@ export const useCompanionCheckInState = ({
         distance: finalDistance,
         distance_meters: finalDistance,
         coordinates: gpsCoordinates,
-        notes: finalDistance > 500 ? outOfBoundsReason.trim() : undefined,
+        notes: needsReason ? outOfBoundsReason.trim() : undefined,
         status: finalStatus,
       };
 
@@ -384,9 +393,9 @@ export const useCompanionCheckInState = ({
         };
       }>('/attendance/check-out', {
         checkInId: checkInData.id,
-        zoneId: targetZone.zoneId,
         gpsLatitude: resolvedGps.lat,
         gpsLongitude: resolvedGps.lng,
+        gpsAccuracyMeters: resolvedGps.accuracy,
         notes: checkOutNotes.trim() || undefined,
         isCompanion: true,
       });
@@ -402,7 +411,7 @@ export const useCompanionCheckInState = ({
             ? Math.round(resData.checkOutDistanceToCenterMeters)
             : distanceMeters,
         checkOutNotes: resData?.checkOutNotes || checkOutNotes.trim() || undefined,
-        workDurationMinutes: resData?.workDurationMinutes ?? 1,
+        workDurationMinutes: resData?.workDurationMinutes ?? undefined,
       };
 
       setCheckInData(updatedCompanion);
@@ -458,5 +467,6 @@ export const useCompanionCheckInState = ({
     handleNativeCameraCapture,
     handleSubmit,
     handleCompanionCheckOut,
+    isZoneOutsideAssignment,
   };
 };

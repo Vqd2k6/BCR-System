@@ -1,7 +1,7 @@
 import type { NavTab } from '../components/layout/SurveyorBottomNav';
 import type { ZoneNavView } from '../features/zone-management/components/layout/ZoneAdminSidebar';
 
-export type AdminTab = 'export' | 'zone-ingestion' | 'gis-mutation' | 'users' | 'audit' | 'report-content' | 'progress-config' | 'config';
+export type AdminTab = 'export' | 'zone-ingestion' | 'gis-mutation' | 'users' | 'audit' | 'report-content' | 'progress-config' | 'config' | 'attendance';
 
 export interface NavigationState {
   tab?: NavTab;
@@ -31,6 +31,7 @@ const VALID_ZONE_NAVS: readonly ZoneNavView[] = [
   'map',
   'parcels',
   'export',
+  'attendance',
 ];
 
 const VALID_ADMIN_TABS: readonly AdminTab[] = [
@@ -42,6 +43,7 @@ const VALID_ADMIN_TABS: readonly AdminTab[] = [
   'report-content',
   'progress-config',
   'config',
+  'attendance',
 ];
 
 const SESSION_STORAGE_KEY = 'metro2_nav_state';

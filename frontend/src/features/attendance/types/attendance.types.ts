@@ -1,4 +1,4 @@
-import type { CompanionRecord } from '@/components/attendance/companion/types';
+import type { CompanionRecord } from './companion.types';
 
 export type { CompanionRecord };
 
@@ -19,6 +19,9 @@ export interface AttendanceRecord {
   checkout_notes?: string | null;
   work_duration_minutes?: number | null;
   verification_status?: string;
+  /** Ghi chú thẩm định của Admin (lý do Nhắc nhở / Từ chối) — KSV xem trong lịch sử. */
+  verification_notes?: string | null;
+  anomaly_codes?: string[] | null;
   is_companion?: boolean;
   companion_name?: string | null;
   companion_role?: string | null;

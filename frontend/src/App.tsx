@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
 import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from './utils/zoneScope';
-import { getVietnamDateString, resolveAttendancePhotoUrl } from './core/utils/metroZoneUtils';
 import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
 import {
@@ -16,13 +15,18 @@ import {
 } from './components/gis/LeafletSweepMap';
 import { getEffectiveParcelStatus } from './components/gis/sweep-map/utils/sweepMapHelpers';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
-import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
+import {
+  TimekeepingCheckInView,
+  CompanionCheckInModal,
+  useAttendanceSessionStore,
+  useAttendanceSessionSync,
+  useTodayAttendance,
+} from './features/attendance';
 import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Page';
 import { SurveyCondoMasterPage } from './features/survey-condo-master/views/SurveyCondoMasterPage';
 import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCondoUnitPage';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal, type BuildingUnit } from './components/survey/BuildingHubModal';
-import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
 import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
@@ -257,28 +261,12 @@ export const App: React.FC = () => {
     }
   });
 
-  // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
-  const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
-    try {
-      const todayStr = getVietnamDateString();
-      const saved = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
-      return !!saved;
-    } catch (err: unknown) {
-      console.error('[App:initCheckedInToday] Error reading checkin status:', err);
-      return false;
-    }
-  });
-
-  const [checkInDetails, setCheckInDetails] = useState<{ time: string; distance: number; status: string } | null>(() => {
-    try {
-      const todayStr = getVietnamDateString();
-      const saved = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
-      return saved ? JSON.parse(saved) : null;
-    } catch (err: unknown) {
-      console.error('[App:initCheckInDetails] Error parsing checkin details:', err);
-      return null;
-    }
-  });
+  // Ca chấm công hôm nay: lấy từ store chung của phân hệ Chấm công (server là nguồn sự thật, gắn theo user + ngày VN)
+  const todayAttendance = useTodayAttendance(user?.id);
+  const isCheckedInToday = Boolean(todayAttendance);
+  const checkInDetails = todayAttendance
+    ? { time: todayAttendance.time, distance: todayAttendance.distance ?? 0, status: todayAttendance.status }
+    : null;
 
   // Tọa độ GPS thực tế của thiết bị (Physical Live GPS)
   const [liveUserGps, setLiveUserGps] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
@@ -466,101 +454,10 @@ export const App: React.FC = () => {
     }
   };
 
-  // Sync attendance history from backend API on mount / authentication
+  useAttendanceSessionSync(user?.id, isAuthenticated);
+
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-
-    const syncTodayAttendance = async () => {
-      try {
-        const todayStr = getVietnamDateString();
-        const res = await api.get('/attendance/my-history');
-        if (res.data && res.data.data && Array.isArray(res.data.data)) {
-          const allRecords = res.data.data as Array<{
-            id?: string;
-            checkin_time: string;
-            distance_to_zone_center_meters?: number;
-            distance_meters?: number;
-            verification_status?: string;
-            is_companion?: boolean;
-            companion_name?: string;
-            companion_role?: string;
-            companion_phone?: string;
-            selfie_photo_url?: string;
-            notes?: string;
-          }>;
-
-          const todayRecord = allRecords.find((item) => {
-            if (item.is_companion) return false;
-            return getVietnamDateString(item.checkin_time) === todayStr;
-          });
-
-          if (todayRecord) {
-            const details = {
-              time: new Date(todayRecord.checkin_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-              distance: Math.round(todayRecord.distance_to_zone_center_meters ?? todayRecord.distance_meters ?? 0),
-              status: todayRecord.verification_status || 'PENDING_VERIFICATION',
-              selfiePhotoUrl: resolveAttendancePhotoUrl(todayRecord.selfie_photo_url),
-            };
-            setIsCheckedInToday(true);
-            setCheckInDetails(details);
-            try {
-              localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(details));
-            } catch (_e: unknown) {
-              console.warn('[App:syncTodayAttendance] Lỗi lưu checkin details vào localStorage:', _e);
-            }
-          } else {
-            setIsCheckedInToday(false);
-            setCheckInDetails(null);
-            try {
-              localStorage.removeItem(`metro2_today_checkin_${todayStr}`);
-            } catch (_e: unknown) {
-              console.warn('[App:syncTodayAttendance] Lỗi xóa checkin cache:', _e);
-            }
-          }
-
-          const todayCompanions = allRecords.filter((item) => {
-            if (!item.is_companion) return false;
-            return getVietnamDateString(item.checkin_time) === todayStr;
-          });
-
-          if (todayCompanions.length > 0) {
-            const latestComp = todayCompanions[0];
-            const compPayload = {
-              id: latestComp.id || `comp-${Date.now()}`,
-              name: latestComp.companion_name || 'Cán bộ đi kèm',
-              role: latestComp.companion_role || 'Cán bộ đo đạc & Ghi chép',
-              phone: latestComp.companion_phone,
-              selfieUrl: resolveAttendancePhotoUrl(latestComp.selfie_photo_url),
-              time: new Date(latestComp.checkin_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-              date: todayStr,
-              checkin_time: latestComp.checkin_time,
-              distance: Math.round(latestComp.distance_to_zone_center_meters ?? latestComp.distance_meters ?? 0),
-              notes: latestComp.notes,
-              status: latestComp.verification_status || 'PENDING_VERIFICATION',
-            };
-            try {
-              localStorage.setItem(`metro2_companion_checkin_${todayStr}`, JSON.stringify(compPayload));
-              localStorage.setItem(`metro2_companion_checkin_count_${todayStr}`, String(todayCompanions.length));
-            } catch (_e: unknown) {
-              console.warn('[App:syncTodayAttendance] Lỗi lưu companion checkin vào localStorage:', _e);
-            }
-          } else {
-            try {
-              localStorage.removeItem(`metro2_companion_checkin_${todayStr}`);
-              localStorage.setItem(`metro2_companion_checkin_count_${todayStr}`, '0');
-            } catch (_e: unknown) {
-              console.warn('[App:syncTodayAttendance] Lỗi xóa companion cache:', _e);
-            }
-          }
-
-          window.dispatchEvent(new CustomEvent('metro2-attendance-updated'));
-        }
-      } catch (err: unknown) {
-        console.warn('[App:syncTodayAttendance] Sync attendance error:', err);
-      }
-    };
-
-    syncTodayAttendance();
     loadParcels();
   }, [isAuthenticated, user, selectedZone]);
 
@@ -1004,8 +901,7 @@ export const App: React.FC = () => {
   };
 
   const handleCheckInSuccess = (details: { time: string; distance: number; status: string }) => {
-    setIsCheckedInToday(true);
-    setCheckInDetails(details);
+    if (user?.id) useAttendanceSessionStore.getState().applyLocalCheckIn(user.id, details);
   };
 
   const navigateBackFromSurvey = () => {

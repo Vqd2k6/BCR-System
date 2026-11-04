@@ -1,11 +1,11 @@
 import React from 'react';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
-import { CompanionCheckInModal } from '../../components/attendance/CompanionCheckInModal';
-import { useTimekeepingState } from './timekeeping/hooks/useTimekeepingState';
-import { TimekeepingHeader } from './timekeeping/components/TimekeepingHeader';
-import { TodayCheckInSummary } from './timekeeping/components/TodayCheckInSummary';
-import { CheckInForm } from './timekeeping/components/CheckInForm';
-import { AttendanceHistoryTable } from './timekeeping/components/AttendanceHistoryTable';
+import { CompanionCheckInModal } from './CompanionCheckInModal';
+import { useTimekeepingState } from './hooks/useTimekeepingState';
+import { TimekeepingHeader } from './components/TimekeepingHeader';
+import { TodayCheckInSummary } from './components/TodayCheckInSummary';
+import { CheckInForm } from './components/CheckInForm';
+import { AttendanceHistoryTable } from './components/AttendanceHistoryTable';
 
 interface Props {
   isCheckedInToday?: boolean;
@@ -48,6 +48,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     handleCheckInSubmit,
     handleCheckOutSubmit,
     isOutOfBounds,
+    isZoneOutsideAssignment,
     isCompanionCheckedIn,
   } = useTimekeepingState({
     isCheckedInToday,
@@ -100,6 +101,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
         /* MODE 2: CHƯA ĐIỂM DANH (LIVE GPS SCAN & CAMERA FORM) */
         <CheckInForm
           isOutOfBounds={isOutOfBounds}
+          isZoneOutsideAssignment={isZoneOutsideAssignment}
           distanceMeters={distanceMeters}
           targetZone={targetZone}
           gpsCoordinates={gpsCoordinates}

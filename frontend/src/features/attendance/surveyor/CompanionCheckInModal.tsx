@@ -1,10 +1,10 @@
 import React from 'react';
-import type { CompanionRecord, CompanionCheckInModalProps } from './companion/types';
-import { useCompanionCheckInState } from './companion/hooks/useCompanionCheckInState';
-import { CompanionModalHeader } from './companion/components/CompanionModalHeader';
-import { CompanionVerifiedSummary } from './companion/components/CompanionVerifiedSummary';
-import { CompanionCheckInForm } from './companion/components/CompanionCheckInForm';
-import { CompanionHistoryList } from './companion/components/CompanionHistoryList';
+import type { CompanionRecord, CompanionCheckInModalProps } from '../types/companion.types';
+import { useCompanionCheckInState } from './hooks/useCompanionCheckInState';
+import { CompanionModalHeader } from './components/CompanionModalHeader';
+import { CompanionVerifiedSummary } from './components/CompanionVerifiedSummary';
+import { CompanionCheckInForm } from './components/CompanionCheckInForm';
+import { CompanionHistoryList } from './components/CompanionHistoryList';
 
 export type { CompanionRecord, CompanionCheckInModalProps };
 
@@ -45,6 +45,7 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
     handleNativeCameraCapture,
     handleSubmit,
     handleCompanionCheckOut,
+    isZoneOutsideAssignment,
   } = useCompanionCheckInState({ isOpen, zoneId, onSuccess });
 
   if (!isOpen) return null;
@@ -101,6 +102,7 @@ export const CompanionCheckInModal: React.FC<CompanionCheckInModalProps> = ({
               handleNativeCameraCapture={handleNativeCameraCapture}
               outOfBoundsReason={outOfBoundsReason}
               setOutOfBoundsReason={setOutOfBoundsReason}
+              isZoneOutsideAssignment={isZoneOutsideAssignment}
               isSubmitting={isSubmitting}
               onClose={onClose}
               onSubmit={handleSubmit}

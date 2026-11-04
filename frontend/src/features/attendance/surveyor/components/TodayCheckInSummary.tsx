@@ -14,10 +14,10 @@ import {
   resolveAttendancePhotoUrl,
   formatWorkDurationMinutes,
   type MetroZoneCentroid,
-} from '../../../../core/utils/metroZoneUtils';
+} from '@/core/utils/metroZoneUtils';
 
-import type { User as DomainUser } from '../../../../core/types/domain.types';
-import type { CheckInDetails, CompanionRecord } from '../types';
+import type { User as DomainUser } from '@/core/types/domain.types';
+import type { CheckInDetails, CompanionRecord } from '../../types/attendance.types';
 
 interface TodayCheckInSummaryProps {
   checkInDetails: CheckInDetails | null;

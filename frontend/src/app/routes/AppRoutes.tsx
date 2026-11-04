@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { LoginView } from '../../views/auth/LoginView';
 import { SurveyorHomeView } from '../../views/surveyor/SurveyorHomeView';
-import { TimekeepingCheckInView } from '../../views/surveyor/TimekeepingCheckInView';
+import { TimekeepingCheckInView } from '../../features/attendance';
 import { SurveyPhase1Page } from '../../features/survey-phase1/views/SurveyPhase1Page';
 import { SurveyPhase2View } from '../../views/surveyor/SurveyPhase2View';
 import { ZoneManagerDashboardPage } from '../../features/zone-management/views/ZoneManagerDashboardPage';

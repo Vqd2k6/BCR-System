@@ -3,8 +3,8 @@ import { Clock, User, BadgeCheck } from 'lucide-react';
 import {
   resolveAttendancePhotoUrl,
   formatWorkDurationMinutes,
-} from '../../../../core/utils/metroZoneUtils';
-import type { CompanionRecord } from '../types';
+} from '@/core/utils/metroZoneUtils';
+import type { CompanionRecord } from '../../types/attendance.types';
 
 interface CompanionHistoryListProps {
   companionHistory: CompanionRecord[];

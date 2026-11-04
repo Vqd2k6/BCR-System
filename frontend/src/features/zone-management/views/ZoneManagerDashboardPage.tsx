@@ -14,6 +14,7 @@ import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import type { GisParcel } from '../../../components/gis/shared/types';
 import { ShieldAlert } from 'lucide-react';
+import { AdminAttendanceManagementView, useAttendancePendingBadge } from '../../attendance';
 import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
 import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from '../../../utils/zoneScope';
 
@@ -74,7 +75,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         savedNav === 'review' ||
         savedNav === 'map' ||
         savedNav === 'parcels' ||
-        savedNav === 'export'
+        savedNav === 'export' ||
+        savedNav === 'attendance'
       ) {
         return savedNav;
       }
@@ -108,6 +110,9 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     }
     return resolveInitialZone(user, null, fallback);
   });
+
+  // Badge sidebar: số ca chấm công chờ hậu kiểm trong phạm vi Zone đang xem
+  const attendancePendingCount = useAttendancePendingBadge(selectedZone, !isUnassigned);
 
   // Intelligence stats state
   const [stats, setStats] = useState<ZoneIntelligenceStats>({
@@ -315,6 +320,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       selectedZone={selectedZone}
       onSelectZone={(z) => handleZoneChange(z, true)}
       pendingCount={stats.submitted}
+      attendancePendingCount={attendancePendingCount}
       isLoading={isLoading}
       onRefresh={() => fetchLiveIntelligence(selectedZone)}
     >
@@ -433,6 +439,13 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             onRefreshStats={() => fetchLiveIntelligence(selectedZone)}
             onParcelsChanged={onReloadParcels}
           />
+        </div>
+      )}
+
+      {/* View 6: Quản Lý Chấm Công & Hậu Kiểm Ca Làm Việc */}
+      {activeNav === 'attendance' && (
+        <div className="animate-in fade-in duration-200">
+          <AdminAttendanceManagementView zoneId={selectedZone} isSuperAdmin={user?.role === 'SUPER_ADMIN'} />
         </div>
       )}
 

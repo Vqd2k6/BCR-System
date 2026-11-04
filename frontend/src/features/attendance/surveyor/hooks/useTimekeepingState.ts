@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../../../services/api';
-import { useAuth } from '../../../../context/AuthContext';
-import { getErrorMessage } from '../../../../utils/errorUtils';
+import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { getErrorMessage } from '@/utils/errorUtils';
 import {
   getZoneCentroid,
   calculateDistanceMeters,
@@ -10,8 +10,9 @@ import {
   resolveAttendanceGps,
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
-} from '../../../../core/utils/metroZoneUtils';
-import type { AttendanceRecord, CheckInDetails, CompanionRecord } from '../types';
+} from '@/core/utils/metroZoneUtils';
+import type { AttendanceRecord, CheckInDetails, CompanionRecord } from '../../types/attendance.types';
+import { attendanceCacheKey } from '../../store/useAttendanceSessionStore';
 
 interface UseTimekeepingStateProps {
   isCheckedInToday?: boolean;
@@ -59,8 +60,8 @@ export const useTimekeepingState = ({
 }: UseTimekeepingStateProps) => {
   const { user } = useAuth();
   const todayStr = getVietnamDateString();
-  const storageKey = `metro2_today_checkin_${todayStr}`;
-  const companionStorageKey = `metro2_companion_checkin_${todayStr}`;
+  const storageKey = attendanceCacheKey('today', user?.id, todayStr);
+  const companionStorageKey = attendanceCacheKey('companion', user?.id, todayStr);
 
   const [gpsLoading, setGpsLoading] = useState<boolean>(true);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
@@ -85,6 +86,8 @@ export const useTimekeepingState = ({
 
   const [selectedZoneId, setSelectedZoneId] = useState<string>(() => user?.assignedZoneId || 'ZONE_09');
   const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(selectedZoneId));
+  // Zone đang chọn nằm ngoài phân công (server xác nhận theo nhóm mã tương đương) → bắt buộc lý do khi check-in
+  const [isZoneOutsideAssignment, setIsZoneOutsideAssignment] = useState<boolean>(false);
 
   // Tự động đồng bộ zone khi thông tin user thay đổi
   useEffect(() => {
@@ -107,7 +110,9 @@ export const useTimekeepingState = ({
             zoneId: string;
             zoneName: string;
             centroid: { lat: number; lng: number };
+            isWithinAssignment?: boolean | null;
           };
+          setIsZoneOutsideAssignment(zData.isWithinAssignment === false);
           setTargetZone({
             zoneId: zData.zoneId,
             zoneName: zData.zoneName,
@@ -243,7 +248,7 @@ export const useTimekeepingState = ({
           ? { lat: Number(item.gps_latitude), lng: Number(item.gps_longitude), accuracy: 10 }
           : null,
       notes: item.notes || undefined,
-      status: item.verification_status || (dist > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION'),
+      status: item.verification_status || 'PENDING_VERIFICATION',
     };
   };
 
@@ -358,7 +363,7 @@ export const useTimekeepingState = ({
         setCompanionData(latestCompanion);
         try {
           localStorage.setItem(companionStorageKey, JSON.stringify(latestCompanion));
-          localStorage.setItem(`metro2_companion_checkin_count_${todayStr}`, String(todayCompanions.length));
+          localStorage.setItem(attendanceCacheKey('companion_count', user?.id, todayStr), String(todayCompanions.length));
         } catch (storageErr: unknown) {
           console.error('[useTimekeepingState:loadSurveyorHistory] Companion localStorage write failed:', storageErr);
         }
@@ -366,7 +371,7 @@ export const useTimekeepingState = ({
         setCompanionData(null);
         try {
           localStorage.removeItem(companionStorageKey);
-          localStorage.setItem(`metro2_companion_checkin_count_${todayStr}`, '0');
+          localStorage.setItem(attendanceCacheKey('companion_count', user?.id, todayStr), '0');
         } catch (storageErr: unknown) {
           console.error('[useTimekeepingState:loadSurveyorHistory] Companion localStorage clear failed:', storageErr);
         }
@@ -455,8 +460,13 @@ export const useTimekeepingState = ({
       return;
     }
 
-    if (distanceMeters > 500 && !outOfBoundsReason.trim()) {
-      alert('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
+    const needsReason = distanceMeters > 500 || isZoneOutsideAssignment;
+    if (needsReason && !outOfBoundsReason.trim()) {
+      alert(
+        distanceMeters > 500
+          ? 'Vui lòng nhập lý do chấm công ngoài phạm vi 500m.'
+          : 'Vui lòng nhập lý do chấm công tại phân khu ngoài phân công.'
+      );
       return;
     }
 
@@ -472,8 +482,9 @@ export const useTimekeepingState = ({
         zoneId: targetZone.zoneId,
         gpsLatitude: gpsCoordinates.lat,
         gpsLongitude: gpsCoordinates.lng,
+        gpsAccuracyMeters: gpsCoordinates.accuracy,
         selfiePhotoUrl: capturedPhoto,
-        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
+        notes: needsReason ? outOfBoundsReason.trim() : undefined,
         isCompanion: false,
       };
 
@@ -485,8 +496,7 @@ export const useTimekeepingState = ({
           : distanceMeters;
 
       const storedPhotoUrl = resolveAttendancePhotoUrl(resData?.selfiePhotoUrl) || capturedPhoto;
-      const finalStatus =
-        resData?.verificationStatus || (finalDistance > 500 ? 'FLAGGED_WARNING' : 'PENDING_VERIFICATION');
+      const finalStatus = resData?.verificationStatus || 'PENDING_VERIFICATION';
 
       const details: CheckInDetails = {
         checkInId: resData?.checkInId,
@@ -495,7 +505,7 @@ export const useTimekeepingState = ({
         distance: finalDistance,
         status: finalStatus,
         selfiePhotoUrl: storedPhotoUrl,
-        notes: finalDistance > 500 ? outOfBoundsReason.trim() : undefined,
+        notes: needsReason ? outOfBoundsReason.trim() : undefined,
         coordinates: gpsCoordinates,
         zoneName: resData?.zoneName || targetZone.zoneName,
       };
@@ -553,11 +563,22 @@ export const useTimekeepingState = ({
         ? { lat: gpsCoordinates.lat, lng: gpsCoordinates.lng, accuracy: gpsCoordinates.accuracy }
         : await resolveAttendanceGps(targetZone);
 
+      // Server tính lại khoảng cách tới tâm Zone của ca; chặn sớm ở client để KSV kịp nhập lý do.
+      const checkOutDistance = calculateDistanceMeters(resolvedGps.lat, resolvedGps.lng, targetZone.lat, targetZone.lng);
+      if (checkOutDistance > 500 && !checkOutNotes.trim()) {
+        setSubmitResult({
+          success: false,
+          message: `Vị trí Check-out cách tâm phân khu ${Math.round(checkOutDistance)}m (>500m). Vui lòng nhập ghi chú lý do trước khi kết thúc ca.`,
+        });
+        return;
+      }
+
+      // Zone của Check-out do server lấy theo ca, không gửi zoneId.
       const payload = {
         checkInId: checkInDetails?.checkInId || undefined,
-        zoneId: targetZone.zoneId,
         gpsLatitude: resolvedGps.lat,
         gpsLongitude: resolvedGps.lng,
+        gpsAccuracyMeters: resolvedGps.accuracy,
         selfiePhotoUrl: checkOutSelfieUrl || undefined,
         notes: checkOutNotes.trim() || undefined,
         isCompanion: false,
@@ -586,7 +607,7 @@ export const useTimekeepingState = ({
         checkOutDistance: finalCheckOutDistance,
         checkOutSelfiePhotoUrl: storedCheckOutPhoto,
         checkOutNotes: resData?.checkOutNotes || checkOutNotes.trim() || null,
-        workDurationMinutes: resData?.workDurationMinutes ?? 1,
+        workDurationMinutes: resData?.workDurationMinutes ?? undefined,
         checkOutCoordinates: resolvedGps,
       };
 
@@ -664,6 +685,7 @@ export const useTimekeepingState = ({
     handleCheckInSubmit,
     handleCheckOutSubmit,
     isOutOfBounds,
+    isZoneOutsideAssignment,
     isCompanionCheckedIn,
   };
 };

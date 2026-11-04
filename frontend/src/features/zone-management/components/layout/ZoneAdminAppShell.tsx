@@ -14,6 +14,7 @@ interface Props {
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   pendingCount?: number;
+  attendancePendingCount?: number;
   isLoading?: boolean;
   onRefresh?: () => void;
   children: React.ReactNode;
@@ -25,6 +26,7 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
   selectedZone,
   onSelectZone,
   pendingCount = 0,
+  attendancePendingCount = 0,
   isLoading = false,
   onRefresh,
   children,
@@ -65,6 +67,8 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         return 'Danh Sách Thửa Đất & Địa Chính';
       case 'export':
         return 'Phân Hệ Xuất Báo Cáo Phase 1 (Mẫu 0410 Song Ngữ)';
+      case 'attendance':
+        return 'Quản Lý Chấm Công & Hậu Kiểm Ca Làm Việc';
       default:
         return 'Dashboard Trưởng Zone';
     }
@@ -82,6 +86,7 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
         pendingCount={pendingCount}
+        attendancePendingCount={attendancePendingCount}
         userName={user?.fullName || 'Zone Admin'}
         userRole={user?.role || 'ZONE_ADMIN'}
         user={user}

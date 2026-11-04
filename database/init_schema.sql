@@ -611,7 +611,16 @@ CREATE TABLE timekeeping_checkins (
     checkout_selfie_photo_url TEXT DEFAULT NULL,
     checkout_notes TEXT DEFAULT NULL,
     work_duration_minutes INT DEFAULT NULL,
-    deleted_at TIMESTAMPTZ DEFAULT NULL
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    -- 20261104: cờ hệ thống tách khỏi trạng thái duyệt + snapshot chứng cứ
+    anomaly_codes TEXT[] NOT NULL DEFAULT '{}',
+    gps_accuracy_meters NUMERIC(10,2) DEFAULT NULL,
+    checkout_gps_accuracy_meters NUMERIC(10,2) DEFAULT NULL,
+    zone_center_lng DOUBLE PRECISION DEFAULT NULL,
+    zone_center_lat DOUBLE PRECISION DEFAULT NULL,
+    checkout_zone_center_lng DOUBLE PRECISION DEFAULT NULL,
+    checkout_zone_center_lat DOUBLE PRECISION DEFAULT NULL,
+    assigned_zone_at_checkin VARCHAR(32) DEFAULT NULL
 );
 
 CREATE INDEX idx_checkins_surveyor ON timekeeping_checkins(surveyor_id);
@@ -620,6 +629,41 @@ CREATE INDEX idx_checkins_time ON timekeeping_checkins(checkin_time);
 CREATE INDEX idx_checkins_status ON timekeeping_checkins(verification_status);
 CREATE INDEX idx_checkins_location ON timekeeping_checkins USING GIST(gps_location);
 CREATE INDEX idx_checkins_surveyor_companion_time ON timekeeping_checkins(surveyor_id, is_companion, checkin_time DESC) WHERE deleted_at IS NULL;
+CREATE INDEX idx_checkins_zone_status_time ON timekeeping_checkins(zone_id, verification_status, checkin_time DESC) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX uq_checkin_main_per_day ON timekeeping_checkins(surveyor_id, ((checkin_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)) WHERE is_companion = FALSE AND deleted_at IS NULL;
+
+-- Kỳ công tháng (20261104): khóa theo Zone + tháng, snapshot bảng công kèm SHA-256
+CREATE TABLE attendance_periods (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    zone_id VARCHAR(32) NOT NULL,
+    period_month CHAR(7) NOT NULL CHECK (period_month ~ '^[0-9]{4}-[0-9]{2}$'),
+    status VARCHAR(16) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'LOCKED')),
+    current_snapshot_id UUID DEFAULT NULL,
+    locked_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    locked_at TIMESTAMPTZ DEFAULT NULL,
+    unlocked_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    unlocked_at TIMESTAMPTZ DEFAULT NULL,
+    unlock_reason TEXT DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_attendance_period_zone_month UNIQUE (zone_id, period_month)
+);
+CREATE INDEX idx_attendance_periods_month_status ON attendance_periods(period_month, status);
+
+CREATE TABLE attendance_period_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    period_id UUID NOT NULL REFERENCES attendance_periods(id),
+    zone_id VARCHAR(32) NOT NULL,
+    period_month CHAR(7) NOT NULL,
+    snapshot_json JSONB NOT NULL,
+    snapshot_sha256 CHAR(64) NOT NULL,
+    locked_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    locked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    unlocked_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    unlocked_at TIMESTAMPTZ DEFAULT NULL,
+    unlock_reason TEXT DEFAULT NULL
+);
+CREATE INDEX idx_attendance_period_snapshots_period ON attendance_period_snapshots(period_id, locked_at DESC);
 
 -- ============================================================================
 -- 6. BẢNG DỮ LIỆU - PHÂN HỆ 4: HỒ SƠ KHẢO SÁT (MODULE 4: SURVEY REPORTS)

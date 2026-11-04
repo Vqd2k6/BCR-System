@@ -204,7 +204,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem('metro2_auth_lockout_reason');
     // Clear all today check-in keys
     Object.keys(localStorage).forEach((k) => {
-      if (k.startsWith('metro2_today_checkin_') || k.startsWith('metro2_attendance_')) {
+      if (
+        k.startsWith('metro2_today_checkin_') ||
+        k.startsWith('metro2_companion_checkin_') ||
+        k.startsWith('metro2_attendance_')
+      ) {
         localStorage.removeItem(k);
       }
     });

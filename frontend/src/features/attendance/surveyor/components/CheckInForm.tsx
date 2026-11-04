@@ -11,11 +11,13 @@ import {
 import {
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
-} from '../../../../core/utils/metroZoneUtils';
-import type { CompanionRecord } from '../types';
+} from '@/core/utils/metroZoneUtils';
+import type { CompanionRecord } from '../../types/attendance.types';
 
 interface CheckInFormProps {
   isOutOfBounds: boolean;
+  /** Zone đang chọn không thuộc phân công của KSV (server xác nhận) — bắt buộc lý do. */
+  isZoneOutsideAssignment?: boolean;
   distanceMeters: number;
   targetZone: MetroZoneCentroid;
   gpsCoordinates: { lat: number; lng: number; accuracy: number } | null;
@@ -34,6 +36,7 @@ interface CheckInFormProps {
 
 export const CheckInForm: React.FC<CheckInFormProps> = ({
   isOutOfBounds,
+  isZoneOutsideAssignment = false,
   distanceMeters,
   targetZone,
   gpsCoordinates,
@@ -297,8 +300,8 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
           </div>
         </div>
 
-        {/* Out of bounds reason textarea */}
-        {isOutOfBounds && (
+        {/* Lý do bắt buộc: ngoài bán kính 500m hoặc chấm công tại Zone ngoài phân công */}
+        {(isOutOfBounds || isZoneOutsideAssignment) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             <label
               style={{
@@ -311,7 +314,12 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
               }}
             >
               <AlertTriangle size={15} color="#ea580c" />
-              Lý do chấm công ngoài vùng (&gt;500m) <span style={{ color: '#ef4444' }}>*</span>
+              {isOutOfBounds && isZoneOutsideAssignment
+                ? 'Lý do chấm công ngoài vùng (>500m) và ngoài phân khu được phân công'
+                : isOutOfBounds
+                  ? 'Lý do chấm công ngoài vùng (>500m)'
+                  : 'Lý do chấm công tại phân khu ngoài phân công'}{' '}
+              <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <textarea
               className="form-control"

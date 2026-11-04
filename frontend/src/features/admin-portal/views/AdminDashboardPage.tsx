@@ -3,13 +3,14 @@ import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
-import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split, Layers } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split, Layers, UserCheck } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
 import { ReportContentConfigTab } from '../components/ReportContentConfigTab';
 import { ZoneIngestionTab } from '../components/ZoneIngestionTab';
 import { ProgressConfigTab } from '../../progress-report';
+import { AdminAttendanceManagementView } from '../../attendance';
 import type { ImportPreviewState } from '../../../components/gis/shared/types';
 import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
 import { useAuth } from '../../../context/AuthContext';
@@ -84,6 +85,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onOpenMa
           { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
+          { key: 'attendance', label: 'Quản Lý Chấm Công', icon: <UserCheck className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'report-content', label: 'Nội Dung Chuẩn & Thiết Bị Báo Cáo', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'progress-config', label: 'Cấu Hình Báo Cáo Tiến Độ Ngày', icon: <FileSpreadsheet className="w-4 h-4" /> },
@@ -118,6 +120,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onOpenMa
       {/* Tab GIS Mutation Studio */}
       {activeTab === 'gis-mutation' && (
         <AdminGisMutationTab />
+      )}
+
+      {/* Tab Chấm công: hậu kiểm & chốt kỳ công toàn tuyến */}
+      {activeTab === 'attendance' && (
+        <AdminAttendanceManagementView allowZonePicker isSuperAdmin />
       )}
 
       {/* Tab Users: Dynamic UserManagementTab */}

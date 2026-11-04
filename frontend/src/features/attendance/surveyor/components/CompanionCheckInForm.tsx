@@ -10,7 +10,7 @@ import {
 import {
   resolveAttendancePhotoUrl,
   type MetroZoneCentroid,
-} from '../../../../core/utils/metroZoneUtils';
+} from '@/core/utils/metroZoneUtils';
 
 interface CompanionCheckInFormProps {
   changeCount: number;
@@ -31,6 +31,8 @@ interface CompanionCheckInFormProps {
   handleNativeCameraCapture: (e: React.ChangeEvent<HTMLInputElement>) => void;
   outOfBoundsReason: string;
   setOutOfBoundsReason: (reason: string) => void;
+  /** Zone ngoài phân công của KSV (server xác nhận) — bắt buộc lý do. */
+  isZoneOutsideAssignment?: boolean;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -55,6 +57,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
   handleNativeCameraCapture,
   outOfBoundsReason,
   setOutOfBoundsReason,
+  isZoneOutsideAssignment = false,
   isSubmitting,
   onClose,
   onSubmit,
@@ -356,8 +359,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         </div>
       </div>
 
-      {/* Out of bounds reason */}
-      {isOutOfBounds && (
+      {/* Lý do bắt buộc: ngoài 500m hoặc Zone ngoài phân công */}
+      {(isOutOfBounds || isZoneOutsideAssignment) && (
         <div>
           <label
             style={{
@@ -371,7 +374,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             }}
           >
             <AlertTriangle size={13} color="#ea580c" />
-            Lý do ngoài bán kính (&gt;500m) <span style={{ color: '#ef4444' }}>*</span>
+            {isOutOfBounds ? 'Lý do ngoài bán kính (>500m)' : 'Lý do điểm danh tại phân khu ngoài phân công'}{' '}
+            <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <textarea
             rows={2}

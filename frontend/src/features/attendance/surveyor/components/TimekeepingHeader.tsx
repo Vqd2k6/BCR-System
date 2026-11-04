@@ -4,7 +4,7 @@ import {
   getZoneCentroid,
   type MetroZoneCentroid,
   METRO_ZONE_CENTROIDS,
-} from '../../../../core/utils/metroZoneUtils';
+} from '@/core/utils/metroZoneUtils';
 
 interface TimekeepingHeaderProps {
   selectedZoneId: string;

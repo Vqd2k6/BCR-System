@@ -10,8 +10,8 @@ import {
 import {
   resolveAttendancePhotoUrl,
   formatWorkDurationMinutes,
-} from '../../../../core/utils/metroZoneUtils';
-import type { CompanionRecord } from '../types';
+} from '@/core/utils/metroZoneUtils';
+import type { CompanionRecord } from '../../types/attendance.types';
 
 interface CompanionVerifiedSummaryProps {
   checkInData: CompanionRecord;
