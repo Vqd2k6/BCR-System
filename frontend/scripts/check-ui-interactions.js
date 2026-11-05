@@ -54,7 +54,8 @@ function checkAttributes(tagName, attributes, sourceFile, filePath, node) {
   // Conditions to flag:
   // 1. If tagName is 'button' and doesn't contain cursor-pointer or cursor-
   // 2. If non-button element has onClick and doesn't contain cursor-pointer
-  const hasCursor = /cursor-(pointer|not-allowed|default)/.test(classNameVal) || classNameVal.includes('cursor-pointer');
+  // Vùng canvas ghim/kéo dùng con trỏ thao tác chuyên biệt (crosshair/grab/grabbing/move) thay cho pointer
+  const hasCursor = /cursor-(pointer|not-allowed|default|crosshair|grab|grabbing|move)\b/.test(classNameVal);
   
   if (tagName === 'button') {
     if (!hasCursor) {
@@ -115,8 +116,14 @@ if (warnings.length > 0) {
   console.log('Top files with interactive elements to review:');
   topFiles.forEach(([f, count]) => console.log(`  - ${f}: ${count} elements`));
 
-  console.log(`\nSample warnings (first 5 of ${warnings.length}):`);
-  warnings.slice(0, 5).forEach((w) => {
+  // Mặc định in 5 mẫu; chạy "npm run check:ui -- --all" để in toàn bộ danh sách cần sửa
+  const showAll = process.argv.includes('--all');
+  console.log(
+    showAll
+      ? `\nAll warnings (${warnings.length}):`
+      : `\nSample warnings (first 5 of ${warnings.length}; dùng --all để xem đủ):`
+  );
+  (showAll ? warnings : warnings.slice(0, 5)).forEach((w) => {
     console.log(`  [Line ${w.line}] ${w.file} -> ${w.tag}: ${w.issue}`);
   });
 } else {
