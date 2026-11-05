@@ -38,8 +38,85 @@ async function runApiTestSuite() {
       return { rows: [{ postgis_version: '3.4.2', now: new Date() }], rowCount: 1 } as any;
     }
 
+    // Guard xác thực (authenticateJwt) đọc lại user theo id để kiểm tra trạng thái & token_version
+    if (text.includes('token_version, deleted_at FROM users WHERE id = $1')) {
+      const guardUsers: Record<string, { username: string; full_name: string; role: string; assigned_zone_id: string | null }> = {
+        'b0000000-0000-0000-0000-000000000001': { username: 'superadmin', full_name: 'Nguyễn Văn Tổng (MAUR)', role: 'SUPER_ADMIN', assigned_zone_id: null },
+        'b0000000-0000-0000-0000-000000000002': { username: 'zoneadmin_s9', full_name: 'Trần Văn Tổ Trưởng (Ga S9)', role: 'ZONE_ADMIN', assigned_zone_id: 'ZONE_S9' },
+        'b0000000-0000-0000-0000-000000000003': { username: 'surveyor_s9_01', full_name: 'Nguyễn Văn Khảo Sát', role: 'SURVEYOR', assigned_zone_id: 'ZONE_S9' },
+        'b0000000-0000-0000-0000-000000000004': { username: 'contractor_guest', full_name: 'Nhà Thầu Thi Công TBM', role: 'CONTRACTOR', assigned_zone_id: null },
+      };
+      const found = params ? guardUsers[String(params[0])] : undefined;
+      return {
+        rows: found ? [{ id: params?.[0], ...found, status: 'ACTIVE', status_reason: null, token_version: 0, deleted_at: null }] : [],
+        rowCount: found ? 1 : 0,
+      } as any;
+    }
+
+    // Soft Exclusion: thửa giả lập đang ACTIVE, không nằm trong danh sách bị loại trừ
+    if (text.includes('lifecycle_status::text = ANY')) {
+      return { rows: [], rowCount: 0 } as any;
+    }
+
+    // Kỳ công tháng: chưa khóa kỳ nào
+    if (text.includes('FROM attendance_periods')) {
+      return { rows: [], rowCount: 0 } as any;
+    }
+
+    // Phân khu được phân công của KSV (điều kiện chấm công)
+    if (text.includes('SELECT assigned_zone_id FROM users WHERE id = $1')) {
+      return { rows: [{ assigned_zone_id: 'ZONE_S9' }], rowCount: 1 } as any;
+    }
+
+    // APPROVE ghi approved_at và đọc lại để chụp snapshot bất biến
+    if (text.includes('RETURNING approved_at')) {
+      return { rows: [{ approved_at: new Date() }], rowCount: 1 } as any;
+    }
+
+    // Chấm công (module timekeeping): quy tắc 1 ca/ngày, danh sách/chi tiết/duyệt ca của Zone Admin
+    if (text.includes('timekeeping_checkins')) {
+      if (text.includes('SELECT t.id FROM timekeeping_checkins')) {
+        return { rows: [], rowCount: 0 } as any; // KSV chưa có ca chính hôm nay
+      }
+      if (text.trim().startsWith('SELECT COUNT(*)')) {
+        return { rows: [{ count: '1' }], rowCount: 1 } as any;
+      }
+      const now = new Date();
+      return {
+        rows: [
+          {
+            id: 'att-001',
+            surveyor_id: 'b0000000-0000-0000-0000-000000000003',
+            surveyor_name: 'Nguyễn Văn Khảo Sát',
+            surveyor_code: 'KSV-S9-01',
+            surveyor_assigned_zone_id: 'ZONE_S9',
+            zone_id: 'ZONE_S9',
+            checkin_time: now,
+            checkout_time: null,
+            gps_latitude: 10.7932,
+            gps_longitude: 106.6541,
+            gps_accuracy_meters: 4.5,
+            distance_to_zone_meters: 35.5,
+            is_companion: false,
+            verification_status: 'PENDING_VERIFICATION',
+            verified_by_user_id: null,
+            verified_by_name: null,
+            work_date: now.toISOString().slice(0, 10),
+            is_missing_checkout: false,
+            anomaly_codes: [],
+            effective_anomaly_codes: [],
+            selfie_photo_url: 'https://storage.metro2.gov.vn/attendance/selfie-01.jpg',
+            created_at: now,
+            updated_at: now,
+            deleted_at: null,
+          },
+        ],
+        rowCount: 1,
+      } as any;
+    }
+
     // Auth & Users
-    if (text.includes('SELECT * FROM users WHERE username = $1')) {
+    if (text.includes('SELECT * FROM users WHERE username = $1') || text.includes('FROM users WHERE LOWER(username) = LOWER($1)')) {
       if (params && (params[0].startsWith('surveyor_new_') || params[0] === 'hack_user')) {
         return { rows: [], rowCount: 0 } as any;
       }
@@ -53,6 +130,8 @@ async function runApiTestSuite() {
             role: 'SURVEYOR',
             status: 'ACTIVE',
             assigned_zone_id: 'ZONE_S9',
+            token_version: 0,
+            deleted_at: null,
           },
         ],
         rowCount: 1,
@@ -70,6 +149,8 @@ async function runApiTestSuite() {
             role: 'SURVEYOR',
             status: 'ACTIVE',
             assigned_zone_id: 'ZONE_S9',
+            token_version: 0,
+            deleted_at: null,
           },
         ],
         rowCount: 1,
@@ -265,6 +346,8 @@ async function runApiTestSuite() {
             status: 'DRAFT',
             current_step: 1,
             project_parcel_code: 'P-S9-001',
+            owner_name: 'Nguyễn Văn Chủ Hộ',
+            survey_data_json: { ownerName: 'Nguyễn Văn Chủ Hộ' },
             created_at: new Date(),
           },
         ],
@@ -535,13 +618,22 @@ async function runApiTestSuite() {
   await executeTest('Surveyor', '1.5', 'High-Range Project Codes', 'GET', '/api/v1/parcels/next-high-range-codes?count=4', 'SURVEYOR', 200);
   await executeTest('Surveyor', '1.6', 'Parcel Detail by ID', 'GET', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001', 'SURVEYOR', 200);
   await executeTest('Surveyor', '1.7', 'List Condominium Units', 'GET', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units', 'SURVEYOR', 200);
-  await executeTest('Surveyor', '1.8', 'Create Condominium Unit', 'POST', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units', 'SURVEYOR', 201, {
+  // Tạo căn hộ & đổi loại công trình thuộc Zone Admin (commit 6201f9d): KSV phải bị chặn
+  await executeTest('Surveyor', '1.8', 'Surveyor Blocked From Creating Unit', 'POST', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units', 'SURVEYOR', 403, {
+    unitCode: 'P.402',
+    floorNumber: 4,
+  });
+  await executeTest('Surveyor', '1.8b', 'Zone Admin Creates Condominium Unit', 'POST', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units', 'ZONE_ADMIN', 201, {
     unitCode: 'P.402',
     floorNumber: 4,
     ownerName: 'Vũ Quốc Đạt',
     ownerPhone: '0901234567',
   });
-  await executeTest('Surveyor', '1.9', 'Update Building Type', 'PATCH', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/building-type', 'SURVEYOR', 200, {
+  await executeTest('Surveyor', '1.9', 'Surveyor Blocked From Building Type', 'PATCH', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/building-type', 'SURVEYOR', 403, {
+    buildingType: 'CONDOMINIUM',
+  });
+  // Thửa giả lập đã có hồ sơ khảo sát liên kết nên không được đổi loại hình (chặn mất liên kết hồ sơ)
+  await executeTest('Surveyor', '1.9b', 'Zone Admin Blocked: Parcel Has Linked Report', 'PATCH', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/building-type', 'ZONE_ADMIN', 400, {
     buildingType: 'CONDOMINIUM',
   });
   await executeTest('Surveyor', '1.10', 'Start Ad-hoc Survey', 'POST', '/api/v1/parcels/a0000000-0000-0000-0000-000000000001/start-survey', 'SURVEYOR', 201, {
@@ -665,10 +757,7 @@ async function runApiTestSuite() {
     action: 'UPGRADE',
     reason: 'Công trình nằm ngay trên hố đào ga sâu 30m',
   });
-  await executeTest('Admin', '2.13', 'Trigger Batch Export', 'POST', '/api/v1/reports/batch-export', 'ZONE_ADMIN', 202, {
-    zoneId: 'ZONE_S9',
-  });
-  await executeTest('Admin', '2.14', 'Get Batch Export Status', 'GET', '/api/v1/reports/batch-export/f0000000-0000-0000-0000-000000000001/status', 'ZONE_ADMIN', 200);
+  // Batch export đã gỡ ở commit 793e91e (thay bằng phát hành Rev theo hồ sơ) — không còn kiểm thử
 
   console.log('\n--- 3. SUPER ADMIN USER LIFECYCLE & GUEST MODULE ---');
   await executeTest('SuperAdmin', '3.1', 'List Users Across Stations', 'GET', '/api/v1/admin/users', 'SUPER_ADMIN', 200);
@@ -691,11 +780,6 @@ async function runApiTestSuite() {
     newPassword: 'NewPassword@123',
   });
   await executeTest('SuperAdmin', '3.7', 'Soft Delete User', 'DELETE', '/api/v1/admin/users/b0000000-0000-0000-0000-000000000003', 'SUPER_ADMIN', 200);
-  await executeTest('SuperAdmin', '3.8', 'Global 11-Station Batch Export', 'POST', '/api/v1/admin/reports/batch-export', 'SUPER_ADMIN', 202, {
-    allStations: true,
-  });
-  await executeTest('SuperAdmin', '3.9', 'List Global Export Batches', 'GET', '/api/v1/admin/reports/exports', 'SUPER_ADMIN', 200);
-  await executeTest('SuperAdmin', '3.10', 'Revoke/Purge Export Batch', 'DELETE', '/api/v1/admin/reports/exports/f0000000-0000-0000-0000-000000000001', 'SUPER_ADMIN', 200);
   await executeTest('Guest', '4.1', 'Guest Read-Only GIS Map', 'GET', '/api/v1/guest/gis-map', 'PUBLIC', 200);
   await executeTest('Guest', '4.2', 'Guest Parcel Summary (No PII)', 'GET', '/api/v1/guest/parcels/a0000000-0000-0000-0000-000000000001/summary', 'PUBLIC', 200);
 
