@@ -21,6 +21,7 @@ import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { ReportConfigController } from './modules/report_config/report-config.controller';
+import { DrawingConfigController } from './modules/drawing_config/drawing-config.controller';
 import { ImageLabController } from './modules/image-lab/image-lab.controller';
 import { createProgressReportRouter } from './modules/progress-report';
 import { Database } from './database/db';
@@ -269,6 +270,11 @@ export function createApp(): express.Application {
   api.post('/admin/report-config/equipment', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.createEquipment);
   api.put('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.updateEquipment);
   api.delete('/admin/report-config/equipment/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), ReportConfigController.deleteEquipment);
+
+  // Khung tên bình đồ CAD theo Zone: mọi vai trò xem, chỉ Super Admin sửa / phát hành lần mới
+  api.get('/zones/:zoneCode/drawing-title-block', authenticateJwt, DrawingConfigController.getZoneConfig);
+  api.put('/zones/:zoneCode/drawing-title-block', authenticateJwt, requireRoles('SUPER_ADMIN'), DrawingConfigController.updateTitleBlock);
+  api.post('/zones/:zoneCode/drawing-revisions', authenticateJwt, requireRoles('SUPER_ADMIN'), DrawingConfigController.createRevision);
 
 
   // ==========================================

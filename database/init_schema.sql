@@ -1230,3 +1230,39 @@ CREATE TABLE IF NOT EXISTS progress_report_config_versions (
 
 CREATE INDEX IF NOT EXISTS idx_progress_report_config_versions_active
   ON progress_report_config_versions(version_number DESC) WHERE deleted_at IS NULL;
+
+
+-- ============================================================================
+-- KHUNG TÊN BÌNH ĐỒ CAD THEO ZONE – Đồng bộ migration 20261105
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS zone_drawing_title_blocks (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  zone_code VARCHAR(20) NOT NULL UNIQUE,
+  prepared_by TEXT NOT NULL DEFAULT '',
+  reviewed_by TEXT NOT NULL DEFAULT '',
+  approved_by TEXT NOT NULL DEFAULT '',
+  manager TEXT NOT NULL DEFAULT '',
+  project_manager TEXT NOT NULL DEFAULT '',
+  drawing_no TEXT NOT NULL DEFAULT '',
+  updated_by_user_id UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS zone_drawing_revisions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  zone_code VARCHAR(20) NOT NULL,
+  revision_number INTEGER NOT NULL CHECK (revision_number >= 0),
+  issue_date DATE NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_by_user_id UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_zone_drawing_revisions_zone_number
+  ON zone_drawing_revisions(zone_code, revision_number);
+
+CREATE INDEX IF NOT EXISTS idx_zone_drawing_revisions_active
+  ON zone_drawing_revisions(zone_code, revision_number) WHERE deleted_at IS NULL;
