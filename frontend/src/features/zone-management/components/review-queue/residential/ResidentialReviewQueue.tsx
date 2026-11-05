@@ -63,7 +63,8 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       ) {
         return saved;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ResidentialReviewQueue:ResidentialReviewQueue.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'ALL';
@@ -72,7 +73,8 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   useEffect(() => {
     try {
       sessionStorage.setItem(resTabKey, activeTab);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ResidentialReviewQueue:ResidentialReviewQueue.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [resTabKey, activeTab]);

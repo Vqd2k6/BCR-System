@@ -128,7 +128,8 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
       await navigator.clipboard.writeText(sha);
       setCopiedSha(sha);
       setTimeout(() => setCopiedSha(null), 2000);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.error('[ReleaseRevisionPanel:handleCopySha] Lỗi đã xử lý bằng nhánh dự phòng:', caughtError);
       // Ignore clipboard error
     }
   };

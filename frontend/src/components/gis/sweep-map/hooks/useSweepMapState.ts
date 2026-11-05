@@ -61,7 +61,8 @@ const readSavedMapSession = (): SavedSweepMapSession => {
   try {
     const raw = sessionStorage.getItem(SWEEP_MAP_SESSION_KEY);
     return raw ? (JSON.parse(raw) as SavedSweepMapSession) : {};
-  } catch {
+  } catch (caughtError: unknown) {
+    console.warn('[useSweepMapState:readSavedMapSession] Bỏ qua lỗi không chặn luồng:', caughtError);
     return {};
   }
 };
@@ -98,7 +99,8 @@ export const useSweepMapState = ({
           activeParcelId: parcel ? parcel.id : null,
         })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useSweepMapState:setActiveParcel] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   };
@@ -153,7 +155,8 @@ export const useSweepMapState = ({
           showStationOutlines,
         })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useSweepMapState:useSweepMapState.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [mapMode, appliedFilters, showCenterline, showZonesZoi, showStationMarkers, showStationOutlines]);
@@ -193,6 +196,7 @@ export const useSweepMapState = ({
       const saved = localStorage.getItem('metro2_absence_log');
       return saved ? JSON.parse(saved) : { 'c0000000-0000-0000-0000-000000000004': '08:15' };
     } catch (_e) {
+      console.warn('[useSweepMapState:useSweepMapState.useState] Bỏ qua lỗi không chặn luồng:', _e);
       return { 'c0000000-0000-0000-0000-000000000004': '08:15' };
     }
   });
@@ -289,7 +293,9 @@ export const useSweepMapState = ({
     setAbsenceRecordedToday(updated);
     try {
       localStorage.setItem('metro2_absence_log', JSON.stringify(updated));
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useSweepMapState:handleRecordAbsenceClick] Bỏ qua lỗi không chặn luồng:', _e);
+    }
     if (onRecordAbsence) {
       onRecordAbsence(parcel);
     }

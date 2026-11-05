@@ -73,7 +73,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         const parsed = JSON.parse(saved) as { activeTab?: TowerUnitTab };
         if (parsed.activeTab) return parsed.activeTab;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[CondoTowerUnitQueue:CondoTowerUnitQueue.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'ALL';
@@ -86,7 +87,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         const parsed = JSON.parse(saved) as { searchInput?: string };
         if (typeof parsed.searchInput === 'string') return parsed.searchInput;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[CondoTowerUnitQueue:CondoTowerUnitQueue.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return '';
@@ -99,7 +101,8 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
         queueSessionKey,
         JSON.stringify({ activeTab, searchInput })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[CondoTowerUnitQueue:CondoTowerUnitQueue.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [queueSessionKey, activeTab, searchInput]);

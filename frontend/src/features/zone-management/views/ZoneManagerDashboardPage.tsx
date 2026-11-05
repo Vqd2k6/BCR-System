@@ -80,7 +80,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       ) {
         return savedNav;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'dashboard';
@@ -105,7 +106,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     try {
       const savedZone = sessionStorage.getItem('ksqh_zone_admin_selected_zone');
       if (savedZone) return resolveInitialZone(user, savedZone, fallback);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return resolveInitialZone(user, null, fallback);
@@ -146,7 +148,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         const parsed = JSON.parse(saved) as { category?: string };
         return parsed.category;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return undefined;
@@ -158,7 +161,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         const parsed = JSON.parse(saved) as { value?: string };
         return parsed.value;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return undefined;
@@ -170,7 +174,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         const parsed = JSON.parse(saved) as { label?: string };
         return parsed.label;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return undefined;
@@ -190,7 +195,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       } else {
         sessionStorage.removeItem('ksqh_zone_admin_filter');
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:ZoneManagerDashboardPage.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [activeFilterCategory, activeFilterValue, activeFilterLabel]);
@@ -256,7 +262,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     setActiveNav(nav);
     try {
       sessionStorage.setItem('ksqh_zone_admin_nav', nav);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:handleNavChange] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     updateNavigationUrl({ nav });
@@ -267,7 +274,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     setSelectedZone(z);
     try {
       sessionStorage.setItem('ksqh_zone_admin_selected_zone', z);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneManagerDashboardPage:handleZoneChange] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     updateNavigationUrl({ zone: z });

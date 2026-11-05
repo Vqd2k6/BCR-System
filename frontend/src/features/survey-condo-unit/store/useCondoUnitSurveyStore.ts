@@ -795,7 +795,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           data = healLocalPhotoUris(data);
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoUnitSurveyStore:initializeForm] Bỏ qua lỗi không chặn luồng:', _e);
+    }
     }
 
     // Lưu ngay vào danh sách đang làm dở trên local (chỉ khi căn hộ đang khảo sát)
@@ -807,7 +809,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           list.push(unit.id);
           localStorage.setItem(inProgressKey, JSON.stringify(list));
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:initializeForm] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     }
 
     // Xác định targetStep an toàn tránh bị reset về bước 1
@@ -822,7 +826,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         if (!isNaN(urlStep) && urlStep >= 1 && urlStep <= 4) {
           targetStep = urlStep;
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:initializeForm] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     }
 
     // 2. Kiểm tra localStorage nếu chưa có từ URL
@@ -832,7 +838,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         if (!isNaN(localStep) && localStep >= 1 && localStep <= 4) {
           targetStep = localStep;
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:initializeForm] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     }
 
     // 3. Nếu store hiện tại đang mở cùng căn hộ và đã ở bước > 1, giữ nguyên không reset
@@ -1038,7 +1046,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         list.push(formData.unitId);
         localStorage.setItem(inProgressKey, JSON.stringify(list));
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoUnitSurveyStore:syncDraftToServer] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     try {
       const res = await surveyDraftService.saveDraft({
@@ -1203,7 +1213,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           list.push(next.unitId);
           localStorage.setItem(inProgressKey, JSON.stringify(list));
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:applyFormData] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     } else {
       // Nếu đã nộp hoặc chỉ xem, dọn sạch khỏi danh sách inProgress để Hub không bị hiển thị sai
       try {
@@ -1213,7 +1225,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           const filtered = list.filter((id) => id !== next.unitId);
           localStorage.setItem(inProgressKey, JSON.stringify(filtered));
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:applyFormData] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     }
 
     set({
@@ -1253,7 +1267,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     try {
       const savedStepKey = `metro2_condo_unit_step_${pId}_${uId}`;
       localStorage.setItem(savedStepKey, String(step));
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoUnitSurveyStore:setStep] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     // Cập nhật URL query param và cuộn mượt
     if (typeof window !== 'undefined') {
@@ -1261,7 +1277,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         const url = new URL(window.location.href);
         url.searchParams.set('step', String(step));
         window.history.replaceState(window.history.state, '', url.toString());
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[useCondoUnitSurveyStore:setStep] Bỏ qua lỗi không chặn luồng:', _e);
+      }
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -1452,7 +1470,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
       const filtered = list.filter((id) => id !== unitId);
       localStorage.setItem(inProgressKey, JSON.stringify(filtered));
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoUnitSurveyStore:clearDraft] Bỏ qua lỗi không chặn luồng:', _e);
+    }
   },
 
   checkDraftLock: async () => {
@@ -1482,7 +1502,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           },
         });
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.error('[useCondoUnitSurveyStore:checkDraftLock] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
+    }
   },
 
   requestEditUnlock: async () => {
@@ -1576,7 +1598,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         try {
           const draftKey = `metro2_condo_unit_draft_${formData.parcelId}_${formData.unitId}`;
           localStorage.setItem(draftKey, JSON.stringify(get().formData));
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[useCondoUnitSurveyStore:takeoverDraft] Bỏ qua lỗi không chặn luồng:', _e);
+        }
 
         return true;
       }

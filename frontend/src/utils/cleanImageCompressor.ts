@@ -117,7 +117,9 @@ export async function compressCleanImage(
     ctx.clearRect(0, 0, targetWidth, targetHeight);
     canvas.width = 0;
     canvas.height = 0;
-  } catch (_e) {}
+  } catch (_e) {
+    console.warn('[cleanImageCompressor:compressCleanImage] Bỏ qua lỗi không chặn luồng:', _e);
+  }
 
   const endTime = performance.now();
 
@@ -249,7 +251,9 @@ export async function exportWatermarkedJpeg(
           ctx.clearRect(0, 0, width, height);
           canvas.width = 0;
           canvas.height = 0;
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[cleanImageCompressor:exportWatermarkedJpeg.toBlob] Bỏ qua lỗi không chặn luồng:', _e);
+        }
         if (b) resolve(b);
         else reject(new Error('Xuất Blob ảnh có watermark thất bại'));
       },

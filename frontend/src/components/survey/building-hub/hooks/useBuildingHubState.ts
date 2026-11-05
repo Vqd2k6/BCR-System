@@ -58,7 +58,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         }
       }
       return false;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useBuildingHubState:useBuildingHubState.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       return false;
     }
   });
@@ -81,7 +82,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     try {
       const raw = sessionStorage.getItem(hubSessionKey);
       return raw ? JSON.parse(raw) : {};
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useBuildingHubState:readSavedHubSession] Bỏ qua lỗi không chặn luồng:', caughtError);
       return {};
     }
   };
@@ -129,7 +131,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
           inspectedUnitId: inspectedUnit ? inspectedUnit.id : prev.inspectedUnitId ?? null,
         })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useBuildingHubState:useBuildingHubState.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [hubSessionKey, selectedFloor, activeHubTab, selectedStatus, searchTerm, inspectedUnit]);
@@ -149,7 +152,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
           inspectedUnitId: u ? u.id : null,
         })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useBuildingHubState:handleSelectInspectedUnit] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   };
@@ -170,7 +174,9 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
           completedUnits = JSON.parse(
             localStorage.getItem(`metro2_condo_completed_units_${parcel.id}`) || '[]'
           );
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[useBuildingHubState:fetchUnits] Bỏ qua lỗi không chặn luồng:', _e);
+        }
 
         const mappedUnits: BuildingUnit[] = res.data.data.units.map((u: BuildingUnit) => {
           let effStatus = u.status;
@@ -296,6 +302,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       setNewFloorNumber(1);
       if (onUnitsUpdated) onUnitsUpdated();
     } catch (err: unknown) {
+      console.error('[useBuildingHubState:handleAddUnit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       const msg = getErrorMessage(err, 'Có lỗi xảy ra khi tạo vị trí');
       alert(`Không thể thêm vị trí: ${msg}`);
     } finally {

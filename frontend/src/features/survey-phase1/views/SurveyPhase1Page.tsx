@@ -576,7 +576,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 if (h.details && typeof h.details === 'string') {
                   try {
                     parsedDetails = JSON.parse(h.details);
-                  } catch {
+                  } catch (caughtError: unknown) {
+                    console.warn('[SurveyPhase1Page:SurveyPhase1Page.then] Bỏ qua lỗi không chặn luồng:', caughtError);
                     // details có thể là chuỗi văn bản ghi chú
                   }
                 }
@@ -951,7 +952,9 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             spread: 80,
             origin: { y: 0.6 },
           });
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[SurveyPhase1Page:executeFinalSubmit] Bỏ qua lỗi không chặn luồng:', _e);
+        }
         alert('✅ Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!\n\nHồ sơ đang chờ duyệt từ Zone Admin.');
         if (onFinished) {
           onFinished();

@@ -203,7 +203,8 @@ export const App: React.FC = () => {
     try {
       const savedHub = sessionStorage.getItem('ksqh_active_hub_parcel');
       return savedHub ? (JSON.parse(savedHub) as GisParcel) : null;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[App:App.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       return null;
     }
   });
@@ -256,7 +257,8 @@ export const App: React.FC = () => {
         }
       }
       return null;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[App:App.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       return null;
     }
   });
@@ -854,6 +856,7 @@ export const App: React.FC = () => {
         photoProofUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600',
       });
     } catch (_err) {
+      console.error('[App:handleRecordAbsence] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
       setParcels(
         parcels.map((p) =>
           p.id === parcel.id

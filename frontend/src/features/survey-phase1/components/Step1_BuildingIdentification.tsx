@@ -270,7 +270,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           buildingId,
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[Step1_BuildingIdentification:handleSubmitUnderConstruction] Bỏ qua lỗi không chặn luồng:', _e);
+      }
 
       // 2. Gửi API máy chủ với status: SUBMITTED
       try {
@@ -336,7 +338,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           buildingId,
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[Step1_BuildingIdentification:handleSubmitVacantLand] Bỏ qua lỗi không chặn luồng:', _e);
+      }
 
       // 2. Gửi API máy chủ với status: SUBMITTED
       try {
@@ -396,7 +400,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           buildingId,
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[Step1_BuildingIdentification:handleConfirmApartment] Bỏ qua lỗi không chặn luồng:', _e);
+      }
 
       setShowApartmentSuccessModal(true);
     } catch (err: unknown) {
@@ -568,7 +574,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           setShowApartmentSuccessModal(false);
           try {
             localStorage.setItem('metro2_open_hub_parcel_id', formData.parcelId);
-          } catch (_e) {}
+          } catch (_e) {
+            console.warn('[Step1_BuildingIdentification:Step1_BuildingIdentification.onOpenCondoHub] Bỏ qua lỗi không chặn luồng:', _e);
+          }
           clearDraft(true);
           if (onFinished) onFinished();
           else if (onBackToHome) onBackToHome();

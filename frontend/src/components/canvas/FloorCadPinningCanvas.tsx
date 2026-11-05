@@ -563,7 +563,9 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                         e.stopPropagation();
                         try {
                           (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-                        } catch (_) {}
+                        } catch (_) {
+                          console.warn('[FloorCadPinningCanvas:FloorCadPinningCanvas.onPointerUp] Bỏ qua lỗi không chặn luồng:', _);
+                        }
                         setDraggingPinIndex(null);
                       }}
                       style={{

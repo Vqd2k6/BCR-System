@@ -236,7 +236,9 @@ export const parseCoordinatesFromGeoJson = (p: unknown): [number, number][] => {
   if (typeof geo === 'string') {
     try {
       geo = JSON.parse(geo);
-    } catch (_) {}
+    } catch (_) {
+      console.warn('[geoMath:parseCoordinatesFromGeoJson] Bỏ qua lỗi không chặn luồng:', _);
+    }
   }
   if (geo && typeof geo === 'object') {
     const geoObj = geo as { type?: string; coordinates?: unknown };

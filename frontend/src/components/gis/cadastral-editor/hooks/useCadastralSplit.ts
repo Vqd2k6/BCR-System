@@ -191,6 +191,7 @@ export const useCadastralSplit = ({
           }
         }
       } catch (_err) {
+        console.error('[useCadastralSplit:fetchCodes] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
         const match = parcelData.projectParcelCode.match(/^(.*?)(\d+)$/);
         const prefix = match ? match[1] : 'B-';
         const nextNum = match ? (parseInt(match[2], 10) + 1) : 9999;

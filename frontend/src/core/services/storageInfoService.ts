@@ -31,6 +31,7 @@ let cachedInfo: StorageInfo = (() => {
         return JSON.parse(saved);
       }
     } catch (_e) {
+      console.warn('[storageInfoService:callback] Bỏ qua lỗi không chặn luồng:', _e);
       // ignore
     }
     // Nếu chạy trên localhost / 127.0.0.1 thì mặc định coi là local
@@ -55,11 +56,14 @@ export async function fetchStorageInfo(): Promise<StorageInfo> {
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(cachedInfo));
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[storageInfoService:fetchStorageInfo] Bỏ qua lỗi không chặn luồng:', _e);
+        }
       }
       listeners.forEach((listener) => listener(cachedInfo));
     }
   } catch (err) {
+    console.error('[storageInfoService:fetchStorageInfo] Lỗi đã xử lý bằng nhánh dự phòng:', err);
     // Nếu không lấy được (vd offline hoặc backend chưa bật), fallback dựa vào hostname
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     if (isLocalhost) {

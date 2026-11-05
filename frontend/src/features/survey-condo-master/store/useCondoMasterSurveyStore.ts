@@ -98,7 +98,9 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
           data = { ...data, ...parsed };
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoMasterSurveyStore:initializeForm] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     // Map parcel properties
     data.parcelId = parcel.id;
@@ -219,7 +221,9 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
       if (next.parcelId) {
         localStorage.setItem(`metro2_condo_master_draft_${next.parcelId}`, JSON.stringify(next));
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useCondoMasterSurveyStore:updateFormData] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     set({
       formData: next,

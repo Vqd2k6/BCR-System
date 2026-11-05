@@ -320,7 +320,8 @@ export function useMasterAreaSurveyState({
               return;
             }
           }
-        } catch {
+        } catch (caughtError: unknown) {
+          console.error('[useMasterAreaSurveyState:fetchFloorPlan] Lỗi đã xử lý bằng nhánh dự phòng:', caughtError);
           // Bỏ qua lỗi fallback sang danh sách floor-plans
         }
 
@@ -589,6 +590,7 @@ export function useMasterAreaSurveyState({
                   try {
                     sData = JSON.parse(rData.survey_data_json);
                   } catch (parseErr: unknown) {
+                    console.warn('[useMasterAreaSurveyState:hydrateSurvey] Bỏ qua lỗi không chặn luồng:', parseErr);
                     sData = (rData.surveyData as Record<string, unknown>) || {};
                   }
                 } else if (rData.survey_data_json && typeof rData.survey_data_json === 'object') {
@@ -699,7 +701,8 @@ export function useMasterAreaSurveyState({
                   }
                 }
               }
-            } catch {
+            } catch (caughtError: unknown) {
+              console.warn('[useMasterAreaSurveyState:hydrateSurvey] Bỏ qua lỗi không chặn luồng:', caughtError);
               // ignore
             }
           } else {
@@ -835,7 +838,8 @@ export function useMasterAreaSurveyState({
           if (evidence > 0 || lastLoadedEvidenceCountRef.current === 0) {
             localStorage.setItem(draftKey, JSON.stringify(draft));
           }
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[useMasterAreaSurveyState:handleBeforeUnload] Bỏ qua lỗi không chặn luồng:', caughtError);
           // ignore
         }
       }
@@ -2173,7 +2177,8 @@ export function useMasterAreaSurveyState({
           localStorage.setItem(draftKey, JSON.stringify(parsed));
         }
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useMasterAreaSurveyState:useMasterAreaSurveyState.useCallback] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [draftKey, legacyDraftKey]);

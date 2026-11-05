@@ -48,7 +48,10 @@ for (const file of files) {
           bodyText.includes('console.error') ||
           bodyText.includes('console.warn') ||
           bodyText.includes('reportDevError') ||
-          bodyText.includes('__reportDevError');
+          bodyText.includes('__reportDevError') ||
+          // devErrorReporter tự chặn console.*: ghi qua bản console gốc để tránh đệ quy
+          bodyText.includes('originalConsoleWarn') ||
+          bodyText.includes('originalConsoleError');
         const hasThrow = /\bthrow\s+/.test(bodyText);
 
         if (!hasErrorLog && !hasThrow) {
@@ -74,14 +77,14 @@ console.log(`⚠️  Swallowed catch clauses (No error log / throw): ${swallowed
 
 if (emptyCatches.length > 0) {
   console.log('\n🚨 Top 15 Empty Catch Clauses to remediate:');
-  emptyCatches.slice(0, 15).forEach((c) => {
+  (process.argv.includes('--all') ? emptyCatches : emptyCatches.slice(0, 15)).forEach((c) => {
     console.log(`  [EMPTY CATCH] ${c.loc}`);
   });
 }
 
 if (swallowedCatches.length > 0) {
   console.log('\n⚠️  Top 15 Swallowed Catch Clauses to remediate:');
-  swallowedCatches.slice(0, 15).forEach((c) => {
+  (process.argv.includes('--all') ? swallowedCatches : swallowedCatches.slice(0, 15)).forEach((c) => {
     console.log(`  [NO LOG/THROW] ${c.loc}`);
   });
 }

@@ -39,7 +39,8 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
   const [selectedTowerParcelId, setSelectedTowerParcelId] = useState<string | null>(() => {
     try {
       return sessionStorage.getItem(towerSessionKey);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[CondoProjectsReviewQueue:CondoProjectsReviewQueue.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       return null;
     }
   });
@@ -76,7 +77,8 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
               setSelectedTowerItem(matched);
             }
           }
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[CondoProjectsReviewQueue:fetchTowers] Bỏ qua lỗi không chặn luồng:', caughtError);
           // ignore
         }
       } else {
@@ -99,7 +101,8 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
     setSelectedTowerItem(item);
     try {
       sessionStorage.setItem(towerSessionKey, parcelId);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[CondoProjectsReviewQueue:handleSelectTower] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   };
@@ -126,7 +129,8 @@ export const CondoProjectsReviewQueue: React.FC<Props> = ({
           setSelectedTowerItem(null);
           try {
             sessionStorage.removeItem(towerSessionKey);
-          } catch {
+          } catch (caughtError: unknown) {
+            console.warn('[CondoProjectsReviewQueue:CondoProjectsReviewQueue.onBackToTowers] Bỏ qua lỗi không chặn luồng:', caughtError);
             // ignore
           }
           fetchTowers();

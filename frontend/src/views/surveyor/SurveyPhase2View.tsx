@@ -271,7 +271,9 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         ownerFeedbackP2,
       };
       localStorage.setItem(draftKey, JSON.stringify(draft));
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[SurveyPhase2View:handleSaveDraft] Bỏ qua lỗi không chặn luồng:', _e);
+    }
     setTimeout(() => setIsSaving(false), 600);
   };
 
@@ -293,6 +295,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
       });
       setIsSubmitted(true);
     } catch (_err) {
+      console.error('[SurveyPhase2View:handleSubmitPhase2] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
       setIsSubmitted(true);
     } finally {
       setIsSubmitting(false);

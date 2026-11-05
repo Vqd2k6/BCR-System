@@ -58,6 +58,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
         onClose();
       }, 1000);
     } catch (err: unknown) {
+      console.error('[UserProfileModal:handleAdminSave] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setErrorMessage(getErrorMessage(err, 'Không thể lưu hồ sơ'));
     } finally {
       setIsSaving(false);

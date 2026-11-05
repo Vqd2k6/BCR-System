@@ -67,7 +67,8 @@ export function usePhotoOrientationAudit(
       if (typeof raw === 'string') {
         try {
           Object.assign(base, JSON.parse(raw) as Record<string, unknown>);
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[usePhotoOrientationAudit:usePhotoOrientationAudit.useMemo] Bỏ qua lỗi không chặn luồng:', caughtError);
           // ignore invalid json
         }
       } else if (raw && typeof raw === 'object') {

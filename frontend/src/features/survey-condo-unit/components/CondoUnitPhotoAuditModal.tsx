@@ -110,6 +110,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
         applyPromotedUrlToStore(item, newUrl);
       });
     } catch (err: unknown) {
+      console.error('[CondoUnitPhotoAuditModal:handleRetrySingle] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       alert(`Không thể tải lại ảnh: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRetryingId(null);
@@ -125,7 +126,9 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
           await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (newUrl) => {
             applyPromotedUrlToStore(item, newUrl);
           });
-        } catch (_e) {}
+        } catch (_e) {
+          console.error('[CondoUnitPhotoAuditModal:handleBatchRetry] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
+        }
       }
     } finally {
       setIsBatchRetrying(false);

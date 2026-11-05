@@ -258,6 +258,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       });
       setReplaceProcessed(processed);
     } catch (err: unknown) {
+      console.error('[AuditPhotoActionModal:handleSinglePhotoSelect] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi xử lý hình ảnh');
     } finally {
       setIsProcessing(false);
@@ -295,6 +296,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
 
       setBatchProcessed((prev) => [...prev, ...results]);
     } catch (err: unknown) {
+      console.error('[AuditPhotoActionModal:handleBatchPhotoSelect] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi xử lý danh sách ảnh');
     } finally {
       setIsProcessing(false);
@@ -385,6 +387,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
 
         onClose();
       } catch (err: unknown) {
+        console.error('[AuditPhotoActionModal:handleSubmit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
         setErrorMessage(err instanceof Error ? err.message : 'Không thể upload ảnh mới.');
       } finally {
         setIsProcessing(false);
@@ -456,6 +459,7 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
 
         onClose();
       } catch (err: unknown) {
+        console.error('[AuditPhotoActionModal:handleSubmit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
         setErrorMessage(err instanceof Error ? err.message : 'Lỗi khi upload danh sách ảnh.');
       } finally {
         setIsProcessing(false);

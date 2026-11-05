@@ -392,6 +392,7 @@ export const usePhase1ReportPreview = ({
         text: `Tải xuống thành công Báo cáo PDF Song Ngữ (Mẫu 0410) cho lô ${parcel.projectParcelCode}${revSuffix}!`,
       });
     } catch (err: unknown) {
+      console.error('[usePhase1ReportPreview:handleExportSinglePdf] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setActionMessage({
         type: 'error',
         text: `Không thể xuất PDF cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi không xác định')}`,

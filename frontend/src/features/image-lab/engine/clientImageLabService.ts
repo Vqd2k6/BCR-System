@@ -182,7 +182,7 @@ export class ClientImageLabService {
         return await directResp.blob();
       }
     } catch (corsErr: unknown) {
-      console.info(
+      console.warn(
         '[ClientImageLabService:fetchImageBlob] Chuyển sang cổng stream CORS-safe cho ảnh R2:',
         corsErr instanceof Error ? corsErr.message : 'CORS blocked'
       );

@@ -27,7 +27,8 @@ export const useSurveyorHomeState = ({
         const parsed = JSON.parse(saved) as { searchTerm?: string };
         if (typeof parsed.searchTerm === 'string') return parsed.searchTerm;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useSurveyorHomeState:useSurveyorHomeState.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return '';
@@ -42,7 +43,8 @@ export const useSurveyorHomeState = ({
         const parsed = JSON.parse(saved) as { statusFilter?: string };
         if (typeof parsed.statusFilter === 'string' && parsed.statusFilter) return parsed.statusFilter;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useSurveyorHomeState:useSurveyorHomeState.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'PENDING_ONLY';
@@ -58,7 +60,8 @@ export const useSurveyorHomeState = ({
         'ksqh_surveyor_home_state',
         JSON.stringify({ searchTerm, statusFilter })
       );
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[useSurveyorHomeState:useSurveyorHomeState.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [searchTerm, statusFilter]);
@@ -73,6 +76,7 @@ export const useSurveyorHomeState = ({
       const saved = localStorage.getItem('metro2_absence_log');
       return saved ? JSON.parse(saved) : { 'c0000000-0000-0000-0000-000000000004': '08:15' };
     } catch (_e) {
+      console.warn('[useSurveyorHomeState:useSurveyorHomeState.useState] Bỏ qua lỗi không chặn luồng:', _e);
       return { 'c0000000-0000-0000-0000-000000000004': '08:15' };
     }
   });
@@ -112,7 +116,9 @@ export const useSurveyorHomeState = ({
           setHubParcel(target);
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useSurveyorHomeState:useSurveyorHomeState.useEffect] Bỏ qua lỗi không chặn luồng:', _e);
+    }
   }, [parcels]);
 
   // Parcel counts
@@ -177,7 +183,9 @@ export const useSurveyorHomeState = ({
     setAbsenceRecordedToday(updated);
     try {
       localStorage.setItem('metro2_absence_log', JSON.stringify(updated));
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[useSurveyorHomeState:handleSmartAbsence] Bỏ qua lỗi không chặn luồng:', _e);
+    }
     onRecordAbsence(parcel);
   };
 

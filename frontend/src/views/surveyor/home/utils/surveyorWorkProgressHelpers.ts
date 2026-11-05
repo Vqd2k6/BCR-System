@@ -109,7 +109,9 @@ export const getEffectiveUpdatedAt = (parcel: GisParcel): Date | null => {
           effectiveDateStr = overrides[parcel.id].updatedAt;
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[surveyorWorkProgressHelpers:getEffectiveUpdatedAt] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     try {
       const draft = localStorage.getItem(`metro2_phase1_draft_${parcel.id}`);
@@ -125,7 +127,9 @@ export const getEffectiveUpdatedAt = (parcel: GisParcel): Date | null => {
           }
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[surveyorWorkProgressHelpers:getEffectiveUpdatedAt] Bỏ qua lỗi không chặn luồng:', _e);
+    }
   }
 
   if (!effectiveDateStr) return null;

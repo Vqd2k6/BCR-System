@@ -179,6 +179,7 @@ export const UserEditModal: React.FC<Props> = ({
       onSuccess();
       onClose();
     } catch (err: unknown) {
+      console.error('[UserEditModal:handleSubmit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       const errorMsg =
         getErrorMessage(err, 'Có lỗi xảy ra khi lưu thông tin người dùng');
       setError(errorMsg);

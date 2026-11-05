@@ -218,7 +218,9 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
           existing.push(formData.unitId);
           localStorage.setItem(completedUnitsKey, JSON.stringify(existing));
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[SurveyCondoUnitPage:executeSubmit] Bỏ qua lỗi không chặn luồng:', _e);
+      }
 
       if (unit) {
         unit.status = isAbsentee ? 'POSTPONED_ABSENT' : 'SUBMITTED';

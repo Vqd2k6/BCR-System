@@ -116,7 +116,8 @@ export const MapBoundsController: React.FC<{
     try {
       const container = map.getContainer();
       if (!container) return;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[MapControllers:MapBoundsController.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       return;
     }
 
@@ -129,7 +130,7 @@ export const MapBoundsController: React.FC<{
         map.setView(coords[0], zoom);
       }
     } catch (err) {
-      console.debug('[MapBoundsController] Safe fitBounds ignore:', err);
+      console.warn('[MapBoundsController] Safe fitBounds ignore:', err);
     }
 
     const timer = setTimeout(() => {
@@ -137,7 +138,8 @@ export const MapBoundsController: React.FC<{
         if (map && map.getContainer()) {
           map.invalidateSize();
         }
-      } catch {
+      } catch (caughtError: unknown) {
+        console.warn('[MapControllers:MapBoundsController.setTimeout] Bỏ qua lỗi không chặn luồng:', caughtError);
         // Safe ignore
       }
     }, 200);
@@ -191,7 +193,8 @@ export function ChangeView({
           : {};
         mapByZone[zoneKey] = { lat: c.lat, lng: c.lng, zoom: z };
         sessionStorage.setItem('ksqh_sweep_map_viewport_by_zone', JSON.stringify(mapByZone));
-      } catch {
+      } catch (caughtError: unknown) {
+        console.warn('[MapControllers:moveend] Bỏ qua lỗi không chặn luồng:', caughtError);
         // Safe ignore
       }
     },
@@ -206,7 +209,8 @@ export function ChangeView({
           : {};
         mapByZone[zoneKey] = { lat: c.lat, lng: c.lng, zoom: z };
         sessionStorage.setItem('ksqh_sweep_map_viewport_by_zone', JSON.stringify(mapByZone));
-      } catch {
+      } catch (caughtError: unknown) {
+        console.warn('[MapControllers:zoomend] Bỏ qua lỗi không chặn luồng:', caughtError);
         // Safe ignore
       }
     },
@@ -216,7 +220,8 @@ export function ChangeView({
     if (!map) return;
     try {
       if (!map.getContainer()) return;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[MapControllers:ChangeView.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       return;
     }
 
@@ -243,7 +248,8 @@ export function ChangeView({
             targetZoom = saved.zoom;
           }
         }
-      } catch {
+      } catch (caughtError: unknown) {
+        console.warn('[MapControllers:ChangeView.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
         // Safe ignore
       }
     }
@@ -264,7 +270,7 @@ export function ChangeView({
         map.stop(); // Hủy transition animation cũ trước khi set view mới
         map.setView([lat, lng], targetZoom);
       } catch (err) {
-        console.debug('[ChangeView] Safe setView ignore:', err);
+        console.warn('[ChangeView] Safe setView ignore:', err);
       }
     }
   }, [center, zoom, zoneKey, map]);
@@ -282,7 +288,8 @@ export function FlyToController({ targetCoords }: { targetCoords: [number, numbe
     if (!targetCoords || !map) return;
     try {
       if (!map.getContainer()) return;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[MapControllers:FlyToController.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       return;
     }
 
@@ -296,7 +303,7 @@ export function FlyToController({ targetCoords }: { targetCoords: [number, numbe
       map.stop();
       map.flyTo(targetCoords, 21, { animate: true, duration: 0.8 });
     } catch (err) {
-      console.debug('[FlyToController] Safe flyTo ignore:', err);
+      console.warn('[FlyToController] Safe flyTo ignore:', err);
     }
   }, [targetCoords, map]);
   return null;

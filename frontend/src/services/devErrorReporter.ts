@@ -296,7 +296,8 @@ export function initDevErrorReporter(): void {
     } else if (reason && typeof reason === 'object') {
       try {
         message = JSON.stringify(reason);
-      } catch {
+      } catch (stringifyErr: unknown) {
+        originalConsoleWarn('[DevErrorReporter:unhandledRejection] Không JSON hóa được reason, dùng String():', stringifyErr);
         message = String(reason);
       }
     }
@@ -337,7 +338,8 @@ export function initDevErrorReporter(): void {
           if (a instanceof Error) return a.message;
           try {
             return JSON.stringify(a);
-          } catch {
+          } catch (stringifyErr: unknown) {
+            originalConsoleWarn('[DevErrorReporter:consoleError] Không JSON hóa được tham số, dùng String():', stringifyErr);
             return String(a);
           }
         })
@@ -352,7 +354,9 @@ export function initDevErrorReporter(): void {
           url: window.location.href,
         });
       }
-    } catch (_e) {}
+    } catch (hookErr: unknown) {
+      originalConsoleWarn('[DevErrorReporter:consoleError] Lỗi trong hook console.error, bỏ qua để không chặn log gốc:', hookErr);
+    }
   };
 
   // 5. Cung cấp hàm test nhanh trên DevTools Console: window.__triggerTestError()

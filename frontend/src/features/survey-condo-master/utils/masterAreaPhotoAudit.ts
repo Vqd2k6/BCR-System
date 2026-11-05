@@ -385,7 +385,9 @@ export async function retryUploadMasterAreaPhoto(
         'parcel-code': parcelCode || 'PARCEL',
         'unit-code': unitCode || 'UNIT',
       });
-    } catch (_storageErr) {}
+    } catch (_storageErr) {
+      console.error('[masterAreaPhotoAudit:retryUploadMasterAreaPhoto] Lỗi đã xử lý bằng nhánh dự phòng:', _storageErr);
+    }
   }
   // 2. Nếu là URL Object Blob tạm thời từ trình duyệt (blob:http...)
   else if (photoItem.url.startsWith('blob:http')) {
@@ -394,7 +396,9 @@ export async function retryUploadMasterAreaPhoto(
       if (resp.ok) {
         blob = await resp.blob();
       }
-    } catch (_fetchErr) {}
+    } catch (_fetchErr) {
+      console.error('[masterAreaPhotoAudit:retryUploadMasterAreaPhoto] Lỗi đã xử lý bằng nhánh dự phòng:', _fetchErr);
+    }
     if (!localId || localId === photoItem.url) {
       localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     }
@@ -404,7 +408,9 @@ export async function retryUploadMasterAreaPhoto(
           'parcel-code': parcelCode || 'PARCEL',
           'unit-code': unitCode || 'UNIT',
         });
-      } catch (_storageErr) {}
+      } catch (_storageErr) {
+        console.error('[masterAreaPhotoAudit:retryUploadMasterAreaPhoto] Lỗi đã xử lý bằng nhánh dự phòng:', _storageErr);
+      }
     }
   }
   // 3. Nếu là định danh offline có quản lý: blob:local://{id}

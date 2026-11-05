@@ -481,7 +481,9 @@ export const createFormSlice: StateCreator<
           updatedAt: new Date().toISOString(),
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_err) {}
+      } catch (_err) {
+        console.warn('[formSlice:saveDraftToStorage] Bỏ qua lỗi không chặn luồng:', _err);
+      }
     } catch (_err) {
       console.warn('[SurveyPhase1Store] LocalStorage quota reached, relied on IndexedDB');
     }
@@ -506,6 +508,8 @@ export const createFormSlice: StateCreator<
         }
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
       }
-    } catch (_err) {}
+    } catch (_err) {
+      console.warn('[formSlice:clearDraft] Bỏ qua lỗi không chặn luồng:', _err);
+    }
   },
 });

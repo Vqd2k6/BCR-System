@@ -149,6 +149,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       await retryUploadSinglePhoto(item, parcelCode);
       await persistSyncedPhotosToServer();
     } catch (err: unknown) {
+      console.error('[CloudPhotoSyncModal:handleRetrySingle] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       alert(`Không thể tải lại ảnh: ${getErrorMessage(err, 'Lỗi lưu trữ ảnh')}`);
     } finally {
       setRetryingId(null);

@@ -517,7 +517,9 @@ export function canvasToBlobAndDispose(
           }
           canvas.width = 0;
           canvas.height = 0;
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[uploadQueueService:canvasToBlobAndDispose.toBlob] Bỏ qua lỗi không chặn luồng:', _e);
+        }
 
         if (blob) {
           resolve(blob);

@@ -150,7 +150,8 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       if (savedScope === 'CONDO' || savedScope === 'RESIDENTIAL' || (savedScope === 'URGENT' && !isProdScopeLocked)) {
         return savedScope;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneAuditReviewQueue:getInitialScope] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'RESIDENTIAL';
@@ -191,7 +192,8 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     setActiveScope(newScope);
     try {
       sessionStorage.setItem('ksqh_review_active_scope', newScope);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ZoneAuditReviewQueue:handleScopeChange] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     const url = new URL(window.location.href);

@@ -48,6 +48,7 @@ export const ResetPasswordModal: React.FC<Props> = ({
       onSuccess();
       onClose();
     } catch (err: unknown) {
+      console.error('[ResetPasswordModal:handleSubmit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       const msg = getErrorMessage(err, 'Không thể đặt lại mật khẩu');
       setError(msg);
     } finally {

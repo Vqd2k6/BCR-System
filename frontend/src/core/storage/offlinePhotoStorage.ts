@@ -43,6 +43,7 @@ export function getDeviceId(): string {
     }
     return id;
   } catch (_e) {
+    console.warn('[offlinePhotoStorage:getDeviceId] Bỏ qua lỗi không chặn luồng:', _e);
     return 'dev_ephemeral';
   }
 }
@@ -220,6 +221,7 @@ export async function purgeUploadedPhotos(maxAgeDays: number = 7): Promise<numbe
       req.onerror = () => resolve(0);
     });
   } catch (_e) {
+    console.error('[offlinePhotoStorage:purgeUploadedPhotos] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
     return 0;
   }
 }
@@ -361,7 +363,9 @@ export function saveUploadedPhotoMapping(localId: string, publicUrl: string): vo
       }
     }
     localStorage.setItem(UPLOADED_PHOTO_MAP_KEY, JSON.stringify(map));
-  } catch (_e) {}
+  } catch (_e) {
+    console.error('[offlinePhotoStorage:saveUploadedPhotoMapping] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
+  }
 }
 
 /**
@@ -375,7 +379,9 @@ export async function requestPersistentStorage(): Promise<void> {
         await navigator.storage.persist();
       }
     }
-  } catch (_e) {}
+  } catch (_e) {
+    console.error('[offlinePhotoStorage:requestPersistentStorage] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
+  }
 }
 
 /**
@@ -389,6 +395,7 @@ export function getKnownCloudUrl(localId: string): string | null {
     const map: Record<string, string> = JSON.parse(raw);
     return map[localId] || null;
   } catch (_e) {
+    console.error('[offlinePhotoStorage:getKnownCloudUrl] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
     return null;
   }
 }

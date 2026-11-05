@@ -54,7 +54,8 @@ function parseJsonField<T>(raw: unknown, fallback: T): T {
   if (typeof raw === 'string') {
     try {
       return JSON.parse(raw) as T;
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[surveyRehydration.adapter:parseJsonField] Bỏ qua lỗi không chặn luồng:', caughtError);
       return fallback;
     }
   }

@@ -189,6 +189,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
       // Mở ngay modal upload CAD để Zone Admin cấu hình
       setCadModalParcel({ ...parcel, buildingType: 'CONDOMINIUM' });
     } catch (err: unknown) {
+      console.error('[ZoneParcelsDataGrid:handleConvertToCondo] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       alert(`Lỗi khi chuyển đổi sang chung cư: ${getErrorMessage(err, 'Lỗi mạng')}`);
     } finally {
       setIsConvertingCondo(false);

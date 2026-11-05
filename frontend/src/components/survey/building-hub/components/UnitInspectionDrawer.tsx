@@ -110,6 +110,7 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
         }
       }
     } catch (err: unknown) {
+      console.error('[UnitInspectionDrawer:handleApproveAbsentee] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       alert(`❌ Lỗi khi duyệt vắng mặt: ${getErrorMessage(err)}`);
     } finally {
       setIsApprovingAbsentee(false);

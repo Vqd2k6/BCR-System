@@ -66,7 +66,9 @@ export const getEffectiveParcelStatus = (parcel: GisParcel): GisParcel['surveySt
         const overrides = JSON.parse(overridesStr);
         if (overrides[pid]?.status) return overrides[pid].status;
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[sweepMapHelpers:getEffectiveParcelStatus] Bỏ qua lỗi không chặn luồng:', _e);
+    }
 
     try {
       const draft = localStorage.getItem(`metro2_phase1_draft_${pid}`);
@@ -77,7 +79,9 @@ export const getEffectiveParcelStatus = (parcel: GisParcel): GisParcel['surveySt
         if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) return 'SUBMITTED';
         return 'IN_PROGRESS';
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[sweepMapHelpers:getEffectiveParcelStatus] Bỏ qua lỗi không chặn luồng:', _e);
+    }
   }
   return baseStatus;
 };
@@ -143,7 +147,9 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisPa
           } else if (overrides[parcel.id]?.subType === 'IN_PROGRESS') {
             subTypeText = ' - Làm dở';
           }
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[sweepMapHelpers:getStatusBadge] Bỏ qua lỗi không chặn luồng:', _e);
+        }
         if (!subTypeText) {
           try {
             const draft = localStorage.getItem(`metro2_phase1_draft_${parcel.id}`);
@@ -154,7 +160,9 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisPa
               else if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) subTypeText = ' - Đất trống';
               else if (parsed.surveyCaseType === 'IN_PROGRESS') subTypeText = ' - Làm dở';
             }
-          } catch (_e) {}
+          } catch (_e) {
+            console.warn('[sweepMapHelpers:getStatusBadge] Bỏ qua lỗi không chặn luồng:', _e);
+          }
         }
       }
       return (

@@ -71,6 +71,7 @@ export const HandoverTakeoverModal: React.FC<HandoverTakeoverModalProps> = ({
       // Thành công thì nơi gọi tự đóng modal; closeAction là luồng Hủy (rời form), không được gọi ở đây
       await confirmAction(inputCode.trim(), note.trim());
     } catch (err: unknown) {
+      console.error('[HandoverTakeoverModal:handleTakeover] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setErrorMsg(getErrorMessage(err, 'Tiếp quản thất bại'));
     } finally {
       setIsSubmitting(false);

@@ -100,6 +100,7 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
           throw new Error(res.data?.message || 'Không thể lấy dữ liệu lịch sử');
         }
       } catch (err: unknown) {
+        console.error('[ParcelMutationHistoryModal:fetchHistory] Lỗi đã xử lý bằng nhánh dự phòng:', err);
         if (getErrorStatus(err) === 403) {
           setError('Chỉ SUPER_ADMIN được phép xem lịch sử biến động kiểm toán (403 Forbidden).');
         } else {
@@ -127,7 +128,8 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
         month: '2-digit',
         year: 'numeric',
       });
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ParcelMutationHistoryModal:formatDate] Bỏ qua lỗi không chặn luồng:', caughtError);
       return dateStr;
     }
   };

@@ -205,7 +205,8 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
           localStorage.removeItem(masterDraftKey);
           void deleteSurveyDraft(unitDraftKey);
           void deleteSurveyDraft(masterDraftKey);
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[UnitCadSpatialSwapModal:handleConfirmSwap] Bỏ qua lỗi không chặn luồng:', caughtError);
           // Ignore storage cleanup error
         }
       }
@@ -217,7 +218,8 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
           spread: 60,
           origin: { y: 0.7 },
         });
-      } catch {
+      } catch (caughtError: unknown) {
+        console.warn('[UnitCadSpatialSwapModal:handleConfirmSwap] Bỏ qua lỗi không chặn luồng:', caughtError);
         // Safe confetti fallback
       }
 

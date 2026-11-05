@@ -323,6 +323,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             data = res.data.data;
           }
         } catch (_err) {
+          console.error('[Step3_UnitDefectsAndSettlement:loadFloorPlanAuto] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
           // Bỏ qua để fallback
         }
       }
@@ -500,6 +501,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               setFloorPlanData(data);
             }
           } catch (_err) {
+            console.error('[Step3_UnitDefectsAndSettlement:handleAutoExtractFromFloorPlan] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
             // Tiếp tục fallback bên dưới
           }
         }

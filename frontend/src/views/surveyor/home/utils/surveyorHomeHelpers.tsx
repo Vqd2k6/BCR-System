@@ -33,7 +33,9 @@ export const getStatus = (p: GisParcel): string => {
             localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
           }
         }
-      } catch (_e) {}
+      } catch (_e) {
+        console.warn('[surveyorHomeHelpers:getStatus] Bỏ qua lỗi không chặn luồng:', _e);
+      }
     }
     return baseStatus;
   }
@@ -47,7 +49,9 @@ export const getStatus = (p: GisParcel): string => {
         return overrides[p.id].status;
       }
     }
-  } catch (_e) {}
+  } catch (_e) {
+    console.warn('[surveyorHomeHelpers:getStatus] Bỏ qua lỗi không chặn luồng:', _e);
+  }
 
   // 3. Kiểm tra nháp local
   try {
@@ -65,7 +69,9 @@ export const getStatus = (p: GisParcel): string => {
       }
       return 'IN_PROGRESS';
     }
-  } catch (_e) {}
+  } catch (_e) {
+    console.warn('[surveyorHomeHelpers:getStatus] Bỏ qua lỗi không chặn luồng:', _e);
+  }
 
   return baseStatus;
 };
@@ -83,7 +89,9 @@ export const getBuildingType = (p: GisParcel): string => {
           return 'CONDOMINIUM';
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[surveyorHomeHelpers:getBuildingType] Bỏ qua lỗi không chặn luồng:', _e);
+    }
     try {
       const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
       if (draft) {
@@ -92,7 +100,9 @@ export const getBuildingType = (p: GisParcel): string => {
           return 'CONDOMINIUM';
         }
       }
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[surveyorHomeHelpers:getBuildingType] Bỏ qua lỗi không chặn luồng:', _e);
+    }
   }
   return p?.buildingType || p?.building_type || 'STANDALONE';
 };
@@ -137,7 +147,9 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'] | string, parce
           } else if (overrides[parcel.id]?.subType === 'IN_PROGRESS') {
             subTypeText = ' - Làm dở';
           }
-        } catch (_e) {}
+        } catch (_e) {
+          console.warn('[surveyorHomeHelpers:getStatusBadge] Bỏ qua lỗi không chặn luồng:', _e);
+        }
         if (!subTypeText) {
           try {
             const draft = localStorage.getItem(`metro2_phase1_draft_${parcel.id}`);
@@ -148,7 +160,9 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'] | string, parce
               else if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) subTypeText = ' - Đất trống';
               else if (parsed.surveyCaseType === 'IN_PROGRESS') subTypeText = ' - Làm dở';
             }
-          } catch (_e) {}
+          } catch (_e) {
+            console.warn('[surveyorHomeHelpers:getStatusBadge] Bỏ qua lỗi không chặn luồng:', _e);
+          }
         }
       }
       return (

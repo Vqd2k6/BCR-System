@@ -68,7 +68,9 @@ export async function renderPdfPageToBlob(
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           canvas.width = 0;
           canvas.height = 0;
-        } catch (_) {}
+        } catch (_) {
+          console.warn('[pdfToImageConverter:renderPdfPageToBlob.toBlob] Bỏ qua lỗi không chặn luồng:', _);
+        }
 
         if (blob) {
           resolve(blob);
@@ -114,7 +116,9 @@ export async function renderPdfPageThumbnail(
   try {
     canvas.width = 0;
     canvas.height = 0;
-  } catch (_) {}
+  } catch (_) {
+    console.warn('[pdfToImageConverter:renderPdfPageThumbnail] Bỏ qua lỗi không chặn luồng:', _);
+  }
 
   return dataUrl;
 }

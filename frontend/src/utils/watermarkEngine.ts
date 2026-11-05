@@ -543,7 +543,9 @@ export async function applyMetroWatermark(
     ctx.clearRect(0, 0, width, height);
     canvas.width = 0;
     canvas.height = 0;
-  } catch (_e) {}
+  } catch (_e) {
+    console.warn('[watermarkEngine:applyMetroWatermark] Bỏ qua lỗi không chặn luồng:', _e);
+  }
 
   return {
     dataUrl,

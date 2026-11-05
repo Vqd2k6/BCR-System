@@ -62,6 +62,7 @@ export const RevertToDraftModal: React.FC<RevertToDraftModalProps> = ({
         setErrorMsg(res.data?.message || 'Không thể chuyển trạng thái hồ sơ.');
       }
     } catch (err: unknown) {
+      console.error('[RevertToDraftModal:handleSubmit] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       setErrorMsg(getErrorMessage(err, 'Lỗi kết nối khi hoàn trả hồ sơ.'));
     } finally {
       setIsSubmitting(false);

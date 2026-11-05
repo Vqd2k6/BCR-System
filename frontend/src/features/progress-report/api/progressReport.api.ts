@@ -96,6 +96,7 @@ export const progressReportApi = {
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       return filename;
     } catch (err: unknown) {
+      console.error('[progressReport.api:downloadExcel] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       return rethrowBlobError(err);
     }
   },

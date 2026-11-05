@@ -40,7 +40,8 @@ export function applyLeafletDefensiveFix(): void {
         try {
           const pos = typeof origGetMapPanePos === 'function' ? origGetMapPanePos.call(this) : null;
           return pos || new L.Point(0, 0);
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[leafletFix:applyLeafletDefensiveFix.callback] Bỏ qua lỗi không chặn luồng:', caughtError);
           return new L.Point(0, 0);
         }
       };
@@ -57,7 +58,7 @@ export function applyLeafletDefensiveFix(): void {
             origOnZoomTransitionEnd.call(this);
           } catch (err) {
             this._animatingZoom = false;
-            console.debug('[LeafletFix] Caught zoom animation race condition safely:', err);
+            console.warn('[LeafletFix] Caught zoom animation race condition safely:', err);
           }
         };
       }
@@ -69,7 +70,8 @@ export function applyLeafletDefensiveFix(): void {
           if (!this || !this._mapPane) return;
           try {
             origCatchMarkerAnim.call(this, e);
-          } catch {
+          } catch (caughtError: unknown) {
+            console.warn('[leafletFix:applyLeafletDefensiveFix.callback] Bỏ qua lỗi không chặn luồng:', caughtError);
             // Safe ignore marker animation race
           }
         };
@@ -87,7 +89,8 @@ export function applyLeafletDefensiveFix(): void {
         }
         try {
           origPreventDefault.call(this, e);
-        } catch {
+        } catch (caughtError: unknown) {
+          console.warn('[leafletFix:applyLeafletDefensiveFix.callback] Bỏ qua lỗi không chặn luồng:', caughtError);
           // Bỏ qua lỗi trình duyệt nếu event listener là passive
         }
         return this;

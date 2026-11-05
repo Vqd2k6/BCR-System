@@ -446,6 +446,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       alert('Đã hoàn nguyên về điểm gốc hiện trường thành công!');
       if (onRefresh) onRefresh();
     } catch (err: unknown) {
+      console.error('[AuditStep7EcsViScores:handleRevertToBaseline] Lỗi đã xử lý bằng nhánh dự phòng:', err);
       alert(getErrorMessage(err, 'Lỗi khi hoàn nguyên điểm số.'));
     } finally {
       setIsReverting(false);

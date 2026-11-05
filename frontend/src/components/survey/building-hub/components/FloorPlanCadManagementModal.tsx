@@ -126,7 +126,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         origin: { y: 0.15 },
         zIndex: 100005,
       });
-    } catch (_err) {}
+    } catch (_err) {
+      console.warn('[FloorPlanCadManagementModal:FloorPlanCadManagementModal.useCallback] Bỏ qua lỗi không chặn luồng:', _err);
+    }
   }, []);
 
   // Tầng đang được chọn thao tác

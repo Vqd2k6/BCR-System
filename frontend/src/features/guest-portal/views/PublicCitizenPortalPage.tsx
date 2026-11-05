@@ -68,6 +68,7 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
         setFoundParcels([]);
       }
     } catch (_err) {
+      console.error('[PublicCitizenPortalPage:handleSearch] Lỗi đã xử lý bằng nhánh dự phòng:', _err);
       // Fallback demo result if offline
       const demoParcel: GisParcel = {
         id: 'b-00102',

@@ -182,7 +182,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
                     ? (() => {
                         try {
                           return JSON.parse(rawAsBuilt) as EvidencePhotoItem[];
-                        } catch {
+                        } catch (caughtError: unknown) {
+                          console.warn('[SurveyCondoMasterPage:SurveyCondoMasterPage.callback] Bỏ qua lỗi không chặn luồng:', caughtError);
                           return [];
                         }
                       })()
