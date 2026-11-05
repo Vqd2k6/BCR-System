@@ -5,7 +5,7 @@ import type { ProgressRenderer, RenderedFile, RenderSheet } from './renderer.typ
 
 /**
  * EXCEL RENDERER – vẽ ResolvedTable thành .xlsx bám sát file mẫu:
- * tiêu đề gộp A1:AB3, chú giải Row 5–6, header 2 tầng Row 8–9 (nền #95DCF7),
+ * tiêu đề gộp A1:AC3, chú giải Row 5–6, header 2 tầng Row 8–9 (nền #95DCF7),
  * dữ liệu từ Row 11 (xen dòng Phần I/II và dòng tòa mẹ), bảng tổng hợp cuối sheet với công thức % chống chia 0.
  * Mỗi RenderSheet là 1 sheet độc lập; xuất toàn tuyến có nhiều sheet.
  */

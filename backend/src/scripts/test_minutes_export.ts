@@ -176,14 +176,19 @@ const main = async () => {
 
     const unzipDir = fs.mkdtempSync(path.join(os.tmpdir(), 'minutes-zip-'));
     execFileSync('unzip', ['-q', zipPath, '-d', unzipDir]);
-    const csv = fs.readFileSync(path.join(unzipDir, `Danh_muc_bien_ban_${status.zoneId}.csv`), 'utf8');
+    const rootDir = path.join(unzipDir, `Phieu khao sat-survey record ${status.zoneId}`);
+    const topLevel = fs.readdirSync(unzipDir);
+    check('ZIP chỉ có 1 thư mục gốc', topLevel.length === 1 && fs.statSync(rootDir).isDirectory(), topLevel.join(', '));
+    const nested = fs.readdirSync(rootDir).filter((name) => fs.statSync(path.join(rootDir, name)).isDirectory());
+    check('Không có thư mục con trong thư mục gốc', nested.length === 0, nested.join(', '));
+    const csv = fs.readFileSync(path.join(rootDir, `Danh_muc_bien_ban_${status.zoneId}.csv`), 'utf8');
     check('CSV có BOM UTF-8', csv.charCodeAt(0) === 0xfeff);
     const rows = csv.trim().split('\r\n').slice(1).map((line) => line.slice(1, -1).split('","'));
     check('Danh mục đủ mọi thửa/căn', rows.length === items.length, `${rows.length}/${items.length}`);
     const withFile = rows.filter((cells) => cells[6]);
     let mismatched = 0;
     for (const cells of withFile) {
-      const hash = createHash('sha256').update(fs.readFileSync(path.join(unzipDir, cells[6]))).digest('hex');
+      const hash = createHash('sha256').update(fs.readFileSync(path.join(rootDir, cells[6]))).digest('hex');
       if (hash !== cells[5]) mismatched++;
     }
     check('SHA-256 từng PDF khớp danh mục', mismatched === 0, `${withFile.length} file`);

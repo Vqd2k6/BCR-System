@@ -273,6 +273,11 @@ export function readRiskSnapshot(row: RawProgressRow): RiskSnapshot {
 }
 
 export function isInaccessible(row: RawProgressRow): boolean {
+  // Căn hộ đã có hồ sơ: theo kết luận của condo-absence.resolver. Nghi vắng (SUSPECTED) cũng coi là không tiếp cận,
+  // để không in điểm "an toàn" cho căn có thể chưa từng vào được.
+  if (row.kind === 'CONDO_UNIT' && row.condoAbsenceState) {
+    return row.condoAbsenceState === 'ABSENT' || row.condoAbsenceState === 'SUSPECTED';
+  }
   const caseType = firstText(getPath(row.reportJson, 'surveyCaseType')).toUpperCase();
   const absentFlag =
     getPath(row.reportJson, 'isAbsenteeSurvey') === true || getPath(row.reportJson, 'isAbsentee') === true;

@@ -1,5 +1,6 @@
 import type { RawProgressRow } from '../progress-report.types';
 import { firstText, getPath } from './json-reader';
+import { hasIdentityOverride, isUnknownOwnerPhone, resolveIdentityValue } from '../../audit/condo/condo-absence.resolver';
 
 /**
  * Cột J – Chủ sở hữu: lấy đúng tên KSV đã nhập, loại bỏ placeholder địa chính.
@@ -14,8 +15,24 @@ export function cleanOwnerName(v: string): string {
   return t;
 }
 
+/**
+ * Căn hộ đã có hồ sơ: JSON hồ sơ (sau diff của Admin) là nguồn sự thật cho định danh.
+ * - Có khóa trong lớp phủ `adminIdentityOverrides` (kể cả null = đã xóa) → chỉ dùng lớp phủ.
+ * - Có khóa trong JSON (kể cả rỗng) → không rơi về cột building_units, vì diff không đồng bộ cột đó.
+ * Trả `undefined` khi không thuộc trường hợp này để dùng thứ tự cũ.
+ */
+function resolveCondoIdentity(row: RawProgressRow, key: 'ownerName' | 'ownerPhone'): string | undefined {
+  const json = row.reportJson;
+  if (row.kind !== 'CONDO_UNIT' || !row.reportId || !json) return undefined;
+  if (hasIdentityOverride(json, key)) return firstText(resolveIdentityValue(json, key));
+  if (key in json) return firstText(json[key]);
+  return undefined;
+}
+
 export function resolveOwnerName(row: RawProgressRow): string {
   const json = row.reportJson;
+  const condoValue = resolveCondoIdentity(row, 'ownerName');
+  if (condoValue !== undefined) return cleanOwnerName(condoValue);
   const candidates = [
     firstText(getPath(json, 'ownerName')),
     firstText(getPath(json, 'signatures.ownerRepresentative.fullName')),
@@ -29,8 +46,11 @@ export function resolveOwnerName(row: RawProgressRow): string {
 }
 
 export function resolveOwnerPhone(row: RawProgressRow): string {
-  return firstText(
-    getPath(row.reportJson, 'ownerPhone'),
-    row.kind === 'CONDO_UNIT' ? row.unitOwnerPhone : row.parcelOwnerPhone
-  );
+  const condoValue = resolveCondoIdentity(row, 'ownerPhone');
+  const phone =
+    condoValue !== undefined
+      ? condoValue
+      : firstText(getPath(row.reportJson, 'ownerPhone'), row.kind === 'CONDO_UNIT' ? row.unitOwnerPhone : row.parcelOwnerPhone);
+  // SĐT KSV điền cho đủ form (1111, 0987654321...) không phải dữ liệu thật
+  return isUnknownOwnerPhone(phone) ? '' : phone;
 }

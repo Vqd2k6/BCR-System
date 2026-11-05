@@ -5,6 +5,8 @@
  * Module độc lập: KHÔNG import từ survey/ hay report/.
  * ============================================================================
  */
+// Ngoại lệ có chủ đích: kết luận vắng của căn hộ phải lấy từ resolver chung, không tự suy lại.
+import type { CondoAbsenceState } from '../audit/condo/condo-absence.resolver';
 
 export type TimeMode = 'TODAY' | 'DATE_RANGE' | 'ALL_TIME';
 
@@ -99,6 +101,8 @@ export interface RawProgressRow {
   absenceLastAt: Date | null;
   absenceReason: string | null;
   absenceNotes: string | null;
+  /** Kết luận vắng của căn hộ từ condo-absence.resolver (nguồn duy nhất); null với nhà dân hoặc căn chưa có hồ sơ. */
+  condoAbsenceState: CondoAbsenceState | null;
   computedSide: AlignmentSide | null;
   gisDistanceCenterlineM?: number | null;
   gisDistanceEdgeM?: number | null;
@@ -107,6 +111,8 @@ export interface RawProgressRow {
 /** Bản ghi đã chuẩn hóa nghiệp vụ – đầu vào duy nhất cho Column Registry. */
 export interface ProgressRecord {
   kind: RecordKind;
+  /** Mã đối soát: nhà dân = project_parcel_code; căn hộ = "<mã tòa> / <unit_code>" (mã U, không dùng display_code). null nếu căn thiếu unit_code. */
+  code: string | null;
   parcelId: string;
   unitId: string | null;
   zoneId: string;

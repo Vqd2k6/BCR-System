@@ -108,6 +108,7 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
     absenceLastAt: null,
     absenceReason: null,
     absenceNotes: null,
+    condoAbsenceState: null,
     computedSide: "RIGHT",
     gisDistanceCenterlineM: null,
     gisDistanceEdgeM: null,
@@ -573,13 +574,99 @@ const tests: Array<[string, () => void]> = [
     },
   ],
   [
-    "Template 28 cột A → AB, không còn Khu Phố",
+    "Template 29 cột A → AC, cột B là mã, không còn Khu Phố",
     () => {
       const keys = DAILY_PROGRESS_STATION_TEMPLATE.columns.map((c) => c.key);
-      assert.equal(keys.length, 28);
+      assert.equal(keys.length, 29);
       assert.equal(keys.includes("quarter"), false);
-      assert.equal(keys[7], "buildingName");
-      assert.equal(keys[27], "notes");
+      assert.equal(keys[1], "code");
+      assert.equal(keys[8], "buildingName");
+      assert.equal(keys[28], "notes");
+    },
+  ],
+  [
+    "Cột mã: nhà dân = mã thửa; căn hộ = mã tòa / mã U, không lấy display_code; thiếu mã U thì null",
+    () => {
+      assert.equal(normalizeRecord(raw(), CFG).code, "B-00001");
+      const unit = normalizeRecord(
+        raw({ kind: "CONDO_UNIT", unitId: "u1", unitCode: "U-001", unitDisplayCode: "E3 lầu 4" }),
+        CFG,
+      );
+      assert.equal(unit.code, "B-00001 / U-001");
+      assert.equal(unit.houseNumber.includes("E3 lầu 4"), true);
+      const missing = normalizeRecord(raw({ kind: "CONDO_UNIT", unitId: "u2", unitCode: null }), CFG);
+      assert.equal(missing.code, null);
+    },
+  ],
+  [
+    "Định danh căn hộ: lớp phủ Admin, JSON sau diff là nguồn sự thật, lọc SĐT rác",
+    () => {
+      const unit = (reportJson: Record<string, unknown>) =>
+        normalizeRecord(
+          raw({ kind: "CONDO_UNIT", unitId: "u1", unitCode: "U-001", unitOwnerName: "Tên cũ cột", unitOwnerPhone: "0909000111", reportJson }),
+          CFG,
+        );
+      const cleared = unit({ ownerName: "ueue", ownerPhone: "0987654321", adminIdentityOverrides: { ownerName: null, ownerPhone: null } });
+      assert.equal(cleared.ownerName, "");
+      assert.equal(cleared.ownerPhone, "");
+      const renamed = unit({ ownerName: "Không rõ", adminIdentityOverrides: { ownerName: "Nguyễn Văn A" } });
+      assert.equal(renamed.ownerName, "Nguyễn Văn A");
+      const diffCleared = unit({ ownerName: "", ownerPhone: "" });
+      assert.equal(diffCleared.ownerName, "");
+      assert.equal(diffCleared.ownerPhone, "");
+      assert.equal(unit({ ownerPhone: "1111" }).ownerPhone, "");
+      const reopened = unit({ ownerName: "Trần Thị B", archivedAdminIdentityOverrides: { ownerName: null } });
+      assert.equal(reopened.ownerName, "Trần Thị B");
+      assert.equal(unit({}).ownerName, "Tên cũ cột");
+    },
+  ],
+  [
+    "Ngày hoàn thành = lúc nộp, không trôi theo updated_at khi Admin thẩm định/diff",
+    () => {
+      const submitted = new Date("2026-10-14T09:00:00Z");
+      const audited = new Date("2026-11-02T04:30:00Z");
+      for (const kind of ["BUILDING", "CONDO_UNIT"] as const) {
+        const rec = normalizeRecord(
+          raw({ kind, unitId: kind === "CONDO_UNIT" ? "u1" : null, unitCode: "U-001", reportStatus: "UNDER_REVIEW", reportSubmittedAt: submitted, reportUpdatedAt: audited }),
+          CFG,
+        );
+        assert.equal(rec.endDate?.toISOString(), submitted.toISOString(), kind);
+        assert.equal(rec.activityDates.some((d) => d.getTime() === audited.getTime()), false, kind);
+      }
+      const absentNoLog = normalizeRecord(
+        raw({ kind: "CONDO_UNIT", unitId: "u2", unitCode: "U-002", condoAbsenceState: "ABSENT", reportSubmittedAt: submitted, reportUpdatedAt: audited }),
+        CFG,
+      );
+      assert.equal(absentNoLog.endDate?.toISOString(), submitted.toISOString());
+      const noSubmit = normalizeRecord(raw({ reportSubmittedAt: null, reportSurveyDate: null, reportUpdatedAt: audited }), CFG);
+      assert.equal(noSubmit.endDate, null);
+      const today = resolveTimeWindow({ zoneId: "ZONE_09", timeMode: "TODAY", templateId: "x" }, audited);
+      const oldReport = normalizeRecord(raw({ reportCreatedAt: submitted, reportSubmittedAt: submitted, reportUpdatedAt: audited }), CFG);
+      assert.equal(isInWindow(oldReport.activityDates, today), false);
+    },
+  ],
+  [
+    "Vắng căn hộ theo condo-absence.resolver: ABSENT/SUSPECTED không tiếp cận, ACCESS_HISTORY/NORMAL giữ điểm",
+    () => {
+      const unit = (state: "ABSENT" | "SUSPECTED" | "ACCESS_HISTORY" | "NORMAL") =>
+        normalizeRecord(
+          raw({
+            kind: "CONDO_UNIT",
+            unitId: "u1",
+            unitCode: "U-001",
+            condoAbsenceState: state,
+            reportJson: { ecs: { ecsClass: "GOOD" }, residentStatus: "VẮNG_MẶT_KHÓA_CỬA" },
+          }),
+          CFG,
+        );
+      for (const state of ["ABSENT", "SUSPECTED"] as const) {
+        const rec = unit(state);
+        assert.equal(rec.ecsCondition, "INACCESSIBLE", state);
+        assert.equal(rec.braGrade, null, state);
+      }
+      for (const state of ["ACCESS_HISTORY", "NORMAL"] as const) {
+        assert.notEqual(unit(state).ecsCondition, "INACCESSIBLE", state);
+      }
     },
   ],
   [

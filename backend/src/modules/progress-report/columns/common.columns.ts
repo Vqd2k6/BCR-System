@@ -25,6 +25,7 @@ function braStyle(code: BraRiskCode | null, config: ProgressReportConfig): CellS
 
 export const COL = {
   stt: { key: 'stt', header: 'STT', width: 6, align: 'center', resolve: (_r, ctx) => ctx.rowIndex + 1 },
+  code: { key: 'code', header: 'Mã công trình / Căn', width: 22, align: 'center', resolve: (r) => r.code ?? '---' },
   startDate: { key: 'startDate', header: 'Ngày bắt đầu KS', width: 13, numFmt: DATE_FMT, align: 'center', resolve: (r) => toVnCalendarDate(r.startDate) },
   endDate: { key: 'endDate', header: 'Ngày hoàn thành KS', width: 13, numFmt: DATE_FMT, align: 'center', resolve: (r) => toVnCalendarDate(r.endDate) },
   area: { key: 'area', header: 'Khu vực KS', width: 18, resolve: (r) => r.areaLabel },

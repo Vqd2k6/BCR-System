@@ -126,10 +126,10 @@ function buildMasterLabel(row: RawProgressRow, buildingName: string, street: str
   ].join(' | ');
 }
 
+// Không gồm reportUpdatedAt: updated_at bị đẩy lên mỗi lần Admin thẩm định/diff, không phải hoạt động khảo sát.
 function collectActivityDates(row: RawProgressRow): Date[] {
   return [
     row.reportCreatedAt,
-    row.reportUpdatedAt,
     row.reportSubmittedAt,
     row.reportSurveyDate,
     row.absenceFirstAt,
@@ -211,10 +211,12 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   const isSurveyedReport =
     Boolean(row.reportId) && !inaccessible && row.reportStatus !== null && row.reportStatus !== 'DRAFT';
 
-  const startDate = minDate(row.reportCreatedAt, row.reportSurveyDate, row.absenceFirstAt);
+  const startDate = minDate(row.reportSurveyDate, row.reportCreatedAt, row.absenceFirstAt);
   let endDate: Date | null = null;
-  if (inaccessible) endDate = row.absenceLastAt ?? row.reportUpdatedAt;
-  else if (isSurveyedReport) endDate = row.reportSubmittedAt ?? row.reportSurveyDate ?? row.reportUpdatedAt;
+  // Mốc hoàn thành = lúc KSV nộp (nộp lại thì lần gần nhất); không dùng updated_at vì bị đẩy lên khi Admin thẩm định/diff,
+  // không dùng created_at vì đó là ngày tạo hồ sơ, không phải ngày hoàn thành.
+  if (inaccessible) endDate = row.absenceLastAt ?? row.reportSubmittedAt ?? row.reportSurveyDate ?? null;
+  else if (isSurveyedReport) endDate = row.reportSubmittedAt ?? row.reportSurveyDate ?? null;
 
   // Dài / Rộng / Cao: ưu tiên hồ sơ đã nộp/duyệt (submitted/active report) → dữ liệu thửa/spec → không có thì để trống
   const lengthM = isUnit
@@ -262,8 +264,16 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
           isUnit ? getPath(row.masterJson, 'clearanceOffsetDistance') : null
         );
 
+  // Mã đối soát dùng mã U (building_units.unit_code), không lấy display_code; căn thiếu mã để null, không mượn mã tòa.
+  const systemUnitCode = row.unitCode ? row.unitCode.trim() : '';
+  if (isUnit && !systemUnitCode) {
+    console.warn('[ProgressReport:MissingUnitCode]', { unitId: row.unitId, parcelId: row.parcelId });
+  }
+  const code = isUnit ? (systemUnitCode ? `${row.projectParcelCode} / ${systemUnitCode}` : null) : row.projectParcelCode;
+
   return {
     kind: row.kind,
+    code,
     parcelId: row.parcelId,
     unitId: row.unitId,
     zoneId: row.zoneId,

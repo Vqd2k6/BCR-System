@@ -241,6 +241,7 @@ export class ZoneMinutesBatchService {
 
     const manifest: ManifestRow[] = [];
     const usedNames = new Set<string>();
+    const rootFolder = `Phieu khao sat-survey record ${safeFilePart(job.zone_id)}`;
     let okCount = 0;
     let failedCount = 0;
 
@@ -262,20 +263,20 @@ export class ZoneMinutesBatchService {
         try {
           const resolved = await ReportService.resolve(item.reportId);
           const { pdfBuffer, fileName } = await MinutesExportService.renderMinutesPdf(resolved);
-          const folder = safeFilePart(item.parcelCode);
-          let entryName = `${folder}/${fileName}`;
-          for (let suffix = 2; usedNames.has(entryName); suffix++) {
-            entryName = `${folder}/${fileName.replace(/\.pdf$/, `_${suffix}.pdf`)}`;
+          // Mọi PDF nằm đồng cấp trong rootFolder; tên file đã chứa mã thửa + mã U nên không cần thư mục con.
+          let flatName = fileName;
+          for (let suffix = 2; usedNames.has(flatName); suffix++) {
+            flatName = fileName.replace(/\.pdf$/, `_${suffix}.pdf`);
           }
-          usedNames.add(entryName);
+          usedNames.add(flatName);
 
           const entryWritten = once(archive, 'entry');
-          archive.append(pdfBuffer, { name: entryName });
+          archive.append(pdfBuffer, { name: `${rootFolder}/${flatName}` });
           await entryWritten;
 
           manifest.push({
             item,
-            fileName: entryName,
+            fileName: flatName,
             sha256: createHash('sha256').update(pdfBuffer).digest('hex'),
             note: item.note,
           });
@@ -302,7 +303,7 @@ export class ZoneMinutesBatchService {
         throw new Error(`Không xuất được file nào trong ${total} biên bản`);
       }
 
-      archive.append(buildManifestCsv(manifest), { name: `Danh_muc_bien_ban_${job.zone_id}.csv` });
+      archive.append(buildManifestCsv(manifest), { name: `${rootFolder}/Danh_muc_bien_ban_${safeFilePart(job.zone_id)}.csv` });
       await archive.finalize();
       await archiveDone;
     } catch (err) {

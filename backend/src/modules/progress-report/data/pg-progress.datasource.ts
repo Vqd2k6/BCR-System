@@ -1,4 +1,5 @@
 import { Database } from '../../../database/db';
+import { fetchCondoUnitAbsenceMap } from '../../audit/condo/condo-absence.resolver';
 import type { ProgressFilter, RawProgressRow, RecordKind } from '../progress-report.types';
 import { computeAlignmentSide, computeGisDistances, parseGeoJsonOuterRingLngLat } from '../geo/alignment-geometry';
 import { toNumber } from '../rules/json-reader';
@@ -313,6 +314,7 @@ function mapRow(r: DbRow, kind: RecordKind): RawProgressRow {
     absenceLastAt: date(r.absence_last_at),
     absenceReason: str(r.absence_reason),
     absenceNotes: str(r.absence_notes),
+    condoAbsenceState: null,
     computedSide: computeAlignmentSide(pt).side,
     gisDistanceCenterlineM: gisDistances.distanceCenterlineM,
     gisDistanceEdgeM: gisDistances.distanceEdgeM,
@@ -326,10 +328,14 @@ export class PgProgressDataSource implements ProgressDataSource {
       Database.query<DbRow>(BUILDINGS_SQL, [zoneParam]),
       Database.query<DbRow>(UNITS_SQL, [zoneParam]),
     ]);
-    const rows = [
-      ...buildings.rows.map((r) => mapRow(r, 'BUILDING')),
-      ...units.rows.map((r) => mapRow(r, 'CONDO_UNIT')),
-    ];
+    const unitRows = units.rows.map((r) => mapRow(r, 'CONDO_UNIT'));
+    // Kết luận vắng của căn hộ dùng chung resolver với màn thẩm định (1 truy vấn cho cả lô).
+    const unitReportIds = unitRows.map((r) => r.reportId).filter((id): id is string => Boolean(id));
+    const absenceMap = await fetchCondoUnitAbsenceMap(unitReportIds);
+    for (const row of unitRows) {
+      if (row.reportId) row.condoAbsenceState = absenceMap.get(row.reportId)?.state ?? null;
+    }
+    const rows = [...buildings.rows.map((r) => mapRow(r, 'BUILDING')), ...unitRows];
     // Giữ nhóm theo zone → mã thửa, căn hộ con nằm liền nhau theo tòa mẹ
     return rows.sort((a, b) =>
       a.zoneId.localeCompare(b.zoneId) ||
