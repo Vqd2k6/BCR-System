@@ -122,7 +122,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
               <button
                 type="button"
                 onClick={() => onSearchChange('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
               >
                 <X size={14} />
               </button>

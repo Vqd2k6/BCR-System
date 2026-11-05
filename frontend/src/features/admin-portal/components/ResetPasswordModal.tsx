@@ -66,7 +66,7 @@ export const ResetPasswordModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 cursor-pointer"
           >
             <X size={18} />
           </button>

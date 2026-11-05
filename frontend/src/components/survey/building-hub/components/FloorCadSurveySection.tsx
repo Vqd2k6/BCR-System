@@ -380,7 +380,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenCadManagement(floor.floorNumber)}
-                  className="mt-2 text-teal-700 font-bold hover:underline"
+                  className="mt-2 text-teal-700 font-bold hover:underline cursor-pointer"
                 >
                   Mở CAD Studio để thêm căn hộ
                 </button>

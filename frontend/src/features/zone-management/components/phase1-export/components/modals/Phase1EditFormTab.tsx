@@ -63,7 +63,7 @@ export const Phase1EditFormTab: React.FC<Phase1EditFormTabProps> = ({
               type="button"
               onClick={handleApplyPreviewWithoutSaving}
               disabled={isSavingEdits}
-              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
               title="Áp dụng dữ liệu tùy biến vào bản xem trước mà không ghi vào Database"
             >
               {isSavingEdits ? <RefreshCw size={13} className="animate-spin" /> : <Eye size={13} />}

@@ -191,7 +191,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
 
         {/* Map Layer Switcher Button */}
         <div style={{ position: 'relative' }}>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={() => setShowLayerMenu((prev) => !prev)}
             title="Lớp bản đồ & Tùy chọn GIS Metro 2"
@@ -235,7 +235,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'rgb(var(--text-slate-500))', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
                 Nền bản đồ
               </div>
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => {
                   setMapMode('standard');
@@ -260,7 +260,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 <span>Đường phố</span>
               </button>
 
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => {
                   setMapMode('satellite');
@@ -285,7 +285,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 <span>Ảnh Vệ tinh</span>
               </button>
 
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => {
                   setMapMode('osm');
@@ -416,7 +416,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
         </div>
 
         {/* Search Parcel Button */}
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => setIsSearchOpen((prev) => !prev)}
           title="Tìm kiếm thửa đất theo số nhà, mã, chủ hộ"
@@ -439,7 +439,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
         </button>
 
         {/* 3-Bar Menu Icon Button */}
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => setShowFilterModal(true)}
           title="Bộ lọc hiển thị Phase & Chú thích màu sắc"
@@ -523,7 +523,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               }}
             />
             {searchQuery ? (
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => setSearchQuery('')}
                 style={{
@@ -539,7 +539,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 <X size={16} />
               </button>
             ) : null}
-            <button
+            <button className="cursor-pointer"
               type="button"
               onClick={() => setIsSearchOpen(false)}
               style={{
@@ -576,7 +576,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 </div>
               ) : (
                 searchSuggestions.map((parcel) => (
-                  <div
+                  <div className="cursor-pointer"
                     key={parcel.id}
                     onClick={() => handleSelectSearchResult(parcel)}
                     style={{

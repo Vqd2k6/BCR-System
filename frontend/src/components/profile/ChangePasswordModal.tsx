@@ -101,11 +101,11 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
   return (
     <div
-      className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs"
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs cursor-pointer"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

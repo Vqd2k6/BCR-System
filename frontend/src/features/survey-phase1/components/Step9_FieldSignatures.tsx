@@ -90,7 +90,7 @@ const MinutesPhotoCardItem: React.FC<{
               e.stopPropagation();
               onRemove(idx);
             }}
-            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
             title="Xóa trang này"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -131,7 +131,7 @@ const MinutesPhotoCardItem: React.FC<{
         </div>
 
         {/* Storage Status Badge */}
-        <div className="absolute bottom-2 right-2 z-10 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute bottom-2 right-2 z-10 pointer-events-auto cursor-default" onClick={(e) => e.stopPropagation()}>
           {isUploading && (
             <span className="bg-amber-500/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md animate-pulse">
               <RefreshCw className="w-2.5 h-2.5 animate-spin" />
@@ -150,7 +150,7 @@ const MinutesPhotoCardItem: React.FC<{
             <button
               type="button"
               onClick={() => onRetry(photoUrl)}
-              className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors"
+              className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors cursor-pointer"
               title={`Bấm để thử lại tải lên ${storageInfo.providerLabel}`}
             >
               <AlertCircle className="w-2.5 h-2.5" />
@@ -167,7 +167,7 @@ const MinutesPhotoCardItem: React.FC<{
               e.stopPropagation();
               onOpenLightbox(currentSrc || photoUrl);
             }}
-            className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+            className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95 cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5 text-blue-600" />
             Xem lớn
@@ -179,7 +179,7 @@ const MinutesPhotoCardItem: React.FC<{
                 e.stopPropagation();
                 onAnnotate(idx);
               }}
-              className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+              className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95 cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
               Chú thích

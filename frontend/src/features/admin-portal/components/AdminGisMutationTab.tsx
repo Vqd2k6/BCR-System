@@ -166,7 +166,7 @@ export const AdminGisMutationTab: React.FC = () => {
           </div>
           <button
             onClick={() => setBannerMsg(null)}
-            className="text-xs text-slate-400 hover:text-slate-600 font-bold px-2 py-1"
+            className="text-xs text-slate-400 hover:text-slate-600 font-bold px-2 py-1 cursor-pointer"
           >
             Đóng
           </button>

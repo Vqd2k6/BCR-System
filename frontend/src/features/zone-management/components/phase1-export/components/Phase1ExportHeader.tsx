@@ -77,7 +77,7 @@ export const Phase1ExportHeader: React.FC<Phase1ExportHeaderProps> = ({
           </div>
           <button
             onClick={onDismissActionMessage}
-            className="text-slate-400 hover:text-white ml-2"
+            className="text-slate-400 hover:text-white ml-2 cursor-pointer"
           >
             <X size={14} />
           </button>

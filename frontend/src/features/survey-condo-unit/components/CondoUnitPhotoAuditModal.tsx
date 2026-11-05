@@ -137,7 +137,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 animate-in fade-in"
+      className="fixed inset-0 z-[120000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 animate-in fade-in cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

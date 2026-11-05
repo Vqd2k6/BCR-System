@@ -206,7 +206,7 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -370,7 +370,7 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
           <span>Hệ thống Kiểm toán Biến động Địa chính Metro 2 (Append-Only Audit Log)</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
           >
             Đóng
           </button>

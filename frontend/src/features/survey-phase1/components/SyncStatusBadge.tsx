@@ -130,7 +130,7 @@ export const SyncStatusBadge: React.FC<SyncStatusBadgeProps> = ({
                     type="button"
                     onClick={() => setShowHandoverConfirm(false)}
                     disabled={isReleasing}
-                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     Hủy bỏ
                   </button>
@@ -138,7 +138,7 @@ export const SyncStatusBadge: React.FC<SyncStatusBadgeProps> = ({
                     type="button"
                     onClick={handleConfirmRelease}
                     disabled={isReleasing}
-                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {isReleasing && <RefreshCw className="w-3 h-3 animate-spin" />}
                     <span>Xác nhận mở khóa</span>

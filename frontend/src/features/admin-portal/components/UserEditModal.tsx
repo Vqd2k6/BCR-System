@@ -224,7 +224,7 @@ export const UserEditModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -394,7 +394,7 @@ export const UserEditModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setSignatureImageUrl(null)}
-                  className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                   title="Xóa chữ ký"
                 >
                   <Trash2 size={16} />

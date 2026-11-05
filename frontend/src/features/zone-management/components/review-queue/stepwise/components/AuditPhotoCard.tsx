@@ -239,7 +239,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
       <div
         id={finalDeletedDomId}
         onClick={(e) => e.stopPropagation()}
-        className={`rounded-xl border border-dashed border-rose-300 bg-rose-50/80 px-3 py-2.5 flex items-center justify-between gap-2 shadow-2xs select-none ${className}`}
+        className={`rounded-xl border border-dashed border-rose-300 bg-rose-50/80 px-3 py-2.5 flex items-center justify-between gap-2 shadow-2xs select-none ${className} cursor-default`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {photoCode && (
@@ -410,7 +410,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
         {/* Cụm Icon Thao Tác Tinh Gọn (Glassmorphic Toolbar) góc trên bên phải */}
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/85 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all z-10"
+          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/85 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all z-10 cursor-default"
         >
           {onRotate && isEditMode && (
             <>

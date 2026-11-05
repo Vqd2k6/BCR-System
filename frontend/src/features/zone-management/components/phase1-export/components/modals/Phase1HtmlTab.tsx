@@ -82,7 +82,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium cursor-pointer"
               title="Thu gọn điều khiển để xem toàn màn hình A4"
             >
               <PanelLeftClose size={16} />
@@ -98,7 +98,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
             <button
               type="button"
               onClick={handleExportPdf}
-              className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
               title="Xuất file PDF chuẩn Song Ngữ 0410 Liên danh CRLG-CRSRI-TT"
             >
               <Download size={15} />
@@ -122,7 +122,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                 onClick={handleOpenPreviewInNewTab}
                 className={`py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border border-slate-200 ${
                   !handleDirectPrint ? 'col-span-2' : ''
-                }`}
+                } cursor-pointer`}
                 title="Mở toàn màn hình trong tab mới (Để in A4 chuẩn nhất, khuyến nghị dùng nút 'In / Tải PDF' kế bên)"
               >
                 <ExternalLink size={13} />
@@ -191,7 +191,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                   previewZoom === 'fit'
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
+                } cursor-pointer`}
                 title="Tự động co giãn vừa chiều rộng khung"
               >
                 Vừa Khung
@@ -203,7 +203,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                   previewZoom === '100'
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
+                } cursor-pointer`}
                 title="Tỷ lệ 100% chuẩn khổ giấy A4 thực tế"
               >
                 100% (A4)
@@ -215,7 +215,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                   previewZoom === '75'
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
+                } cursor-pointer`}
                 title="Thu nhỏ 75% - Xem tổng thể nhiều trang"
               >
                 75% (Tổng Thể)
@@ -227,7 +227,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                   previewZoom === '125'
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
+                } cursor-pointer`}
                 title="Phóng to 125% - Soi chi tiết vết nứt"
               >
                 125% (Phóng To)
@@ -280,7 +280,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="absolute top-4 left-4 z-30 px-3.5 py-2 bg-white/95 hover:bg-white text-slate-800 hover:text-sky-600 rounded-xl text-xs font-bold shadow-xl border border-slate-300/80 backdrop-blur-md flex items-center gap-2 transition-all hover:scale-105 active:scale-95 group animate-in fade-in slide-in-from-left-3 duration-200"
+            className="absolute top-4 left-4 z-30 px-3.5 py-2 bg-white/95 hover:bg-white text-slate-800 hover:text-sky-600 rounded-xl text-xs font-bold shadow-xl border border-slate-300/80 backdrop-blur-md flex items-center gap-2 transition-all hover:scale-105 active:scale-95 group animate-in fade-in slide-in-from-left-3 duration-200 cursor-pointer"
             title="Mở lại bảng điều khiển bên trái"
           >
             <PanelLeftOpen size={16} className="text-sky-600 group-hover:scale-110 transition-transform" />

@@ -314,7 +314,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           <span>
             Đang lọc: <strong>{displayedParcels.length}/{parcels.length}</strong> thửa
           </span>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={() => setAllFilters(true)}
             style={{

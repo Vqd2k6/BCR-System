@@ -60,7 +60,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="btn btn-primary"
+                className="btn btn-primary cursor-pointer"
                 style={{
                   padding: '0.55rem 1.35rem',
                   fontSize: '0.825rem',
@@ -79,7 +79,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
               </button>
 
               {filteredParcels.length > displayLimit + 10 && (
-                <button
+                <button className="cursor-pointer"
                   type="button"
                   onClick={onLoadAll}
                   style={{

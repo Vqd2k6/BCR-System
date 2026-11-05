@@ -90,7 +90,7 @@ class DevErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
               </pre>
             )}
           </div>
-          <button
+          <button className="cursor-pointer"
             onClick={() => {
               this.setState({ hasError: false, error: null });
               window.location.reload();

@@ -223,7 +223,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
                 previewZoom === 'fit'
                   ? 'bg-white text-sky-700 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
               title="Tự động co giãn vừa khung nhìn"
             >
               Vừa Khung
@@ -235,7 +235,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
                 previewZoom === '100'
                   ? 'bg-white text-sky-700 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
               title="Tỷ lệ 100% chuẩn khổ A4"
             >
               100%
@@ -247,7 +247,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
                 previewZoom === '75'
                   ? 'bg-white text-sky-700 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
               title="Thu nhỏ 75%"
             >
               75%
@@ -259,7 +259,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
                 previewZoom === '125'
                   ? 'bg-white text-sky-700 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
               title="Phóng to 125%"
             >
               125%
@@ -353,7 +353,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
               <button
                 type="button"
                 onClick={fetchReportHtml}
-                className="py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                className="py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <RefreshCw size={13} />
                 <span>Thử lại</span>
@@ -361,7 +361,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
               <button
                 type="button"
                 onClick={onBack}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200"
+                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200 cursor-pointer"
               >
                 Quay lại
               </button>

@@ -87,7 +87,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   };
 
   return (
-    <div
+    <div className="cursor-pointer"
       onClick={onOpenLightbox}
       style={{
         position: 'relative',
@@ -142,7 +142,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       </div>
 
       {/* Top-Left: Photo ID chip + Cloudflare R2 Status & Nút thử lại */}
-      <div
+      <div className="cursor-default"
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute',
@@ -271,7 +271,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         )}
 
         {uploadStatus === 'ERROR' && !readOnly && (
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -314,7 +314,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
             zIndex: 20,
           }}
         >
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={(e) => {
             e.stopPropagation();
@@ -343,8 +343,8 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           <span>Chụp lại</span>
         </button>
 
-        <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-          <button
+        <div className="cursor-default" style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+          <button className="cursor-pointer"
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -395,7 +395,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
             >
               {/* Thử lại R2 trong menu */}
               {uploadStatus !== 'SUCCESS' && onRetryUpload && (
-                <button
+                <button className="cursor-pointer"
                   type="button"
                   onClick={() => {
                     setIsMoreMenuOpen(false);
@@ -423,7 +423,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
                 </button>
               )}
               {/* Xoay 90 độ */}
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => {
                   setIsMoreMenuOpen(false);
@@ -452,7 +452,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
 
               {/* Vẽ / Chú thích */}
               {allowAnnotation && (
-                <button
+                <button className="cursor-pointer"
                   type="button"
                   onClick={() => {
                     setIsMoreMenuOpen(false);
@@ -481,7 +481,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               )}
 
               {/* Chụp bằng máy ảnh máy (Native) */}
-              <label
+              <label className="cursor-pointer"
                 htmlFor={cameraInputId}
                 onClick={handleReplaceLabelClick}
                 style={{
@@ -506,7 +506,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               </label>
 
               {/* Chọn ảnh từ máy */}
-              <label
+              <label className="cursor-pointer"
                 htmlFor={galleryInputId}
                 onClick={handleReplaceLabelClick}
                 style={{
@@ -533,7 +533,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               <div style={{ borderTop: '1px solid rgba(51, 65, 85, 0.8)', margin: '0.2rem 0' }} />
 
               {/* Xóa ảnh */}
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => {
                   setIsMoreMenuOpen(false);
@@ -575,7 +575,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           zIndex: 10,
         }}
       >
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={(e) => {
             e.stopPropagation();

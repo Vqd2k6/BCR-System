@@ -80,7 +80,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
               activeTab === 'admin-export'
                 ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
+            } cursor-pointer`}
           >
             <FileSpreadsheet size={15} />
             <span>{isSuperAdmin ? 'Quản Trị & Xuất BC' : 'Dashboard Zone'}</span>
@@ -93,7 +93,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
               activeTab === 'map'
                 ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
+            } cursor-pointer`}
           >
             <Map size={15} />
             <span>Bản đồ số GIS</span>
@@ -130,7 +130,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-900 font-black text-xs flex items-center justify-center border-2 border-slate-700 shadow-sm">
               {user?.fullName?.charAt(0) || 'A'}
@@ -198,7 +198,7 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
                   setShowProfileMenu(false);
                   logout();
                 }}
-                className="w-full py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-red-200"
+                className="w-full py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-red-200 cursor-pointer"
               >
                 <LogOut size={14} />
                 <span>Đăng xuất tài khoản</span>

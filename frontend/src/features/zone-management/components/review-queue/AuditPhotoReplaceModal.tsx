@@ -347,7 +347,7 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
             Hủy bỏ
           </button>
@@ -355,7 +355,7 @@ export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || !isPinMatched || !newPhotoUrl || isUploading}
-            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-40"
+            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
           >
             <Lock className="w-3.5 h-3.5" />
             <span>{isSubmitting ? 'Đang lưu vết...' : 'Xác Nhận Thay Ảnh Này '}</span>

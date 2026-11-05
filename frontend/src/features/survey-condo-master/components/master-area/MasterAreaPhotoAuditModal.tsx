@@ -190,7 +190,7 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[125000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-[125000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 select-none animate-in fade-in duration-150 cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

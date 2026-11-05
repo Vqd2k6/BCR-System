@@ -158,7 +158,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           </span>
           {getStatusBadge(activeEffectiveStatus, activeParcel)}
           {activeParcel.buildingType === 'CONDOMINIUM' && (
-            <button
+            <button className="cursor-pointer"
               type="button"
               onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
               style={{
@@ -184,7 +184,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           ) : null}
         </div>
 
-        <button
+        <button className="cursor-pointer"
           onClick={onClose}
           style={{
             background: 'transparent',
@@ -276,7 +276,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', flex: 1.5 }}>
                 <button
                   type="button"
-                  className="btn btn-sm"
+                  className="btn btn-sm cursor-pointer"
                   onClick={() => onStartPhase2 ? onStartPhase2(activeParcel) : (onStartSurvey && onStartSurvey(activeParcel, true))}
                   style={{
                     flex: 1,
@@ -298,7 +298,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 </button>
                 <button
                   type="button"
-                  className="btn btn-sm"
+                  className="btn btn-sm cursor-pointer"
                   onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                   style={{
                     minWidth: '95px',
@@ -346,7 +346,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 </div>
                 <button
                   type="button"
-                  className="btn btn-sm"
+                  className="btn btn-sm cursor-pointer"
                   onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                   style={{
                     minWidth: '95px',
@@ -400,7 +400,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             return (
               <button
                 type="button"
-                className="btn btn-sm"
+                className="btn btn-sm cursor-pointer"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
                 style={{
                   flex: 1.5,
@@ -426,7 +426,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             return (
               <button
                 type="button"
-                className="btn btn-sm"
+                className="btn btn-sm cursor-pointer"
                 onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
                 style={{
                   flex: 1,
@@ -453,7 +453,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             return (
               <button
                 type="button"
-                className="btn btn-sm"
+                className="btn btn-sm cursor-pointer"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                 style={{
                   flex: 1.5,
@@ -478,7 +478,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             return (
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm cursor-pointer"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
                 style={{
                   flex: 1.5,
@@ -526,7 +526,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           return (
             <button
               type="button"
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary btn-sm cursor-pointer"
               onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
               style={{
                 flex: 1.5,
@@ -583,7 +583,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {onProposeSplit && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             onClick={() => onProposeSplit(activeParcel)}
             style={{
               fontSize: '0.775rem',
@@ -610,7 +610,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           activeParcel.buildingType !== 'CONDOMINIUM' && (
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-sm cursor-pointer disabled:cursor-not-allowed"
               disabled={!isEligibleForCondoConversion}
               onClick={handleOpenCondoConfirm}
               style={{
@@ -672,7 +672,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             onClick={() => setShowSwapModal(true)}
             style={{
               fontSize: '0.775rem',
@@ -698,7 +698,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             onClick={() => setShowReshapeModal(true)}
             style={{
               fontSize: '0.775rem',
@@ -724,7 +724,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {user?.role === 'SUPER_ADMIN' && (
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             onClick={() => setShowHistoryModal(true)}
             style={{
               fontSize: '0.775rem',
@@ -749,7 +749,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {/* Chỉ đường button linking to Google Maps */}
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm cursor-pointer"
           onClick={() => handleOpenGoogleMapsDirections(activeParcel)}
           style={{
             fontSize: '0.775rem',
@@ -819,7 +819,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       {/* Modal Quản lý CAD Mặt Bằng (Admin Only) */}
       {/* Modal Xác nhận Chuyển đổi sang Chung cư (Yêu cầu nhập mã 6 số ngẫu nhiên) */}
       {showCondoConfirmModal && (
-        <div
+        <div className="cursor-pointer"
           style={{
             position: 'fixed',
             inset: 0,
@@ -956,7 +956,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary btn-sm cursor-pointer disabled:cursor-not-allowed"
                 disabled={isConvertingCondo}
                 onClick={() => setShowCondoConfirmModal(false)}
                 style={{
@@ -971,7 +971,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               </button>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm cursor-pointer disabled:cursor-not-allowed"
                 disabled={isConvertingCondo || condoInputCode.trim() !== condoConfirmCode}
                 onClick={handleConvertToCondo}
                 style={{

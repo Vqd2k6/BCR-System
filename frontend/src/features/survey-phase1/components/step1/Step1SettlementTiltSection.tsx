@@ -63,7 +63,7 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
               <button
                 type="button"
                 onClick={() => handleRemove(idx)}
-                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
                 title="Xóa ảnh này"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -92,7 +92,7 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
       <button
         type="button"
         onClick={handleAdd}
-        className="w-full py-2 px-3 border border-dashed border-emerald-400 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+        className="w-full py-2 px-3 border border-dashed border-emerald-400 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
       >
         <Plus className="w-3.5 h-3.5 text-emerald-600" />
         <span>{addLabel}</span>

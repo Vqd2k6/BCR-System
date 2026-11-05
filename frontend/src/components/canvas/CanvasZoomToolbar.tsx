@@ -26,7 +26,7 @@ export const CanvasZoomToolbar: React.FC<CanvasZoomToolbarProps> = ({
 
   return (
     <div
-      className="absolute bottom-2.5 left-2.5 z-40 flex items-center gap-1.5 p-1 rounded-xl bg-slate-900/85 backdrop-blur-md border border-white/20 shadow-lg text-white select-none"
+      className="absolute bottom-2.5 left-2.5 z-40 flex items-center gap-1.5 p-1 rounded-xl bg-slate-900/85 backdrop-blur-md border border-white/20 shadow-lg text-white select-none cursor-default"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Nút Chuyển Mode Chấm Ghim / Kéo Pan (nếu có) */}

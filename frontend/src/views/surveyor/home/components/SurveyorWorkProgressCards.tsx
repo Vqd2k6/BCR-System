@@ -191,7 +191,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     {item.formattedTime}
                   </span>
 
-                  <button
+                  <button className="cursor-pointer"
                     type="button"
                     onClick={() => onStartPhase1(item.parcel)}
                     style={{
@@ -349,7 +349,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     {item.formattedTime}
                   </span>
 
-                  <button
+                  <button className="cursor-pointer"
                     type="button"
                     onClick={() => onStartPhase1(item.parcel)}
                     style={{
@@ -415,7 +415,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               gap: '2px',
             }}
           >
-            <button
+            <button className="cursor-pointer"
               type="button"
               onClick={() => setCompletedTab('TODAY')}
               style={{
@@ -433,7 +433,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               Hôm nay ({completedToday.length})
             </button>
 
-            <button
+            <button className="cursor-pointer"
               type="button"
               onClick={() => setCompletedTab('WEEK')}
               style={{
@@ -560,7 +560,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                       {item.formattedTime}
                     </span>
 
-                    <button
+                    <button className="cursor-pointer"
                       type="button"
                       onClick={() => onStartPhase1(item.parcel, true)}
                       style={{

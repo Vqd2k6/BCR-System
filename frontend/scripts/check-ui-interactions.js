@@ -24,8 +24,13 @@ function getAllTsxFiles(dir) {
 
 const files = getAllTsxFiles(srcDir);
 const warnings = [];
+/** Hằng chuỗi `const X = '...'` của file đang quét, dùng để giải className={X} / clsx(X, ...) */
+let fileStringConstants = new Map();
 
 function checkAttributes(tagName, attributes, sourceFile, filePath, node) {
+  // Chỉ soát thẻ DOM thật (chữ thường, vd button/div/motion.div). Component tự định nghĩa (<Button>, <PhotoThumbnailCell>...)
+  // tự gắn con trỏ trên thẻ DOM bên trong và được kiểm tra tại chính file định nghĩa component đó.
+  if (!/^[a-z]/.test(tagName)) return;
   let hasOnClick = false;
   let classNameVal = '';
   let hasDisabled = false;
@@ -44,7 +49,12 @@ function checkAttributes(tagName, attributes, sourceFile, filePath, node) {
           if (ts.isStringLiteral(prop.initializer)) {
             classNameVal = prop.initializer.text;
           } else if (ts.isJsxExpression(prop.initializer) && prop.initializer.expression) {
-            classNameVal = prop.initializer.expression.getText();
+            const exprText = prop.initializer.expression.getText();
+            // className dùng hằng chuỗi khai báo trong cùng file (vd TOOL_BUTTON_CLASS, baseStyles): ghép giá trị hằng để soát
+            const resolved = (exprText.match(/[A-Za-z_$][\w$]*/g) || [])
+              .map((name) => fileStringConstants.get(name) || "")
+              .join(" ");
+            classNameVal = `${exprText} ${resolved}`;
           }
         }
       }
@@ -85,6 +95,13 @@ function checkAttributes(tagName, attributes, sourceFile, filePath, node) {
 for (const file of files) {
   const code = fs.readFileSync(file, 'utf8');
   const sourceFile = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true);
+  fileStringConstants = new Map();
+  (function collect(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isStringLiteralLike(node.initializer)) {
+      fileStringConstants.set(node.name.text, node.initializer.text);
+    }
+    ts.forEachChild(node, collect);
+  })(sourceFile);
 
   function walk(node) {
     if (ts.isJsxElement(node)) {

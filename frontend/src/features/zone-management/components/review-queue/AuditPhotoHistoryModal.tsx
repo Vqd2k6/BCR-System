@@ -446,7 +446,7 @@ export const AuditPhotoHistoryModal: React.FC<AuditPhotoHistoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedItemToRestore(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -538,21 +538,21 @@ export const AuditPhotoHistoryModal: React.FC<AuditPhotoHistoryModalProps> = ({
       {/* Fullscreen Zoom Preview Modal */}
       {zoomUrl && (
         <div
-          className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150 cursor-zoom-out"
+          className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150 cursor-zoom-out cursor-pointer"
           onClick={() => setZoomUrl(null)}
         >
           <div className="relative max-w-5xl max-h-[92vh] flex flex-col items-center">
             <button
               type="button"
               onClick={() => setZoomUrl(null)}
-              className="absolute -top-10 right-0 text-white/80 hover:text-white p-1 rounded-md"
+              className="absolute -top-10 right-0 text-white/80 hover:text-white p-1 rounded-md cursor-pointer"
             >
               <X className="w-6 h-6" />
             </button>
             <img
               src={zoomUrl}
               alt="Phóng to"
-              className="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl cursor-default"
               onClick={(e) => e.stopPropagation()}
             />
           </div>

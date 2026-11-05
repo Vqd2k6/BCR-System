@@ -19,7 +19,7 @@ export const GuestMapThematicToggle: React.FC<GuestMapThematicToggleProps> = ({
           thematicMode === 'WORKFLOW'
             ? 'bg-blue-600 text-white shadow-sm'
             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-        }`}
+        } cursor-pointer`}
         title="Hiển thị màu sắc theo tiến độ khảo sát: Chưa KS, Chờ duyệt, Đã duyệt, Đang KS"
       >
         <CheckCircle2 size={14} className={thematicMode === 'WORKFLOW' ? 'text-white' : 'text-blue-500'} />
@@ -33,7 +33,7 @@ export const GuestMapThematicToggle: React.FC<GuestMapThematicToggleProps> = ({
           thematicMode === 'BRA_RISK'
             ? 'bg-amber-600 text-white shadow-sm'
             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-        }`}
+        } cursor-pointer`}
         title="Hiển thị màu sắc theo cấp độ rủi ro xây dựng BRA (Negligible -> Severe)"
       >
         <ShieldAlert size={14} className={thematicMode === 'BRA_RISK' ? 'text-white' : 'text-amber-500'} />

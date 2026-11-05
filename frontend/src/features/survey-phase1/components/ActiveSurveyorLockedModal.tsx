@@ -89,7 +89,7 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại</span>
@@ -99,7 +99,7 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
             type="button"
             onClick={handleRecheck}
             disabled={isRechecking}
-            className="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRechecking ? 'animate-spin' : ''}`} />
             <span>{isRechecking ? 'Đang kiểm tra...' : 'Kiểm tra lại'}</span>

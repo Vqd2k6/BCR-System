@@ -53,7 +53,7 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
         const isActive = activeTab === tab.id;
 
         return (
-          <button
+          <button className="cursor-pointer"
             key={tab.id}
             type="button"
             title={tab.title}

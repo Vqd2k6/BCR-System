@@ -505,7 +505,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                     <button
                       type="button"
                       onClick={() => setPendingLineStart(null)}
-                      className="ml-1 p-0.5 text-slate-500 hover:text-slate-800"
+                      className="ml-1 p-0.5 text-slate-500 hover:text-slate-800 cursor-pointer"
                       title="Hủy điểm đầu"
                     >
                       <X className="w-3 h-3 inline" />

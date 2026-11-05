@@ -146,7 +146,7 @@ export const SignaturePad: React.FC<Props> = ({
           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
             {/* Mode switch */}
             <div style={{ display: 'flex', backgroundColor: 'rgb(var(--bg-slate-100))', borderRadius: '0.4rem', padding: '2px' }}>
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => setMode('DRAW')}
                 style={{
@@ -164,7 +164,7 @@ export const SignaturePad: React.FC<Props> = ({
                 <PenTool size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
                 <span>Ký tay</span>
               </button>
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => setMode('PHOTO')}
                 style={{
@@ -190,7 +190,7 @@ export const SignaturePad: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={clearCanvas}
-                className="btn btn-sm btn-secondary"
+                className="btn btn-sm btn-secondary cursor-pointer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',

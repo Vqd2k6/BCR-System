@@ -75,7 +75,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
 
           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {user?.role === 'SUPER_ADMIN' && (
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => setShowHistoryModal(true)}
                 style={{
@@ -149,7 +149,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
 
       {/* 2. BỘ CHỌN 3 TRẠNG THÁI RANH THỰC TẾ (MATCH / SPLIT / MERGE) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.4rem' }}>
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => onStatusChange('MATCH')}
           style={{
@@ -173,7 +173,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           </div>
         </button>
 
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => onStatusChange('SPLIT')}
           style={{
@@ -197,7 +197,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           </div>
         </button>
 
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => onStatusChange('MERGE')}
           style={{

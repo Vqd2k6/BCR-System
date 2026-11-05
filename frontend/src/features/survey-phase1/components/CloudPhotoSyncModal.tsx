@@ -198,7 +198,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6"
+      className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -238,7 +238,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -311,7 +311,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                 activeTab === 'UNSYNCED'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
+              } cursor-pointer`}
             >
               {storageInfo.unsyncedText} ({unsyncedCount})
             </button>
@@ -321,7 +321,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                 activeTab === 'SYNCED'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
+              } cursor-pointer`}
             >
               {storageInfo.isLocal ? 'Đã lưu Local' : 'Đã lên Cloud'} ({syncedCount})
             </button>
@@ -331,7 +331,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                 activeTab === 'ALL'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
+              } cursor-pointer`}
             >
               Tất cả ({total})
             </button>

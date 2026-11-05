@@ -539,7 +539,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveDrawing(idx)}
-                                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer"
                                 title="Xóa trang bản vẽ này"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -569,7 +569,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleAddDrawing}
-                        className="w-full py-2 px-3 border border-dashed border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                        className="w-full py-2 px-3 border border-dashed border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Thêm trang / ảnh bản vẽ khác</span>
@@ -590,7 +590,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                     formData.foundationCatScore === 1
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
-                  }`}
+                  } cursor-pointer`}
                 >
                   <div className="text-xs font-bold">Xác nhận từ Chính quyền / Đơn vị thiết kế</div>
                 </button>
@@ -602,7 +602,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                     formData.foundationCatScore === 2
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
-                  }`}
+                  } cursor-pointer`}
                 >
                   <div className="text-xs font-bold">Bản vẽ do chủ nhà lưu giữ</div>
                 </button>
@@ -623,7 +623,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                     formData.foundationCatScore === 3
                       ? 'border-amber-600 bg-amber-50 text-amber-900 font-bold ring-1 ring-amber-500'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
-                  }`}
+                  } cursor-pointer`}
                 >
                   <div className="text-xs font-bold">Phỏng vấn chủ hộ</div>
                 </button>
@@ -635,7 +635,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                     formData.foundationCatScore === 4
                       ? 'border-amber-600 bg-amber-50 text-amber-900 font-bold ring-1 ring-amber-500'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
-                  }`}
+                  } cursor-pointer`}
                 >
                   <div className="text-xs font-bold">Tự suy luận từ kinh nghiệm hiện trường</div>
                 </button>

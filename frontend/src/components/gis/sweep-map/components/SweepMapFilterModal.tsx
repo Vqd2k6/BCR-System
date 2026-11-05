@@ -35,7 +35,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
   if (!showFilterModal) return null;
 
   return (
-    <div
+    <div className="cursor-pointer"
       style={{
         position: 'absolute',
         inset: 0,
@@ -50,7 +50,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
       onClick={() => setShowFilterModal(false)}
     >
       <div
-        className="card"
+        className="card cursor-default"
         style={{
           backgroundColor: 'rgb(var(--bg-white))',
           borderRadius: '1rem',
@@ -75,7 +75,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               Bộ Lọc Hiển Thị Thửa Đất
             </h4>
           </div>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={() => setShowFilterModal(false)}
             style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
@@ -86,7 +86,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
 
         {/* Quick Preset Buttons */}
         <div style={{ display: 'flex', gap: '0.35rem' }}>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={() => setAllFilters(true)}
             style={{
@@ -103,7 +103,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
           >
             Tất cả ({parcels.length})
           </button>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={setPhase1Only}
             style={{
@@ -120,7 +120,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
           >
             Chỉ Phase 1
           </button>
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={setPhase2Only}
             style={{
@@ -345,7 +345,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
         {/* Confirm Filter Button */}
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className="btn btn-primary btn-sm cursor-pointer"
           onClick={() => {
             setAppliedFilters(draftFilters);
             setShowFilterModal(false);

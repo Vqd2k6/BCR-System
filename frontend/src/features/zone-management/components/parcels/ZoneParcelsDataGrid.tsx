@@ -477,7 +477,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
             >
               ✕
             </button>
@@ -835,7 +835,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                       </td>
 
                       {/* Cột 7: Thao Tác Quản Trị */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap cursor-default" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Nút CAD nếu là chung cư, hoặc chuyển đổi nếu là nhà riêng lẻ */}
                           {parcel.buildingType === 'CONDOMINIUM' ? (
@@ -1006,11 +1006,11 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
       {/* 5. Detail Quick Drawer Modal */}
       {inspectParcel && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
           onClick={() => setInspectParcel(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">

@@ -84,7 +84,7 @@ export const InfoPopover: React.FC<InfoPopoverProps> = ({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-1 text-slate-400 hover:text-sky-600 transition-colors p-1 rounded-full hover:bg-sky-50 focus:outline-none"
+        className="inline-flex items-center gap-1 text-slate-400 hover:text-sky-600 transition-colors p-1 rounded-full hover:bg-sky-50 focus:outline-none cursor-pointer"
         title={title || 'Xem thông tin hướng dẫn'}
       >
         {icon || <HelpCircle className="w-4 h-4" />}
@@ -108,7 +108,7 @@ export const InfoPopover: React.FC<InfoPopoverProps> = ({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100"
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

@@ -464,7 +464,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           >
             {/* Quick floating actions on top-right of canvas */}
             <div
-              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 flex items-center gap-1 sm:gap-1.5 z-40 bg-slate-900/85 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md max-w-[calc(100%-16px)] flex-wrap justify-end"
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 flex items-center gap-1 sm:gap-1.5 z-40 bg-slate-900/85 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md max-w-[calc(100%-16px)] flex-wrap justify-end cursor-default"
               onClick={(e) => e.stopPropagation()}
             >
               {zoomScale > 1.05 && (
@@ -541,7 +541,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   const isDragging = draggingPinIndex === idx;
 
                   return (
-                    <div
+                    <div className="cursor-pointer"
                       key={pin.id || idx}
                       onClick={(e) => {
                         e.stopPropagation();

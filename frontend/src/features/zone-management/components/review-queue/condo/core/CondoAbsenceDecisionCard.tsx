@@ -120,7 +120,7 @@ export const CondoAbsenceDecisionCard: React.FC<Props> = ({
               type="button"
               disabled={!canDecide}
               onClick={() => onDecide('ABSENT', trimmedReason)}
-              className={`${buttonClass} bg-purple-700 text-white hover:bg-purple-800`}
+              className={`${buttonClass} bg-purple-700 text-white hover:bg-purple-800 cursor-pointer disabled:cursor-not-allowed`}
             >
               <UserX className="w-3.5 h-3.5" />
               <span>Xác Nhận Vắng Chủ</span>
@@ -130,7 +130,7 @@ export const CondoAbsenceDecisionCard: React.FC<Props> = ({
                 type="button"
                 disabled={!canDecide}
                 onClick={() => onDecide('NOT_ABSENT', trimmedReason)}
-                className={`${buttonClass} bg-emerald-600 text-white hover:bg-emerald-700`}
+                className={`${buttonClass} bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed`}
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Xác Nhận Đã Khảo Sát</span>

@@ -248,7 +248,7 @@ export const UnitCadSpatialSwapModal: React.FC<Props> = ({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 cursor-default"
       >
         {/* 1. Header */}
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">

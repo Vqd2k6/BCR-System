@@ -160,7 +160,7 @@ export const BurlandAndDefectsSection: React.FC<BurlandAndDefectsSectionProps> =
             <button
               type="button"
               onClick={handleAddDefect}
-              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Plus size={13} />
               <span>Thêm Vết Nứt Mới</span>
@@ -196,7 +196,7 @@ export const BurlandAndDefectsSection: React.FC<BurlandAndDefectsSectionProps> =
                   <button
                     type="button"
                     onClick={() => handleDeleteDefect(defect.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
                     title="Xoá vết nứt này"
                   >
                     <Trash2 size={13} />

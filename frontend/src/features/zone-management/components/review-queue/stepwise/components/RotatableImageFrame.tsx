@@ -120,7 +120,7 @@ export const RotatableImageFrame: React.FC<RotatableImageFrameProps> = ({
         }}
         className={`relative overflow-hidden mx-auto leading-none ${
           isSelectedInStudio ? 'ring-3 ring-indigo-500 ring-inset rounded-md' : ''
-        } ${stageClassName}`}
+        } ${stageClassName} cursor-pointer`}
       >
         {displayUrl && (
           <img

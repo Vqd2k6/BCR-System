@@ -97,7 +97,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
       >
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {onZoomOut && (
-            <button
+            <button className="cursor-pointer disabled:cursor-not-allowed"
               type="button"
               onClick={onZoomOut}
               disabled={lightboxZoom <= 1.0}
@@ -120,7 +120,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             </button>
           )}
 
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={onResetZoom}
             style={{
@@ -139,7 +139,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           </button>
 
           {onZoomIn && (
-            <button
+            <button className="cursor-pointer disabled:cursor-not-allowed"
               type="button"
               onClick={onZoomIn}
               disabled={lightboxZoom >= 4.0}
@@ -162,7 +162,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             </button>
           )}
 
-          <button
+          <button className="cursor-pointer disabled:cursor-not-allowed"
             type="button"
             onClick={handleDownload}
             disabled={isExporting}
@@ -186,7 +186,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           </button>
         </div>
 
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={onClose}
           style={{

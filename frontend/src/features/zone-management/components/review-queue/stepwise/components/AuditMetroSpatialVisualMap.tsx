@@ -331,7 +331,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
                 tileMode === 'satellite'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
             >
               Vệ tinh
             </button>
@@ -342,7 +342,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
                 tileMode === 'street'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+              } cursor-pointer`}
             >
               Giao thông
             </button>

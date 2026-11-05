@@ -318,7 +318,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => handleFieldChange('totalFloorAreaM2', 'Tổng diện tích sàn', suggestedGfa)}
-                    className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded px-1.5 py-0.5"
+                    className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded px-1.5 py-0.5 cursor-pointer"
                     title="Áp dụng gợi ý: Diện tích xây dựng × Số tầng nổi"
                   >
                     ≈ {suggestedGfa}

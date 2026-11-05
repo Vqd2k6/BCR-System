@@ -273,7 +273,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                               photoP03: { ...formData.photoP03, additionalPhotos: next },
                             });
                           }}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                           title="Xóa ảnh này"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -325,7 +325,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                       },
                     });
                   }}
-                  className="w-full py-2 px-3 border border-dashed border-sky-400 bg-sky-50/60 hover:bg-sky-50 text-sky-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                  className="w-full py-2 px-3 border border-dashed border-sky-400 bg-sky-50/60 hover:bg-sky-50 text-sky-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 text-sky-600" />
                   <span>Thêm mặt bên / mặt sau khác (Còn lại: {2 - (formData.photoP03.additionalPhotos || []).length} ảnh)</span>

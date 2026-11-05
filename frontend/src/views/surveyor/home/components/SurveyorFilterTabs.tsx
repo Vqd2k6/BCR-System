@@ -72,7 +72,7 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
         {tabs.map((tab) => {
           const isActive = statusFilter === tab.id;
           return (
-            <button
+            <button className="cursor-pointer"
               key={tab.id}
               type="button"
               onClick={() => onStatusFilterChange(tab.id)}
@@ -119,7 +119,7 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
         </span>
 
         {/* ONLY (?) CIRCLE BUTTON */}
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={onToggleStatusHelp}
           style={{

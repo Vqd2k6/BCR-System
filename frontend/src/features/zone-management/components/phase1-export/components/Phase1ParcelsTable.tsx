@@ -64,7 +64,7 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                 <th className="p-3.5 w-10 text-center">
                   <button
                     onClick={onToggleSelectAll}
-                    className="text-slate-500 hover:text-slate-800"
+                    className="text-slate-500 hover:text-slate-800 cursor-pointer"
                   >
                     {selectedParcelIds.length === filteredParcels.length &&
                     filteredParcels.length > 0 ? (
@@ -99,7 +99,7 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                     <td className="p-3.5 text-center">
                       <button
                         onClick={() => onToggleSelectParcel(parcel.id)}
-                        className="text-slate-400 hover:text-slate-700"
+                        className="text-slate-400 hover:text-slate-700 cursor-pointer"
                       >
                         {isSelected ? (
                           <CheckSquare size={16} className="text-sky-600" />
@@ -186,7 +186,7 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onOpenPreview(parcel)}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
                           title="Xem trước Báo cáo A4 Song Ngữ chuẩn 0410"
                         >
                           <Eye size={13} />
@@ -199,7 +199,7 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                             isPhase1Ready
                               ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
                               : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                          }`}
+                          } cursor-pointer`}
                           title="Xuất file Báo cáo PDF A4 Song Ngữ chuẩn 0410 (Phase 1 BCS)"
                         >
                           <Download size={13} />

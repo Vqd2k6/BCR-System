@@ -45,7 +45,7 @@ export const CondoUnitMissingFieldsModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[120000] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[120000] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150 cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

@@ -95,7 +95,7 @@ export const HandoverTakeoverModal: React.FC<HandoverTakeoverModalProps> = ({
           <button
             type="button"
             onClick={closeAction}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -186,7 +186,7 @@ export const HandoverTakeoverModal: React.FC<HandoverTakeoverModalProps> = ({
             type="button"
             onClick={closeAction}
             disabled={isSubmitting}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
             Quay lại bản đồ
           </button>

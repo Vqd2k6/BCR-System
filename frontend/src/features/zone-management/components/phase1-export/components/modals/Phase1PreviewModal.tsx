@@ -102,11 +102,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[999999] bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[999999] bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto cursor-pointer"
       onClick={() => setPreviewParcel(null)}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-[1550px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[94vh] animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl w-full max-w-[1550px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[94vh] animate-in zoom-in-95 duration-200 cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header (Phong cách Màu Sáng - Light Theme) */}
@@ -191,7 +191,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
 
             <button
               onClick={() => setPreviewParcel(null)}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors ml-1"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors ml-1 cursor-pointer"
               title="Đóng modal"
             >
               <X size={18} />
@@ -232,7 +232,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
             <button
               type="button"
               onClick={() => setModalFeedback(null)}
-              className="p-1 text-slate-400 hover:text-slate-700 rounded-lg transition-colors"
+              className="p-1 text-slate-400 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
             >
               <X size={15} />
             </button>

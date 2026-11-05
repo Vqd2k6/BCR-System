@@ -55,7 +55,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGuideModal(true)}
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-100 hover:bg-sky-200 text-sky-700 transition-colors"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-100 hover:bg-sky-200 text-sky-700 transition-colors cursor-pointer"
                 title="Xem hướng dẫn biểu hiện vật lý từng level"
                 aria-label="Xem biểu hiện vật lý"
               >
@@ -85,7 +85,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
                 isSelected
                   ? `${colors.border} ${colors.bg} ring-2 ring-emerald-500 ring-offset-1 shadow-sm`
                   : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
-              }`}
+              } cursor-pointer`}
             >
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -138,7 +138,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -172,7 +172,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer"
               >
                 Đã hiểu & Đóng lại
               </button>

@@ -211,13 +211,13 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
       {/* Backdrop mờ phía sau trên mobile: Chạm vào nền mờ để đóng */}
       <div
         onClick={onClose}
-        className="sm:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-2xs z-[99990] animate-in fade-in duration-150"
+        className="sm:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-2xs z-[99990] animate-in fade-in duration-150 cursor-pointer"
       />
 
       {/* Main Bottom Sheet trên Mobile & Float Box trên Desktop */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fixed sm:static inset-x-0 bottom-0 z-[99995] sm:z-auto bg-white/98 backdrop-blur-md rounded-t-3xl sm:rounded-2xl border-t-2 sm:border-2 border-slate-300 shadow-2xl p-4 sm:p-5 pb-8 sm:pb-5 flex flex-col gap-3.5 animate-in slide-in-from-bottom-4 duration-200 ring-2 ring-slate-900/10 max-h-[88vh] overflow-y-auto"
+        className="fixed sm:static inset-x-0 bottom-0 z-[99995] sm:z-auto bg-white/98 backdrop-blur-md rounded-t-3xl sm:rounded-2xl border-t-2 sm:border-2 border-slate-300 shadow-2xl p-4 sm:p-5 pb-8 sm:pb-5 flex flex-col gap-3.5 animate-in slide-in-from-bottom-4 duration-200 ring-2 ring-slate-900/10 max-h-[88vh] overflow-y-auto cursor-default"
       >
         {/* Mobile Drag Handle Bar */}
         <div className="sm:hidden w-12 h-1.5 bg-slate-300 rounded-full mx-auto -mt-1 mb-1 shrink-0" />

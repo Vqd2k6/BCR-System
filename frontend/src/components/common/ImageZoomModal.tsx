@@ -144,12 +144,12 @@ export const ImageZoomModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex flex-col select-none touch-none animate-fadeIn"
+      className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex flex-col select-none touch-none animate-fadeIn cursor-pointer"
       onClick={onClose}
     >
       {/* Header bar */}
       <div
-        className="flex items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-slate-800 text-white z-10"
+        className="flex items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-slate-800 text-white z-10 cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col min-w-0 pr-4">
@@ -200,7 +200,7 @@ export const ImageZoomModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleZoomIn}
-            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
             title="Phóng to"
           >
             <ZoomIn className="w-4 h-4" />
@@ -208,7 +208,7 @@ export const ImageZoomModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleZoomOut}
-            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
             title="Thu nhỏ"
           >
             <ZoomOut className="w-4 h-4" />
@@ -216,7 +216,7 @@ export const ImageZoomModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleRotate}
-            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
             title="Xoay 90°"
           >
             <RotateCw className="w-4 h-4" />

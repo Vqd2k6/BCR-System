@@ -112,7 +112,7 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
               <span>Đã chấm công ({checkInDetails?.time || '07:45'})</span>
             </div>
           ) : (
-            <button
+            <button className="cursor-pointer"
               type="button"
               onClick={onNavigateToCheckIn}
               style={{

@@ -903,7 +903,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               const squareBg = isFilled ? '#10b981' : '#f59e0b';
 
               return (
-                <div
+                <div className="cursor-pointer"
                   key={idx}
                   onClick={(e) => {
                     e.stopPropagation();

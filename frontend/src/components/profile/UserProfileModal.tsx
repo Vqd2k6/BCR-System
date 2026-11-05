@@ -66,7 +66,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div
+    <div className="cursor-pointer"
       style={{
         position: 'fixed',
         inset: 0,
@@ -80,7 +80,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
       }}
       onClick={onClose}
     >
-      <div
+      <div className="cursor-default"
         style={{
           backgroundColor: 'rgb(var(--bg-white))',
           borderRadius: '1.25rem',
@@ -131,7 +131,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <button
+          <button className="cursor-pointer"
             type="button"
             onClick={onClose}
             style={{

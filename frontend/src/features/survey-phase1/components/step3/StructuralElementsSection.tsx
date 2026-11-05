@@ -228,7 +228,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 hasStructuralElements
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              } cursor-pointer`}
             >
               <span className="font-mono font-bold text-xs">✓</span>
               <span>Có kết cấu</span>
@@ -241,7 +241,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 !hasStructuralElements
                   ? 'bg-slate-800 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              } cursor-pointer`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               <span>Không có (Miễn)</span>
@@ -286,7 +286,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     currentFloor.noStructuralElementsReason === reason
                       ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300'
-                  }`}
+                  } cursor-pointer`}
                 >
                   {reason}
                 </button>

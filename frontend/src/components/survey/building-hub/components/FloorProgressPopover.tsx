@@ -26,7 +26,7 @@ export const FloorProgressPopover: React.FC<FloorProgressPopoverProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

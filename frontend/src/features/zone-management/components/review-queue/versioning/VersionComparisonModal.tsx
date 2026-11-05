@@ -2261,11 +2261,11 @@ export const VersionComparisonModal: React.FC<Props> = ({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs p-4 animate-in fade-in"
+          className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs p-4 animate-in fade-in cursor-pointer"
           onClick={() => setZoomPhoto(null)}
         >
           <div
-            className="relative max-w-5xl w-full max-h-[92vh] flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl"
+            className="relative max-w-5xl w-full max-h-[92vh] flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 text-xs">

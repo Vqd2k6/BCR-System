@@ -2216,7 +2216,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       {/* Lightbox xem phóng to toàn màn hình */}
       {previewCadUrl && (
         <div
-          className="fixed inset-0 z-[120005] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-[120005] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
           onClick={() => setPreviewCadUrl(null)}
         >
           <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
@@ -2230,7 +2230,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             <img
               src={previewCadUrl}
               alt="CAD Preview"
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl cursor-default"
               onClick={(e) => e.stopPropagation()}
             />
           </div>

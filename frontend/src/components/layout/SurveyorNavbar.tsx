@@ -114,7 +114,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
       }}
     >
       {/* Brand & Station Info (Clickable to Home) */}
-      <div
+      <div className="cursor-pointer"
         onClick={onNavigateHome}
         style={{
           display: 'flex',
@@ -185,7 +185,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
 
       {/* ONLY CIRCULAR AVATAR (Requirement 1) */}
       <div ref={menuRef} style={{ position: 'relative', flexShrink: 0, marginLeft: '0.4rem' }}>
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={() => setShowProfileMenu(!showProfileMenu)}
           style={{
@@ -327,7 +327,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
               </div>
 
               {onNavigateAdminExport && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
-                <button
+                <button className="cursor-pointer"
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
@@ -476,7 +476,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                     setShowProfileMenu(false);
                     onOpenCompanionCheckIn();
                   }}
-                  className={isCompanionCheckedIn ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'}
+                  className={isCompanionCheckedIn ? 'btn btn-secondary btn-sm cursor-pointer' : 'btn btn-warning btn-sm cursor-pointer'}
                   style={{
                     width: '100%',
                     padding: '0.35rem',
@@ -502,7 +502,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 setShowProfileMenu(false);
                 logout();
               }}
-              className="btn btn-sm"
+              className="btn btn-sm cursor-pointer"
               style={{
                 width: '100%',
                 backgroundColor: 'rgb(var(--bg-red-100))',

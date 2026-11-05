@@ -15,7 +15,7 @@ export const HelpBadge: React.FC<{
 
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: '0.35rem' }}>
-      <button
+      <button className="cursor-pointer"
         type="button"
         onClick={(e) => {
           e.stopPropagation();
@@ -38,7 +38,7 @@ export const HelpBadge: React.FC<{
 
       {isOpen && (
         <>
-          <div
+          <div className="cursor-pointer"
             style={{
               position: 'fixed',
               top: 0,
@@ -49,7 +49,7 @@ export const HelpBadge: React.FC<{
             }}
             onClick={() => setIsOpen(false)}
           />
-          <div
+          <div className="cursor-default"
             style={{
               position: 'absolute',
               top: '120%',
@@ -79,7 +79,7 @@ export const HelpBadge: React.FC<{
               }}
             >
               <strong style={{ color: 'rgb(var(--text-slate-900))', fontSize: '0.75rem' }}>{title}</strong>
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => setIsOpen(false)}
                 style={{

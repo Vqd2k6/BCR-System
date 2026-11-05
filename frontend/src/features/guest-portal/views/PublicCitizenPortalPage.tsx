@@ -220,7 +220,7 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
                       selectedParcel.id === p.id
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }`}
+                    } cursor-pointer`}
                   >
                     {p.project_parcel_code || p.official_cadastral_code}
                   </button>

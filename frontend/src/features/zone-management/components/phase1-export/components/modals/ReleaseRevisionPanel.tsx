@@ -229,11 +229,11 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
       {/* 5. Popover / Modal Lịch sử các bản phát hành (Rev.00, Rev.01...) */}
       {openHistoryModal && (
         <div
-          className="fixed inset-0 z-[1000000] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[1000000] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setOpenHistoryModal(false)}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]"
+            className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[80vh] cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">

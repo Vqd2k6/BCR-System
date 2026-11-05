@@ -27,7 +27,7 @@ export const MissingFieldsModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -48,7 +48,7 @@ export const MissingFieldsModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -114,7 +114,7 @@ export const MissingFieldsModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onProceedAnyway}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Save size={14} className="text-slate-500" />
               <span>{isFinalSubmit ? 'Lưu nháp hồ sơ' : 'Lưu tạm & Chuyển bước'}</span>
@@ -124,7 +124,7 @@ export const MissingFieldsModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => onFocusField(missingFields[0])}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-colors"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200 transition-colors cursor-pointer"
           >
             <Edit3 size={14} />
             <span>Tiếp tục điền mục còn thiếu</span>

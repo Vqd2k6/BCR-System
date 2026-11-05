@@ -678,7 +678,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   type="button"
                   onClick={handleMergeRemoveLastPoint}
                   disabled={mergeBuildingVertices.length === 0}
-                  className="btn btn-outline-secondary btn-sm"
+                  className="btn btn-outline-secondary btn-sm cursor-pointer disabled:cursor-not-allowed"
                   style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer' }}
                 >
                   <Undo size={12} />
@@ -688,7 +688,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   type="button"
                   onClick={handleMergeClearDraw}
                   disabled={mergeBuildingVertices.length === 0}
-                  className="btn btn-outline-danger btn-sm"
+                  className="btn btn-outline-danger btn-sm cursor-pointer disabled:cursor-not-allowed"
                   style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer' }}
                 >
                   <Trash2 size={12} />

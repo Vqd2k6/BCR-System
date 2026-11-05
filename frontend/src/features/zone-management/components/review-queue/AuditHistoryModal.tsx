@@ -293,7 +293,7 @@ export const AuditHistoryModal: React.FC<Props> = ({
 
                         <button
                           type="button"
-                          className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"
+                          className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 cursor-pointer"
                         >
                           {isExpanded ? (
                             <ChevronUp className="w-4 h-4" />

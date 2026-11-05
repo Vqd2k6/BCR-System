@@ -47,14 +47,14 @@ export const BatchResultCard: React.FC<BatchResultCardProps> = ({
               );
             }
           }}
-          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
         >
           <Download size={14} />
           <span>Tải file mẻ xuất (.ZIP / .PDF)</span>
         </a>
         <button
           onClick={onClose}
-          className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-xl"
+          className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-xl cursor-pointer"
         >
           <X size={14} />
         </button>

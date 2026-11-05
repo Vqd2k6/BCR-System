@@ -70,7 +70,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
       ) : (
       <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* 1. NÚT CHÍNH: Chụp Live trực tiếp */}
-        <button
+        <button className="cursor-pointer"
           type="button"
           onClick={onTriggerCapture}
           style={{

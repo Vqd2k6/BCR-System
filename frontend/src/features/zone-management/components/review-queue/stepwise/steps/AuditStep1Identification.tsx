@@ -618,7 +618,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     {/* Glassmorphic Micro-toolbar góc trên bên phải */}
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm z-20 transition-all"
+                      className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm z-20 transition-all cursor-default"
                     >
                       {url && (
                         <button
@@ -960,7 +960,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         {isStaged && isDeleted && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1 p-1 z-30"
+                            className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1 p-1 z-30 cursor-default"
                           >
                             <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
                               Đã đánh dấu Xóa
@@ -1026,7 +1026,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                     });
                                   }
                                 }}
-                                className="px-1.5 py-0.5 rounded bg-amber-600/90 hover:bg-amber-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                                className="px-1.5 py-0.5 rounded bg-amber-600/90 hover:bg-amber-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm cursor-pointer"
                                 title="Thay thế ảnh này"
                               >
                                 <RefreshCw className="w-2.5 h-2.5" />
@@ -1047,7 +1047,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                       photoTitle: `Ảnh đất trống #${idx + 1}`,
                                     });
                                   }}
-                                  className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                                  className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm cursor-pointer"
                                   title="Xóa ảnh này"
                                 >
                                   <Trash2 className="w-2.5 h-2.5" />
@@ -1312,7 +1312,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         {isStaged && isDeleted && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1 p-1 z-30"
+                            className="absolute inset-0 bg-rose-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1 p-1 z-30 cursor-default"
                           >
                             <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-bold text-[9px] shadow-sm animate-pulse">
                               Đã đánh dấu Xóa
@@ -1378,7 +1378,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                     });
                                   }
                                 }}
-                                className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                                className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm cursor-pointer"
                                 title="Thay thế ảnh này"
                               >
                                 <RefreshCw className="w-2.5 h-2.5" />
@@ -1399,7 +1399,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                       photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
                                     });
                                   }}
-                                  className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                                  className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm cursor-pointer"
                                   title="Xóa ảnh này"
                                 >
                                   <Trash2 className="w-2.5 h-2.5" />

@@ -348,7 +348,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
 
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary cursor-pointer"
           onClick={onFinished}
           style={{ padding: '0.65rem 1.5rem', fontWeight: 700 }}
         >
@@ -393,14 +393,14 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
             type="button"
             onClick={handleSaveDraft}
             disabled={isSaving}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm cursor-pointer disabled:cursor-not-allowed"
             style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
           >
             <Save size={14} />
             <span>{isSaving ? 'Đang lưu...' : 'Lưu nháp'}</span>
           </button>
           {onFinished && (
-            <button type="button" onClick={onFinished} className="btn btn-secondary btn-sm">
+            <button type="button" onClick={onFinished} className="btn btn-secondary btn-sm cursor-pointer">
               Thoát
             </button>
           )}
@@ -421,7 +421,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
           const isActive = currentStep === st.num;
           const isPassed = currentStep > st.num;
           return (
-            <button
+            <button className="cursor-pointer"
               key={st.num}
               type="button"
               onClick={() => setCurrentStep(st.num)}
@@ -651,7 +651,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
               <button
                 type="button"
                 onClick={handleAddNewDefect}
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm cursor-pointer"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
               >
                 <Plus size={14} />
@@ -701,7 +701,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                     </div>
 
                     {d.verificationStatus === 'NEW' && (
-                      <button
+                      <button className="cursor-pointer"
                         type="button"
                         onClick={() => handleRemoveDefect(idx)}
                         style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
@@ -1051,7 +1051,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
             <div style={{ marginTop: '1rem' }}>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary cursor-pointer disabled:cursor-not-allowed"
                 onClick={handleSubmitPhase2}
                 disabled={isSubmitting}
                 style={{
@@ -1079,7 +1079,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
           {currentStep > 1 ? (
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary btn-sm cursor-pointer"
               onClick={() => setCurrentStep(currentStep - 1)}
               style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
             >
@@ -1091,7 +1091,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
           {currentStep < 9 ? (
             <button
               type="button"
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary btn-sm cursor-pointer"
               onClick={() => setCurrentStep(currentStep + 1)}
               style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
             >

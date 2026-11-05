@@ -103,7 +103,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             })()}
             {getStatusBadge(status, p)}
             {buildingType === 'CONDOMINIUM' && (
-              <button
+              <button className="cursor-pointer"
                 type="button"
                 onClick={() => onOpenHub(p)}
                 style={{
@@ -166,7 +166,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onStartPhase2(p)}
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-sm cursor-pointer"
             style={{
               fontSize: '0.775rem',
               display: 'flex',
@@ -183,7 +183,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             disabled
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer disabled:cursor-not-allowed"
             style={{
               fontSize: '0.775rem',
               backgroundColor: 'rgb(var(--bg-blue-100))',
@@ -204,7 +204,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             <button
               type="button"
               onClick={() => onStartPhase1(p, true)}
-              className="btn btn-sm"
+              className="btn btn-sm cursor-pointer"
               style={{
                 fontSize: '0.775rem',
                 display: 'flex',
@@ -226,7 +226,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 <button
                   type="button"
                   onClick={() => onAdminApprove(p)}
-                  className="btn btn-sm"
+                  className="btn btn-sm cursor-pointer"
                   style={{
                     fontSize: '0.775rem',
                     display: 'flex',
@@ -247,7 +247,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 <button
                   type="button"
                   onClick={() => onAdminReject(p)}
-                  className="btn btn-sm"
+                  className="btn btn-sm cursor-pointer"
                   style={{
                     fontSize: '0.775rem',
                     display: 'flex',
@@ -291,7 +291,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             <button
               type="button"
               onClick={() => (onResumeSurveyPresent ? onResumeSurveyPresent(p) : onStartPhase1(p))}
-              className="btn btn-sm"
+              className="btn btn-sm cursor-pointer"
               style={{
                 fontSize: '0.775rem',
                 display: 'flex',
@@ -312,7 +312,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             <button
               type="button"
               onClick={() => onStartPhase1(p, true)}
-              className="btn btn-sm"
+              className="btn btn-sm cursor-pointer"
               style={{
                 fontSize: '0.775rem',
                 display: 'flex',
@@ -334,7 +334,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onStartPhase1(p, true)}
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             style={{
               fontSize: '0.775rem',
               display: 'flex',
@@ -355,7 +355,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onStartPhase1(p)}
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             style={{
               fontSize: '0.775rem',
               display: 'flex',
@@ -375,7 +375,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onOpenHub(p)}
-            className="btn btn-sm"
+            className="btn btn-sm cursor-pointer"
             style={{
               fontSize: '0.775rem',
               display: 'flex',
@@ -396,7 +396,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onStartPhase1(p)}
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-sm cursor-pointer"
             style={{
               fontSize: '0.775rem',
               display: 'flex',
@@ -413,7 +413,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           <button
             type="button"
             onClick={() => onStartPhase1(p)}
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-sm cursor-pointer"
             style={{ fontSize: '0.775rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
             <PlusCircle size={14} />
@@ -424,7 +424,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
         {/* Chỉ đường Button (Google Maps) */}
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm cursor-pointer"
           onClick={() => onOpenDirections(p)}
           style={{
             fontSize: '0.775rem',
