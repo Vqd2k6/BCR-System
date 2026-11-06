@@ -27,8 +27,7 @@ function pointToSegmentProjection(
   v: [number, number],
   w: [number, number]
 ): { distance: number; projection: [number, number] } {
-  const latScale = 111320;
-  const lngScale = 111320 * Math.cos((pt[0] * Math.PI) / 180);
+  const { mPerDegLat: latScale, mPerDegLng: lngScale } = metersPerDegreeWgs84(pt[0]);
 
   const px = pt[1] * lngScale;
   const py = pt[0] * latScale;
@@ -54,12 +53,43 @@ function pointToSegmentProjection(
 }
 
 /**
- * Sinh sơ đồ không gian trang bìa khổ dọc 3:4 (Portrait Crop: 300x400)
+ * Kích thước khung SVG sơ đồ (đơn vị SVG). Mặc định khổ dọc 3:4 (300x400);
+ * Mục II báo cáo dùng khổ ngang để phủ kín bề ngang trang A4.
+ */
+export interface SpatialSvgSize {
+  width: number;
+  height: number;
+}
+
+/** Elipsoid WGS-84 (EPSG:4326): bán trục lớn a và bình phương tâm sai e². */
+const WGS84_A = 6378137;
+const WGS84_E2 = 0.00669437999014;
+
+/**
+ * Độ dài 1 độ vĩ / 1 độ kinh (mét) tại vĩ độ latDeg theo elipsoid WGS-84
+ * (bán kính kinh tuyến M và bán kính vòng thẳng đứng N). Dùng cho phép chiếu phẳng cục bộ quanh thửa.
+ */
+export function metersPerDegreeWgs84(latDeg: number): { mPerDegLat: number; mPerDegLng: number } {
+  const phi = (latDeg * Math.PI) / 180;
+  const w = 1 - WGS84_E2 * Math.sin(phi) ** 2;
+  return {
+    mPerDegLat: (Math.PI * WGS84_A * (1 - WGS84_E2)) / (180 * w ** 1.5),
+    mPerDegLng: (Math.PI * WGS84_A * Math.cos(phi)) / (180 * Math.sqrt(w)),
+  };
+}
+
+const DEFAULT_SPATIAL_SVG_SIZE: SpatialSvgSize = { width: 300, height: 400 };
+/** Cạnh ngắn tối thiểu của vùng nhìn (mét) để thửa nhỏ vẫn thấy bối cảnh xung quanh. */
+const MIN_VIEW_SHORT_SIDE_M = 110;
+
+/**
+ * Sinh sơ đồ vị trí thửa đất & tuyến Metro 2 (mặc định khổ dọc 300x400, truyền size để đổi khổ)
  */
 export function generateMetroSpatialVisualSvg(
   polygonCoords: [number, number][] | null,
   _parcelCode: string = 'Thửa đất',
-  boundaryDataInput?: any
+  boundaryDataInput?: any,
+  size: SpatialSvgSize = DEFAULT_SPATIAL_SVG_SIZE
 ): string {
   const boundaryData = boundaryDataInput || getMetroBoundaryData();
   if (!polygonCoords || polygonCoords.length < 3) {
@@ -101,9 +131,7 @@ export function generateMetroSpatialVisualSvg(
 
   const parcelCenterLat = normalizedCoords.reduce((s, p) => s + p[0], 0) / normalizedCoords.length;
   const parcelCenterLng = normalizedCoords.reduce((s, p) => s + p[1], 0) / normalizedCoords.length;
-  const cosLat = Math.cos((parcelCenterLat * Math.PI) / 180);
-  const mPerDegLat = 111320;
-  const mPerDegLng = 111320 * cosLat;
+  const { mPerDegLat, mPerDegLng } = metersPerDegreeWgs84(parcelCenterLat);
   const toLocal = (p: [number, number]): [number, number] => [
     (p[1] - parcelCenterLng) * mPerDegLng,
     (p[0] - parcelCenterLat) * mPerDegLat,
@@ -128,12 +156,14 @@ export function generateMetroSpatialVisualSvg(
   const spanX = fMaxX - fMinX;
   const spanY = fMaxY - fMinY;
 
-  const svgWidth = 300;
-  const svgHeight = 400;
+  const svgWidth = size.width;
+  const svgHeight = size.height;
   const aspectRatio = svgWidth / svgHeight;
 
-  let viewW = Math.max(spanX + 80, 110);
-  let viewH = Math.max(spanY + 80, 146);
+  const minViewW = aspectRatio >= 1 ? MIN_VIEW_SHORT_SIDE_M * aspectRatio : MIN_VIEW_SHORT_SIDE_M;
+  const minViewH = aspectRatio >= 1 ? MIN_VIEW_SHORT_SIDE_M : MIN_VIEW_SHORT_SIDE_M / aspectRatio;
+  let viewW = Math.max(spanX + 80, minViewW);
+  let viewH = Math.max(spanY + 80, minViewH);
   if (viewW / viewH < aspectRatio) viewW = viewH * aspectRatio;
   else viewH = viewW / aspectRatio;
 
@@ -237,7 +267,7 @@ export function generateMetroSpatialVisualSvg(
   else if (scale * 10 >= 35) scaleM = 10;
   const scaleBarPx = scaleM * scale;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%" style="display:block; background:${hasTiles ? '#0f172a' : '#f8fafc'}; font-family:'Times New Roman', serif;">
+  const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%" style="display:block; background:${hasTiles ? '#0f172a' : '#f8fafc'}; font-family:'Times New Roman', serif;">
     <defs>
       <clipPath id="mapViewportClip">
         <rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" />
@@ -267,5 +297,7 @@ export function generateMetroSpatialVisualSvg(
       <text x="${(6 + scaleBarPx).toFixed(1)}" y="-1" font-size="8" font-weight="bold" fill="#ffffff">${scaleM}m</text>
     </g>
   </svg>`;
+
+  return `data:image/svg+xml;base64,${Buffer.from(svgMarkup, 'utf8').toString('base64')}`;
 }
 

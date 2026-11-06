@@ -652,17 +652,16 @@ async function runComprehensiveAudit() {
     recordResult('NV6_CoverMap', 1, 'Sơ đồ SVG đạt chuẩn 3:4', false, err);
   }
 
-  // TC 6.2: CSS wrapper kiểm soát chiều cao 175px chống tràn trang bìa
+  // TC 6.2: CSS sơ đồ vị trí Mục II (khổ ngang) và ảnh bìa 270px
   try {
     const cssPath = path.resolve(__dirname, '../modules/report/templates/residential/styles.css');
     const css = fs.readFileSync(cssPath, 'utf8');
-    assert(css.includes('height: 175px;'), 'styles.css phải định nghĩa height: 175px cho cover wrapper');
-    assert(css.includes('.cover-spatial-wrapper'), 'Phải định nghĩa cho .cover-spatial-wrapper');
-    assert(css.includes('.cover-spatial-img'), 'Phải định nghĩa cho .cover-spatial-img');
-    assert(css.includes('object-fit: cover !important;'), 'cover-spatial-img phải có object-fit: cover');
-    recordResult('NV6_CoverMap', 2, 'CSS kiểm soát ngân sách chiều cao 175px, object-fit cover chống vỡ trang bìa', true);
+    assert(css.includes('min-height: 270px;') && css.includes('.a4-page-sheet.cover-sheet'), 'Khung ảnh bìa phải co giãn (min-height 270px) trong trang bìa cố định khổ A4');
+    assert(css.includes('.section2-spatial-wrapper'), 'Phải định nghĩa .section2-spatial-wrapper');
+    assert(css.includes('.section2-spatial-img'), 'Phải định nghĩa .section2-spatial-img');
+    recordResult('NV6_CoverMap', 2, 'CSS ảnh bìa 270px và khung sơ đồ vị trí Mục II', true);
   } catch (err) {
-    recordResult('NV6_CoverMap', 2, 'CSS chiều cao 175px', false, err);
+    recordResult('NV6_CoverMap', 2, 'CSS ảnh bìa & sơ đồ Mục II', false, err);
   }
 
   // TC 6.3: Nền ảnh vệ tinh Esri World Imagery (LOD 18) được nhúng từ local disk cache

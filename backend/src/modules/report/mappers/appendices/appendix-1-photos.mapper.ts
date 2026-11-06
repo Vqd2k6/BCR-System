@@ -9,6 +9,7 @@ import { Appendix1PhotoItem, Appendix1PhotoPage } from '../../report.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
 import { extractPhotoDateTime } from '../formatters.mapper';
+import { normalizeMetroPhotoCode, parseCodeFromPhotoUrl } from '../../utils/metro-photo-code.utils';
 
 export interface Appendix1Result {
   appendix1: Appendix1PhotoItem[];
@@ -87,6 +88,13 @@ export class Appendix1PhotoMapper {
     const rotMap = json.photoRotations || rawReport.photoRotations || {};
     const gpsCoords = `${defaultLat}, ${defaultLng}`;
 
+    // Mã ảnh chuẩn HCM_M2.1_[Mã thửa]_[mã căn_]<hậu tố>: hậu tố ưu tiên mã nằm trong tên file R2
+    // (khớp chữ đã dập trên ảnh cũ), không có thì dùng tag mặc định của ô ảnh.
+    const parcelForCode = String(json.projectParcelCode || rawReport.project_parcel_code || buildingId || '').trim();
+    const unitForCode = String(rawReport.unit_code || '').trim();
+    const toMetroCode = (url: string, origTag: string): string =>
+      normalizeMetroPhotoCode(parseCodeFromPhotoUrl(url)?.suffix || origTag, parcelForCode, unitForCode);
+
     const pushPhoto = (photoCode: string, vi: string, en: string, url: string, rot: number, origTag: string, shotAt?: unknown) => {
       appendix1.push({
         photoCode,
@@ -97,7 +105,7 @@ export class Appendix1PhotoMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords,
         originalTag: origTag,
-        metroPhotoCode: origTag.startsWith('HCM_M2.') ? origTag : `HCM_M2.[${buildingId}]_${origTag}`,
+        metroPhotoCode: toMetroCode(url, origTag),
         watermarkDateTime: extractPhotoDateTime(url, shotAt, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(url),
       });

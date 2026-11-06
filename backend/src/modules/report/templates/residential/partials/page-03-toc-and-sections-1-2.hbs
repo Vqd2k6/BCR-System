@@ -1,5 +1,5 @@
   <!-- =====================================================================
-       TRANG 3: CHƯƠNG I & II (THÔNG TIN CHUNG & THÔNG TIN CƠ BẢN TÒA NHÀ)
+       TRANG 3: CHƯƠNG I (THÔNG TIN CHUNG)
        ===================================================================== -->
   <div class="a4-page-sheet" data-section="sec-1">
     
@@ -89,7 +89,31 @@
       </tr>
     </table>
 
-    <h2 class="chapter-header page-break" data-section="sec-2">II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION</h2>
+    <div class="page-number-footer">{{tocPageNumbers.section1}}</div>
+  </div>
+
+  <!-- =====================================================================
+       TRANG 4: CHƯƠNG II (SƠ ĐỒ VỊ TRÍ METRO + THÔNG TIN CƠ BẢN TÒA NHÀ)
+       Sheet A4 riêng để số trang Mục lục (numberPages) khớp trang PDF thật.
+       ===================================================================== -->
+  <div class="a4-page-sheet" data-section="sec-2">
+
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+    <h2 class="chapter-header">II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION</h2>
+
+    {{#if metadata.spatialVisualMapBase64}}
+    <div class="section2-spatial-map avoid-break">
+      <div class="section2-spatial-wrapper">
+        <img src="{{metadata.spatialVisualMapBase64}}" class="section2-spatial-img" alt="Sơ đồ vị trí thửa đất &amp; Tuyến Metro 2">
+      </div>
+      <div class="section2-spatial-caption">SƠ ĐỒ VỊ TRÍ THỬA ĐẤT &amp; TUYẾN METRO 2 / SPATIAL MAP</div>
+    </div>
+    {{/if}}
+
     <table class="tech-table">
       <tr>
         <td class="label-col">Công năng sử dụng<br><span class="text-muted">Building Use</span></td>
@@ -199,5 +223,5 @@
     </div>
     {{/if}}
 
-    <div class="page-number-footer">{{tocPageNumbers.section1}}</div>
+    <div class="page-number-footer">{{tocPageNumbers.section2}}</div>
   </div>

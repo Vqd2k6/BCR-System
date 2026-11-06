@@ -16,12 +16,20 @@ import { toBilingualNoZonesReason } from '../../../../survey/zone-exemption.util
 import { ReportImageResolver } from '../../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked, extractFloorCadPins } from './cad-pin.mapper';
 import { mapFloorZonesAndElements } from './defect-pair.mapper';
+import { extractPhotoDateTime } from '../../formatters.mapper';
 import {
   createOverviewPhotoCollector,
   buildBalancedOverviewPages,
   paginateDefectSummaryRows,
   paginateDefectPairPhotos,
 } from './floor-overview-pagination.mapper';
+import {
+  extractPhotoCodeSuffix,
+  normalizeMetroPhotoCode,
+  parseCodeFromPhotoUrl,
+  replaceFloorSegment,
+  resolveFloorCode,
+} from '../../../utils/metro-photo-code.utils';
 
 export { isPhotoAlreadyWatermarked };
 
@@ -31,15 +39,20 @@ export class FloorDefectMapper {
     photoCounter: { current: number } = { current: 5 },
     buildingId: string = '',
     rawSurveyDate: any = null,
-    photoRotations: Record<string, number> = {}
+    photoRotations: Record<string, number> = {},
+    codeContext?: { parcelCode: string; unitCode?: string | null }
   ): FloorPlanDefectReport[] {
     const results: FloorPlanDefectReport[] = [];
     const rotMap = photoRotations || {};
+    const parcelForCode = codeContext?.parcelCode || buildingId || 'CHƯA_ĐỊNH_DANH';
+    const unitForCode = codeContext?.unitCode || undefined;
 
     let floorIndex = 0;
     for (const fl of rawFloors || []) {
       floorIndex++;
       const fIdx = floorIndex - 1;
+      // Mã tầng theo SỐ LẦU (Tầng N = Lầu N), không theo vị trí trong mảng floors.
+      const floorCode = resolveFloorCode(fl);
       const flNameVi = fl.floorName || `Tầng ${floorIndex}`;
       const flNameEn = fl.floorNameEn || (
         flNameVi.toLowerCase().includes('trệt') ? 'G Floor (Ground Floor)' :
@@ -100,7 +113,8 @@ export class FloorDefectMapper {
         rawSurveyDate,
         rotMap,
         roomOverviewPhotos,
-        elementOverviewPhotos
+        elementOverviewPhotos,
+        { parcelCode: parcelForCode, unitCode: unitForCode, floorCode }
       );
 
       if (Array.isArray(fl.overviewPhotos)) {
@@ -108,7 +122,7 @@ export class FloorDefectMapper {
           const url = typeof item === 'string' ? item : item?.url;
           addPhotoIfUnique(
             url,
-            fl.floorCode || `F0${floorIndex}`,
+            floorCode,
             `Mặt bằng ${flNameVi}`,
             `${flNameEn} Overview`,
             true,
@@ -137,6 +151,28 @@ export class FloorDefectMapper {
         rotMap,
         addPhotoIfUnique
       );
+
+      // 4b. Mã ảnh khuyết tật chuẩn HCM_M2.1_[Mã thửa]_..., đoạn tầng theo số Lầu (không lặp tiền tố).
+      const pairCode = (stored: string | undefined, url: string | undefined, fallback: string): string => {
+        const suffix = stored ? extractPhotoCodeSuffix(stored) : parseCodeFromPhotoUrl(url)?.suffix || fallback;
+        return normalizeMetroPhotoCode(replaceFloorSegment(suffix, floorCode), parcelForCode, unitForCode);
+      };
+      for (const pair of defectPairPhotos) {
+        // Giờ chụp thật lấy từ mốc trong tên file (như các ảnh khác); không có thì để Sharp dùng ngày khảo sát.
+        pair.contextDateTime = pair.contextDateTime || extractPhotoDateTime(pair.contextPhotoUrl, null, null) || undefined;
+        pair.closeUpDateTime = pair.closeUpDateTime || extractPhotoDateTime(pair.closeUpPhotoUrl, null, null) || undefined;
+        pair.extraCloseUpDateTime =
+          pair.extraCloseUpDateTime || extractPhotoDateTime(pair.extraCloseUpPhotoUrl, null, null) || undefined;
+        pair.contextWatermarkCode = pairCode(pair.contextPhotoCode, pair.contextPhotoUrl, `${pair.defectId}_CTX`);
+        pair.closeUpWatermarkCode = pairCode(pair.closeUpPhotoCode, pair.closeUpPhotoUrl, `${pair.defectId}_CU_01`);
+        if (pair.extraCloseUpPhotoUrl || pair.extraCloseUpPhotoBase64) {
+          pair.extraCloseUpWatermarkCode = pairCode(
+            pair.extraCloseUpPhotoCode,
+            pair.extraCloseUpPhotoUrl,
+            `${pair.defectId}_CU_02`
+          );
+        }
+      }
 
       // 5. Phân trang
       const overviewPages = buildBalancedOverviewPages(roomOverviewPhotos);

@@ -39,7 +39,7 @@
                     {{/if}}
                     <div class="watermark-text-bottom-right watermark-text-sm">
                       <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
-                      <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
+                      <div class="watermark-code">{{this.metroPhotoCode}}</div>
                     </div>
                   {{/unless}}
                 {{/if}}
@@ -89,7 +89,7 @@
                   {{/if}}
                   <div class="watermark-text-bottom-right watermark-text-sm">
                     <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
-                    <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
+                    <div class="watermark-code">{{this.metroPhotoCode}}</div>
                   </div>
                 {{/unless}}
               {{/if}}

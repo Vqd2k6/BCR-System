@@ -55,7 +55,8 @@ export class ScenarioFlagsAndTocMapper {
     section12AsBuilt?: Section12AsBuiltReport
   ): TocPageNumbers {
     const appendix1PageCount = appendix1Pages?.length || 1;
-    const pageSectionX = 9;
+    // Bìa(1) + Ký/Mục lục(2) + Mục I(3) + Mục II(4, sheet riêng có sơ đồ vị trí) + III..IX(5..9)
+    const pageSectionX = 10;
     const sectionXIPageCount = 1 + (appendix3.signedRecordPages?.length || 0);
     const pageSectionXI = pageSectionX + appendix1PageCount;
 
@@ -94,14 +95,14 @@ export class ScenarioFlagsAndTocMapper {
 
     const tocPageNumbers: TocPageNumbers = {
       section1: 3,
-      section2: 3,
-      section3: 4,
-      section4: 4,
-      section5: 5,
-      section6: 5,
-      section7: 6,
-      section8: 7,
-      section9: 8,
+      section2: 4,
+      section3: 5,
+      section4: 5,
+      section5: 6,
+      section6: 6,
+      section7: 7,
+      section8: 8,
+      section9: 9,
       sectionX: pageSectionX,
       sectionXI: pageSectionXI,
       sectionXII: pageSectionXII,

@@ -17,6 +17,7 @@ import {
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
 import { extractPhotoDateTime, parseSurveyDate, formatPersonName } from '../formatters.mapper';
+import { normalizeMetroPhotoCode } from '../../utils/metro-photo-code.utils';
 import { resolveContactPhone, resolveRecordAddress } from '../sections/section-1-2-overview-spatial.mapper';
 import { resolveLocalRepresentative } from './local-authority.rules';
 import { collectZoneExemptFloors } from '../../../survey/zone-exemption.utils';
@@ -221,9 +222,11 @@ export class Appendix3And4Mapper {
           rotation: Number(docRot) || 0,
           alreadyWatermarked: isPhotoAlreadyWatermarked(url),
           watermarkDateTime: extractPhotoDateTime(url, null, rawSurveyDate),
-          metroPhotoCode: isAbsPage
-            ? `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_ABSENTEE_${String(idx + 1).padStart(2, '0')}`
-            : `HCM_M2.[${buildingId || 'CHƯA_ĐỊNH_DANH'}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`,
+          metroPhotoCode: normalizeMetroPhotoCode(
+            `${isAbsPage ? 'DOC_ABSENTEE' : 'DOC_MINUTES'}_${String(idx + 1).padStart(2, '0')}`,
+            String(json.projectParcelCode || rawReport.project_parcel_code || buildingId || 'CHƯA_ĐỊNH_DANH').trim(),
+            String(rawReport.unit_code || '').trim()
+          ),
         };
       }),
     };

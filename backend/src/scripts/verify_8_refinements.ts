@@ -129,15 +129,15 @@ async function verify() {
     `Đã cấu hình line-height bảo vệ: ${pinFixed}`
   );
 
-  // Điểm 8: Sơ đồ vị trí không gian Metro ở bìa (SVG vector)
-  const coverTemplate = fs.readFileSync(path.resolve(__dirname, '../modules/report/templates/residential/partials/page-01-cover.hbs'), 'utf8');
-  const hasSpatialCover = coverTemplate.includes('cover-spatial-wrapper') &&
+  // Điểm 8: Sơ đồ vị trí không gian Metro ở đầu Mục II (SVG khổ ngang)
+  const coverTemplate = fs.readFileSync(path.resolve(__dirname, '../modules/report/templates/residential/partials/page-03-toc-and-sections-1-2.hbs'), 'utf8');
+  const hasSpatialCover = coverTemplate.includes('section2-spatial-wrapper') &&
                           coverTemplate.includes('SƠ ĐỒ VỊ TRÍ THỬA ĐẤT &amp; TUYẾN METRO 2');
   assertPoint(
     8,
-    'Trang bìa bố trí 2 khung cân đối: Ảnh mặt tiền (trái) và Sơ đồ vị trí Metro (phải)',
+    'Mục II mở đầu bằng Sơ đồ vị trí thửa đất & Tuyến Metro 2',
     hasSpatialCover,
-    `Template bìa tích hợp khung 2 cột sơ đồ: ${hasSpatialCover}`
+    `Template Mục II tích hợp sơ đồ vị trí: ${hasSpatialCover}`
   );
 
   console.log(`\n======================================================`);

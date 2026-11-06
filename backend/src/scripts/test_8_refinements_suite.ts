@@ -54,7 +54,7 @@ async function run15BusinessCases() {
   const allTwoDigits = stationCodes[0] === 'ST05' &&
                        stationCodes[1] === 'ST05' &&
                        stationCodes[2] === 'ST05' &&
-                       stationCodes[3] === 'ST05' &&
+                       stationCodes[3] === 'ST03' && // ZONE_05 = C&C-03 Ga S3 Dân Chủ
                        stationCodes[4] === 'ST01' &&
                        stationCodes[5] === 'ST10';
   assert(

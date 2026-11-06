@@ -43,6 +43,12 @@ export interface ReportMetadata {
   surveyDateFormatted?: string;
   watermarkDateTime?: string;
   coverWatermarkDateTime?: string;
+  /** Mã ảnh bìa chuẩn hóa HCM_M2.1_[Mã thửa]_... (in trên watermark và overlay dự phòng) */
+  coverWatermarkCode?: string;
+  /** Mã thửa dự án (C&C-05-B-0001) — dùng trong ngoặc của mã ảnh */
+  projectParcelCode?: string;
+  /** Mã căn hộ con / khu vực chung như trên Hub (U-060, M-005) — chỉ có ở báo cáo căn hộ */
+  unitCode?: string;
   totalExpectedPages?: number;
 }
 
@@ -502,6 +508,10 @@ export interface DefectPairPhotoItem {
   extraCloseUpPhotoCode?: string;
   extraCloseUpPhotoRotation?: number;
   hasExtraCloseUp?: boolean;
+  /** Mã ảnh chuẩn hóa HCM_M2.1_[Mã thửa]_... in trên watermark / overlay dự phòng */
+  contextWatermarkCode?: string;
+  closeUpWatermarkCode?: string;
+  extraCloseUpWatermarkCode?: string;
   activityState?: string;            // S hoặc A
   activityStateDisplay?: BilingualText;
   notes?: string;                    // Ghi chú hiện trường KSV
@@ -527,6 +537,10 @@ export interface RoomOverviewPhotoItem {
   alreadyWatermarked?: boolean;
   watermarkDateTime?: string;
   metroPhotoCode?: string;
+  /** Mã gốc đọc từ tên file khi khác nội dung mã đúng (ảnh cũ mang mã tầng sai trong pixel) */
+  originalFileCode?: string;
+  /** Hậu tố của mã gốc (F02_OVERVIEW_01) — hiển thị gọn trên nhãn ảnh để không tràn trang */
+  originalFileSuffix?: string;
   isStructuralElement?: boolean;
 }
 

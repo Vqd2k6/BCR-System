@@ -2,11 +2,23 @@
  * ============================================================================
  * CADASTRAL INFO & IDENTIFIERS MAPPER
  * Chuẩn hóa các mã định danh pháp lý:
- * 1. Building ID: Hoán vị B-[5 chữ số]-[Segment] ([StationCode])
- * 2. Report No: R-[5 chữ số]-[Segment]-([StationCode])-R[XX]
+ * 1. Building ID: Hoán vị B-[5 chữ số]-[Segment] ([LocationCode])
+ * 2. Report No: R-[5 chữ số]-[Segment]-([LocationCode])-R[XX]
  * 3. Filing No: Số: [STT]/BCS-P1/CRLG-[Năm]
+ *
+ * LocationCode:
+ *  - Ga C&C  : C&C-nn → STnn (số thứ tự ga, VD C&C-04 / ZONE_07 Ga S4 Hòa Hưng → ST04)
+ *  - Hầm TBM : POR-nn → PORnn (giữ nguyên số đoạn POR)
+ *  - Depot   : DEP-nn → DEPnn
+ * Nguồn chuẩn ánh xạ Zone → tiền tố: ZONE_SEGMENT_PREFIX_MAP.
  * ============================================================================
  */
+
+import { ZONE_SEGMENT_PREFIX_MAP } from '../../../common/constants/zone-prefixes';
+
+/** Mã vị trí trong ngoặc của Building ID / Report No. */
+const LOCATION_CODE_IN_PARENS = /\((ST|POR|DEP)\s*(\d{1,2})\)/i;
+const UNRESOLVED_LOCATION_CODE = 'ST00';
 
 export class CadastralInfoMapper {
   public static formatBuildingId(
@@ -19,12 +31,15 @@ export class CadastralInfoMapper {
     }
 
     let trimmed = rawCode.trim();
-    trimmed = trimmed.replace(/\(ST(\d)\)/gi, (_, d) => `(ST0${d})`);
+    trimmed = trimmed.replace(
+      /\((ST|POR|DEP)\s*(\d{1,2})\)/gi,
+      (_match: string, kind: string, digits: string) => `(${kind.toUpperCase()}${digits.padStart(2, '0')})`
+    );
 
     if (/^B-\d{4,5}-[A-Za-z&]+(\s*\([^)]+\))?$/i.test(trimmed)) {
       if (!trimmed.includes('(') && zoneId) {
-        const stationCode = CadastralInfoMapper.resolveStationCode(zoneId);
-        return `${trimmed} (${stationCode})`;
+        const locationCode = CadastralInfoMapper.resolveStationCode(zoneId);
+        return `${trimmed} (${locationCode})`;
       }
       return trimmed;
     }
@@ -44,39 +59,62 @@ export class CadastralInfoMapper {
       segment = 'C&C';
     }
 
-    const stationCode = CadastralInfoMapper.resolveStationCode(zoneId || trimmed);
+    // Mã thửa là định danh pháp lý gốc → ưu tiên tiền tố mã thửa; chỉ dùng zoneId khi mã thửa không mang tiền tố.
+    const locationCode =
+      CadastralInfoMapper.tryResolveLocationCode(trimmed) ??
+      CadastralInfoMapper.resolveStationCode(zoneId || trimmed);
 
-    return `B-${bNumber}-${segment} (${stationCode})`;
+    return `B-${bNumber}-${segment} (${locationCode})`;
   }
 
+  /**
+   * Suy mã vị trí từ: mã thửa (C&C-04-B-0336 → ST04, POR-04-… → POR04, DEP-01-… → DEP01),
+   * mã đã có trong ngoặc ((ST4) → ST04), số ga (4 → ST04), "ST5" → ST05,
+   * hoặc mã Zone (ZONE_07 → C&C-04 → ST04).
+   * Không suy được → log lỗi và trả ST00 (không bịa mã ga).
+   */
   public static resolveStationCode(zoneIdOrString: string | number): string {
-    const upper = String(zoneIdOrString || '').trim().toUpperCase();
+    const resolved = CadastralInfoMapper.tryResolveLocationCode(zoneIdOrString);
+    if (resolved) return resolved;
+    console.error(
+      `[CadastralInfo:resolveStationCode] Không suy được mã ga/vị trí từ "${String(zoneIdOrString)}"`
+    );
+    return UNRESOLVED_LOCATION_CODE;
+  }
+
+  private static tryResolveLocationCode(input: string | number | undefined | null): string | undefined {
+    const upper = String(input ?? '').trim().toUpperCase();
+    if (!upper) return undefined;
+
     if (/^\d+$/.test(upper)) {
       const num = parseInt(upper, 10);
-      if (num >= 1 && num <= 20) return `ST${String(num).padStart(2, '0')}`;
-    }
-    if (upper.includes('ZONE_01') || upper.includes('ZONE-01') || upper.includes('S1.01') || upper.includes('(ST1)') || upper.includes('(ST01)')) return 'ST01';
-    if (upper.includes('ZONE_02') || upper.includes('ZONE-02') || upper.includes('(ST2)') || upper.includes('(ST02)')) return 'ST02';
-    if (upper.includes('ZONE_03') || upper.includes('ZONE-03') || upper.includes('(ST3)') || upper.includes('(ST03)')) return 'ST03';
-    if (upper.includes('ZONE_04') || upper.includes('ZONE-04') || upper.includes('(ST4)') || upper.includes('(ST04)')) return 'ST04';
-    if (upper.includes('ZONE_05') || upper.includes('ZONE-05') || upper.includes('(ST5)') || upper.includes('(ST05)')) return 'ST05';
-    if (upper.includes('ZONE_06') || upper.includes('ZONE-06') || upper.includes('(ST6)') || upper.includes('(ST06)')) return 'ST06';
-    if (upper.includes('ZONE_07') || upper.includes('ZONE-07') || upper.includes('(ST7)') || upper.includes('(ST07)')) return 'ST07';
-    if (upper.includes('ZONE_08') || upper.includes('ZONE-08') || upper.includes('(ST8)') || upper.includes('(ST08)')) return 'ST08';
-    if (upper.includes('ZONE_09') || upper.includes('ZONE-09')) return 'ST05';
-    if (upper.includes('ZONE_10') || upper.includes('ZONE-10') || upper.includes('(ST10)')) return 'ST10';
-
-    const matchSt = upper.match(/ST_?(\d+)/);
-    if (matchSt) {
-      return `ST${String(parseInt(matchSt[1], 10)).padStart(2, '0')}`;
+      return num >= 1 && num <= 11 ? `ST${String(num).padStart(2, '0')}` : undefined;
     }
 
-    const matchNum = upper.match(/ZONE_?(\d+)/);
-    if (matchNum) {
-      return `ST${String(parseInt(matchNum[1], 10)).padStart(2, '0')}`;
+    const fromPrefix = CadastralInfoMapper.locationCodeFromSegmentPrefix(upper);
+    if (fromPrefix) return fromPrefix;
+
+    const inParens = upper.match(LOCATION_CODE_IN_PARENS);
+    if (inParens) return `${inParens[1]}${inParens[2].padStart(2, '0')}`;
+
+    const bareSt = upper.match(/^ST_?(\d{1,2})$/);
+    if (bareSt) return `ST${bareSt[1].padStart(2, '0')}`;
+
+    const zoneMatch = upper.match(/ZONE[_-]?(\d{1,2})\b/);
+    if (zoneMatch) {
+      const meta = ZONE_SEGMENT_PREFIX_MAP[`ZONE_${zoneMatch[1].padStart(2, '0')}`];
+      if (meta) return CadastralInfoMapper.locationCodeFromSegmentPrefix(meta.prefix);
     }
 
-    return 'ST01';
+    return undefined;
+  }
+
+  /** "C&C-04…" → ST04, "POR-04…" → POR04, "DEP-01…" → DEP01. */
+  private static locationCodeFromSegmentPrefix(upper: string): string | undefined {
+    const m = upper.match(/^(C&C|CC|POR|DEP)-(\d{1,2})\b/);
+    if (!m) return undefined;
+    const num = m[2].padStart(2, '0');
+    return m[1] === 'C&C' || m[1] === 'CC' ? `ST${num}` : `${m[1]}${num}`;
   }
 
   public static formatReportNo(
@@ -99,21 +137,17 @@ export class CadastralInfoMapper {
       else seg = 'C&C';
     }
 
-    let stCode = 'ST05';
-    const matchSt = buildingId.match(/ST(\d+)/i) || (zoneId ? zoneId.match(/ZONE_?(\d+)/i) : null);
-    if (matchSt) {
-      const stNum = parseInt(matchSt[1], 10);
-      stCode = `ST${String(stNum).padStart(2, '0')}`;
-    } else {
-      const rawSt = this.resolveStationCode(zoneId || '');
-      const rawNum = rawSt.replace(/\D/g, '');
-      stCode = rawNum ? `ST${rawNum.padStart(2, '0')}` : 'ST05';
-    }
+    // Đồng bộ 1:1 với mã vị trí đã in trên Building ID; chỉ suy lại khi Building ID không mang mã.
+    const fromBuildingId = buildingId.match(LOCATION_CODE_IN_PARENS);
+    const locationCode = fromBuildingId
+      ? `${fromBuildingId[1].toUpperCase()}${fromBuildingId[2].padStart(2, '0')}`
+      : (CadastralInfoMapper.tryResolveLocationCode(parcelCode) ??
+         CadastralInfoMapper.resolveStationCode(zoneId || ''));
 
     const revClean = revision.replace(/\D/g, '') || '0';
     const revStr = revClean.padStart(2, '0');
 
-    return `R-${seq}-${seg}-(${stCode})-R${revStr}`;
+    return `R-${seq}-${seg}-(${locationCode})-R${revStr}`;
   }
 
   public static formatFilingNo(buildingId: string, year: number = 2026): string {
@@ -122,4 +156,3 @@ export class CadastralInfoMapper {
     return `Số: ${seq}/BCS-P1/CRLG-${year}`;
   }
 }
-

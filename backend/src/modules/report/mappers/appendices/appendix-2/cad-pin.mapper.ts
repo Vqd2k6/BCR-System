@@ -7,6 +7,7 @@
  */
 
 import { CadPinOverlayItem } from '../../../report.types';
+import { LegacyWatermarkIndex } from '../../../services/legacy-watermark-index.service';
 
 /**
  * Kiểm tra xem một bức ảnh đã được nhúng watermark từ thiết bị/hệ thống hay chưa
@@ -14,7 +15,10 @@ import { CadPinOverlayItem } from '../../../report.types';
 export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
   if (!url && !photoObj) return false;
   if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true || photoObj?.alreadyWatermarked === true) return true;
-  const u = (url || photoObj?.url || '').toLowerCase();
+  const rawUrl: string = url || photoObj?.url || '';
+  // Ảnh upload trước mốc FE ngừng dập watermark: đã có logo + mã + giờ ngay trong pixel.
+  if (LegacyWatermarkIndex.has(rawUrl)) return true;
+  const u = rawUrl.toLowerCase();
   return (
     u.includes('_wm_') ||
     u.includes('watermark') ||

@@ -138,7 +138,7 @@
                       {{/if}}
                       <div class="watermark-text-bottom-right watermark-text-sm">
                         <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                        <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
+                        <div class="watermark-code">{{this.metroPhotoCode}}</div>
                       </div>
                     {{/unless}}
                   {{/if}}
@@ -146,7 +146,7 @@
               </div>
               <div class="room-photo-meta">
                 <div class="room-photo-header">
-                  <span style="font-weight: bold;">{{this.photoId}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>
+                  <span style="font-weight: bold;">{{this.metroPhotoCode}}{{#if this.originalFileSuffix}} <span style="font-weight: normal; font-size: var(--fs-f1);">(mã gốc trên ảnh / original: {{this.originalFileSuffix}})</span>{{/if}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>| {{this.roomName.vi}} ({{this.zoneCode}})</span>
                   <span class="status-badge-normal" style="color: var(--c-black); border: 0.5pt solid #000000; padding: 1pt 3pt;">{{this.statusBadge.text.vi}}</span>
                 </div>
                 <div style="color: var(--c-sub); font-size: var(--fs-e1);">
@@ -196,7 +196,7 @@
                       {{/if}}
                       <div class="watermark-text-bottom-right watermark-text-sm">
                         <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                        <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
+                        <div class="watermark-code">{{this.metroPhotoCode}}</div>
                       </div>
                     {{/unless}}
                   {{/if}}
@@ -204,7 +204,7 @@
               </div>
               <div class="room-photo-meta">
                 <div class="room-photo-header">
-                  <span style="font-weight: bold;">{{this.photoId}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>
+                  <span style="font-weight: bold;">{{this.metroPhotoCode}}{{#if this.originalFileSuffix}} <span style="font-weight: normal; font-size: var(--fs-f1);">(mã gốc trên ảnh / original: {{this.originalFileSuffix}})</span>{{/if}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>| {{this.roomName.vi}} ({{this.zoneCode}})</span>
                   <span class="status-badge-normal" style="color: var(--c-black); border: 0.5pt solid #000000; padding: 1pt 3pt;">{{this.statusBadge.text.vi}}</span>
                 </div>
                 <div style="color: var(--c-sub); font-size: var(--fs-e1);">

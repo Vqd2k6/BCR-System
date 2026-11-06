@@ -1,7 +1,7 @@
   <!-- =====================================================================
        TRANG 1: TRANG BÌA BÁO CÁO (COVER PAGE)
        ===================================================================== -->
-  <div class="a4-page-sheet">
+  <div class="a4-page-sheet cover-sheet">
     
   <!-- HEADER CHUẨN 3 CỘT (LIÊN DANH THACO REC - METRO 2) -->
   <table class="report-running-header">
@@ -54,10 +54,10 @@
         </div>
       </div>
 
-      <!-- KHUNG 2 CỘT TRUNG TÂM TRANG BÌA: ẢNH MẶT TIỀN (TRÁI) & SƠ ĐỒ VỊ TRÍ METRO (PHẢI) -->
+      <!-- KHUNG ẢNH MẶT TIỀN TRANG BÌA (1 CỘT; SƠ ĐỒ VỊ TRÍ METRO ĐÃ CHUYỂN SANG ĐẦU MỤC II) -->
       <div class="cover-facade-section">
-        <div class="cover-facade-grid{{#unless metadata.spatialVisualMapBase64}} cover-single-col{{/unless}}">
-          <!-- Cột trái: Ảnh mặt tiền chính -->
+        <div class="cover-facade-grid cover-single-col">
+          <!-- Ảnh mặt tiền chính -->
           <div class="cover-grid-cell cover-photo-cell">
             <div class="cover-facade-wrapper">
               {{#if metadata.coverPhotoBase64}}
@@ -65,7 +65,7 @@
               {{else if metadata.coverPhotoUrl}}
                 <img src="{{metadata.coverPhotoUrl}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
               {{else}}
-                <div class="photo-placeholder" style="width: 100%; height: 210px; display: flex; align-items: center; justify-content: center;">
+                <div class="photo-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
                   [ Chưa có ảnh mặt tiền chính ]
                 </div>
               {{/if}}
@@ -77,7 +77,7 @@
                     {{/if}}
                     <div class="watermark-text-bottom-right watermark-text-sm">
                       <div class="watermark-datetime">{{#if metadata.coverWatermarkDateTime}}{{metadata.coverWatermarkDateTime}}{{else}}{{metadata.watermarkDateTime}}{{/if}}</div>
-                      <div class="watermark-code">HCM_M2.[{{metadata.buildingId}}]_P02_MAIN</div>
+                      <div class="watermark-code">{{metadata.coverWatermarkCode}}</div>
                     </div>
                   {{/unless}}
                 {{/if}}
@@ -85,16 +85,6 @@
             </div>
             <div class="cover-sub-caption">ẢNH MẶT TIỀN CÔNG TRÌNH / FACADE PHOTO</div>
           </div>
-
-          <!-- Cột phải: Sơ đồ vị trí không gian Metro (Nếu có) -->
-          {{#if metadata.spatialVisualMapBase64}}
-          <div class="cover-grid-cell cover-map-cell">
-            <div class="cover-spatial-wrapper">
-              <img src="{{metadata.spatialVisualMapBase64}}" class="cover-spatial-img" alt="Sơ đồ vị trí không gian Metro 2">
-            </div>
-            <div class="cover-sub-caption">SƠ ĐỒ VỊ TRÍ THỬA ĐẤT &amp; TUYẾN METRO 2 / SPATIAL MAP</div>
-          </div>
-          {{/if}}
         </div>
       </div>
 

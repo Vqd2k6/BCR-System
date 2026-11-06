@@ -215,7 +215,7 @@
                               {{/if}}
                               <div class="watermark-text-bottom-right watermark-text-sm">
                                 <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
+                                <div class="watermark-code">{{this.contextWatermarkCode}}</div>
                               </div>
                             {{/unless}}
                           {{/if}}
@@ -245,7 +245,7 @@
                               {{/if}}
                               <div class="watermark-text-bottom-right watermark-text-sm">
                                 <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
+                                <div class="watermark-code">{{this.closeUpWatermarkCode}}</div>
                               </div>
                             {{/unless}}
                           {{/if}}
@@ -273,7 +273,7 @@
                               {{/if}}
                               <div class="watermark-text-bottom-right watermark-text-sm">
                                 <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
+                                <div class="watermark-code">{{this.extraCloseUpWatermarkCode}}</div>
                               </div>
                             {{/unless}}
                           {{/if}}
@@ -324,7 +324,7 @@
                             {{/if}}
                             <div class="watermark-text-bottom-right watermark-text-sm">
                               <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
+                              <div class="watermark-code">{{this.contextWatermarkCode}}</div>
                             </div>
                           {{/unless}}
                         {{/if}}
@@ -352,7 +352,7 @@
                             {{/if}}
                             <div class="watermark-text-bottom-right watermark-text-sm">
                               <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
+                              <div class="watermark-code">{{this.closeUpWatermarkCode}}</div>
                             </div>
                           {{/unless}}
                         {{/if}}

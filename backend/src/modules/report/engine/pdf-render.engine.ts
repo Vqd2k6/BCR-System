@@ -8,6 +8,18 @@
 import * as fs from 'fs';
 import puppeteer, { Browser } from 'puppeteer-core';
 
+/**
+ * Ảnh pháp lý nhúng nguyên chất lượng → HTML lớn; cho phép render lâu thay vì giảm chất lượng ảnh.
+ * Ngân sách: chờ hàng đợi 60s (render-queue) + nạp HTML 150s + in PDF 75s = 285s,
+ * phải dưới mốc 300s của client (services/api.ts) và server (server.ts).
+ */
+function readTimeoutMs(envName: string, fallbackMs: number): number {
+  const parsed = Number(process.env[envName]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+const RENDER_TIMEOUT_MS = readTimeoutMs('REPORT_PDF_RENDER_TIMEOUT_MS', 150000);
+const PRINT_TIMEOUT_MS = readTimeoutMs('REPORT_PDF_PRINT_TIMEOUT_MS', 75000);
+
 export interface PdfRenderOptions {
   buildingId: string;
   reportNo: string;
@@ -89,7 +101,7 @@ export class PdfRenderEngine {
 
       await page.setContent(html, {
         waitUntil: options.selfContainedHtml ? ['domcontentloaded', 'load'] : ['domcontentloaded', 'networkidle2'],
-        timeout: 45000,
+        timeout: RENDER_TIMEOUT_MS,
       });
 
       await page.evaluate(async () => {
@@ -99,6 +111,7 @@ export class PdfRenderEngine {
       });
 
       const pdfUint8Array = await page.pdf({
+        timeout: PRINT_TIMEOUT_MS,
         format: 'A4',
         printBackground: true,
         preferCSSPageSize: true,

@@ -12,7 +12,7 @@
   --font-mono: 'Latin Modern Mono', monospace;
 
   /* 8 bậc kích thước chữ cố định (nâng nội dung chính lên 13pt theo yêu cầu; sàn tối thiểu 10pt) */
-  --fs-t0: 24pt; /* Tên báo cáo trên bìa (VI) - Đậm, in hoa */
+  --fs-t0: 24pt; /* (Dự phòng) Cỡ tiêu đề lớn; bìa hiện dùng --fs-t1 để tiêu đề nằm 1 dòng */
   --fs-t1: 16pt; /* Tiêu đề Mục lớn (I, II... / Phụ lục) - Đậm, in hoa, kẻ ngang đen dưới */
   --fs-t2: 14pt; /* Tiêu đề bảng / tiểu mục */
   --fs-b1: 13pt; /* Nội dung chính (đoạn văn, ô bảng tiếng Việt) */
@@ -137,6 +137,13 @@ body {
     break-after: avoid !important;
   }
 
+  /* Trang bìa chiếm trọn vùng in A4 (297mm - lề @page 18mm x 2) để ảnh mặt tiền co giãn lấp khoảng trống */
+  .a4-page-sheet.cover-sheet {
+    height: 261mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   .report-subpage-topbar,
   .page-number-footer {
     display: none !important;
@@ -183,14 +190,14 @@ body {
 }
 
 .report-running-header .col-logo {
-  width: 130px;
+  width: 150px;
   text-align: center;
   padding: 3pt;
 }
 
 .report-running-header .col-logo img {
-  max-width: 120px;
-  max-height: 38px;
+  max-width: 140px;
+  max-height: 44px;
   object-fit: contain;
   display: block;
   margin: 0 auto;
@@ -232,6 +239,7 @@ body {
    KHUNG BÌA BÁO CÁO (COVER PAGE BORDER FRAME)
    ========================================================================== */
 .cover-page-border {
+  min-height: 0;
   border: var(--border-line);
   padding: 6pt 10pt;
   display: flex;
@@ -253,16 +261,19 @@ body {
 }
 
 .cover-doc-title-box h1 {
-  font-size: var(--fs-t0);
+  font-size: var(--fs-t1); /* 16pt: tiêu đề VI nằm trọn 1 dòng, nhường chỗ cho ảnh bìa */
   font-weight: bold;
   color: var(--c-black);
   margin: 0 0 2pt 0;
   line-height: 1.15;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
   text-transform: uppercase;
 }
 
 .cover-doc-title-box h2 {
-  font-size: var(--fs-t1);
+  font-size: 12pt;
+  white-space: nowrap;
   font-weight: bold;
   color: var(--c-black);
   margin: 0 0 3pt 0;
@@ -281,10 +292,21 @@ body {
   margin: 2pt 0 4pt 0;
 }
 
-/* Khung ảnh mặt tiền và Sơ đồ vị trí Metro bìa (2 cột cân đối) */
+/* Trang bìa trên màn hình xem trước: cố định khổ A4 để khung ảnh co giãn lấp khoảng trống */
+.a4-page-sheet.cover-sheet {
+  height: 297mm;
+}
+
+/* Khung ảnh mặt tiền bìa (1 cột; sơ đồ vị trí Metro nằm ở đầu Mục II).
+   Khung giãn chiếm toàn bộ chiều cao còn lại giữa tiêu đề và khối địa chỉ/bảng ký;
+   ảnh giữ nguyên tỉ lệ (contain), không cắt xén vì là chứng cứ pháp lý. */
 .cover-facade-section {
   width: 100%;
   margin: 3pt auto 4pt auto;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .cover-facade-grid {
@@ -293,6 +315,8 @@ body {
   align-items: stretch;
   gap: 8pt;
   width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .cover-grid-cell {
@@ -304,15 +328,15 @@ body {
 }
 
 .cover-facade-grid.cover-single-col .cover-grid-cell {
-  flex: 0 1 auto;
-  max-width: 75%;
+  flex: 1 1 100%;
+  max-width: 100%;
 }
 
-.cover-facade-wrapper,
-.cover-spatial-wrapper {
+.cover-facade-wrapper {
   position: relative;
   width: 100%;
-  height: 175px; /* Khổ dọc 3:4, tuyệt đối không đẩy Bảng chữ ký sang trang 2 */
+  flex: 1 1 0;
+  min-height: 270px; /* Sàn tối thiểu; phần còn lại tự giãn theo khoảng trống của trang bìa */
   line-height: 0;
   border: var(--border-line);
   overflow: hidden;
@@ -323,17 +347,46 @@ body {
 }
 
 .cover-facade-photo {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain !important;
   display: block;
 }
 
-.cover-spatial-img {
+/* Sơ đồ vị trí thửa đất & Tuyến Metro 2 ở đầu Mục II (SVG khổ ngang 870x300, khớp tỉ lệ khung ~2.9:1) */
+.section2-spatial-map {
+  width: 100%;
+  margin: 0 0 6pt 0;
+  text-align: center;
+}
+
+.section2-spatial-wrapper {
+  width: 100%;
+  height: 230px;
+  line-height: 0;
+  border: var(--border-line);
+  overflow: hidden;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section2-spatial-img {
   width: 100%;
   height: 100%;
-  object-fit: cover !important;
+  object-fit: contain;
   display: block;
+}
+
+.section2-spatial-caption {
+  font-size: var(--fs-c1);
+  font-weight: bold;
+  color: #000000;
+  margin-top: 3pt;
+  text-transform: uppercase;
 }
 
 .cover-sub-caption {

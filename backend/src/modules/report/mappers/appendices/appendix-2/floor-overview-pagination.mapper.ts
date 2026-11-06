@@ -16,6 +16,13 @@ import { ReportImageResolver } from '../../../services/report-image-resolver.ser
 import { isPortraitImage } from '../../../utils/image-sniff.utils';
 import { extractPhotoDateTime } from '../../formatters.mapper';
 import { isPhotoAlreadyWatermarked } from './cad-pin.mapper';
+import {
+  extractPhotoCodeSuffix,
+  isSamePhotoCodeContent,
+  normalizeMetroPhotoCode,
+  parseCodeFromPhotoUrl,
+  replaceFloorSegment,
+} from '../../../utils/metro-photo-code.utils';
 
 export type AddUniqueOverviewPhotoFn = (
   rawUrl: string | undefined | null,
@@ -32,14 +39,49 @@ export type AddUniqueOverviewPhotoFn = (
   explicitRot?: number
 ) => void;
 
+/** Ngữ cảnh sinh mã ảnh HCM_M2.1_[Mã thửa]_[mã căn_]<hậu tố> cho một tầng. */
+export interface PhotoCodeContext {
+  parcelCode: string;
+  unitCode?: string | null;
+  /** Mã tầng đúng theo số Lầu (F00, F01, MEZZ...) — thay đoạn tầng sai trong mã/tên file */
+  floorCode?: string;
+}
+
+/**
+ * Mã ảnh tổng quan: hậu tố ưu tiên mã đã lưu → mã trong tên file R2 → `${zoneCode}_${photoId}`;
+ * đoạn tầng được thay bằng mã tầng đúng. Nếu mã trong tên file (chữ đã dập trên ảnh cũ) khác
+ * NỘI DUNG mã đúng thì trả kèm mã gốc để ghi chú (bỏ qua khác biệt tiền tố HCM_M2. / HCM_M2.1_).
+ */
+export function resolveOverviewPhotoCode(
+  url: string,
+  storedCode: string | undefined,
+  zoneCode: string,
+  photoId: string,
+  ctx: PhotoCodeContext
+): { metroPhotoCode: string; originalFileCode?: string } {
+  const fileCode = parseCodeFromPhotoUrl(url);
+  const baseSuffix = storedCode
+    ? extractPhotoCodeSuffix(storedCode)
+    : fileCode?.suffix || `${zoneCode}_${photoId}`;
+  const correctedSuffix = ctx.floorCode ? replaceFloorSegment(baseSuffix, ctx.floorCode) : baseSuffix;
+  const metroPhotoCode = normalizeMetroPhotoCode(correctedSuffix, ctx.parcelCode, ctx.unitCode);
+  const originalFileCode =
+    fileCode && !isSamePhotoCodeContent(fileCode.suffix, correctedSuffix)
+      ? `HCM_M2.[${fileCode.parcel}]_${fileCode.suffix}`
+      : undefined;
+  return { metroPhotoCode, originalFileCode };
+}
+
 export function createOverviewPhotoCollector(
   photoCounter: { current: number },
   buildingId: string,
   rawSurveyDate: any,
   rotMap: Record<string, number>,
   roomOverviewPhotos: RoomOverviewPhotoItem[],
-  elementOverviewPhotos: RoomOverviewPhotoItem[]
+  elementOverviewPhotos: RoomOverviewPhotoItem[],
+  codeContext?: PhotoCodeContext
 ): AddUniqueOverviewPhotoFn {
+  const ctx: PhotoCodeContext = codeContext || { parcelCode: buildingId || 'CHƯA_ĐỊNH_DANH' };
   const seenPhotoUrls = new Set<string>();
 
   return (
@@ -66,7 +108,7 @@ export function createOverviewPhotoCollector(
     photoCounter.current++;
     const photoId = photoCode || `P-${photoCounter.current.toString().padStart(2, '0')}`;
     const itemDt = extractPhotoDateTime(cleanUrl, capturedAt || null, rawSurveyDate);
-    const mCode = photoCode || (buildingId ? `HCM_M2.[${buildingId}]_${zoneCode}_${photoId}` : photoId);
+    const { metroPhotoCode: mCode, originalFileCode } = resolveOverviewPhotoCode(cleanUrl, photoCode, zoneCode, photoId, ctx);
 
     const defaultBadgeVi = isNormal
       ? (isStructural ? 'Tổng thể cấu kiện' : 'Toàn cảnh không gian')
@@ -93,6 +135,8 @@ export function createOverviewPhotoCollector(
       alreadyWatermarked: isPhotoAlreadyWatermarked(cleanUrl),
       watermarkDateTime: itemDt,
       metroPhotoCode: mCode,
+      originalFileCode,
+      originalFileSuffix: originalFileCode ? extractPhotoCodeSuffix(originalFileCode) : undefined,
       isStructuralElement: isStructural,
     };
 

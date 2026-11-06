@@ -144,7 +144,10 @@ export class ReportViewModelMapper {
           : [];
 
     const rotMap = json.photoRotations || rawReport.photoRotations || {};
-    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate, rotMap);
+    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate, rotMap, {
+      parcelCode: metadata.projectParcelCode || buildingId,
+      unitCode: metadata.unitCode,
+    });
 
     // 4. Chương VI: Tóm tắt khuyết tật & Danh mục 8 nhóm BCS checklist
     const {

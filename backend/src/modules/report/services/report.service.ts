@@ -24,6 +24,7 @@ import { extractParcelPolygonCoords, preloadSatelliteTiles } from '../utils/spat
 import { extractAllImageUrls, buildPreloadRotationItems } from '../utils/report-preload.utils';
 import { ReportWatermarkCanvasService } from './report-watermark-canvas.service';
 import { ReportImageResolver } from './report-image-resolver.service';
+import { LegacyWatermarkIndex } from './legacy-watermark-index.service';
 import { ReportFontsService } from './report-fonts.service';
 import { ReportSnapshotService } from '../snapshot/report-snapshot.service';
 import type { ReportSnapshot } from '../schemas/report-snapshot.schema';
@@ -197,6 +198,24 @@ export class ReportService {
     return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark);
   }
 
+  /** Mã căn hộ con / khu vực chung như trên Hub chung cư (U-060, M-005) để ghép vào mã ảnh. */
+  private static async fetchUnitCode(unitId: string): Promise<string | null> {
+    try {
+      const res = await Database.query<{ unit_code: string | null }>(
+        `SELECT unit_code FROM building_units WHERE id = $1;`,
+        [unitId]
+      );
+      const unitCode = res.rows[0]?.unit_code?.trim() || null;
+      if (!unitCode) {
+        console.error(`[ReportService:fetchUnitCode] Căn hộ ${unitId} không có unit_code, mã ảnh sẽ thiếu mã căn`);
+      }
+      return unitCode;
+    } catch (err) {
+      console.error(`[ReportService:fetchUnitCode] Không đọc được unit_code của căn hộ ${unitId}`, err);
+      return null;
+    }
+  }
+
   public static async generateResidentialHtmlFromReport(
     rawReport: any,
     overrides?: any,
@@ -208,7 +227,12 @@ export class ReportService {
       activeReport = maskReportPii(activeReport);
     }
 
+    if (activeReport.unit_id && !activeReport.unit_code) {
+      activeReport = { ...activeReport, unit_code: await this.fetchUnitCode(String(activeReport.unit_id)) };
+    }
+
     const allPhotoUrls = extractAllImageUrls(activeReport);
+    await LegacyWatermarkIndex.load(allPhotoUrls);
     const photoRotationsMap = activeReport.survey_data_json?.photoRotations || activeReport.photoRotations || {};
     await preloadImageOrientations(allPhotoUrls);
     const preloadItems = buildPreloadRotationItems(activeReport, allPhotoUrls, photoRotationsMap);

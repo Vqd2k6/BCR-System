@@ -13,6 +13,7 @@ import { LOGO_THACO_REC_BASE64 } from '../../assets/report-logos';
 import { isPhotoAlreadyWatermarked } from '../appendices/appendix-2/floor-defect.mapper';
 import { formatDateVi, extractPhotoDateTime } from '../formatters.mapper';
 import { extractParcelPolygonCoords, generateMetroSpatialVisualSvg } from '../../utils/spatial-svg.utils';
+import { normalizeMetroPhotoCode, parseCodeFromPhotoUrl } from '../../utils/metro-photo-code.utils';
 
 export interface MetadataMappingResult {
   metadata: ReportMetadata;
@@ -40,7 +41,7 @@ export class MetadataMapper {
     const rawParcelCode = json.projectParcelCode || rawReport.project_parcel_code || '';
     const buildingId = overrides?.buildingId || (rawParcelCode ? CadastralInfoMapper.formatBuildingId(
       rawParcelCode,
-      rawReport.zone_id || 'ZONE_09',
+      rawReport.zone_id || undefined,
       rawReport.segment_type || 'C&C'
     ) : 'CHƯA_ĐỊNH_DANH');
 
@@ -109,13 +110,24 @@ export class MetadataMapper {
 
     const polygonCoords = extractParcelPolygonCoords(rawReport, json);
     const spatialVisualMapBase64 = polygonCoords
-      ? generateMetroSpatialVisualSvg(polygonCoords, buildingId || rawParcelCode)
+      ? generateMetroSpatialVisualSvg(polygonCoords, buildingId || rawParcelCode, undefined, { width: 870, height: 300 })
       : undefined;
 
     const isApprovedStatus = String(rawReport.status || '').toUpperCase() === 'APPROVED';
     const deterministicGenDate = isApprovedStatus && rawReport.approved_at
       ? formatDateVi(new Date(rawReport.approved_at))
       : (surveyDateFormatted || formatDateVi(new Date()));
+
+    // Mã ảnh chuẩn HCM_M2.1_[Mã thửa]_[mã căn_]...: ảnh bìa lấy hậu tố từ tên file R2 nếu có (EXT_P02_01),
+    // không có thì dùng P02_MAIN.
+    const projectParcelCode = String(rawParcelCode || '').trim();
+    const unitCode = String(rawReport.unit_code || '').trim();
+    const coverFileCode = parseCodeFromPhotoUrl(coverPhotoUrl);
+    const coverWatermarkCode = normalizeMetroPhotoCode(
+      coverFileCode?.suffix || 'P02_MAIN',
+      projectParcelCode || buildingId,
+      unitCode
+    );
 
     const metadata: ReportMetadata = {
       buildingId,
@@ -137,6 +149,9 @@ export class MetadataMapper {
       surveyDateFormatted,
       watermarkDateTime,
       coverWatermarkDateTime,
+      coverWatermarkCode,
+      projectParcelCode: projectParcelCode || undefined,
+      unitCode: unitCode || undefined,
     };
 
     const rawSurveyorName =
