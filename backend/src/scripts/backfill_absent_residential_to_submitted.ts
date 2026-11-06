@@ -1,5 +1,7 @@
 /**
  * Đưa hồ sơ nhà dân vắng mặt cũ (kẹt ở DRAFT) vào hàng đợi thẩm định. CHỈ đổi status/submitted_at, không đụng dữ liệu khảo sát.
+ * Công cụ thủ công cho DB thử nghiệm. Production KHÔNG chạy script này: Admin tiếp nhận từng hồ sơ qua nút
+ * "Tiếp nhận thẩm định" ở tab Vắng Mặt (POST /admin/reports/:id/absent-intake, có lý do + SHA-256 trong nhật ký).
  *
  *   npx ts-node src/scripts/backfill_absent_residential_to_submitted.ts            # Xem trước
  *   npx ts-node src/scripts/backfill_absent_residential_to_submitted.ts --apply    # Ghi thật
@@ -10,11 +12,13 @@ interface PendingRow {
   id: string;
   report_code: string | null;
   parcel_code: string;
+  case_type: string | null;
   updated_at: Date;
 }
 
 const PENDING_SQL = `
-  SELECT r.id, r.report_code, p.project_parcel_code AS parcel_code, r.updated_at
+  SELECT r.id, r.report_code, p.project_parcel_code AS parcel_code,
+         r.survey_data_json->>'surveyCaseType' AS case_type, r.updated_at
   FROM base_survey_reports r
   JOIN parcels p ON p.id = r.parcel_id
   WHERE r.unit_id IS NULL
@@ -22,14 +26,20 @@ const PENDING_SQL = `
     AND r.deleted_at IS NULL
     AND r.is_refused_or_absent = TRUE
     AND p.survey_status = 'POSTPONED_ABSENT'
-    AND (r.survey_data_json->>'surveyCaseType' = 'ABSENTEE' OR r.survey_data_json->>'isAbsenteeSurvey' = 'true')
+    AND p.active_phase1_report_id = r.id
+    -- Bằng chứng vắng lấy từ nhật ký DB, không từ JSON: KSV có thể đổi case sau khi ghi vắng (JSON còn NORMAL)
+    AND EXISTS (SELECT 1 FROM survey_absence_logs l WHERE l.parcel_id = r.parcel_id AND l.unit_id IS NULL)
   ORDER BY r.updated_at;`;
 
 async function main(): Promise<void> {
   const shouldApply = process.argv.includes('--apply');
   const pending = await Database.query<PendingRow>(PENDING_SQL);
   console.log(`[BackfillAbsentResidential] Tìm thấy ${pending.rows.length} hồ sơ:`);
-  pending.rows.forEach((row) => console.log(`  - ${row.parcel_code} | ${row.report_code ?? row.id}`));
+  pending.rows.forEach((row) => console.log(
+      `  - ${row.parcel_code} | ${row.report_code ?? row.id} | case=${row.case_type ?? '---'}${
+        row.case_type === 'ABSENTEE' ? '' : '  <-- JSON không mang nhánh vắng, Admin cần soi kỹ'
+      }`
+    ));
 
   if (!shouldApply) {
     console.log('[BackfillAbsentResidential] Chế độ xem trước, chưa ghi gì. Thêm --apply để ghi thật.');
@@ -47,7 +57,7 @@ async function main(): Promise<void> {
       );
       await client.query(
         `INSERT INTO system_audit_logs (entity_type, entity_id, action, diff_payload) VALUES ($1, $2, $3, $4);`,
-        ['BASE_SURVEY_REPORT', row.id, 'BACKFILL_ABSENT_RESIDENTIAL_SUBMITTED', JSON.stringify({ from: 'DRAFT', to: 'SUBMITTED' })]
+        ['BASE_SURVEY_REPORT', row.id, 'BACKFILL_ABSENT_RESIDENTIAL_SUBMITTED', JSON.stringify({ from: 'DRAFT', to: 'SUBMITTED', caseType: row.case_type })]
       );
     }
   });

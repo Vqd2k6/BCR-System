@@ -19,6 +19,10 @@ export const BatchApproveUnitsDto = z.object({
   judgementNotes: z.string().optional(),
 });
 
+export const IntakeAbsentDraftDto = z.object({
+  reason: z.string().trim().min(10, 'Lý do tiếp nhận tối thiểu 10 ký tự'),
+});
+
 export const ApproveAbsenteeReportDto = z.object({
   judgementNotes: z.string().optional(),
 });

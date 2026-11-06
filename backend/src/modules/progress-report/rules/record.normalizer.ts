@@ -196,11 +196,16 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   }
   const hasFoundationInfo = Boolean(foundationType && foundationType !== UNKNOWN_FOUNDATION);
 
+  // Nhà dân vắng: số tầng / năm XD thuộc RESIDENTIAL_ABSENT_INTERIOR_KEYS (absence-evidence.ts), Admin không sửa được
+  // nên giá trị trong phiếu là số KSV điền bừa (năm mặc định 2026) → để trống. Căn hộ vắng vẫn có tầng căn và năm tòa mẹ thật.
+  const isAbsentResidential = !isUnit && inaccessible;
   const floors: string | number = isUnit
     ? formatFloor(unitFloor)
-    : firstNumber(getPath(json, 'aboveFloors'), row.specFloorCount, row.reportId ? row.parcelFloorCount : null) ?? '';
+    : isAbsentResidential
+      ? ''
+      : firstNumber(getPath(json, 'aboveFloors'), row.specFloorCount, row.reportId ? row.parcelFloorCount : null) ?? '';
 
-  const year = resolveConstructionYear(row);
+  const year = isAbsentResidential ? null : resolveConstructionYear(row);
   const catScore = firstNumber(getPath(json, 'foundationCatScore'), row.specFoundationCatScore);
   const hasAsBuilt =
     arrayLength(getPath(json, 'asBuiltDrawingPhotos')) > 0 ||

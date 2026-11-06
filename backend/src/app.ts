@@ -209,6 +209,7 @@ export function createApp(): express.Application {
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
   api.post('/admin/reports/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveReport);
   api.post('/admin/reports/:id/unlock-approved', authenticateJwt, requireRoles('SUPER_ADMIN'), AuditController.unlockApprovedReport);
+  api.post('/admin/reports/:id/absent-intake', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.intakeAbsentDraft);
   api.post('/admin/reports/:id/approve-absentee', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveAbsenteeReport);
   api.post('/admin/reports/:id/reject', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rejectReport);
   api.post('/admin/reports/:id/revert-to-draft', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);

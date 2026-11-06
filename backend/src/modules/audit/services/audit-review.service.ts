@@ -5,7 +5,12 @@ import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '.
 import { ReportSnapshotService } from '../../report/snapshot/report-snapshot.service';
 import { ReportConsistencyGate } from './report-consistency-gate';
 import { fetchCondoUnitAbsenceMap } from '../condo/condo-absence.resolver';
-import { isResidentialAbsentSurvey, resolveAbsenceEvidence, toAuditAbsenceLogView } from '../absence-evidence';
+import {
+  ABSENT_DRAFT_INTAKE_SQL_CONDITION,
+  isResidentialAbsentSurvey,
+  resolveAbsenceEvidence,
+  toAuditAbsenceLogView,
+} from '../absence-evidence';
 import type { AbsenceLogEvidenceRow } from '../absence-evidence';
 import { readCondoElementsFromJson, readCondoZonesFromJson } from '../condo/strategies/condo-entity-strategy.interface';
 import { isForeignParcelUrl, overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
@@ -51,6 +56,7 @@ export class AuditReviewService {
     burlandFilter?: string;
     slaFilter?: string;
     filterLevel?: string;
+    includeAbsentDrafts?: boolean;
     limit?: number;
     offset?: number;
   }) {
@@ -61,7 +67,10 @@ export class AuditReviewService {
       params.push(filters.status.toUpperCase());
       whereClause = `WHERE r.status::text = $${params.length}`;
     } else {
-      whereClause = `WHERE r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'REJECTED', 'APPROVED')`;
+      // Hồ sơ nhà dân vắng còn DRAFT chỉ hiện khi màn hàng đợi xin rõ, để Admin bấm tiếp nhận (không tự đổi trạng thái)
+      whereClause = filters.includeAbsentDrafts
+        ? `WHERE (r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'REJECTED', 'APPROVED') OR ${ABSENT_DRAFT_INTAKE_SQL_CONDITION})`
+        : `WHERE r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'REJECTED', 'APPROVED')`;
     }
 
     if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
@@ -2217,6 +2226,77 @@ export class AuditReviewService {
   /**
    * Phê duyệt hồ sơ vắng mặt (Xác nhận vắng mặt hợp lệ -> POSTPONED_ABSENT_VERIFIED)
    */
+  /**
+   * Admin tiếp nhận hồ sơ nhà dân vắng còn kẹt DRAFT vào hàng đợi thẩm định. Chỉ đổi trạng thái, không đụng survey_data_json;
+   * lưu SHA-256 của dữ liệu lúc tiếp nhận vào system_audit_logs làm mốc đối chiếu pháp lý.
+   */
+  static async intakeAbsentDraft(reportId: string, adminId: string, reason: string) {
+    return Database.transaction(async (client) => {
+      const res = await client.query<{
+        id: string;
+        parcel_id: string;
+        parcel_status: string;
+        survey_data_json: unknown;
+        case_type: string | null;
+        last_absence_at: Date | null;
+      }>(
+        `SELECT r.id, r.parcel_id, p.survey_status::text AS parcel_status, r.survey_data_json,
+                r.survey_data_json->>'surveyCaseType' AS case_type,
+                (SELECT MAX(al.recorded_at) FROM survey_absence_logs al
+                  WHERE al.parcel_id = r.parcel_id AND al.unit_id IS NULL) AS last_absence_at
+         FROM base_survey_reports r
+         JOIN parcels p ON p.id = r.parcel_id
+         WHERE r.id = $1 AND ${ABSENT_DRAFT_INTAKE_SQL_CONDITION}
+         FOR UPDATE OF r, p;`,
+        [reportId]
+      );
+      const row = res.rows[0];
+      if (!row) {
+        throw new BadRequestError('Hồ sơ không còn ở trạng thái vắng chưa nộp nên không thể tiếp nhận vào thẩm định.');
+      }
+
+      await client.query(
+        `UPDATE base_survey_reports
+         SET status = 'SUBMITTED',
+             submitted_at = COALESCE(submitted_at, $2::timestamptz, NOW()),
+             updated_at = NOW()
+         WHERE id = $1 AND status = 'DRAFT';`,
+        [row.id, row.last_absence_at]
+      );
+      if (row.parcel_status === 'IN_PROGRESS') {
+        await client.query(
+          `UPDATE parcels SET survey_status = 'POSTPONED_ABSENT', updated_at = NOW() WHERE id = $1;`,
+          [row.parcel_id]
+        );
+      }
+
+      const surveyDataText =
+        typeof row.survey_data_json === 'string' ? row.survey_data_json : JSON.stringify(row.survey_data_json ?? null);
+      const surveyDataSha256 = crypto.createHash('sha256').update(surveyDataText).digest('hex');
+      await client.query(
+        `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, diff_payload)
+         VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          row.id,
+          'ADMIN_ABSENT_DRAFT_INTAKE',
+          adminId,
+          JSON.stringify({
+            from: 'DRAFT',
+            to: 'SUBMITTED',
+            parcelStatusFrom: row.parcel_status,
+            caseType: row.case_type,
+            reason,
+            surveyDataSha256,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
+      return { reportId: row.id, status: 'SUBMITTED', parcelStatusFrom: row.parcel_status, surveyDataSha256 };
+    });
+  }
+
   static async approveAbsenteeReport(
     reportId: string,
     adminId: string,
