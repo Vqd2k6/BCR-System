@@ -19,7 +19,7 @@ import { isPhotoAlreadyWatermarked } from './appendix-2/floor-defect.mapper';
 import { extractPhotoDateTime, parseSurveyDate, formatPersonName } from '../formatters.mapper';
 import { normalizeMetroPhotoCode } from '../../utils/metro-photo-code.utils';
 import { resolveContactPhone, resolveRecordAddress } from '../sections/section-1-2-overview-spatial.mapper';
-import { resolveLocalRepresentative } from './local-authority.rules';
+import { resolveLocalAuthority } from './local-authority.rules';
 import { collectZoneExemptFloors } from '../../../survey/zone-exemption.utils';
 import type { ReportContentConfig } from '../../../report_config/report-config.types';
 
@@ -142,19 +142,13 @@ export class Appendix3And4Mapper {
     const rawChosenName = actualSignerName || ownerName || 'Chủ hộ';
     const finalOwnerName = formatPersonName(rawChosenName) || 'Chủ hộ';
 
-    const rawWitnessName = String(json.signatures?.localAuthority?.fullName || json.signatures?.witnessName || json.witnessInfo?.name || json.witnessName || '').trim();
-    const witnessName = formatPersonName(rawWitnessName);
-    const witnessRole = String(json.signatures?.localAuthority?.title || json.signatures?.witnessRole || json.witnessInfo?.role || json.witnessRole || '').trim();
+    // Người làm chứng / đại diện CQĐP: KSV ghi -> giá trị gán cấp thửa -> quy tắc địa bàn (resolveLocalAuthority)
+    const localAuthority = resolveLocalAuthority(json, rawReport);
+    const witnessName = formatPersonName(localAuthority.name);
+    const witnessRole = localAuthority.role;
     const supName = formatPersonName(json.signatures?.supervisionConsultant?.fullName);
     const supTitle = json.signatures?.supervisionConsultant?.title;
-    const localAuthorityText = witnessName
-      ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}`
-      : resolveLocalRepresentative(
-          rawReport.zone_id,
-          json.ward || rawReport.ward,
-          json.street || rawReport.street,
-          rawReport.district
-        ) || '--';
+    const localAuthorityText = witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--';
     const parcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
     const codeLabel = parcelCode ? ` ${parcelCode}` : '';
 

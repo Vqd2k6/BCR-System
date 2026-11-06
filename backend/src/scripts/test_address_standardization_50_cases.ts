@@ -717,6 +717,18 @@ const testCases: TestCase[] = [
       return { pass, expected: 'CMT8+Bến Thành / Bàn Cờ / ambiguous', actual: { a, b, c } };
     },
   },
+  {
+    id: 61,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "Kiểu bỏ dấu cũ 'Tân Hoà', 'Phường Hoà Hưng', 'Phường Hoàn hưng' vẫn nhận đúng phường mới",
+    run: () => {
+      const a = standardizeWard('Tân Hoà', 'Quận Tân Bình');
+      const b = standardizeWard('Phường Hoà Hưng', 'Quận 10');
+      const c = standardizeWard('Phường Hoàn hưng ', 'Quận 10');
+      const pass = a.ward === 'Phường Tân Hòa' && b.ward === 'Phường Hòa Hưng' && c.ward === 'Phường Hòa Hưng';
+      return { pass, expected: 'Tân Hòa / Hòa Hưng / Hòa Hưng', actual: `${a.ward} / ${b.ward} / ${c.ward}` };
+    },
+  },
 ];
 
 // =========================================================================

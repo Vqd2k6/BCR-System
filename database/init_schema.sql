@@ -1266,3 +1266,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_zone_drawing_revisions_zone_number
 
 CREATE INDEX IF NOT EXISTS idx_zone_drawing_revisions_active
   ON zone_drawing_revisions(zone_code, revision_number) WHERE deleted_at IS NULL;
+
+-- ============================================================================
+-- ĐẠI DIỆN CHÍNH QUYỀN ĐỊA PHƯƠNG Ở CẤP THỬA – Đồng bộ migration 20261107
+-- Fallback khi đọc báo cáo; không ghi vào survey_data_json, không lưu chữ ký.
+-- ============================================================================
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS local_authority_name VARCHAR(128);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS local_authority_role VARCHAR(128);
+ALTER TABLE parcels ADD COLUMN IF NOT EXISTS local_authority_phone VARCHAR(32);

@@ -13,6 +13,7 @@ import { AuthController } from './modules/auth/auth.controller';
 import { UserAdminController } from './modules/auth/user-admin.controller';
 import { AttendanceController } from './modules/attendance/attendance.controller';
 import { CadastralController } from './modules/cadastral/cadastral.controller';
+import { CadastralBatchController } from './modules/cadastral/cadastral-batch.controller';
 import { SurveyController } from './modules/survey/survey.controller';
 import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
@@ -145,6 +146,13 @@ export function createApp(): express.Application {
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
   api.get('/surveys/my-assigned-parcels', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getMyAssignedParcels);
   api.post('/admin/parcels/assign-surveyor', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.assignSurveyor);
+  // Tác vụ hàng loạt trên bản đồ GIS: chỉ ghi bảng parcels, không ghi survey_data_json
+  api.post('/admin/parcels/batch/address-preview', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.previewAddress);
+  api.post('/admin/parcels/batch/address', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.syncAddress);
+  api.post('/admin/parcels/batch/local-authority', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.setLocalAuthority);
+  api.get('/admin/parcels/local-authority-suggestions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.listLocalAuthoritySuggestions);
+  api.post('/admin/parcels/batch/exclude', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.exclude);
+  api.post('/admin/parcels/batch/restore', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.restore);
   api.put('/parcels/:id/footprint', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateFootprint);
   api.post('/mutations/propose', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.proposeMutation);
   api.get('/parcels/:id/phase1-report', authenticateJwt, SurveyController.getPhase1ReportByParcelId);

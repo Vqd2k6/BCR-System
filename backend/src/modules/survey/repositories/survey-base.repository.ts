@@ -117,6 +117,7 @@ export class SurveyBaseRepository {
               COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone, p.owner_phone) AS owner_phone,
               bu.unit_code, bu.floor_number AS unit_floor_number,
               p.zone_id, p.building_type, p.segment_type,
+              p.local_authority_name AS parcel_local_authority_name, p.local_authority_role AS parcel_local_authority_role, p.local_authority_phone AS parcel_local_authority_phone,
               p.land_area_m2, p.construction_area_m2 AS parcel_construction_area_m2, p.floor_count AS parcel_floor_count,
               ms.segment_name AS metro_segment_name,
               ms.construction_type AS metro_construction_type,

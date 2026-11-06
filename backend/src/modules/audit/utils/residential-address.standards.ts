@@ -52,7 +52,7 @@ export interface WardMergerRule {
   formerWardNumbers: number[];
   formerWards: string[];
   mergerNote: string;
-  /** Mẫu nhận diện theo TÊN phường (tên là duy nhất trên toàn tuyến) */
+  /** Mẫu nhận diện theo TÊN phường, so trên chuỗi ĐÃ BỎ DẤU (foldVietnamese) để chịu được "Hoà"/"Hòa" */
   patterns: RegExp[];
 }
 
@@ -73,7 +73,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [9, 10, 11, 12, 13, 14],
     formerWards: ['Phường 9', 'Phường 10', 'Phường 11', 'Phường 12', 'Phường 13', 'Phường 14'],
     mergerNote: 'NQ 1685: Phường Nhiêu Lộc gồm P.9, 11, 12, 14 Quận 3 (P.10 đã nhập P.9, P.13 đã nhập P.12 theo NQ 1278)',
-    patterns: [/nhi[eê]u\s*l[oộ]c/i],
+    patterns: [/nhieu\s*loc/],
   },
   // Quận 3 — P.6, 7, 8 -> Võ Thị Sáu (NQ 1111); Võ Thị Sáu + một phần P.4 -> Xuân Hòa (NQ 1685)
   {
@@ -84,7 +84,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [6, 7, 8],
     formerWards: ['Phường Võ Thị Sáu', 'Phường 6', 'Phường 7', 'Phường 8'],
     mergerNote: 'NQ 1685: Phường Xuân Hòa gồm P. Võ Thị Sáu (P.6, 7, 8 cũ theo NQ 1111) và một phần P.4 Quận 3',
-    patterns: [/xu[aâ]n\s*h[oò]a/i, /v[oõ]\s*th[iị]\s*s[aá]u/i],
+    patterns: [/xuan\s*hoa/, /vo\s*thi\s*sau/],
   },
   // Quận 3 — P.1, 2, 3, 5 + một phần P.4 -> Bàn Cờ
   {
@@ -95,7 +95,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [1, 2, 3, 5],
     formerWards: ['Phường 1', 'Phường 2', 'Phường 3', 'Phường 5'],
     mergerNote: 'NQ 1685: Phường Bàn Cờ gồm P.1, 2, 3, 5 và một phần P.4 Quận 3',
-    patterns: [/b[aà]n\s*c[oờ]/i],
+    patterns: [/ban\s*co\b/],
   },
   // Quận 10 — P.12, 13, 15 + một phần P.14 -> Hòa Hưng
   {
@@ -106,7 +106,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [12, 13, 15],
     formerWards: ['Phường 12', 'Phường 13', 'Phường 15'],
     mergerNote: 'NQ 1685: Phường Hòa Hưng gồm P.12, 13, 15 và một phần P.14 Quận 10',
-    patterns: [/h[oò]a\s*h[uư]ng/i, /\bp\.?hh\b/i],
+    patterns: [/hoa\s*hung/, /hoan\s*hung/, /\bp\.?hh\b/],
   },
   // Quận Tân Bình
   {
@@ -117,7 +117,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [6, 8, 9],
     formerWards: ['Phường 6', 'Phường 8', 'Phường 9'],
     mergerNote: 'NQ 1685: Phường Tân Hòa gồm P.6, 8, 9 Quận Tân Bình',
-    patterns: [/t[aâ]n\s*h[oò]a/i],
+    patterns: [/tan\s*hoa/],
   },
   {
     key: 'TAN_SON_NHAT',
@@ -127,7 +127,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [4, 5, 7],
     formerWards: ['Phường 4', 'Phường 5', 'Phường 7'],
     mergerNote: 'NQ 1685: Phường Tân Sơn Nhất gồm P.4, 5, 7 Quận Tân Bình',
-    patterns: [/t[aâ]n\s*s[oơ]n\s*nh[aấ]t/i],
+    patterns: [/tan\s*son\s*nhat/],
   },
   {
     key: 'BAY_HIEN',
@@ -137,7 +137,7 @@ export const METRO2_WARD_MERGER_RULES: WardMergerRule[] = [
     formerWardNumbers: [10, 11, 12],
     formerWards: ['Phường 10', 'Phường 11', 'Phường 12'],
     mergerNote: 'NQ 1685: Phường Bảy Hiền gồm P.10, 11, 12 Quận Tân Bình',
-    patterns: [/b[aả]y\s*hi[eề]n/i],
+    patterns: [/bay\s*hien/],
   },
 ];
 
@@ -384,9 +384,10 @@ export function standardizeWard(rawWard?: string | null, districtHint?: string |
   const clean = rawWard.trim().replace(/\s+/g, ' ');
   const districtKey = detectDistrictKey(districtHint);
 
-  // 1. Khớp theo TÊN phường (tên là duy nhất trên toàn tuyến)
+  // 1. Khớp theo TÊN phường (tên là duy nhất trên toàn tuyến), so trên chuỗi đã bỏ dấu
+  const foldedWard = foldVietnamese(clean);
   for (const rule of METRO2_WARD_MERGER_RULES) {
-    if (rule.patterns.some((pat) => pat.test(clean))) {
+    if (rule.patterns.some((pat) => pat.test(foldedWard))) {
       return {
         ward: rule.targetWard,
         district: rule.targetDistrict,

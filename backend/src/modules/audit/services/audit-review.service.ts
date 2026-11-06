@@ -1,3 +1,4 @@
+import { resolveLocalAuthority } from '../../report/mappers/appendices/local-authority.rules';
 import crypto from 'crypto';
 import type { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
@@ -388,6 +389,7 @@ export class AuditReviewService {
               p.frontage_width, p.lot_depth, p.official_cadastral_code,
               p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
               p.building_type, p.is_locked, p.seal_hash, p.locked_at,
+              p.local_authority_name AS parcel_local_authority_name, p.local_authority_role AS parcel_local_authority_role, p.local_authority_phone AS parcel_local_authority_phone,
               COALESCE(
                 p.distance_to_centerline_m,
                 (
@@ -1102,6 +1104,11 @@ export class AuditReviewService {
       witnessName: normalizedSignatures.witnessName,
       witnessRole: normalizedSignatures.witnessRole,
       witnessPhone: normalizedSignatures.witnessPhone,
+      // Gợi ý CQĐP cấp thửa / quy tắc địa bàn: chỉ hiển thị để Admin chọn, không gộp vào giá trị KSV
+      suggestedLocalAuthority: (() => {
+        const resolved = resolveLocalAuthority({}, report);
+        return resolved.source === 'NONE' ? null : resolved;
+      })(),
       status: report.status,
       surveyDate: report.survey_date,
       isRefusedOrAbsent: report.is_refused_or_absent,

@@ -3,12 +3,9 @@ import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
 import { CadastralMutationService } from './services/cadastral-mutation.service';
 import { CadastralGeometryService } from './services/cadastral-geometry.service';
-import {
-  EXCLUDABLE_SURVEY_STATUSES,
-  EXCLUSION_TYPE_TO_LIFECYCLE,
-  assertParcelNotExcluded,
-  isExcludedLifecycle,
-} from './utils/parcel-exclusion';
+import { assertParcelNotExcluded } from './utils/parcel-exclusion';
+import { applyLifecycleChange, LIFECYCLE_ROW_COLUMNS } from './services/parcel-lifecycle.service';
+import type { LifecycleParcelRow } from './services/parcel-lifecycle.service';
 import type { ParcelExclusionType } from './utils/parcel-exclusion';
 
 export { CadastralMutationService, CadastralGeometryService };
@@ -71,15 +68,8 @@ export class CadastralService {
     await this.assertUserCanModifyParcel(user, parcelId);
 
     return Database.transaction(async (client) => {
-      const parcelRes = await client.query<{
-        project_parcel_code: string;
-        lifecycle_status: string;
-        survey_status: string;
-        is_locked: boolean;
-        exclusion_type: string | null;
-      }>(
-        `SELECT project_parcel_code, lifecycle_status, survey_status, is_locked, exclusion_type
-         FROM parcels WHERE id = $1 FOR UPDATE;`,
+      const parcelRes = await client.query<LifecycleParcelRow>(
+        `SELECT ${LIFECYCLE_ROW_COLUMNS} FROM parcels WHERE id = $1 FOR UPDATE;`,
         [parcelId]
       );
       const parcel = parcelRes.rows[0];
@@ -87,93 +77,12 @@ export class CadastralService {
         throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
       }
 
-      const code = parcel.project_parcel_code;
-      let nextStatus: string;
-
-      if (input.action === 'RESTORE') {
-        if (!isExcludedLifecycle(parcel.lifecycle_status)) {
-          throw new BadRequestError(
-            `Thửa đất [${code}] đang ở trạng thái ${parcel.lifecycle_status}, chỉ thửa đã loại trừ mới được khôi phục.`
-          );
-        }
-        nextStatus = 'ACTIVE';
-        await client.query(
-          `UPDATE parcels
-           SET lifecycle_status = 'ACTIVE',
-               exclusion_type = NULL,
-               exclusion_reason = NULL,
-               excluded_at = NULL,
-               excluded_by_id = NULL,
-               updated_at = NOW()
-           WHERE id = $1;`,
-          [parcelId]
-        );
-      } else {
-        if (parcel.lifecycle_status !== 'ACTIVE') {
-          throw new BadRequestError(
-            `Thửa đất [${code}] đang ở trạng thái ${parcel.lifecycle_status}, chỉ thửa ACTIVE mới được loại trừ.`
-          );
-        }
-        if (parcel.is_locked) {
-          throw new BadRequestError(`Thửa đất [${code}] đã bị khóa pháp lý, không thể loại trừ.`);
-        }
-        if (!(EXCLUDABLE_SURVEY_STATUSES as readonly string[]).includes(parcel.survey_status)) {
-          throw new BadRequestError(
-            `Thửa đất [${code}] đã có hồ sơ ở trạng thái ${parcel.survey_status}, không thể loại trừ khỏi khảo sát.`
-          );
-        }
-
-        const lockedRecords = await client.query<{ source: string }>(
-          `SELECT 'REPORT' AS source FROM base_survey_reports
-             WHERE parcel_id = $1 AND deleted_at IS NULL
-               AND status IN ('SUBMITTED', 'UNDER_REVIEW', 'APPROVED')
-           UNION ALL
-           SELECT 'UNIT' AS source FROM building_units
-             WHERE parcel_id = $1 AND deleted_at IS NULL
-               AND status IN ('SUBMITTED', 'APPROVED', 'APPROVED_PHASE2', 'PHASE2_COMPLETED')
-           LIMIT 1;`,
-          [parcelId]
-        );
-        if (lockedRecords.rows.length > 0) {
-          throw new BadRequestError(
-            `Thửa đất [${code}] đã có hồ sơ khảo sát được nộp hoặc phê duyệt, không thể loại trừ khỏi khảo sát.`
-          );
-        }
-
-        nextStatus = EXCLUSION_TYPE_TO_LIFECYCLE[input.exclusionType];
-        await client.query(
-          `UPDATE parcels
-           SET lifecycle_status = $2::parcel_lifecycle_enum,
-               exclusion_type = $3,
-               exclusion_reason = $4,
-               excluded_at = NOW(),
-               excluded_by_id = $5,
-               updated_at = NOW()
-           WHERE id = $1;`,
-          [parcelId, nextStatus, input.exclusionType, input.reason, user!.userId]
-        );
+      const outcome = await applyLifecycleChange(client, parcel, input, user!.userId, clientIp || null);
+      if (!outcome.ok) {
+        throw new BadRequestError(outcome.reason);
       }
 
-      // Ghi trong cùng transaction: không có nhật ký thì không đổi trạng thái
-      await client.query(
-        `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, client_ip, diff_payload)
-         VALUES ('PARCEL', $1, $2, $3, $4, $5);`,
-        [
-          parcelId,
-          input.action === 'EXCLUDE' ? 'PARCEL_EXCLUDED' : 'PARCEL_RESTORED',
-          user!.userId,
-          clientIp || null,
-          JSON.stringify({
-            projectParcelCode: code,
-            fromStatus: parcel.lifecycle_status,
-            toStatus: nextStatus,
-            exclusionType: input.action === 'EXCLUDE' ? input.exclusionType : parcel.exclusion_type,
-            reason: input.reason,
-          }),
-        ]
-      );
-
-      return { parcelId, projectParcelCode: code, lifecycleStatus: nextStatus };
+      return { parcelId, projectParcelCode: parcel.project_parcel_code, lifecycleStatus: outcome.nextStatus };
     });
   }
 
