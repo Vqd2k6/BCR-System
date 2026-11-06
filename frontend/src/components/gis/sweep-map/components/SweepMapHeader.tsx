@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode } from 'lucide-react';
+import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode, CheckSquare } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
@@ -37,6 +37,10 @@ interface SweepMapHeaderProps {
   setShowFilterModal: (show: boolean) => void;
   parcels?: GisParcel[];
   canExportSvg?: boolean;
+  /** Hiện nút Tác vụ đồng loạt (chỉ màn Zone Admin) */
+  canBatch?: boolean;
+  isBatchMode?: boolean;
+  onToggleBatchMode?: () => void;
 }
 
 export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
@@ -67,6 +71,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   setShowFilterModal,
   parcels,
   canExportSvg = false,
+  canBatch = false,
+  isBatchMode = false,
+  onToggleBatchMode,
 }) => {
   const { user } = useAuth();
   const lockedZone = getLockedZone(user);
@@ -186,6 +193,24 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           >
             <FileCode size={14} />
             <span className="hidden sm:inline">Xuất Bình Đồ (SVG)</span>
+          </button>
+        )}
+
+        {/* Tác vụ đồng loạt: chọn nhiều thửa trên bản đồ (chỉ Zone Admin / Super Admin) */}
+        {canBatch && onToggleBatchMode && (
+          <button
+            type="button"
+            onClick={onToggleBatchMode}
+            title="Tác vụ đồng loạt (CQĐP, Địa chỉ, Ẩn/Hiện thửa)"
+            aria-pressed={isBatchMode}
+            className={`cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-[0.35rem] text-xs font-bold ${
+              isBatchMode
+                ? 'border-fuchsia-600 bg-fuchsia-600 text-white'
+                : 'border-slate-300 bg-slate-100 text-sky-600 hover:bg-slate-200'
+            }`}
+          >
+            <CheckSquare size={14} />
+            <span className="hidden sm:inline">{isBatchMode ? 'Đang chọn nhiều' : 'Tác vụ đồng loạt'}</span>
           </button>
         )}
 

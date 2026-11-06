@@ -46,6 +46,16 @@ export class CadastralBatchController {
     }
   }
 
+  static async previewLocalAuthority(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dto = parseOrThrow(BatchAddressPreviewDto, req.body, 'Danh sách thửa đất xem trước CQĐP không hợp lệ');
+      const data = await CadastralBatchService.previewLocalAuthority(dto.parcelIds, req.user);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async setLocalAuthority(req: Request, res: Response, next: NextFunction) {
     try {
       const dto = parseOrThrow(BatchLocalAuthorityDto, req.body, 'Dữ liệu đại diện chính quyền địa phương không hợp lệ');

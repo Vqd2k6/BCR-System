@@ -154,5 +154,7 @@ export interface LeafletSweepMapProps {
   onCancelImportPreview?: () => void;
   /** Gọi sau khi Ẩn / Khôi phục thửa để màn hình cha tải lại parcels và số liệu. */
   onParcelLifecycleChanged?: () => void;
+  /** Bật công cụ tác vụ hàng loạt (CQĐP, địa chỉ, ẩn/khôi phục). Chỉ màn Zone Admin truyền true; Guest/KSV không có. */
+  enableBatchTools?: boolean;
 }
 

@@ -149,6 +149,7 @@ export function createApp(): express.Application {
   // Tác vụ hàng loạt trên bản đồ GIS: chỉ ghi bảng parcels, không ghi survey_data_json
   api.post('/admin/parcels/batch/address-preview', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.previewAddress);
   api.post('/admin/parcels/batch/address', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.syncAddress);
+  api.post('/admin/parcels/batch/local-authority-preview', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.previewLocalAuthority);
   api.post('/admin/parcels/batch/local-authority', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.setLocalAuthority);
   api.get('/admin/parcels/local-authority-suggestions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.listLocalAuthoritySuggestions);
   api.post('/admin/parcels/batch/exclude', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralBatchController.exclude);

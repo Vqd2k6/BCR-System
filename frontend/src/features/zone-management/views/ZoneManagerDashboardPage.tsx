@@ -429,6 +429,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
               onReloadParcels?.();
               fetchLiveIntelligence(selectedZone);
             }}
+            enableBatchTools
           />
         </div>
       )}

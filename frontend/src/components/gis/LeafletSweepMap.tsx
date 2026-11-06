@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 import { Filter, X, Sparkles } from 'lucide-react';
 import type { GisParcel, LeafletSweepMapProps } from './shared/types';
@@ -16,6 +16,10 @@ import { ParcelDetailBottomSheet } from './sweep-map/components/ParcelDetailBott
 import { ExcludedParcelsLayer } from './sweep-map/components/layers/ExcludedParcelsLayer';
 import { ExcludedParcelPanel } from './sweep-map/components/ExcludedParcelPanel';
 import { ExcludeParcelModal } from './shared/ExcludeParcelModal';
+import { FloatingBatchActionBar } from './sweep-map/components/FloatingBatchActionBar';
+import type { BatchOperationMode } from './sweep-map/components/FloatingBatchActionBar';
+import { BatchGisOperationsModal } from './sweep-map/components/modals/BatchGisOperationsModal';
+import { ADDRESS_BATCH_ZONES, BATCH_MAX_PARCELS } from './shared/parcelBatchApi';
 
 // Re-export GisParcel for backward compatibility across the entire system
 export type { GisParcel } from './shared/types';
@@ -41,10 +45,43 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onConfirmImportPreview,
   onCancelImportPreview,
   onParcelLifecycleChanged,
+  enableBatchTools = false,
 }) => {
   const { excludedParcels, canViewExcluded, reloadExcluded } = useExcludedParcels(selectedZone);
   const [selectedExcluded, setSelectedExcluded] = useState<GisParcel | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<GisParcel | null>(null);
+
+  // --- Tác vụ đồng loạt: chỉ màn Zone Admin bật (enableBatchTools) và chỉ khi tài khoản là Admin (canViewExcluded) ---
+  const canBatch = enableBatchTools && canViewExcluded;
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [selectedParcelIds, setSelectedParcelIds] = useState<Set<string>>(() => new Set());
+  const [selectedExcludedIds, setSelectedExcludedIds] = useState<Set<string>>(() => new Set());
+  const [batchModalMode, setBatchModalMode] = useState<BatchOperationMode | null>(null);
+
+  const clearBatchSelection = useCallback(() => {
+    setSelectedParcelIds(new Set());
+    setSelectedExcludedIds(new Set());
+  }, []);
+
+  const exitBatchMode = useCallback(() => {
+    setIsBatchMode(false);
+    setBatchModalMode(null);
+    clearBatchSelection();
+  }, [clearBatchSelection]);
+
+  // Đổi phân khu thì thoát chế độ chọn nhiều để không mang lựa chọn sang Zone khác
+  useEffect(() => {
+    exitBatchMode();
+  }, [selectedZone, exitBatchMode]);
+
+  const toggleIdIn = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (parcel: GisParcel) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(parcel.id)) next.delete(parcel.id);
+      else next.add(parcel.id);
+      return next;
+    });
+  };
 
   const {
     currentZoneConfig,
@@ -98,6 +135,16 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     userGps,
   });
 
+  const handleToggleBatchMode = () => {
+    if (isBatchMode) {
+      exitBatchMode();
+      return;
+    }
+    setActiveParcel(null);
+    setSelectedExcluded(null);
+    setIsBatchMode(true);
+  };
+
   const handleLifecycleChanged = () => {
     setActiveParcel(null);
     setSelectedExcluded(null);
@@ -136,6 +183,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         setShowFilterModal={setShowFilterModal}
         parcels={parcels}
         canExportSvg={canViewExcluded}
+        canBatch={canBatch}
+        isBatchMode={isBatchMode}
+        onToggleBatchMode={handleToggleBatchMode}
       />
 
       {/* 2. 3-Bar Filter & Legend Drawer/Modal */}
@@ -213,6 +263,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             setActiveParcel={setActiveParcel}
             onSelectParcel={onSelectParcel}
             thematicMode={thematicMode}
+            isBatchMode={isBatchMode}
+            selectedParcelIds={selectedParcelIds}
+            onToggleSelect={toggleIdIn(setSelectedParcelIds)}
           />
 
           {/* Lớp thửa đã loại trừ: nét đứt xám, chỉ Admin bật */}
@@ -223,6 +276,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
                 setActiveParcel(null);
                 setSelectedExcluded(parcel);
               }}
+              isBatchMode={isBatchMode}
+              selectedIds={selectedExcludedIds}
+              onToggleSelect={toggleIdIn(setSelectedExcludedIds)}
             />
           )}
 
@@ -232,7 +288,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           )}
         </MapContainer>
 
-        {selectedExcluded && !activeParcel && (
+        {selectedExcluded && !activeParcel && !isBatchMode && (
           <ExcludedParcelPanel
             parcel={selectedExcluded}
             onClose={() => setSelectedExcluded(null)}
@@ -246,6 +302,36 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             mode="RESTORE"
             onClose={() => setRestoreTarget(null)}
             onSuccess={handleLifecycleChanged}
+          />
+        )}
+
+        {/* Thanh công cụ tác vụ đồng loạt */}
+        {isBatchMode && (
+          <FloatingBatchActionBar
+            selectedCount={selectedParcelIds.size}
+            selectedExcludedCount={selectedExcludedIds.size}
+            displayedCount={displayedParcels.length}
+            maxParcels={BATCH_MAX_PARCELS}
+            addressEnabled={ADDRESS_BATCH_ZONES.includes(selectedZone.toUpperCase())}
+            onSelectAllDisplayed={() => setSelectedParcelIds(new Set(displayedParcels.map((p) => p.id)))}
+            onClearSelection={clearBatchSelection}
+            onOpen={setBatchModalMode}
+            onExit={exitBatchMode}
+          />
+        )}
+
+        {batchModalMode && (
+          <BatchGisOperationsModal
+            initialMode={batchModalMode}
+            zoneId={selectedZone}
+            parcelIds={Array.from(selectedParcelIds)}
+            excludedParcelIds={Array.from(selectedExcludedIds)}
+            addressEnabled={ADDRESS_BATCH_ZONES.includes(selectedZone.toUpperCase())}
+            onClose={() => {
+              setBatchModalMode(null);
+              clearBatchSelection();
+            }}
+            onCompleted={handleLifecycleChanged}
           />
         )}
 
@@ -335,7 +421,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
       )}
 
       {/* 5. Selected Parcel Bottom Drawer (Disabled in Guest view to prevent showing Surveyor action buttons) */}
-      {!hideBottomSheet && (
+      {!hideBottomSheet && !isBatchMode && (
         <ParcelDetailBottomSheet
           activeParcel={activeParcel}
           availableParcels={parcels}

@@ -10,7 +10,14 @@ interface ParcelsLayerProps {
   setActiveParcel: (parcel: GisParcel) => void;
   onSelectParcel: (parcel: GisParcel) => void;
   thematicMode?: 'WORKFLOW' | 'BRA_RISK';
+  /** Chế độ chọn nhiều thửa: click chỉ chọn/bỏ chọn, không mở bảng chi tiết */
+  isBatchMode?: boolean;
+  selectedParcelIds?: ReadonlySet<string>;
+  onToggleSelect?: (parcel: GisParcel) => void;
 }
+
+/** Màu viền thửa đang được chọn hàng loạt: fuchsia, khác màu tím của thửa chung cư */
+export const BATCH_SELECTED_STROKE = '#d946ef';
 
 export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
   displayedParcels,
@@ -18,11 +25,15 @@ export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
   setActiveParcel,
   onSelectParcel,
   thematicMode = 'WORKFLOW',
+  isBatchMode = false,
+  selectedParcelIds,
+  onToggleSelect,
 }) => {
   return (
     <>
       {displayedParcels.map((parcel) => {
-        const isSelected = activeParcel?.id === parcel.id;
+        const isBatchSelected = isBatchMode && Boolean(selectedParcelIds?.has(parcel.id));
+        const isSelected = !isBatchMode && activeParcel?.id === parcel.id;
         const isCondo = parcel.buildingType === 'CONDOMINIUM';
         const effectiveStatus = getEffectiveParcelStatus(parcel);
 
@@ -32,7 +43,7 @@ export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
           baseColor = getBraColor(braLevel);
         }
 
-        const color = isSelected ? '#0284c7' : isCondo && thematicMode !== 'BRA_RISK' ? '#7c3aed' : baseColor;
+        const color = isBatchSelected ? BATCH_SELECTED_STROKE : isSelected ? '#0284c7' : isCondo && thematicMode !== 'BRA_RISK' ? '#7c3aed' : baseColor;
 
         return (
           <Polygon
@@ -41,12 +52,16 @@ export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
             pathOptions={{
               color: color,
               fillColor: isCondo && effectiveStatus === 'NOT_SURVEYED' && thematicMode !== 'BRA_RISK' ? '#8b5cf6' : color,
-              fillOpacity: isSelected ? 0.8 : thematicMode === 'BRA_RISK' ? 0.65 : isCondo ? 0.6 : 0.45,
-              weight: isSelected ? 3.5 : isCondo ? 2.5 : 1.5,
-              dashArray: isCondo && effectiveStatus === 'NOT_SURVEYED' && thematicMode !== 'BRA_RISK' ? '4, 4' : undefined,
+              fillOpacity: isBatchSelected ? 0.55 : isSelected ? 0.8 : thematicMode === 'BRA_RISK' ? 0.65 : isCondo ? 0.6 : 0.45,
+              weight: isBatchSelected || isSelected ? 3.5 : isCondo ? 2.5 : 1.5,
+              dashArray: isBatchSelected ? '6 3' : isCondo && effectiveStatus === 'NOT_SURVEYED' && thematicMode !== 'BRA_RISK' ? '4, 4' : undefined,
             }}
             eventHandlers={{
               click: () => {
+                if (isBatchMode) {
+                  onToggleSelect?.(parcel);
+                  return;
+                }
                 setActiveParcel(parcel);
                 onSelectParcel(parcel);
               },

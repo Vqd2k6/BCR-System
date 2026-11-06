@@ -469,6 +469,30 @@ export class CadastralBatchService {
     });
   }
 
+  /** Xem trước CQĐP hiện có của từng thửa (để liệt kê thửa sẽ bị ghi đè) và thửa bị khóa. Chỉ đọc. */
+  static async previewLocalAuthority(parcelIds: string[], user: BatchUser) {
+    assertAdmin(user);
+    return Database.transaction(async (client) => {
+      const res = await client.query<BatchParcelRow>(
+        `SELECT ${BATCH_ROW_COLUMNS} FROM parcels WHERE id = ANY($1::uuid[]) ORDER BY project_parcel_code;`,
+        [parcelIds]
+      );
+      if (res.rows.length !== parcelIds.length) {
+        throw new NotFoundError(`Không tìm thấy ${parcelIds.length - res.rows.length} thửa đất trong danh sách`);
+      }
+      assertZoneScope(user, res.rows);
+      const locked = await loadLockedReasons(client, parcelIds);
+      return res.rows.map((row) => ({
+        parcelId: row.id,
+        projectParcelCode: row.project_parcel_code,
+        current: row.local_authority_name
+          ? { name: row.local_authority_name, role: row.local_authority_role, phone: row.local_authority_phone }
+          : null,
+        lockedReason: locked.get(row.id) ?? nonActiveReason(row),
+      }));
+    });
+  }
+
   static async setLocalAuthority(input: BatchLocalAuthorityInput, user: BatchUser, clientIp: string | null): Promise<BatchResult> {
     assertAdmin(user);
     const batchId = randomUUID();
