@@ -23,7 +23,12 @@ import {
   mapFoundationLabel,
   normalizeRecord,
   formatFloor,
+  ABSENCE_REASON_VI,
+  isEnumCode,
+  translateAbsenceReason,
 } from "../modules/progress-report/rules/record.normalizer";
+import ExcelJS from "exceljs";
+import { ExcelProgressRenderer } from "../modules/progress-report/render/excel.renderer";
 import {
   resolveTimeWindow,
   isInWindow,
@@ -808,17 +813,200 @@ const tests: Array<[string, () => void]> = [
       assert.equal(onlyUnits.dividers[0].beforeRowIndex, 0);
     },
   ],
+  [
+    "Ghi chú: căn hộ không có nhật ký, lý do trong absenteeInfo → tiếng Việt + ghi chú, không còn mã",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          kind: "CONDO_UNIT",
+          unitId: "u55",
+          unitCode: "U-055",
+          condoAbsenceState: "ABSENT",
+          reportJson: {
+            absenteeReason: "HOMEOWNER_ABSENT",
+            absenteeInfo: { absenceReason: "HOMEOWNER_ABSENT", notes: "Đã gõ cửa 3 lần" },
+          },
+        }),
+        CFG,
+      );
+      assert.equal(rec.notes, `${ABSENCE_REASON_VI.HOMEOWNER_ABSENT} – Đã gõ cửa 3 lần`);
+      assert.ok(!/HOMEOWNER_ABSENT/.test(rec.notes));
+    },
+  ],
+  [
+    "Ghi chú: residentStatus tiếng Việt (CHO_THUÊ) được dịch, mã lạ không in nguyên",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          kind: "CONDO_UNIT",
+          unitId: "u67",
+          unitCode: "U-067",
+          condoAbsenceState: "ABSENT",
+          reportJson: { residentStatus: "CHO_THUÊ" },
+        }),
+        CFG,
+      );
+      assert.equal(rec.notes, "Cho thuê (vắng tại thời điểm khảo sát)");
+      assert.equal(isEnumCode("CHỦ_HỘ_Ở"), true);
+      assert.equal(translateAbsenceReason("SOME_NEW_CODE"), "Some new code");
+      assert.equal(translateAbsenceReason("Khác: Chủ đi nước ngoài"), "Chủ đi nước ngoài");
+    },
+  ],
+  [
+    "Ghi chú: nhà dân có nhãn cụ thể trong JSON thì không in kèm nhãn enum chung, không lặp",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          reportIsRefusedOrAbsent: true,
+          absenceCount: 1,
+          absenceReason: "HOMEOWNER_ABSENT",
+          absenceNotes: "Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)",
+          reportJson: { absenteeReason: "Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)" },
+        }),
+        CFG,
+      );
+      assert.equal(rec.notes, "Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)");
+      const logOnly = normalizeRecord(
+        raw({
+          reportIsRefusedOrAbsent: true,
+          absenceReason: "HOMEOWNER_ABSENT",
+          absenceNotes: "Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)",
+          reportJson: {},
+        }),
+        CFG,
+      );
+      assert.equal(logOnly.notes, "Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)");
+      for (const trivial of ["Không", "Vắng mặt."]) {
+        const rec2 = normalizeRecord(
+          raw({ reportIsRefusedOrAbsent: true, absenceReason: "HOMEOWNER_ABSENT", absenceNotes: trivial, reportJson: {} }),
+          CFG,
+        );
+        assert.equal(rec2.notes, ABSENCE_REASON_VI.HOMEOWNER_ABSENT);
+      }
+    },
+  ],
+  [
+    "Ghi chú: nhật ký OTHER + lý do tự nhập → in lý do tự nhập",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          reportIsRefusedOrAbsent: true,
+          absenceReason: "OTHER",
+          reportJson: { absenteeReason: "Lý do khác", customAbsenteeReason: "Nhà đang sửa chữa, không có người" },
+        }),
+        CFG,
+      );
+      assert.equal(rec.notes, "Nhà đang sửa chữa, không có người");
+    },
+  ],
+  [
+    "Ghi chú: công trình đã khảo sát để trống (hạn chế tiếp cận, ý kiến chủ hộ, lịch sử cải tạo thuộc báo cáo chi tiết)",
+    () => {
+      const rec = normalizeRecord(
+        raw({
+          reportJson: {
+            ecs: { ecsClass: "GOOD" },
+            accessLimitation: { type: "LIMITED", restrictedAreas: ["Sân thượng"], mainReason: "Chủ nhà đi vắng / Khóa cửa", notes: "" },
+            historyInterview: { renovationYear: 2015, renovationNotes: "Nâng tầng" },
+          },
+          ownerRemarks: "Rung chấn khá thường xuyên",
+        }),
+        CFG,
+      );
+      assert.equal(rec.notes, "");
+    },
+  ],
+  [
+    "Móng: nhà vắng và hồ sơ nháp không in móng, không tính có TT móng",
+    () => {
+      const absent = normalizeRecord(
+        raw({ reportIsRefusedOrAbsent: true, specFoundationCategory: "Móng băng", specFoundationDepth: 1.5 }),
+        CFG,
+      );
+      assert.equal(absent.foundationType, "");
+      assert.equal(absent.foundationDepth, null);
+      assert.equal(absent.hasFoundationInfo, false);
+      const draft = normalizeRecord(raw({ reportStatus: "DRAFT", specFoundationCategory: "Móng băng" }), CFG);
+      assert.equal(draft.foundationType, "");
+      assert.equal(draft.hasFoundationInfo, false);
+      const ok = normalizeRecord(raw({ specFoundationCategory: "Móng băng" }), CFG);
+      assert.equal(ok.foundationType, "Móng nông");
+      assert.equal(ok.hasFoundationInfo, true);
+    },
+  ],
 ];
 
-let failed = 0;
-for (const [name, fn] of tests) {
-  try {
-    fn();
-    console.log(`  ✓ ${name}`);
-  } catch (err: unknown) {
-    failed += 1;
-    console.error(`  ✗ ${name}`, err);
+const asyncTests: Array<[string, () => Promise<void>]> = [
+  [
+    "Excel: % khảo sát/không tiếp cận chia cột C, % móng/theo dõi/nguy cơ cao chia cột D",
+    async () => {
+      const row = { label: "Phải Tuyến", needed: 10, surveyed: 4, inaccessible: 2, withFoundation: 3, monitor: 1, highRisk: 2 };
+      const file = await new ExcelProgressRenderer().render([
+        {
+          name: "T",
+          table: {
+            templateId: "t",
+            title: "T",
+            periodLabel: "",
+            generatedAtLabel: "",
+            legend: [],
+            columns: [],
+            rows: [],
+            dividers: [],
+            summary: { groups: [row], total: { ...row, label: "TỔNG SỐ LƯỢNG" } },
+            colors: CFG.colors,
+          },
+        },
+      ]);
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(file.buffer as unknown as ArrayBuffer);
+      const ws = wb.worksheets[0];
+      let r = 0;
+      ws.eachRow((rowObj, idx) => {
+        if (rowObj.getCell(2).value === "Phải Tuyến") r = idx;
+      });
+      assert.ok(r > 0);
+      const formulaOf = (c: number): string => {
+        const v = ws.getCell(r, c).value;
+        return v && typeof v === "object" && "formula" in v ? String(v.formula) : "";
+      };
+      assert.equal(formulaOf(5), `IF(C${r}=0,"-",D${r}/C${r})`);
+      assert.equal(formulaOf(7), `IF(C${r}=0,"-",F${r}/C${r})`);
+      assert.equal(formulaOf(9), `IF(D${r}=0,"-",H${r}/D${r})`);
+      assert.equal(formulaOf(11), `IF(D${r}=0,"-",J${r}/D${r})`);
+      assert.equal(formulaOf(13), `IF(D${r}=0,"-",L${r}/D${r})`);
+      const pct = ws.getCell(r, 13).value;
+      assert.ok(pct && typeof pct === "object" && "result" in pct && pct.result === 0.5);
+    },
+  ],
+];
+
+async function runAll(): Promise<void> {
+  let failed = 0;
+  for (const [name, fn] of tests) {
+    try {
+      fn();
+      console.log(`  ✓ ${name}`);
+    } catch (err: unknown) {
+      failed += 1;
+      console.error(`  ✗ ${name}`, err);
+    }
   }
+  for (const [name, fn] of asyncTests) {
+    try {
+      await fn();
+      console.log(`  ✓ ${name}`);
+    } catch (err: unknown) {
+      failed += 1;
+      console.error(`  ✗ ${name}`, err);
+    }
+  }
+  const total = tests.length + asyncTests.length;
+  console.log(`\n${total - failed}/${total} passed`);
+  if (failed > 0) process.exitCode = 1;
 }
-console.log(`\n${tests.length - failed}/${tests.length} passed`);
-if (failed > 0) process.exitCode = 1;
+
+runAll().catch((err: unknown) => {
+  console.error("[ProgressReportRulesTest:runAll]", err);
+  process.exitCode = 1;
+});

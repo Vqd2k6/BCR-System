@@ -25,8 +25,9 @@ function todayIso(): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-function pct(count: number, needed: number): string {
-  return needed > 0 ? `${((count / needed) * 100).toFixed(1)}%` : '-';
+/** Mẫu số khớp file Excel: khảo sát được / không tiếp cận chia số cần khảo sát; móng, theo dõi, nguy cơ cao chia số khảo sát được. */
+function pct(count: number, denominator: number): string {
+  return denominator > 0 ? `${((count / denominator) * 100).toFixed(1)}%` : '-';
 }
 
 const SummaryRowView: React.FC<{ row: ProgressSummaryRow; isTotal?: boolean }> = ({ row, isTotal = false }) => (
@@ -40,13 +41,13 @@ const SummaryRowView: React.FC<{ row: ProgressSummaryRow; isTotal?: boolean }> =
       {row.inaccessible} <span className="text-[10px] text-slate-500">({pct(row.inaccessible, row.needed)})</span>
     </td>
     <td className="px-2.5 py-2 border border-slate-200 text-center">
-      {row.withFoundation} <span className="text-[10px] text-slate-500">({pct(row.withFoundation, row.needed)})</span>
+      {row.withFoundation} <span className="text-[10px] text-slate-500">({pct(row.withFoundation, row.surveyed)})</span>
     </td>
     <td className="px-2.5 py-2 border border-slate-200 text-center bg-yellow-50">
-      {row.monitor} <span className="text-[10px] text-slate-500">({pct(row.monitor, row.needed)})</span>
+      {row.monitor} <span className="text-[10px] text-slate-500">({pct(row.monitor, row.surveyed)})</span>
     </td>
     <td className="px-2.5 py-2 border border-slate-200 text-center bg-rose-50">
-      {row.highRisk} <span className="text-[10px] text-slate-500">({pct(row.highRisk, row.needed)})</span>
+      {row.highRisk} <span className="text-[10px] text-slate-500">({pct(row.highRisk, row.surveyed)})</span>
     </td>
   </tr>
 );

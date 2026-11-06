@@ -242,7 +242,14 @@ export class ExcelProgressRenderer implements ProgressRenderer {
       mergeAndSet(ws, r, 1, r, 1, stt, base);
       mergeAndSet(ws, r, 2, r, 2, g.label, { ...base, align: 'left' });
     }
-    const counts = [g.surveyed, g.inaccessible, g.withFoundation, g.monitor, g.highRisk];
+    // % khảo sát được / không tiếp cận tính trên số cần khảo sát (C); móng, theo dõi, nguy cơ cao tính trên số khảo sát được (D).
+    const metrics: Array<{ count: number; denCol: 'C' | 'D'; den: number }> = [
+      { count: g.surveyed, denCol: 'C', den: g.needed },
+      { count: g.inaccessible, denCol: 'C', den: g.needed },
+      { count: g.withFoundation, denCol: 'D', den: g.surveyed },
+      { count: g.monitor, denCol: 'D', den: g.surveyed },
+      { count: g.highRisk, denCol: 'D', den: g.surveyed },
+    ];
     const letter = (c: number): string => ws.getColumn(c).letter;
     const hasRange = isTotal && sumRange && sumRange.to >= sumRange.from;
 
@@ -252,7 +259,7 @@ export class ExcelProgressRenderer implements ProgressRenderer {
       : g.needed;
     styleCell(neededCell, base);
 
-    counts.forEach((count, idx) => {
+    metrics.forEach(({ count, denCol, den }, idx) => {
       const c = 4 + idx * 2;
       const countCell = ws.getCell(r, c);
       countCell.value = hasRange && sumRange
@@ -260,8 +267,8 @@ export class ExcelProgressRenderer implements ProgressRenderer {
         : count;
       styleCell(countCell, base);
       const pctCell = ws.getCell(r, c + 1);
-      const pctResult = g.needed === 0 ? '-' : count / g.needed;
-      pctCell.value = { formula: `IF(C${r}=0,"-",${letter(c)}${r}/C${r})`, result: pctResult };
+      const pctResult = den === 0 ? '-' : count / den;
+      pctCell.value = { formula: `IF(${denCol}${r}=0,"-",${letter(c)}${r}/${denCol}${r})`, result: pctResult };
       styleCell(pctCell, { ...base, numFmt: '0.0%' });
     });
     mergeAndSet(ws, r, 14, r, 18, null, base);

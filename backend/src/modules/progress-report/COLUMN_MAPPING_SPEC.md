@@ -33,6 +33,20 @@ Truy vấn SQL nằm tại [`data/pg-progress.datasource.ts`](./data/pg-progress
 | **Dòng 6** | `C6:I6` | **TỔNG SỐ LƯỢNG** | Tổng cộng Phải Tuyến + Trái Tuyến (+ Chưa rõ phía nếu có). |
 | **Dòng 4–6** | `K4:L6` | Chú giải màu (Legend) | `K4: #E49EDD` = `Không tiếp cận được`<br>`K5: #FFFF00` = `ECS Kém / BRA Trung bình`<br>`K6: #FF0000` = `ECS Nguy hiểm / BRA Cao - Rất cao` |
 
+### Bảng tổng hợp cuối sheet: mẫu số cột `%`
+
+Bảng tổng hợp ở cuối sheet ([`render/excel.renderer.ts`](./render/excel.renderer.ts) `renderSummaryRow`) dùng cột `C` = số cần khảo sát, `D` = số khảo sát được. Preview trên `ProgressExportModal.tsx` dùng đúng các mẫu số này.
+
+| Chỉ tiêu | Cột số lượng | Công thức `%` |
+| :--- | :--- | :--- |
+| Khảo sát được | `D` | `IF(C=0,"-",D/C)` |
+| Không thể tiếp cận | `F` | `IF(C=0,"-",F/C)` |
+| Có thông tin móng và kết cấu | `H` | `IF(D=0,"-",H/D)` |
+| Cần theo dõi | `J` | `IF(D=0,"-",J/D)` |
+| Nguy cơ cao | `L` | `IF(D=0,"-",L/D)` |
+
+`H`, `J`, `L` luôn là tập con của `D`: móng chỉ tính cho hồ sơ đã khảo sát được (`isSurveyed`), còn theo dõi / nguy cơ cao chỉ chấm điểm hồ sơ `SUBMITTED/UNDER_REVIEW/APPROVED/REJECTED`.
+
 ---
 
 ## Phần 3. Bảng Chi Tiết 29 Cột (`A..AC`, Header ở Dòng 9–10, Dữ liệu từ Dòng 11)
@@ -56,8 +70,8 @@ Truy vấn SQL nằm tại [`data/pg-progress.datasource.ts`](./data/pg-progress
 | **M** | `COL.lengthM` | `Kích thước chính (m)` | `Dài` | Số thực (`0.0`) | - **Căn hộ con**: **Để trống (`null`)**.<br>- **Nhà dân**: Ưu tiên lấy từ hồ sơ đã nộp/duyệt `sub_dim.sub_lot_depth` (`SUBMITTED / UNDER_REVIEW / APPROVED`) → `survey_data_json.lotDepth` / `buildingLength` / `lengthM` → `parcels.lot_depth`. Không có thì để trống (`null`). |
 | **N** | `COL.widthM` | `Kích thước chính (m)` | `Rộng` | Số thực (`0.0`) | - **Căn hộ con**: **Để trống (`null`)**.<br>- **Nhà dân**: Ưu tiên lấy từ hồ sơ đã nộp/duyệt `sub_dim.sub_frontage_width` (`SUBMITTED / UNDER_REVIEW / APPROVED`) → `survey_data_json.frontageWidth` → `parcels.frontage_width`. Không có thì để trống (`null`). |
 | **O** | `COL.heightM` | `Kích thước chính (m)` | `Cao` | Số thực (`0.0`) | - **Căn hộ con**: **Để trống (`null`)**.<br>- **Nhà dân**: Ưu tiên lấy từ hồ sơ đã nộp/duyệt `sub_dim.sub_building_height` (`SUBMITTED / UNDER_REVIEW / APPROVED`) → `building_specifications.building_height_m` → `survey_data_json.buildingHeightM`. Không có thì để trống (`null`). |
-| **P** | `COL.foundationType` | `KC móng` | `Loại móng` | Chuỗi | Quy đổi về 4 nhãn chuẩn: `Móng nông`, `Móng cọc`, `Móng cọc khoan nhồi`, `Không rõ` (Căn hộ con để trống). |
-| **Q** | `COL.foundationDepthM` | `KC móng` | `Chiều sâu móng` | Số thực (`0.0`) | `building_specifications.foundation_depth_m` → `survey_data_json.foundationDepthM` / `foundationDepth` (> 0). |
+| **P** | `COL.foundationType` | `KC móng` | `Loại móng` | Chuỗi | Quy đổi về 4 nhãn chuẩn: `Móng nông`, `Móng cọc`, `Móng cọc khoan nhồi`, `Không rõ`. Chỉ điền khi hồ sơ đã khảo sát được (có hồ sơ, không vắng/từ chối, không phải `DRAFT`); căn hộ con, nhà vắng và hồ sơ nháp để trống. Cùng điều kiện với chỉ tiêu "Có thông tin móng" của bảng tổng hợp. |
+| **Q** | `COL.foundationDepthM` | `KC móng` | `Chiều sâu móng` | Số thực (`0.0`) | `survey_data_json.foundationDepthM` → `building_specifications.foundation_depth_m` (> 0). Cùng điều kiện điền như cột P. |
 | **R** | `COL.floors` | `Số tầng` | `Số tầng` | Số hoặc Chuỗi | Nhà dân: số tầng (`1, 2, 3...`). Căn hộ con: `"Trệt"`, `"Lầu 1"`, `"Lầu 2"`... |
 | **S** | `COL.totalRooms` | `Tổng số phòng` | `Tổng số phòng` | Số nguyên | **Để trống (`null`)** theo quyết định nghiệp vụ. |
 | **T** | `COL.constructionYear` | `Năm XD` | `Năm XD` | Số nguyên (`0`) | `building_specifications.construction_year` → `survey_data_json.constructionYear` → `master_year`. |
@@ -69,4 +83,4 @@ Truy vấn SQL nằm tại [`data/pg-progress.datasource.ts`](./data/pg-progress
 | **Z** | `COL.distanceCenterlineM` | `Khoảng cách đến CT Metro` | `Tim tuyến` | Số thực (`0.0`) | **Tính trực tiếp từ hình học GIS hiện tại**: khoảng cách ngắn nhất từ đa giác ranh `COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)` (hoặc điểm `p.location_geom`) tới 537 đỉnh tim tuyến Metro số 2 ([`geo/metro2-centerline.ts`](./geo/metro2-centerline.ts)). |
 | **AA** | `COL.distanceEdgeM` | `Khoảng cách đến CT Metro` | `Biên KC` | Số thực (`0.0`) | **Tính trực tiếp từ hình học GIS hiện tại**: khoảng cách ngắn nhất từ đa giác ranh tới 12 đường bao kết cấu nhà ga / depot chuẩn CAD MAUR ([`geo/metro2-stations.ts`](./geo/metro2-stations.ts)) trong phạm vi `< 300m`. |
 | **AB** | `COL.surveyStatus` | `Trạng thái KS` | `Trạng thái KS` | Chuỗi | `Đang khảo sát` \| `Hoàn thành khảo sát, đang làm báo cáo` \| `Hoàn thành khảo sát và báo cáo` \| `Hoàn thành khảo sát và báo cáo (Đã ký)`. |
-| **AC** | `COL.notes` | `Ghi chú` | `Ghi chú` | Chuỗi | Ghép nối ghi chú hiện trường và lịch sử ghi nhận vắng mặt. |
+| **AC** | `COL.notes` | `Ghi chú` | `Ghi chú` | Chuỗi | **Không tiếp cận được:** `<lý do> – <ghi chú>`. Lý do: ưu tiên lý do cụ thể KSV chọn/nhập (`customAbsenteeReason`, `absenteeInfo.customReason`, `absenteeReason` dạng văn bản); nếu không có thì dịch mã qua `ABSENCE_REASON_VI` (`survey_absence_logs.absence_reason` → `absenteeInfo.absenceReason` → `absenteeReason` → `residentStatus`). Không bao giờ in mã enum thô; mã lạ ghi cảnh báo `[ProgressReport:UnknownAbsenceReason]`. Ghi chú: nhật ký vắng → `absenteeInfo.notes` → `absenteeNotes`. Ghi chú đã chứa lý do thì chỉ in ghi chú. **Công trình tiếp cận được:** để trống. Bản tiến độ không thay báo cáo chi tiết, nên hạn chế tiếp cận, ý kiến chủ hộ, lịch sử cải tạo không đưa vào cột này. |

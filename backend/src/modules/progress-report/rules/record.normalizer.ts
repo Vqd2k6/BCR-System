@@ -37,14 +37,45 @@ export function mapFoundationLabel(raw: string): string {
   return UNKNOWN_FOUNDATION;
 }
 
-const ABSENCE_REASON_VI: Record<string, string> = {
-  HOMEOWNER_ABSENT: 'Chủ nhà vắng mặt',
+/** Nhãn khớp form KSV: căn hộ (CONDO_UNIT_ABSENCE_REASONS, residentStatus), nhà dân, khu vực chung tòa mẹ. */
+export const ABSENCE_REASON_VI: Record<string, string> = {
+  HOMEOWNER_ABSENT: 'Chủ nhà đi vắng / Khóa cửa ngoài',
   LOCKED_GATE: 'Khóa cổng, không có người',
-  REFUSED_ACCESS: 'Chủ nhà không cho tiếp cận',
-  UNOCCUPIED_EMPTY: 'Nhà bỏ trống',
-  LOCKED_SECURITY: 'Bảo vệ không cho vào',
+  REFUSED_ACCESS: 'Chủ nhà hoặc khách thuê từ chối tiếp cận',
+  UNOCCUPIED_EMPTY: 'Nhà / căn hộ bỏ trống, chưa về ở',
+  LOCKED_SECURITY: 'Căn hộ niêm phong / BQL không có chìa khóa',
   OTHER: 'Lý do khác',
+  'VẮNG_MẶT_KHÓA_CỬA': 'Vắng mặt khóa cửa ngoài (Không tiếp cận được)',
+  'BỎ_TRỐNG_CHƯA_VỀ_Ở': 'Căn hộ bỏ trống / Chưa có người về ở',
+  'CHO_THUÊ': 'Cho thuê (vắng tại thời điểm khảo sát)',
+  'CHỦ_HỘ_Ở': 'Chủ hộ ở (vắng tại thời điểm khảo sát)',
 };
+
+const ENUM_CODE_PATTERN = /^[\p{Lu}\d_]+$/u;
+const OTHER_PREFIX = /^\s*Khác:\s*/;
+
+/** Mã enum (viết hoa, gạch dưới), kể cả mã tiếng Việt có dấu như `CHO_THUÊ`. */
+export function isEnumCode(value: string): boolean {
+  return value.length > 1 && ENUM_CODE_PATTERN.test(value);
+}
+
+export function translateAbsenceReason(raw: unknown): string {
+  const s = text(raw);
+  if (!s) return '';
+  const key = s.toUpperCase();
+  if (ABSENCE_REASON_VI[key]) return ABSENCE_REASON_VI[key];
+  if (OTHER_PREFIX.test(s)) return s.replace(OTHER_PREFIX, '').trim() || ABSENCE_REASON_VI.OTHER;
+  if (isEnumCode(s)) {
+    console.warn('[ProgressReport:UnknownAbsenceReason]', s);
+    const words = s.replace(/_/g, ' ').toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+  return s;
+}
+
+function comparable(value: string): string {
+  return value.toLowerCase().replace(/[.,;:!?()/–—-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 export function formatFloor(floor: number | null): string {
   if (floor === null) return '';
@@ -61,45 +92,66 @@ function positiveNumber(...candidates: unknown[]): number | null {
   return null;
 }
 
-function buildHistoryNotes(row: RawProgressRow): string {
-  const histRaw = getPath(row.reportJson, 'historyInterview');
-  const hist: Record<string, unknown> =
-    histRaw && typeof histRaw === 'object' && !Array.isArray(histRaw) ? (histRaw as Record<string, unknown>) : {};
-  const pairs: Array<[unknown, unknown, string]> = [
-    [hist.renovationYear ?? getPath(row.reportJson, 'renovationYear'), hist.renovationNotes, 'Sửa chữa, cải tạo'],
-    [hist.extensionYear, hist.extensionNotes, 'Cơi nới, mở rộng'],
-    [hist.alterationYear, hist.alterationNotes, 'Cải tạo kết cấu'],
-    [hist.majorRepairYear ?? getPath(row.reportJson, 'majorRepairYear'), hist.repairNotes ?? hist.majorRepairNotes, 'Sửa chữa lớn'],
-    [hist.changeUseYear, hist.changeUseNotes, 'Thay đổi công năng'],
-  ];
-  const parts: string[] = [];
-  const seen = new Set<string>();
-  for (const [yearRaw, notesRaw, fallbackLabel] of pairs) {
-    const year = text(yearRaw);
-    const notes = text(notesRaw);
-    if (!year && !notes) continue;
-    const entry = year ? `${year} (${notes || fallbackLabel})` : notes;
-    if (!seen.has(entry)) {
-      seen.add(entry);
-      parts.push(entry);
-    }
-  }
-  const general = text(hist.generalInterviewNotes);
-  if (general) parts.push(general);
-  return parts.join('; ');
+/** Lý do cụ thể KSV chọn/nhập (văn bản) ưu tiên hơn nhãn enum chung của nhật ký; `OTHER` không che lý do tự nhập. */
+function resolveAbsenceReason(row: RawProgressRow): string {
+  const json = row.reportJson;
+  const specific = [
+    getPath(json, 'customAbsenteeReason'),
+    getPath(json, 'absenteeInfo.customReason'),
+    getPath(json, 'absenteeReason'),
+  ]
+    .map(text)
+    .find((v) => v && !isEnumCode(v) && v !== ABSENCE_REASON_VI.OTHER);
+  if (specific) return translateAbsenceReason(specific);
+
+  const coded = [
+    row.absenceReason,
+    getPath(json, 'absenteeInfo.absenceReason'),
+    getPath(json, 'absenteeReason'),
+    getPath(json, 'residentStatus'),
+  ]
+    .map(text)
+    .filter(Boolean);
+  const meaningful = coded.find((v) => v.toUpperCase() !== 'OTHER');
+  return translateAbsenceReason(meaningful ?? coded[0] ?? '');
 }
 
+function resolveAbsenceNotes(row: RawProgressRow): string {
+  return firstText(row.absenceNotes, getPath(row.reportJson, 'absenteeInfo.notes'), getPath(row.reportJson, 'absenteeNotes'));
+}
+
+/** Lý do chọn sẵn trên form nhà dân (ABSENTEE_REASONS ở step1.constants.ts); nhật ký vắng hay chép nguyên vào ghi chú. */
+const RESIDENTIAL_ABSENCE_PRESETS = new Set(
+  [
+    'Chủ hộ vắng mặt dài ngày (khóa cửa ngoài)',
+    'Chủ hộ đi làm, không có người lớn ở nhà',
+    'Từ chối phối hợp khảo sát',
+    'Khu đất trống / Nhà đang tranh chấp',
+  ].map(comparable)
+);
+
+/** Ghi chú KSV gõ cho đủ ô, không thêm thông tin so với nhãn lý do. */
+const TRIVIAL_ABSENCE_NOTES = new Set(['', 'không', 'không có', 'vắng', 'vắng mặt', 'vắng chủ', 'n a']);
+
+function joinReasonAndNotes(reason: string, rawNotes: string): string {
+  const notes = TRIVIAL_ABSENCE_NOTES.has(comparable(rawNotes)) ? '' : rawNotes;
+  if (!reason) return notes;
+  if (!notes) return reason;
+  // Ghi chú là lý do cụ thể đã chọn trên form thì nhãn enum chung chỉ lặp ý.
+  if (RESIDENTIAL_ABSENCE_PRESETS.has(comparable(notes))) return notes;
+  const r = comparable(reason);
+  const n = comparable(notes);
+  if (n.includes(r)) return notes;
+  if (r.includes(n)) return reason;
+  return `${reason} – ${notes}`;
+}
+
+/**
+ * Bản tiến độ chỉ ghi lý do chưa vào được nhà; công trình tiếp cận được để trống.
+ * Hạn chế tiếp cận, ý kiến chủ hộ, lịch sử cải tạo thuộc báo cáo chi tiết, không đưa vào đây.
+ */
 function buildNotes(row: RawProgressRow, inaccessible: boolean): string {
-  if (inaccessible) {
-    const reasonKey = (row.absenceReason ?? '').toUpperCase();
-    const reason =
-      ABSENCE_REASON_VI[reasonKey] ||
-      text(row.absenceReason) ||
-      firstText(getPath(row.reportJson, 'customAbsenteeReason'), getPath(row.reportJson, 'absenteeReason'));
-    const notes = text(row.absenceNotes);
-    return [reason, notes].filter(Boolean).join(' – ');
-  }
-  return buildHistoryNotes(row);
+  return inaccessible ? joinReasonAndNotes(resolveAbsenceReason(row), resolveAbsenceNotes(row)) : '';
 }
 
 /** Dòng tòa mẹ: thông số nền tảng căn hộ con kế thừa; thiếu hồ sơ tòa mẹ thì để "---", không suy đoán. */
@@ -186,11 +238,15 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
 
   const usageFunction = normalizeUsageFunction(firstText(getPath(json, 'usageFunction'), row.specLandUseFunction), isUnit);
 
-  const foundationRaw = isUnit ? '' : firstText(getPath(json, 'foundationType'), row.specFoundationCategory);
-  const foundationType = isUnit || !row.reportId ? '' : mapFoundationLabel(foundationRaw);
-  const depth = isUnit ? null : firstNumber(getPath(json, 'foundationDepthM'), row.specFoundationDepth);
+  // Móng chỉ có nghĩa khi KSV vào được nhà và đã nộp; nhà vắng/nháp để trống, khớp số đếm ở bảng tổng hợp.
+  const isSurveyedReport =
+    Boolean(row.reportId) && !inaccessible && row.reportStatus !== null && row.reportStatus !== 'DRAFT';
+  const hasFoundationScope = !isUnit && isSurveyedReport;
+  const foundationRaw = hasFoundationScope ? firstText(getPath(json, 'foundationType'), row.specFoundationCategory) : '';
+  const foundationType = hasFoundationScope ? mapFoundationLabel(foundationRaw) : '';
+  const depth = hasFoundationScope ? firstNumber(getPath(json, 'foundationDepthM'), row.specFoundationDepth) : null;
   let foundationDepth: number | string | null = null;
-  if (!isUnit && row.reportId) {
+  if (hasFoundationScope) {
     if (depth !== null && depth > 0) foundationDepth = depth;
     else if (foundationType === UNKNOWN_FOUNDATION) foundationDepth = UNKNOWN_FOUNDATION;
   }
@@ -212,9 +268,6 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     arrayLength(getPath(json, 'asBuiltDrawingFiles')) > 0 ||
     (catScore !== null && catScore >= 1 && catScore <= 2);
   const asBuilt = !row.reportId || inaccessible ? '' : hasAsBuilt ? 'Có' : 'Không';
-
-  const isSurveyedReport =
-    Boolean(row.reportId) && !inaccessible && row.reportStatus !== null && row.reportStatus !== 'DRAFT';
 
   const startDate = minDate(row.reportSurveyDate, row.reportCreatedAt, row.absenceFirstAt);
   let endDate: Date | null = null;
