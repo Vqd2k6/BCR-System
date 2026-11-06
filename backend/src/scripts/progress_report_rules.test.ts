@@ -410,6 +410,40 @@ const tests: Array<[string, () => void]> = [
     },
   ],
   [
+    "Nhà dân vắng: để trống Số tầng / Năm XD (KSV điền bừa, Admin không sửa được); căn hộ vắng giữ tầng căn và năm tòa mẹ",
+    () => {
+      const absentHouse = normalizeRecord(
+        raw({
+          parcelSurveyStatus: "POSTPONED_ABSENT",
+          reportIsRefusedOrAbsent: true,
+          reportStatus: "SUBMITTED",
+          absenceCount: 1,
+          specFloorCount: 2,
+          specYear: 2026,
+          reportJson: { surveyCaseType: "ABSENTEE", isAbsenteeSurvey: true, aboveFloors: 2, constructionYear: 2026 },
+        }),
+        CFG,
+      );
+      assert.equal(absentHouse.floorsLabel, "");
+      assert.equal(absentHouse.constructionYear, null);
+
+      const absentUnit = normalizeRecord(
+        raw({
+          kind: "CONDO_UNIT",
+          unitId: "u1",
+          unitCode: "B3",
+          unitFloorNumber: 1,
+          condoAbsenceState: "ABSENT",
+          reportJson: {},
+          masterJson: { constructionYear: 2008 },
+        }),
+        CFG,
+      );
+      assert.equal(absentUnit.floorsLabel, "Lầu 1");
+      assert.equal(absentUnit.constructionYear, 2008);
+    },
+  ],
+  [
     "Các cột chốt để trống khi không có dữ liệu: Dài, Tổng số phòng, ĐV thiết kế, ĐV thi công",
     () => {
       const rec = normalizeRecord(raw(), CFG);
