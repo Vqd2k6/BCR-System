@@ -126,7 +126,7 @@ const PX_TO_MM = 0.2646;
 const GIS_PX_TO_MM = 0.07;
 const GIS_LINE_WEIGHT = {
   parcel: 1.5,
-  condoMaster: 2.5,
+  condoMaster: 5,
   stationOutline: 2.5,
   stationBox: 2,
   corridor: 2,
@@ -160,6 +160,8 @@ const SERIF_FAMILY = "'Times New Roman', Times, serif";
 
 /** Màu nét khung/khung tên theo PDF mẫu (xám đậm) */
 const INK = "#404040";
+/** Nét gạch–chấm (CENTER) của tim tuyến, đơn vị mm */
+const CENTERLINE_DASH = "7,1.5,1.2,1.5";
 const RED = "#ff0000";
 
 const mm = (px: number): string => (px * PX_TO_MM).toFixed(3);
@@ -337,60 +339,6 @@ const clipPolyline = (line: Point[]): Point[][] => {
   }
   if (current.length > 1) chunks.push(current);
   return chunks;
-};
-
-/** Sutherland–Hodgman với khung vẽ chữ nhật. */
-const clipPolygon = (polygon: Point[]): Point[] => {
-  const edges: {
-    inside: (p: Point) => boolean;
-    cross: (a: Point, b: Point) => Point;
-  }[] = [
-    {
-      inside: (p) => p[0] >= DRAW_RECT.minX,
-      cross: (a, b) => [
-        DRAW_RECT.minX,
-        a[1] + ((b[1] - a[1]) * (DRAW_RECT.minX - a[0])) / (b[0] - a[0]),
-      ],
-    },
-    {
-      inside: (p) => p[0] <= DRAW_RECT.maxX,
-      cross: (a, b) => [
-        DRAW_RECT.maxX,
-        a[1] + ((b[1] - a[1]) * (DRAW_RECT.maxX - a[0])) / (b[0] - a[0]),
-      ],
-    },
-    {
-      inside: (p) => p[1] >= DRAW_RECT.minY,
-      cross: (a, b) => [
-        a[0] + ((b[0] - a[0]) * (DRAW_RECT.minY - a[1])) / (b[1] - a[1]),
-        DRAW_RECT.minY,
-      ],
-    },
-    {
-      inside: (p) => p[1] <= DRAW_RECT.maxY,
-      cross: (a, b) => [
-        a[0] + ((b[0] - a[0]) * (DRAW_RECT.maxY - a[1])) / (b[1] - a[1]),
-        DRAW_RECT.maxY,
-      ],
-    },
-  ];
-
-  let output = polygon;
-  for (const { inside, cross } of edges) {
-    const input = output;
-    output = [];
-    input.forEach((current, index) => {
-      const previous = input[(index + input.length - 1) % input.length];
-      if (inside(current)) {
-        if (!inside(previous)) output.push(cross(previous, current));
-        output.push(current);
-      } else if (inside(previous)) {
-        output.push(cross(previous, current));
-      }
-    });
-    if (output.length === 0) return [];
-  }
-  return output;
 };
 
 const toPathData = (points: Point[], closed: boolean): string =>
@@ -748,10 +696,10 @@ const buildTitleBlock = (
   });
   const headerTop = top + REVISION_ROWS * rowHeight;
   parts.push(
-    svgText(13.5, headerTop + 1.45, "REV", 1.2),
-    svgText(13.5, headerTop + 2.85, "LẦN XB", 0.9),
-    svgText(22.5, headerTop + 1.45, "DATE", 1.2),
-    svgText(22.5, headerTop + 2.85, "NGÀY", 1.0),
+    svgText(13.5, headerTop + 1.35, "REV", 1.2),
+    svgText(13.5, headerTop + 2.6, "LẦN XB", 0.9),
+    svgText(22.5, headerTop + 1.35, "DATE", 1.2),
+    svgText(22.5, headerTop + 2.6, "NGÀY", 1.0),
     svgText(29.5, headerTop + 2.1, "DESCRIPTION / NỘI DUNG SỬA ĐỔI", 1.25, { anchor: "start", maxWidth: 38 }),
   );
 
@@ -843,8 +791,8 @@ const buildTitleBlock = (
     svgText(328, projectRow2 + 2.2, "DRAWING NO", 1.2, { anchor: "start" }),
     svgText(328, projectRow2 + 4.2, "BẢN VẼ SỐ", 1.2, { anchor: "start" }),
     svgText(368, projectRow2 + 5.4, titleBlock.drawingNo.trim(), 2.0, { maxWidth: 48, attrs: ' data-field="drawing-no"' }),
-    svgText(398.5, projectRow2 + 2.2, "REV / BẢN", 1.1, { anchor: "start" }),
-    svgText(404, projectRow2 + 5.6, latestRevision?.revision ?? "R00", 1.9, { attrs: ' data-field="revision"' }),
+    svgText(403.85, projectRow2 + 2.3, "REV / BẢN", 1.15),
+    svgText(403.85, projectRow2 + 5.8, latestRevision?.revision ?? "R00", 2.0, { bold: true, attrs: ' data-field="revision"' }),
   );
 
   return `<g id="khung-ten" font-family="${FONT_FAMILY}"><rect x="${FRAME.x0}" y="${top}" width="${FRAME.x1 - FRAME.x0}" height="${bottom - top}" fill="#ffffff"/><g fill="none" stroke="${INK}">${lines.join("")}</g>${parts.join("")}</g>`;
@@ -1021,20 +969,21 @@ const buildRouteScheme = (
     .filter((station) => /^ST\d{2}$/.test(station.code))
     .sort((a, b) => a.code.localeCompare(b.code));
   const depot = stations.find((station) => station.code === "DEP");
-  const ordered = depot ? [...lineStations, depot] : lineStations;
-  if (ordered.length < 2) return "";
+  if (lineStations.length < 2) return "";
 
-  // Hướng Bắc lên trên, rồi xoay để trục chính của tuyến thẳng đứng (vừa ô dọc), Bến Thành ở dưới
-  const lat0 = ordered.reduce((sum, s) => sum + s.coord[0], 0) / ordered.length;
+  // Hướng Bắc lên trên, rồi xoay để trục chính của tuyến thẳng đứng (vừa ô dọc), Bến Thành ở dưới.
+  // Chỉ dùng các ga ST: Depot vẽ thành nhánh cong riêng nên không được kéo lệch trục và tỷ lệ.
+  const lat0 = lineStations.reduce((sum, s) => sum + s.coord[0], 0) / lineStations.length;
   const cosLat0 = Math.cos((lat0 * Math.PI) / 180);
-  const meters = ordered.map(({ coord: [lat, lng] }): Point => [lng * METERS_PER_DEGREE * cosLat0, -lat * METERS_PER_DEGREE]);
+  const toMeters = ([lat, lng]: LatLng): Point => [lng * METERS_PER_DEGREE * cosLat0, -lat * METERS_PER_DEGREE];
+  const meters = lineStations.map((station) => toMeters(station.coord));
   let beta = Math.PI / 2 - pointsPrincipalAngle(meters);
   const rotateBy = (angle: number) => ([x, y]: Point): Point => [
     x * Math.cos(angle) - y * Math.sin(angle),
     x * Math.sin(angle) + y * Math.cos(angle),
   ];
   let rotated = meters.map(rotateBy(beta));
-  if (rotated[0][1] < rotated[lineStations.length - 1][1]) {
+  if (rotated[0][1] < rotated[rotated.length - 1][1]) {
     beta += Math.PI;
     rotated = meters.map(rotateBy(beta));
   }
@@ -1047,15 +996,15 @@ const buildRouteScheme = (
   const innerHeight = rect.height - padTop - padBottom;
   const xs = rotated.map((p) => p[0]);
   const ys = rotated.map((p) => p[1]);
-  const spanX = Math.max(...xs) - Math.min(...xs) || 1;
-  const spanY = Math.max(...ys) - Math.min(...ys) || 1;
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const spanX = Math.max(...xs) - minX || 1;
+  const spanY = Math.max(...ys) - minY || 1;
   const scale = Math.min(innerWidth / spanX, innerHeight / spanY);
   const offsetX = rect.x + padLeft + (innerWidth - spanX * scale) / 2;
   const offsetY = rect.y + padTop + (innerHeight - spanY * scale) / 2;
-  const page = rotated.map(([x, y]): Point => [
-    offsetX + (x - Math.min(...xs)) * scale,
-    offsetY + (y - Math.min(...ys)) * scale,
-  ]);
+  const toPanel = ([x, y]: Point): Point => [offsetX + (x - minX) * scale, offsetY + (y - minY) * scale];
+  const page = rotated.map(toPanel);
 
   const parts: string[] = [];
   parts.push(`<path d="${toPathData(page, false)}" fill="none" stroke="${INK}" stroke-width="0.45" stroke-linejoin="round"/>`);
@@ -1070,15 +1019,47 @@ const buildRouteScheme = (
     }
   }
 
-  ordered.forEach((station, index) => {
+  // Depot: nhánh ray cong rẽ khỏi ga cuối, khối Depot đặt lệch sang bên phía Depot thật (ký hiệu sơ đồ như PDF mẫu)
+  if (depot) {
+    const end = page[page.length - 1];
+    const before = page[page.length - 2];
+    const length = Math.hypot(end[0] - before[0], end[1] - before[1]) || 1;
+    const u: Point = [(end[0] - before[0]) / length, (end[1] - before[1]) / length];
+    const real = toPanel(rotateBy(beta)(toMeters(depot.coord)));
+    const side = (real[0] - end[0]) * -u[1] + (real[1] - end[1]) * u[0];
+    // Không xác định được phía (Depot nằm thẳng hàng tuyến): rẽ về phía trái, đối diện cột nhãn ga
+    const left: Point = -u[1] <= 0 ? [-u[1], u[0]] : [u[1], -u[0]];
+    const n: Point = Math.abs(side) > 1e-6 ? [-u[1] * Math.sign(side), u[0] * Math.sign(side)] : left;
+    const branchGeometry = (normal: Point) => {
+      const at = (along: number, across: number): Point => [
+        end[0] + u[0] * along + normal[0] * across,
+        end[1] + u[1] * along + normal[1] * across,
+      ];
+      const control = at(4, 0);
+      const tip = at(4, 5);
+      const block = [at(3, 5), at(5, 5), at(5, 9.5), at(3, 9.5)];
+      const label = at(4, 12.5);
+      return { control, tip, block, label };
+    };
+    const insidePanel = ([x, y]: Point): boolean =>
+      x >= rect.x + 1 && x <= rect.x + rect.width - 1 && y >= rect.y + 1 && y <= rect.y + rect.height - 1;
+    let geometry = branchGeometry(n);
+    if (![...geometry.block, geometry.label].every(insidePanel)) {
+      const flipped = branchGeometry([-n[0], -n[1]]);
+      if ([...flipped.block, flipped.label].every(insidePanel)) geometry = flipped;
+    }
+    const highlighted = identity.highlightDepot;
+    const color = highlighted ? RED : INK;
+    const branch = `M${fmt(end[0])} ${fmt(end[1])}Q${fmt(geometry.control[0])} ${fmt(geometry.control[1])} ${fmt(geometry.tip[0])} ${fmt(geometry.tip[1])}`;
+    parts.push(
+      `<g data-station="DEP"${highlighted ? ' data-highlight="true"' : ""}><path data-depot-branch="true" d="${branch}" fill="none" stroke="${color}" stroke-width="${highlighted ? "0.8" : "0.45"}" stroke-linecap="round"/><path d="${toPathData(geometry.block, true)}" fill="${color}"/>${svgText(geometry.label[0], geometry.label[1] + 0.45, toRouteLabel(depot.code, depot.name), 1.3)}</g>`,
+    );
+  }
+
+  lineStations.forEach((station, index) => {
     const [x, y] = page[index];
-    const isDepot = station.code === "DEP";
-    const highlighted = isDepot
-      ? identity.highlightDepot
-      : identity.kind === "C&C" && identity.highlightStations.includes(station.code);
-    const marker = isDepot
-      ? `<rect x="${fmt(x - 1)}" y="${fmt(y - 1.8)}" width="2" height="3.6" fill="${highlighted ? RED : INK}"/>`
-      : `<circle cx="${fmt(x)}" cy="${fmt(y)}" r="${highlighted ? "1.1" : "0.75"}" fill="${highlighted ? RED : INK}"/>`;
+    const highlighted = identity.kind === "C&C" && identity.highlightStations.includes(station.code);
+    const marker = `<circle cx="${fmt(x)}" cy="${fmt(y)}" r="${highlighted ? "1.1" : "0.75"}" fill="${highlighted ? RED : INK}"/>`;
     parts.push(
       `<g data-station="${station.code}"${highlighted ? ' data-highlight="true"' : ""}>${marker}${svgText(x + 1.8, y + 0.45, toRouteLabel(station.code, station.name), 1.2, { anchor: "start", maxWidth: labelSpace + 2 })}</g>`,
     );
@@ -1117,13 +1098,13 @@ const LEGEND_ITEMS: { label: string; stroke: string; width: string; dash?: strin
   { label: "Công trình nhà ga", stroke: "#7c3aed", width: lineWidth(GIS_LINE_WEIGHT.stationOutline) },
   { label: "Hộp ga Metro", stroke: RED, width: lineWidth(GIS_LINE_WEIGHT.stationBox) },
   { label: "Mép hố đào / ranh hành lang", stroke: "#0284c7", width: lineWidth(GIS_LINE_WEIGHT.corridor), dash: `${mm(8)},${mm(6)}` },
-  { label: "Tim tuyến Metro số 2", stroke: "#fe0000", width: lineWidth(GIS_LINE_WEIGHT.centerline) },
+  { label: "Tim tuyến Metro số 2", stroke: "#fe0000", width: lineWidth(GIS_LINE_WEIGHT.centerline), dash: CENTERLINE_DASH },
 ];
 
 const buildLegend = (rect: PanelRect): string => {
   const rows = LEGEND_ITEMS.map((item, index) => {
     const y = rect.y + 7 + index * 3.5;
-    const sample = `M${fmt(rect.x + 3)} ${fmt(y)}H${fmt(rect.x + 15)}`;
+    const sample = `M${fmt(rect.x + 2)} ${fmt(y)}H${fmt(rect.x + 15)}`;
     const overlay = item.overlay
       ? `<path d="${sample}" stroke="${INK}" stroke-width="0.35" stroke-dasharray="1.6,0.8" fill="none"/>`
       : "";
@@ -1133,19 +1114,14 @@ const buildLegend = (rect: PanelRect): string => {
 };
 
 // ============================================================================
-// Ranh khảo sát "Boundary Building": tô chấm, nét đỏ + đứt xám, số hiệu điểm khống chế
+// Ranh khảo sát "Boundary Building": nét đỏ + đứt xám, số hiệu điểm khống chế (không tô nền)
 // ============================================================================
 
 const buildSurveyBoundary = (
   ringPage: Point[],
   points: { no: number; page: Point }[],
-): { fill: string; lines: string } => {
+): string => {
   const closed = [...ringPage, ringPage[0]];
-  const clippedFill = clipPolygon(ringPage);
-  const fill =
-    clippedFill.length >= 3
-      ? `<g id="vung-khao-sat"><path d="${toPathData(clippedFill, true)}" fill="url(#cham-xanh)" stroke="none"/></g>`
-      : "";
 
   const chunks = clipPolyline(closed);
   const dashed = chunks.map((chunk) => `<path d="${toPathData(chunk, false)}"/>`).join("");
@@ -1190,10 +1166,7 @@ const buildSurveyBoundary = (
     }
   });
 
-  return {
-    fill,
-    lines: `<g id="ranh-khao-sat" fill="none" stroke-linejoin="round"><g stroke="${INK}" stroke-width="0.35" stroke-dasharray="1.6,0.8">${dashed}</g><g stroke="${RED}" stroke-width="0.25">${dashed}</g></g><g id="so-hieu-diem-khong-che">${numbers}${label}</g>`,
-  };
+  return `<g id="ranh-khao-sat" fill="none" stroke-linejoin="round"><g stroke="${INK}" stroke-width="0.35" stroke-dasharray="1.6,0.8">${dashed}</g><g stroke="${RED}" stroke-width="0.25">${dashed}</g></g><g id="so-hieu-diem-khong-che">${numbers}${label}</g>`;
 };
 
 // ============================================================================
@@ -1377,18 +1350,6 @@ export function generateZoneTechnicalSvg(
     .map(parcelPath)
     .join("");
 
-  const outlinePaths = stationOutlines
-    .map((station) => ({
-      name: station.name,
-      clipped: clipPolygon(openRing(toPage(station.coords))),
-    }))
-    .filter(({ clipped }) => clipped.length >= 3)
-    .map(
-      ({ name, clipped }) =>
-        `<path data-name="${escapeXml(name)}" d="${toPathData(clipped, true)}"/>`,
-    )
-    .join("");
-
   const polylineLayer = (items: { name: string; line: Point[] }[]): string =>
     items
       .flatMap(({ name, line }) =>
@@ -1399,6 +1360,13 @@ export function generateZoneTechnicalSvg(
       )
       .join("");
 
+  // Ranh ga/Depot cắt như đường gấp khúc khép kín: không sinh cạnh giả chạy dọc mép khung vẽ (lỗi của Sutherland–Hodgman)
+  const outlinePaths = polylineLayer(
+    stationOutlines.map(({ name, coords }) => {
+      const ring = openRing(toPage(coords));
+      return { name, line: [...ring, ring[0]] };
+    }),
+  );
   const boxPaths = polylineLayer(
     stationBoxes.map(({ name, coords }) => {
       const ring = openRing(toPage(coords));
@@ -1422,12 +1390,12 @@ export function generateZoneTechnicalSvg(
         .join("")
     : "";
 
-  const boundaryLayers = hasBoundary
+  const boundaryLayer = hasBoundary
     ? buildSurveyBoundary(
         toPage(boundaryRing),
         controlPoints.map((point) => ({ no: point.no, page: toPage([point.coord])[0] })),
       )
-    : { fill: "", lines: "" };
+    : "";
 
   const rotationDeg = (alpha * 180) / Math.PI;
   const placements = layout.placements;
@@ -1465,7 +1433,7 @@ export function generateZoneTechnicalSvg(
     `Thời điểm xuất: ${exportedAt.toISOString()}`,
   ].join("; ");
 
-  const defs = `<defs><pattern id="cham-xanh" width="2" height="2" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.13" fill="#1e88e5"/></pattern><pattern id="gach-cheo" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V1.6" stroke="${INK}" stroke-width="0.2"/></pattern></defs>`;
+  const defs = `<defs><pattern id="gach-cheo" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V1.6" stroke="${INK}" stroke-width="0.2"/></pattern></defs>`;
 
   const svg = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1474,14 +1442,13 @@ export function generateZoneTechnicalSvg(
     `<desc>${escapeXml(description)}</desc>`,
     defs,
     `<rect width="${PAGE_WIDTH_MM}" height="${PAGE_HEIGHT_MM}" fill="#ffffff"/>`,
-    boundaryLayers.fill,
     `<g id="thua-dat" fill="none" stroke="#000000" stroke-width="${lineWidth(GIS_LINE_WEIGHT.parcel)}" stroke-linejoin="round">${regularPaths}</g>`,
     `<g id="chung-cu-master" fill="none" stroke="#000000" stroke-width="${lineWidth(GIS_LINE_WEIGHT.condoMaster)}" stroke-linejoin="round">${condoPaths}</g>`,
     `<g id="cong-trinh-nha-ga" fill="none" stroke="#7c3aed" stroke-width="${lineWidth(GIS_LINE_WEIGHT.stationOutline)}" stroke-linejoin="round">${outlinePaths}</g>`,
     `<g id="hop-ga" fill="none" stroke="#ff0000" stroke-width="${lineWidth(GIS_LINE_WEIGHT.stationBox)}" stroke-linecap="round">${boxPaths}</g>`,
     `<g id="mep-ho-dao" fill="none" stroke="#0284c7" stroke-width="${lineWidth(GIS_LINE_WEIGHT.corridor)}" stroke-dasharray="${mm(8)},${mm(6)}">${corridorPaths}</g>`,
-    `<g id="tim-tuyen" fill="none" stroke="#fe0000" stroke-width="${lineWidth(GIS_LINE_WEIGHT.centerline)}">${centerlinePaths}</g>`,
-    boundaryLayers.lines,
+    `<g id="tim-tuyen" fill="none" stroke="#fe0000" stroke-width="${lineWidth(GIS_LINE_WEIGHT.centerline)}" stroke-dasharray="${CENTERLINE_DASH}">${centerlinePaths}</g>`,
+    boundaryLayer,
     `<g id="nhan-ma-thua" fill="#000000">${labels}</g>`,
     ...panelLayers,
     buildSheetKey(1, 1),

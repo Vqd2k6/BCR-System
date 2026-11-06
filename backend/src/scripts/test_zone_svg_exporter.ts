@@ -109,7 +109,7 @@ const verifySvg = (zone: string, svg: string, expectedCount: number) => {
 
   const expectedStrokes: Record<string, string> = {
     'thua-dat': '0.105',
-    'chung-cu-master': '0.175',
+    'chung-cu-master': '0.350',
     'cong-trinh-nha-ga': '0.175',
     'hop-ga': '0.140',
     'mep-ho-dao': '0.140',
@@ -123,6 +123,17 @@ const verifySvg = (zone: string, svg: string, expectedCount: number) => {
     check(zone, `Lớp ${id} không tô nền`, new RegExp(`<g id="${id}" fill="none"`).test(svg));
   }
   check(zone, 'Không còn nền tím', !svg.includes('#8b5cf6') && !svg.includes('fill-opacity'));
+  check(zone, 'Tim tuyến nét gạch–chấm', /<g id="tim-tuyen"[^>]*stroke-dasharray="7,1.5,1.2,1.5"/.test(svg));
+  // Ranh ga/Depot cắt bằng polyline: không có đoạn nào chạy dọc mép khung vẽ
+  const onFrameEdge = (a: Point, b: Point) =>
+    [10, 410].some((x) => Math.abs(a[0] - x) < 0.01 && Math.abs(b[0] - x) < 0.01) ||
+    [10, 262].some((y) => Math.abs(a[1] - y) < 0.01 && Math.abs(b[1] - y) < 0.01);
+  const stationEdgeOnFrame = [...layer(svg, 'cong-trinh-nha-ga').matchAll(/ d="([^"]*)"/g)].some((match) => {
+    const pts = parsePath(match[1]);
+    return pts.some((pt, i) => i > 0 && onFrameEdge(pts[i - 1], pt));
+  });
+  check(zone, 'Nét nhà ga không chạy dọc mép khung', !stationEdgeOnFrame);
+  check(zone, 'Ô REV căn giữa', /<text x="403\.850"[^>]*data-field="revision">/.test(svg));
 
   const parcelRings = new Map<string, Point[]>();
   for (const id of ['thua-dat', 'chung-cu-master']) {
@@ -294,6 +305,23 @@ const verifyCadLayout = (
   } else {
     check(zone, 'Tô Depot', highlighted.length === 1 && highlighted[0] === 'DEP', highlighted.join(','));
   }
+  const routeRect = panelRect(svg, 'so-do-tuyen');
+  const depotGroup = svg.match(/<g data-station="DEP"[\s\S]*?<\/g>/)?.[0] ?? '';
+  // Mọi điểm của nhánh (path d="M.. Q.. ..", khối "M..L..Z") và nhãn (x, y)
+  const depotNumbers: Point[] = [
+    ...[...depotGroup.matchAll(/ d="([^"]*)"/g)].flatMap((m) => {
+      const values = m[1].match(/-?[\d.]+/g)?.map(Number) ?? [];
+      return values.flatMap((value, i) => (i % 2 === 0 ? [[value, values[i + 1]] as Point] : []));
+    }),
+    ...[...depotGroup.matchAll(/<text x="(-?[\d.]+)" y="(-?[\d.]+)"/g)].map((m) => [Number(m[1]), Number(m[2])] as Point),
+  ];
+  check(zone, 'Depot là nhánh cong', /data-depot-branch="true" d="M[^"]*Q/.test(depotGroup));
+  check(
+    zone,
+    'Nhánh Depot nằm trong ô sơ đồ',
+    !!routeRect && depotNumbers.length > 0 && depotNumbers.every(([x, y]) => x >= routeRect.x && x <= routeRect.x + routeRect.width && y >= routeRect.y && y <= routeRect.y + routeRect.height),
+    JSON.stringify(depotNumbers.slice(0, 3)),
+  );
   check(zone, 'Sơ đồ tuyến đủ 11 ga + Depot', (svg.match(/<g data-station="/g) ?? []).length === 12);
   check(zone, 'Nhãn ga không dấu đúng mẫu', text.includes('>Ben Thanh, ST01<') && text.includes('>Tan Binh, ST11<') && text.includes('>Depot<'));
 
@@ -309,7 +337,7 @@ const verifyCadLayout = (
     const numbersOnMap = (svg.match(/<g id="so-hieu-diem-khong-che">[\s\S]*?\n/)?.[0].match(/data-control-point="/g) ?? []).length;
     check(zone, 'Số hiệu điểm trên bản vẽ = số dòng bảng', numbersOnMap === result.controlPoints.length, `${numbersOnMap}/${result.controlPoints.length}`);
     check(zone, 'Có nhãn Boundary Building', text.includes('>Boundary Building<'));
-    check(zone, 'Có tô chấm vùng khảo sát', svg.includes('fill="url(#cham-xanh)"'));
+    check(zone, 'Không tô chấm vùng khảo sát', !svg.includes('cham-xanh') && !svg.includes('id="vung-khao-sat"'));
   }
 };
 

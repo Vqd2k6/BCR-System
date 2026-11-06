@@ -117,6 +117,15 @@ export const METRO_STATION_DETAILED_OUTLINES: DetailedStationFootprint[] =
 export const METRO_ALL_CORRIDOR_SEGMENTS: MetroCorridorSegment[] =
   boundaryData.allCorridorSegments || [];
 
+// Vị trí Depot = tâm ranh khuôn viên Depot trên CAD (DEPOT_OUTLINE). Tọa độ cũ 10.8306/106.6185 lệch ~1 km lên phía Bắc.
+const LEGACY_DEPOT_POS: [number, number] = [10.830600, 106.618500];
+const resolveDepotPos = (): [number, number] => {
+  const footprint = METRO_STATION_DETAILED_OUTLINES.find((f) => f.type === 'DEPOT_OUTLINE');
+  if (footprint?.center) return footprint.center;
+  console.error('[MetroGisConstants:DepotPos] Thiếu ranh DEPOT_OUTLINE trong metro_boundary_data.json, dùng tọa độ cũ', LEGACY_DEPOT_POS);
+  return LEGACY_DEPOT_POS;
+};
+
 // 3. Danh sách các Trạm Ga (11 Ga + Depot Tham Lương)
 export const METRO_STATIONS: MetroStationMarker[] = [
   ...(boundaryData.stations || []).map((s) => ({
@@ -131,7 +140,7 @@ export const METRO_STATIONS: MetroStationMarker[] = [
     code: 'DEP',
     name: 'Depot Tham Lương',
     km: 'KM11+040',
-    pos: [10.830600, 106.618500],
+    pos: resolveDepotPos(),
     type: 'Depot Kỹ thuật',
     desc: 'Khu bảo dưỡng kỹ thuật 25.7 ha Tham Lương',
   },
