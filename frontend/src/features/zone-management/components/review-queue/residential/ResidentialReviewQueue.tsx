@@ -13,6 +13,7 @@ import {
   ChevronsRight,
   Layers,
   FileDiff,
+  UserX,
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -34,7 +35,18 @@ interface Props {
   onStatsNeedRefresh?: () => void;
 }
 
-type ResidentialTab = 'ALL' | 'UNDER_REVIEW' | 'CRITICAL' | 'SLA' | 'REJECTED' | 'APPROVED';
+type ResidentialTab = 'ALL' | 'ABSENT' | 'UNDER_REVIEW' | 'CRITICAL' | 'SLA' | 'REJECTED' | 'APPROVED';
+
+const QUEUE_PAGE_LIMIT = 200;
+
+/** Căn vắng (chờ duyệt hoặc đã xác thực); khớp điều kiện hiện badge vắng ở ReviewQueueTableRow. */
+function isAbsentItem(item: PendingSubmissionItem): boolean {
+  return (
+    item.is_refused_or_absent === true ||
+    (item.parcel_status ?? '').startsWith('POSTPONED_ABSENT') ||
+    (item.unit_status ?? '').startsWith('POSTPONED_ABSENT')
+  );
+}
 
 export const ResidentialReviewQueue: React.FC<Props> = ({
   selectedZone,
@@ -55,6 +67,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       const saved = sessionStorage.getItem(resTabKey) as ResidentialTab | null;
       if (
         saved === 'ALL' ||
+        saved === 'ABSENT' ||
         saved === 'UNDER_REVIEW' ||
         saved === 'CRITICAL' ||
         saved === 'SLA' ||
@@ -63,7 +76,8 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       ) {
         return saved;
       }
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ResidentialReviewQueue:ResidentialReviewQueue.useState] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
     return 'ALL';
@@ -72,7 +86,8 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   useEffect(() => {
     try {
       sessionStorage.setItem(resTabKey, activeTab);
-    } catch {
+    } catch (caughtError: unknown) {
+      console.warn('[ResidentialReviewQueue:ResidentialReviewQueue.useEffect] Bỏ qua lỗi không chặn luồng:', caughtError);
       // ignore
     }
   }, [resTabKey, activeTab]);
@@ -110,22 +125,32 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await api.get('/admin/reports/pending-reviews', {
-        params: {
-          zoneId: selectedZone,
-          filterLevel: 'RESIDENTIAL',
-          search: externalSearchQuery || undefined,
-          limit: 200,
-        },
-      });
-
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setItems(res.data.data);
-      } else if (res.data?.success && Array.isArray(res.data.data?.items)) {
-        setItems(res.data.data.items);
-      } else {
-        setItems([]);
+      // Backend giới hạn 200 dòng/lần: tải đủ mọi trang, nếu không hồ sơ cũ (xếp theo updated_at) sẽ biến mất khỏi hàng đợi
+      const collected: PendingSubmissionItem[] = [];
+      let totalCount = Number.POSITIVE_INFINITY;
+      while (collected.length < totalCount) {
+        const res = await api.get('/admin/reports/pending-reviews', {
+          params: {
+            zoneId: selectedZone,
+            filterLevel: 'RESIDENTIAL',
+            search: externalSearchQuery || undefined,
+            limit: QUEUE_PAGE_LIMIT,
+            offset: collected.length,
+          },
+        });
+        const page: PendingSubmissionItem[] = !res.data?.success
+          ? []
+          : Array.isArray(res.data.data)
+            ? res.data.data
+            : Array.isArray(res.data.data?.items)
+              ? res.data.data.items
+              : [];
+        collected.push(...page);
+        const reportedTotal = Number(res.data?.pagination?.totalCount);
+        totalCount = Number.isFinite(reportedTotal) ? reportedTotal : collected.length;
+        if (page.length === 0) break;
       }
+      setItems(collected);
     } catch (err: unknown) {
       console.error('[ResidentialReviewQueue] Lỗi tải dữ liệu nhà dân:', err);
       setErrorMsg(getErrorMessage(err));
@@ -155,6 +180,9 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
       }
 
       // Tab sub-filter
+      if (activeTab === 'ABSENT') {
+        return isAbsentItem(item);
+      }
       if (activeTab === 'UNDER_REVIEW') {
         return (
           item.status === 'UNDER_REVIEW' ||
@@ -186,6 +214,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   const tabCounts = useMemo(() => {
     return {
       all: items.filter((i) => ['SUBMITTED', 'UNDER_REVIEW', 'POSTPONED_ABSENT'].includes(i.status)).length,
+      absent: items.filter(isAbsentItem).length,
       underReview: items.filter((i) =>
         (i.status === 'UNDER_REVIEW' || Boolean(i.has_admin_diff) || (i.version_count ?? 0) > 1) &&
         i.status !== 'APPROVED' && i.status !== 'REJECTED'
@@ -238,6 +267,25 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
             <Home className="w-3.5 h-3.5" />
             <span>Chờ duyệt</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{tabCounts.all}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ABSENT')}
+            title="Các căn vắng mặt (chờ duyệt và đã xác thực) để chuẩn hóa địa chỉ, tên chủ hộ"
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+              activeTab === 'ABSENT'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <UserX className="w-3.5 h-3.5" />
+            <span>Vắng Mặt</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              activeTab === 'ABSENT' ? 'bg-white/20 text-white' : tabCounts.absent > 0 ? 'bg-amber-100 text-amber-900 font-bold' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {tabCounts.absent}
+            </span>
           </button>
 
           <button
