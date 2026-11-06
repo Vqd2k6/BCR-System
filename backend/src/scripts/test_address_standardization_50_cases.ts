@@ -16,8 +16,9 @@ import {
   standardizeWard,
   isStreetContaminatedWithWard,
   evaluateAddressStandard,
+  formatStandardizedAddress168,
+  parseSurveyorAddress,
 } from '../modules/audit/utils/residential-address.standards';
-import { buildResidentialViewModel } from '../modules/report/generators/residential/residential-viewmodel.builder';
 
 interface TestCase {
   id: number;
@@ -400,15 +401,18 @@ const testCases: TestCase[] = [
   {
     id: 35,
     category: 'C: Sáp nhập ĐVHC NQ 1685',
-    name: "Phường cũ 'Phường 4', 'Phường Võ Thị Sáu' (Quận 3) -> Ánh xạ sang 'Phường Xuân Hòa' (Quận 3)",
+    name: "'Phường 4' (Quận 3) bị chia tách -> isSplitWard, không tự quy đổi; 'Phường Võ Thị Sáu' -> 'Phường Xuân Hòa'",
     run: () => {
       const res1 = standardizeWard('Phường 4', 'Quận 3');
       const res2 = standardizeWard('Phường Võ Thị Sáu', 'Quận 3');
       const pass =
-        res1.ward === 'Phường Xuân Hòa' &&
-        res2.ward === 'Phường Xuân Hòa' &&
-        res1.district === 'Quận 3';
-      return { pass, expected: 'Phường Xuân Hòa', actual: `${res1.ward}, ${res2.ward}` };
+        res1.isSplitWard === true &&
+        res1.isMatched === false &&
+        res1.ward === 'Phường 4' &&
+        res1.splitCandidates.includes('Phường Xuân Hòa') &&
+        res1.splitCandidates.includes('Phường Bàn Cờ') &&
+        res2.ward === 'Phường Xuân Hòa';
+      return { pass, expected: 'split + Phường Xuân Hòa', actual: { res1, res2: res2.ward } };
     },
   },
   {
@@ -455,32 +459,36 @@ const testCases: TestCase[] = [
   {
     id: 40,
     category: 'D: Nhiễm bẩn & Khôi phục',
-    name: "Gợi ý tuyến đường trục chính theo Zone S6 khi ô đường bị nhiễm bẩn -> Gợi ý 'Cách Mạng Tháng Tám'",
+    name: "Ô đường nhiễm 'Phường 11' không có nguồn tên đường -> KHÔNG tự gán CMT8, requiresManualStreet = true",
     run: () => {
       const evalRes = evaluateAddressStandard('618/2a', 'Phường 11', 'P11', 'Quận 3', 'S6');
       const pass =
         evalRes.isContaminated === true &&
-        evalRes.suggested.street === 'Cách Mạng Tháng Tám' &&
+        evalRes.suggested.street === '' &&
+        evalRes.requiresManualStreet === true &&
+        evalRes.isCompliant === false &&
         evalRes.suggested.ward === 'Phường Nhiêu Lộc';
       return {
         pass,
-        expected: { street: 'Cách Mạng Tháng Tám', isContaminated: true },
-        actual: { street: evalRes.suggested.street, isContaminated: evalRes.isContaminated },
+        expected: { street: '', requiresManualStreet: true },
+        actual: { street: evalRes.suggested.street, requiresManualStreet: evalRes.requiresManualStreet },
       };
     },
   },
   {
     id: 41,
     category: 'D: Nhiễm bẩn & Khôi phục',
-    name: "Gợi ý tuyến đường Zone S7 (Cư xá Bắc Hải) khi ô đường bị nhiễm bẩn -> Gợi ý 'Cách Mạng Tháng Tám' hoặc 'Bắc Hải'",
+    name: "Ô đường nhiễm nhưng ô số nhà có tên đường '463/13G CMT8' -> lấy 'Cách Mạng Tháng Tám' từ dữ liệu KSV",
     run: () => {
-      const evalRes = evaluateAddressStandard('1A', 'Phường 15', 'P15', 'Quận 10', 'S7');
-      const pass = evalRes.isContaminated === true && Boolean(evalRes.suggested.street);
-      return {
-        pass,
-        expected: 'Gợi ý hợp lệ tuyến đường Zone S7',
-        actual: evalRes.suggested.street,
-      };
+      const evalRes = evaluateAddressStandard('463/13G CMT8', 'Phường 13', 'Phường 13', 'Quận 10', 'ZONE_07');
+      const pass =
+        evalRes.isContaminated === true &&
+        evalRes.suggested.street === 'Cách Mạng Tháng Tám' &&
+        evalRes.requiresManualStreet === false &&
+        evalRes.suggested.houseNumber === '463/13G' &&
+        evalRes.suggested.ward === 'Phường Hòa Hưng' &&
+        evalRes.suggestedStreetOptions.includes('Cách Mạng Tháng Tám');
+      return { pass, expected: 'CMT8 / 463/13G / Phường Hòa Hưng', actual: evalRes.suggested };
     },
   },
   {
@@ -567,25 +575,12 @@ const testCases: TestCase[] = [
   {
     id: 49,
     category: 'E: Thẩm định & Báo cáo PDF',
-    name: "buildResidentialViewModel định dạng chuỗi địa chỉ A4 hoàn hảo: 'Số 618/2A Cách Mạng Tháng Tám, Phường Nhiêu Lộc, Quận 3'",
+    name: "evaluate + formatStandardizedAddress168: '618/2a' 'cmt8' 'p11' 'Quận 3' -> 'Số 618/2A Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh'",
     run: () => {
-      const mockReportData = {
-        survey_data_json: {
-          houseNumber: '618/2a',
-          street: 'cmt8',
-          ward: 'p11',
-          district: 'Quận 3',
-        },
-        house_number: '618/2a',
-        street: 'cmt8',
-        ward: 'p11',
-        district: 'Quận 3',
-        zone_id: 'S6',
-      };
-      const vm = buildResidentialViewModel(mockReportData);
-      const expectedAddress = 'Số 618/2A, Cách Mạng Tháng Tám, Phường Nhiêu Lộc, Quận 3';
-      const pass = vm.address === expectedAddress && vm.houseNumber === '618/2A' && vm.street === 'Cách Mạng Tháng Tám' && vm.ward === 'Phường Nhiêu Lộc';
-      return { pass, expected: expectedAddress, actual: vm.address };
+      const ev = evaluateAddressStandard('618/2a', 'cmt8', 'p11', 'Quận 3', 'ZONE_09');
+      const address = formatStandardizedAddress168(ev.suggested.houseNumber, ev.suggested.street, ev.suggested.ward);
+      const expectedAddress = 'Số 618/2A Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh';
+      return { pass: address === expectedAddress, expected: expectedAddress, actual: address };
     },
   },
   {
@@ -604,6 +599,122 @@ const testCases: TestCase[] = [
         evalRes !== null &&
         typeof evalRes === 'object';
       return { pass, expected: 'Safe defaults without throwing', actual: 'Handled safely' };
+    },
+  },
+  // =========================================================================
+  // CATEGORY F: QUY ĐỔI PHƯỜNG THEO ĐÚNG QUẬN (NQ 1111 -> 1278 -> 1685)
+  // =========================================================================
+  {
+    id: 51,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "'Phường 6' (Quận 3) -> 'Phường Xuân Hòa' (không rơi sang Tân Hòa - Tân Bình)",
+    run: () => {
+      const res = standardizeWard('Phường 6', 'Quận 3');
+      return { pass: res.ward === 'Phường Xuân Hòa' && res.district === 'Quận 3', expected: 'Phường Xuân Hòa, Quận 3', actual: `${res.ward}, ${res.district}` };
+    },
+  },
+  {
+    id: 52,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "'Phường 10' (Quận 3) -> 'Phường Nhiêu Lộc' (không rơi sang Bảy Hiền - Tân Bình)",
+    run: () => {
+      const res = standardizeWard('Phường 10', 'Quận 3');
+      return { pass: res.ward === 'Phường Nhiêu Lộc' && res.district === 'Quận 3', expected: 'Phường Nhiêu Lộc, Quận 3', actual: `${res.ward}, ${res.district}` };
+    },
+  },
+  {
+    id: 53,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "'Phường 13' (Quận 3) -> 'Phường Nhiêu Lộc'; 'Phường 12' (Quận 10) -> 'Phường Hòa Hưng'",
+    run: () => {
+      const a = standardizeWard('Phường 13', 'Quận 3');
+      const b = standardizeWard('Phường 12', 'Quận 10');
+      return { pass: a.ward === 'Phường Nhiêu Lộc' && b.ward === 'Phường Hòa Hưng' && b.district === 'Quận 10', expected: 'Nhiêu Lộc / Hòa Hưng', actual: `${a.ward} / ${b.ward}` };
+    },
+  },
+  {
+    id: 54,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "'Phường 14' (Quận 10) bị chia tách -> isSplitWard; 'Phường 6' (Tân Bình) vẫn -> Tân Hòa",
+    run: () => {
+      const a = standardizeWard('Phường 14', 'Quận 10');
+      const b = standardizeWard('Phường 6', 'Quận Tân Bình');
+      return { pass: a.isSplitWard && !a.isMatched && b.ward === 'Phường Tân Hòa', expected: 'split / Tân Hòa', actual: { a, b: b.ward } };
+    },
+  },
+  {
+    id: 55,
+    category: 'F: Quy đổi theo đúng quận',
+    name: "Số phường không có quận hoặc quận không có quy tắc -> giữ nguyên, không đoán ('Phường 11' không quận, 'Phường 2' Quận 10)",
+    run: () => {
+      const a = standardizeWard('Phường 11');
+      const b = standardizeWard('Phường 2', 'Quận 10');
+      return { pass: !a.isMatched && a.ward === 'Phường 11' && !b.isMatched && b.ward === 'Phường 2', expected: 'giữ nguyên', actual: `${a.ward} / ${b.ward}` };
+    },
+  },
+
+  // =========================================================================
+  // CATEGORY G: TÁCH ĐỊA CHỈ KSV NHẬP TỰ DO (dữ liệu thật Zone 3 & Zone 7)
+  // =========================================================================
+  {
+    id: 56,
+    category: 'G: Tách địa chỉ KSV',
+    name: "('463/13G CMT8', 'kp7, p.Hoà Hưng') -> 463/13G, Cách Mạng Tháng Tám, KP7, Phường Hòa Hưng",
+    run: () => {
+      const r = parseSurveyorAddress('463/13G CMT8', 'kp7, p.Hoà Hưng');
+      const pass = r.houseNumber === '463/13G' && r.street === 'Cách Mạng Tháng Tám' && r.khuPho === 'KP7' && r.wardMention === 'Phường Hòa Hưng' && !r.requiresManualHouseNumber;
+      return { pass, expected: '463/13G / CMT8 / KP7 / Hòa Hưng', actual: r };
+    },
+  },
+  {
+    id: 57,
+    category: 'G: Tách địa chỉ KSV',
+    name: "('60/3/12 Lê Thị Riêng', '') -> Lê Thị Riêng; ('1C/1 Sương Nguyệt Ánh', '') -> Sương Nguyệt Ánh",
+    run: () => {
+      const a = parseSurveyorAddress('60/3/12 Lê Thị Riêng', '');
+      const b = parseSurveyorAddress('1C/1 Sương Nguyệt Ánh', '');
+      const pass = a.street === 'Lê Thị Riêng' && a.houseNumber === '60/3/12' && b.street === 'Sương Nguyệt Ánh' && b.houseNumber === '1C/1';
+      return { pass, expected: 'Lê Thị Riêng / Sương Nguyệt Ánh', actual: { a, b } };
+    },
+  },
+  {
+    id: 58,
+    category: 'G: Tách địa chỉ KSV',
+    name: "Số nhà nhiều số / ghi chú -> requiresManualHouseNumber ('461 BIS -463/18Cách Mạng Tháng Tám', '493/8 ; 493/10 ...', '463 B/1B CMT8', '463/8G CMT8B')",
+    run: () => {
+      const cases = ['461 BIS -463/18Cách Mạng Tháng Tám', '493/8 ; 493/10 cách mạng tháng 8', '463 B/1B CMT8', '463/8G CMT8B'];
+      const flags = cases.map((c) => parseSurveyorAddress(c, '').requiresManualHouseNumber);
+      return { pass: flags.every(Boolean), expected: [true, true, true, true], actual: flags };
+    },
+  },
+  {
+    id: 59,
+    category: 'G: Tách địa chỉ KSV',
+    name: "('24', 'kp7, p.Hoà Hưng') -> không có tên đường; ô đường gộp 'Cách Mạng Tháng Tám, KP7, phường Hòa Hưng' -> tách được CMT8",
+    run: () => {
+      const a = parseSurveyorAddress('24', 'kp7, p.Hoà Hưng');
+      const ev = evaluateAddressStandard('521', 'Cách Mạng Tháng Tám, KP7, phường Hòa Hưng', '', 'Quận 10', 'ZONE_07');
+      const ev2 = evaluateAddressStandard('24', 'kp7, p.Hoà Hưng', '', 'Quận 10', 'ZONE_07');
+      const pass =
+        a.street === '' && a.houseNumber === '24' && !a.requiresManualHouseNumber &&
+        ev.suggested.street === 'Cách Mạng Tháng Tám' && ev.suggested.ward === 'Phường Hòa Hưng' &&
+        ev2.suggested.street === '' && ev2.requiresManualStreet === true;
+      return { pass, expected: 'manual / CMT8 / manual', actual: { a, ev: ev.suggested, ev2: ev2.suggested } };
+    },
+  },
+  {
+    id: 60,
+    category: 'G: Tách địa chỉ KSV',
+    name: "'Cách Mạng Tháng Tám, Bến Thành' -> CMT8 + Bến Thành; 'kp1, p.Bàn Cờ' -> Bàn Cờ; hai phường khác nhau -> ambiguous",
+    run: () => {
+      const a = parseSurveyorAddress('', 'Cách Mạng Tháng Tám, Bến Thành');
+      const b = parseSurveyorAddress('', 'kp1, p.Bàn Cờ');
+      const c = parseSurveyorAddress('', 'CMT8 P.Nhiêu Lộc, Hòa Hưng');
+      const pass =
+        a.street === 'Cách Mạng Tháng Tám' && a.wardMention === 'Phường Bến Thành' &&
+        b.wardMention === 'Phường Bàn Cờ' && b.khuPho === 'KP1' && b.street === '' &&
+        c.wardMention === '' && c.hasMultipleWardMentions === true;
+      return { pass, expected: 'CMT8+Bến Thành / Bàn Cờ / ambiguous', actual: { a, b, c } };
     },
   },
 ];
@@ -648,6 +759,6 @@ if (failCount > 0) {
   console.error(`🚨 CÓ ${failCount} TEST CASES THẤT BẠI. VUI LÒNG KIỂM TRA LẠI LOG.`);
   process.exit(1);
 } else {
-  console.log(`🎉 100% HOÀN THÀNH (${passCount}/50 PASS)! HỆ THỐNG ĐẠT CHUẨN TOÀN TRÌNH.`);
+  console.log(`🎉 100% HOÀN THÀNH (${passCount}/${testCases.length} PASS)! HỆ THỐNG ĐẠT CHUẨN TOÀN TRÌNH.`);
   process.exit(0);
 }

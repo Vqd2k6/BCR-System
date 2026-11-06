@@ -12,10 +12,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import type { AddressEvaluationResult } from '../utils/residentialAddressStandards';
-import {
-  ZONE_SUGGESTED_STREETS,
-  formatStandardizedAddress168,
-} from '../utils/residentialAddressStandards';
+import { formatStandardizedAddress168 } from '../utils/residentialAddressStandards';
 
 interface Props {
   evaluation: AddressEvaluationResult;
@@ -32,7 +29,6 @@ interface Props {
 
 export const SmartAddressSuggestionCard: React.FC<Props> = ({
   evaluation,
-  zoneId,
   isEditMode,
   standardizedAddressValue,
   isAccepted,
@@ -42,7 +38,7 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
   onApplyField,
   onDismiss,
 }) => {
-  const { current, suggested, anomalyReasons, isContaminated } = evaluation;
+  const { current, suggested, anomalyReasons, isContaminated, requiresManualStreet, suggestedStreetOptions } = evaluation;
   const [selectedStreet, setSelectedStreet] = useState<string>(suggested.street);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -57,8 +53,8 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
     return null;
   }
 
-  const zKey = (zoneId || 'DEFAULT').toUpperCase();
-  const zoneStreets = ZONE_SUGGESTED_STREETS[zKey] || ZONE_SUGGESTED_STREETS['DEFAULT'];
+  // Danh sách gợi ý theo phân khu đã được engine chuẩn hóa key (ZONE_0X / S1..S7); chỉ để chọn, không tự điền
+  const zoneStreets = suggestedStreetOptions;
   const isResolvedClean = isAccepted && !isContaminated;
 
   return (
@@ -130,7 +126,7 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
       </div>
 
       {/* Cảnh báo nhiễm bẩn tên phường vào tên đường */}
-      {isContaminated && (
+      {(isContaminated || requiresManualStreet) && (
         <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-900">
           <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
           <div>
@@ -146,6 +142,7 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
                   onChange={(e) => {
                     const st = e.target.value;
                     setSelectedStreet(st);
+                    if (!st) return;
                     onApplyField?.('street', 'Tuyến đường', st);
                     // Cập nhật lại chuỗi địa chỉ chuẩn hóa 168
                     const newAddr = formatStandardizedAddress168(
@@ -157,6 +154,7 @@ export const SmartAddressSuggestionCard: React.FC<Props> = ({
                   }}
                   className="cursor-pointer appearance-none rounded-md border border-rose-300 bg-white py-1 pr-7 pl-2 text-xs font-bold text-slate-900 shadow-2xs focus:border-rose-500 focus:outline-hidden"
                 >
+                  <option value="">-- Chọn tuyến đường --</option>
                   {zoneStreets.map((st) => (
                     <option key={st} value={st}>
                       {st}
