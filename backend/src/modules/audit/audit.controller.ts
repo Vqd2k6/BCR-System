@@ -6,13 +6,16 @@ import {
   RevertReportToDraftDto,
   BatchApproveUnitsDto,
   ApproveAbsenteeReportDto,
+  IntakeAbsentDraftDto,
   ExecuteFinalSealDto,
   RollbackVersionDto,
   AdminSurveyEditDto,
   AcquireLockDto,
   ReleaseLockDto,
 } from './audit.dto';
-import { BadRequestError } from '../../common/errors/problem-details';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/problem-details';
+import { Database } from '../../database/db';
+import { canAccessZone } from '../report/utils/zone-access.utils';
 
 function parseVersionNumber(raw: string): number {
   if (!/^\d+$/.test(raw)) {
@@ -46,6 +49,7 @@ export class AuditController {
         burlandFilter: req.query.burlandFilter as string,
         slaFilter: req.query.slaFilter as string,
         filterLevel: req.query.filterLevel as string,
+        includeAbsentDrafts: req.query.includeAbsentDrafts === '1' || req.query.includeAbsentDrafts === 'true',
         limit: req.query.limit ? Number(req.query.limit) : undefined,
         offset: req.query.offset ? Number(req.query.offset) : undefined,
       };
@@ -335,6 +339,28 @@ export class AuditController {
         success: true,
         data: result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async intakeAbsentDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const parsed = IntakeAbsentDraftDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(parsed.error.issues[0]?.message || 'Thiếu lý do tiếp nhận hồ sơ vắng');
+      }
+      const zoneRes = await Database.query<{ zone_id: string | null }>(
+        `SELECT p.zone_id FROM base_survey_reports r JOIN parcels p ON p.id = r.parcel_id WHERE r.id = $1;`,
+        [id]
+      );
+      if (zoneRes.rows.length === 0) throw new NotFoundError('Không tìm thấy hồ sơ khảo sát');
+      if (!canAccessZone(req.user!, zoneRes.rows[0].zone_id)) {
+        throw new ForbiddenError('Bạn không quản lý phân khu của hồ sơ này');
+      }
+      const result = await AuditService.intakeAbsentDraft(id, req.user!.userId, parsed.data.reason);
+      res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

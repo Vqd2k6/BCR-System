@@ -19,6 +19,7 @@ import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { PendingSubmissionItem } from '../ZoneAuditReviewQueue';
 import { ReviewQueueTableRow } from '../ReviewQueueTableRow';
+import { AbsentDraftIntakeModal } from '../AbsentDraftIntakeModal';
 import type { GisParcel } from '../../../../../components/gis/shared/types';
 
 interface Props {
@@ -96,6 +97,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [intakeItem, setIntakeItem] = useState<PendingSubmissionItem | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
@@ -134,6 +136,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
             zoneId: selectedZone,
             filterLevel: 'RESIDENTIAL',
             search: externalSearchQuery || undefined,
+            includeAbsentDrafts: 1,
             limit: QUEUE_PAGE_LIMIT,
             offset: collected.length,
           },
@@ -438,6 +441,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
                     onOpenStudio={onOpenStudio}
                     onOpenAuditHistory={onOpenAuditHistory}
                     onOpenRevertModal={onOpenRevertModal}
+                    onIntakeAbsentDraft={setIntakeItem}
                   />
                 ))
               )}
@@ -499,6 +503,20 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
           </div>
         )}
       </div>
+
+      {intakeItem?.report_id && (
+        <AbsentDraftIntakeModal
+          reportId={intakeItem.report_id}
+          parcelCode={intakeItem.project_parcel_code}
+          parcelStatus={intakeItem.parcel_status}
+          surveyorName={intakeItem.surveyor_name}
+          onClose={() => setIntakeItem(null)}
+          onSuccess={() => {
+            fetchResidentialSubmissions();
+            onStatsNeedRefresh?.();
+          }}
+        />
+      )}
     </div>
   );
 };

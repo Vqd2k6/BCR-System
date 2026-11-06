@@ -36,10 +36,15 @@ export class AuditService {
     burlandFilter?: string;
     slaFilter?: string;
     filterLevel?: string;
+    includeAbsentDrafts?: boolean;
     limit?: number;
     offset?: number;
   }) {
     return AuditReviewService.listPendingSubmissions(filters);
+  }
+
+  static intakeAbsentDraft(reportId: string, adminId: string, reason: string) {
+    return AuditReviewService.intakeAbsentDraft(reportId, adminId, reason);
   }
 
   static async getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {

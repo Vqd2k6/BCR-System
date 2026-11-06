@@ -1,5 +1,7 @@
 /**
  * Đưa hồ sơ nhà dân vắng mặt cũ (kẹt ở DRAFT) vào hàng đợi thẩm định. CHỈ đổi status/submitted_at, không đụng dữ liệu khảo sát.
+ * Công cụ thủ công cho DB thử nghiệm. Production KHÔNG chạy script này: Admin tiếp nhận từng hồ sơ qua nút
+ * "Tiếp nhận thẩm định" ở tab Vắng Mặt (POST /admin/reports/:id/absent-intake, có lý do + SHA-256 trong nhật ký).
  *
  *   npx ts-node src/scripts/backfill_absent_residential_to_submitted.ts            # Xem trước
  *   npx ts-node src/scripts/backfill_absent_residential_to_submitted.ts --apply    # Ghi thật

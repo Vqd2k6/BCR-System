@@ -8,6 +8,7 @@ import {
   History,
   ShieldCheck,
   RotateCcw,
+  Inbox,
 } from 'lucide-react';
 import type { PendingSubmissionItem } from './ZoneAuditReviewQueue';
 
@@ -25,6 +26,7 @@ interface Props {
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
   onOpenAuditHistory?: (reportId: string, itemCode?: string) => void;
   onOpenRevertModal?: (item: PendingSubmissionItem) => void;
+  onIntakeAbsentDraft?: (item: PendingSubmissionItem) => void;
 }
 
 export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
@@ -36,7 +38,10 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
   onOpenStudio,
   onOpenAuditHistory,
   onOpenRevertModal,
+  onIntakeAbsentDraft,
 }) => {
+  // Hồ sơ nhà dân vắng còn DRAFT: chỉ được Admin tiếp nhận vào thẩm định, chưa mở Studio
+  const isAbsentDraft = item.status === 'DRAFT';
   const isCriticalBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(
     item.burland_damage_category || ''
   );
@@ -52,6 +57,22 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
 
   // Render Status Badge
   const renderStatusBadge = () => {
+    if (isAbsentDraft) {
+      return (
+        <div className="flex flex-col gap-1 items-center">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 w-fit whitespace-nowrap">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span>Vắng – chưa nộp ({item.absence_attempt_count || 1})</span>
+          </span>
+          {item.parcel_status === 'IN_PROGRESS' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700 w-fit whitespace-nowrap">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              <span>KSV có thể đang khảo sát lại</span>
+            </span>
+          )}
+        </div>
+      );
+    }
     if (item.unit_status === 'POSTPONED_ABSENT_VERIFIED' || item.parcel_status === 'POSTPONED_ABSENT_VERIFIED') {
       return (
         <div className="flex flex-col gap-0.5 items-center">
@@ -350,7 +371,21 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
       {/* 8. Thao Tác Thẩm Định */}
       <td className="p-3 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1.5">
+          {/* Hồ sơ vắng DRAFT: thay nút Thẩm định bằng nút Tiếp nhận */}
+          {isAbsentDraft && onIntakeAbsentDraft && (
+            <button
+              type="button"
+              onClick={() => onIntakeAbsentDraft(item)}
+              className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+              title="Tiếp nhận hồ sơ vắng chưa nộp vào hàng đợi thẩm định để chuẩn hóa thông tin"
+            >
+              <Inbox className="w-3.5 h-3.5 shrink-0" />
+              <span>Tiếp nhận thẩm định</span>
+            </button>
+          )}
+
           {/* Nút Thao Tác Chính */}
+          {!isAbsentDraft && (
           <button
             type="button"
             disabled={!item.report_id}
@@ -383,6 +418,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
                 : 'Thẩm định 🔍'}
             </span>
           </button>
+          )}
 
           {/* Nút Xem Lịch Sử Kiểm Toán / Truy Vết Nhanh */}
           {onOpenAuditHistory && (
@@ -397,7 +433,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
           )}
 
           {/* Nút Mở Lại Hồ Sơ (Chuyển về Đang làm dở) cho Zone Admin / Super Admin */}
-          {onOpenRevertModal && item.report_id && item.status !== 'IN_PROGRESS' && (
+          {onOpenRevertModal && item.report_id && item.status !== 'IN_PROGRESS' && !isAbsentDraft && (
             <button
               type="button"
               onClick={() => onOpenRevertModal(item)}

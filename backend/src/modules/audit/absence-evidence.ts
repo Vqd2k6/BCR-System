@@ -1,6 +1,21 @@
 import { BadRequestError } from '../../common/errors/problem-details';
 
 /**
+ * Hồ sơ nhà dân vắng còn ở DRAFT mà Admin được tiếp nhận vào thẩm định (alias `r` = base_survey_reports, `p` = parcels).
+ * Có nhật ký vắng thật và cờ vắng trên phiếu; hồ sơ Admin đã "Mở lại khảo sát" bị loại vì luồng đó tắt is_refused_or_absent.
+ * Thửa IN_PROGRESS vẫn được nhận (giao diện cảnh báo KSV có thể đang khảo sát lại). Chuỗi tĩnh, không ghép input.
+ */
+export const ABSENT_DRAFT_INTAKE_SQL_CONDITION = `(
+  r.unit_id IS NULL
+  AND r.status::text = 'DRAFT'
+  AND r.deleted_at IS NULL
+  AND r.is_refused_or_absent = TRUE
+  AND p.active_phase1_report_id = r.id
+  AND p.survey_status::text IN ('POSTPONED_ABSENT', 'IN_PROGRESS')
+  AND EXISTS (SELECT 1 FROM survey_absence_logs al WHERE al.parcel_id = r.parcel_id AND al.unit_id IS NULL)
+)`;
+
+/**
  * Minh chứng của hồ sơ vắng mặt. Ảnh biển số P-01 không phải giấy hẹn nên không bao giờ được tính vào đây.
  * Nhà dân ghi người chứng kiến ở khối đại diện địa phương, căn hộ ghi trong `absenteeInfo` và nhật ký vắng.
  */
