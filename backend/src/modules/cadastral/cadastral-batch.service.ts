@@ -12,6 +12,7 @@ import {
   parseSurveyorAddress,
   standardizeStreet,
   standardizeWard,
+  formatStandardizedAddress168,
 } from '../audit/utils/residential-address.standards';
 import { resolveLocalRepresentative } from '../report/mappers/appendices/local-authority.rules';
 import type {
@@ -45,6 +46,8 @@ export interface BatchResult {
   batchId: string;
   updated: BatchResultItem[];
   skipped: BatchSkippedItem[];
+  /** Cảnh báo sau commit (VD: chưa tạo được snapshot phiên bản) */
+  warnings: string[];
 }
 
 interface BatchParcelRow extends LifecycleParcelRow {
@@ -266,7 +269,8 @@ export function buildAddressSuggestion(input: AddressSuggestionInput): AddressSu
     }
   }
 
-  const suggested: AddressFields = { houseNumber, street, ward, district };
+  // Quận giữ nguyên giá trị cũ (không hiển thị, không ghi) theo mô hình 168 ĐVHC; chỉ dùng làm gợi ý quy đổi phường
+  const suggested: AddressFields = { houseNumber, street, ward, district: raw.district };
   const diffCount = (Object.keys(suggested) as Array<keyof AddressFields>).filter((k) => suggested[k] !== raw[k]).length;
 
   return {
@@ -291,6 +295,12 @@ export interface AddressPreviewRow extends AddressSuggestion {
   zoneId: string | null;
   parcelRaw: AddressFields;
   surveyorEntered: AddressFields | null;
+  /** Hồ sơ KSV (nhà dân / tòa mẹ) sẽ được ghi kèm khi cập nhật; null nếu thửa chưa có hồ sơ */
+  reportId: string | null;
+  reportStatus: string | null;
+  reportStandardizedAddress: string | null;
+  /** Số mục sẽ đổi trong hồ sơ (Số nhà / Đường / Phường / Địa chỉ chuẩn hóa) theo đề xuất */
+  reportDiffCount: number;
   lockedReason: string | null;
   /** Mặc định được tích trên giao diện */
   autoSelectable: boolean;
@@ -305,26 +315,58 @@ interface PreviewDbRow {
   street: string | null;
   ward: string | null;
   district: string | null;
-  has_report: boolean;
+  report_id: string | null;
+  report_status: string | null;
+  report_updated_at: string | null;
   sv_house_number: string | null;
   sv_street: string | null;
   sv_ward: string | null;
   sv_district: string | null;
+  sv_standardized_address: string | null;
+}
+
+/** 3 trường địa chỉ được ghi (Quận giữ nguyên giá trị cũ, không hiển thị, không ghi). */
+export const WRITABLE_ADDRESS_FIELDS = ['houseNumber', 'street', 'ward'] as const;
+type WritableAddressField = (typeof WRITABLE_ADDRESS_FIELDS)[number];
+const ADDRESS_FIELD_LABEL: Record<WritableAddressField, string> = {
+  houseNumber: 'Số nhà',
+  street: 'Tuyến đường',
+  ward: 'Phường',
+};
+
+export const formatBatchStandardizedAddress = (f: Pick<AddressFields, WritableAddressField>): string =>
+  formatStandardizedAddress168(f.houseNumber, f.street, f.ward);
+
+const countReportDiff = (
+  surveyor: AddressFields | null,
+  standardized: string | null,
+  target: Pick<AddressFields, WritableAddressField>
+): number => {
+  if (!surveyor) return 0;
+  const fieldDiff = WRITABLE_ADDRESS_FIELDS.filter((f) => surveyor[f] !== target[f]).length;
+  return fieldDiff + ((standardized ?? '') !== formatBatchStandardizedAddress(target) ? 1 : 0);
+};
+
+interface LoadedPreview {
+  row: AddressPreviewRow;
+  reportUpdatedAt: string | null;
 }
 
 /** Đọc địa chỉ gốc của thửa + địa chỉ KSV nhập ở hồ sơ mới nhất (cùng thứ tự chọn hồ sơ với zone-map). */
-async function loadAddressPreviewRows(client: PoolClient, ids: string[]): Promise<AddressPreviewRow[]> {
+async function loadAddressPreviews(client: PoolClient, ids: string[]): Promise<LoadedPreview[]> {
   const res = await client.query<PreviewDbRow>(
     `SELECT p.id, p.project_parcel_code, p.zone_id, p.lifecycle_status::text AS lifecycle_status,
             p.house_number, p.street, p.ward, p.district,
-            (r.survey_data_json IS NOT NULL) AS has_report,
+            r.id AS report_id, r.status::text AS report_status, r.updated_at::text AS report_updated_at,
             r.survey_data_json->>'houseNumber' AS sv_house_number,
             r.survey_data_json->>'street' AS sv_street,
             r.survey_data_json->>'ward' AS sv_ward,
-            r.survey_data_json->>'district' AS sv_district
+            r.survey_data_json->>'district' AS sv_district,
+            CASE WHEN jsonb_typeof(r.survey_data_json->'standardizedAddress') = 'string'
+                 THEN r.survey_data_json->>'standardizedAddress' END AS sv_standardized_address
      FROM parcels p
      LEFT JOIN LATERAL (
-       SELECT bsr.survey_data_json
+       SELECT bsr.id, bsr.status, bsr.updated_at, bsr.survey_data_json
        FROM base_survey_reports bsr
        WHERE bsr.parcel_id = p.id AND bsr.unit_id IS NULL AND bsr.deleted_at IS NULL
        ORDER BY (CASE WHEN bsr.id = p.active_phase1_report_id THEN 0 ELSE 1 END), bsr.updated_at DESC NULLS LAST, bsr.created_at DESC
@@ -343,7 +385,7 @@ async function loadAddressPreviewRows(client: PoolClient, ids: string[]): Promis
       ward: clean(row.ward),
       district: clean(row.district),
     };
-    const surveyorEntered: AddressFields | null = row.has_report
+    const surveyorEntered: AddressFields | null = row.report_id
       ? {
           houseNumber: clean(row.sv_house_number),
           street: clean(row.sv_street),
@@ -352,27 +394,40 @@ async function loadAddressPreviewRows(client: PoolClient, ids: string[]): Promis
         }
       : null;
     const suggestion = buildAddressSuggestion({ zoneId: row.zone_id, parcelRaw, surveyorEntered });
+    const reportStandardizedAddress = row.report_id ? clean(row.sv_standardized_address) : null;
+    const reportDiffCount = countReportDiff(surveyorEntered, reportStandardizedAddress, suggestion.suggested);
     const lockedReason =
       locked.get(row.id) ??
       (row.lifecycle_status === 'ACTIVE' ? null : `Thửa đất đang ở trạng thái ${row.lifecycle_status}`);
     const autoSelectable =
       !lockedReason &&
-      suggestion.diffCount > 0 &&
+      suggestion.diffCount + reportDiffCount > 0 &&
       !suggestion.requiresManualStreet &&
       !suggestion.requiresManualHouseNumber &&
       !suggestion.wardConflict &&
       !suggestion.isSplitWard;
     return {
-      ...suggestion,
-      parcelId: row.id,
-      projectParcelCode: row.project_parcel_code,
-      zoneId: row.zone_id,
-      parcelRaw,
-      surveyorEntered,
-      lockedReason,
-      autoSelectable,
+      reportUpdatedAt: row.report_updated_at,
+      row: {
+        ...suggestion,
+        parcelId: row.id,
+        projectParcelCode: row.project_parcel_code,
+        zoneId: row.zone_id,
+        parcelRaw,
+        surveyorEntered,
+        reportId: row.report_id,
+        reportStatus: row.report_status,
+        reportStandardizedAddress,
+        reportDiffCount,
+        lockedReason,
+        autoSelectable,
+      },
     };
   });
+}
+
+async function loadAddressPreviewRows(client: PoolClient, ids: string[]): Promise<AddressPreviewRow[]> {
+  return (await loadAddressPreviews(client, ids)).map((p) => p.row);
 }
 
 function assertAddressZones(rows: Array<{ zoneId: string | null; projectParcelCode: string }>): void {
@@ -409,50 +464,204 @@ export class CadastralBatchService {
     });
   }
 
+  /**
+   * Đồng bộ địa chỉ hàng loạt.
+   * - Thửa có hồ sơ chưa duyệt: ghi như Admin sửa ở màn Thẩm định (v0 ORIGINAL_SUBMISSION nếu chưa có,
+   *   ghi houseNumber/street/ward/standardizedAddress vào survey_data_json, snapshot ADMIN_DIFF_SAVE sau commit).
+   *   Giữ nguyên trạng thái hồ sơ (SUBMITTED vẫn SUBMITTED).
+   * - Thửa chưa có hồ sơ: chỉ ghi bảng parcels.
+   * - Quận (district) không bao giờ bị sửa.
+   */
   static async syncAddress(input: BatchSyncAddressInput, user: BatchUser, clientIp: string | null): Promise<BatchResult> {
     assertAdmin(user);
     const batchId = randomUUID();
     const ids = input.items.map((i) => i.parcelId);
+    const result: BatchResult = { batchId, updated: [], skipped: [], warnings: [] };
+    const skippedIds = new Set<string>();
+    const skip = (row: { parcelId: string; projectParcelCode: string }, reason: string) => {
+      if (skippedIds.has(row.parcelId)) return;
+      skippedIds.add(row.parcelId);
+      result.skipped.push({ parcelId: row.parcelId, projectParcelCode: row.projectParcelCode, reason });
+    };
 
-    return Database.transaction(async (client) => {
+    const targetOf = (item: BatchSyncAddressInput['items'][number]): Pick<AddressFields, WritableAddressField> => ({
+      houseNumber: item.houseNumber,
+      street: item.street,
+      ward: item.ward,
+    });
+
+    /** Lý do không ghi được dòng này (null = ghi được). */
+    const validate = (row: AddressPreviewRow, target: Pick<AddressFields, WritableAddressField>): string | null => {
+      if (row.lockedReason) return row.lockedReason;
+      if (row.reportStatus === 'APPROVED') return 'Hồ sơ đã duyệt, cần Super Admin trả hồ sơ về trước khi sửa';
+      if (isStreetContaminatedWithWard(target.street) && target.street !== row.parcelRaw.street) {
+        return `Tên đường '${target.street}' vẫn là tên phường`;
+      }
+      if (row.isSplitWard && target.ward === row.parcelRaw.ward) {
+        return `Phường '${row.parcelRaw.ward}' bị chia tách, chưa chọn phường mới`;
+      }
+      const parcelUnchanged = WRITABLE_ADDRESS_FIELDS.every((f) => target[f] === row.parcelRaw[f]);
+      const reportUnchanged = countReportDiff(row.surveyorEntered, row.reportStandardizedAddress, target) === 0;
+      if (parcelUnchanged && reportUnchanged) return 'Không có thay đổi so với dữ liệu hiện tại';
+      return null;
+    };
+
+    // --- PHA 1: đọc, kiểm tra phạm vi, khóa thẩm định của Admin khác, tạo bản gốc v0 (ngoài transaction ghi) ---
+    const firstRead = await Database.transaction(async (client) => {
+      const scope = await client.query<{ id: string; zone_id: string | null; project_parcel_code: string }>(
+        `SELECT id, zone_id, project_parcel_code FROM parcels WHERE id = ANY($1::uuid[]);`,
+        [ids]
+      );
+      if (scope.rows.length !== ids.length) {
+        throw new NotFoundError(`Không tìm thấy ${ids.length - scope.rows.length} thửa đất trong danh sách`);
+      }
+      assertZoneScope(user, scope.rows);
+      return loadAddressPreviews(client, ids);
+    });
+    const firstById = new Map(firstRead.map((p) => [p.row.parcelId, p]));
+    assertAddressZones(firstRead.map((p) => p.row));
+
+    const { AuditModificationService } = await import('../audit/services/audit-modification.service');
+    const { AuditVersionService } = await import('../audit/services/audit-version.service');
+
+    for (const item of input.items) {
+      const loaded = firstById.get(item.parcelId);
+      if (!loaded) continue;
+      const { row } = loaded;
+      const reason = validate(row, targetOf(item));
+      if (reason) {
+        skip(row, reason);
+        continue;
+      }
+      if (!row.reportId) continue;
+
+      const lock = await AuditModificationService.checkAuditLock(row.reportId, user.userId);
+      if (lock.lockedByOther) {
+        skip(row, `Hồ sơ đang được thẩm định bởi ${lock.lockedByName || 'quản trị viên khác'} (đến ${lock.expiresAt})`);
+        continue;
+      }
+      try {
+        const verCount = await Database.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM survey_report_versions WHERE report_id = $1;`,
+          [row.reportId]
+        );
+        if (Number(verCount.rows[0]?.count || 0) === 0) {
+          const rep = await Database.query<{ surveyor_id: string | null }>(
+            `SELECT surveyor_id FROM base_survey_reports WHERE id = $1;`,
+            [row.reportId]
+          );
+          await AuditVersionService.createSnapshot(row.reportId, {
+            versionTag: 'ORIGINAL_SUBMISSION',
+            title: 'Bản nộp thực địa ban đầu',
+            editReason: 'Khởi tạo phiên bản cơ sở tự động trước khi chuẩn hóa địa chỉ hàng loạt (Auto-Seed Baseline v0)',
+            userId: rep.rows[0]?.surveyor_id ?? undefined,
+          });
+        }
+      } catch (seedErr: unknown) {
+        // Không có v0 thì giá trị gốc của KSV sẽ mất hẳn sau lượt ghi: không ghi hồ sơ này
+        console.error('[CadastralBatch:syncAddress] Không tạo được v0 cho hồ sơ', row.reportId, seedErr);
+        skip(row, 'Không tạo được bản gốc v0 của hồ sơ nên không ghi để bảo toàn dữ liệu KSV');
+      }
+    }
+
+    const adminRes = await Database.query<{ full_name: string | null }>(`SELECT full_name FROM users WHERE id = $1;`, [user.userId]);
+    const adminName = adminRes.rows[0]?.full_name ?? null;
+    const editReason = `Chuẩn hóa địa chỉ hàng loạt từ bản đồ GIS (lô ${batchId})`;
+    const snapshotsToCreate: Array<{ reportId: string; diff: Array<{ field: string; label: string; oldValue: string; newValue: string }> }> = [];
+
+    // --- PHA 2: ghi trong 1 transaction ---
+    await Database.transaction(async (client) => {
       await lockAndAuthorize(client, ids, user);
-      const previews = new Map((await loadAddressPreviewRows(client, ids)).map((r) => [r.parcelId, r]));
-      assertAddressZones(Array.from(previews.values()));
+      const fresh = new Map((await loadAddressPreviews(client, ids)).map((p) => [p.row.parcelId, p]));
+      const reportIds = Array.from(fresh.values())
+        .map((p) => p.row.reportId)
+        .filter((id): id is string => Boolean(id));
+      if (reportIds.length > 0) {
+        await client.query(`SELECT id FROM base_survey_reports WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE;`, [reportIds]);
+      }
 
-      const result: BatchResult = { batchId, updated: [], skipped: [] };
       for (const item of input.items) {
-        const row = previews.get(item.parcelId);
-        if (!row) continue;
+        if (skippedIds.has(item.parcelId)) continue;
+        const loaded = fresh.get(item.parcelId);
+        const before = firstById.get(item.parcelId);
+        if (!loaded || !before) continue;
+        const { row } = loaded;
         const ref = { parcelId: row.parcelId, projectParcelCode: row.projectParcelCode };
-        const final: AddressFields = {
-          houseNumber: item.houseNumber,
-          street: item.street,
-          ward: item.ward,
-          district: item.district,
-        };
+        const target = targetOf(item);
 
-        let skipReason: string | null = row.lockedReason;
-        if (!skipReason && isStreetContaminatedWithWard(final.street) && final.street !== row.parcelRaw.street) {
-          skipReason = `Tên đường '${final.street}' vẫn là tên phường`;
+        const reason = validate(row, target);
+        if (reason) {
+          skip(row, reason);
+          continue;
         }
-        if (!skipReason && row.isSplitWard && final.ward === row.parcelRaw.ward) {
-          skipReason = `Phường '${row.parcelRaw.ward}' bị chia tách, chưa chọn phường mới`;
-        }
-        if (!skipReason && (Object.keys(final) as Array<keyof AddressFields>).every((k) => final[k] === row.parcelRaw[k])) {
-          skipReason = 'Không có thay đổi so với dữ liệu hiện tại';
-        }
-        if (skipReason) {
-          result.skipped.push({ ...ref, reason: skipReason });
+        if (row.reportId !== before.row.reportId || loaded.reportUpdatedAt !== before.reportUpdatedAt) {
+          skip(row, 'Hồ sơ vừa được cập nhật bởi thao tác khác, vui lòng tải lại');
           continue;
         }
 
+        // Bảng thửa: chỉ Số nhà / Đường / Phường; Quận giữ nguyên
         await client.query(
-          `UPDATE parcels
-           SET house_number = $2, street = $3, ward = $4, district = $5, updated_at = NOW()
-           WHERE id = $1;`,
-          [row.parcelId, final.houseNumber || null, final.street, final.ward, final.district || null]
+          `UPDATE parcels SET house_number = $2, street = $3, ward = $4, updated_at = NOW() WHERE id = $1;`,
+          [row.parcelId, target.houseNumber || null, target.street, target.ward]
         );
-        const editedByAdmin = (Object.keys(final) as Array<keyof AddressFields>).filter((k) => final[k] !== row.suggested[k]);
+
+        // Hồ sơ KSV: ghi như Admin sửa ở màn Thẩm định, giữ nguyên trạng thái
+        const diff: Array<{ field: string; label: string; oldValue: string; newValue: string }> = [];
+        if (row.reportId && row.surveyorEntered) {
+          const sv = row.surveyorEntered;
+          const standardized = formatBatchStandardizedAddress(target);
+          const patch: Record<string, unknown> = {};
+          for (const f of WRITABLE_ADDRESS_FIELDS) {
+            if (sv[f] !== target[f]) {
+              patch[f] = target[f];
+              diff.push({ field: f, label: ADDRESS_FIELD_LABEL[f], oldValue: sv[f], newValue: target[f] });
+            }
+          }
+          if ((row.reportStandardizedAddress ?? '') !== standardized) {
+            patch.standardizedAddress = standardized;
+            diff.push({
+              field: 'standardizedAddress',
+              label: 'Địa chỉ chuẩn hóa (NQ 1685)',
+              oldValue: row.reportStandardizedAddress ?? '',
+              newValue: standardized,
+            });
+          }
+          if (diff.length > 0) {
+            patch._lastAdminEdit = {
+              adminId: user.userId,
+              adminName,
+              timestamp: new Date().toISOString(),
+              reason: editReason,
+              diffCount: diff.length,
+            };
+            await client.query(
+              `UPDATE base_survey_reports SET survey_data_json = COALESCE(survey_data_json, '{}'::jsonb) || $2::jsonb, updated_at = NOW()
+               WHERE id = $1;`,
+              [row.reportId, JSON.stringify(patch)]
+            );
+            await client.query(
+              `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip)
+               VALUES ('BASE_SURVEY_REPORT', $1, 'ZONE_ADMIN_SURVEY_EDIT', $2, $3, $4);`,
+              [
+                row.reportId,
+                user.userId,
+                JSON.stringify({
+                  editReason,
+                  diff,
+                  photoActionsCount: 0,
+                  timestamp: new Date().toISOString(),
+                  verification: 'BATCH_CONFIRM_CODE',
+                  batchId,
+                }),
+                clientIp,
+              ]
+            );
+            snapshotsToCreate.push({ reportId: row.reportId, diff });
+          }
+        }
+
+        const final: AddressFields = { ...target, district: row.parcelRaw.district };
+        const editedByAdmin = WRITABLE_ADDRESS_FIELDS.filter((f) => target[f] !== row.suggested[f]);
         await insertParcelLog(client, row.parcelId, 'PARCEL_ADDRESS_BATCH_UPDATED', user.userId, clientIp, {
           batchId,
           projectParcelCode: row.projectParcelCode,
@@ -462,11 +671,31 @@ export class CadastralBatchService {
           sourceByField: row.sourceByField,
           final,
           editedByAdmin,
+          reportId: row.reportId,
+          reportFieldsWritten: diff.map((d) => d.field),
         });
         result.updated.push(ref);
       }
-      return result;
     });
+
+    // --- PHA 3: snapshot phiên bản sau commit (lỗi chỉ cảnh báo, không hoàn tác) ---
+    for (const snap of snapshotsToCreate) {
+      try {
+        await AuditVersionService.createSnapshot(snap.reportId, {
+          versionTag: 'ADMIN_DIFF_SAVE',
+          title: `Chuẩn hóa địa chỉ hàng loạt (${snap.diff.length} mục thay đổi)`,
+          editReason,
+          userId: user.userId,
+          clientIp: clientIp ?? undefined,
+          diffSummary: snap.diff,
+        });
+      } catch (snapErr: unknown) {
+        console.error('[CadastralBatch:syncAddress] Không tạo được snapshot phiên bản', snap.reportId, snapErr);
+        result.warnings.push(`Đã lưu hồ sơ ${snap.reportId} nhưng chưa tạo được phiên bản lịch sử cho lần sửa này.`);
+      }
+    }
+
+    return result;
   }
 
   /** Xem trước CQĐP hiện có của từng thửa (để liệt kê thửa sẽ bị ghi đè) và thửa bị khóa. Chỉ đọc. */
@@ -501,7 +730,7 @@ export class CadastralBatchService {
       const rows = await lockAndAuthorize(client, input.parcelIds, user);
       const locked = await loadLockedReasons(client, input.parcelIds);
       const after = { name: input.name, role: input.role, phone: input.phone };
-      const result: BatchResult = { batchId, updated: [], skipped: [] };
+      const result: BatchResult = { batchId, updated: [], skipped: [], warnings: [] };
 
       for (const row of rows) {
         const ref = { parcelId: row.id, projectParcelCode: row.project_parcel_code };
@@ -557,7 +786,7 @@ export class CadastralBatchService {
     const batchId = randomUUID();
     return Database.transaction(async (client) => {
       const rows = await lockAndAuthorize(client, parcelIds, user);
-      const result: BatchResult = { batchId, updated: [], skipped: [] };
+      const result: BatchResult = { batchId, updated: [], skipped: [], warnings: [] };
       for (const row of rows) {
         const ref = { parcelId: row.id, projectParcelCode: row.project_parcel_code };
         const outcome = await applyLifecycleChange(client, row, lifecycleInput, user.userId, clientIp, { batchId });

@@ -35,7 +35,8 @@ export const BatchParcelAddressItemDto = z.object({
   houseNumber: z.string().trim().max(64),
   street: z.string().trim().min(1, 'Tên đường không được để trống').max(128),
   ward: z.string().trim().min(1, 'Phường không được để trống').max(64),
-  district: z.string().trim().max(64),
+  /** Bỏ qua: Quận luôn giữ nguyên giá trị cũ trong bảng thửa */
+  district: z.string().trim().max(64).optional(),
 });
 export type BatchParcelAddressItem = z.infer<typeof BatchParcelAddressItemDto>;
 

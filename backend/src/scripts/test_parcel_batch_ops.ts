@@ -126,7 +126,9 @@ async function run() {
   if (results.some((r) => !r.passed)) return;
 
   const original = await snapshot(all);
-  const hashBefore = await jsonHash(all);
+  const hashBeforeOthers = await jsonHash(all.filter((id) => id !== surveyedCmt8Contaminated[0]));
+  const reportBackups: Array<{ id: string; json: string; updatedAt: string }> = [];
+  let lockBackup: { reportId: string; previous: { locked_by_user_id: string; expires_at: string } | null } | null = null;
 
   try {
     await Database.query(`UPDATE parcels SET street = 'Phường 13' WHERE id = $1;`, [surveyedCmt8Contaminated[0]]);
@@ -200,13 +202,84 @@ async function run() {
       `SELECT diff_payload->>'editedByAdmin' AS edited FROM system_audit_logs WHERE action = 'PARCEL_ADDRESS_BATCH_UPDATED' AND diff_payload->>'batchId' = $1;`, [sync.batchId]);
     check('Đồng bộ: log ghi trường Admin sửa tay (street)', syncLog.rows.length === 1 && syncLog.rows[0].edited.includes('street'), syncLog.rows[0]);
 
+    // 6b. Thửa có hồ sơ: ghi như Admin sửa ở Thẩm định, giữ trạng thái, có v0 + snapshot, Quận không đổi
+    const repRes = await Database.query<{ id: string; status: string; json: string; updated_at: string }>(
+      `SELECT r.id, r.status::text AS status, r.survey_data_json::text AS json, r.updated_at::text AS updated_at
+       FROM base_survey_reports r JOIN parcels p ON p.id = r.parcel_id
+       WHERE p.id = $1 AND r.deleted_at IS NULL AND r.unit_id IS NULL
+       ORDER BY (CASE WHEN r.id = p.active_phase1_report_id THEN 0 ELSE 1 END), r.updated_at DESC NULLS LAST LIMIT 1;`,
+      [surveyedCmt8Contaminated[0]]
+    );
+    const rep = repRes.rows[0];
+    reportBackups.push({ id: rep.id, json: rep.json, updatedAt: rep.updated_at });
+    const verBefore = await Database.query<{ c: string }>(`SELECT COUNT(*) AS c FROM survey_report_versions WHERE report_id = $1;`, [rep.id]);
+    const districtBefore = (await snapshot(surveyedCmt8Contaminated))[0].district;
+    const repPreview = (await CadastralBatchService.previewAddress(surveyedCmt8Contaminated, superAdmin))[0];
+    check('Preview: thửa có hồ sơ trả reportId', repPreview.reportId === rep.id && repPreview.reportDiffCount > 0, { reportId: repPreview.reportId, reportDiffCount: repPreview.reportDiffCount });
+    const repSync = await CadastralBatchService.syncAddress(
+      { items: [{ parcelId: surveyedCmt8Contaminated[0], ...repPreview.suggested, street: 'Cách Mạng Tháng Tám' }] },
+      superAdmin,
+      null
+    );
+    const repAfter = await Database.query<{ status: string; json: Record<string, unknown> }>(
+      `SELECT status::text AS status, survey_data_json AS json FROM base_survey_reports WHERE id = $1;`,
+      [rep.id]
+    );
+    const expectedStd = `${repPreview.suggested.houseNumber ? `Số ${repPreview.suggested.houseNumber} ` : ''}Cách Mạng Tháng Tám, ${repPreview.suggested.ward}, TP. Hồ Chí Minh`;
+    check('Hồ sơ: ghi đường + địa chỉ chuẩn hóa vào survey_data_json', repSync.updated.length === 1 && repAfter.rows[0].json.street === 'Cách Mạng Tháng Tám' && repAfter.rows[0].json.standardizedAddress === expectedStd, { sync: repSync, std: repAfter.rows[0].json.standardizedAddress });
+    check('Hồ sơ: giữ nguyên trạng thái', repAfter.rows[0].status === rep.status, { before: rep.status, after: repAfter.rows[0].status });
+    const originalJson = JSON.parse(rep.json) as Record<string, unknown>;
+    const changedKeys = Object.keys({ ...originalJson, ...repAfter.rows[0].json }).filter(
+      (k) => JSON.stringify(originalJson[k]) !== JSON.stringify(repAfter.rows[0].json[k])
+    );
+    const allowedKeys = ['houseNumber', 'street', 'ward', 'standardizedAddress', '_lastAdminEdit'];
+    check('Hồ sơ: chỉ đổi đúng các khóa địa chỉ', changedKeys.every((k) => allowedKeys.includes(k)), changedKeys);
+    const versions = await Database.query<{ version_tag: string }>(
+      `SELECT version_tag FROM survey_report_versions WHERE report_id = $1 ORDER BY version_number;`,
+      [rep.id]
+    );
+    check('Hồ sơ: có v0 ORIGINAL_SUBMISSION và snapshot ADMIN_DIFF_SAVE mới', versions.rows[0]?.version_tag === 'ORIGINAL_SUBMISSION' && versions.rows[versions.rows.length - 1]?.version_tag === 'ADMIN_DIFF_SAVE' && versions.rows.length > Number(verBefore.rows[0].c), versions.rows.map((v) => v.version_tag));
+    const editLog = await Database.query<{ c: string }>(
+      `SELECT COUNT(*) AS c FROM system_audit_logs WHERE action = 'ZONE_ADMIN_SURVEY_EDIT' AND entity_id = $1 AND diff_payload->>'batchId' = $2;`,
+      [rep.id, repSync.batchId]
+    );
+    check('Hồ sơ: log ZONE_ADMIN_SURVEY_EDIT có batchId', Number(editLog.rows[0].c) === 1);
+    check('Quận trong bảng thửa không đổi', (await snapshot(surveyedCmt8Contaminated))[0].district === districtBefore);
+
+    // 6c. Hồ sơ đang bị Admin khác khóa thẩm định -> bỏ qua
+    const otherAdmin = await Database.query<{ id: string }>(
+      `SELECT id FROM users WHERE role IN ('ZONE_ADMIN','SUPER_ADMIN') AND deleted_at IS NULL AND id <> $1 LIMIT 1;`,
+      [superAdmin.userId]
+    );
+    const subRep = await Database.query<{ id: string }>(
+      `SELECT r.id FROM base_survey_reports r WHERE r.parcel_id = $1 AND r.deleted_at IS NULL AND r.unit_id IS NULL ORDER BY r.updated_at DESC LIMIT 1;`,
+      [submittedZone7[0]]
+    );
+    const prevLock = await Database.query<{ locked_by_user_id: string; expires_at: string }>(
+      `SELECT locked_by_user_id, expires_at::text AS expires_at FROM survey_audit_locks WHERE report_id = $1;`,
+      [subRep.rows[0].id]
+    );
+    lockBackup = { reportId: subRep.rows[0].id, previous: prevLock.rows[0] ?? null };
+    await Database.query(
+      `INSERT INTO survey_audit_locks (report_id, locked_by_user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
+       ON CONFLICT (report_id) DO UPDATE SET locked_by_user_id = EXCLUDED.locked_by_user_id, expires_at = EXCLUDED.expires_at;`,
+      [subRep.rows[0].id, otherAdmin.rows[0].id]
+    );
+    const subPreview = (await CadastralBatchService.previewAddress(submittedZone7, superAdmin))[0];
+    const lockedSync = await CadastralBatchService.syncAddress(
+      { items: [{ parcelId: submittedZone7[0], ...subPreview.suggested, street: 'Cách Mạng Tháng Tám' }] },
+      superAdmin,
+      null
+    );
+    check('Hồ sơ đang bị Admin khác khóa -> bỏ qua', lockedSync.updated.length === 0 && /đang được thẩm định/.test(lockedSync.skipped[0]?.reason ?? ''), lockedSync.skipped);
+
     // 7. Lỗi giữa transaction -> rollback cả lô
     const beforeRollback = await snapshot([freeZone7[0]]);
     await expectRejected('Lỗi DB ở dòng thứ 2 -> ROLLBACK', () =>
       CadastralBatchService.syncAddress({
         items: [
           { parcelId: freeZone7[0], houseNumber: '999', street: 'Cách Mạng Tháng Tám', ward: 'Phường Hòa Hưng', district: 'Quận 10' },
-          { parcelId: freeZone7[2], houseNumber: '1', street: 'Cách Mạng Tháng Tám', ward: 'Phường Hòa Hưng', district: 'x'.repeat(100) },
+          { parcelId: freeZone7[2], houseNumber: '1', street: 'Cách Mạng Tháng Tám ' + 'x'.repeat(200), ward: 'Phường Hòa Hưng' },
         ],
       }, superAdmin, null),
       /too long|quá dài|value/i);
@@ -221,10 +294,23 @@ async function run() {
     });
     check('Đề xuất: địa chính Q3 nhưng KSV ghi Hòa Hưng -> wardConflict', conflict.wardConflict?.surveyorWard === 'Phường Hòa Hưng' && conflict.suggested.street === 'Cách Mạng Tháng Tám', conflict);
 
-    // 9. survey_data_json không đổi
-    check('survey_data_json của mọi hồ sơ trong lô không đổi', (await jsonHash(all)) === hashBefore);
+    // 9. Các tác vụ khác (CQĐP, ẩn/khôi phục, thửa chưa có hồ sơ) không đụng survey_data_json
+    const otherIds = all.filter((id) => id !== surveyedCmt8Contaminated[0]);
+    check('survey_data_json của các hồ sơ khác trong lô không đổi', (await jsonHash(otherIds)) === hashBeforeOthers);
   } finally {
     await restoreSnapshot(original);
+    for (const b of reportBackups) {
+      await Database.query(`UPDATE base_survey_reports SET survey_data_json = $2::jsonb, updated_at = $3::timestamptz WHERE id = $1;`, [b.id, b.json, b.updatedAt]);
+    }
+    if (lockBackup) {
+      if (lockBackup.previous) {
+        await Database.query(`UPDATE survey_audit_locks SET locked_by_user_id = $2, expires_at = $3::timestamptz WHERE report_id = $1;`, [lockBackup.reportId, lockBackup.previous.locked_by_user_id, lockBackup.previous.expires_at]);
+      } else {
+        // Không xóa: cho khóa test hết hạn ngay
+        await Database.query(`UPDATE survey_audit_locks SET expires_at = NOW() - INTERVAL '1 minute' WHERE report_id = $1;`, [lockBackup.reportId]);
+      }
+    }
+    console.log('[BatchOpsTest] Phiên bản survey_report_versions do test tạo được giữ lại (DB test)');
     console.log('[BatchOpsTest] Đã trả lại giá trị gốc cho thửa mượn');
   }
 }

@@ -67,6 +67,15 @@ const BatchResultPanel: React.FC<{ result: BatchResult; onClose: () => void }> =
         </table>
       </div>
     )}
+    {result.warnings && result.warnings.length > 0 && (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+        {result.warnings.map((w) => (
+          <div key={w} className="flex items-start gap-1">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {w}
+          </div>
+        ))}
+      </div>
+    )}
     <p className="text-[10px] text-slate-400">Mã lô (nhật ký hệ thống): {result.batchId}</p>
     <div className="flex justify-end">
       <button

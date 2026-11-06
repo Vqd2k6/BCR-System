@@ -24,6 +24,8 @@ export interface BatchResult {
   batchId: string;
   updated: BatchResultItem[];
   skipped: BatchSkippedItem[];
+  /** Cảnh báo sau khi lưu (VD: chưa tạo được snapshot phiên bản) */
+  warnings?: string[];
 }
 
 export interface AddressFields {
@@ -42,6 +44,11 @@ export interface AddressPreviewRow {
   zoneId: string | null;
   parcelRaw: AddressFields;
   surveyorEntered: AddressFields | null;
+  /** Hồ sơ KSV được ghi kèm (tạo phiên bản như màn Thẩm định); null nếu thửa chưa có hồ sơ */
+  reportId: string | null;
+  reportStatus: string | null;
+  reportStandardizedAddress: string | null;
+  reportDiffCount: number;
   suggested: AddressFields;
   sourceByField: Record<AddressFieldKey, AddressFieldSource>;
   khuPho: string;
@@ -78,7 +85,9 @@ export const previewBatchAddress = async (parcelIds: string[]): Promise<AddressP
   return unwrap<AddressPreviewRow[]>(res.data);
 };
 
-export const syncBatchAddress = async (items: Array<AddressFields & { parcelId: string }>): Promise<BatchResult> => {
+export const syncBatchAddress = async (
+  items: Array<{ parcelId: string; houseNumber: string; street: string; ward: string }>
+): Promise<BatchResult> => {
   const res = await api.post('/admin/parcels/batch/address', { items });
   return unwrap<BatchResult>(res.data);
 };
