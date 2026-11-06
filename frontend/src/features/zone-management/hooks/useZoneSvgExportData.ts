@@ -19,6 +19,7 @@ const parseOuterRing = (geojson: unknown): [number, number][] => {
 
 const toSvgParcel = (raw: Record<string, unknown>): SvgParcelInput => ({
   code: String(raw.project_parcel_code ?? ''),
+  methodCode: typeof raw.method_code === 'string' && raw.method_code.trim() ? raw.method_code.trim() : null,
   isCondoMaster: raw.building_type === 'CONDOMINIUM',
   ring: parseOuterRing(raw.cadastral_geojson),
 });

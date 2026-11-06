@@ -5,6 +5,7 @@ import { NotFoundError, BadRequestError } from '../../../common/errors/problem-d
 import { calculateDistancesFromPolygon } from '../../audit/utils/metro-spatial.utils';
 import { generateUniqueCadastralCode, resolveCadastralCode } from '../utils/cadastral-code.generator';
 import { assertParcelsNotExcludedByIds } from '../utils/parcel-exclusion';
+import { assignMethodCode } from '../utils/parcel-method-code';
 
 export class CadastralMutationService {
   /**
@@ -197,6 +198,8 @@ export class CadastralMutationService {
       queryParams
     );
 
+    await assignMethodCode(client, resParcel.rows[0].id);
+
     return { id: resParcel.rows[0].id, projectParcelCode: residualParcelCode };
   }
 
@@ -240,6 +243,7 @@ export class CadastralMutationService {
           ]
         );
 
+        await assignMethodCode(client, pRes.rows[0].id);
         resultParcelIds.push(pRes.rows[0].id);
         createdParcels.push(pRes.rows[0]);
       }
@@ -943,6 +947,7 @@ export class CadastralMutationService {
                RETURNING id;`,
               insertParams
             );
+            await assignMethodCode(client, newParcelRes.rows[0].id);
             resultParcelIds.push(newParcelRes.rows[0].id);
           } else {
             // Nhánh 2B: Đất dôi dư / Sân vườn (NON_BUILDING) -> Giữ mã {Mã}-DU
@@ -1469,6 +1474,7 @@ export class CadastralMutationService {
             );
 
             const newChildId = pRes.rows[0].id;
+            await assignMethodCode(client, newChildId);
             resultParcelIds.push(newChildId);
             newChildIdsOnly.push(newChildId);
             createdParcels.push(pRes.rows[0]);

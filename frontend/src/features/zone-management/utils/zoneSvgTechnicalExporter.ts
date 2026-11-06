@@ -12,10 +12,16 @@ type LatLng = [number, number];
 type Point = [number, number];
 
 export interface SvgParcelInput {
+  /** Mã khảo sát (project_parcel_code) */
   code: string;
+  /** Mã biện pháp (method_code, VD ST04-L-0146); bắt buộc khi xuất chế độ METHOD_CODE */
+  methodCode?: string | null;
   isCondoMaster: boolean;
   ring: LatLng[];
 }
+
+/** Nhãn thửa trên bình đồ: mã khảo sát (đối soát hiện trường) hoặc mã biện pháp (bàn giao trước thi công) */
+export type ParcelLabelMode = "SURVEY_CODE" | "METHOD_CODE";
 
 export interface SvgGeometryInput {
   name: string;
@@ -93,6 +99,8 @@ export interface SvgExportOptions {
   includeControlTable?: boolean;
   includeLegend?: boolean;
   includeScaleBar?: boolean;
+  /** Mặc định SURVEY_CODE; METHOD_CODE đổi nhãn thửa và tiêu đề khung tên sang bản vẽ biện pháp */
+  parcelLabelMode?: ParcelLabelMode;
   exportedAt?: Date;
 }
 
@@ -117,6 +125,7 @@ export interface ZoneSvgResult {
   controlPoints: ControlPoint[];
   missingLogos: TitleBlockLogoKey[];
   identity: ZoneDrawingIdentity;
+  labelMode: ParcelLabelMode;
 }
 
 const METERS_PER_DEGREE = 111320;
@@ -483,7 +492,19 @@ const largestFittingFont = (
   return low;
 };
 
-const buildLabel = (code: string, ring: Point[]): string | null => {
+interface ParcelLabelInput {
+  /** Mã khảo sát, luôn ghi vào data-code để đối soát */
+  code: string;
+  methodCode: string | null;
+  /** Chữ in trên thửa theo chế độ nhãn */
+  text: string;
+}
+
+const methodCodeAttr = (methodCode: string | null): string =>
+  methodCode ? ` data-method-code="${escapeXml(methodCode)}"` : "";
+
+const buildLabel = (label: ParcelLabelInput, ring: Point[]): string | null => {
+  const { text } = label;
   // Trên lô chữ nhật, điểm sâu nhất trải đều dọc đường giữa nên cần thêm tâm diện tích làm ứng viên
   const anchors = [findLabelAnchor(ring), areaCentroid(ring)].filter(
     (point): point is Point => point !== null,
@@ -495,7 +516,7 @@ const buildLabel = (code: string, ring: Point[]): string | null => {
       .map((anchor) => ({
         anchor,
         angle: angleDeg,
-        fontSize: largestFittingFont(anchor, angleDeg, code.length, ring),
+        fontSize: largestFittingFont(anchor, angleDeg, text.length, ring),
       }))
       .reduce((best, candidate) =>
         candidate.fontSize > best.fontSize ? candidate : best,
@@ -517,7 +538,7 @@ const buildLabel = (code: string, ring: Point[]): string | null => {
     angle === 0
       ? ""
       : ` transform="rotate(${angle.toFixed(2)} ${cx.toFixed(3)} ${cy.toFixed(3)})"`;
-  return `<text data-code="${escapeXml(code)}" x="${cx.toFixed(3)}" y="${(cy + LABEL_BASELINE_SHIFT_EM * safeFontSize).toFixed(3)}" font-size="${safeFontSize.toFixed(3)}"${rotation}>${escapeXml(code)}</text>`;
+  return `<text data-code="${escapeXml(label.code)}"${methodCodeAttr(label.methodCode)} x="${cx.toFixed(3)}" y="${(cy + LABEL_BASELINE_SHIFT_EM * safeFontSize).toFixed(3)}" font-size="${safeFontSize.toFixed(3)}"${rotation}>${escapeXml(text)}</text>`;
 };
 
 // ============================================================================
@@ -529,9 +550,15 @@ const pad2 = (value: number): string => String(value).padStart(2, "0");
 export const resolveZoneDrawingIdentity = (
   kind: ZoneKind,
   zoneIndex: number,
+  labelMode: ParcelLabelMode = "SURVEY_CODE",
 ): ZoneDrawingIdentity => {
-  const prefixEn = "BUILDING CONDITION SURVEY";
-  const prefixVi = "BẢN VẼ KHẢO SÁT HIỆN TRẠNG NHÀ";
+  const isMethod = labelMode === "METHOD_CODE";
+  const prefixEn = isMethod
+    ? "BUILDING CONDITION SURVEY METHOD STATEMENT DRAWING"
+    : "BUILDING CONDITION SURVEY";
+  const prefixVi = isMethod
+    ? "BẢN VẼ BIỆN PHÁP KHẢO SÁT HIỆN TRẠNG"
+    : "BẢN VẼ KHẢO SÁT HIỆN TRẠNG NHÀ";
   if (kind === "C&C") {
     const station = `ST${pad2(Math.ceil(zoneIndex / 2))}`;
     return {
@@ -539,7 +566,9 @@ export const resolveZoneDrawingIdentity = (
       drawingCode: station,
       highlightStations: [station],
       highlightDepot: false,
-      titleEn: `${prefixEn} STATION ${station} DRAWING`,
+      titleEn: isMethod
+        ? `${prefixEn} AT STATION ${station}`
+        : `${prefixEn} STATION ${station} DRAWING`,
       titleVi: `${prefixVi} TẠI GA ${station}`,
     };
   }
@@ -549,7 +578,9 @@ export const resolveZoneDrawingIdentity = (
       drawingCode: "DEP-01",
       highlightStations: [],
       highlightDepot: true,
-      titleEn: `${prefixEn} AT DEPOT DEP-01 DRAWING`,
+      titleEn: isMethod
+        ? `${prefixEn} AT DEPOT DEP-01`
+        : `${prefixEn} AT DEPOT DEP-01 DRAWING`,
       titleVi: `${prefixVi} TẠI DEPOT DEP-01`,
     };
   }
@@ -562,7 +593,9 @@ export const resolveZoneDrawingIdentity = (
     drawingCode: code,
     highlightStations: [from, to],
     highlightDepot: false,
-    titleEn: `${prefixEn} TUNNEL SECTION ${code} (${from} – ${to}) DRAWING`,
+    titleEn: isMethod
+      ? `${prefixEn} – TUNNEL SECTION ${code} (${from} – ${to})`
+      : `${prefixEn} TUNNEL SECTION ${code} (${from} – ${to}) DRAWING`,
     titleVi: `${prefixVi} ĐOẠN HẦM ${code} (GA ${from} – GA ${to})`,
   };
 };
@@ -1199,15 +1232,17 @@ export function generateZoneTechnicalSvg(
     includeControlTable = true,
     includeLegend = false,
     includeScaleBar = false,
+    parcelLabelMode = "SURVEY_CODE",
     exportedAt = new Date(),
   } = options;
 
-  const identity = resolveZoneDrawingIdentity(zoneKind, zoneIndex);
+  const identity = resolveZoneDrawingIdentity(zoneKind, zoneIndex, parcelLabelMode);
 
   const validParcels = parcels
     .map((parcel) => ({
       ...parcel,
       code: parcel.code.trim(),
+      methodCode: parcel.methodCode?.trim() || null,
       ring: openRing(parcel.ring),
     }))
     .filter((parcel) => parcel.code && parcel.ring.length >= 3);
@@ -1216,6 +1251,16 @@ export function generateZoneTechnicalSvg(
     throw new Error(
       `Zone ${zoneCode} không có thửa đất đủ mã và hình học để vẽ`,
     );
+  }
+
+  // Mọi thửa phải có đủ 2 mã: bản vẽ biện pháp không được lẫn mã khảo sát thay thế
+  if (parcelLabelMode === "METHOD_CODE") {
+    const missing = validParcels.filter((parcel) => !parcel.methodCode).map((parcel) => parcel.code);
+    if (missing.length > 0) {
+      throw new Error(
+        `Zone ${zoneCode} có ${missing.length} thửa chưa có mã biện pháp: ${missing.slice(0, 12).join(", ")}${missing.length > 12 ? ", ..." : ""}. Liên hệ Super Admin chạy bổ sung mã trước khi xuất bản vẽ biện pháp.`,
+      );
+    }
   }
   if (centerlineCoords.length < 2) {
     throw new Error("Thiếu dữ liệu tim tuyến Metro 2");
@@ -1334,12 +1379,13 @@ export function generateZoneTechnicalSvg(
 
   const pageParcels = rotatedParcels.map((parcel) => ({
     code: parcel.code,
+    methodCode: parcel.methodCode,
     isCondoMaster: parcel.isCondoMaster,
     page: parcel.rotated.map(toPageFromRotated),
   }));
 
-  const parcelPath = (parcel: { code: string; page: Point[] }): string =>
-    `<path data-code="${escapeXml(parcel.code)}" d="${toPathData(parcel.page, true)}"/>`;
+  const parcelPath = (parcel: { code: string; methodCode: string | null; page: Point[] }): string =>
+    `<path data-code="${escapeXml(parcel.code)}"${methodCodeAttr(parcel.methodCode)} d="${toPathData(parcel.page, true)}"/>`;
 
   const regularPaths = pageParcels
     .filter((parcel) => !parcel.isCondoMaster)
@@ -1385,7 +1431,16 @@ export function generateZoneTechnicalSvg(
 
   const labels = includeLabels
     ? pageParcels
-        .map((parcel) => buildLabel(parcel.code, parcel.page))
+        .map((parcel) =>
+          buildLabel(
+            {
+              code: parcel.code,
+              methodCode: parcel.methodCode,
+              text: parcelLabelMode === "METHOD_CODE" && parcel.methodCode ? parcel.methodCode : parcel.code,
+            },
+            parcel.page,
+          ),
+        )
         .filter((label): label is string => label !== null)
         .join("")
     : "";
@@ -1429,6 +1484,7 @@ export function generateZoneTechnicalSvg(
     `Độ lệch tim tuyến so với trục ngang: ±${residualMeters.toFixed(1)} m`,
     `Tỷ lệ: 1:${scaleDenominator}`,
     `Số thửa: ${validParcels.length}`,
+    `Nhãn thửa: ${parcelLabelMode === "METHOD_CODE" ? "Mã biện pháp" : "Mã khảo sát"}`,
     `Điểm khống chế: ${controlPoints.length} (VN2000 TM-3 105°45', ${VN2000_CALIBRATION_SOURCE}${controlSelection.simplifyToleranceMeters > 0 ? `; đơn giản hóa ranh ${controlSelection.simplifyToleranceMeters} m` : ""})`,
     `Thời điểm xuất: ${exportedAt.toISOString()}`,
   ].join("; ");
@@ -1469,6 +1525,7 @@ export function generateZoneTechnicalSvg(
     controlPoints,
     missingLogos: [...missingLogos],
     identity,
+    labelMode: parcelLabelMode,
   };
 }
 

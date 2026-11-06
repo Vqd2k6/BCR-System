@@ -6,6 +6,7 @@ import { Database, pool } from '../../../database/db';
 import { ZONE_SEGMENT_PREFIX_MAP, ZonePrefixMeta } from '../../../common/constants/zone-prefixes';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../../../common/errors/problem-details';
 import { EXCLUDED_LIFECYCLE_STATUSES } from '../utils/parcel-exclusion';
+import { assignMethodCode } from '../utils/parcel-method-code';
 
 function toValidUuidOrNull(val?: string | null): string | null {
   if (!val) return null;
@@ -441,7 +442,7 @@ export class CadastralIngestionService {
         const landArea = parseFloat(String(p.dientich)) || 65.0;
         const constructionArea = Math.round(landArea * 0.85 * 10) / 10;
 
-        await client.query(`
+        const insertedParcel = await client.query<{ id: string }>(`
           INSERT INTO parcels (
             zone_id,
             segment_type,
@@ -471,7 +472,8 @@ export class CadastralIngestionService {
             ST_SetSRID(ST_MakePoint($20, $21), 4326),
             ST_MakeValid(ST_SetSRID(ST_PolygonFromText($22), 4326)),
             ST_MakeValid(ST_SetSRID(ST_PolygonFromText($22), 4326))
-          );
+          )
+          RETURNING id;
         `, [
           zoneCode,
           meta.type,
@@ -496,6 +498,7 @@ export class CadastralIngestionService {
           p.latitude,
           wkt,
         ]);
+        await assignMethodCode(client, insertedParcel.rows[0].id);
       }
 
       // 3. Cập nhật số lượng và trạng thái sẵn sàng khảo sát (is_active = TRUE)
@@ -680,6 +683,16 @@ export class CadastralIngestionService {
       [zoneCode]
     );
 
+    // Mã biện pháp chép nguyên từ local (bất biến), không tính lại trên cloud; thiếu mã thì chặn trước khi đồng bộ
+    const missingMethodCodes = localParcels.rows
+      .filter((row) => !row.method_code)
+      .map((row) => String(row.project_parcel_code));
+    if (missingMethodCodes.length > 0) {
+      throw new BadRequestError(
+        `Zone ${zoneCode} còn ${missingMethodCodes.length} thửa chưa có mã biện pháp (${missingMethodCodes.slice(0, 10).join(', ')}${missingMethodCodes.length > 10 ? ', ...' : ''}). Chạy populate_parcels_method_code.ts trước khi đồng bộ cloud.`
+      );
+    }
+
     const snapshotData = {
       timestamp: new Date().toISOString(),
       zoneCode,
@@ -732,11 +745,11 @@ export class CadastralIngestionService {
               street, ward, district, owner_name, owner_phone,
               land_area_m2, construction_area_m2, floor_count,
               building_type, total_units, survey_status, lifecycle_status,
-              location_geom, cadastral_polygon_geom, footprint_polygon_geom
+              location_geom, cadastral_polygon_geom, footprint_polygon_geom, method_code
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
               $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-              $21, $22, $23
+              $21, $22, $23, $24
             )
             ON CONFLICT (official_cadastral_code) DO NOTHING;
           `, [
@@ -745,7 +758,7 @@ export class CadastralIngestionService {
             p.street, p.ward, p.district, p.owner_name, p.owner_phone,
             p.land_area_m2, p.construction_area_m2, p.floor_count,
             p.building_type, p.total_units, p.survey_status, p.lifecycle_status,
-            p.location_geom, p.cadastral_polygon_geom, p.footprint_polygon_geom,
+            p.location_geom, p.cadastral_polygon_geom, p.footprint_polygon_geom, p.method_code,
           ]);
           cloudSyncedCount++;
         }

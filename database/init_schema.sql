@@ -376,6 +376,7 @@ CREATE TABLE parcels (
     zone_id VARCHAR(32) NOT NULL,
     official_cadastral_code VARCHAR(64),          -- Mã địa chính gốc KS003 / Số tờ số thửa
     project_parcel_code VARCHAR(32) UNIQUE NOT NULL, -- Mã B-XXXXX BẤT BIẾN (VD: 'B-00105', 'B-07001', '{Mã}-DU')
+    method_code VARCHAR(48),                       -- Mã biện pháp BẤT BIẾN (VD: 'ST04-L-0146', 'POR-01-R-1111'); bắt buộc lúc COMMIT
     field_survey_code VARCHAR(32),                 -- Mã khảo sát thực địa (VD: 'KS004')
     house_number VARCHAR(64),
     street VARCHAR(128),
@@ -1213,6 +1214,83 @@ CREATE TRIGGER trg_protect_approved_parcels
 BEFORE UPDATE ON parcels
 FOR EACH ROW
 EXECUTE FUNCTION check_parcel_approved_lock();
+
+-- ============================================================================
+-- MÃ BIỆN PHÁP (parcels.method_code) – Đồng bộ migration 20261106
+-- ============================================================================
+CREATE UNIQUE INDEX IF NOT EXISTS uq_parcels_method_code
+  ON parcels (method_code)
+  WHERE method_code IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION enforce_parcel_method_code_on_commit()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_method_code VARCHAR;
+  v_exists BOOLEAN;
+BEGIN
+  SELECT TRUE, method_code INTO v_exists, v_method_code
+  FROM parcels
+  WHERE id = NEW.id;
+
+  IF v_exists IS TRUE AND v_method_code IS NULL THEN
+    RAISE EXCEPTION 'PARCEL_METHOD_CODE_REQUIRED: Thửa % chưa được sinh mã biện pháp (method_code). Mọi thửa phải có đủ mã khảo sát và mã biện pháp.',
+      NEW.project_parcel_code
+      USING ERRCODE = '23502';
+  END IF;
+
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_parcels_method_code_required ON parcels;
+
+CREATE CONSTRAINT TRIGGER trg_parcels_method_code_required
+AFTER INSERT ON parcels
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION enforce_parcel_method_code_on_commit();
+
+CREATE OR REPLACE FUNCTION protect_parcel_method_code()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.method_code IS NOT NULL AND NEW.method_code IS DISTINCT FROM OLD.method_code THEN
+    RAISE EXCEPTION 'PARCEL_METHOD_CODE_IMMUTABLE: Mã biện pháp % của thửa % đã cấp, không được thay đổi hoặc xoá.',
+      OLD.method_code, OLD.project_parcel_code
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_protect_parcel_method_code ON parcels;
+
+CREATE TRIGGER trg_protect_parcel_method_code
+BEFORE UPDATE OF method_code ON parcels
+FOR EACH ROW
+EXECUTE FUNCTION protect_parcel_method_code();
+
+-- Cấp mã biện pháp lần đầu không làm đổi updated_at (thay hàm timestamp dùng chung riêng cho parcels)
+CREATE OR REPLACE FUNCTION update_parcels_timestamp_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.method_code IS NULL
+     AND NEW.method_code IS NOT NULL
+     AND (to_jsonb(OLD) - 'method_code' - 'updated_at') = (to_jsonb(NEW) - 'method_code' - 'updated_at') THEN
+    NEW.updated_at = OLD.updated_at;
+    RETURN NEW;
+  END IF;
+
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_update_parcels_timestamp ON parcels;
+
+CREATE TRIGGER trg_update_parcels_timestamp
+BEFORE UPDATE ON parcels
+FOR EACH ROW EXECUTE FUNCTION update_parcels_timestamp_column();
 
 
 -- ============================================================================

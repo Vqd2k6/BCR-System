@@ -8,6 +8,8 @@ export interface ParcelEntity {
   zone_id: string;
   official_cadastral_code: string | null;
   project_parcel_code: string;
+  /** Mã biện pháp bất biến (VD 'ST04-L-0146'); NULL chỉ còn ở thửa cũ chưa chạy backfill */
+  method_code: string | null;
   field_survey_code: string | null;
   house_number: string | null;
   street: string | null;

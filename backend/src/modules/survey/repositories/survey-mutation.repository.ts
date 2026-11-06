@@ -2,6 +2,7 @@ import { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
 import { CadastralMutationService } from '../../cadastral/services/cadastral-mutation.service';
 import { resolveCadastralCode } from '../../cadastral/utils/cadastral-code.generator';
+import { assignMethodCode } from '../../cadastral/utils/parcel-method-code';
 
 export class SurveyMutationRepository {
   /**
@@ -283,6 +284,7 @@ export class SurveyMutationRepository {
       );
 
       const newParcelBId = newParcelRes.rows[0].id;
+      await assignMethodCode(client, newParcelBId);
       resultParcelIds.push(newParcelBId);
 
       // Tự động tạo task_assignment cho chính KSV đang khảo sát để tiếp tục thực hiện

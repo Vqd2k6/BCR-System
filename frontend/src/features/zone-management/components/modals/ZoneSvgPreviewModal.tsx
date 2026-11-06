@@ -17,7 +17,7 @@ import { useZoneSvgExportData } from '../../hooks/useZoneSvgExportData';
 import { useZoneDrawingConfig } from '../../hooks/useZoneDrawingConfig';
 import type { TitleBlockFormValues } from '../../hooks/useZoneDrawingConfig';
 import { DEFAULT_TITLE_BLOCK, downloadSvgFile, generateZoneTechnicalSvg } from '../../utils/zoneSvgTechnicalExporter';
-import type { SvgStationInput, TitleBlockInput, TitleBlockLogoKey, ZoneSvgResult } from '../../utils/zoneSvgTechnicalExporter';
+import type { ParcelLabelMode, SvgStationInput, TitleBlockInput, TitleBlockLogoKey, ZoneSvgResult } from '../../utils/zoneSvgTechnicalExporter';
 
 interface ZoneSvgPreviewModalProps {
   zoneId: string;
@@ -67,10 +67,16 @@ const formatDisplayDate = (iso: string): string => {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
 };
 
-const buildFileName = (drawingCode: string, revision: string): string => {
+const LABEL_MODE_OPTIONS: { mode: ParcelLabelMode; label: string; hint: string; fileTag: string }[] = [
+  { mode: 'METHOD_CODE', label: 'Mã Biện Pháp', hint: 'ST04-L-0146 · bản vẽ biện pháp bàn giao', fileTag: 'BP' },
+  { mode: 'SURVEY_CODE', label: 'Mã Khảo Sát', hint: 'C&C-04-B-0146 · đối soát hiện trường', fileTag: 'KS' },
+];
+
+const buildFileName = (drawingCode: string, labelMode: ParcelLabelMode, revision: string): string => {
   const date = new Date();
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-  return `BinhDo_${drawingCode}_${revision}_${stamp}.svg`;
+  const tag = LABEL_MODE_OPTIONS.find((option) => option.mode === labelMode)?.fileTag ?? 'KS';
+  return `BinhDo_${drawingCode}_${tag}_${revision}_${stamp}.svg`;
 };
 
 const printSvg = (svg: string) => {
@@ -110,6 +116,7 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
   const zoneName = zoneConfig?.name ?? zoneId;
   const drawingConfig = useZoneDrawingConfig(zoneCode);
 
+  const [labelMode, setLabelMode] = useState<ParcelLabelMode>('METHOD_CODE');
   const [autoRotate, setAutoRotate] = useState<boolean>(true);
   const [showLabels, setShowLabels] = useState<boolean>(true);
   const [showCompass, setShowCompass] = useState<boolean>(true);
@@ -209,6 +216,7 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
         includeControlTable: showControlTable,
         includeLegend: showLegend,
         includeScaleBar: showScaleBar,
+        parcelLabelMode: labelMode,
       });
       if (generated.missingLogos.length > 0) {
         console.error('[ZoneSvgExport:Logo] Missing title block logos:', generated.missingLogos);
@@ -220,7 +228,7 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
     }
   }, [
     isLoading, loadError, isConfigPending, zoneConfig, zoneId, zoneCode, zoneName, parcels, surveyBoundary, titleBlock,
-    autoRotate, showCompass, showLabels, showRouteScheme, showControlTable, showLegend, showScaleBar,
+    autoRotate, showCompass, showLabels, showRouteScheme, showControlTable, showLegend, showScaleBar, labelMode,
   ]);
 
   const svgContent = result?.svg ?? null;
@@ -324,6 +332,23 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-5 py-2.5">
+          <div className="flex items-center rounded-xl border border-slate-300 bg-slate-100 p-0.5" role="tablist" aria-label="Chế độ nhãn thửa">
+            {LABEL_MODE_OPTIONS.map(({ mode, label, hint }) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={labelMode === mode}
+                onClick={() => setLabelMode(mode)}
+                title={hint}
+                className={`rounded-lg px-3 py-1 text-xs font-bold cursor-pointer ${
+                  labelMode === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {toggles.map(({ label, checked, onChange }) => (
             <label key={label} className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
               <input
@@ -543,7 +568,7 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
             </button>
             <button
               type="button"
-              onClick={() => svgContent && result && downloadSvgFile(svgContent, buildFileName(result.identity.drawingCode, latestRevision))}
+              onClick={() => svgContent && result && downloadSvgFile(svgContent, buildFileName(result.identity.drawingCode, result.labelMode, latestRevision))}
               disabled={!svgContent}
               className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >

@@ -502,6 +502,22 @@ const main = async () => {
     verifyCadLayout(zone, withExtras.svg, withExtras, expected);
     const plain = generateZoneTechnicalSvg(options);
     check(zone, 'Mặc định không có chú giải & thước tỷ lệ (như PDF)', !plain.svg.includes('id="chu-giai"') && !plain.svg.includes('id="thuoc-ty-le"'));
+    check(zone, 'Mặc định nhãn mã khảo sát, tiêu đề khảo sát', plain.labelMode === 'SURVEY_CODE' && !plain.svg.includes('BIỆN PHÁP'));
+
+    // Chế độ Mã Biện Pháp: mã giả lập (không phụ thuộc cột method_code của DB đang kiểm thử)
+    const withMethod = options.parcels.map((parcel) => ({ ...parcel, methodCode: `MC-${parcel.code}` }));
+    const method = generateZoneTechnicalSvg({ ...options, parcels: withMethod, parcelLabelMode: 'METHOD_CODE' });
+    const labelTexts = [...method.svg.matchAll(/<text data-code="[^"]*" data-method-code="([^"]*)"[^>]*>([^<]*)<\/text>/g)];
+    check(zone, 'Biện pháp: nhãn in mã biện pháp', labelTexts.length > 0 && labelTexts.every((m) => m[1] === m[2]), String(labelTexts.length));
+    check(zone, 'Biện pháp: path giữ data-code & thêm data-method-code', (method.svg.match(/<path data-code="[^"]*" data-method-code="/g) ?? []).length === method.parcelCount);
+    check(zone, 'Biện pháp: tiêu đề khung tên VI/EN', method.svg.includes('BẢN VẼ BIỆN PHÁP KHẢO SÁT HIỆN TRẠNG') && method.svg.includes('METHOD STATEMENT DRAWING') && method.identity.drawingCode === result.identity.drawingCode);
+    let missingThrown = false;
+    try {
+      generateZoneTechnicalSvg({ ...options, parcels: withMethod.map((p, i) => (i === 0 ? { ...p, methodCode: null } : p)), parcelLabelMode: 'METHOD_CODE' });
+    } catch (err: unknown) {
+      missingThrown = err instanceof Error && err.message.includes('chưa có mã biện pháp');
+    }
+    check(zone, 'Biện pháp: thiếu mã thì chặn, không fallback', missingThrown);
 
     if (zone === 'ZONE_01') {
       // Khung tên đã lưu: tên ký, số bản vẽ và 8 lần phát hành (chỉ hiện 7 lần mới nhất)
