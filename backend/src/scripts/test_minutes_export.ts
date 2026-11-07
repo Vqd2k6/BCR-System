@@ -17,6 +17,8 @@ import { Database } from '../database/db';
 import { fetchCondoUnitAbsenceMap } from '../modules/audit/condo/condo-absence.resolver';
 import type { JwtPayload } from '../common/guards/auth.guard';
 import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
+import { PgProgressDataSource } from '../modules/progress-report/data/pg-progress.datasource';
+import { isInaccessible } from '../modules/progress-report/rules/condition.classifier';
 import { ReportImageResolver } from '../modules/report/services/report-image-resolver.service';
 import { Appendix3And4Mapper } from '../modules/report/mappers/appendices/appendix-3-4-records.mapper';
 import { resolveLocalRepresentative } from '../modules/report/mappers/appendices/local-authority.rules';
@@ -60,14 +62,47 @@ const main = async () => {
   // 3. Vắng chủ và nhãn
   const absentees = items.filter((i) => i.category === 'ABSENTEE');
   const absenceMap = await fetchCondoUnitAbsenceMap(items.flatMap((i) => (i.reportId && i.unitCode ? [i.reportId] : [])));
-  const resolverAbsent = [...absenceMap.values()].filter((a) => a.state === 'ABSENT').length;
+  // Nghi vắng (SUSPECTED) cũng là vắng, cùng quy tắc với Excel tiến độ
+  const resolverAbsent = [...absenceMap.values()].filter((a) => a.state === 'ABSENT' || a.state === 'SUSPECTED').length;
   check('Có hồ sơ vắng chủ', absentees.length > 0, `${absentees.length}`);
   check('Hồ sơ vắng khớp resolver', absentees.filter((i) => absenceMap.has(String(i.reportId))).length === resolverAbsent, `${resolverAbsent}`);
-  check('Hồ sơ vắng không xuất biên bản', absentees.every((i) => !i.fileName && i.label === null && i.docPageCount === 0 && i.note === 'Chưa có biên bản vắng nhà'));
+  check('Hồ sơ vắng không xuất biên bản', absentees.every((i) => !i.fileName && i.label === null && i.docPageCount === 0 && (i.note === 'Chưa có biên bản vắng nhà' || Boolean(i.note?.startsWith('Nghi vắng')))));
   check('Hồ sơ xuất được đều là MINUTES', exportable.length === items.filter((i) => i.category === 'MINUTES').length);
   check('Không căn vắng nào có biên bản', !exportable.some((i) => absenceMap.get(String(i.reportId))?.state === 'ABSENT'));
-  const suspected = exportable.filter((i) => absenceMap.get(String(i.reportId))?.state === 'SUSPECTED');
-  check('Căn nghi vắng xuất kèm ghi chú', suspected.every((i) => i.note?.includes('Nghi vắng, cần Admin xác nhận')), `${suspected.length} căn`);
+  check('Không căn nghi vắng nào có biên bản', !exportable.some((i) => absenceMap.get(String(i.reportId))?.state === 'SUSPECTED'));
+
+  // 3b. Khớp Excel tiến độ: cùng tập dòng, dòng Excel ghi VẮNG thì không có biên bản
+  const progressRows = await new PgProgressDataSource().fetchRows({ zoneId: zone });
+  const progressKeys = new Set(progressRows.map((r) => r.unitId ?? r.parcelId));
+  check(
+    'Tập dòng biên bản = tập dòng Excel tiến độ',
+    progressKeys.size === keys.size && [...keys].every((k) => progressKeys.has(k)),
+    `biên bản ${keys.size} / Excel ${progressKeys.size}`
+  );
+  const byKey = new Map(items.map((i) => [i.key, i]));
+  const absentWithMinutes = progressRows.filter((r) => isInaccessible(r) && byKey.get(r.unitId ?? r.parcelId)?.category === 'MINUTES');
+  check('Excel ghi VẮNG thì không có biên bản', absentWithMinutes.length === 0, `${absentWithMinutes.length}`);
+  const masterReport = await Database.query<{ id: string }>(
+    `SELECT r.id FROM base_survey_reports r
+       JOIN parcels p ON p.id = r.parcel_id
+       LEFT JOIN building_units u ON u.id = r.unit_id
+      WHERE r.deleted_at IS NULL AND r.phase = 'PHASE_1' AND p.zone_id = $1
+        AND r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'APPROVED')
+        AND ((r.unit_id IS NOT NULL AND u.unit_type = 'MASTER')
+          OR (r.unit_id IS NULL AND UPPER(COALESCE(p.building_type, '')) IN ('CONDO', 'CONDOMINIUM')
+              AND EXISTS (SELECT 1 FROM building_units bu WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL AND COALESCE(bu.unit_type, 'UNIT') = 'UNIT')))
+      LIMIT 1;`,
+    [zone]
+  );
+  if (masterReport.rows[0]) {
+    let scopeRejected = false;
+    try {
+      await MinutesExportService.renderMinutesPdf(await ReportService.resolve(masterReport.rows[0].id));
+    } catch (err) {
+      scopeRejected = String((err as Error).message).includes('không thuộc phạm vi');
+    }
+    check('API từ chối xuất biên bản tòa mẹ / khu vực chung', scopeRejected);
+  }
   if (absentees[0]?.reportId) {
     let rejected = false;
     try {
@@ -141,8 +176,8 @@ const main = async () => {
   const absenteeCaption = Appendix3And4Mapper.mapAppendix3({ project_parcel_code: 'C&C-05-B-0004', is_refused_or_absent: true }, docPhoto).signedRecordPages[0].title.vi;
   check('Chú thích vắng chủ có mã thửa', absenteeCaption.includes('vắng chủ C&C-05-B-0004 - trang 1/1'), absenteeCaption);
 
-  // 5. Mẫu PDF: vắng chủ, APPROVED, thường
-  const samples = [suspected[0], approved[0], exportable.find((i) => i.category === 'MINUTES' && i.docPageCount >= 4)].filter(Boolean);
+  // 5. Mẫu PDF: APPROVED và hồ sơ thường (căn nghi vắng không còn xuất biên bản)
+  const samples = [approved[0], exportable.find((i) => i.category === 'MINUTES' && i.docPageCount >= 4)].filter(Boolean);
   const outDir = process.env.MINUTES_OUT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'minutes-'));
   for (const item of samples) {
     const start = Date.now();

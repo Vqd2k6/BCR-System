@@ -55,7 +55,23 @@ export interface MinutesPdfResult {
 const LABEL_SIGNED = 'ĐÃ KÝ XÁC NHẬN';
 const LABEL_SCANNED = 'CÓ BẢN QUÉT BIÊN BẢN';
 const NOTE_NO_ABSENT_RECORD = 'Chưa có biên bản vắng nhà';
-const NOTE_SUSPECTED_ABSENT = 'Nghi vắng, cần Admin xác nhận';
+const NOTE_SUSPECTED_ABSENT = 'Nghi vắng, cần Admin xác nhận đã tiếp cận trước khi xuất';
+const OUT_OF_SCOPE_MESSAGE = 'Biên bản chỉ xuất cho nhà dân và căn hộ; tòa mẹ chung cư / khu vực chung không thuộc phạm vi';
+
+/**
+ * Phạm vi biên bản = phạm vi Excel tiến độ (progress-report/data/pg-progress.datasource.ts BUILDINGS_SQL / UNITS_SQL):
+ *   - Căn hộ: chỉ unit_type = UNIT (bỏ khu vực chung MASTER).
+ *   - Thửa: bỏ dòng tòa mẹ chung cư (building_type CONDO/CONDOMINIUM có ít nhất 1 căn UNIT).
+ * Sửa một bên thì phải sửa bên kia, nếu không số dòng hai báo cáo sẽ lệch.
+ */
+const UNIT_IN_SCOPE_SQL = (alias: string) => `COALESCE(${alias}.unit_type, 'UNIT') = 'UNIT'`;
+const CONDO_MASTER_PARCEL_SQL = (alias: string) => `(
+  UPPER(COALESCE(${alias}.building_type, '')) IN ('CONDOMINIUM', 'CONDO')
+  AND EXISTS (
+    SELECT 1 FROM building_units scope_u
+     WHERE scope_u.parcel_id = ${alias}.id AND scope_u.deleted_at IS NULL AND ${UNIT_IN_SCOPE_SQL('scope_u')}
+  )
+)`;
 
 const STATUS_TEXT: Record<string, string> = {
   SUBMITTED: 'Đã nộp – Chưa phê duyệt',
@@ -93,7 +109,11 @@ const isAbsentRecord = (
   absence: CondoUnitAbsenceResult | undefined,
   report: Record<string, unknown>,
   json: Record<string, unknown>
-): boolean => (absence ? absence.state === 'ABSENT' : Appendix3And4Mapper.isAbsenteeReport(report, json));
+): boolean =>
+  // Nghi vắng (SUSPECTED) cũng là vắng, cùng quy tắc isInaccessible của Excel tiến độ: vắng thì không có biên bản
+  absence
+    ? absence.state === 'ABSENT' || absence.state === 'SUSPECTED'
+    : Appendix3And4Mapper.isAbsenteeReport(report, json);
 
 const newestFirst = (a: ReportRow, b: ReportRow): number =>
   new Date(b.submitted_at ?? b.created_at).getTime() - new Date(a.submitted_at ?? a.created_at).getTime();
@@ -167,13 +187,12 @@ export class MinutesExportService {
         label: null,
         docPageCount: 0,
         fileName: null,
-        note: NOTE_NO_ABSENT_RECORD,
+        note: absence?.state === 'SUSPECTED' ? NOTE_SUSPECTED_ABSENT : NOTE_NO_ABSENT_RECORD,
       };
     }
 
     const docs = Appendix3And4Mapper.collectSignedRecordDocs(report, report.json_subset, report.doc_photos);
     const hasDocs = docs.length > 0;
-    const suspectedNote = absence?.state === 'SUSPECTED' ? NOTE_SUSPECTED_ABSENT : null;
     return {
       key,
       reportId: report.id,
@@ -185,7 +204,7 @@ export class MinutesExportService {
       label: hasDocs ? resolveLabel(report.status) : null,
       docPageCount: docs.length,
       fileName: hasDocs ? buildMinutesFileName(parcelCode, unitCode) : null,
-      note: hasDocs ? [note, suspectedNote].filter(Boolean).join('; ') || null : 'Hồ sơ chưa có ảnh biên bản',
+      note: hasDocs ? note : 'Hồ sơ chưa có ảnh biên bản',
     };
   }
 
@@ -199,9 +218,10 @@ export class MinutesExportService {
     const [parcelRes, unitRes, reportRes] = await Promise.all([
       Database.query<{ id: string; project_parcel_code: string; active_phase1_report_id: string | null }>(
         `SELECT id, project_parcel_code, active_phase1_report_id
-         FROM parcels
-         WHERE lifecycle_status = 'ACTIVE' AND zone_id = ANY($1)
-         ORDER BY project_parcel_code;`,
+         FROM parcels p
+         WHERE p.lifecycle_status = 'ACTIVE' AND p.zone_id = ANY($1)
+           AND NOT ${CONDO_MASTER_PARCEL_SQL('p')}
+         ORDER BY p.project_parcel_code;`,
         [zones]
       ),
       Database.query<{ id: string; parcel_id: string; unit_code: string; phase1_report_id: string | null }>(
@@ -209,6 +229,7 @@ export class MinutesExportService {
          FROM building_units u
          JOIN parcels p ON p.id = u.parcel_id
          WHERE u.deleted_at IS NULL AND p.lifecycle_status = 'ACTIVE' AND p.zone_id = ANY($1)
+           AND ${UNIT_IN_SCOPE_SQL('u')}
          ORDER BY u.unit_code;`,
         [zones]
       ),
@@ -289,10 +310,29 @@ export class MinutesExportService {
     return report;
   }
 
+  /** Chặn xuất lẻ / xuất zip cho hồ sơ tòa mẹ chung cư hoặc khu vực chung (ngoài phạm vi Excel tiến độ). */
+  private static async assertInProgressScope(reportId: string): Promise<void> {
+    const res = await Database.query<{ in_scope: boolean }>(
+      `SELECT CASE
+                WHEN r.unit_id IS NOT NULL THEN COALESCE(u.unit_type, 'UNIT') = 'UNIT'
+                ELSE NOT ${CONDO_MASTER_PARCEL_SQL('p')}
+              END AS in_scope
+         FROM base_survey_reports r
+         JOIN parcels p ON p.id = r.parcel_id
+         LEFT JOIN building_units u ON u.id = r.unit_id
+        WHERE r.id = $1;`,
+      [reportId]
+    );
+    if (res.rows[0] && res.rows[0].in_scope === false) {
+      throw new UnprocessableEntityError(OUT_OF_SCOPE_MESSAGE);
+    }
+  }
+
   public static async renderMinutesPdf(resolved: ResolvedReport): Promise<MinutesPdfResult> {
     if (!isExportable(resolved.status)) {
       throw new ConflictError(`Hồ sơ ở trạng thái ${resolved.status} chưa được phép xuất biên bản`);
     }
+    await this.assertInProgressScope(resolved.id);
 
     const rawReport = await applyCondoReportContext(await this.loadSourceReport(resolved));
     const json = (rawReport.survey_data_json ?? {}) as Record<string, any>;
