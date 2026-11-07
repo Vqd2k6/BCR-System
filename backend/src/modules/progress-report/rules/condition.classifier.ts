@@ -1,6 +1,7 @@
 import type { BraRiskCode, ConditionCode, EcsConditionCode, RawProgressRow } from '../progress-report.types';
 import type { ProgressReportConfig } from '../config/config.schema';
 import { firstNumber, firstText, getPath, toNumber } from './json-reader';
+import { resolveSiteCase, type SiteCase } from './site-case';
 
 /**
  * Phân loại:
@@ -293,8 +294,20 @@ export function isInaccessible(row: RawProgressRow): boolean {
 /**
  * Phân loại Cột U – "Tình trạng hiện tại" (ECS: GOOD, MEDIUM, DEFICIENT, CRITICAL) + INACCESSIBLE.
  */
+/**
+ * Đang thi công / Đất trống: chỉ áp cho hồ sơ đã nộp (DRAFT vẫn là "Đang thực hiện") và không vắng.
+ * Không chấm ECS/BRA, không đếm vào Cần theo dõi / Nguy cơ cao.
+ */
+export function siteCaseOf(row: RawProgressRow): SiteCase | null {
+  if (isInaccessible(row)) return null;
+  if (!row.reportId || !row.reportStatus || !SCORED_STATUSES.has(row.reportStatus)) return null;
+  return resolveSiteCase(row.reportJson);
+}
+
 export function classifyEcsCondition(row: RawProgressRow): EcsConditionCode | null {
   if (isInaccessible(row)) return 'INACCESSIBLE';
+  const siteCase = siteCaseOf(row);
+  if (siteCase) return siteCase;
   if (!row.reportId || !row.reportStatus || !SCORED_STATUSES.has(row.reportStatus)) return null;
   const snap = readRiskSnapshot(row);
   return normalizeEcsGrade(snap.ecsClass);
@@ -305,6 +318,7 @@ export function classifyEcsCondition(row: RawProgressRow): EcsConditionCode | nu
  */
 export function classifyBraGrade(row: RawProgressRow): BraRiskCode | null {
   if (isInaccessible(row)) return null;
+  if (siteCaseOf(row)) return null;
   if (!row.reportId || !row.reportStatus || !SCORED_STATUSES.has(row.reportStatus)) return null;
   const snap = readRiskSnapshot(row);
   return normalizeBraGrade(snap.bra);
@@ -334,6 +348,8 @@ export function resolveConstructionYear(row: RawProgressRow): number | null {
 export function classifyCondition(row: RawProgressRow, config: ProgressReportConfig): ConditionCode | null {
   if (isInaccessible(row)) return 'INACCESSIBLE';
   if (!row.reportId || !row.reportStatus || !SCORED_STATUSES.has(row.reportStatus)) return null;
+  const siteCase = siteCaseOf(row);
+  if (siteCase) return siteCase;
 
   const risk = readRiskSnapshot(row);
   const hasAnyScore = Boolean(risk.ecsClass || risk.bra || risk.burlandMax !== null);

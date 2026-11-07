@@ -160,7 +160,8 @@ export interface ExportParcelItem {
   updatedAt?: string;
 }
 
-export type MinutesCategory = 'MINUTES' | 'ABSENTEE' | 'NONE';
+/** SITE_CASE: công trình đang thi công / đất trống, không lập biên bản */
+export type MinutesCategory = 'MINUTES' | 'ABSENTEE' | 'SITE_CASE' | 'NONE';
 
 export interface MinutesListItem {
   key: string;

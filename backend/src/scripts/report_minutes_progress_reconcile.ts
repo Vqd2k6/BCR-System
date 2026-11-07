@@ -5,7 +5,7 @@
  */
 import { Database, pool } from '../database/db';
 import { PgProgressDataSource } from '../modules/progress-report/data/pg-progress.datasource';
-import { isInaccessible } from '../modules/progress-report/rules/condition.classifier';
+import { isInaccessible, siteCaseOf } from '../modules/progress-report/rules/condition.classifier';
 import { mapSurveyProgress } from '../modules/progress-report/rules/survey-status.mapper';
 import { MinutesExportService } from '../modules/report/services/minutes-export.service';
 
@@ -13,6 +13,7 @@ const TAG = '[MinutesReconcile]';
 const ISSUES = {
   absentWithMinutes: 'Excel VẮNG nhưng có biên bản',
   minutesAbsentOnly: 'Biên bản coi vắng nhưng Excel không',
+  siteCaseMismatch: 'Đang thi công / Đất trống lệch giữa Excel và biên bản',
   differentReport: 'Hai bên chọn hồ sơ khác nhau',
   surveyedNoMinutes: 'Excel đã khảo sát nhưng chưa có ảnh biên bản',
   onlyInExcel: 'Có trong Excel, không có trong DS biên bản',
@@ -61,10 +62,14 @@ async function main(): Promise<number> {
       bump(`Biên bản · ${item.category}`);
       if (absent && item.category === 'MINUTES') flag('absentWithMinutes', `${code} (${item.reportStatus}) ${item.note ?? ''}`);
       if (!absent && item.category === 'ABSENTEE') flag('minutesAbsentOnly', `${code} Excel=${progress}`);
+      const siteCase = siteCaseOf(row);
+      if (Boolean(siteCase) !== (item.category === 'SITE_CASE')) {
+        flag('siteCaseMismatch', `${code} Excel=${siteCase ?? '-'} biên bản=${item.category}`);
+      }
       if (item.reportId && row.reportId && item.reportId !== row.reportId) {
         flag('differentReport', `${code} Excel=${row.reportId}(${row.reportStatus}) biên bản=${item.reportId}(${item.reportStatus})`);
       }
-      if (!absent && (progress === 'SURVEY_DONE_REPORTING' || progress === 'REPORT_DONE') && item.category !== 'MINUTES') {
+      if (!absent && !siteCase && (progress === 'SURVEY_DONE_REPORTING' || progress === 'REPORT_DONE') && item.category !== 'MINUTES') {
         flag('surveyedNoMinutes', `${code} (${row.reportStatus}) ${item.note ?? ''}`);
       }
     }
@@ -72,7 +77,7 @@ async function main(): Promise<number> {
       if (!excelKeys.has(item.key)) flag('onlyInMinutes', `${item.parcelCode} ${item.unitCode ?? ''} ${item.category}`);
     }
 
-    hardFailures += (samples.get('absentWithMinutes')?.length ?? 0) + (samples.get('onlyInExcel')?.length ?? 0) + (samples.get('onlyInMinutes')?.length ?? 0);
+    hardFailures += (samples.get('siteCaseMismatch')?.length ?? 0) + (samples.get('absentWithMinutes')?.length ?? 0) + (samples.get('onlyInExcel')?.length ?? 0) + (samples.get('onlyInMinutes')?.length ?? 0);
 
     console.log(`\n===== ${zone}: Excel ${rows.length} dòng | DS biên bản ${minutes.length} dòng =====`);
     Object.entries(counts)

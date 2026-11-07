@@ -25,7 +25,7 @@ export interface ColumnDefinition {
 export interface LegendItem {
   text: string;
   span: number; // số cột gộp
-  colorKey?: 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE';
+  colorKey?: 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE' | 'SITE_CASE';
 }
 
 export interface LegendRow {

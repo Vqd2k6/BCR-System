@@ -8,7 +8,7 @@ import type { ProgressReportConfig } from '../config/config.schema';
  */
 
 function emptyRow(label: string): SummaryRow {
-  return { label, needed: 0, surveyed: 0, inaccessible: 0, withFoundation: 0, monitor: 0, highRisk: 0 };
+  return { label, needed: 0, surveyed: 0, inaccessible: 0, withFoundation: 0, monitor: 0, highRisk: 0, underConstruction: 0, vacantLand: 0 };
 }
 
 export function groupLabelOf(record: ProgressRecord, multiZone: boolean, config: ProgressReportConfig): string {
@@ -51,6 +51,8 @@ export function calculateSummary(
     if (r.hasFoundationInfo) g.withFoundation += 1;
     if (r.condition === 'MONITOR') g.monitor += 1;
     if (r.condition === 'HIGH_RISK') g.highRisk += 1;
+    if (r.condition === 'UNDER_CONSTRUCTION') g.underConstruction += 1;
+    if (r.condition === 'VACANT_LAND') g.vacantLand += 1;
   }
 
   const fixedLabels = new Set([config.labels.sideRight, config.labels.sideLeft]);
@@ -66,6 +68,8 @@ export function calculateSummary(
       withFoundation: acc.withFoundation + g.withFoundation,
       monitor: acc.monitor + g.monitor,
       highRisk: acc.highRisk + g.highRisk,
+      underConstruction: acc.underConstruction + g.underConstruction,
+      vacantLand: acc.vacantLand + g.vacantLand,
     }),
     emptyRow('TỔNG SỐ LƯỢNG')
   );

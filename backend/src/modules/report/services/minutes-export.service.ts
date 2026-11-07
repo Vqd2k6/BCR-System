@@ -17,6 +17,7 @@ import {
 } from '../../../common/errors/problem-details';
 import { fetchCondoUnitAbsenceMap, type CondoUnitAbsenceResult } from '../../audit/condo/condo-absence.resolver';
 import { CadastralRepository } from '../../cadastral/cadastral.repository';
+import { resolveSiteCase, SITE_CASE_MINUTES_NOTE } from '../../progress-report/rules/site-case';
 import { PdfRenderEngine } from '../engine/pdf-render.engine';
 import { RenderQueue } from '../engine/render-queue';
 import { Appendix3And4Mapper } from '../mappers/appendices/appendix-3-4-records.mapper';
@@ -29,7 +30,8 @@ import { REPORT_PDF_HEADER_TITLE, ReportService, type ResolvedReport } from './r
 
 export const MINUTES_EXPORTABLE_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'];
 
-export type MinutesCategory = 'MINUTES' | 'ABSENTEE' | 'NONE';
+/** SITE_CASE: công trình đang thi công / đất trống, không lập biên bản (cùng phân loại với Excel tiến độ). */
+export type MinutesCategory = 'MINUTES' | 'ABSENTEE' | 'SITE_CASE' | 'NONE';
 
 export interface MinutesListItem {
   key: string;
@@ -191,6 +193,23 @@ export class MinutesExportService {
       };
     }
 
+    const siteCase = resolveSiteCase(report.json_subset);
+    if (siteCase) {
+      return {
+        key,
+        reportId: report.id,
+        parcelCode,
+        unitCode,
+        reportType: report.report_type,
+        reportStatus: report.status,
+        category: 'SITE_CASE',
+        label: null,
+        docPageCount: 0,
+        fileName: null,
+        note: SITE_CASE_MINUTES_NOTE[siteCase],
+      };
+    }
+
     const docs = Appendix3And4Mapper.collectSignedRecordDocs(report, report.json_subset, report.doc_photos);
     const hasDocs = docs.length > 0;
     return {
@@ -240,6 +259,7 @@ export class MinutesExportService {
                   'isAbsentee', r.survey_data_json->'isAbsentee',
                   'isAbsenteeSurvey', r.survey_data_json->'isAbsenteeSurvey',
                   'surveyCaseType', r.survey_data_json->'surveyCaseType',
+                  'isVacantLand', r.survey_data_json->'isVacantLand',
                   'workingMinutesPhotos', r.survey_data_json->'workingMinutesPhotos',
                   'absenteeNoticePhotos', r.survey_data_json->'absenteeNoticePhotos',
                   'absentNoticePhotos', r.survey_data_json->'absentNoticePhotos',
@@ -339,6 +359,10 @@ export class MinutesExportService {
     const absence = (await fetchCondoUnitAbsenceMap([resolved.id])).get(resolved.id);
     if (isAbsentRecord(absence, rawReport, json)) {
       throw new UnprocessableEntityError('Hồ sơ vắng chủ chưa có biên bản vắng nhà để xuất');
+    }
+    const siteCase = resolveSiteCase(json);
+    if (siteCase) {
+      throw new UnprocessableEntityError(SITE_CASE_MINUTES_NOTE[siteCase]);
     }
 
     const identPhotos = (rawReport.identificationPhotos ?? []) as Record<string, unknown>[];

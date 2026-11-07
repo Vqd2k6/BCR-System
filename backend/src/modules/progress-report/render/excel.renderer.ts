@@ -271,6 +271,11 @@ export class ExcelProgressRenderer implements ProgressRenderer {
       pctCell.value = { formula: `IF(${denCol}${r}=0,"-",${letter(c)}${r}/${denCol}${r})`, result: pctResult };
       styleCell(pctCell, { ...base, numFmt: '0.0%' });
     });
-    mergeAndSet(ws, r, 14, r, 18, null, base);
+    // Ô GHI CHÚ: số đã khảo sát nhưng là công trình đang thi công / đất trống (không chấm điểm, không biên bản)
+    const siteParts = [
+      g.underConstruction > 0 ? `${g.underConstruction} đang thi công` : '',
+      g.vacantLand > 0 ? `${g.vacantLand} đất trống` : '',
+    ].filter(Boolean);
+    mergeAndSet(ws, r, 14, r, 18, siteParts.length > 0 ? `Trong đó: ${siteParts.join(', ')}` : null, { ...base, align: 'left' });
   }
 }

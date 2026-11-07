@@ -13,10 +13,25 @@ export type TimeMode = 'TODAY' | 'DATE_RANGE' | 'ALL_TIME';
 export type AlignmentSide = 'RIGHT' | 'LEFT';
 
 /** Mã tổng hợp phục vụ bảng Summary (Cần theo dõi / Nguy cơ cao / Không tiếp cận). */
-export type ConditionCode = 'NEW' | 'OLD' | 'DEGRADED' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE';
+export type ConditionCode =
+  | 'NEW'
+  | 'OLD'
+  | 'DEGRADED'
+  | 'MONITOR'
+  | 'HIGH_RISK'
+  | 'INACCESSIBLE'
+  | 'UNDER_CONSTRUCTION'
+  | 'VACANT_LAND';
 
 /** Cột "Tình trạng hiện tại" (ECS - 4 mức phân hạng + Không tiếp cận được). */
-export type EcsConditionCode = 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' | 'INACCESSIBLE';
+export type EcsConditionCode =
+  | 'GOOD'
+  | 'MEDIUM'
+  | 'DEFICIENT'
+  | 'CRITICAL'
+  | 'INACCESSIBLE'
+  | 'UNDER_CONSTRUCTION'
+  | 'VACANT_LAND';
 
 /** Cột "Mức độ đánh giá rủi ro" (BRA - 4 mức phân hạng). */
 export type BraRiskCode = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
@@ -170,6 +185,9 @@ export interface SummaryRow {
   withFoundation: number;
   monitor: number;
   highRisk: number;
+  /** Đã khảo sát nhưng là công trình đang thi công / đất trống (không chấm điểm, không biên bản) */
+  underConstruction: number;
+  vacantLand: number;
 }
 
 export interface ProgressSummary {

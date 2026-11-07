@@ -19,6 +19,9 @@ export interface ProgressSummaryRow {
   withFoundation: number;
   monitor: number;
   highRisk: number;
+  /** Đã khảo sát nhưng là công trình đang thi công / đất trống */
+  underConstruction?: number;
+  vacantLand?: number;
 }
 
 export type ProgressCellValue = string | number | null;
@@ -56,15 +59,18 @@ export interface ProgressReportConfig {
   degraded: { ecsClasses: string[] };
   includeNotSurveyedRows: boolean;
   labels: {
-    condition: Record<'NEW' | 'OLD' | 'DEGRADED' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE', string>;
-    ecs: Record<'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' | 'INACCESSIBLE', string>;
+    condition: Record<'NEW' | 'OLD' | 'DEGRADED' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE', string> &
+      Partial<Record<'UNDER_CONSTRUCTION' | 'VACANT_LAND', string>>;
+    ecs: Record<'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL' | 'INACCESSIBLE', string> &
+      Partial<Record<'UNDER_CONSTRUCTION' | 'VACANT_LAND', string>>;
     bra: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH', string>;
     surveyProgress: Record<'IN_PROGRESS' | 'SURVEY_DONE_REPORTING' | 'REPORT_DONE' | 'REPORT_SIGNED', string>;
     sideRight: string;
     sideLeft: string;
     sideUnknown: string;
   };
-  colors: Record<'header' | 'legend' | 'total' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE', string>;
+  colors: Record<'header' | 'legend' | 'total' | 'MONITOR' | 'HIGH_RISK' | 'INACCESSIBLE', string> &
+    Partial<Record<'SITE_CASE', string>>;
   sideOverrides: SideOverrideRule[];
 }
 

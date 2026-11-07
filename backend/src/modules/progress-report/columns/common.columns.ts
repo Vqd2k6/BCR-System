@@ -14,6 +14,7 @@ function ecsStyle(code: EcsConditionCode | null, config: ProgressReportConfig): 
   if (code === 'DEFICIENT') return { fillArgb: config.colors.MONITOR };
   if (code === 'CRITICAL') return { fillArgb: config.colors.HIGH_RISK };
   if (code === 'INACCESSIBLE') return { fillArgb: config.colors.INACCESSIBLE };
+  if (code === 'UNDER_CONSTRUCTION' || code === 'VACANT_LAND') return { fillArgb: config.colors.SITE_CASE };
   return undefined;
 }
 

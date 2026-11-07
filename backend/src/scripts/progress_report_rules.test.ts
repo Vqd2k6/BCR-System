@@ -123,6 +123,83 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
 
 const tests: Array<[string, () => void]> = [
   [
+  "Đang thi công (đã nộp): nhãn riêng, không chấm BRA, không tính Cần theo dõi, để trống móng/tầng/năm/cao/hoàn công",
+    () => {
+      const row = raw({
+        reportJson: {
+          surveyCaseType: "UNDER_CONSTRUCTION",
+          constructionStageNotes: "Đang ép cọc vuông.  Loại cọc 20x20, cọc sâu 5m",
+          ecs: { ecsClass: "GOOD" },
+          executiveSummary: { braStatus: "MEDIUM" },
+          constructionYear: 2026,
+          aboveFloors: 2,
+          foundationType: "PILE",
+          buildingHeightM: 7,
+          frontageWidth: 5.8,
+        },
+      });
+      assert.equal(classifyEcsCondition(row), "UNDER_CONSTRUCTION");
+      assert.equal(classifyBraGrade(row), null);
+      assert.equal(classifyCondition(row, CFG), "UNDER_CONSTRUCTION");
+      assert.equal(mapSurveyProgress(row), "SURVEY_DONE_REPORTING");
+      const rec = normalizeRecord(row, CFG);
+      assert.equal(rec.notes, "Đang thi công: Đang ép cọc vuông. Loại cọc 20x20, cọc sâu 5m");
+      assert.equal(rec.foundationType, "");
+      assert.equal(rec.foundationDepth, null);
+      assert.equal(rec.hasFoundationInfo, false);
+      assert.equal(rec.floorsLabel, "");
+      assert.equal(rec.constructionYear, null);
+      assert.equal(rec.heightM, null);
+      assert.equal(rec.asBuilt, "");
+      assert.equal(rec.widthM, 5.8);
+      assert.equal(rec.isSurveyed, true);
+      const ctx = { config: CFG, rowIndex: 0 } as Parameters<typeof COL.condition.resolve>[1];
+      assert.equal(COL.condition.resolve(rec, ctx), "Đang thi công");
+      assert.equal(COL.condition.style(rec, ctx)?.fillArgb, CFG.colors.SITE_CASE);
+      const summary = calculateSummary([rec], [rec], false, CFG);
+      assert.equal(summary.total.underConstruction, 1);
+      assert.equal(summary.total.monitor, 0);
+      assert.equal(summary.total.surveyed, 1);
+    },
+  ],
+  [
+    "Đất trống (cờ isVacantLand hoặc surveyCaseType): nhãn Đất trống, ghi chú hiện trạng",
+    () => {
+      const byFlag = raw({ reportJson: { isVacantLand: true, vacantLandNotes: "Đất trống có rào tôn" } });
+      const byCase = raw({ reportJson: { surveyCaseType: "VACANT_LAND", vacantLandStatus: "Bãi giữ xe" } });
+      assert.equal(classifyEcsCondition(byFlag), "VACANT_LAND");
+      assert.equal(classifyCondition(byCase, CFG), "VACANT_LAND");
+      assert.equal(normalizeRecord(byFlag, CFG).notes, "Đất trống: Đất trống có rào tôn");
+      assert.equal(normalizeRecord(byCase, CFG).notes, "Đất trống: Bãi giữ xe");
+      assert.equal(calculateSummary([normalizeRecord(byCase, CFG)], [normalizeRecord(byCase, CFG)], false, CFG).total.vacantLand, 1);
+    },
+  ],
+  [
+    "Đang thi công còn nháp: vẫn Đang thực hiện, chưa gắn nhãn; vắng thì ưu tiên Không tiếp cận",
+    () => {
+      const draft = raw({ reportStatus: "DRAFT", reportJson: { surveyCaseType: "UNDER_CONSTRUCTION" } });
+      assert.equal(classifyEcsCondition(draft), null);
+      assert.equal(mapSurveyProgress(draft), "IN_PROGRESS");
+      const absent = raw({ reportIsRefusedOrAbsent: true, reportJson: { surveyCaseType: "UNDER_CONSTRUCTION" } });
+      assert.equal(classifyEcsCondition(absent), "INACCESSIBLE");
+    },
+  ],
+  [
+    "Config đã lưu trước đây (thiếu khóa Đang thi công / Đất trống / SITE_CASE) vẫn hợp lệ nhờ default",
+    () => {
+      const legacy = JSON.parse(JSON.stringify(CFG));
+      delete legacy.labels.ecs.UNDER_CONSTRUCTION;
+      delete legacy.labels.ecs.VACANT_LAND;
+      delete legacy.labels.condition.UNDER_CONSTRUCTION;
+      delete legacy.labels.condition.VACANT_LAND;
+      delete legacy.colors.SITE_CASE;
+      const parsed = progressReportConfigSchema.parse(legacy);
+      assert.equal(parsed.labels.ecs.UNDER_CONSTRUCTION, "Đang thi công");
+      assert.equal(parsed.labels.condition.VACANT_LAND, "Đất trống");
+      assert.equal(parsed.colors.SITE_CASE, "FFBDD7EE");
+    },
+  ],
+  [
     "default config hợp lệ theo schema",
     () => assert.equal(progressReportConfigSchema.safeParse(CFG).success, true),
   ],

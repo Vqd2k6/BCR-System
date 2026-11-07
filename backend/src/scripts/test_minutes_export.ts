@@ -18,7 +18,7 @@ import { fetchCondoUnitAbsenceMap } from '../modules/audit/condo/condo-absence.r
 import type { JwtPayload } from '../common/guards/auth.guard';
 import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
 import { PgProgressDataSource } from '../modules/progress-report/data/pg-progress.datasource';
-import { isInaccessible } from '../modules/progress-report/rules/condition.classifier';
+import { isInaccessible, siteCaseOf } from '../modules/progress-report/rules/condition.classifier';
 import { ReportImageResolver } from '../modules/report/services/report-image-resolver.service';
 import { Appendix3And4Mapper } from '../modules/report/mappers/appendices/appendix-3-4-records.mapper';
 import { resolveLocalRepresentative } from '../modules/report/mappers/appendices/local-authority.rules';
@@ -82,6 +82,20 @@ const main = async () => {
   const byKey = new Map(items.map((i) => [i.key, i]));
   const absentWithMinutes = progressRows.filter((r) => isInaccessible(r) && byKey.get(r.unitId ?? r.parcelId)?.category === 'MINUTES');
   check('Excel ghi VẮNG thì không có biên bản', absentWithMinutes.length === 0, `${absentWithMinutes.length}`);
+  // Đang thi công / Đất trống: không lập biên bản, cùng phân loại với Excel
+  const siteRows = items.filter((i) => i.category === 'SITE_CASE');
+  check('Dòng đang thi công / đất trống không có file', siteRows.every((i) => !i.fileName && i.docPageCount === 0), `${siteRows.length} dòng`);
+  const excelSite = new Set(progressRows.filter((r) => siteCaseOf(r)).map((r) => r.unitId ?? r.parcelId));
+  check('Đang thi công / đất trống khớp Excel', excelSite.size === siteRows.length && siteRows.every((i) => excelSite.has(i.key)), `Excel ${excelSite.size} / biên bản ${siteRows.length}`);
+  if (siteRows[0]?.reportId) {
+    let siteRejected = false;
+    try {
+      await MinutesExportService.renderMinutesPdf(await ReportService.resolve(siteRows[0].reportId));
+    } catch (err) {
+      siteRejected = String((err as Error).message).includes('không lập biên bản');
+    }
+    check('API từ chối xuất biên bản công trình đang thi công / đất trống', siteRejected, siteRows[0].parcelCode);
+  }
   const masterReport = await Database.query<{ id: string }>(
     `SELECT r.id FROM base_survey_reports r
        JOIN parcels p ON p.id = r.parcel_id

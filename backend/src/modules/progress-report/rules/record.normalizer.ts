@@ -7,7 +7,9 @@ import {
   classifyEcsCondition,
   isInaccessible,
   resolveConstructionYear,
+  siteCaseOf,
 } from './condition.classifier';
+import { siteCaseNote } from './site-case';
 import { mapSurveyProgress } from './survey-status.mapper';
 import { resolveAlignmentSide, resolveStationCode } from './alignment-side';
 import { resolveOwnerName, resolveOwnerPhone } from './owner-name.resolver';
@@ -202,6 +204,8 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   const ecsCondition = classifyEcsCondition(row);
   const braGrade = classifyBraGrade(row);
   const surveyProgress = mapSurveyProgress(row);
+  // Đang thi công / Đất trống: chưa có công trình hoàn chỉnh nên không in móng, tầng, năm, chiều cao, hoàn công
+  const siteCase = siteCaseOf(row);
 
   const street = stripPrefix(
     firstText(getPath(json, 'street'), getPath(row.masterJson, 'street'), row.parcelStreet),
@@ -241,7 +245,7 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   // Móng chỉ có nghĩa khi KSV vào được nhà và đã nộp; nhà vắng/nháp để trống, khớp số đếm ở bảng tổng hợp.
   const isSurveyedReport =
     Boolean(row.reportId) && !inaccessible && row.reportStatus !== null && row.reportStatus !== 'DRAFT';
-  const hasFoundationScope = !isUnit && isSurveyedReport;
+  const hasFoundationScope = !isUnit && isSurveyedReport && !siteCase;
   const foundationRaw = hasFoundationScope ? firstText(getPath(json, 'foundationType'), row.specFoundationCategory) : '';
   const foundationType = hasFoundationScope ? mapFoundationLabel(foundationRaw) : '';
   const depth = hasFoundationScope ? firstNumber(getPath(json, 'foundationDepthM'), row.specFoundationDepth) : null;
@@ -257,17 +261,17 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   const isAbsentResidential = !isUnit && inaccessible;
   const floors: string | number = isUnit
     ? formatFloor(unitFloor)
-    : isAbsentResidential
+    : isAbsentResidential || siteCase
       ? ''
       : firstNumber(getPath(json, 'aboveFloors'), row.specFloorCount, row.reportId ? row.parcelFloorCount : null) ?? '';
 
-  const year = isAbsentResidential ? null : resolveConstructionYear(row);
+  const year = isAbsentResidential || siteCase ? null : resolveConstructionYear(row);
   const catScore = firstNumber(getPath(json, 'foundationCatScore'), row.specFoundationCatScore);
   const hasAsBuilt =
     arrayLength(getPath(json, 'asBuiltDrawingPhotos')) > 0 ||
     arrayLength(getPath(json, 'asBuiltDrawingFiles')) > 0 ||
     (catScore !== null && catScore >= 1 && catScore <= 2);
-  const asBuilt = !row.reportId || inaccessible ? '' : hasAsBuilt ? 'Có' : 'Không';
+  const asBuilt = !row.reportId || inaccessible || siteCase ? '' : hasAsBuilt ? 'Có' : 'Không';
 
   const startDate = minDate(row.reportSurveyDate, row.reportCreatedAt, row.absenceFirstAt);
   let endDate: Date | null = null;
@@ -295,7 +299,7 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
         getPath(json, 'photoP02.widthM'),
         row.parcelFrontageWidth
       );
-  const heightM = isUnit
+  const heightM = isUnit || siteCase
     ? null
     : positiveNumber(
         row.submittedBuildingHeight,
@@ -364,7 +368,7 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     distanceCenterlineM,
     distanceEdgeM,
     surveyProgress,
-    notes: buildNotes(row, inaccessible),
+    notes: siteCase ? siteCaseNote(row.reportJson, siteCase) : buildNotes(row, inaccessible),
     hasFoundationInfo,
     isSurveyed: isSurveyedReport,
     activityDates: collectActivityDates(row),

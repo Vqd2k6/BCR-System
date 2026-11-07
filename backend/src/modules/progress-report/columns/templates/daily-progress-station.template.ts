@@ -20,6 +20,8 @@ export const DAILY_PROGRESS_STATION_TEMPLATE: ProgressTemplate = {
         { text: config.labels.ecs.DEFICIENT, span: 2, colorKey: 'MONITOR' },
         { text: config.labels.ecs.CRITICAL, span: 1, colorKey: 'HIGH_RISK' },
         { text: config.labels.ecs.INACCESSIBLE, span: 2, colorKey: 'INACCESSIBLE' },
+        { text: config.labels.ecs.UNDER_CONSTRUCTION, span: 2, colorKey: 'SITE_CASE' },
+        { text: config.labels.ecs.VACANT_LAND, span: 1, colorKey: 'SITE_CASE' },
       ],
     },
     {

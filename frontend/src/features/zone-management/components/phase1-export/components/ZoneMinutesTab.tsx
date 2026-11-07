@@ -21,6 +21,7 @@ const FILTERS: { value: MinutesFilter; label: string }[] = [
   { value: 'ALL', label: 'Tất cả' },
   { value: 'MINUTES', label: 'Có biên bản' },
   { value: 'ABSENTEE', label: 'Vắng chủ' },
+  { value: 'SITE_CASE', label: 'Đang thi công / Đất trống' },
   { value: 'NONE', label: 'Chưa có' },
 ];
 
@@ -35,6 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
 const LABEL_BADGE: Record<MinutesCategory, string> = {
   MINUTES: 'bg-emerald-950 text-emerald-300 border-emerald-700',
   ABSENTEE: 'bg-amber-950 text-amber-300 border-amber-700',
+  SITE_CASE: 'bg-sky-950 text-sky-300 border-sky-700',
   NONE: 'bg-slate-800 text-slate-300 border-slate-600',
 };
 
@@ -83,7 +85,7 @@ export const ZoneMinutesTab: React.FC<ZoneMinutesTabProps> = ({ zoneId, onZoneCh
   }, [loadMinutes]);
 
   const counts = useMemo(() => {
-    const result: Record<MinutesFilter, number> = { ALL: items.length, MINUTES: 0, ABSENTEE: 0, NONE: 0 };
+    const result: Record<MinutesFilter, number> = { ALL: items.length, MINUTES: 0, ABSENTEE: 0, SITE_CASE: 0, NONE: 0 };
     for (const item of items) result[item.category] += 1;
     return result;
   }, [items]);
@@ -249,6 +251,8 @@ export const ZoneMinutesTab: React.FC<ZoneMinutesTabProps> = ({ zoneId, onZoneCh
                     <td className="px-4 py-2.5">
                       {item.label ? (
                         <span className={`rounded border px-1.5 py-0.5 font-bold ${LABEL_BADGE[item.category]}`}>{item.label}</span>
+                      ) : item.category === 'SITE_CASE' ? (
+                        <span className={`rounded border px-1.5 py-0.5 font-bold ${LABEL_BADGE.SITE_CASE}`}>Không lập biên bản</span>
                       ) : (
                         '---'
                       )}

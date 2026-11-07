@@ -27,6 +27,9 @@ const ecsLabelsSchema = z.object({
   DEFICIENT: z.string().min(1).default('Kém'),
   CRITICAL: z.string().min(1).default('Nguy hiểm'),
   INACCESSIBLE: z.string().min(1).default('Không tiếp cận được'),
+  // Khóa mới có default để các bản config đã lưu trong progress_report_config_versions vẫn hợp lệ
+  UNDER_CONSTRUCTION: z.string().min(1).default('Đang thi công'),
+  VACANT_LAND: z.string().min(1).default('Đất trống'),
 });
 
 const braLabelsSchema = z.object({
@@ -51,6 +54,8 @@ export const progressReportConfigSchema = z.object({
       MONITOR: z.string().min(1),
       HIGH_RISK: z.string().min(1),
       INACCESSIBLE: z.string().min(1),
+      UNDER_CONSTRUCTION: z.string().min(1).default('Đang thi công'),
+      VACANT_LAND: z.string().min(1).default('Đất trống'),
     }),
     ecs: ecsLabelsSchema.default({
       GOOD: 'Tốt',
@@ -58,6 +63,8 @@ export const progressReportConfigSchema = z.object({
       DEFICIENT: 'Kém',
       CRITICAL: 'Nguy hiểm',
       INACCESSIBLE: 'Không tiếp cận được',
+      UNDER_CONSTRUCTION: 'Đang thi công',
+      VACANT_LAND: 'Đất trống',
     }),
     bra: braLabelsSchema.default({
       LOW: 'Thấp',
@@ -82,6 +89,7 @@ export const progressReportConfigSchema = z.object({
     MONITOR: argb,
     HIGH_RISK: argb,
     INACCESSIBLE: argb,
+    SITE_CASE: argb.default('FFBDD7EE'),
   }),
   sideOverrides: z.array(sideOverrideSchema).default([]),
 });

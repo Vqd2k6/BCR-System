@@ -30,6 +30,8 @@ export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
       MONITOR: 'Cần theo dõi',
       HIGH_RISK: 'Nguy cơ cao',
       INACCESSIBLE: 'Không tiếp cận được',
+      UNDER_CONSTRUCTION: 'Đang thi công',
+      VACANT_LAND: 'Đất trống',
     },
     ecs: {
       GOOD: 'Tốt',
@@ -37,6 +39,8 @@ export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
       DEFICIENT: 'Kém',
       CRITICAL: 'Nguy hiểm',
       INACCESSIBLE: 'Không tiếp cận được',
+      UNDER_CONSTRUCTION: 'Đang thi công',
+      VACANT_LAND: 'Đất trống',
     },
     bra: {
       LOW: 'Thấp',
@@ -61,6 +65,7 @@ export const DEFAULT_PROGRESS_CONFIG: ProgressReportConfig = {
     MONITOR: 'FFFFFF00',
     HIGH_RISK: 'FFFF0000',
     INACCESSIBLE: 'FFE49EDD',
+    SITE_CASE: 'FFBDD7EE',
   },
   sideOverrides: [],
 };

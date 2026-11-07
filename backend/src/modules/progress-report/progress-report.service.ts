@@ -136,7 +136,7 @@ export class ProgressReportService {
       periodLabel: table.periodLabel,
       generatedAt: new Date().toISOString(),
       totalRows: table.rows.length,
-      summary: table.summary ?? { groups: [], total: { label: 'TỔNG SỐ LƯỢNG', needed: 0, surveyed: 0, inaccessible: 0, withFoundation: 0, monitor: 0, highRisk: 0 } },
+      summary: table.summary ?? { groups: [], total: { label: 'TỔNG SỐ LƯỢNG', needed: 0, surveyed: 0, inaccessible: 0, withFoundation: 0, monitor: 0, highRisk: 0, underConstruction: 0, vacantLand: 0 } },
       sampleRows,
       columns: table.columns.map(({ key, header, group }) => ({ key, header, group })),
       configVersion,
