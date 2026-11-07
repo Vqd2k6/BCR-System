@@ -41,6 +41,7 @@ import {
   parseGeoJsonOuterRingLngLat,
 } from "../modules/progress-report/geo/alignment-geometry";
 import { calculateSummary } from "../modules/progress-report/summary/summary.calculator";
+import { splitStandardizedAddress } from "../modules/progress-report/rules/address-reader";
 import { normalizeUsageFunction } from "../modules/progress-report/rules/usage-normalizer";
 import { arrangeRecords } from "../modules/progress-report/rules/record.arranger";
 import { DAILY_PROGRESS_STATION_TEMPLATE } from "../modules/progress-report/columns/templates/daily-progress-station.template";
@@ -122,6 +123,34 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
 }
 
 const tests: Array<[string, () => void]> = [
+  [
+    "Tách địa chỉ chuẩn hóa nguyên văn (không đổi Tháng 8, không đoán số nhà chung cư)",
+    () => {
+      assert.deepEqual(splitStandardizedAddress("Số 499/18 Cách Mạng Tháng Tám, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "499/18", street: "Cách Mạng Tháng Tám", ward: "Hòa Hưng" });
+      assert.deepEqual(splitStandardizedAddress("Số 493/2 Cách Mạng Tháng 8, Kp7, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "493/2", street: "Cách Mạng Tháng 8, Kp7", ward: "Hòa Hưng" });
+      assert.deepEqual(splitStandardizedAddress("497B, Cách Mạng Tháng Tám, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "497B", street: "Cách Mạng Tháng Tám", ward: "Hòa Hưng" });
+      assert.deepEqual(splitStandardizedAddress("Số 493/2A, Cách Mạng Tháng 8, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "493/2A", street: "Cách Mạng Tháng 8", ward: "Hòa Hưng" });
+      assert.deepEqual(splitStandardizedAddress("Số 521 Bis Cách Mạng Tháng Tám, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "521 Bis", street: "Cách Mạng Tháng Tám", ward: "Hòa Hưng" });
+      assert.deepEqual(splitStandardizedAddress("Chung cư 522-588, Đường Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh"), { houseNumber: "", street: "Cách Mạng Tháng Tám", ward: "Nhiêu Lộc" });
+      assert.equal(splitStandardizedAddress(""), null);
+    },
+  ],
+  [
+    "Excel lấy địa chỉ chuẩn hóa đã duyệt; chưa chuẩn hóa thì giữ địa chỉ gốc, không quy đổi phường",
+    () => {
+      const audited = normalizeRecord(raw({ parcelWard: "13", parcelStreet: "Phường 13", parcelHouseNumber: "499/18", reportJson: { houseNumber: "499/18  Cách Mạng Tháng Tám", street: "Cách Mạng Tháng Tám", standardizedAddress: "Số 499/18 Cách Mạng Tháng Tám, Phường Hòa Hưng, TP. Hồ Chí Minh" } }), CFG);
+      assert.equal(audited.houseNumber, "499/18");
+      assert.equal(audited.street, "Cách Mạng Tháng Tám");
+      assert.equal(audited.ward, "Hòa Hưng");
+      const original = normalizeRecord(raw({ parcelWard: "13", parcelHouseNumber: "475", reportJson: { houseNumber: "475", street: "Cách Mạng Tháng Tám" } }), CFG);
+      assert.equal(original.ward, "13");
+      assert.equal(original.houseNumber, "475");
+      const condo = normalizeRecord(raw({ parcelHouseNumber: "522-588", reportJson: { houseNumber: "522-588", street: "CMT8", standardizedAddress: "Số Chung Cư 522-588 Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh" } }), CFG);
+      assert.equal(condo.houseNumber, "522-588");
+      assert.equal(condo.street, "CMT8");
+      assert.equal(condo.ward, "Nhiêu Lộc");
+    },
+  ],
   [
   "Đang thi công (đã nộp): nhãn riêng, không chấm BRA, không tính Cần theo dõi, để trống móng/tầng/năm/cao/hoàn công",
     () => {

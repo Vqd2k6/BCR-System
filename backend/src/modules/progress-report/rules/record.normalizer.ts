@@ -10,6 +10,7 @@ import {
   siteCaseOf,
 } from './condition.classifier';
 import { siteCaseNote } from './site-case';
+import { readStandardizedParts } from './address-reader';
 import { mapSurveyProgress } from './survey-status.mapper';
 import { resolveAlignmentSide, resolveStationCode } from './alignment-side';
 import { resolveOwnerName, resolveOwnerPhone } from './owner-name.resolver';
@@ -207,17 +208,22 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
   // Đang thi công / Đất trống: chưa có công trình hoàn chỉnh nên không in móng, tầng, năm, chiều cao, hoàn công
   const siteCase = siteCaseOf(row);
 
+  // Địa chỉ mới nhất: dòng địa chỉ chuẩn hóa đã duyệt ở Thẩm định / Đồng bộ địa chỉ (cùng nguồn với màn Thẩm định và
+  // biên bản PDF) → ô KSV/Admin nhập → tòa mẹ (căn hộ) → địa chỉ gốc của thửa. Tách nguyên văn, không tự quy đổi.
+  const stdOwn = readStandardizedParts(json);
+  const stdMaster = isUnit ? readStandardizedParts(row.masterJson) : null;
+
   const street = stripPrefix(
-    firstText(getPath(json, 'street'), getPath(row.masterJson, 'street'), row.parcelStreet),
+    firstText(stdOwn?.street, getPath(json, 'street'), stdMaster?.street, getPath(row.masterJson, 'street'), row.parcelStreet),
     /^đường\s+/i
   );
   const ward = stripPrefix(
-    firstText(getPath(json, 'ward'), getPath(row.masterJson, 'ward'), row.parcelWard),
+    firstText(stdOwn?.ward, getPath(json, 'ward'), stdMaster?.ward, getPath(row.masterJson, 'ward'), row.parcelWard),
     /^phường\s+/i
   );
 
   const stationCode = resolveStationCode(row.zoneId, row.zoneName);
-  const sideHouseNumber = firstText(getPath(json, 'houseNumber'), row.parcelHouseNumber);
+  const sideHouseNumber = firstText(stdOwn?.houseNumber, getPath(json, 'houseNumber'), row.parcelHouseNumber);
   const side = resolveAlignmentSide(row.computedSide, { ward, street, houseNumber: sideHouseNumber }, config.sideOverrides);
   const sideLabel =
     side === 'RIGHT' ? config.labels.sideRight : side === 'LEFT' ? config.labels.sideLeft : config.labels.sideUnknown;
@@ -229,7 +235,7 @@ export function normalizeRecord(row: RawProgressRow, config: ProgressReportConfi
     ? /lầu|tầng|trệt/i.test(unitCode) || !formatFloor(unitFloor)
       ? unitCode
       : [unitCode, formatFloor(unitFloor)].filter(Boolean).join(' - ')
-    : firstText(getPath(json, 'houseNumber'), row.parcelHouseNumber);
+    : sideHouseNumber;
 
   const buildingName = isUnit
     ? firstText(
