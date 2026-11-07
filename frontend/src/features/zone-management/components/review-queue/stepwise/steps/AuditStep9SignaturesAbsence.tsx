@@ -29,6 +29,7 @@ import type {
   PhotoActionPayload,
   StepwiseAbsenceLogItem,
 } from '../types';
+import { isSuggestedLocalAuthority } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
 export interface AbsentMergedField {
@@ -361,6 +362,17 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   const witnessPhoneField =
     condoAbsentMerge?.witness.phone ?? toSignatureField('witnessPhone', 'SĐT người làm chứng', witnessPhone);
   const isWitnessDirty = witnessNameField.isDirty || witnessRoleField.isDirty || witnessPhoneField.isDirty;
+
+  // Gợi ý CQĐP (gán hàng loạt cấp thửa / quy tắc địa bàn): chỉ khi hồ sơ chưa ghi người làm chứng
+  const rawSuggestedAuthority = data?.suggestedLocalAuthority;
+  const suggestedAuthority =
+    isSuggestedLocalAuthority(rawSuggestedAuthority) && witnessNameField.value.trim() === '' ? rawSuggestedAuthority : null;
+  const applySuggestedAuthority = () => {
+    if (!suggestedAuthority) return;
+    witnessNameField.onChange(suggestedAuthority.name);
+    if (suggestedAuthority.role.trim()) witnessRoleField.onChange(suggestedAuthority.role);
+    if (suggestedAuthority.phone.trim()) witnessPhoneField.onChange(suggestedAuthority.phone);
+  };
 
   // Căn vắng không có biên bản ký 3 bên: chỉ hiển thị thư viện ảnh biên bản khi thực tế có ảnh đã tải lên
   const showMinutesGallery = condoAbsentMerge ? allMinutesItems.length > 0 : (isEditMode || allMinutesItems.length > 0);
@@ -1218,6 +1230,37 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   <span className="font-mono text-slate-700">{witnessPhoneField.value || '---'}</span>
                 )}
               </div>
+
+              {suggestedAuthority && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 text-[10px] font-black uppercase text-amber-800">
+                      <Lightbulb className="w-3 h-3" /> Gợi ý CQĐP ·{' '}
+                      {suggestedAuthority.source === 'PARCEL' ? 'Gán theo thửa' : 'Quy tắc địa bàn'}
+                    </span>
+                    {witnessNameField.isEditable ? (
+                      <button
+                        type="button"
+                        onClick={applySuggestedAuthority}
+                        className="cursor-pointer rounded-md bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-amber-700"
+                      >
+                        Áp dụng
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-amber-700">Bật chế độ sửa để áp dụng vào hồ sơ</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-800">
+                    {[suggestedAuthority.name, suggestedAuthority.role, suggestedAuthority.phone]
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                      .join(' – ')}
+                  </div>
+                  <div className="text-[10px] text-amber-700">
+                    Biên bản hiện trường đang in giá trị này vì hồ sơ để trống người làm chứng.
+                  </div>
+                </div>
+              )}
 
               {witnessSigRes.state === 'DELETED' ? (
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">

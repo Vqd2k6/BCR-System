@@ -555,8 +555,30 @@ export interface AbsenceEvidenceSummary {
   missing: string[];
 }
 
+/** Đại diện CQĐP suy từ giá trị gán hàng loạt cấp thửa hoặc quy tắc địa bàn (backend resolveLocalAuthority). */
+export interface SuggestedLocalAuthority {
+  name: string;
+  role: string;
+  phone: string;
+  source: 'PARCEL' | 'RULE';
+}
+
+export const isSuggestedLocalAuthority = (value: unknown): value is SuggestedLocalAuthority => {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.name === 'string' &&
+    v.name.trim() !== '' &&
+    typeof v.role === 'string' &&
+    typeof v.phone === 'string' &&
+    (v.source === 'PARCEL' || v.source === 'RULE')
+  );
+};
+
 export interface AuditStepwiseData {
   id?: string;
+  /** Chỉ để gợi ý ở Bước 9, không phải giá trị KSV đã ghi. */
+  suggestedLocalAuthority?: SuggestedLocalAuthority | null;
   isResidentialAbsent?: boolean;
   absenceEvidence?: AbsenceEvidenceSummary;
   parcelId?: string;
