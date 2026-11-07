@@ -861,7 +861,7 @@ async function main() {
       assertIncludes(vm.section9.witnessNarrative.vi, 'Gia đình hoàn toàn đồng ý với biên bản đo đạc hiện trạng ngày 20/03/2026', 'section9.witnessNarrative ownerFeedback');
 
       assertIncludes(vm.appendix3.ownerRepresentative.vi, 'Lê Thị Minh Nguyệt', 'appendix3.ownerRepresentative');
-      assertIncludes(vm.appendix3.localAuthority.vi, 'Ông Phạm Văn Chính - Tổ trưởng Tổ dân phố 14', 'appendix3.localAuthority');
+      assertIncludes(vm.appendix3.localAuthority.vi, 'Ông Phạm Văn Chính', 'appendix3.localAuthority');
       assertIncludes(vm.appendix3.supervisionConsultant.vi, 'KS. Hoàng Minh Tuấn - Tư vấn giám sát hiện trường', 'appendix3.supervisionConsultant');
       assertEqual(vm.appendix3.surveyUnit.vi, 'Liên danh CRLG – CRSRI – TT', 'appendix3.surveyUnit');
       assertEqual(vm.appendix3.fieldComments.vi, 'Gia đình hoàn toàn đồng ý với biên bản đo đạc hiện trạng ngày 20/03/2026', 'appendix3.fieldComments');
@@ -1207,7 +1207,7 @@ async function main() {
       const fullRecsVi = vm.section9.recommendations.map((r) => r.vi).join(' | ');
       assertIncludes(fullRecsVi, 'Lắp cảm biến đo nghiêng tự động', 'FullForm section9 recommendations');
       assertIncludes(vm.section9.witnessNarrative.vi, 'Công ty Minh Khai xác nhận đúng 100%', 'FullForm section9 witnessNarrative');
-      assertIncludes(vm.appendix3.localAuthority.vi, 'Bà Nguyễn Thị Thanh - Cán bộ Địa chính Phường 6', 'FullForm appendix3 localAuthority');
+      assertIncludes(vm.appendix3.localAuthority.vi, 'Bà Nguyễn Thị Thanh', 'FullForm appendix3 localAuthority');
       assertEqual(vm.appendix1.length, 8, 'FullForm appendix1 total photos (P01, P02, 2xP03, P04, P05, P06, P07)');
     });
 

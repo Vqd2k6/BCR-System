@@ -129,7 +129,8 @@ const main = async () => {
   check('Zone khác không áp quy tắc', resolveLocalRepresentative('ZONE_01', 'Nhiêu Lộc', '', 'Quận 3') === '');
   check('Phường lạ không suy đoán', resolveLocalRepresentative('ZONE_09', 'Bến Thành', '', 'Quận 1') === '');
   const recordedWitness = Appendix3And4Mapper.mapAppendix3({ zone_id: 'ZONE_09', ward: 'Nhiêu Lộc' }, { signatures: { witnessName: 'Trần B', witnessRole: 'Tổ trưởng' } });
-  check('Hồ sơ có người chứng kiến được ưu tiên', recordedWitness.localAuthority.vi === 'Trần B - Tổ trưởng', recordedWitness.localAuthority.vi);
+  check('Hồ sơ có người chứng kiến được ưu tiên', recordedWitness.localAuthority.vi === 'Trần B', recordedWitness.localAuthority.vi);
+  check('Biên bản không in chức vụ người chứng kiến', !recordedWitness.localAuthority.vi.includes(' - '), recordedWitness.localAuthority.vi);
   const masterAddressJson = { standardizedAddress: 'Số Chung Cư 522-588 Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh' };
   const masterAddress = Appendix3And4Mapper.mapAppendix3({ house_number: '433', street: 'Hảm 618', ward: 'Phường 11' }, masterAddressJson).address.vi;
   check('Địa chỉ chuẩn hóa thay địa chỉ cũ', masterAddress === 'Chung Cư 522-588 Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh', masterAddress);

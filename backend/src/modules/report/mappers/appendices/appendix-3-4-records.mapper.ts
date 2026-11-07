@@ -145,10 +145,10 @@ export class Appendix3And4Mapper {
     // Người làm chứng / đại diện CQĐP: KSV ghi -> giá trị gán cấp thửa -> quy tắc địa bàn (resolveLocalAuthority)
     const localAuthority = resolveLocalAuthority(json, rawReport);
     const witnessName = formatPersonName(localAuthority.name);
-    const witnessRole = localAuthority.role;
     const supName = formatPersonName(json.signatures?.supervisionConsultant?.fullName);
     const supTitle = json.signatures?.supervisionConsultant?.title;
-    const localAuthorityText = witnessName ? `${witnessName}${witnessRole ? ` - ${witnessRole}` : ''}` : '--';
+    // Chỉ in tên đại diện CQĐP, không in chức vụ (thống nhất mọi Zone theo mẫu ZONE_09)
+    const localAuthorityText = witnessName || '--';
     const parcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
     const codeLabel = parcelCode ? ` ${parcelCode}` : '';
 
