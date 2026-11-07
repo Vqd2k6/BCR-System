@@ -44,6 +44,13 @@ function buildOverviewPhotoResolver(surveyJson: Record<string, unknown>) {
   };
 }
 
+/** Khóa có trong JSON hồ sơ nhưng giá trị rỗng / null: Admin hoặc KSV đã xóa trống trường này. */
+const isClearedKey = (json: unknown, key: string): boolean => {
+  if (typeof json !== 'object' || json === null || !Object.prototype.hasOwnProperty.call(json, key)) return false;
+  const value = (json as Record<string, unknown>)[key];
+  return value === null || (typeof value === 'string' && value.trim() === '');
+};
+
 export class AuditReviewService {
   /**
    * Truy vấn danh sách hàng đợi các hồ sơ cần Zone Admin thẩm định (SUBMITTED / POSTPONED_ABSENT / REJECTED)
@@ -1053,7 +1060,8 @@ export class AuditReviewService {
       street: surveyJson.street || report.street,
       ward: report.ward || surveyJson.ward,
       district: report.district || surveyJson.district,
-      ownerName:
+      // Admin đã xóa trống tên / SĐT trong hồ sơ: giữ trống, không rơi về giá trị cũ của bảng thửa
+      ownerName: isClearedKey(surveyJson, 'ownerName') ? '' :
         (typeof surveyJson.ownerName === 'string' &&
           surveyJson.ownerName.trim() &&
           !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(surveyJson.ownerName.trim())
@@ -1066,7 +1074,7 @@ export class AuditReviewService {
           : null) ||
         surveyJson.ownerName ||
         report.owner_name,
-      ownerPhone: surveyJson.ownerPhone || report.owner_phone,
+      ownerPhone: isClearedKey(surveyJson, 'ownerPhone') ? '' : surveyJson.ownerPhone || report.owner_phone,
       officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
       frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : (surveyJson.frontageWidth ?? null),
       lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : (surveyJson.lotDepth ?? null),

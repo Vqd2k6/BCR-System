@@ -99,6 +99,17 @@ function isShortEntityId(targetId?: string): boolean {
   );
 }
 
+/** Khóa có mặt trong bản cập nhật nhưng giá trị rỗng: Admin chủ động xóa trống trường này. */
+function isClearedValue(updates: Record<string, unknown> | null | undefined, key: string): boolean {
+  if (!updates || !Object.prototype.hasOwnProperty.call(updates, key)) return false;
+  const value = updates[key];
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function emptyToNull(value: unknown): unknown {
+  return typeof value === 'string' && value.trim() === '' ? null : value;
+}
+
 function toOptionalNumber(value: unknown, fieldName: string, options?: { integer?: boolean }): number | null {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
@@ -472,8 +483,8 @@ export class AuditModificationService {
              street = COALESCE($2, street),
              ward = COALESCE($3, ward),
              district = COALESCE($4, district),
-             owner_name = COALESCE($5, owner_name),
-             owner_phone = COALESCE($6, owner_phone),
+             owner_name = CASE WHEN $18::boolean THEN NULL ELSE COALESCE($5, owner_name) END,
+             owner_phone = CASE WHEN $19::boolean THEN NULL ELSE COALESCE($6, owner_phone) END,
              official_cadastral_code = COALESCE($7, official_cadastral_code),
              frontage_width = COALESCE($8, frontage_width),
              lot_depth = COALESCE($9, lot_depth),
@@ -512,6 +523,10 @@ export class AuditModificationService {
             report.parcel_id,
             recalculatedCenterlineM,
             newCadastralGeoJsonStr,
+            // Admin xóa trống tên / SĐT chủ hộ (khóa có trong updates, giá trị rỗng): xóa luôn cột của thửa,
+            // nếu không màn Thẩm định / Excel sẽ rơi về giá trị rác cũ trong bảng thửa
+            isClearedValue(u, 'ownerName'),
+            isClearedValue(u, 'ownerPhone'),
           ]
         );
       } else if (report.unit_id) {
@@ -2099,12 +2114,12 @@ export class AuditModificationService {
       // 3.3. Cập nhật thông tin thửa đất và chủ hộ vào bảng parcels nếu có
       const parcelUpdates: Record<string, any> = {};
       for (const fc of params.fieldChanges || []) {
-        if (fc.fieldKey === 'ownerName') parcelUpdates.owner_name = fc.newValue;
+        if (fc.fieldKey === 'ownerName') parcelUpdates.owner_name = emptyToNull(fc.newValue);
         if (fc.fieldKey === 'houseNumber') parcelUpdates.house_number = fc.newValue;
         if (fc.fieldKey === 'street') parcelUpdates.street = fc.newValue;
         if (fc.fieldKey === 'ward') parcelUpdates.ward = fc.newValue;
         if (fc.fieldKey === 'district') parcelUpdates.district = fc.newValue;
-        if (fc.fieldKey === 'ownerPhone') parcelUpdates.owner_phone = fc.newValue;
+        if (fc.fieldKey === 'ownerPhone') parcelUpdates.owner_phone = emptyToNull(fc.newValue);
         if (fc.fieldKey === 'officialCadastralCode') parcelUpdates.official_cadastral_code = fc.newValue;
         if (fc.fieldKey === 'frontageWidth') parcelUpdates.frontage_width = Number(fc.newValue);
         if (fc.fieldKey === 'lotDepth') parcelUpdates.lot_depth = Number(fc.newValue);

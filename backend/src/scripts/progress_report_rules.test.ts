@@ -124,6 +124,19 @@ function raw(overrides: Partial<RawProgressRow> = {}): RawProgressRow {
 
 const tests: Array<[string, () => void]> = [
   [
+    "Chủ hộ nhà dân: Admin xóa trống tên / SĐT trong hồ sơ thì Excel giữ trống, không lấy bảng thửa",
+    () => {
+      const cleared = normalizeRecord(raw({ parcelOwnerName: "Nguyễn Văn Rác", parcelOwnerPhone: "0901234567", reportJson: { ownerName: "", ownerPhone: "" } }), CFG);
+      assert.equal(cleared.ownerName, "");
+      assert.equal(cleared.ownerPhone, "");
+      const noKey = normalizeRecord(raw({ parcelOwnerName: "Nguyễn Văn Bảy", parcelOwnerPhone: "0901234567", reportJson: { ecs: { ecsClass: "GOOD" } } }), CFG);
+      assert.equal(noKey.ownerName, "Nguyễn Văn Bảy");
+      assert.equal(noKey.ownerPhone, "0901234567");
+      const noReport = normalizeRecord(raw({ reportId: null, reportStatus: null, parcelOwnerName: "Nguyễn Văn Bảy", reportJson: null }), CFG);
+      assert.equal(noReport.ownerName, "Nguyễn Văn Bảy");
+    },
+  ],
+  [
     "Tách địa chỉ chuẩn hóa nguyên văn (không đổi Tháng 8, không đoán số nhà chung cư)",
     () => {
       assert.deepEqual(splitStandardizedAddress("Số 499/18 Cách Mạng Tháng Tám, Phường Hòa Hưng, TP. Hồ Chí Minh"), { houseNumber: "499/18", street: "Cách Mạng Tháng Tám", ward: "Hòa Hưng" });

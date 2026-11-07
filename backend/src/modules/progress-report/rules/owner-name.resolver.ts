@@ -29,14 +29,25 @@ function resolveCondoIdentity(row: RawProgressRow, key: 'ownerName' | 'ownerPhon
   return undefined;
 }
 
+/**
+ * Nhà dân: Admin / KSV đã xóa trống tên / SĐT trong hồ sơ (khóa có trong JSON, giá trị rỗng) → giữ trống,
+ * không rơi về giá trị cũ trong bảng thửa (cột đó thường là rác chép từ phiếu KSV).
+ */
+function isClearedInReport(row: RawProgressRow, key: 'ownerName' | 'ownerPhone'): boolean {
+  const json = row.reportJson;
+  if (row.kind === 'CONDO_UNIT' || !row.reportId || !json || !Object.prototype.hasOwnProperty.call(json, key)) return false;
+  return firstText(json[key]) === '';
+}
+
 export function resolveOwnerName(row: RawProgressRow): string {
   const json = row.reportJson;
   const condoValue = resolveCondoIdentity(row, 'ownerName');
   if (condoValue !== undefined) return cleanOwnerName(condoValue);
+  const cleared = isClearedInReport(row, 'ownerName');
   const candidates = [
     firstText(getPath(json, 'ownerName')),
     firstText(getPath(json, 'signatures.ownerRepresentative.fullName')),
-    row.kind === 'CONDO_UNIT' ? row.unitOwnerName ?? '' : row.parcelOwnerName ?? '',
+    cleared ? '' : row.kind === 'CONDO_UNIT' ? row.unitOwnerName ?? '' : row.parcelOwnerName ?? '',
   ];
   for (const c of candidates) {
     const cleaned = cleanOwnerName(c);
@@ -50,7 +61,9 @@ export function resolveOwnerPhone(row: RawProgressRow): string {
   const phone =
     condoValue !== undefined
       ? condoValue
-      : firstText(getPath(row.reportJson, 'ownerPhone'), row.kind === 'CONDO_UNIT' ? row.unitOwnerPhone : row.parcelOwnerPhone);
+      : isClearedInReport(row, 'ownerPhone')
+        ? ''
+        : firstText(getPath(row.reportJson, 'ownerPhone'), row.kind === 'CONDO_UNIT' ? row.unitOwnerPhone : row.parcelOwnerPhone);
   // SĐT KSV điền cho đủ form (1111, 0987654321...) không phải dữ liệu thật
   return isUnknownOwnerPhone(phone) ? '' : phone;
 }

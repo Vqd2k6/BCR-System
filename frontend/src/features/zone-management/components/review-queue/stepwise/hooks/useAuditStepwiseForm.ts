@@ -15,6 +15,13 @@ import type {
 } from '../types';
 import type { StudioCommittedPhotoInfo } from '../context/AuditStudioImgContext';
 
+/** Khóa có trong JSON hồ sơ nhưng rỗng / null: trường đã bị xóa trống, không lấy giá trị dự phòng. */
+const isClearedOwnerField = (json: object | null | undefined, key: 'ownerName' | 'ownerPhone'): boolean => {
+  if (!json || !Object.prototype.hasOwnProperty.call(json, key)) return false;
+  const value: unknown = (json as Record<string, unknown>)[key];
+  return value === null || (typeof value === 'string' && value.trim() === '');
+};
+
 export type { DiffItem };
 
 export function deepReplaceUrlsInValue(val: unknown, replaceMap: Map<string, string>): unknown {
@@ -575,8 +582,9 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       district: data.district || sJson.district || (sJsonRec.districtName as string | undefined) || '',
       standardizedAddress: sJson.standardizedAddress || null,
       buildingName: sJson.buildingName || data.buildingName || 'Nhà ở dân dụng',
-      ownerName: sJson.ownerName || data.ownerName || bSpecs.ownerName || '',
-      ownerPhone: sJson.ownerPhone || data.ownerPhone || bSpecs.ownerPhone || '',
+      // Admin đã xóa trống tên / SĐT trong hồ sơ: giữ trống, không lấy lại giá trị cũ của bảng thửa
+      ownerName: isClearedOwnerField(sJson, 'ownerName') ? '' : sJson.ownerName || data.ownerName || bSpecs.ownerName || '',
+      ownerPhone: isClearedOwnerField(sJson, 'ownerPhone') ? '' : sJson.ownerPhone || data.ownerPhone || bSpecs.ownerPhone || '',
       officialCadastralCode: sJson.officialCadastralCode || data.officialCadastralCode || '',
       buildingType: data.buildingType || sJson.buildingType || 'RESIDENTIAL',
       objectGroup: sJson.objectGroup || bSpecs.buildingGrade || bSpecs.building_grade || 'GENERAL',
@@ -820,8 +828,11 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         surveyorName: sigState.surveyorName || sigState.preparedBy?.fullName || data.surveyorName || '',
         surveyorPhone: sigState.surveyorPhone || data.surveyorPhone || '',
         ownerSignature: sigState.ownerSignature || sigState.ownerRepresentative?.photoUrl || data.ownerSignatureUrl || null,
-        ownerName: sigState.ownerName || sigState.ownerRepresentative?.fullName || data.ownerName || sJson.ownerName || '',
-        ownerPhone: sigState.ownerPhone || sJson.ownerPhone || data.ownerPhone || '',
+        ownerName:
+          sigState.ownerName ||
+          sigState.ownerRepresentative?.fullName ||
+          (isClearedOwnerField(sJson, 'ownerName') ? '' : data.ownerName || sJson.ownerName || ''),
+        ownerPhone: sigState.ownerPhone || (isClearedOwnerField(sJson, 'ownerPhone') ? '' : sJson.ownerPhone || data.ownerPhone || ''),
         ownerFeedback: sigState.ownerFeedback || sigState.ownerRemarks || data.ownerRemarks || '',
         witnessName: sigState.witnessName || sJson.witnessName || '',
         witnessRole: sigState.witnessRole || sJson.witnessRole || 'Tổ trưởng tổ dân phố / Cán bộ địa chính',
