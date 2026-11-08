@@ -15,6 +15,7 @@ import type { OverlayOptions } from 'sharp';
 import { ReportViewModel } from '../report.types';
 import { LOGO_THACO_REC_BASE64 } from '../assets/report-logos';
 import { normalizeMetroPhotoCode } from '../utils/metro-photo-code.utils';
+import { ReportImageResolver } from './report-image-resolver.service';
 
 function escapeXml(str: string): string {
   return String(str || '')
@@ -57,17 +58,28 @@ export class ReportWatermarkCanvasService {
       return base64Uri;
     }
 
-    const cacheKey = `${photoCodeText}|${dateTimeText}|${base64Uri.length}|${base64Uri.slice(-64)}`;
+    // Ảnh đã xoay để dàn trang: dập lên ảnh gốc rồi xoay lại, để dấu quay cùng ảnh (bám chiều gốc).
+    const origin = ReportImageResolver.getRotationOrigin(base64Uri);
+    const sourceUri = origin?.nativeUri ?? base64Uri;
+    const deg = origin?.deg ?? 0;
+
+    const cacheKey = `${photoCodeText}|${dateTimeText}|${deg}|${sourceUri.length}|${sourceUri.slice(-64)}`;
     if (this.stampCache.has(cacheKey)) {
       return this.stampCache.get(cacheKey)!;
     }
 
     try {
-      const commaIdx = base64Uri.indexOf(',');
+      const commaIdx = sourceUri.indexOf(',');
       if (commaIdx === -1) return base64Uri;
-      const imgBuffer = Buffer.from(base64Uri.slice(commaIdx + 1), 'base64');
+      let imgBuffer = Buffer.from(sourceUri.slice(commaIdx + 1), 'base64');
+      const isPng = sourceUri.startsWith('data:image/png');
 
-      const meta = await sharp(imgBuffer).metadata();
+      let meta = await sharp(imgBuffer).metadata();
+      // Cờ EXIF xoay (ảnh chụp trực tiếp từ máy): đưa pixel về đúng chiều trước khi tính bố cục dấu.
+      if (meta.orientation && meta.orientation > 1) {
+        imgBuffer = await sharp(imgBuffer).rotate().toBuffer();
+        meta = await sharp(imgBuffer).metadata();
+      }
       const width = meta.width || 0;
       const height = meta.height || 0;
       if (width < 80 || height < 80) {
@@ -83,8 +95,11 @@ export class ReportWatermarkCanvasService {
       const textSvg = this.buildTextSvg(width, height, shortSide, dateTimeText, photoCodeText);
       if (textSvg) layers.push({ input: Buffer.from(textSvg), top: 0, left: 0 });
 
-      const outBuffer = await sharp(imgBuffer).composite(layers).jpeg({ quality: 90 }).toBuffer();
-      const stampedUri = `data:image/jpeg;base64,${outBuffer.toString('base64')}`;
+      // PNG (sơ đồ CAD, bản scan) giữ PNG để nét vẽ không bị nhòe do nén JPEG.
+      const composed = sharp(imgBuffer).composite(layers);
+      const outBuffer = isPng ? await composed.png().toBuffer() : await composed.jpeg({ quality: 90 }).toBuffer();
+      const stampedNative = `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${outBuffer.toString('base64')}`;
+      const stampedUri = deg ? await ReportImageResolver.rotateUncached(stampedNative, deg) : stampedNative;
 
       if (this.stampCache.size >= this.MAX_CACHE_SIZE) {
         const firstKey = this.stampCache.keys().next().value;
@@ -232,6 +247,24 @@ export class ReportWatermarkCanvasService {
     }
 
     for (const fl of vm.appendix2 || []) {
+      // Sơ đồ CAD mặt bằng kiến trúc / kết cấu (dấu theo chiều gốc bản vẽ, trình duyệt xoay dọc thì dấu xoay theo).
+      if (fl.damageMapBase64 && !fl.damageMapAlreadyWatermarked) {
+        fl.damageMapBase64 = await this.stampImageBase64({
+          base64Uri: fl.damageMapBase64,
+          dateTimeText: defaultDate,
+          photoCodeText: fl.damageMapWatermarkCode || code(`F${String(fl.floorOrder).padStart(2, '0')}_CAD_ARCH`),
+        });
+        fl.damageMapAlreadyWatermarked = true;
+      }
+      if (fl.structuralMapBase64 && !fl.structuralMapAlreadyWatermarked) {
+        fl.structuralMapBase64 = await this.stampImageBase64({
+          base64Uri: fl.structuralMapBase64,
+          dateTimeText: defaultDate,
+          photoCodeText: fl.structuralMapWatermarkCode || code(`F${String(fl.floorOrder).padStart(2, '0')}_CAD_STRUCT`),
+        });
+        fl.structuralMapAlreadyWatermarked = true;
+      }
+
       for (const pair of fl.defectPairPhotos || []) {
         if (pair.contextPhotoBase64 && !pair.contextAlreadyWatermarked) {
           pair.contextPhotoBase64 = await this.stampImageBase64({
@@ -270,6 +303,32 @@ export class ReportWatermarkCanvasService {
             });
             photo.alreadyWatermarked = true;
           }
+        }
+      }
+    }
+
+    // Mục XI: bản scan biên bản hiện trường / thông báo vắng chủ.
+    for (const page of vm.appendix3?.signedRecordPages || []) {
+      if (page.base64 && !page.alreadyWatermarked) {
+        page.base64 = await this.stampImageBase64({
+          base64Uri: page.base64,
+          dateTimeText: page.watermarkDateTime || defaultDate,
+          photoCodeText: page.metroPhotoCode || code(`DOC_MINUTES_${String(page.pageIndex).padStart(2, '0')}`),
+        });
+        page.alreadyWatermarked = true;
+      }
+    }
+
+    // Mục XII: bản vẽ thiết kế / hoàn công do chủ hộ cung cấp.
+    for (const sheet of vm.section12AsBuilt?.sheets || []) {
+      for (const drawing of sheet.drawings || []) {
+        if (drawing.base64 && !drawing.alreadyWatermarked) {
+          drawing.base64 = await this.stampImageBase64({
+            base64Uri: drawing.base64,
+            dateTimeText: defaultDate,
+            photoCodeText: code(drawing.photoCode || `CAT-DWG-${String(drawing.index).padStart(2, '0')}`),
+          });
+          drawing.alreadyWatermarked = true;
         }
       }
     }

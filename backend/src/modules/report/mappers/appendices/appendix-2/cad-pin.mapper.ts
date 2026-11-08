@@ -18,7 +18,8 @@ export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean
   const rawUrl: string = url || photoObj?.url || '';
   // Ảnh upload trước mốc FE ngừng dập watermark: đã có logo + mã + giờ ngay trong pixel.
   if (LegacyWatermarkIndex.has(rawUrl)) return true;
-  const u = rawUrl.toLowerCase();
+  // Chỉ dò từ khóa trên TÊN FILE: thư mục cloud tên "/watermark/" không có nghĩa ảnh đã có dấu.
+  const u = (rawUrl.split('?')[0].split('#')[0].split('/').pop() || '').toLowerCase();
   return (
     u.includes('_wm_') ||
     u.includes('watermark') ||

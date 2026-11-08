@@ -586,8 +586,13 @@ export interface FloorPlanDefectReport {
   damageMapUrl?: string;
   damageMapBase64?: string;
   damageMapRotation?: number;
+  /** Mã dấu sơ đồ CAD: HCM_M2.1_[Mã thửa]_F01_CAD_ARCH. */
+  damageMapWatermarkCode?: string;
+  damageMapAlreadyWatermarked?: boolean;
   structuralMapUrl?: string;
   structuralMapBase64?: string;
+  structuralMapWatermarkCode?: string;
+  structuralMapAlreadyWatermarked?: boolean;
   structuralMapRotation?: number;
   hasStructuralCadMap: boolean;
   hasCadMap?: boolean;
@@ -658,6 +663,7 @@ export interface AsBuiltDrawingItem {
   base64?: string;
   photoCode?: string;
   rotation?: number;
+  alreadyWatermarked?: boolean;
 }
 
 export interface AsBuiltDrawingSheet {

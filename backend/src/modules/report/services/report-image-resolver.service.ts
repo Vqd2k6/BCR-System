@@ -18,6 +18,29 @@ export class ReportImageResolver {
   private static remoteBase64Cache = new Map<string, string>();
   private static rotatedBase64Cache = new Map<string, string>();
   private static MAX_CACHE_SIZE = 300;
+  /**
+   * Ảnh đã xoay sẵn → ảnh gốc + góc xoay. Watermark dập lên ảnh gốc rồi mới xoay,
+   * để dấu luôn bám theo chiều gốc của ảnh (xoay cùng vật thể khi dàn trang).
+   */
+  private static rotationOrigin = new Map<string, { nativeUri: string; deg: number }>();
+
+  public static getRotationOrigin(uri?: string | null): { nativeUri: string; deg: number } | undefined {
+    if (!uri) return undefined;
+    return this.rotationOrigin.get(uri);
+  }
+
+  /** Xoay trực tiếp bằng Sharp, không qua cache (khóa cache theo đầu chuỗi dễ trùng giữa các JPEG đã dập dấu). */
+  public static async rotateUncached(dataUri: string, rotationDeg: number): Promise<string> {
+    const normDeg = ((Number(rotationDeg) || 0) % 360 + 360) % 360;
+    if (normDeg === 0 || !dataUri || !dataUri.startsWith('data:image/')) return dataUri;
+    const commaIdx = dataUri.indexOf(',');
+    if (commaIdx === -1) return dataUri;
+    const buf = Buffer.from(dataUri.slice(commaIdx + 1), 'base64');
+    const isPng = dataUri.startsWith('data:image/png');
+    const pipeline = sharp(buf).rotate(normDeg);
+    const outBuf = isPng ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 92 }).toBuffer();
+    return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${outBuf.toString('base64')}`;
+  }
 
   public static async rotateBase64Image(dataUri: string, rotationDeg: number): Promise<string> {
     const normDeg = ((Number(rotationDeg) || 0) % 360 + 360) % 360;
@@ -134,8 +157,20 @@ export class ReportImageResolver {
       if (normDeg !== 0) {
         const baseUri = this.resolveToBase64(trimmed, 0);
         if (baseUri && baseUri.startsWith('data:image/')) {
-          const rotated = await this.rotateBase64Image(baseUri, normDeg);
+          let rotated = baseUri;
+          try {
+            rotated = await this.rotateUncached(baseUri, normDeg);
+          } catch (err) {
+            console.error(`[ReportImageResolver:preloadRotate] Không thể xoay ảnh ${trimmed} (${normDeg}°)`, err);
+          }
           this.rotatedBase64Cache.set(`${normDeg}::url::${trimmed}`, rotated);
+          if (rotated !== baseUri) {
+            if (this.rotationOrigin.size >= this.MAX_CACHE_SIZE * 2) {
+              const firstKey = this.rotationOrigin.keys().next().value;
+              if (firstKey) this.rotationOrigin.delete(firstKey);
+            }
+            this.rotationOrigin.set(rotated, { nativeUri: baseUri, deg: normDeg });
+          }
         }
       }
     }

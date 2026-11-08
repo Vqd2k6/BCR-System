@@ -381,6 +381,7 @@ export class Appendix3And4Mapper {
         base64: ReportImageResolver.resolveToBase64(url, rotation),
         photoCode,
         rotation,
+        alreadyWatermarked: isPhotoAlreadyWatermarked(url),
       };
     });
 
