@@ -42,7 +42,7 @@ cd backend && npm run test:api
 - **Tòa nhà Mẹ (`parcels` / `GisParcel` / `BuildingMaster`)**: Đại diện cho thửa đất quy hoạch, nhà dân độc lập hoặc khối tháp chung cư. Mang thông tin pháp lý ranh đất, toạ độ GIS (`EPSG:4326`), cự ly tim hầm Metro, hệ móng cọc, tầng hầm, độ nghiêng tổng thể tòa nhà (`buildingTilt`), hồ sơ bản vẽ hoàn công Master.
 - **Căn hộ Con (`building_units` / `BuildingUnit`)**: Thực thể con trực thuộc tòa nhà mẹ. **Kế thừa 100% các chỉ số nền tảng từ tòa nhà mẹ** (không khảo sát lại móng cọc, độ nghiêng tổng thể, toạ độ ranh). Chỉ tập trung khảo sát phần sở hữu riêng:
   - Khởi tạo tại Hub: Chỉ thu thập 2 trường **Mã/Số phòng** (VD: `P.402`) và **Tầng/Lầu**.
-  - Bộ 4 ảnh căn hộ con: `P-01` (Cửa chính & Biển số phòng - _Bắt buộc_), `P-02` (Mặt đứng khối tháp - _Mặc định N/A, kế thừa tòa mẹ_), `P-03` (Ban công / Logia - _Mặc định N/A_), `P-04` (Toàn cảnh nội thất phòng khách - _Bắt buộc_).
+  - Bộ 4 ảnh căn hộ con: `P-01` (Cửa chính & Biển số phòng - _Bắt buộc_), `P-02` (Mặt đứng khối tháp - _Mặc định N/A, kế thừa tòa mẹ_), `P-03` (Ban công / Logia - _Mặc định N/A_), `P-04` (Toàn cảnh cửa & hành lang lối đi - _Bắt buộc_, không cần chủ hộ mở cửa).
   - Độ nghiêng hiển thị dạng Read-only badge kế thừa từ tòa mẹ; Độ võng dầm/sàn đo cục bộ trong căn hộ.
 
 ---
