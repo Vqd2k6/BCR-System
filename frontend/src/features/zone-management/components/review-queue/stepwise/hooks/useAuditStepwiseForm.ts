@@ -234,8 +234,11 @@ export function syncBurlandOnAuditLoad(json: Record<string, unknown>): {
   const curBs = ((out.burlandSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
   const derived = deriveBurlandSummary(nextFloors as RecomputeFloorLike[]);
   const savedMax = Number(curBs.localMaxGrade);
+  const savedPred = Number(curBs.predominantGrade);
+  // Cấp chủ đạo cao hơn cấp lớn nhất là mâu thuẫn → tính lại theo vết nứt đo
+  const predominantAboveMax = Number.isInteger(savedPred) && Number.isInteger(savedMax) && savedPred > savedMax;
   let summaryChanged = false;
-  if (derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade)) {
+  if ((derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade)) || predominantAboveMax) {
     const merged = mergeDerivedBurlandSummary(curBs, nextFloors as RecomputeFloorLike[]);
     summaryChanged =
       merged.localMaxGrade !== curBs.localMaxGrade ||

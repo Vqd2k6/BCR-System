@@ -234,6 +234,8 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     }
   };
   const predGrade = Number(burland.predominantGrade ?? calculatedPredominantGrade);
+  // Cấp chủ đạo cao hơn cấp cục bộ lớn nhất là mâu thuẫn (chốt duyệt chặn)
+  const predominantAboveMax = Number.isFinite(predGrade) && Number.isFinite(maxGrade) && predGrade > maxGrade;
 
   // Tìm vết nứt đại diện nặng nhất (Governing Defect)
   const governingDefect = allDefects.reduce((maxD, curr) => {
@@ -506,6 +508,25 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
               </span>
             </div>
           )}
+          {predominantAboveMax && !savedBelowMeasured && (
+            <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Cấp chủ đạo đang lưu (<strong>Cấp {predGrade}</strong>) cao hơn cấp cục bộ lớn nhất (<strong>Cấp {maxGrade}</strong>). Hồ sơ sẽ bị chặn phê duyệt.
+                </span>
+              </span>
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleSyncFromZones}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs whitespace-nowrap cursor-pointer hover:bg-rose-700"
+                >
+                  Đồng bộ theo vùng Z
+                </button>
+              )}
+            </div>
+          )}
           {savedBelowMeasured && (
             <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="flex items-start gap-2">
@@ -539,6 +560,10 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                     const g = Number(e.target.value);
                     if (g < measuredMax) return;
                     handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', g);
+                    // Cấp chủ đạo không thể cao hơn cấp cục bộ lớn nhất
+                    if (predGrade > g) {
+                      handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', g);
+                    }
                   }}
                   className="w-full p-1.5 bg-white border border-red-300 rounded-lg text-xs font-black text-red-700 cursor-pointer"
                 >
@@ -563,14 +588,16 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
               {isEditMode ? (
                 <select
                   value={predGrade}
-                  onChange={(e) =>
-                    handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', Number(e.target.value))
-                  }
-                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                  onChange={(e) => {
+                    const g = Number(e.target.value);
+                    if (g > maxGrade) return;
+                    handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', g);
+                  }}
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 cursor-pointer"
                 >
                   {BURLAND_GRADES.map((bg) => (
-                    <option key={bg.grade} value={bg.grade}>
-                      {bg.label}
+                    <option key={bg.grade} value={bg.grade} disabled={bg.grade > maxGrade}>
+                      {bg.label}{bg.grade > maxGrade ? ' — cao hơn cấp lớn nhất' : ''}
                     </option>
                   ))}
                 </select>

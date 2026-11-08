@@ -472,9 +472,10 @@ export class ScoringService {
         hasEcsEj && ecsEj?.adjustedClass
           ? String(ecsEj.adjustedClass)
           : null;
+      // adjustedScore của VI là TỔNG ΣV đã điều chỉnh (Bước 7 nhập tổng, Bước 8 chia 6); cột overridden_avg_vi là điểm TB 1–4
       const overriddenAvgVi =
-        hasViEj && viEj?.adjustedScore !== undefined && viEj?.adjustedScore !== null
-          ? Number(viEj.adjustedScore)
+        hasViEj && viEj?.adjustedScore !== undefined && viEj?.adjustedScore !== null && Number.isFinite(Number(viEj.adjustedScore))
+          ? Math.round((Number(viEj.adjustedScore) / 6) * 100) / 100
           : null;
       const overriddenViClass =
         hasViEj && viEj?.adjustedClass

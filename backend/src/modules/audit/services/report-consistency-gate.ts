@@ -143,6 +143,18 @@ export function evaluateBurlandConsistency(surveyJson: unknown): { hardErrors: s
   const warnings: string[] = [];
   const zones = collectBurlandGateZones(surveyJson);
   const crackZones = zones.filter((z) => z.measuredGrade !== null);
+
+  // Cấp chủ đạo (phổ biến nhất) không thể cao hơn cấp cục bộ lớn nhất — kiểm cả khi không có vết nứt
+  const bsTop = toRecordOrNull(toRecordOrNull(surveyJson)?.burlandSummary) || {};
+  const topPredominant = parseGrade(bsTop.predominantGrade);
+  const topMeasuredMax = crackZones.length > 0 ? Math.max(...crackZones.map((z) => z.measuredGrade ?? 0)) : 0;
+  const topMax = parseGrade(bsTop.localMaxGrade) ?? topMeasuredMax;
+  if (topPredominant !== null && topPredominant > topMax) {
+    hardErrors.push(
+      `[BURLAND_PREDOMINANT_ABOVE_MAX] Cấp Burland chủ đạo đang lưu (Cấp ${topPredominant}) cao hơn cấp cục bộ lớn nhất (Cấp ${topMax}). Cần đồng bộ trước khi phê duyệt.`
+    );
+  }
+
   if (crackZones.length === 0) return { hardErrors, warnings };
 
   const label = (z: BurlandGateZone) => `${z.zoneCode}${z.floorName ? ` (${z.floorName})` : ''}`;

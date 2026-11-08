@@ -139,6 +139,8 @@ export const Step4_BurlandSummary: React.FC = () => {
     nextStep();
   };
 
+  const currentMax = Number.isInteger(Number(bs.localMaxGrade)) ? Number(bs.localMaxGrade) : inheritedMax;
+
   const BURLAND_OPTIONS = [
     { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
     { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
@@ -255,11 +257,14 @@ export const Step4_BurlandSummary: React.FC = () => {
               value={bs.predominantGrade ?? inheritedPredominant}
               onChange={(e) =>
                 updateFormData({
-                  burlandSummary: { ...bs, predominantGrade: Number(e.target.value) },
+                  // Cấp chủ đạo (phổ biến nhất) không thể cao hơn cấp cục bộ lớn nhất
+                  burlandSummary: { ...bs, predominantGrade: Math.min(Number(e.target.value), currentMax) },
                 })
               }
-              options={BURLAND_OPTIONS}
-              hint="Mức độ nứt xuất hiện phổ biến nhất trong các vùng Z"
+              options={BURLAND_OPTIONS.map((o) =>
+                o.value > currentMax ? { ...o, label: `${o.label} — cao hơn cấp lớn nhất`, disabled: true } : o
+              )}
+              hint="Mức độ nứt xuất hiện phổ biến nhất trong các vùng Z (không cao hơn cấp cục bộ lớn nhất)"
             />
           </div>
 
@@ -286,7 +291,11 @@ export const Step4_BurlandSummary: React.FC = () => {
                 // Không cho thấp hơn cấp theo bề rộng đo được; cao hơn là phán đoán chuyên môn
                 if (g < inheritedMax) return;
                 updateFormData({
-                  burlandSummary: { ...bs, localMaxGrade: g },
+                  burlandSummary: {
+                    ...bs,
+                    localMaxGrade: g,
+                    predominantGrade: Math.min(Number(bs.predominantGrade ?? 0), g),
+                  },
                 });
               }}
               options={BURLAND_OPTIONS.map((o) =>

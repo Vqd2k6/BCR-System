@@ -290,7 +290,12 @@ export function syncCondoBurlandOnLoad<T extends CondoBurlandFormLike>(
   const derived = deriveCondoBurland(zones);
   const savedMaxRaw = saved.burlandSummary?.localMaxGrade;
   const savedMax = savedMaxRaw === undefined || savedMaxRaw === null ? NaN : Number(savedMaxRaw);
-  const summaryLow = derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade);
+  const savedPredRaw = saved.burlandSummary?.predominantGrade;
+  const savedPred = savedPredRaw === undefined || savedPredRaw === null ? NaN : Number(savedPredRaw);
+  // Cấp chủ đạo cao hơn cấp lớn nhất là mâu thuẫn → tính lại
+  const predominantAboveMax = Number.isInteger(savedPred) && Number.isInteger(savedMax) && savedPred > savedMax;
+  const summaryLow =
+    (derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade)) || predominantAboveMax;
 
   const dirty: CondoBurlandLoadSync<T>['dirty'] = {};
   if (zoneCount === 0 && !summaryLow) {
