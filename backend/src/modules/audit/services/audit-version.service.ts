@@ -6,6 +6,7 @@ import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { AuditReviewService } from './audit-review.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
 import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
+import { resolveHistoryInterviewAliases } from '../../scoring/history-interview-aliases';
 
 export interface CreateSnapshotParams {
   versionNumber?: number;
@@ -561,7 +562,7 @@ export class AuditVersionService {
           actualReportId,
           toBoolOrNull(hi.renovationLoad ?? hi.extended_or_renovated),
           toBoolOrNull(hi.pastSettlement ?? hi.previous_settlement_or_tilt),
-          toBoolOrNull(hi.fireFloodHistory ?? hi.fireFloodIncident ?? hi.fire_or_accident),
+          toBoolOrNull(resolveHistoryInterviewAliases(hi).fireFlood ?? hi.fire_or_accident),
           toBoolOrNull(hi.sensitiveEquipment ?? hi.sensitive_equipment_present),
           hi.renovationNotes || hi.repairNotes || hi.majorRepairNotes || hi.settlementNotes || hi.pastSettlementNotes || hi.neighborNotes || hi.fireFloodNotes || hi.details || null,
         ]

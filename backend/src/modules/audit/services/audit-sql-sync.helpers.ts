@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
+import { resolveHistoryInterviewAliases } from '../../scoring/history-interview-aliases';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -71,8 +72,7 @@ export async function syncHistoryInterviewInTx(
   interiorRenovationHistory?: string
 ): Promise<number> {
   const interview: JsonRecord = isJsonRecord(json.historyInterview) ? { ...json.historyInterview } : {};
-  const neighbor = interview.neighborImpact ?? interview.neighborDamage;
-  const fireFlood = interview.fireFloodHistory ?? interview.fireFloodIncident;
+  const { neighbor, fireFlood } = resolveHistoryInterviewAliases(interview);
   if (neighbor !== undefined) {
     interview.neighborImpact = neighbor;
     interview.neighborDamage = neighbor;

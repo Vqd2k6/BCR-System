@@ -1,6 +1,7 @@
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { calculateVi } from './vi-calculator';
+import { resolveHistoryInterviewAliases } from './history-interview-aliases';
 
 /** Các trường của survey_data_json mà bộ chấm điểm ECS & VI cần đọc (Đồng bộ 100% FE Phase 1) */
 interface ScoringSurveyJson {
@@ -354,12 +355,13 @@ export class ScoringService {
     let jsonE5 = 0;
     const hi = surveyJson?.historyInterview;
     if (hi && typeof hi === 'object') {
+      const { neighbor, fireFlood } = resolveHistoryInterviewAliases(hi);
       const hiScores = [
         Number(hi.renovationLoad) || 0,
         Number(hi.majorRepair) || 0,
         Number(hi.pastSettlement) || 0,
-        Number(hi.neighborImpact ?? hi.neighborDamage) || 0,
-        Number(hi.fireFloodHistory ?? hi.fireFloodIncident) || 0,
+        Number(neighbor) || 0,
+        Number(fireFlood) || 0,
       ];
       const maxHiScore = Math.max(...hiScores);
       const countHigh = hiScores.filter((s) => s > 2).length;

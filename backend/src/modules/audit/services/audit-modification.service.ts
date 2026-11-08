@@ -9,6 +9,7 @@ import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType, normalizeStructuralSystem, normalizeFoundationCategory } from '../../survey/survey.dto';
 import { formatRestrictedAreas } from '../../survey/access-limitation.utils';
+import { resolveHistoryInterviewAliases } from '../../scoring/history-interview-aliases';
 import { parseMeters, resolvePolygonGeometryUpdate } from './audit-geometry-sync.helpers';
 import { applyResidentialCaseRules, isResidentialAbsentSurvey } from '../absence-evidence';
 
@@ -810,8 +811,7 @@ export class AuditModificationService {
       // 4.4. Cập nhật historical_sensitivities (UPSERT)
       const hi = u.historyInterview;
       if (hi) {
-        const neighborVal = hi.neighborImpact ?? hi.neighborDamage;
-        const fireFloodVal = hi.fireFloodHistory ?? hi.fireFloodIncident;
+        const { neighbor: neighborVal, fireFlood: fireFloodVal } = resolveHistoryInterviewAliases(hi);
         if (mergedJson.historyInterview && typeof mergedJson.historyInterview === 'object') {
           if (neighborVal !== undefined) {
             mergedJson.historyInterview.neighborImpact = neighborVal;
