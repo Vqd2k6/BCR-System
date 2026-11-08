@@ -16,6 +16,7 @@ import { ReportViewModel } from '../report.types';
 import { LOGO_THACO_REC_BASE64 } from '../assets/report-logos';
 import { normalizeMetroPhotoCode } from '../utils/metro-photo-code.utils';
 import { ReportImageResolver } from './report-image-resolver.service';
+import { cropToNativeRect } from '../../photo-qc/photo-qc.rules';
 
 function escapeXml(str: string): string {
   return String(str || '')
@@ -111,6 +112,69 @@ export class ReportWatermarkCanvasService {
       console.error(`[ReportWatermark:stamp] Không thể dập watermark lên ảnh ${photoCodeText}`, err);
       return base64Uri;
     }
+  }
+
+  /**
+   * Photo QC: cắt ảnh theo khung crop rồi dập watermark lên mảnh đã cắt, theo chiều gốc của ảnh
+   * (giống stampImageBase64), sau đó mới xoay và encode MỘT lần.
+   * - Khung crop tính trên ảnh đã xoay (như admin thấy), được quy về toạ độ ảnh gốc.
+   * - stampLogo / stampText tách riêng để dập bù cho ảnh đã có watermark cháy sẵn.
+   * - Không cache, không ghi file: ảnh gốc trên R2 giữ nguyên từng bit.
+   */
+  public static async cropStampRotate(opts: {
+    base64Uri: string;
+    crop: { x: number; y: number; w: number; h: number };
+    dateTimeText: string;
+    photoCodeText: string;
+    stampLogo: boolean;
+    stampText: boolean;
+  }): Promise<string> {
+    const { base64Uri, crop, dateTimeText, photoCodeText, stampLogo, stampText } = opts;
+    const origin = ReportImageResolver.getRotationOrigin(base64Uri);
+    const sourceUri = origin?.nativeUri ?? base64Uri;
+    const deg = origin?.deg ?? 0;
+    const commaIdx = sourceUri.indexOf(',');
+    if (!sourceUri.startsWith('data:image/') || commaIdx === -1) {
+      throw new Error('Ảnh chưa được nạp thành data URI, không cắt được');
+    }
+    const isPng = sourceUri.startsWith('data:image/png');
+    const input = Buffer.from(sourceUri.slice(commaIdx + 1), 'base64');
+
+    // Đưa cờ EXIF về pixel (như stampImageBase64) rồi làm việc trên raw để chỉ nén một lần ở cuối.
+    const oriented = await sharp(input).rotate().raw().toBuffer({ resolveWithObject: true });
+    const { width: nativeW, height: nativeH, channels } = oriented.info;
+    const rect = cropToNativeRect(crop, nativeW, nativeH, deg);
+    const cut = await sharp(oriented.data, { raw: { width: nativeW, height: nativeH, channels } })
+      .extract(rect)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const cw = cut.info.width;
+    const ch = cut.info.height;
+
+    let pixels = cut.data;
+    let pixelChannels = cut.info.channels;
+    const layers: OverlayOptions[] = [];
+    if (cw >= 80 && ch >= 80) {
+      const shortSide = Math.min(cw, ch);
+      if (stampLogo) layers.push(...(await this.buildLogoLayers(cw, ch, shortSide)));
+      if (stampText) {
+        const textSvg = this.buildTextSvg(cw, ch, shortSide, dateTimeText, photoCodeText);
+        if (textSvg) layers.push({ input: Buffer.from(textSvg), top: 0, left: 0 });
+      }
+    }
+    if (layers.length > 0) {
+      const composed = await sharp(cut.data, { raw: { width: cw, height: ch, channels: cut.info.channels } })
+        .composite(layers)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      pixels = composed.data;
+      pixelChannels = composed.info.channels;
+    }
+
+    let out = sharp(pixels, { raw: { width: cw, height: ch, channels: pixelChannels } });
+    if (deg) out = out.rotate(deg);
+    const outBuffer = isPng ? await out.png().toBuffer() : await out.jpeg({ quality: 92 }).toBuffer();
+    return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${outBuffer.toString('base64')}`;
   }
 
   /** 2 dòng chữ trắng góc dưới phải: ngày giờ (trên) + mã ảnh (dưới). */

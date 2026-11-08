@@ -31,6 +31,11 @@ export function applySnapshotToReportData<T extends JsonObject>(rawReport: T, sn
     }
   }
 
+  // Photo QC: bản đã áp snapshot chỉ dùng QC đóng băng của revision đó (snapshot cũ không có → không QC),
+  // không bao giờ đọc bảng photo_qc_* sống, để bản đã phát hành giữ nguyên SHA-256.
+  rec.photo_qc_frozen = true;
+  rec.photo_qc = snapshot.frozenReportData?.photo_qc ?? null;
+
   if (snapshot.pinnedConfig && typeof snapshot.pinnedConfig === 'object' && !rec.reportContentConfig) {
     rec.reportContentConfig = JSON.parse(JSON.stringify(snapshot.pinnedConfig));
   }

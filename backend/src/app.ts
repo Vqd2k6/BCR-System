@@ -25,6 +25,7 @@ import { ReportConfigController } from './modules/report_config/report-config.co
 import { DrawingConfigController } from './modules/drawing_config/drawing-config.controller';
 import { ImageLabController } from './modules/image-lab/image-lab.controller';
 import { createProgressReportRouter } from './modules/progress-report';
+import { createPhotoQcRouter } from './modules/photo-qc';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -326,6 +327,7 @@ export function createApp(): express.Application {
   // 7. PLUGIN: BÁO CÁO TIẾN ĐỘ NGÀY (PROGRESS REPORT) – cắm/rút bằng 1 dòng
   // ==========================================
   api.use('/progress-report', createProgressReportRouter());
+  api.use('/photo-qc', createPhotoQcRouter());
 
   // Mount API prefix
   app.use(config.apiPrefix, api);

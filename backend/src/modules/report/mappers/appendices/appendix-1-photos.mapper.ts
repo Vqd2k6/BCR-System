@@ -30,7 +30,8 @@ export class Appendix1PhotoMapper {
     defaultLat: number,
     defaultLng: number,
     surveyDateFormatted: string,
-    rawSurveyDate: any
+    rawSurveyDate: any,
+    options?: { skipBase64?: boolean }
   ): Appendix1Result {
     const findPhoto = (types: string[], fallbackUrl?: string) => {
       const p = identPhotos.find((item: any) =>
@@ -101,7 +102,8 @@ export class Appendix1PhotoMapper {
         name: { vi, en },
         url,
         rotation: rot,
-        base64: ReportImageResolver.resolveToBase64(url, rot),
+        // Màn Photo QC chỉ cần danh sách ô ảnh (cùng chuỗi ưu tiên với PDF), không đọc file ảnh.
+        base64: options?.skipBase64 ? '' : ReportImageResolver.resolveToBase64(url, rot),
         capturedAt: surveyDateFormatted,
         gpsCoords,
         originalTag: origTag,

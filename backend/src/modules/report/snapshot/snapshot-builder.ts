@@ -33,6 +33,7 @@ import {
 } from './condo-absent-projection';
 import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
 import { overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
+import { PhotoQcRepository } from '../../photo-qc/photo-qc.repository';
 
 export {
   type RiskCardRow,
@@ -310,7 +311,10 @@ export async function buildApprovedSnapshot(
   const scopeRow = scopesRes.rows[0] as any;
   const repRow = repRes.rows[0];
   const zonesWithCtx = overlayZoneCtxFromJson(zonesRes.rows, rawSurveyJson, frozenParcel?.projectParcelCode);
+  // Photo QC (bìa P04, crop, dập bù) đóng băng cùng revision: render ?rev=N không đọc bảng sống.
+  const photoQc = await PhotoQcRepository.loadRenderState(reportId, client);
   const frozenReportData: Record<string, unknown> = {
+    photo_qc: photoQc,
     identificationPhotos: photosRes.rows,
     buildingSpecs: specsRes.rows[0] || null,
     historicalSensitivity: isAbsentUnit ? null : historyRes.rows[0] || null,

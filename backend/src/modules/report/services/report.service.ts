@@ -30,6 +30,7 @@ import { ReportSnapshotService } from '../snapshot/report-snapshot.service';
 import type { ReportSnapshot } from '../schemas/report-snapshot.schema';
 import { ReportConfigService } from '../../report_config/report-config.service';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
+import { applyPhotoQcToViewModel, resolvePhotoQcStateForRender } from '../../photo-qc/photo-qc.render';
 
 export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG';
 
@@ -256,6 +257,14 @@ export class ReportService {
     }
 
     const effectiveWatermark = maskPii ? true : enableWatermark;
+    // Photo QC (bìa P04, crop 4:3/3:4, dập bù): không có thao tác QC thì bỏ qua hoàn toàn.
+    const photoQcState = await resolvePhotoQcStateForRender(activeReport);
+    if (photoQcState) {
+      await applyPhotoQcToViewModel(viewModel, photoQcState, {
+        watermark: effectiveWatermark,
+        studioEnhanced: activeReport.survey_data_json?.studioEnhancedPhotos ?? null,
+      });
+    }
     if (effectiveWatermark) {
       await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel);
     }
