@@ -55,6 +55,15 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
     });
   };
 
+  // Màn rà soát ảnh cần bề ngang: tự thu gọn sidebar (không ghi đè lựa chọn đã lưu), bấm vẫn mở lại được.
+  const [photoQcExpanded, setPhotoQcExpanded] = useState(false);
+  const isPhotoQc = activeNav === 'photo-qc';
+  const sidebarCollapsed = isPhotoQc ? !photoQcExpanded : isCollapsed;
+  const handleToggleCollapse = () => {
+    if (isPhotoQc) setPhotoQcExpanded((v) => !v);
+    else toggleCollapse();
+  };
+
   const getPageTitle = (nav: ZoneNavView) => {
     switch (nav) {
       case 'dashboard':
@@ -83,8 +92,8 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         selectedZone={selectedZone}
         onSelectZone={onSelectZone}
         zoneLocked={getLockedZone(user) !== null}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={toggleCollapse}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleCollapse}
         pendingCount={pendingCount}
         attendancePendingCount={attendancePendingCount}
         userName={user?.fullName || 'Zone Admin'}

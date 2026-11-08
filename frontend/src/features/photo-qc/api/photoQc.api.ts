@@ -5,7 +5,8 @@ import type {
   PhotoQcListResult,
   PhotoQcPhotoRow,
   PhotoQcPhotoUpdate,
-  PhotoQcRecaptureLevel,
+  PhotoQcEffectiveLevel,
+  PhotoQcRecaptureRow,
   PhotoQcReportRow,
   PhotoQcReportUpdate,
 } from '../types';
@@ -47,7 +48,19 @@ export async function savePhotoQcPhotos(reportId: string, items: PhotoQcPhotoUpd
   return res.data.data;
 }
 
-export async function downloadRecaptureList(params: { zone?: string; station?: string; level?: PhotoQcRecaptureLevel }): Promise<void> {
+export interface RecaptureListParams {
+  zone?: string;
+  station?: string;
+  level?: Exclude<PhotoQcEffectiveLevel, 'NONE'>;
+}
+
+/** Cùng nguồn dữ liệu với file Excel (backend recaptureList), nên bảng xem trước luôn khớp file. */
+export async function fetchRecaptureList(params: RecaptureListParams): Promise<PhotoQcRecaptureRow[]> {
+  const res = await api.get<Envelope<PhotoQcRecaptureRow[]>>(`${BASE}/recapture-list`, { params: { ...cleanParams(params), format: 'json' } });
+  return res.data.data;
+}
+
+export async function downloadRecaptureList(params: RecaptureListParams): Promise<void> {
   const res = await api.get<Blob>(`${BASE}/recapture-list`, {
     params: { ...cleanParams(params), format: 'xlsx' },
     responseType: 'blob',

@@ -2,7 +2,7 @@
  * ============================================================================
  * PHOTO QC – TẠO THUMBNAIL 480px CHO MÀN RÀ SOÁT (chạy OFFLINE trên máy local, không chạy trên Render)
  *
- *   npx ts-node --transpile-only src/scripts/generate_photo_qc_thumbs.ts --stations ST02,ST04,ST05 [--all-photos] [--apply]
+ *   npx ts-node --transpile-only src/scripts/generate_photo_qc_thumbs.ts --stations ST02,ST04,ST05 [--p-only] [--apply]
  *
  * - Mặc định CHẠY THỬ: chỉ liệt kê ảnh sẽ tạo, không ghi gì lên R2.
  * - --apply: ghi `thumbs/<khoá gốc>` lên R2. Mỗi lần ghi cloud cần người phụ trách đồng ý riêng.
@@ -29,7 +29,10 @@ function arg(name: string): string | undefined {
 }
 
 function s3Client(): S3Client {
-  const endpoint = String(config.storage.s3.endpoint || '').trim().replace(/\/+$/, '');
+  // Giống StorageService: endpoint có thể kèm "/<bucket>" ở cuối, phải cắt đi.
+  let endpoint = String(config.storage.s3.endpoint || '').trim().replace(/\/+$/, '');
+  const bucket = String(config.storage.s3.bucket || '').trim();
+  if (bucket && endpoint.endsWith(`/${bucket}`)) endpoint = endpoint.slice(0, -(bucket.length + 1));
   if (!endpoint || !config.storage.s3.accessKeyId) throw new Error('Thiếu cấu hình S3/R2 (S3_ENDPOINT, S3_ACCESS_KEY_ID)');
   return new S3Client({
     region: config.storage.s3.region || 'auto',
@@ -78,19 +81,22 @@ async function exists(client: S3Client, key: string): Promise<boolean> {
   } catch (err) {
     const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
     if (status === 404) return false;
-    throw err;
+    throw new Error(`HeadObject lỗi HTTP ${status ?? '?'} cho ${key}`);
   }
 }
 
 async function main(): Promise<void> {
   const stations = (arg('--stations') || 'ST02,ST04,ST05').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
   const apply = process.argv.includes('--apply');
-  const allPhotos = process.argv.includes('--all-photos');
-  console.log(`[PhotoQcThumbs] Ga: ${stations.join(', ')} • ${allPhotos ? 'mọi ảnh in' : 'chỉ ảnh P'} • ${apply ? 'GHI LÊN R2' : 'CHẠY THỬ (không ghi)'}`);
+  // Mặc định: mọi ảnh của màn rà soát (ảnh P, ảnh trong nhà, ảnh chưa in). --p-only: chỉ ảnh P cho màn tổng quan.
+  const allPhotos = !process.argv.includes('--p-only');
+  console.log(`[PhotoQcThumbs] Ga: ${stations.join(', ')} • ${allPhotos ? 'mọi ảnh rà soát' : 'chỉ ảnh P'} • ${apply ? 'GHI LÊN R2' : 'CHẠY THỬ (không ghi)'}`);
 
   const urls = await collectUrls(stations, allPhotos);
+  const limit = Number(arg('--limit') || 0);
   const targets = urls.map((url) => ({ url, key: keyOf(url) })).filter((t): t is { url: string; key: string } => Boolean(t.key));
   console.log(`[PhotoQcThumbs] ${urls.length} URL, ${targets.length} nằm trên R2 public`);
+  if (limit > 0) targets.splice(limit);
   if (!apply) {
     targets.slice(0, 10).forEach((t) => console.log(`  ${THUMB_PREFIX}${t.key}`));
     console.log('[PhotoQcThumbs] Chạy thử xong. Thêm --apply để ghi thật.');

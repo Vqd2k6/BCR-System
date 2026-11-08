@@ -1361,14 +1361,14 @@ CREATE TABLE IF NOT EXISTS photo_qc_reports (
     zone_id VARCHAR(32),
     station_code VARCHAR(16),
     cover_source VARCHAR(8),
-    recapture_level VARCHAR(16) NOT NULL DEFAULT 'NONE',
+    recapture_level VARCHAR(16) NOT NULL DEFAULT 'AUTO',
     reviewed BOOLEAN NOT NULL DEFAULT FALSE,
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
     CONSTRAINT chk_photo_qc_cover_source CHECK (cover_source IS NULL OR cover_source IN ('P04')),
-    CONSTRAINT chk_photo_qc_recapture_level CHECK (recapture_level IN ('NONE', 'OUTDOOR_ONLY', 'FULL'))
+    CONSTRAINT chk_photo_qc_recapture_level CHECK (recapture_level IN ('AUTO', 'NONE', 'OUTDOOR_ONLY', 'FULL'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_photo_qc_reports_zone_station ON photo_qc_reports(zone_id, station_code);

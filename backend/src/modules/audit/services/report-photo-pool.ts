@@ -5,6 +5,8 @@ export interface ReportPhotoPoolItem {
   url: string;
   category: string;
   label: string;
+  /** Đường dẫn JSON (vd `zones.0.defects.0.cuPhotos`) hoặc tên bảng nguồn – để dựng nhãn ô ảnh. */
+  source: string;
 }
 
 const STORED_IMAGE_URL = /^https?:\/\/\S+\.(jpe?g|png|webp)(\?\S*)?$/i;
@@ -63,6 +65,6 @@ export async function listReportPhotoPool(reportId: string): Promise<ReportPhoto
     for (const [url, category] of fromTables) {
       if (!sources.has(url) && !/signature/i.test(category)) sources.set(url, category);
     }
-    return [...sources.entries()].map(([url, source]) => ({ url, ...classify(source) }));
+    return [...sources.entries()].map(([url, source]) => ({ url, source, ...classify(source) }));
   });
 }

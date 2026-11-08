@@ -33,6 +33,7 @@ import {
   normalizeDeg,
   photoGroupFor,
   resolveReportKind,
+  effectiveLevel,
   suggestRecaptureLevel,
   urlPhotoKey,
 } from './photo-qc.rules';
@@ -51,10 +52,14 @@ import type {
   PhotoQcRecaptureRow,
   PhotoQcReportKind,
   PhotoQcReportRow,
+  PhotoQcSection,
   PhotoQcSlot,
   PhotoQcSlotView,
+  PhotoQcEffectiveLevel,
 } from './photo-qc.types';
 import { walkViewModelPhotos } from './photo-qc.vm-walker';
+import { describeJsonPhotos, isExcludedPhotoPath, sectionFromPoolCategory } from './photo-qc.unprinted';
+import { listReportPhotoPool } from '../audit/services/report-photo-pool';
 
 type StudioMap = Record<string, { originalUrl?: unknown }>;
 type JsonObject = Record<string, unknown>;
@@ -99,6 +104,9 @@ function decodeCursor(cursor?: string): string | null {
     throw new BadRequestError('Cursor phân trang không hợp lệ');
   }
 }
+
+const PREVIEW_LIMIT = 8;
+const PREVIEW_CONCURRENCY = 4;
 
 interface ZoneRow {
   zone_code: string;
@@ -175,6 +183,7 @@ export class PhotoQcService {
         section: 'P' as const,
         photoGroup: photoGroupFor(kind, keys[idx], 'P'),
         legacyWatermarked: LegacyWatermarkIndex.has(item.url),
+        printed: true,
       }];
     });
   }
@@ -219,7 +228,7 @@ export class PhotoQcService {
     for (const ref of walkViewModelPhotos(vm)) {
       if (ref.section === 'COVER' || seen.has(ref.url)) continue;
       seen.add(ref.url);
-      const section = ref.section === 'P' ? 'P' : ref.section === 'OVERVIEW' ? 'OVERVIEW' : 'DEFECT';
+      const section: PhotoQcSection = ref.section === 'P' ? 'P' : ref.section === 'OVERVIEW' ? 'OVERVIEW' : 'DEFECT';
       slots.push({
         photoKey: ref.photoKey,
         url: ref.url,
@@ -228,6 +237,44 @@ export class PhotoQcService {
         section,
         photoGroup: photoGroupFor(kind, ref.photoKey, section),
         legacyWatermarked: LegacyWatermarkIndex.has(ref.url),
+        printed: true,
+      });
+    }
+
+    // Ảnh report hiện chưa in vẫn phải rà được (crop khoá theo URL, tự áp khi report in ảnh đó).
+    const surveyJson = asObject(raw.survey_data_json);
+    const described = describeJsonPhotos(surveyJson);
+    const rotMap = asObject(surveyJson.photoRotations) as Record<string, number>;
+    const isAbsent = raw.condoUnitAbsent === true || raw.residentialAbsent === true;
+    const candidates: Array<{ url: string; label: string; section: PhotoQcSection }> = [];
+    for (const [url, info] of described) candidates.push({ url, ...info });
+    if (!isAbsent) {
+      // Hồ sơ vắng: chỉ ảnh có trong dữ liệu đã chiếu vắng mặt, không lôi dữ liệu nội thất cũ ra rà.
+      for (const item of await listReportPhotoPool(reportId)) {
+        if (item.category === 'CAD' || isExcludedPhotoPath(item.source) || described.has(item.url)) continue;
+        candidates.push({ url: item.url, label: item.label, section: sectionFromPoolCategory(item.category) });
+      }
+    }
+    // Tài liệu (biên bản, bản vẽ chủ hộ) in dạng bản scan ở Mục XI/XII: đánh dấu đã in nhưng không crop.
+    const printedDocs = new Set<string>([
+      ...(vm.appendix3?.signedRecordPages ?? []).map((p) => p.url),
+      ...(vm.section12AsBuilt?.sheets ?? []).flatMap((s) => (s.drawings ?? []).map((d) => d.url)),
+    ].filter(Boolean));
+    const extraUrls = candidates.map((c) => c.url).filter((u) => !seen.has(u));
+    if (extraUrls.length > 0) await LegacyWatermarkIndex.load(extraUrls);
+    for (const c of candidates) {
+      if (seen.has(c.url)) continue;
+      seen.add(c.url);
+      const photoKey = urlPhotoKey(c.url);
+      slots.push({
+        photoKey,
+        url: c.url,
+        rotation: printed(c.url, Number(rotMap[c.url]) || 0),
+        label: c.label,
+        section: c.section,
+        photoGroup: photoGroupFor(kind, photoKey, c.section),
+        legacyWatermarked: LegacyWatermarkIndex.has(c.url),
+        printed: printedDocs.has(c.url),
       });
     }
     return {
@@ -305,10 +352,30 @@ export class PhotoQcService {
       photosByReport.set(p.reportId, list);
     }
 
+    // Hồ sơ không có ảnh P (khu vực chung M): lấy tối đa 8 ảnh đại diện qua đúng bộ ảnh rà soát, song song 4.
+    const pSlotsById = new Map(pageRows.map((row) => [row.id, this.buildPSlots(row, resolveReportKind(row.report_type, row.unit_type))]));
+    const previewById = new Map<string, PhotoQcSlot[]>();
+    const needPreview = pageRows.filter((row) => (pSlotsById.get(row.id) ?? []).length === 0);
+    for (let i = 0; i < needPreview.length; i += PREVIEW_CONCURRENCY) {
+      await Promise.all(
+        needPreview.slice(i, i + PREVIEW_CONCURRENCY).map(async (row) => {
+          try {
+            const built = await this.buildAllSlots(row.id);
+            const order: Record<string, number> = { OVERVIEW: 0, DEFECT: 1, P: 2, DOCUMENT: 3 };
+            previewById.set(row.id, [...built.slots].sort((a, b) => order[a.section] - order[b.section]).slice(0, PREVIEW_LIMIT));
+          } catch (err) {
+            console.error(`[PhotoQcService:list] Không dựng được ảnh đại diện cho ${row.report_code}`, err);
+          }
+        })
+      );
+    }
+
     const items: PhotoQcListItem[] = pageRows.map((row) => {
       const kind = resolveReportKind(row.report_type, row.unit_type);
       const flags = photosByReport.get(row.id) ?? [];
-      const pSlots = this.buildPSlots(row, kind);
+      const pSlots = pSlotsById.get(row.id) ?? [];
+      const suggested = suggestRecaptureLevel(flags);
+      const qc = qcByReport.get(row.id) ?? null;
       return {
         reportId: row.id,
         reportCode: row.report_code,
@@ -320,9 +387,11 @@ export class PhotoQcService {
         stationCode: resolveStationCode(row.zone_id || '', row.zone_name),
         coverEligible: isCoverEligibleKind(kind),
         pPhotos: this.attachQc(pSlots, flags, studioMapOf(asObject(row.json_subset))),
-        qc: qcByReport.get(row.id) ?? null,
+        qc,
         openFlagCount: flags.filter((f) => f.recapture && f.status !== 'RESOLVED').length,
-        suggestedLevel: suggestRecaptureLevel(flags),
+        suggestedLevel: suggested,
+        effectiveLevel: effectiveLevel(qc?.recaptureLevel, suggested),
+        previewPhotos: this.attachQc(previewById.get(row.id) ?? [], flags, null),
       };
     });
 
@@ -350,6 +419,7 @@ export class PhotoQcService {
       qc,
       photos: this.attachQc(built.slots, rows, built.studio),
       suggestedLevel: suggestRecaptureLevel(rows),
+      effectiveLevel: effectiveLevel(qc?.recaptureLevel, suggestRecaptureLevel(rows)),
       appliesFromNextRevision: built.status === 'APPROVED',
     };
   }
@@ -427,6 +497,9 @@ export class PhotoQcService {
       if (item.crop && normalizeDeg(item.crop.rotationAtCrop) !== normalizeDeg(slot.rotation)) {
         throw new ConflictError(`Góc xoay của ${slot.label} đã thay đổi, vui lòng crop lại`);
       }
+      if (item.crop && slot.section === 'DOCUMENT') {
+        throw new BadRequestError(`${slot.label} là tài liệu scan, chỉ gắn cờ chụp lại, không crop`);
+      }
       if (item.restampMode && item.restampMode !== 'NONE' && !slot.legacyWatermarked) {
         throw new BadRequestError(`Ảnh ${slot.label} chưa có watermark cũ, không cần dập bù`);
       }
@@ -497,12 +570,12 @@ export class PhotoQcService {
     const res = await Database.query<{
       id: string; report_code: string; report_type: string; unit_type: string | null; unit_code: string | null;
       project_parcel_code: string | null; house_number: string | null; street: string | null;
-      zone_id: string | null; zone_name: string | null; recapture_level: string | null;
-      flags: Array<{ photo_key: string; photo_label: string | null; photo_group: string; status: string }> | null;
+      zone_id: string | null; zone_name: string | null; recapture_level: string | null; cover_source: string | null;
+      flags: Array<{ photo_key: string; photo_label: string | null; photo_url: string; photo_group: string; status: string }> | null;
     }>(
       `SELECT r.id, r.report_code, r.report_type, bu.unit_type, bu.unit_code, p.project_parcel_code, p.house_number, p.street,
-              p.zone_id, mz.zone_name, qr.recapture_level,
-              (SELECT json_agg(json_build_object('photo_key', qp.photo_key, 'photo_label', qp.photo_label,
+              p.zone_id, mz.zone_name, qr.recapture_level, qr.cover_source,
+              (SELECT json_agg(json_build_object('photo_key', qp.photo_key, 'photo_label', qp.photo_label, 'photo_url', qp.photo_url,
                                                  'photo_group', qp.photo_group, 'status', qp.status) ORDER BY qp.photo_key)
                  FROM photo_qc_photos qp
                 WHERE qp.report_id = r.id AND qp.deleted_at IS NULL AND qp.recapture = TRUE AND qp.status <> 'RESOLVED') AS flags
@@ -512,7 +585,7 @@ export class PhotoQcService {
        LEFT JOIN building_units bu ON bu.id = r.unit_id
        LEFT JOIN photo_qc_reports qr ON qr.report_id = r.id AND qr.deleted_at IS NULL
        WHERE r.deleted_at IS NULL ${scopeSql}
-         AND (COALESCE(qr.recapture_level, 'NONE') <> 'NONE'
+         AND (COALESCE(qr.recapture_level, 'AUTO') IN ('OUTDOOR_ONLY', 'FULL')
               OR EXISTS (SELECT 1 FROM photo_qc_photos qp WHERE qp.report_id = r.id AND qp.deleted_at IS NULL
                            AND qp.recapture = TRUE AND qp.status <> 'RESOLVED'))
        ORDER BY p.zone_id, r.report_code;`,
@@ -526,8 +599,8 @@ export class PhotoQcService {
         photoGroup: f.photo_group === 'INDOOR' ? 'INDOOR' : 'OUTDOOR',
         status: f.status === 'ASSIGNED' ? 'ASSIGNED' : 'OPEN',
       })));
-      const stored = (r.recapture_level || 'NONE') as PhotoQcRecaptureLevel;
-      const level: PhotoQcRecaptureLevel = stored !== 'NONE' ? stored : suggested;
+      const stored = (r.recapture_level || 'AUTO') as PhotoQcRecaptureLevel;
+      const level = effectiveLevel(stored, suggested);
       return {
         stationCode: resolveStationCode(r.zone_id || '', r.zone_name),
         zoneId: r.zone_id,
@@ -537,8 +610,11 @@ export class PhotoQcService {
         unitCode: r.unit_code,
         kind: resolveReportKind(r.report_type, r.unit_type),
         recaptureLevel: level,
+        levelIsAuto: stored === 'AUTO',
+        coverP04: r.cover_source === 'P04',
         address: [r.house_number, r.street].filter(Boolean).join(' ') || null,
         photoKeys: flags.map((f) => f.photo_label || f.photo_key),
+        photos: flags.map((f) => ({ key: f.photo_key, label: f.photo_label || f.photo_key, url: f.photo_url })),
         outdoorCount: flags.filter((f) => f.photo_group !== 'INDOOR').length,
         indoorCount: flags.filter((f) => f.photo_group === 'INDOOR').length,
       };
@@ -559,16 +635,17 @@ export class PhotoQcService {
       { header: 'Mã căn', key: 'unit', width: 10 },
       { header: 'Loại', key: 'kind', width: 12 },
       { header: 'Địa chỉ', key: 'address', width: 30 },
-      { header: 'Mức thu thập lại', key: 'level', width: 26 },
-      { header: 'Số ảnh không cần chủ hộ', key: 'outdoor', width: 12 },
-      { header: 'Số ảnh trong nhà', key: 'indoor', width: 12 },
+      { header: 'Mức thu thập lại', key: 'level', width: 22 },
+      { header: 'Số ảnh bên ngoài', key: 'outdoor', width: 12 },
+      { header: 'Số ảnh bên trong', key: 'indoor', width: 12 },
+      { header: 'Bìa P-04', key: 'cover', width: 10 },
       { header: 'Ảnh cần chụp lại', key: 'photos', width: 60 },
     ];
     const kindLabel: Record<PhotoQcReportKind, string> = { HOUSE: 'Nhà dân', MASTER: 'Tòa mẹ', M: 'Khu vực chung', U: 'Căn hộ' };
-    const levelLabel: Record<PhotoQcRecaptureLevel, string> = {
-      NONE: 'Không cần',
-      OUTDOOR_ONLY: 'Chỉ ảnh không cần chủ hộ',
-      FULL: 'Toàn bộ (vào nhà)',
+    const levelLabel: Record<PhotoQcEffectiveLevel, string> = {
+      NONE: 'Không',
+      OUTDOOR_ONLY: 'Bên ngoài',
+      FULL: 'Tất cả',
     };
     rows.forEach((r, idx) => {
       ws.addRow({
@@ -580,7 +657,8 @@ export class PhotoQcService {
         unit: r.unitCode,
         kind: kindLabel[r.kind],
         address: r.address,
-        level: levelLabel[r.recaptureLevel],
+        level: `${levelLabel[r.recaptureLevel]}${r.levelIsAuto ? ' (tự động)' : ''}`,
+        cover: r.coverP04 ? 'Có' : '',
         outdoor: r.outdoorCount,
         indoor: r.indoorCount,
         photos: r.photoKeys.join('; '),

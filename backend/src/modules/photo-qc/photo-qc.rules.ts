@@ -8,10 +8,12 @@
 import { createHash } from 'crypto';
 import type {
   PhotoQcCrop,
+  PhotoQcEffectiveLevel,
   PhotoQcGroup,
   PhotoQcPhotoRow,
   PhotoQcRecaptureLevel,
   PhotoQcReportKind,
+  PhotoQcSection,
 } from './photo-qc.types';
 
 export function normalizeDeg(deg: unknown): number {
@@ -59,20 +61,22 @@ function baseCode(photoKey: string): string {
 
 /**
  * Nhóm thu thập lại: OUTDOOR = chụp được mà không cần chủ hộ mở cửa.
- * - Căn hộ (U, M): P-01..P-04 (biển số phòng, cửa & hành lang…) là OUTDOOR.
+ * - Khu vực chung (M): mọi ảnh (hành lang, sảnh…) là OUTDOOR.
+ * - Căn hộ U: P-01..P-04 (biển số phòng, cửa & hành lang…) là OUTDOOR.
  * - Nhà dân / tòa mẹ: ảnh định danh ngoài nhà Phụ lục 1 là OUTDOOR, trừ ảnh võng dầm/sàn (P-06B) chụp trong nhà.
  * - Còn lại (khuyết tật, phòng) là INDOOR.
  */
-export function photoGroupFor(kind: PhotoQcReportKind, photoKey: string, section: 'P' | 'DEFECT' | 'OVERVIEW'): PhotoQcGroup {
+export function photoGroupFor(kind: PhotoQcReportKind, photoKey: string, section: PhotoQcSection): PhotoQcGroup {
+  if (kind === 'M') return 'OUTDOOR';
   if (section !== 'P') return 'INDOOR';
   const code = baseCode(photoKey);
-  if (kind === 'U' || kind === 'M') {
+  if (kind === 'U') {
     return /^P-0[1-4]($|-)/.test(code) ? 'OUTDOOR' : 'INDOOR';
   }
   return code.startsWith('P-06B') ? 'INDOOR' : 'OUTDOOR';
 }
 
-export function suggestRecaptureLevel(flags: Array<Pick<PhotoQcPhotoRow, 'recapture' | 'photoGroup' | 'status'>>): PhotoQcRecaptureLevel {
+export function suggestRecaptureLevel(flags: Array<Pick<PhotoQcPhotoRow, 'recapture' | 'photoGroup' | 'status'>>): PhotoQcEffectiveLevel {
   const open = flags.filter((f) => f.recapture && f.status !== 'RESOLVED');
   if (open.length === 0) return 'NONE';
   return open.some((f) => f.photoGroup === 'INDOOR') ? 'FULL' : 'OUTDOOR_ONLY';
@@ -159,4 +163,10 @@ export function cropToNativeRect(crop: Pick<PhotoQcCrop, 'x' | 'y' | 'w' | 'h'>,
 
 export function restampLayers(mode: string): { logo: boolean; text: boolean } {
   return { logo: mode === 'LOGO' || mode === 'BOTH', text: mode === 'TEXT' || mode === 'BOTH' };
+}
+
+/** AUTO đi theo gợi ý từ các cờ; mức chọn tay (kể cả NONE) được giữ nguyên. */
+export function effectiveLevel(stored: PhotoQcRecaptureLevel | null | undefined, suggested: PhotoQcEffectiveLevel): PhotoQcEffectiveLevel {
+  if (!stored || stored === 'AUTO') return suggested;
+  return stored;
 }

@@ -74,7 +74,7 @@ export function toReportRow(r: QcReportDbRow): PhotoQcReportRow {
     zoneId: r.zone_id,
     stationCode: r.station_code,
     coverSource: r.cover_source === 'P04' ? 'P04' : null,
-    recaptureLevel: (['NONE', 'OUTDOOR_ONLY', 'FULL'].includes(r.recapture_level) ? r.recapture_level : 'NONE') as PhotoQcRecaptureLevel,
+    recaptureLevel: (['AUTO', 'NONE', 'OUTDOOR_ONLY', 'FULL'].includes(r.recapture_level) ? r.recapture_level : 'AUTO') as PhotoQcRecaptureLevel,
     reviewed: Boolean(r.reviewed),
     updatedBy: r.updated_by,
     updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null,
@@ -155,7 +155,7 @@ export class PhotoQcRepository {
     const rows = await run<QcReportDbRow>(
       client,
       `INSERT INTO photo_qc_reports (report_id, zone_id, station_code, cover_source, recapture_level, reviewed, updated_by, updated_at)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 'NONE'), COALESCE($6, FALSE), $7, NOW())
+       VALUES ($1, $2, $3, $4, COALESCE($5, 'AUTO'), COALESCE($6, FALSE), $7, NOW())
        ON CONFLICT (report_id) DO UPDATE SET
          zone_id = EXCLUDED.zone_id,
          station_code = EXCLUDED.station_code,

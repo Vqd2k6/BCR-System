@@ -80,8 +80,9 @@ export function legacyWatermarkZones(native: NaturalSize, deg: number): { logo: 
     h: (logoH + 2 * glow) / H,
   };
 
-  const font = Math.max(22, Math.round(s * 0.031));
-  const lineH = Math.round(font * 1.35);
+  // Theo tỉ lệ cạnh ngắn (không áp ngưỡng 22px): kích thước có thể là của thumbnail, không phải ảnh gốc.
+  const font = s * 0.031;
+  const lineH = font * 1.35;
   const padR = s * 0.03;
   const padB = s * 0.035;
   const textH = lineH + font * 1.25;

@@ -7,7 +7,10 @@
 /** HOUSE = nhà dân (STANDALONE), MASTER = tòa mẹ chung cư, M = khu vực chung, U = căn hộ con. */
 export type PhotoQcReportKind = 'HOUSE' | 'MASTER' | 'M' | 'U';
 export type PhotoQcCoverSource = 'P04';
-export type PhotoQcRecaptureLevel = 'NONE' | 'OUTDOOR_ONLY' | 'FULL';
+export type PhotoQcRecaptureLevel = 'AUTO' | 'NONE' | 'OUTDOOR_ONLY' | 'FULL';
+/** Mức thật sự áp dụng (AUTO đã quy về gợi ý). */
+export type PhotoQcEffectiveLevel = Exclude<PhotoQcRecaptureLevel, 'AUTO'>;
+export type PhotoQcSection = 'P' | 'DEFECT' | 'OVERVIEW' | 'DOCUMENT';
 export type PhotoQcRestampMode = 'NONE' | 'LOGO' | 'TEXT' | 'BOTH';
 export type PhotoQcGroup = 'OUTDOOR' | 'INDOOR';
 export type PhotoQcFlagStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
@@ -66,9 +69,11 @@ export interface PhotoQcSlot {
   url: string;
   rotation: number;
   label: string;
-  section: 'P' | 'DEFECT' | 'OVERVIEW';
+  section: PhotoQcSection;
   photoGroup: PhotoQcGroup;
   legacyWatermarked: boolean;
+  /** Report hiện tại có in ảnh này không (ảnh chưa in vẫn rà và crop được, crop áp khi report in). */
+  printed: boolean;
 }
 
 export interface PhotoQcSlotView extends PhotoQcSlot {
@@ -90,7 +95,10 @@ export interface PhotoQcListItem {
   pPhotos: PhotoQcSlotView[];
   qc: PhotoQcReportRow | null;
   openFlagCount: number;
-  suggestedLevel: PhotoQcRecaptureLevel;
+  suggestedLevel: PhotoQcEffectiveLevel;
+  effectiveLevel: PhotoQcEffectiveLevel;
+  /** Hồ sơ không có ảnh P (khu vực chung M): ảnh đại diện để rà nhanh. */
+  previewPhotos: PhotoQcSlotView[];
 }
 
 export interface PhotoQcListResult {
@@ -107,7 +115,8 @@ export interface PhotoQcDetail {
   hasP04: boolean;
   qc: PhotoQcReportRow | null;
   photos: PhotoQcSlotView[];
-  suggestedLevel: PhotoQcRecaptureLevel;
+  suggestedLevel: PhotoQcEffectiveLevel;
+  effectiveLevel: PhotoQcEffectiveLevel;
   /** Hồ sơ APPROVED: thay đổi chỉ in từ bản phát hành kế tiếp. */
   appliesFromNextRevision: boolean;
 }
@@ -120,9 +129,12 @@ export interface PhotoQcRecaptureRow {
   parcelCode: string | null;
   unitCode: string | null;
   kind: PhotoQcReportKind;
-  recaptureLevel: PhotoQcRecaptureLevel;
+  recaptureLevel: PhotoQcEffectiveLevel;
+  levelIsAuto: boolean;
+  coverP04: boolean;
   address: string | null;
   photoKeys: string[];
+  photos: Array<{ key: string; label: string; url: string }>;
   outdoorCount: number;
   indoorCount: number;
 }

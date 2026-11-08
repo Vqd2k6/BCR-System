@@ -24,7 +24,7 @@ export const PhotoQcCropSchema = z
 export const UpdatePhotoQcReportSchema = z
   .object({
     coverSource: z.enum(['P04']).nullable().optional(),
-    recaptureLevel: z.enum(['NONE', 'OUTDOOR_ONLY', 'FULL']).optional(),
+    recaptureLevel: z.enum(['AUTO', 'NONE', 'OUTDOOR_ONLY', 'FULL']).optional(),
     reviewed: z.boolean().optional(),
   })
   .refine((b) => b.coverSource !== undefined || b.recaptureLevel !== undefined || b.reviewed !== undefined, 'Không có thay đổi nào');

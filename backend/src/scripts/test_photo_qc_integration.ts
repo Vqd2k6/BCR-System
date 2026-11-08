@@ -8,6 +8,7 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import sharp from 'sharp';
 import { Database } from '../database/db';
 import type { JwtPayload } from '../common/guards/auth.guard';
@@ -15,7 +16,7 @@ import { PhotoQcService } from '../modules/photo-qc/photo-qc.service';
 import { ReportService } from '../modules/report/services/report.service';
 import type { PhotoQcRenderState } from '../modules/photo-qc/photo-qc.types';
 
-const OUT_DIR = process.env.PHOTO_QC_OUT || path.resolve(process.cwd(), '..', 'tmp_photo_qc');
+const OUT_DIR = process.env.PHOTO_QC_OUT || path.join(os.tmpdir(), 'photo_qc_integration');
 
 function dims(dataUri: string | undefined): Promise<sharp.Metadata> {
   assert.ok(dataUri && dataUri.startsWith('data:image/'), 'ảnh phải là data URI');

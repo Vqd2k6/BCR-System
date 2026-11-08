@@ -20,20 +20,39 @@ export function thumbUrlOf(url: string): string {
 interface RotatedPhotoProps {
   url: string;
   rotation: number;
-  boxWidth: number;
+  /** Bề ngang khung. Bỏ qua khi fitHeight = true (rộng theo tỉ lệ thật của ảnh). */
+  boxWidth?: number;
   boxHeight: number;
+  /** Khung cao cố định, rộng theo tỉ lệ ảnh in (không cắt, không viền). */
+  fitHeight?: boolean;
   /** Xem trước đúng phần sẽ in (khung crop trên ảnh đã xoay). */
   crop?: NormRect | null;
   useThumb?: boolean;
   onSize?: (size: NaturalSize) => void;
+  onClick?: () => void;
+  title?: string;
   className?: string;
+  children?: React.ReactNode;
 }
 
 /**
- * Hiển thị ảnh đã xoay `rotation` độ (chiều kim đồng hồ) vừa khung, giống bản in.
- * Ảnh gốc giữ nguyên, chỉ xoay bằng CSS. Kích thước tự nhiên báo ra qua onSize (đã xoay EXIF).
+ * Hiển thị ảnh đã xoay `rotation` độ (chiều kim đồng hồ) giống bản in. Ảnh gốc giữ nguyên, chỉ xoay bằng CSS.
+ * Kích thước tự nhiên (đã xoay EXIF) báo ra qua onSize.
  */
-export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({ url, rotation, boxWidth, boxHeight, crop, useThumb = false, onSize, className = '' }) => {
+export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({
+  url,
+  rotation,
+  boxWidth,
+  boxHeight,
+  fitHeight = false,
+  crop,
+  useThumb = false,
+  onSize,
+  onClick,
+  title,
+  className = '',
+  children,
+}) => {
   const [size, setSize] = useState<NaturalSize | null>(null);
   const [src, setSrc] = useState<string>(useThumb ? thumbUrlOf(url) : url);
   const [failed, setFailed] = useState(false);
@@ -43,7 +62,6 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({ url, rotation, boxWi
     const img = e.currentTarget;
     const s = { width: img.naturalWidth, height: img.naturalHeight };
     setSize(s);
-    // Thumbnail nhỏ hơn ảnh gốc: chỉ báo kích thước khi đang hiển thị ảnh gốc (tỉ lệ thì như nhau).
     onSize?.(s);
   };
 
@@ -56,19 +74,12 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({ url, rotation, boxWi
     setFailed(true);
   };
 
-  if (failed) {
-    return (
-      <div className={`flex items-center justify-center bg-slate-100 text-slate-400 rounded-lg ${className}`} style={{ width: boxWidth, height: boxHeight }}>
-        <ImageOff className="w-5 h-5" />
-      </div>
-    );
-  }
-
   const rot = size ? rotatedSize(size, deg) : null;
   const region = crop && rot ? crop : { x: 0, y: 0, w: 1, h: 1 };
-  const regionW = rot ? region.w * rot.width : 1;
-  const regionH = rot ? region.h * rot.height : 1;
-  const scale = rot ? Math.min(boxWidth / regionW, boxHeight / regionH) : 0;
+  const regionW = rot ? region.w * rot.width : 4;
+  const regionH = rot ? region.h * rot.height : 3;
+  const outerW = fitHeight ? Math.round((boxHeight * regionW) / regionH) : boxWidth ?? Math.round((boxHeight * 4) / 3);
+  const scale = rot ? Math.min(outerW / regionW, boxHeight / regionH) : 0;
   const viewW = regionW * scale;
   const viewH = regionH * scale;
   const rotW = rot ? rot.width * scale : 0;
@@ -76,18 +87,23 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({ url, rotation, boxWi
   const imgW = size ? size.width * scale : 0;
   const imgH = size ? size.height * scale : 0;
 
+  if (failed) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-slate-400 rounded-lg shrink-0 ${className}`} style={{ width: outerW, height: boxHeight }} title={title}>
+        <ImageOff className="w-5 h-5" />
+      </div>
+    );
+  }
+
   return (
-    <div className={`relative flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden ${className}`} style={{ width: boxWidth, height: boxHeight }}>
-      <div className="relative overflow-hidden" style={{ width: rot ? viewW : boxWidth, height: rot ? viewH : boxHeight }}>
-        <div
-          className="absolute"
-          style={{
-            width: rotW,
-            height: rotH,
-            left: rot ? -region.x * rotW : 0,
-            top: rot ? -region.y * rotH : 0,
-          }}
-        >
+    <div
+      onClick={onClick}
+      title={title}
+      className={`relative flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden shrink-0 ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-teal-400' : 'cursor-default'} ${className}`}
+      style={{ width: outerW, height: boxHeight }}
+    >
+      <div className="relative overflow-hidden" style={{ width: rot ? viewW : outerW, height: rot ? viewH : boxHeight }}>
+        <div className="absolute" style={{ width: rotW, height: rotH, left: rot ? -region.x * rotW : 0, top: rot ? -region.y * rotH : 0 }}>
           <img
             src={src}
             alt=""
@@ -99,18 +115,13 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({ url, rotation, boxWi
             className="absolute max-w-none select-none"
             style={
               size
-                ? {
-                    width: imgW,
-                    height: imgH,
-                    left: (rotW - imgW) / 2,
-                    top: (rotH - imgH) / 2,
-                    transform: `rotate(${deg}deg)`,
-                  }
+                ? { width: imgW, height: imgH, left: (rotW - imgW) / 2, top: (rotH - imgH) / 2, transform: `rotate(${deg}deg)` }
                 : { width: 1, height: 1, opacity: 0 }
             }
           />
         </div>
       </div>
+      {children}
     </div>
   );
 };
