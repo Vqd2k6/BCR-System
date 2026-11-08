@@ -57,15 +57,52 @@ function formatSavedAddressEn(houseNumber: unknown, street: unknown, ward: unkno
   else if (hn) parts.push(formatHouseLabel(hn, 'No.'));
   else if (st) parts.push(`${st.replace(/^đường\s*/i, '')} St.`);
 
-  if (wd) {
-    if (/^phường\s*\d+/i.test(wd)) parts.push(`Ward ${wd.replace(/^phường\s*/i, '')}`);
-    else parts.push(`${wd.replace(/^phường\s*/i, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')} Ward`);
-  }
+  if (wd) parts.push(wardEn(wd));
   if (parts.length > 0) {
     parts.push('Ho Chi Minh City');
-    return parts.join(', ');
+    return stripDiacritics(parts.join(', '));
   }
-  return String(fallbackCombined ?? '').trim() || '--';
+  return stripDiacritics(String(fallbackCombined ?? '').trim()) || '--';
+}
+
+/** Bản tiếng Anh không dấu: bỏ dấu thanh/mũ và đổi Đ/đ → D/d. */
+function stripDiacritics(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D').replace(/đ/g, 'd').normalize('NFC');
+}
+
+/** "Phường 13" → "Ward 13"; "Phường Nhiêu Lộc" → "Nhieu Loc Ward". */
+function wardEn(ward: string): string {
+  const name = ward.trim().replace(/^phường\s*/i, '');
+  return /^\d+$/.test(name) ? `Ward ${name}` : `${stripDiacritics(name)} Ward`;
+}
+
+const CITY_SEGMENT = /^(tp\.?|thành\s*phố)\s*hồ\s*chí\s*minh$/i;
+const NON_STREET_SEGMENT = /^(kp|khu\s*phố|tổ|ấp|chung\s*cư)/i;
+const HOUSE_ONLY_SEGMENT = /^số\s+\S+$/i;
+
+/**
+ * EN của địa chỉ chuẩn hóa "Số 648 Cách Mạng Tháng Tám, Phường Nhiêu Lộc, TP. Hồ Chí Minh"
+ * → "No. 648 Cach Mang Thang Tam St., Nhieu Loc Ward, Ho Chi Minh City" (cùng kiểu với địa chỉ gốc).
+ */
+function standardizedAddressEn(vi: string): string {
+  const segs = vi.split(',').map((s) => s.trim()).filter(Boolean);
+  const wardIdx = segs.findIndex((s) => /^phường\s/i.test(s));
+  const lastIdx = wardIdx >= 0 ? wardIdx - 1 : segs.length - 1;
+  let streetIdx = -1;
+  for (let i = lastIdx; i >= 0; i--) {
+    const s = segs[i];
+    if (CITY_SEGMENT.test(s) || NON_STREET_SEGMENT.test(s) || HOUSE_ONLY_SEGMENT.test(s)) continue;
+    streetIdx = i;
+    break;
+  }
+  const out = segs.map((s, i) => {
+    if (CITY_SEGMENT.test(s)) return 'Ho Chi Minh City';
+    if (i === wardIdx) return wardEn(s);
+    let t = s.replace(/^số\s+/i, 'No. ');
+    if (i === streetIdx) t = `${t.replace(/^(No\.\s+\S+\s+)?đường\s+/i, '$1')} St.`;
+    return t;
+  });
+  return stripDiacritics(out.join(', '));
 }
 
 /** Địa chỉ chuẩn hóa theo NQ 1685; hồ sơ căn hộ nhận giá trị này từ Tòa mẹ qua applyCondoReportContext. */
@@ -90,14 +127,7 @@ function readStandardizedAddress(json: any): BilingualText | null {
   }
   if (!stdAddrVi) return null;
   stdAddrVi = stdAddrVi.replace(/^Số\s+(?=chung\s*cư)/i, '');
-  return {
-    vi: stdAddrVi,
-    en: stdAddrVi
-      .replace(/Phường\s+/gi, 'Ward ')
-      .replace(/Đường\s+/gi, 'St. ')
-      .replace(/Số\s+/gi, 'No. ')
-      .replace(/TP\.\s*Hồ\s*Chí\s*Minh/gi, 'Ho Chi Minh City'),
-  };
+  return { vi: stdAddrVi, en: standardizedAddressEn(stdAddrVi) };
 }
 
 function resolveSavedAddress(rawReport: any, json: any): BilingualText {
@@ -111,25 +141,15 @@ function resolveSavedAddress(rawReport: any, json: any): BilingualText {
   };
 }
 
-/** Mục I: địa chỉ đã lưu, kèm địa chỉ chuẩn hóa theo NQ 1685 nếu có. */
+/**
+ * Địa chỉ in trên báo cáo (bìa, Mục I, biên bản): một địa chỉ duy nhất.
+ * Có địa chỉ chuẩn hóa NQ 1685 thì in địa chỉ đó; chưa có thì in địa chỉ gốc đã lưu.
+ */
 export function resolveReportAddress(rawReport: any, json: any): BilingualText {
-  const { vi: baseAddressVi, en: baseAddressEn } = resolveSavedAddress(rawReport, json);
-  const standardized = readStandardizedAddress(json);
-  const stdAddrVi = standardized?.vi ?? '';
-  const stdAddrEn = standardized?.en ?? '';
-  const addressVi = stdAddrVi && stdAddrVi !== baseAddressVi
-    ? (baseAddressVi !== '--' ? `${baseAddressVi} (Theo NQ 1685: ${stdAddrVi})` : `Theo NQ 1685: ${stdAddrVi}`)
-    : baseAddressVi;
-  const addressEn = stdAddrEn && stdAddrEn !== baseAddressEn
-    ? (baseAddressEn !== '--' ? `${baseAddressEn} (Res. 1685: ${stdAddrEn})` : `Res. 1685: ${stdAddrEn}`)
-    : baseAddressEn;
-  return { vi: addressVi, en: addressEn };
-}
-
-/** Biên bản hiện trường: có địa chỉ chuẩn hóa thì chỉ in địa chỉ đó. */
-export function resolveRecordAddress(rawReport: any, json: any): BilingualText {
   return readStandardizedAddress(json) ?? resolveSavedAddress(rawReport, json);
 }
+
+export const resolveRecordAddress = resolveReportAddress;
 
 export function resolveContactPhone(rawReport: any, json: any): string {
   return String(json.ownerPhone ?? json.signatures?.ownerPhone ?? rawReport.owner_phone ?? '').trim();
