@@ -215,7 +215,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '≤ 0.1 mm',
         descriptionVi: 'Vết nứt chân chim tóc cực nhỏ, bình thường cho khối xây và lớp vữa.',
         descriptionEn: 'Hairline cracks, normal for masonry and plaster.',
-        isCurrentLevel: finalLocalMax === 0,
+        isCurrentLevel: (distCounts[0] || 0) > 0,
       },
       {
         grade: 1,
@@ -223,7 +223,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '0.1 – 1.0 mm',
         descriptionVi: 'Vết nứt tinh xảo, dễ dàng xử lý bằng sơn lót hoặc bả mastic cục bộ.',
         descriptionEn: 'Fine cracks, easily treated during normal decoration.',
-        isCurrentLevel: finalLocalMax === 1,
+        isCurrentLevel: (distCounts[1] || 0) > 0,
       },
       {
         grade: 2,
@@ -231,7 +231,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '1.0 – 5.0 mm',
         descriptionVi: 'Vết nứt dễ trát vá vữa, cửa sổ và cửa đi có thể hơi kẹt nhẹ.',
         descriptionEn: 'Cracks easily filled. Doors and windows may stick slightly.',
-        isCurrentLevel: finalLocalMax === 2,
+        isCurrentLevel: (distCounts[2] || 0) > 0,
       },
       {
         grade: 3,
@@ -239,7 +239,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '5.0 – 15.0 mm',
         descriptionVi: 'Nứt cần thợ nề đục tẩy xử lý mạch vữa, khả năng chống thấm thời tiết bị suy giảm.',
         descriptionEn: 'Cracks require masonry opening and repointing, weather-tightness often impaired.',
-        isCurrentLevel: finalLocalMax === 3,
+        isCurrentLevel: (distCounts[3] || 0) > 0,
       },
       {
         grade: 4,
@@ -247,7 +247,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '15.0 – 25.0 mm',
         descriptionVi: 'Hư hỏng trên diện rộng, tường xây bị lệch chuyển, dầm sàn võng nứt.',
         descriptionEn: 'Extensive damage, walls leaning or bowing, beams deflect noticeably.',
-        isCurrentLevel: finalLocalMax === 4,
+        isCurrentLevel: (distCounts[4] || 0) > 0,
       },
       {
         grade: 5,
@@ -255,7 +255,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '> 25.0 mm',
         descriptionVi: 'Nguy cơ sụp đổ từng phần, yêu cầu chống đỡ khẩn cấp hoặc tái thiết cấu kiện.',
         descriptionEn: 'Structural danger, partial collapse risk requiring urgent propping or partial rebuilding.',
-        isCurrentLevel: finalLocalMax === 5,
+        isCurrentLevel: (distCounts[5] || 0) > 0,
       },
     ];
 

@@ -229,13 +229,13 @@ export interface Section6DefectSummary {
   totalSurveyedObjects?: number;
   maxCrackWidthMm: string;
   totalMaxCrackWidthDisplay?: string;
-  maxCrackLengthM: string;
+  maxCrackLengthMm: string;
   governingDefect?: {
     code: string;
     location: BilingualText;
     type: BilingualText;
     wmaxMm: string;
-    lengthM: string;
+    lengthMm: string;
     status: BilingualText;
   };
   floorDistribution: DefectFloorDistributionItem[];
@@ -265,7 +265,7 @@ export interface Section6DefectSummary {
   crackQuantities?: {
     totalCracks: number;
     maxCrackWidthMm: number | string;
-    maxCrackLengthM: number | string;
+    maxCrackLengthMm: number | string;
   };
 }
 
@@ -503,7 +503,7 @@ export interface DefectPairPhotoItem {
   extraCloseUpDateTime?: string;
   hasCrackGauge: boolean;
   wmaxMm: number | string;
-  lengthM: number | string;
+  lengthMm: number | string;
   extraCloseUpPhotoUrl?: string;
   extraCloseUpPhotoBase64?: string;
   extraCloseUpCaption?: BilingualText;
@@ -569,7 +569,7 @@ export interface FloorDefectSummaryRow {
   location: BilingualText;
   defectType: BilingualText;
   widthMm: number | string;
-  lengthM: number | string;
+  lengthMm: number | string;
   burlandDamageCategory: BilingualText;
   burlandGrade: number;
   description: BilingualText;

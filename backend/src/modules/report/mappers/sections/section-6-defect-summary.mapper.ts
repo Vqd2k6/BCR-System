@@ -17,7 +17,7 @@ export interface Section6Result {
   structuralCracksCount: number;
   surfaceCracksCount: number;
   maxCrackWidthMm: string;
-  maxCrackLengthM: string;
+  maxCrackLengthMm: string;
 }
 
 export class Section6DefectSummaryMapper {
@@ -92,11 +92,11 @@ export class Section6DefectSummaryMapper {
         : crackWidths.length > 0 ? `${Math.max(...crackWidths)}` : '0.0';
 
     const crackLengths = allDefectRows
-      .filter((d) => d.lengthM !== '–')
-      .map((d) => parseFloat(String(d.lengthM).replace(/[^\d.]/g, '')))
+      .filter((d) => d.lengthMm !== '–')
+      .map((d) => parseFloat(String(d.lengthMm).replace(/[^\d.]/g, '')))
       .filter((l) => !isNaN(l) && l > 0);
-    const savedMaxCrackL = json?.burlandSummary?.maxCrackLengthM ?? json?.defectSummary?.maxCrackLengthM;
-    const maxCrackLengthM =
+    const savedMaxCrackL = json?.burlandSummary?.maxCrackLengthMm ?? json?.defectSummary?.maxCrackLengthMm;
+    const maxCrackLengthMm =
       savedMaxCrackL !== undefined && savedMaxCrackL !== null && savedMaxCrackL !== ''
         ? String(savedMaxCrackL)
         : crackLengths.length > 0 ? `${Math.max(...crackLengths)}` : '0.0';
@@ -115,7 +115,7 @@ export class Section6DefectSummaryMapper {
         location: maxRow.location,
         type: maxRow.defectType,
         wmaxMm: maxRow.widthMm,
-        lengthM: maxRow.lengthM,
+        lengthMm: maxRow.lengthMm,
         status: {
           vi: maxRow.description.vi.includes('Phương') ? maxRow.description.vi : 'Hiện trạng ổn định',
           en: 'Currently stable',
@@ -212,7 +212,7 @@ export class Section6DefectSummaryMapper {
       totalSurveyedObjects,
       maxCrackWidthMm,
       totalMaxCrackWidthDisplay: maxCrackWidthDisplay,
-      maxCrackLengthM,
+      maxCrackLengthMm,
       governingDefect,
       floorDistribution,
       checklist: [
@@ -300,7 +300,7 @@ export class Section6DefectSummaryMapper {
       crackQuantities: {
         totalCracks: allDefectRows.length,
         maxCrackWidthMm,
-        maxCrackLengthM,
+        maxCrackLengthMm,
       },
     };
 
@@ -310,7 +310,7 @@ export class Section6DefectSummaryMapper {
       structuralCracksCount,
       surfaceCracksCount,
       maxCrackWidthMm,
-      maxCrackLengthM,
+      maxCrackLengthMm,
     };
   }
 }

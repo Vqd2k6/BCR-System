@@ -89,7 +89,9 @@ export function mapFloorZonesAndElements(
         }
         usedZoneDefectCodes.add(dCode);
         const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
-        const l = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
+        // KSV nhập chiều dài nứt theo mm (form: "Chiều dài nứt L (mm)").
+        const rawL = d.lengthMm ?? d.length_mm;
+        const l = typeof rawL === 'number' ? rawL : parseFloat(rawL || '0') || 0;
 
         const savedDefectGrade = (d.burlandGrade !== undefined && d.burlandGrade !== null && d.burlandGrade !== '' && !isNaN(Number(d.burlandGrade)))
           ? Number(d.burlandGrade)
@@ -130,7 +132,7 @@ export function mapFloorZonesAndElements(
           location: { vi: `${flNameVi} - ${roomVi}, tường ${zCode}`, en: `${flNameEn} - ${roomEn} wall ${zCode}` },
           defectType: { vi: typeVi, en: typeEn },
           widthMm: w > 0 ? `${w} mm` : '–',
-          lengthM: l > 0 ? `${l} m` : '–',
+          lengthMm: l > 0 ? `${l} mm` : '–',
           burlandDamageCategory: { vi: bCatVi, en: bCatEn },
           burlandGrade: bGrade,
           description: { vi: descPartsVi.join(', '), en: descPartsEn.join(', ') },
@@ -146,8 +148,9 @@ export function mapFloorZonesAndElements(
         const rawCu1 = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 1 ? d.cuPhotos[1] : undefined;
         const extraCuUrl = (typeof rawCu1 === 'string' ? rawCu1 : rawCu1?.url) || d.extraPhotoUrl || d.extraCuPhotoUrl || undefined;
 
-        const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
-        const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Surface defect (spalling/dampness)';
+        const dimText = [w > 0 ? `wmax = ${w} mm` : '', l > 0 ? `L = ${l} mm` : ''].filter(Boolean).join(', ');
+        const dimVi = dimText ? dimText : 'Khuyết tật bề mặt (bong tróc/ẩm mốc)';
+        const dimEn = dimText ? dimText : 'Surface defect (spalling/dampness)';
 
         const ctxRot =
           d.ctxRotation ??
@@ -191,7 +194,7 @@ export function mapFloorZonesAndElements(
           closeUpPhotoRotation: Number(cuRot) || 0,
           hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
           wmaxMm: w,
-          lengthM: l,
+          lengthMm: l,
           extraCloseUpPhotoUrl: (extraCuUrl && !extraCuUrl.startsWith('blob:')) ? extraCuUrl : undefined,
           extraCloseUpPhotoBase64: rawExtraCuBase64 && !rawExtraCuBase64.startsWith('blob:') ? rawExtraCuBase64 : undefined,
           extraCloseUpCaption: extraCuUrl ? { vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`, en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm` } : undefined,

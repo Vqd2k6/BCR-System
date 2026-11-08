@@ -137,16 +137,16 @@
               APPENDIX 1: DETAILED FLOOR DEFECT SPECIFICATION TABLE - {{../floorName.en}} (Sheet {{this.pageIndex}}/{{this.totalPages}})
             </div>
 
-            <table class="tech-table">
+            <table class="tech-table" style="table-layout: fixed; width: 100%;">
               <thead>
                 <tr>
                   <th style="width: 4%;">No.</th>
-                  <th style="width: 11%;">Mã lỗi / Pin</th>
-                  <th style="width: 19%;">Vị trí / Location</th>
-                  <th style="width: 15%;">Loại khuyết tật</th>
+                  <th style="width: 12%;">Mã lỗi / Pin</th>
+                  <th style="width: 20%;">Vị trí / Location</th>
+                  <th style="width: 16%;">Loại khuyết tật</th>
                   <th style="width: 13%; text-align: center;">W / L</th>
                   <th style="width: 13%; text-align: center;">Burland</th>
-                  <th style="width: 25%;">Ghi chú</th>
+                  <th style="width: 22%;">Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,9 +159,12 @@
                     </td>
                     <td>{{this.location.vi}}</td>
                     <td>{{this.defectType.vi}}</td>
-                    <td class="text-center" style="white-space: nowrap;">{{this.widthMm}} / {{this.lengthM}}</td>
-                    <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
-                    <td>{{this.description.vi}}</td>
+                    <td class="text-center" style="line-height: 1.25; word-break: break-word;">
+                      <div>w: {{this.widthMm}}</div>
+                      <div class="text-muted" style="font-size: var(--fs-e1);">L: {{this.lengthMm}}</div>
+                    </td>
+                    <td class="font-bold text-center" style="word-break: break-word;">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
+                    <td style="word-break: break-word;">{{this.description.vi}}</td>
                   </tr>
                 {{/each}}
               </tbody>
@@ -289,7 +292,7 @@
                   <div class="meta-strip-row">
                     <span class="meta-item"><strong style="color: var(--c-black);">Mã lỗi:</strong> {{this.defectId}}</span>
                     <span class="meta-item"><strong>Thước đo:</strong> {{#if this.hasCrackGauge}}Đã áp thước chuẩn{{else}}Quan sát ngoại quan{{/if}}</span>
-                    <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm | L = {{this.lengthM}} m</span>
+                    <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm{{#if this.lengthMm}} | L = {{this.lengthMm}} mm{{/if}}</span>
                     {{#if this.activityStateDisplay}}<span class="meta-item"><strong>Trạng thái:</strong> {{this.activityStateDisplay.vi}}</span>{{/if}}
                     {{#if this.cadPinRef}}<span class="meta-item"><strong>Vị trí CAD:</strong> {{this.cadPinRef}}</span>{{/if}}
                   </div>
@@ -367,7 +370,7 @@
                   <div class="meta-strip-row">
                     <span class="meta-item"><strong>Mã lỗi:</strong> {{this.defectId}}</span>
                     <span class="meta-item"><strong>Thước đo:</strong> {{#if this.hasCrackGauge}}Đã áp thước chuẩn{{else}}Quan sát ngoại quan{{/if}}</span>
-                    <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm | L = {{this.lengthM}} m</span>
+                    <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm{{#if this.lengthMm}} | L = {{this.lengthMm}} mm{{/if}}</span>
                     {{#if this.activityStateDisplay}}<span class="meta-item"><strong>Trạng thái:</strong> {{this.activityStateDisplay.vi}}</span>{{/if}}
                     {{#if this.cadPinRef}}<span class="meta-item"><strong>Vị trí CAD:</strong> {{this.cadPinRef}}</span>{{/if}}
                   </div>

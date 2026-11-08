@@ -62,7 +62,9 @@ export function mapFloorStructuralElements(
         }
         usedElemDefectCodes.add(dCode);
         const w = typeof d.widthMm === 'number' ? d.widthMm : parseFloat(d.widthMm || d.widthMaxMm || '0') || 0;
-        const l = typeof d.lengthM === 'number' ? d.lengthM : parseFloat(d.lengthM || d.lengthMm || '0') || 0;
+        // KSV nhập chiều dài nứt theo mm (form: "Chiều dài nứt L (mm)").
+        const rawL = d.lengthMm ?? d.length_mm;
+        const l = typeof rawL === 'number' ? rawL : parseFloat(rawL || '0') || 0;
         if (w > maxElemW) maxElemW = w;
 
         const savedElemGrade = (d.burlandGrade !== undefined && d.burlandGrade !== null && d.burlandGrade !== '' && !isNaN(Number(d.burlandGrade)))
@@ -102,7 +104,7 @@ export function mapFloorStructuralElements(
           location: { vi: `${flNameVi} - Cấu kiện ${eCode} (${eMatVi}), ${eRoomVi}`, en: `${flNameEn} - Member ${eCode} (${eMatEn}), ${eRoomEn}` },
           defectType: { vi: typeVi, en: typeEn },
           widthMm: w > 0 ? `${w} mm` : '–',
-          lengthM: l > 0 ? `${l} m` : '–',
+          lengthMm: l > 0 ? `${l} mm` : '–',
           burlandDamageCategory: { vi: bCatVi, en: bCatEn },
           burlandGrade: bGrade,
           description: {
@@ -121,8 +123,9 @@ export function mapFloorStructuralElements(
         const rawCu1 = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 1 ? d.cuPhotos[1] : undefined;
         const extraCuUrl = (typeof rawCu1 === 'string' ? rawCu1 : rawCu1?.url) || d.extraPhotoUrl || d.extraCuPhotoUrl || undefined;
 
-        const dimVi = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Khuyết tật cấu kiện kết cấu';
-        const dimEn = (w > 0 || l > 0) ? `wmax = ${w} mm, L = ${l} m` : 'Structural element defect';
+        const dimText = [w > 0 ? `wmax = ${w} mm` : '', l > 0 ? `L = ${l} mm` : ''].filter(Boolean).join(', ');
+        const dimVi = dimText ? dimText : 'Khuyết tật cấu kiện kết cấu';
+        const dimEn = dimText ? dimText : 'Structural element defect';
 
         const ctxRot =
           d.ctxRotation ??
@@ -167,7 +170,7 @@ export function mapFloorStructuralElements(
           closeUpPhotoRotation: Number(cuRot) || 0,
           hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
           wmaxMm: w,
-          lengthM: l,
+          lengthMm: l,
           extraCloseUpPhotoUrl: (extraCuUrl && !extraCuUrl.startsWith('blob:')) ? extraCuUrl : undefined,
           extraCloseUpPhotoBase64: rawExtraCuBase64 && !rawExtraCuBase64.startsWith('blob:') ? rawExtraCuBase64 : undefined,
           extraCloseUpCaption: extraCuUrl ? { vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`, en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm` } : undefined,
