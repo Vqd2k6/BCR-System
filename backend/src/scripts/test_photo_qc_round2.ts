@@ -89,6 +89,23 @@ async function main(): Promise<void> {
     assert.ok(res.items.every((i) => i.previewPhotos.length <= 8));
     assert.ok(res.items.every((i) => i.previewPhotos.every((p) => p.photoGroup === 'OUTDOOR')));
   });
+  await tc('Ảnh đại diện nhẹ của M: mọi khoá và URL có trong bộ ảnh rà soát đầy đủ', async () => {
+    const res = await PhotoQcService.list(user, { kind: 'M', limit: 10 });
+    let checked = 0;
+    for (const item of res.items.filter((i) => i.previewPhotos.length > 0)) {
+      const full = await PhotoQcService.buildAllSlots(item.reportId);
+      const byKey = new Map(full.slots.map((s) => [s.photoKey, s]));
+      for (const p of item.previewPhotos) {
+        const slot = byKey.get(p.photoKey);
+        assert.ok(slot, `${item.reportCode}: khoá ${p.photoKey} (${p.label}) không có ở màn chi tiết`);
+        assert.strictEqual(slot.url, p.url);
+        assert.strictEqual(p.rotation, slot.rotation, `${item.reportCode}: góc preview ${p.rotation} ≠ chi tiết ${slot.rotation} (${p.label})`);
+        checked++;
+      }
+    }
+    console.log(`     đã đối chiếu ${checked} ảnh đại diện`);
+    assert.ok(checked > 0);
+  });
 
   console.log('3. Mức hiệu lực');
   await tc('AUTO theo gợi ý, NONE và mức chọn tay giữ nguyên', async () => {

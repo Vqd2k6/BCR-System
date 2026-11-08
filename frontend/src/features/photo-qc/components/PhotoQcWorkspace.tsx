@@ -27,6 +27,25 @@ const FILTER_LABEL: Record<PhotoQcListFilter, string> = {
   REVIEWED: 'Đã rà',
 };
 
+const SKELETON_WIDTHS = [253, 253, 143, 253, 253, 143];
+
+/** Khung chờ đúng bố cục thẻ hồ sơ (header 1 dòng + dải ảnh) khi tải trang đầu hoặc đổi bộ lọc. */
+const PhotoQcSkeletonCard: React.FC = () => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3 animate-pulse" aria-hidden="true">
+    <div className="flex items-center gap-2">
+      <div className="h-5 w-28 rounded-md bg-slate-200/80" />
+      <div className="h-5 w-14 rounded-md bg-slate-200/70" />
+      <div className="h-5 w-20 rounded-md bg-slate-200/70" />
+      <div className="ml-auto h-7 w-16 rounded-lg bg-slate-200/70" />
+    </div>
+    <div className="flex gap-2 overflow-hidden">
+      {SKELETON_WIDTHS.map((w, i) => (
+        <div key={i} className="shrink-0 rounded-lg bg-slate-200/70" style={{ width: w, height: THUMB_HEIGHT }} />
+      ))}
+    </div>
+  </div>
+);
+
 function readReviewParam(): string | null {
   return new URLSearchParams(window.location.search).get(REVIEW_PARAM);
 }
@@ -56,6 +75,8 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
   const [items, setItems] = useState<PhotoQcListItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Đang thay cả danh sách (trang đầu / đổi bộ lọc) → hiện khung chờ thay cho danh sách cũ. */
+  const [replacing, setReplacing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(() => readReviewParam());
   const [showRecapture, setShowRecapture] = useState(false);
@@ -72,6 +93,7 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
     async (append: boolean, after: string | null): Promise<PhotoQcListItem[]> => {
       const seq = ++requestSeq.current;
       setLoading(true);
+      setReplacing(!append);
       setError(null);
       try {
         const res = await fetchPhotoQcList({
@@ -92,7 +114,10 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
         if (seq === requestSeq.current) setError(getErrorMessage(err, 'Không tải được danh sách hồ sơ'));
         return [];
       } finally {
-        if (seq === requestSeq.current) setLoading(false);
+        if (seq === requestSeq.current) {
+          setLoading(false);
+          setReplacing(false);
+        }
       }
     },
     [zoneParam, station, kind, filter, query]
@@ -209,6 +234,8 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
         fitHeight
         crop={validCrop}
         useThumb
+        knownSize={s ?? null}
+        lowPriority
         title={p.label}
         onClick={() => setLightbox({ photos: list, index: idx })}
         onSize={(size) => {
@@ -297,7 +324,15 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
 
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</div>}
 
-      <div className="space-y-3">
+      {replacing && (
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <PhotoQcSkeletonCard key={i} />
+          ))}
+        </div>
+      )}
+
+      <div className={`space-y-3 ${replacing ? 'hidden' : ''}`}>
         {visible.map((item) => {
           const level: PhotoQcRecaptureLevel = item.qc?.recaptureLevel ?? 'AUTO';
           const coverOn = item.qc?.coverSource === 'P04';
@@ -387,9 +422,11 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
 
       <div className="flex justify-center">
         {loading ? (
-          <span className="flex items-center gap-2 text-xs text-slate-500">
-            <Loader2 className="w-4 h-4 animate-spin" /> Đang tải…
-          </span>
+          !replacing && (
+            <span className="flex items-center gap-2 text-xs text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin" /> Đang tải…
+            </span>
+          )
         ) : (
           cursor && (
             <button

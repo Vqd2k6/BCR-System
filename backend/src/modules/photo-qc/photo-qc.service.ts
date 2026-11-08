@@ -24,7 +24,7 @@ import { applyCondoReportContext } from '../report/snapshot/condo-absent-project
 import { ReportSnapshotService } from '../report/snapshot/report-snapshot.service';
 import { buildPreloadRotationItems, extractAllImageUrls } from '../report/utils/report-preload.utils';
 import { canAccessZone } from '../report/utils/zone-access.utils';
-import { fetchPhotoSourceRows, PhotoQcRepository, type PhotoQcSourceRow } from './photo-qc.repository';
+import { fetchPhotoSourceRows, fetchSurveyJsonByIds, PhotoQcRepository, type PhotoQcSourceRow } from './photo-qc.repository';
 import {
   assignSlotKeys,
   isCoverEligibleKind,
@@ -107,6 +107,7 @@ function decodeCursor(cursor?: string): string | null {
 
 const PREVIEW_LIMIT = 8;
 const PREVIEW_CONCURRENCY = 4;
+const PREVIEW_ORDER: Record<PhotoQcSection, number> = { OVERVIEW: 0, DEFECT: 1, P: 2, DOCUMENT: 3 };
 
 interface ZoneRow {
   zone_code: string;
@@ -289,6 +290,46 @@ export class PhotoQcService {
     };
   }
 
+  /**
+   * Ảnh đại diện nhẹ cho hồ sơ khu vực chung (M) ở màn danh sách: duyệt survey_data_json, không dựng ViewModel.
+   * Khoá ảnh = urlPhotoKey như walker dùng cho ảnh không phải P, nên cờ QC khớp với màn chi tiết.
+   */
+  static async buildLightPreview(reportIds: string[]): Promise<Map<string, PhotoQcSlot[]>> {
+    const out = new Map<string, PhotoQcSlot[]>();
+    if (reportIds.length === 0) return out;
+    const jsonById = await fetchSurveyJsonByIds(reportIds);
+    const picked = new Map<string, Array<{ url: string; label: string; section: PhotoQcSection; rotation: number }>>();
+    for (const id of reportIds) {
+      const json = asObject(jsonById.get(id));
+      const rotMap = asObject(json.photoRotations) as Record<string, number>;
+      const printed = printedRotationResolver({ survey_data_json: json });
+      const items = [...describeJsonPhotos(json)]
+        .filter(([, info]) => info.section !== 'DOCUMENT')
+        .map(([url, info], idx) => ({ url, ...info, idx }))
+        .sort((a, b) => PREVIEW_ORDER[a.section] - PREVIEW_ORDER[b.section] || a.idx - b.idx)
+        .slice(0, PREVIEW_LIMIT)
+        .map(({ url, label, section }) => ({ url, label, section, rotation: printed(url, Number(rotMap[url]) || 0) }));
+      picked.set(id, items);
+    }
+    await LegacyWatermarkIndex.load([...picked.values()].flatMap((list) => list.map((p) => p.url)));
+    for (const [id, list] of picked) {
+      out.set(id, list.map((p) => {
+        const photoKey = urlPhotoKey(p.url);
+        return {
+          photoKey,
+          url: p.url,
+          rotation: p.rotation,
+          label: p.label,
+          section: p.section,
+          photoGroup: photoGroupFor('M', photoKey, p.section),
+          legacyWatermarked: LegacyWatermarkIndex.has(p.url),
+          printed: true,
+        };
+      }));
+    }
+    return out;
+  }
+
   private static attachQc(slots: PhotoQcSlot[], rows: PhotoQcPhotoRow[], studio: StudioMap | null): PhotoQcSlotView[] {
     const byKey = new Map(rows.map((r) => [r.photoKey, r]));
     return slots.map((slot) => {
@@ -355,14 +396,20 @@ export class PhotoQcService {
     // Hồ sơ không có ảnh P (khu vực chung M): lấy tối đa 8 ảnh đại diện qua đúng bộ ảnh rà soát, song song 4.
     const pSlotsById = new Map(pageRows.map((row) => [row.id, this.buildPSlots(row, resolveReportKind(row.report_type, row.unit_type))]));
     const previewById = new Map<string, PhotoQcSlot[]>();
-    const needPreview = pageRows.filter((row) => (pSlotsById.get(row.id) ?? []).length === 0);
+    const noPRows = pageRows.filter((row) => (pSlotsById.get(row.id) ?? []).length === 0);
+    // Khu vực chung M: đọc thẳng survey_data_json (1 query gộp), không dựng ViewModel report.
+    const mRows = noPRows.filter((row) => resolveReportKind(row.report_type, row.unit_type) === 'M');
+    for (const [id, slots] of await this.buildLightPreview(mRows.map((r) => r.id))) {
+      if (slots.length > 0) previewById.set(id, slots); // JSON không có ảnh → để đường đầy đủ tìm trong bảng ảnh.
+    }
+    // Còn lại (thường là hồ sơ vắng) phải qua dữ liệu đã chiếu vắng mặt → giữ đường đầy đủ.
+    const needPreview = noPRows.filter((row) => !previewById.has(row.id));
     for (let i = 0; i < needPreview.length; i += PREVIEW_CONCURRENCY) {
       await Promise.all(
         needPreview.slice(i, i + PREVIEW_CONCURRENCY).map(async (row) => {
           try {
             const built = await this.buildAllSlots(row.id);
-            const order: Record<string, number> = { OVERVIEW: 0, DEFECT: 1, P: 2, DOCUMENT: 3 };
-            previewById.set(row.id, [...built.slots].sort((a, b) => order[a.section] - order[b.section]).slice(0, PREVIEW_LIMIT));
+            previewById.set(row.id, [...built.slots].sort((a, b) => PREVIEW_ORDER[a.section] - PREVIEW_ORDER[b.section]).slice(0, PREVIEW_LIMIT));
           } catch (err) {
             console.error(`[PhotoQcService:list] Không dựng được ảnh đại diện cho ${row.report_code}`, err);
           }

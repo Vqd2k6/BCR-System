@@ -309,3 +309,13 @@ export async function fetchPhotoSourceRows(
   );
   return res.rows;
 }
+
+/** survey_data_json đầy đủ của nhiều hồ sơ trong một lượt (ảnh đại diện nhẹ ở màn danh sách). */
+export async function fetchSurveyJsonByIds(ids: string[]): Promise<Map<string, unknown>> {
+  if (ids.length === 0) return new Map();
+  const res = await Database.query<{ id: string; survey_data_json: unknown }>(
+    `SELECT id, survey_data_json FROM base_survey_reports WHERE id = ANY($1::uuid[]);`,
+    [ids]
+  );
+  return new Map(res.rows.map((r) => [r.id, r.survey_data_json]));
+}

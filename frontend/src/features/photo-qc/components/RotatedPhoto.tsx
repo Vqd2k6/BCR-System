@@ -17,6 +17,9 @@ export function thumbUrlOf(url: string): string {
   }
 }
 
+/** Thuộc tính HTML `fetchpriority` viết thường: React 18 chưa nhận prop `fetchPriority`. */
+const LOW_FETCH_PRIORITY: Record<string, string> = { fetchpriority: 'low' };
+
 interface RotatedPhotoProps {
   url: string;
   rotation: number;
@@ -28,6 +31,10 @@ interface RotatedPhotoProps {
   /** Xem trước đúng phần sẽ in (khung crop trên ảnh đã xoay). */
   crop?: NormRect | null;
   useThumb?: boolean;
+  /** Kích thước đã biết từ lần tải trước: dựng đúng khung ngay, không giật bố cục khi ảnh về. */
+  knownSize?: NaturalSize | null;
+  /** Ảnh dải ở danh sách: nhường băng thông cho ảnh người dùng đang mở. */
+  lowPriority?: boolean;
   onSize?: (size: NaturalSize) => void;
   onClick?: () => void;
   title?: string;
@@ -47,13 +54,15 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({
   fitHeight = false,
   crop,
   useThumb = false,
+  knownSize = null,
+  lowPriority = false,
   onSize,
   onClick,
   title,
   className = '',
   children,
 }) => {
-  const [size, setSize] = useState<NaturalSize | null>(null);
+  const [size, setSize] = useState<NaturalSize | null>(knownSize);
   const [src, setSrc] = useState<string>(useThumb ? thumbUrlOf(url) : url);
   const [failed, setFailed] = useState(false);
   const deg = normalizeDeg(rotation);
@@ -108,6 +117,7 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({
             src={src}
             alt=""
             loading="lazy"
+            {...(lowPriority ? LOW_FETCH_PRIORITY : {})}
             decoding="async"
             draggable={false}
             onLoad={handleLoad}
