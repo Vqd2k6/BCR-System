@@ -84,6 +84,8 @@ export class MetadataMapper {
       p02Item?.raw_photo_url ||
       p02Item?.annotated_photo_url ||
       '';
+    // Nguồn ảnh bìa thật sự dùng, để góc xoay và giờ chụp lấy đúng của ảnh đó (không mượn của P-02).
+    let coverSource: 'P02' | 'P01' | 'OTHER' = coverPhotoUrl ? 'P02' : 'OTHER';
 
     if (!coverPhotoUrl) {
       coverPhotoUrl =
@@ -94,6 +96,7 @@ export class MetadataMapper {
         p01Item?.raw_photo_url ||
         p01Item?.annotated_photo_url ||
         '';
+      if (coverPhotoUrl) coverSource = 'P01';
     }
 
     if (!coverPhotoUrl && Array.isArray(json.vacantLandPhotos) && json.vacantLandPhotos.length > 0) {
@@ -103,9 +106,17 @@ export class MetadataMapper {
     }
 
     const rotMap = json.photoRotations || rawReport.photoRotations || {};
-    const coverPhotoRot = rotMap['P-02'] ?? rotMap['photoP02'] ?? rotMap['P-01'] ?? rotMap['photoP01'] ?? rotMap[coverPhotoUrl] ?? 0;
+    const coverPhotoRot = coverSource === 'P02'
+      ? (rotMap['P-02'] ?? rotMap['photoP02'] ?? rotMap[coverPhotoUrl] ?? 0)
+      : coverSource === 'P01'
+        ? (rotMap['P-01'] ?? rotMap['photoP01'] ?? rotMap[coverPhotoUrl] ?? 0)
+        : (rotMap['vacantLand_0'] ?? rotMap[coverPhotoUrl] ?? 0);
     const coverPhotoBase64 = coverPhotoUrl ? ReportImageResolver.resolveToBase64(coverPhotoUrl, coverPhotoRot) : undefined;
-    const coverWatermarkDateTime = extractPhotoDateTime(coverPhotoUrl, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate);
+    const coverWatermarkDateTime = extractPhotoDateTime(
+      coverPhotoUrl,
+      coverSource === 'P01' ? (p01Item?.shot_at || p01Item?.created_at) : (p02Item?.shot_at || p02Item?.created_at),
+      rawSurveyDate
+    );
 
     // Sơ đồ vị trí Mục II được sinh tại ReportViewModelMapper (cần cự ly đã lưu trong specs để in nhãn).
     const spatialVisualMapBase64: string | undefined = undefined;
