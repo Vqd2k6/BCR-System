@@ -1,5 +1,5 @@
   <!-- =====================================================================
-       TRANG 6: CHƯƠNG VII (PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND 1977)
+       TRANG 6: CHƯƠNG VII (PHÂN LOẠI HƯ HẠI THEO BURLAND 1977 & TÌNH TRẠNG CẤU KIỆN CHỊU LỰC)
        ===================================================================== -->
   <div class="a4-page-sheet">
     
@@ -9,9 +9,9 @@
   </div>
 
     <!-- CHƯƠNG VII: PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND -->
-    <h2 class="chapter-header" data-section="sec-7" style="margin-top: 4px;">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION</h2>
+    <h2 class="chapter-header" data-section="sec-7" style="margin-top: 4px;">VII. PHÂN LOẠI HƯ HẠI THEO BURLAND &amp; TÌNH TRẠNG CẤU KIỆN CHỊU LỰC - BURLAND DAMAGE CLASSIFICATION &amp; STRUCTURAL ELEMENT CONDITION</h2>
     <div style="margin-bottom: 5px; font-size: var(--fs-e1); color: var(--c-sub); line-height: 1.3;">
-      Phân loại mức độ hư hỏng dựa theo tiêu chuẩn Burland et al. (1977) và BRE Digest 251 căn cứ trên bề rộng vết nứt lớn nhất ghi nhận được trên kết cấu công trình.
+      Phân loại mức độ hư hỏng dựa theo tiêu chuẩn Burland et al. (1977) và BRE Digest 251, căn cứ bề rộng vết nứt lớn nhất ghi nhận được trên tường khối xây và lớp hoàn thiện (vùng Z). Thang Burland không dùng để đánh giá khả năng chịu lực của cấu kiện BTCT; tình trạng cấu kiện chịu lực (E) trình bày tại Bảng VII.4.
     </div>
 
     <!-- BỐ CỤC 2 CỘT SONG SONG CHO BẢNG VII.1 VÀ BẢNG VII.2 -->
@@ -71,7 +71,7 @@
               </tr>
             {{/each}}
             <tr style="background-color: #f9f9f9; font-weight: bold;">
-              <td>Tổng số vùng kiến trúc (Z):</td>
+              <td>Tổng số vùng Z đã phân cấp:</td>
               <td class="text-center">{{section7.totalSurveyedObjects}}</td>
               <td class="text-center">100.0%</td>
             </tr>
@@ -123,10 +123,10 @@
             </td>
             <td class="text-center">{{this.crackCount}}</td>
             <td class="text-center font-bold">
-              {{#if (gt this.burlandGrade 0)}}
-                Cấp {{this.burlandGrade}}
+              {{#if (eq this.burlandGrade null)}}
+                --
               {{else}}
-                Cấp 0
+                Cấp {{this.burlandGrade}}
               {{/if}}
             </td>
           </tr>

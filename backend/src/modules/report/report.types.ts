@@ -276,7 +276,8 @@ export interface BurlandZoneSummaryItem {
   wallMaterial: BilingualText;
   wmaxMm: number | string;
   crackCount: number;
-  burlandGrade: number;
+  /** null = vùng chưa có cấp lưu (in "--") */
+  burlandGrade: number | null;
 }
 
 export interface BurlandTableRow {

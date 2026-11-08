@@ -3,7 +3,8 @@
  * SECTION 7 BURLAND CLASSIFICATION MAPPER (READ-ONLY — ZERO CALCULATE)
  * Phân cấp hư hại theo tiêu chuẩn Burland et al. (1977) & BRE Digest 251.
  * Đọc trực tiếp 1:1 từ dữ liệu đã chốt trong hồ sơ khảo sát (burlandSummary, zones).
- * Tuyệt đối không tính toán cấp Burland từ độ rộng vết nứt lúc xuất báo cáo.
+ * Tuyệt đối không tính toán cấp Burland từ độ rộng vết nứt lúc xuất báo cáo: cấp đúng được bảo đảm ở
+ * khâu khảo sát và chốt duyệt (report-consistency-gate). Bề rộng / số vết nứt in ra chỉ tính D loại nứt.
  * ============================================================================
  */
 
@@ -14,6 +15,8 @@ import {
   BurlandDistributionItem,
   BurlandStructuralElementItem,
 } from '../../report.types';
+import { defectWidthMm, isCrackDefect, summarizeZoneCracks } from '../../../scoring/burland-grade';
+import type { BurlandDefectLike } from '../../../scoring/burland-grade';
 
 function parseSavedGrade(val: unknown): number | null {
   if (val === undefined || val === null || val === '') return null;
@@ -48,6 +51,33 @@ export class Section7BurlandMapper {
     }
   }
 
+  /**
+   * Vùng chi phối: burlandSummary chỉ lưu mã (Z-01) mà tầng nào cũng đánh số lại từ Z-01.
+   * Có tên tầng thì khớp tầng + mã; hồ sơ cũ thì chọn trong các vùng trùng mã vùng có cấp = cấp cục bộ lớn nhất
+   * và wmax lớn nhất; không có thì vùng đầu tiên trùng mã.
+   */
+  public static resolveGoverningZone(
+    zones: BurlandZoneSummaryItem[],
+    code: unknown,
+    floorName: unknown,
+    localMax: number | null
+  ): BurlandZoneSummaryItem | undefined {
+    const c = typeof code === 'string' ? code.trim() : '';
+    if (!c) return undefined;
+    const sameCode = zones.filter((z) => z.zoneCode === c);
+    if (sameCode.length <= 1) return sameCode[0];
+    const fl = typeof floorName === 'string' ? floorName.trim() : '';
+    if (fl) {
+      const byFloor = sameCode.find((z) => z.floorName.vi === fl);
+      if (byFloor) return byFloor;
+    }
+    const wNum = (z: BurlandZoneSummaryItem) => (typeof z.wmaxMm === 'number' ? z.wmaxMm : 0);
+    const atMax = localMax === null ? [] : sameCode.filter((z) => z.burlandGrade === localMax);
+    const pool = atMax.length > 0 ? atMax : [];
+    if (pool.length > 0) return pool.reduce((best, z) => (wNum(z) > wNum(best) ? z : best), pool[0]);
+    return sameCode[0];
+  }
+
   public static map(
     rawFloors: any[],
     rawSummary?: any
@@ -56,6 +86,7 @@ export class Section7BurlandMapper {
     const structuralElements: BurlandStructuralElementItem[] = [];
     const gradeCountMap: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     let totalSurveyedObjects = 0;
+    let totalActiveDefects = 0;
 
     for (const fl of rawFloors || []) {
       const flNameVi = fl.floorName || 'Tầng trệt';
@@ -74,16 +105,18 @@ export class Section7BurlandMapper {
         const wallMatEn = z.wallMaterialEn || (resolvedWallMat ? resolvedWallMat : 'Not recorded');
 
         const defects: any[] = (z.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
+        totalActiveDefects += defects.length;
+        // wmax / số vết nứt chỉ tính D loại nứt: "bề rộng" của vết thấm/bong là kích thước mảng, không phải vết nứt.
+        const cracks = summarizeZoneCracks(defects);
         const savedZoneWmax = z.wmaxMm ?? z.maxWidthMm;
         const wmaxDisplay: number | string = (savedZoneWmax !== undefined && savedZoneWmax !== null && savedZoneWmax !== '' && Number(savedZoneWmax) > 0)
           ? Number(savedZoneWmax)
-          : (() => {
-              const firstDefectWithWidth = defects.find((d: any) => Number(d.widthMm || d.widthMaxMm || 0) > 0);
-              return firstDefectWithWidth ? Number(firstDefectWithWidth.widthMm || firstDefectWithWidth.widthMaxMm) : '–';
-            })();
+          : cracks.wmaxMm > 0 ? cracks.wmaxMm : '–';
 
-        const savedZoneGrade = parseSavedGrade(z.burlandGrade) ?? 0;
-        gradeCountMap[savedZoneGrade] = (gradeCountMap[savedZoneGrade] || 0) + 1;
+        // Vùng chưa có cấp lưu: không có vết nứt nào thì là Cấp 0 theo định nghĩa; có vết nứt thì in "--"
+        // (không tự gán cấp — chốt duyệt bảo đảm bản đã duyệt không còn trường hợp này).
+        const savedZoneGrade = parseSavedGrade(z.burlandGrade ?? z.burland_grade) ?? (cracks.crackCount === 0 ? 0 : null);
+        if (savedZoneGrade !== null) gradeCountMap[savedZoneGrade] = (gradeCountMap[savedZoneGrade] || 0) + 1;
 
         zoneSummaries.push({
           zoneCode: zCode,
@@ -91,7 +124,7 @@ export class Section7BurlandMapper {
           location: { vi: locVi, en: locEn },
           wallMaterial: { vi: wallMatVi, en: wallMatEn },
           wmaxMm: wmaxDisplay,
-          crackCount: typeof z.crackCount === 'number' ? z.crackCount : defects.length,
+          crackCount: cracks.crackCount,
           burlandGrade: savedZoneGrade,
         });
       }
@@ -109,8 +142,10 @@ export class Section7BurlandMapper {
         const matVi = resolvedEMat || 'Bê tông cốt thép';
 
         const defects: any[] = (e.defects || []).filter((d: any) => !d?.isDeleted && !d?.is_deleted);
-        const firstDefectWithWidth = defects.find((d: any) => Number(d.widthMm || d.widthMaxMm || 0) > 0);
-        const elemWmax = firstDefectWithWidth ? Number(firstDefectWithWidth.widthMm || firstDefectWithWidth.widthMaxMm) : 0;
+        totalActiveDefects += defects.length;
+        const elemWmax = defects
+          .filter((d: BurlandDefectLike) => isCrackDefect(d))
+          .reduce((m: number, d: BurlandDefectLike) => Math.max(m, defectWidthMm(d)), 0);
 
         let condVi = 'Bình thường, không ghi nhận khuyết tật';
         let condEn = 'Normal, no defects recorded';
@@ -180,7 +215,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '≤ 0.1 mm',
         descriptionVi: 'Vết nứt chân chim tóc cực nhỏ, bình thường cho khối xây và lớp vữa.',
         descriptionEn: 'Hairline cracks, normal for masonry and plaster.',
-        isCurrentLevel: finalLocalMax === 0 || (gradeCountMap[0] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 0,
       },
       {
         grade: 1,
@@ -188,7 +223,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '0.1 – 1.0 mm',
         descriptionVi: 'Vết nứt tinh xảo, dễ dàng xử lý bằng sơn lót hoặc bả mastic cục bộ.',
         descriptionEn: 'Fine cracks, easily treated during normal decoration.',
-        isCurrentLevel: finalLocalMax === 1 || (gradeCountMap[1] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 1,
       },
       {
         grade: 2,
@@ -196,7 +231,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '1.0 – 5.0 mm',
         descriptionVi: 'Vết nứt dễ trát vá vữa, cửa sổ và cửa đi có thể hơi kẹt nhẹ.',
         descriptionEn: 'Cracks easily filled. Doors and windows may stick slightly.',
-        isCurrentLevel: finalLocalMax === 2 || (gradeCountMap[2] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 2,
       },
       {
         grade: 3,
@@ -204,7 +239,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '5.0 – 15.0 mm',
         descriptionVi: 'Nứt cần thợ nề đục tẩy xử lý mạch vữa, khả năng chống thấm thời tiết bị suy giảm.',
         descriptionEn: 'Cracks require masonry opening and repointing, weather-tightness often impaired.',
-        isCurrentLevel: finalLocalMax === 3 || (gradeCountMap[3] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 3,
       },
       {
         grade: 4,
@@ -212,7 +247,7 @@ export class Section7BurlandMapper {
         crackWidthLimit: '15.0 – 25.0 mm',
         descriptionVi: 'Hư hỏng trên diện rộng, tường xây bị lệch chuyển, dầm sàn võng nứt.',
         descriptionEn: 'Extensive damage, walls leaning or bowing, beams deflect noticeably.',
-        isCurrentLevel: finalLocalMax === 4 || (gradeCountMap[4] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 4,
       },
       {
         grade: 5,
@@ -220,13 +255,16 @@ export class Section7BurlandMapper {
         crackWidthLimit: '> 25.0 mm',
         descriptionVi: 'Nguy cơ sụp đổ từng phần, yêu cầu chống đỡ khẩn cấp hoặc tái thiết cấu kiện.',
         descriptionEn: 'Structural danger, partial collapse risk requiring urgent propping or partial rebuilding.',
-        isCurrentLevel: finalLocalMax === 5 || (gradeCountMap[5] || 0) > 0,
+        isCurrentLevel: finalLocalMax === 5,
       },
     ];
 
-    const explicitGovZone = rawBs.governingZoneCode
-      ? zoneSummaries.find((zs) => zs.zoneCode === rawBs.governingZoneCode)
-      : undefined;
+    const explicitGovZone = Section7BurlandMapper.resolveGoverningZone(
+      zoneSummaries,
+      rawBs.governingZoneCode,
+      rawBs.governingFloorName,
+      finalLocalMax
+    );
     const govCode = rawBs.governingZoneCode || explicitGovZone?.zoneCode || '--';
     const govFloor = explicitGovZone?.floorName?.vi || '--';
     const govFloorEn = explicitGovZone?.floorName?.en || govFloor;
@@ -271,14 +309,15 @@ export class Section7BurlandMapper {
     const needReviewVi = rawNeedReview === true ? 'Có' : rawNeedReview === false ? 'Không' : '--';
     const needReviewEn = rawNeedReview === true ? 'Yes' : rawNeedReview === false ? 'No' : '--';
 
-    const isZeroDefects = finalLocalMax === 0;
+    // "Nguyên vẹn" chỉ khi thật sự không còn D nào (Z + E); Cấp 0 vẫn có thể có thấm, bong, nứt tóc.
+    const isZeroDefects = totalActiveDefects === 0;
     const evaluationNotes = String(rawBs.evaluationNotes || '').trim() || undefined;
     const engineerReviewNotes = String(rawBs.engineerReviewNotes || '').trim() || undefined;
 
     return {
       burlandTable,
       distribution,
-      totalSurveyedObjects: totalSurveyedObjects || totalDist,
+      totalSurveyedObjects: totalDist,
       predominantGrade: {
         vi: Section7BurlandMapper.getBurlandGradeLabelVi(finalPredominant),
         en: Section7BurlandMapper.getBurlandGradeLabelEn(finalPredominant),
