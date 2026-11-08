@@ -15,6 +15,7 @@ import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import type { GisParcel } from '../../../components/gis/shared/types';
 import { ShieldAlert } from 'lucide-react';
 import { AdminAttendanceManagementView, useAttendancePendingBadge } from '../../attendance';
+import { PhotoQcWorkspace } from '../../photo-qc';
 import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
 import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from '../../../utils/zoneScope';
 
@@ -76,7 +77,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         savedNav === 'map' ||
         savedNav === 'parcels' ||
         savedNav === 'export' ||
-        savedNav === 'attendance'
+        savedNav === 'attendance' ||
+        savedNav === 'photo-qc'
       ) {
         return savedNav;
       }
@@ -455,6 +457,13 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       {activeNav === 'attendance' && (
         <div className="animate-in fade-in duration-200">
           <AdminAttendanceManagementView zoneId={selectedZone} isSuperAdmin={user?.role === 'SUPER_ADMIN'} />
+        </div>
+      )}
+
+      {/* View 7: Rà Soát Ảnh Hồ Sơ (Photo QC) */}
+      {activeNav === 'photo-qc' && (
+        <div className="animate-in fade-in duration-200">
+          <PhotoQcWorkspace zoneId={selectedZone} />
         </div>
       )}
 

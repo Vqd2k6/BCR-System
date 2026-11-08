@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
+  /** Tiền tố thumbnail Photo QC trên R2, ví dụ "thumbs" (bỏ trống = dùng ảnh gốc). */
+  readonly VITE_PHOTO_QC_THUMB_PREFIX?: string;
   readonly DEV: boolean;
   readonly PROD: boolean;
   readonly MODE: string;

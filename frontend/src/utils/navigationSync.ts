@@ -32,6 +32,7 @@ const VALID_ZONE_NAVS: readonly ZoneNavView[] = [
   'parcels',
   'export',
   'attendance',
+  'photo-qc',
 ];
 
 const VALID_ADMIN_TABS: readonly AdminTab[] = [

@@ -16,13 +16,14 @@ import {
   ExternalLink,
   KeyRound,
   UserCheck,
+  Images,
 } from 'lucide-react';
 import { ThemeSwitcher } from '../../../../components/common/ThemeSwitcher';
 import { METRO_22_ZONES } from '../../../survey-phase1/constants/metroGisConstants';
 import { ZoneAdminAccountMenu } from './ZoneAdminAccountMenu';
 import type { UserProfile } from '../../../../context/AuthContext';
 
-export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export' | 'attendance';
+export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export' | 'attendance' | 'photo-qc';
 
 interface Props {
   activeNav: ZoneNavView;
@@ -112,6 +113,12 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
       icon: UserCheck,
       badge: attendancePendingCount > 0 ? attendancePendingCount : null,
       badgeColor: 'bg-amber-500 text-white',
+    },
+    {
+      id: 'photo-qc' as ZoneNavView,
+      label: 'Rà Soát Ảnh Hồ Sơ',
+      icon: Images,
+      badge: null,
     },
     {
       id: 'export' as ZoneNavView,
