@@ -11,6 +11,7 @@ import {
   classifyStructureSystem,
   v2ScoreForStructure,
 } from '../../scoring/structure-system.classifier';
+import { summarizeZoneCracks } from '../../scoring/burland-grade';
 
 export interface ConsistencyGateResult {
   passed: boolean;
@@ -73,6 +74,112 @@ function arePolygonsDifferent(
     }
   }
   return false;
+}
+
+interface BurlandGateZone {
+  floorName: string;
+  zoneCode: string;
+  savedGrade: number | null;
+  measuredGrade: number | null;
+  wmaxMm: number;
+}
+
+const toRecordOrNull = (v: unknown): Record<string, unknown> | null =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+const isSoftDeleted = (r: Record<string, unknown>): boolean => r.isDeleted === true || r.is_deleted === true;
+
+function parseGrade(v: unknown): number | null {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= 5 ? n : null;
+}
+
+/** Gom vùng Z của nhà dân (floors[].zones) và chung cư (zones gốc, bỏ cấu kiện E). */
+export function collectBurlandGateZones(surveyJson: unknown): BurlandGateZone[] {
+  const json = toRecordOrNull(surveyJson) || {};
+  const out: BurlandGateZone[] = [];
+  const pushZone = (z: Record<string, unknown>, floorName: string) => {
+    if (isSoftDeleted(z)) return;
+    const code = String(z.zoneCode ?? z.zone_code ?? '').trim();
+    if (code.toUpperCase().startsWith('E-') || z.isStructuralElement === true) return;
+    const cracks = summarizeZoneCracks(z.defects);
+    out.push({
+      floorName,
+      zoneCode: code || 'Z-??',
+      savedGrade: parseGrade(z.burlandGrade ?? z.burland_grade),
+      measuredGrade: cracks.grade,
+      wmaxMm: cracks.wmaxMm,
+    });
+  };
+
+  const floors = Array.isArray(json.floors) ? json.floors : [];
+  for (const rawFl of floors) {
+    const fl = toRecordOrNull(rawFl);
+    if (!fl || isSoftDeleted(fl)) continue;
+    const flName = String(fl.floorName ?? fl.name ?? '').trim();
+    const zones = Array.isArray(fl.zones) ? fl.zones : [];
+    for (const rawZ of zones) {
+      const z = toRecordOrNull(rawZ);
+      if (z) pushZone(z, flName);
+    }
+  }
+  if (floors.length === 0 && Array.isArray(json.zones)) {
+    for (const rawZ of json.zones) {
+      const z = toRecordOrNull(rawZ);
+      if (z) pushZone(z, String(z.floorName ?? z.floor_name ?? '').trim());
+    }
+  }
+  return out;
+}
+
+/**
+ * Kiểm cấp Burland đã lưu so với bề rộng vết nứt đo được (chỉ D loại nứt trong vùng Z).
+ * Lưu THẤP hơn cấp đo là lỗi cứng: báo cáo sẽ in cấp thấp hơn số đo của chính nó và điểm E1 bị tính thiếu.
+ * Lưu CAO hơn được chấp nhận (phán đoán chuyên môn).
+ */
+export function evaluateBurlandConsistency(surveyJson: unknown): { hardErrors: string[]; warnings: string[] } {
+  const hardErrors: string[] = [];
+  const warnings: string[] = [];
+  const zones = collectBurlandGateZones(surveyJson);
+  const crackZones = zones.filter((z) => z.measuredGrade !== null);
+  if (crackZones.length === 0) return { hardErrors, warnings };
+
+  const label = (z: BurlandGateZone) => `${z.zoneCode}${z.floorName ? ` (${z.floorName})` : ''}`;
+
+  const badZones = crackZones.filter((z) => (z.savedGrade ?? -1) < (z.measuredGrade ?? 0));
+  if (badZones.length > 0) {
+    const sample = badZones
+      .slice(0, 5)
+      .map((z) => `${label(z)}: lưu ${z.savedGrade === null ? 'trống' : `Cấp ${z.savedGrade}`}, đo wmax = ${z.wmaxMm} mm → Cấp ${z.measuredGrade}`)
+      .join('; ');
+    hardErrors.push(
+      `[BURLAND_ZONE_GRADE_BELOW_MEASURED] Có ${badZones.length} vùng Z lưu cấp Burland thấp hơn cấp theo bề rộng vết nứt đo được (${sample}${badZones.length > 5 ? '; …' : ''}). Cần đồng bộ trước khi phê duyệt. Nhà dân: Bước 4 thẩm định → "Đồng bộ theo vùng Z" rồi Lưu; chung cư: lưu lại mục Vùng & Khuyết tật để hệ thống tính lại cấp theo bề rộng đo.`
+    );
+  }
+
+  const json = toRecordOrNull(surveyJson) || {};
+  const bs = toRecordOrNull(json.burlandSummary) || {};
+  const measuredMax = Math.max(...crackZones.map((z) => z.measuredGrade ?? 0));
+  const savedMax = parseGrade(bs.localMaxGrade);
+  if ((savedMax ?? -1) < measuredMax) {
+    hardErrors.push(
+      `[BURLAND_LOCAL_MAX_BELOW_MEASURED] Cấp Burland cục bộ lớn nhất đang lưu là ${savedMax === null ? 'trống' : `Cấp ${savedMax}`}, thấp hơn cấp theo bề rộng vết nứt đo được (Cấp ${measuredMax}). Cần đồng bộ trước khi phê duyệt. Nhà dân: Bước 4 thẩm định → "Đồng bộ theo vùng Z" rồi Lưu; chung cư: lưu lại mục Vùng & Khuyết tật để hệ thống tính lại cấp theo bề rộng đo.`
+    );
+  }
+
+  const govCode = String(bs.governingZoneCode ?? '').trim();
+  const govFloor = String(bs.governingFloorName ?? '').trim();
+  if (govCode && !govFloor && zones.filter((z) => z.zoneCode === govCode).length > 1) {
+    warnings.push(
+      `[BURLAND_GOVERNING_FLOOR_UNRESOLVED] Vùng chi phối "${govCode}" có ở nhiều tầng nhưng chưa ghi rõ tầng; báo cáo sẽ chọn vùng ${govCode} có cấp Burland cao nhất.`
+    );
+  }
+  const rep = String(bs.representativeness ?? '').trim();
+  if (rep !== 'GLOBAL' && rep !== 'LOCAL') {
+    warnings.push('[BURLAND_REPRESENTATIVENESS_MISSING] Chưa chọn Tính đại diện hư hỏng (Toàn công trình / Cục bộ) ở Bước 4.');
+  }
+  return { hardErrors, warnings };
 }
 
 export class ReportConsistencyGate {
@@ -300,6 +407,13 @@ export class ReportConsistencyGate {
         }
       }
     }
+
+    // -------------------------------------------------------------------------
+    // 6. HARD INCONSISTENCY: Cấp Burland đã lưu thấp hơn cấp theo bề rộng vết nứt đo được
+    // -------------------------------------------------------------------------
+    const burlandCheck = evaluateBurlandConsistency(surveyJson);
+    hardErrors.push(...burlandCheck.hardErrors);
+    warnings.push(...burlandCheck.warnings);
 
     return {
       passed: hardErrors.length === 0,

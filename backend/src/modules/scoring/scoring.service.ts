@@ -2,6 +2,7 @@ import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { calculateVi } from './vi-calculator';
 import { resolveHistoryInterviewAliases } from './history-interview-aliases';
+import { isCrackRelatedDefect, getBurlandGradeFromWidth } from './burland-grade';
 
 /** Các trường của survey_data_json mà bộ chấm điểm ECS & VI cần đọc (Đồng bộ 100% FE Phase 1) */
 interface ScoringSurveyJson {
@@ -123,40 +124,6 @@ function mapBuildingGradeToObjectGroup(grade?: string | null): string {
   if (grade === 'CRITICAL' || grade === 'GRADE_1') return 'CRITICAL';
   if (grade === 'IMPORTANT' || grade === 'GRADE_2') return 'IMPORTANT';
   return 'GENERAL';
-}
-
-/** Kiểm tra khuyết tật có phải dạng vết nứt hay không (đồng bộ 1:1 với frontend/src/components/canvas/defectHelpers.ts) */
-function isCrackRelatedDefect(cat?: string | null, type?: string | null): boolean {
-  const catStr = (cat || '').toLowerCase();
-  const typeStr = (type || '').toLowerCase();
-  const full = `${catStr} ${typeStr}`;
-
-  if (
-    full.includes('thấm dột') ||
-    full.includes('ẩm mốc') ||
-    full.includes('kẹt cửa') ||
-    full.includes('cong vênh') ||
-    full.includes('bong rộp') ||
-    full.includes('bong tróc') ||
-    full.includes('rỉ sét')
-  ) {
-    if (typeStr.includes('nứt') || typeStr.includes('crack')) {
-      return true;
-    }
-    return false;
-  }
-
-  return full.includes('nứt') || full.includes('crack');
-}
-
-/** Quy đổi bề rộng vết nứt (mm) sang cấp Burland 0..5 (đồng bộ 1:1 với Step4_BurlandSummary.tsx) */
-function getBurlandGradeFromWidth(w: number): number {
-  if (w <= 0.1) return 0;
-  if (w <= 1) return 1;
-  if (w <= 5) return 2;
-  if (w <= 15) return 3;
-  if (w <= 25) return 4;
-  return 5;
 }
 
 export class ScoringService {
