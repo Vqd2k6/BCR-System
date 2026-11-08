@@ -8,10 +8,12 @@ import type {
 export const AreaStep05Burland: React.FC<CondoAuditStepProps<CondoAreaFormState>> = ({
   formState,
   onOpenEngineeringJudgement,
+  burlandAutoSync,
 }) => (
   <CondoBurlandSummaryCard
     scopeLabel={`Cấp hư hại đại diện phân vùng ${formState.unitCode}`}
     summary={formState.burlandSummary}
     onOpenEngineeringJudgement={onOpenEngineeringJudgement}
+    autoSync={burlandAutoSync}
   />
 );

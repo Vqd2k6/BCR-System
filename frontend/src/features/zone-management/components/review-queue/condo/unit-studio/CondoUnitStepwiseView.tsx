@@ -8,6 +8,7 @@ import {
   buildCondoUnitUpdatesPayload,
   isCondoUnitDirtyKeyActive,
   resolveCondoFormAbsence,
+  syncCondoUnitBurlandOnLoad,
 } from './condo-unit.normalizer';
 import { CONDO_UNIT_STEPS } from './condo-unit.steps-registry';
 import type {
@@ -44,6 +45,7 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
     scrollToStep,
     formState,
     dirtyCount,
+    loadSyncInfo,
     handleFieldChange,
     handleNestedFieldChange,
     isFieldDirty,
@@ -60,6 +62,7 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
     isDirtyKeyActive: isCondoUnitDirtyKeyActive,
     getSaveBlockReason: getCondoUnitSaveBlockReason,
     onDirtyChange,
+    syncOnLoad: syncCondoUnitBurlandOnLoad,
   });
 
   // Căn vắng chỉ có định danh và biên bản: các bước nội thất là dữ liệu điền cho đủ form của hồ sơ cũ
@@ -155,6 +158,7 @@ export const CondoUnitStepwiseView: React.FC<CondoStudioEntryProps> = ({
         onOpenMasterReportById: onSwitchReportId,
         stagedPhotoActions,
         onUndoPhotoAction,
+        burlandAutoSync: loadSyncInfo,
       }}
     />
   );

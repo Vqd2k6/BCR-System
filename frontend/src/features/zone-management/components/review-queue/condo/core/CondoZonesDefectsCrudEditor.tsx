@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { zoneCrackGrade } from '../../../../../../components/canvas/burlandGrade';
 import { Plus, Trash2, RotateCcw, CheckCircle2, MapPin, EyeOff } from 'lucide-react';
 import { deriveDefectE6 } from '../../../../../../components/canvas/defectTaxonomy';
 import { rotatePinCoords } from '../../stepwise/utils/pinCoordinates';
@@ -7,7 +8,6 @@ import type {
   CondoDamageZoneItemData,
   CondoDefectItemData,
 } from '../types/condo-audit.types';
-import { calcBurlandGradeFromWidthFrontend } from './condo-zone.mappers';
 import { compareCodes } from './condo-normalize.utils';
 import { CondoDefectStripSection } from './CondoDefectStripSection';
 import type { CondoCadPinControls } from './useCondoCadPins';
@@ -58,14 +58,8 @@ export const CondoZonesDefectsCrudEditor: React.FC<CondoZonesDefectsCrudEditorPr
 
   const recomputeZoneBurland = (zone: CondoDamageZoneItemData): CondoDamageZoneItemData => {
     const activeDefs = (zone.defects || []).filter((d) => !d.isDeleted);
-    let maxG = 0;
-    for (const d of activeDefs) {
-      const g = calcBurlandGradeFromWidthFrontend(
-        Number(d.widthMaxMm || 0),
-        Boolean(d.isStructuralCritical)
-      );
-      if (g > maxG) maxG = g;
-    }
+    // Chỉ D loại nứt có cấp Burland (cùng quy tắc backend lưu và nhà dân)
+    const maxG = zoneCrackGrade(activeDefs);
     return {
       ...zone,
       burlandGrade: maxG,

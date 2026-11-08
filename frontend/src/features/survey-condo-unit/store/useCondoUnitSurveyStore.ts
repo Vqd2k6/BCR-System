@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { zoneCrackGrade } from '../../../components/canvas/burlandGrade';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import {
   isResidentStatus,
@@ -1410,8 +1411,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     const prev = get().formData;
     const updated = prev.zones.map((z) => {
       if (z.id === zoneId) {
-        const burlandGrades = defects.map((d) => Number(d.burlandGrade) || 0);
-        const maxBurland = burlandGrades.length > 0 ? Math.max(...burlandGrades) : 0;
+        // Cấp vùng theo bề rộng D loại nứt (D không có burlandGrade riêng; thấm/bong không có cấp Burland)
+        const maxBurland = zoneCrackGrade(defects);
         return {
           ...z,
           defects,

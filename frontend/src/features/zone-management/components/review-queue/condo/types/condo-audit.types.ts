@@ -398,6 +398,8 @@ export interface CondoAuditStepProps<TFormState extends Record<string, unknown>>
   onRefresh?: () => void;
   stagedPhotoActions?: PhotoActionPayload[];
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  /** Số vùng Z đã tự đồng bộ cấp Burland theo bề rộng đo khi mở hồ sơ (chưa Lưu). */
+  burlandAutoSync?: { zoneCount: number; summaryChanged: boolean };
 }
 
 export interface CondoStepRegistryItem<TFormState extends Record<string, unknown>> {

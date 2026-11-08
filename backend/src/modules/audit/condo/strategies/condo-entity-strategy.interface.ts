@@ -469,7 +469,7 @@ export async function syncCondoZonesElementsAndDefectsInTx(
 
   const activeZoneIds = new Set<string>();
   const activeDefectIds = new Set<string>();
-  const crackGrades: Array<{ grade: number; zoneCode: string }> = [];
+  const crackGrades: Array<{ grade: number; zoneCode: string; floorName: string; widthMm: number }> = [];
   let totalActiveDefects = 0;
 
   const upsertZoneOrElement = async (item: Record<string, unknown>, isStructuralElement: boolean) => {
@@ -504,13 +504,12 @@ export async function syncCondoZonesElementsAndDefectsInTx(
     if (!isStructuralElement && !isItemDeleted) {
       for (const d of activeDefects) {
         if (isCrackDefectItem(d.screeningCategory || d.screening_category, d.defectType || d.defect_type)) {
+          // Cấp luôn tính từ bề rộng đo: form KSV chung cư không ghi burlandGrade cho từng D, còn giá trị cũ
+          // (nếu có) có thể tính theo ngưỡng lệch chuẩn của màn thẩm định trước đây.
           const w = Number(d.widthMaxMm ?? d.width_max_mm ?? d.widthMm ?? 0) || 0;
-          const g =
-            d.burlandGrade !== undefined && d.burlandGrade !== null
-              ? Number(d.burlandGrade)
-              : calcBurlandGradeFromWidth(w);
+          const g = calcBurlandGradeFromWidth(w);
           maxZoneBurland = Math.max(maxZoneBurland, g);
-          crackGrades.push({ grade: g, zoneCode: code });
+          crackGrades.push({ grade: g, zoneCode: code, floorName, widthMm: w });
         }
       }
     }
@@ -779,13 +778,18 @@ export async function syncCondoZonesElementsAndDefectsInTx(
   let maxBurlandGrade = 0;
   let predominantBurlandGrade = 0;
   let governingZoneCode = 'Z-01';
+  let governingFloorName = '';
+  let governingWidth = -1;
 
   if (crackGrades.length > 0) {
     const counts: Record<number, number> = {};
     for (const item of crackGrades) {
-      if (item.grade >= maxBurlandGrade) {
+      // Vùng chi phối: cấp cao nhất, cùng cấp thì vết nứt rộng nhất (cùng quy tắc nhà dân / báo cáo)
+      if (item.grade > maxBurlandGrade || (item.grade === maxBurlandGrade && item.widthMm > governingWidth)) {
         maxBurlandGrade = item.grade;
         governingZoneCode = item.zoneCode;
+        governingFloorName = item.floorName;
+        governingWidth = item.widthMm;
       }
       counts[item.grade] = (counts[item.grade] || 0) + 1;
     }
@@ -800,18 +804,26 @@ export async function syncCondoZonesElementsAndDefectsInTx(
   }
 
   const curBs = ((mergedJson.burlandSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+  // Cùng quy tắc nhà dân: cấp cục bộ đã chọn CAO hơn cấp đo là phán đoán chuyên môn → giữ cùng vùng chi phối đã chọn;
+  // thấp hơn / thiếu thì lấy cấp đo. E1 dùng cấp cuối cùng này để khớp với báo cáo.
+  const rawSavedMax = curBs.localMaxGrade;
+  const savedMax = rawSavedMax === undefined || rawSavedMax === null || rawSavedMax === '' ? NaN : Number(rawSavedMax);
+  const keepSaved =
+    Number.isInteger(savedMax) && savedMax >= 0 && savedMax <= 5 && savedMax > maxBurlandGrade && !!curBs.governingZoneCode;
+  const finalMaxGrade = keepSaved ? savedMax : maxBurlandGrade;
   mergedJson.burlandSummary = {
     ...curBs,
-    localMaxGrade: maxBurlandGrade,
+    localMaxGrade: finalMaxGrade,
     predominantGrade: predominantBurlandGrade,
-    governingZoneCode,
+    governingZoneCode: keepSaved ? curBs.governingZoneCode : governingZoneCode,
+    governingFloorName: keepSaved ? curBs.governingFloorName ?? '' : governingFloorName,
     controllingDefectsCount: totalActiveDefects,
   };
 
   return {
-    maxBurlandGrade,
+    maxBurlandGrade: finalMaxGrade,
     predominantBurlandGrade,
-    governingZoneCode,
+    governingZoneCode: keepSaved ? String(curBs.governingZoneCode) : governingZoneCode,
     totalActiveDefects,
   };
 }

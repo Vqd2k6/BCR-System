@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { zoneCrackGrade } from '../../../components/canvas/burlandGrade';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -164,8 +165,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     ...zones.flatMap((z) => z.defects || []),
     ...structuralElements.flatMap((e) => e.defects || []),
   ];
-  const burlandGrades = allDefects.map((d) => Number(d.burlandGrade) || 0);
-  const maxBurlandGrade = burlandGrades.length > 0 ? Math.max(...burlandGrades) : 0;
+  // Cấp Burland chỉ từ bề rộng D loại nứt trong vùng Z (form không ghi burlandGrade cho từng D)
+  const maxBurlandGrade = zoneCrackGrade(zones.flatMap((z) => z.defects || []));
   const criticalDefectCount = allDefects.filter((d) => (Number(d.widthMaxMm) || 0) >= 2.0).length;
 
   // Chuẩn hóa Bounding Box dạng mảng hoặc object về object chuẩn { x, y, width, height }

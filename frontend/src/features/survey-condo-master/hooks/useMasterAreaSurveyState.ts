@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { crackGradeOf, zoneCrackGrade } from '../../../components/canvas/burlandGrade';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import type { EvidencePhotoItem, DamageZoneData, StructuralElementData } from '../../survey-phase1/types/phase1.types';
 import { type CadZonePin, getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
@@ -476,24 +477,21 @@ export function useMasterAreaSurveyState({
     return [...zDefects, ...eDefects];
   }, [zones, structuralElements, hasStructuralElements]);
 
-  const dominantBurlandGrade = useMemo(() => {
-    if (allDefects.length === 0) return 0;
-    let maxG = 0;
-    for (const d of allDefects) {
-      const g = typeof d.burlandGrade === 'number' ? d.burlandGrade : 0;
-      if (g > maxG) maxG = g;
-    }
-    return Math.min(5, Math.max(0, maxG));
-  }, [allDefects]);
+  // Cấp Burland chỉ từ bề rộng D loại nứt trong vùng Z (form không ghi burlandGrade cho từng D)
+  const dominantBurlandGrade = useMemo(
+    () => zoneCrackGrade(zones.flatMap((z) => z.defects || [])),
+    [zones]
+  );
 
   const burlandCounts = useMemo(() => {
     const counts = [0, 0, 0, 0, 0, 0];
-    for (const d of allDefects) {
-      const g = typeof d.burlandGrade === 'number' ? Math.min(5, Math.max(0, d.burlandGrade)) : 0;
-      counts[g]++;
+    for (const d of zones.flatMap((z) => z.defects || [])) {
+      if (d.isDeleted) continue;
+      const g = crackGradeOf(d);
+      if (g !== null) counts[g]++;
     }
     return counts;
-  }, [allDefects]);
+  }, [zones]);
 
   // Đóng gói payload nháp (kết hợp cả trường phẳng và lồng floorSurvey để tương thích 100%)
   const buildDraftPayload = useCallback(() => {

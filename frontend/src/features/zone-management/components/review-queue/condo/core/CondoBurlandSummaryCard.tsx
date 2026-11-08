@@ -1,11 +1,13 @@
 import React from 'react';
-import { CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
+import { CheckCircle2, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react';
 import type { StepwiseBurlandSummary } from '../../stepwise/types';
 
 interface CondoBurlandSummaryCardProps {
   scopeLabel: string;
   summary: StepwiseBurlandSummary;
   onOpenEngineeringJudgement?: () => void;
+  /** Cấp Burland đã tự đồng bộ theo bề rộng đo khi mở hồ sơ, chưa Lưu. */
+  autoSync?: { zoneCount: number; summaryChanged: boolean };
 }
 
 /** Bước 05: cấp Burland lớn nhất, tính lại từ danh sách Z/E/D hiện hành. */
@@ -13,9 +15,25 @@ export const CondoBurlandSummaryCard: React.FC<CondoBurlandSummaryCardProps> = (
   scopeLabel,
   summary,
   onOpenEngineeringJudgement,
+  autoSync,
 }) => {
   const maxGrade = Number(summary.localMaxGrade ?? 0);
+  const governingLabel = summary.governingZoneCode
+    ? `${summary.governingZoneCode}${summary.governingFloorName ? ` – ${summary.governingFloorName}` : ''}`
+    : '';
+  const showAutoSync = !!autoSync && (autoSync.zoneCount > 0 || autoSync.summaryChanged);
   return (
+    <div className="space-y-2">
+    {showAutoSync && (
+      <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 flex items-start gap-2">
+        <RefreshCw className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <span>
+          Đã tự đồng bộ cấp Burland theo bề rộng vết nứt đo được
+          {autoSync.zoneCount > 0 ? ` cho ${autoSync.zoneCount} vùng Z` : ''}
+          {autoSync.summaryChanged ? ' và phần tổng hợp' : ''} — cần <strong>Lưu</strong> để ghi nhận trước khi phê duyệt.
+        </span>
+      </div>
+    )}
     <div
       className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 flex-wrap ${
         maxGrade >= 3
@@ -35,7 +53,7 @@ export const CondoBurlandSummaryCard: React.FC<CondoBurlandSummaryCardProps> = (
           <div className="text-[11px] font-bold uppercase text-slate-600">{scopeLabel}</div>
           <div className="text-sm font-black text-slate-900 mt-0.5">
             Burland Cấp {maxGrade} • {summary.controllingDefectsCount ?? 0} khuyết tật
-            {summary.governingZoneCode ? ` • Vị trí quyết định: ${summary.governingZoneCode}` : ''}
+            {governingLabel ? ` • Vị trí quyết định: ${governingLabel}` : ''}
           </div>
           {summary.needStructuralEngineerReview && (
             <div className="text-xs font-bold text-rose-700 mt-0.5">
@@ -55,6 +73,7 @@ export const CondoBurlandSummaryCard: React.FC<CondoBurlandSummaryCardProps> = (
           <span>Nhận Định Kỹ Sư</span>
         </button>
       )}
+    </div>
     </div>
   );
 };

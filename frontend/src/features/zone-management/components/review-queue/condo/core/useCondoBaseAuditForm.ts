@@ -16,6 +16,16 @@ interface UseCondoBaseAuditFormOptions<TFormState extends Record<string, unknown
   ) => Record<string, unknown>;
   /** Trường đã sửa nhưng không còn thuộc nhánh hiện tại thì giữ trong form, không đưa vào diff. */
   isDirtyKeyActive?: (key: string, formState: TFormState) => boolean;
+  /**
+   * Đồng bộ dữ liệu dẫn xuất khi mở hồ sơ (vd. cấp Burland lưu thiếu / thấp hơn cấp đo). Bản gốc giữ đúng dữ liệu
+   * đang lưu, bản đang sửa nhận giá trị đồng bộ kèm dirty → hiện trong diff, chỉ ghi DB khi Admin bấm Lưu.
+   * Không chạy với hồ sơ đã APPROVED / khóa bất biến.
+   */
+  syncOnLoad?: (normalized: TFormState) => {
+    state: TFormState;
+    dirty: Record<string, { label: string; oldValue: unknown; newValue: unknown }>;
+    info: CondoLoadSyncInfo;
+  };
   /** Trả về lý do khi form chưa đủ điều kiện lưu, để mọi đường lưu cùng chặn trước bước nhập mật khẩu. */
   getSaveBlockReason?: (formState: TFormState) => string | null;
   onDirtyChange?: (dirtyData: {
@@ -28,6 +38,13 @@ interface UseCondoBaseAuditFormOptions<TFormState extends Record<string, unknown
   }) => void;
 }
 
+export interface CondoLoadSyncInfo {
+  zoneCount: number;
+  summaryChanged: boolean;
+}
+
+const EMPTY_SYNC_INFO: CondoLoadSyncInfo = { zoneCount: 0, summaryChanged: false };
+
 export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>>({
   data,
   stepIds,
@@ -38,25 +55,39 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
   getSaveBlockReason,
   isDirtyKeyActive,
   onDirtyChange,
+  syncOnLoad,
 }: UseCondoBaseAuditFormOptions<TFormState>) {
+  const loadForm = (d: AuditStepwiseData) => {
+    const normalized = normalizeData(d);
+    const status = String(d.status || '').toUpperCase();
+    if (!syncOnLoad || status === 'APPROVED' || status === 'LOCKED_IMMUTABLE') {
+      return { initial: normalized, form: normalized, dirty: {}, info: EMPTY_SYNC_INFO };
+    }
+    const sync = syncOnLoad(normalized);
+    return { initial: normalized, form: sync.state, dirty: sync.dirty, info: sync.info };
+  };
+  const [firstLoad] = useState(() => loadForm(data));
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeStepId, setActiveStepId] = useState<string>(stepIds[0] || 'step-1');
-  const [initialState, setInitialState] = useState<TFormState>(() => normalizeData(data));
-  const [formState, setFormState] = useState<TFormState>(() => normalizeData(data));
+  const [initialState, setInitialState] = useState<TFormState>(firstLoad.initial);
+  const [formState, setFormState] = useState<TFormState>(firstLoad.form);
   const [dirtyFields, setDirtyFields] = useState<
     Record<string, { label: string; oldValue: unknown; newValue: unknown }>
-  >({});
+  >(firstLoad.dirty);
+  const [loadSyncInfo, setLoadSyncInfo] = useState<CondoLoadSyncInfo>(firstLoad.info);
 
   const initialStateRef = useRef<TFormState>(initialState);
   initialStateRef.current = initialState;
 
   // Đồng bộ lại dữ liệu khi tải mới từ server
   useEffect(() => {
-    const normalized = normalizeData(data);
-    setInitialState(normalized);
-    setFormState(normalized);
-    setDirtyFields({});
-  }, [data, normalizeData]);
+    const loaded = loadForm(data);
+    setInitialState(loaded.initial);
+    setFormState(loaded.form);
+    setDirtyFields(loaded.dirty);
+    setLoadSyncInfo(loaded.info);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, normalizeData, syncOnLoad]);
 
   const programmaticScrollLockUntilRef = useRef<number>(0);
 
@@ -235,6 +266,7 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
       }
       setFormState(initialStateRef.current);
       setDirtyFields({});
+      setLoadSyncInfo(EMPTY_SYNC_INFO);
       setIsEditMode(false);
     },
     [dirtyFields]
@@ -337,6 +369,7 @@ export function useCondoBaseAuditForm<TFormState extends Record<string, unknown>
     formState,
     dirtyFields,
     dirtyCount: Object.keys(activeDirtyFields).length,
+    loadSyncInfo,
     handleFieldChange,
     handleNestedFieldChange,
     isFieldDirty,

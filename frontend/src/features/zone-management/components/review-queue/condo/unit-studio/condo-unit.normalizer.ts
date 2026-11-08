@@ -3,7 +3,8 @@ import type {
   StepwiseAbsenceLogItem,
   StepwiseIdentificationPhotoItem,
 } from '../../stepwise/types';
-import { calcBurlandGradeFromWidthFrontend } from '../core/condo-zone.mappers';
+import { mergeCondoBurlandSummary, syncCondoBurlandOnLoad } from '../core/condo-zone.mappers';
+import type { CondoBurlandLoadSync } from '../core/condo-zone.mappers';
 import { firstNonEmptyString, toNumberOrNull, toRecord } from '../core/condo-normalize.utils';
 import { resolveRawCondoElements, splitCondoZonesAndElements } from '../core/condo-zone.mappers';
 import type { CondoAbsenceView, CondoUnitFormState } from '../types/condo-audit.types';
@@ -165,8 +166,8 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
     key in identityOverrides ? firstNonEmptyString(identityOverrides[key]) : original;
   const renovation = toRecord(sJson.interiorRenovationHistory);
 
-  return recomputeCondoUnitBurlandOnChange(
-    {
+  // Trả đúng dữ liệu đang lưu (bản gốc của diff); cấp Burland đồng bộ ở syncCondoUnitBurlandOnLoad
+  return {
       unitCode: firstNonEmptyString(unitInfo.unit_code, data.unitCode, sJson.unitCode),
       displayCode: firstNonEmptyString(unitInfo.display_code, sJson.displayCode),
       floorNumber: floorNum,
@@ -239,71 +240,26 @@ export function normalizeCondoUnitData(data: AuditStepwiseData): CondoUnitFormSt
         sJson.photoRotations && typeof sJson.photoRotations === 'object'
           ? (sJson.photoRotations as Record<string, number>)
           : {},
-    },
-    'init'
-  );
+    };
+}
+
+const unitSaggingNeedsReview = (state: CondoUnitFormState): boolean =>
+  Boolean(state.beamSagging?.hasSagging && Number(state.beamSagging.level) >= 2);
+
+/** Mở hồ sơ: nâng cấp Burland lưu thiếu/thấp hơn cấp đo (căn vắng chủ không có dữ liệu nội thất → bỏ qua). */
+export function syncCondoUnitBurlandOnLoad(state: CondoUnitFormState): CondoBurlandLoadSync<CondoUnitFormState> {
+  if (resolveCondoFormAbsence(state).state === 'ABSENT') {
+    return { state, dirty: {}, info: { zoneCount: 0, summaryChanged: false } };
+  }
+  return syncCondoBurlandOnLoad(state, unitSaggingNeedsReview(state));
 }
 
 export function recomputeCondoUnitBurlandOnChange(
   state: CondoUnitFormState,
   _changedKey: string
 ): CondoUnitFormState {
-  let maxGrade = 0;
-  let governingCode = '';
-  let hasStructCrit = false;
-  let totalActiveDefects = 0;
-
-  for (const z of state.damageZones || []) {
-    if (z.isDeleted) continue;
-    if (z.burlandGrade > maxGrade) {
-      maxGrade = z.burlandGrade;
-      governingCode = z.zoneCode;
-    }
-    for (const d of z.defects || []) {
-      if (d.isDeleted) continue;
-      totalActiveDefects += 1;
-      const g = calcBurlandGradeFromWidthFrontend(
-        Number(d.widthMaxMm || 0),
-        Boolean(d.isStructuralCritical)
-      );
-      if (g > maxGrade) {
-        maxGrade = g;
-        governingCode = `${z.zoneCode}/${d.defectCode}`;
-      }
-      if (d.isStructuralCritical) hasStructCrit = true;
-    }
-  }
-
-  for (const el of state.structuralElements || []) {
-    if (el.isDeleted) continue;
-    for (const d of el.defects || []) {
-      if (d.isDeleted) continue;
-      totalActiveDefects += 1;
-      const g = calcBurlandGradeFromWidthFrontend(Number(d.widthMaxMm || 0), true);
-      if (g > maxGrade) {
-        maxGrade = g;
-        governingCode = `${el.elementCode}/${d.defectCode}`;
-      }
-      hasStructCrit = true;
-    }
-  }
-
-  // Nếu có võng dầm/sàn mức >= 2 thì nâng cảnh báo kỹ sư kết cấu
-  if (state.beamSagging?.hasSagging && Number(state.beamSagging.level) >= 2) {
-    hasStructCrit = true;
-    if (maxGrade < 3) maxGrade = 3;
-  }
-
-  return {
-    ...state,
-    burlandSummary: {
-      ...state.burlandSummary,
-      localMaxGrade: maxGrade,
-      governingZoneCode: governingCode || undefined,
-      needStructuralEngineerReview: hasStructCrit || maxGrade >= 3,
-      controllingDefectsCount: totalActiveDefects,
-    },
-  };
+  // Võng dầm/sàn mức ≥ 2 chỉ bật cảnh báo kỹ sư kết cấu, không đẩy cấp Burland (thang Burland chỉ cho vết nứt vùng Z)
+  return mergeCondoBurlandSummary(state, unitSaggingNeedsReview(state));
 }
 
 export function buildCondoUnitUpdatesPayload(
@@ -328,6 +284,10 @@ export function buildCondoUnitUpdatesPayload(
     dirtyKeys.some((k) => k.startsWith('beamSagging'))
   ) {
     updates.burlandSummary = formState.burlandSummary;
+  }
+  // Backend chỉ ghi cấp vùng, tổng hợp Burland và E1 khi payload có damageZones
+  if (updates.burlandSummary !== undefined && updates.damageZones === undefined) {
+    updates.damageZones = formState.damageZones;
   }
 
   if (dirtyKeys.includes('ownerFeedback')) {

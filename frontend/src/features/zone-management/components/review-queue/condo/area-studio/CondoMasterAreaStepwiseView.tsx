@@ -5,6 +5,7 @@ import {
   normalizeCondoAreaData,
   recomputeCondoAreaBurlandOnChange,
   buildCondoAreaUpdatesPayload,
+  syncCondoAreaBurlandOnLoad,
 } from './condo-area.normalizer';
 import { CONDO_AREA_STEPS } from './condo-area.steps-registry';
 import type {
@@ -42,6 +43,7 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
     scrollToStep,
     formState,
     dirtyCount,
+    loadSyncInfo,
     handleFieldChange,
     handleNestedFieldChange,
     isFieldDirty,
@@ -56,6 +58,7 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
     recomputeDerivedOnChange: recomputeCondoAreaBurlandOnChange,
     buildUpdatesPayload: buildCondoAreaUpdatesPayload,
     onDirtyChange,
+    syncOnLoad: syncCondoAreaBurlandOnLoad,
   });
 
   const floorPlans = (
@@ -117,6 +120,7 @@ export const CondoMasterAreaStepwiseView: React.FC<CondoStudioEntryProps> = ({
         onOpenMasterReportById: onSwitchReportId,
         stagedPhotoActions,
         onUndoPhotoAction,
+        burlandAutoSync: loadSyncInfo,
       }}
     />
   );

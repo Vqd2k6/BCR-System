@@ -4,18 +4,20 @@ import type {
   CondoStructuralElementItemData,
 } from '../types/condo-audit.types';
 import { compareCodes, firstNonEmptyString, toNumberOrNull, toRecord } from './condo-normalize.utils';
+import { crackGradeOf, getBurlandGradeFromWidth, summarizeZoneCracks } from '../../../../../../components/canvas/burlandGrade';
+import type { StepwiseBurlandSummary } from '../../stepwise/types';
 
+/**
+ * Cấp Burland theo bề rộng vết nứt — đúng bảng chuẩn dùng chung (components/canvas/burlandGrade.ts), khớp backend
+ * chung cư. Trước đây 0 < w ≤ 0.1 mm ra Cấp 1 và D "kết cấu nguy hiểm" ≥ 3 mm bị ép Cấp 4, làm màn thẩm định hiện
+ * cấp khác giá trị backend lưu. Mức nguy hiểm kết cấu đã thể hiện riêng qua cờ E2 / isStructuralCritical.
+ * Giữ tham số thứ 2 để không phải sửa nơi gọi.
+ */
 export function calcBurlandGradeFromWidthFrontend(
   widthMm: number,
-  isStructuralCritical?: boolean
+  _isStructuralCritical?: boolean
 ): number {
-  if (isStructuralCritical && widthMm >= 3) return 4;
-  if (widthMm <= 0) return 0;
-  if (widthMm <= 1.0) return 1;
-  if (widthMm <= 5.0) return 2;
-  if (widthMm <= 15.0) return 3;
-  if (widthMm <= 25.0) return 4;
-  return 5;
+  return getBurlandGradeFromWidth(Number.isFinite(widthMm) ? widthMm : 0);
 }
 
 /** Ảnh có thể là URL hoặc object `{ url }`, tùy nguồn JSON form hay cột SQL. */
@@ -163,4 +165,152 @@ export function splitCondoZonesAndElements(
   damageZones.sort((a, b) => compareCodes(a.zoneCode, b.zoneCode));
   structuralElements.sort((a, b) => compareCodes(a.elementCode, b.elementCode));
   return { damageZones, structuralElements };
+}
+
+export interface CondoBurlandDerived {
+  localMaxGrade: number;
+  predominantGrade: number;
+  /** Vùng chi phối: cấp cao nhất, cùng cấp thì wmax lớn nhất; null khi không có vết nứt. */
+  governing: { zoneCode: string; floorName: string; wmaxMm: number; grade: number } | null;
+  crackCount: number;
+}
+
+/**
+ * Tổng hợp Burland chung cư theo đúng quy tắc backend lưu (syncCondoZonesElementsAndDefectsInTx) và nhà dân:
+ * chỉ D loại nứt trong vùng Z còn hiệu lực. D trên cấu kiện E, võng dầm, thấm/bong không đẩy cấp Burland.
+ */
+export function deriveCondoBurland(zones: readonly CondoDamageZoneItemData[] | null | undefined): CondoBurlandDerived {
+  const counts: Record<number, number> = {};
+  let crackCount = 0;
+  let governing: CondoBurlandDerived['governing'] = null;
+  for (const z of zones || []) {
+    if (!z || z.isDeleted) continue;
+    for (const d of z.defects || []) {
+      if (d.isDeleted) continue;
+      const g = crackGradeOf(d);
+      if (g === null) continue;
+      crackCount++;
+      counts[g] = (counts[g] || 0) + 1;
+    }
+    const s = summarizeZoneCracks(z.defects);
+    if (s.grade === null) continue;
+    if (!governing || s.grade > governing.grade || (s.grade === governing.grade && s.wmaxMm > governing.wmaxMm)) {
+      governing = { zoneCode: z.zoneCode, floorName: z.floorName || '', wmaxMm: s.wmaxMm, grade: s.grade };
+    }
+  }
+  let predominantGrade = 0;
+  let maxCount = -1;
+  Object.entries(counts).forEach(([gStr, c]) => {
+    const g = Number(gStr);
+    if (c > maxCount || (c === maxCount && g > predominantGrade)) {
+      maxCount = c;
+      predominantGrade = g;
+    }
+  });
+  return { localMaxGrade: governing ? governing.grade : 0, predominantGrade, governing, crackCount };
+}
+
+interface CondoBurlandFormLike {
+  damageZones: CondoDamageZoneItemData[];
+  structuralElements?: CondoStructuralElementItemData[];
+  burlandSummary: StepwiseBurlandSummary;
+}
+
+/**
+ * Ghép burlandSummary với cấp đo. Cấp cục bộ đã lưu CAO hơn cấp đo được giữ (phán đoán chuyên môn) cùng vùng chi phối;
+ * thấp hơn / thiếu thì nâng lên cấp đo. needStructuralEngineerReview vẫn bật theo D kết cấu, cấu kiện E, cấp ≥ 3
+ * hoặc cờ bổ sung (vd. võng dầm) — chỉ là cảnh báo, không trộn vào thang Burland.
+ */
+export function mergeCondoBurlandSummary<T extends CondoBurlandFormLike>(state: T, extraStructuralReview = false): T {
+  const derived = deriveCondoBurland(state.damageZones);
+  const cur = state.burlandSummary || {};
+  const savedMax = Number(cur.localMaxGrade);
+  const keepSaved = Number.isInteger(savedMax) && savedMax > derived.localMaxGrade && !!cur.governingZoneCode;
+  const localMaxGrade = keepSaved ? savedMax : derived.localMaxGrade;
+
+  let totalActiveDefects = 0;
+  let hasStructCrit = extraStructuralReview;
+  for (const z of state.damageZones || []) {
+    if (z.isDeleted) continue;
+    for (const d of z.defects || []) {
+      if (d.isDeleted) continue;
+      totalActiveDefects++;
+      if (d.isStructuralCritical) hasStructCrit = true;
+    }
+  }
+  for (const el of state.structuralElements || []) {
+    if (el.isDeleted) continue;
+    for (const d of el.defects || []) {
+      if (d.isDeleted) continue;
+      totalActiveDefects++;
+      hasStructCrit = true;
+    }
+  }
+
+  return {
+    ...state,
+    burlandSummary: {
+      ...cur,
+      localMaxGrade,
+      predominantGrade: derived.predominantGrade,
+      governingZoneCode: keepSaved ? cur.governingZoneCode : derived.governing?.zoneCode,
+      governingFloorName: keepSaved ? cur.governingFloorName : derived.governing?.floorName,
+      needStructuralEngineerReview: hasStructCrit || localMaxGrade >= 3,
+      controllingDefectsCount: totalActiveDefects,
+    },
+  };
+}
+
+export interface CondoBurlandLoadSync<T> {
+  state: T;
+  dirty: Record<string, { label: string; oldValue: unknown; newValue: unknown }>;
+  info: { zoneCount: number; summaryChanged: boolean };
+}
+
+/**
+ * Khi mở hồ sơ thẩm định chung cư: vùng Z có vết nứt mà cấp lưu THẤP hơn cấp đo → nâng lên cấp đo; tổng hợp Burland
+ * thiếu / thấp hơn cấp đo → tính lại. Trả về dirty để thay đổi hiện trong diff và chỉ ghi DB khi Admin bấm Lưu.
+ * Không hạ cấp đã lưu cao hơn.
+ */
+export function syncCondoBurlandOnLoad<T extends CondoBurlandFormLike>(
+  saved: T,
+  extraStructuralReview = false
+): CondoBurlandLoadSync<T> {
+  let zoneCount = 0;
+  const zones = (saved.damageZones || []).map((z) => {
+    if (z.isDeleted) return z;
+    const s = summarizeZoneCracks(z.defects);
+    if (s.grade === null) return z;
+    const savedGrade = Number(z.burlandGrade);
+    if (Number.isInteger(savedGrade) && savedGrade >= s.grade) return z;
+    zoneCount++;
+    return { ...z, burlandGrade: s.grade };
+  });
+  const withZones = zoneCount > 0 ? { ...saved, damageZones: zones } : saved;
+  const derived = deriveCondoBurland(zones);
+  const savedMaxRaw = saved.burlandSummary?.localMaxGrade;
+  const savedMax = savedMaxRaw === undefined || savedMaxRaw === null ? NaN : Number(savedMaxRaw);
+  const summaryLow = derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade);
+
+  const dirty: CondoBurlandLoadSync<T>['dirty'] = {};
+  if (zoneCount === 0 && !summaryLow) {
+    return { state: saved, dirty, info: { zoneCount: 0, summaryChanged: false } };
+  }
+  const next = mergeCondoBurlandSummary(withZones, extraStructuralReview);
+  if (zoneCount > 0) {
+    dirty.damageZones = {
+      label: `Cấp Burland vùng Z (tự đồng bộ theo bề rộng đo: ${zoneCount} vùng)`,
+      oldValue: saved.damageZones,
+      newValue: next.damageZones,
+    };
+  }
+  const summaryChanged = JSON.stringify(next.burlandSummary) !== JSON.stringify(saved.burlandSummary);
+  if (summaryChanged) {
+    dirty.burlandSummary = {
+      label: 'Tổng hợp Burland (tự đồng bộ theo bề rộng đo)',
+      oldValue: saved.burlandSummary,
+      newValue: next.burlandSummary,
+    };
+  }
+  return { state: next, dirty, info: { zoneCount, summaryChanged } };
 }

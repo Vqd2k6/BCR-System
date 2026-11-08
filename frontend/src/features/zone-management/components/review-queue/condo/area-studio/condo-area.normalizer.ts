@@ -1,5 +1,6 @@
 import type { AuditStepwiseData } from '../../stepwise/types';
-import { calcBurlandGradeFromWidthFrontend } from '../core/condo-zone.mappers';
+import { mergeCondoBurlandSummary, syncCondoBurlandOnLoad } from '../core/condo-zone.mappers';
+import type { CondoBurlandLoadSync } from '../core/condo-zone.mappers';
 import { toRecord } from '../core/condo-normalize.utils';
 import { resolveRawCondoElements, splitCondoZonesAndElements } from '../core/condo-zone.mappers';
 import type { CondoAreaFormState } from '../types/condo-audit.types';
@@ -65,8 +66,8 @@ export function normalizeCondoAreaData(data: AuditStepwiseData): CondoAreaFormSt
           controllingDefectsCount: 0,
         };
 
-  return recomputeCondoAreaBurlandOnChange(
-    {
+  // Trả đúng dữ liệu đang lưu (bản gốc của diff); cấp Burland đồng bộ ở syncCondoAreaBurlandOnLoad
+  return {
       unitCode: String(unitInfo.unit_code || data.unitCode || sJson.unitCode || ''),
       floorNumber: floorNum,
       areaName: String(
@@ -134,68 +135,19 @@ export function normalizeCondoAreaData(data: AuditStepwiseData): CondoAreaFormSt
         sJson.photoRotations && typeof sJson.photoRotations === 'object'
           ? (sJson.photoRotations as Record<string, number>)
           : {},
-    },
-    'init'
-  );
+    };
+}
+
+/** Mở hồ sơ: nâng cấp Burland lưu thiếu/thấp hơn cấp đo. */
+export function syncCondoAreaBurlandOnLoad(state: CondoAreaFormState): CondoBurlandLoadSync<CondoAreaFormState> {
+  return syncCondoBurlandOnLoad(state);
 }
 
 export function recomputeCondoAreaBurlandOnChange(
   state: CondoAreaFormState,
   _changedKey: string
 ): CondoAreaFormState {
-  let maxGrade = 0;
-  let governingCode = '';
-  let hasStructCrit = false;
-  let totalActiveDefects = 0;
-
-  for (const z of state.damageZones || []) {
-    if (z.isDeleted) continue;
-    if (z.burlandGrade > maxGrade) {
-      maxGrade = z.burlandGrade;
-      governingCode = z.zoneCode;
-    }
-    for (const d of z.defects || []) {
-      if (d.isDeleted) continue;
-      totalActiveDefects += 1;
-      const g = calcBurlandGradeFromWidthFrontend(
-        Number(d.widthMaxMm || 0),
-        Boolean(d.isStructuralCritical)
-      );
-      if (g > maxGrade) {
-        maxGrade = g;
-        governingCode = `${z.zoneCode}/${d.defectCode}`;
-      }
-      if (d.isStructuralCritical) hasStructCrit = true;
-    }
-  }
-
-  for (const el of state.structuralElements || []) {
-    if (el.isDeleted) continue;
-    for (const d of el.defects || []) {
-      if (d.isDeleted) continue;
-      totalActiveDefects += 1;
-      const g = calcBurlandGradeFromWidthFrontend(
-        Number(d.widthMaxMm || 0),
-        true
-      );
-      if (g > maxGrade) {
-        maxGrade = g;
-        governingCode = `${el.elementCode}/${d.defectCode}`;
-      }
-      hasStructCrit = true;
-    }
-  }
-
-  return {
-    ...state,
-    burlandSummary: {
-      ...state.burlandSummary,
-      localMaxGrade: maxGrade,
-      governingZoneCode: governingCode || undefined,
-      needStructuralEngineerReview: hasStructCrit || maxGrade >= 3,
-      controllingDefectsCount: totalActiveDefects,
-    },
-  };
+  return mergeCondoBurlandSummary(state);
 }
 
 export function buildCondoAreaUpdatesPayload(
@@ -247,8 +199,13 @@ export function buildCondoAreaUpdatesPayload(
 
   for (const k of dirtyKeys) {
     if (!areaInfoKeys.includes(k)) {
-      updates[k] = formState[k];
+      const rootKey = k.split('.')[0];
+      updates[rootKey] = formState[rootKey];
     }
+  }
+  // Backend chỉ ghi cấp vùng, tổng hợp Burland và E1 khi payload có damageZones
+  if (updates.burlandSummary !== undefined && updates.damageZones === undefined) {
+    updates.damageZones = formState.damageZones;
   }
 
   return updates;
