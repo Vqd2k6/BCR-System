@@ -395,6 +395,8 @@ export interface Section8BuildingConditionAssessment {
     totalScoreDisplay: string;       // '--' khi thiếu dữ liệu
     averageScoreDisplay: string;
     foundationCatDisplay: string;    // 'Cat 3 / 5' hoặc '--'
+    /** Nhãn CAT nguyên văn form thẩm định, hoặc 'Chưa xác định CAT móng' */
+    foundationCatBasis: BilingualText;
     classGrade: BilingualText;       // Thấp / Low, etc.
     vCode: 'V1' | 'V2' | 'V3' | 'V4' | null;
     foundationCatScore?: number;

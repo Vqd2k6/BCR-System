@@ -13,6 +13,38 @@ import {
   BilingualText,
 } from '../../report.types';
 import { BRA_MATRIX_LOOKUP, buildBraMatrixRows } from './bra-matrix.mapper';
+import { FOUNDATION_CAT_LABELS, FOUNDATION_CAT_UNKNOWN } from './foundation-cat-labels';
+
+/** Tên mức cờ kết cấu như ô chọn ở Bước 4 KSV (không in mã thô NONE/MODERATE). */
+const STRUCTURAL_FLAG_LABELS: Record<string, BilingualText> = {
+  NONE: { vi: 'Không có cờ kết cấu', en: 'No structural flag' },
+  LOW: { vi: 'Thấp', en: 'Low' },
+  MODERATE: { vi: 'Trung bình', en: 'Moderate' },
+  HIGH: { vi: 'Cao / Nguy cơ chịu lực', en: 'High / Load-bearing risk' },
+  CRITICAL: { vi: 'Nguy cấp / Cảnh báo sập', en: 'Critical / Collapse warning' },
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Căn cứ V6 theo câu trả lời phỏng vấn (Mục III), không suy từ điểm: điểm đã qua thẩm định có thể khác mức tự động.
+ */
+function resolveV6Basis(hi: unknown): BilingualText {
+  if (!isRecord(hi)) return { vi: '--', en: '--' };
+  const rawCont = hi.continuousOperation247;
+  const cont = typeof rawCont === 'boolean' ? rawCont : isRecord(rawCont) ? rawCont.has === true : undefined;
+  const eq = isRecord(hi.sensitiveEquipment) ? hi.sensitiveEquipment : null;
+  const eqHas = eq ? eq.has === true : undefined;
+  const eqDesc = eq && typeof eq.description === 'string' ? eq.description.trim() : '';
+  if (cont === true) return { vi: 'Vận hành liên tục 24/7', en: 'Continuous 24/7 operation' };
+  if (eqHas === true) {
+    return eqDesc
+      ? { vi: `Có thiết bị nhạy cảm rung: ${eqDesc}`, en: `Vibration-sensitive equipment: ${eqDesc}` }
+      : { vi: 'Có thiết bị nhạy cảm rung', en: 'Vibration-sensitive equipment present' };
+  }
+  if (eqHas === false || cont === false) return { vi: 'Không có thiết bị nhạy cảm rung', en: 'No vibration-sensitive equipment' };
+  return { vi: '--', en: '--' };
+}
 
 function pickNum(...candidates: unknown[]): number | null {
   for (const c of candidates) {
@@ -66,6 +98,7 @@ export class Section8RiskAssessmentMapper {
 
     const savedBurlandMax = burlandMaxGrade ?? pickNum(json.burlandSummary?.localMaxGrade) ?? 0;
     const savedFlagLevel = String(json.burlandSummary?.structuralFlagLevel || 'NONE').toUpperCase();
+    const flagLabel = STRUCTURAL_FLAG_LABELS[savedFlagLevel] || { vi: savedFlagLevel, en: savedFlagLevel };
 
     const frozenEcsClass = String(
       (rScores?.is_engineering_judgement_applied && rScores?.overridden_ecs_class)
@@ -82,7 +115,7 @@ export class Section8RiskAssessmentMapper {
 
     const ecsItems: EcsAssessmentItem[] = [
       { code: 'E1', title: { vi: 'Hư hỏng nhìn thấy tường / khối xây', en: 'Visible damage to walls / masonry' }, basis: { vi: `Burland cục bộ lớn nhất: Cấp ${savedBurlandMax}`, en: `Local max Burland grade: Grade ${savedBurlandMax}` }, scale: '0-4', score: e1 },
-      { code: 'E2', title: { vi: 'Khuyết tật kết cấu cột/dầm/sàn/tường', en: 'Structural defects in columns/beams/slabs' }, basis: { vi: `Cờ kết cấu chịu lực: ${savedFlagLevel}`, en: `Structural flag level: ${savedFlagLevel}` }, scale: '0-4', score: e2 },
+      { code: 'E2', title: { vi: 'Khuyết tật kết cấu cột/dầm/sàn/tường', en: 'Structural defects in columns/beams/slabs' }, basis: { vi: `Cờ kết cấu chịu lực: ${flagLabel.vi}`, en: `Structural flag level: ${flagLabel.en}` }, scale: '0-4', score: e2 },
       { code: 'E3', title: { vi: 'Biến dạng Lún / Nghiêng / Võng', en: 'Deformation (Settlement / Tilt / Deflection)' }, basis: { vi: e3 === 0 ? 'Mức 0/4đ theo đánh giá hiện trường (không ghi nhận biến dạng)' : `Phát hiện biến dạng hiện trường (Mức ${e3}/4đ)`, en: e3 === 0 ? 'Level 0/4 per field assessment (no deformation recorded)' : `Deformation detected on-site (Level ${e3}/4)` }, scale: '0-4', score: e3 },
       { code: 'E4', title: { vi: 'Suy giảm vật liệu / độ bền lâu', en: 'Material degradation' }, basis: { vi: e4 === 0 ? 'Mức 0/4đ theo đánh giá đã xác nhận (không ghi nhận suy giảm vật liệu)' : `Ghi nhận suy giảm vật liệu (Mức ${e4}/4đ)`, en: e4 === 0 ? 'Level 0/4 per confirmed assessment (no material degradation recorded)' : `Material degradation observed (Level ${e4}/4)` }, scale: '0-4', score: e4 },
       { code: 'E5', title: { vi: 'Lịch sử / cơi nới / sự cố & toàn vẹn', en: 'Historical sensitivity & structural integrity' }, basis: { vi: e5 === 0 ? 'Mức 0/4đ theo lịch sử đã ghi nhận (không có sự cố được khai báo)' : `Tiền sử sửa chữa/sự cố ghi nhận (Mức ${e5}/4đ)`, en: e5 === 0 ? 'Level 0/4 per recorded history (no incident reported)' : `Reported past repairs/incidents (Level ${e5}/4)` }, scale: '0-4', score: e5 },
@@ -95,6 +128,8 @@ export class Section8RiskAssessmentMapper {
     const catRaw = json.foundationCatScore ?? specs.foundationCatScore;
     const catNum = catRaw === undefined || catRaw === null || catRaw === '' ? NaN : Number(catRaw);
     const catScore: number | null = Number.isInteger(catNum) && catNum >= 1 && catNum <= 5 ? catNum : null;
+    // Căn cứ CAT đúng nhãn form thẩm định (CAT 5 = không có dữ liệu, không ghi "căn cứ hoàn công")
+    const foundationCatBasis: BilingualText = catScore === null ? FOUNDATION_CAT_UNKNOWN : FOUNDATION_CAT_LABELS[catScore];
     const rawConstrYear = specs.constructionYear || specs.year_of_construction || json.constructionYear;
 
     const v1 = pickNum(viData.v1, rScores?.v1_importance_score);
@@ -107,8 +142,14 @@ export class Section8RiskAssessmentMapper {
     const allViScored = [v1, v2, v3, v4, v5, v6].every((v): v is number => v !== null);
     const computedViSum = allViScored ? (Number(v1) + Number(v2) + Number(v3) + Number(v4) + Number(v5) + Number(v6)) : null;
     const totalVi = pickNum(viData.totalVi, viData.totalScore, viData.total, rScores?.total_vi_score) ?? computedViSum;
-    const rawSavedViAvg = (rScores?.is_engineering_judgement_applied && pickNum(rScores?.overridden_avg_vi) !== null)
-      ? Number(rScores.overridden_avg_vi)
+    // Điểm TB VI thang 1–4: giá trị điều chỉnh ngoài khoảng (dữ liệu cũ lưu nhầm tổng ΣV) thì không in, dùng điểm TB đã lưu
+    const overriddenAvgVi = rScores?.is_engineering_judgement_applied ? pickNum(rScores?.overridden_avg_vi) : null;
+    const validOverriddenAvgVi = overriddenAvgVi !== null && overriddenAvgVi >= 1 && overriddenAvgVi <= 4 ? overriddenAvgVi : null;
+    if (overriddenAvgVi !== null && validOverriddenAvgVi === null) {
+      console.error('[Section8Mapper:viAvg] overridden_avg_vi ngoài thang 1–4, bỏ qua:', overriddenAvgVi);
+    }
+    const rawSavedViAvg = validOverriddenAvgVi !== null
+      ? validOverriddenAvgVi
       : (pickNum(viData.viAvg, viData.avgVi, rScores?.avg_vi_score) ?? (totalVi !== null ? totalVi / 6 : null));
     const viAvg = rawSavedViAvg !== null ? parseFloat(rawSavedViAvg.toFixed(2)) : null;
 
@@ -129,10 +170,10 @@ export class Section8RiskAssessmentMapper {
     const viItemsRaw: Array<Omit<ViAssessmentItem, 'scoreDisplay'>> = [
       { code: 'V1', title: { vi: 'Công năng & Quy mô', en: 'Building importance & use' }, basis: { vi: `Nhóm ${objGroup} (Hệ số quy mô: ${v1 ?? '--'}đ)`, en: `${objGroup} group (Factor: ${v1 ?? '--'} pts)` }, scale: '0-4', score: v1 },
       { code: 'V2', title: { vi: 'Hệ kết cấu chịu lực', en: 'Structural system' }, basis: { vi: structSys ? `Kết cấu: ${structSys}` : 'Chưa xác định hệ kết cấu', en: structSys ? `System: ${structSys}` : 'Unverified structural system' }, scale: '1-4', score: v2 },
-      { code: 'V3', title: { vi: 'Loại móng & Nền đất', en: 'Foundation type & ground condition' }, basis: catScore === null ? { vi: 'Chưa xác định CAT móng', en: 'Foundation CAT not determined' } : { vi: `Căn cứ móng CAT ${catScore}`, en: `Foundation certainty CAT ${catScore}` }, scale: '1-4', score: v3 },
+      { code: 'V3', title: { vi: 'Loại móng & Nền đất', en: 'Foundation type & ground condition' }, basis: foundationCatBasis, scale: '1-4', score: v3 },
       { code: 'V4', title: { vi: 'Tuổi đời & Cơi nới', en: 'Building age & extension' }, basis: rawConstrYear ? { vi: `Năm XD: ${rawConstrYear}`, en: `Built year: ${rawConstrYear}` } : { vi: 'Chưa có dữ liệu năm xây dựng', en: 'Built year not recorded' }, scale: '1-4', score: v4 },
       { code: 'V5', title: { vi: 'Hiện trạng kỹ thuật ECS', en: 'Existing condition ECS' }, basis: { vi: `ECS = ${totalEcs} (${ecsClassVi}) → ${v5 ?? '--'}đ`, en: `ECS = ${totalEcs} (${ecsClassEn}) → ${v5 ?? '--'} pts` }, scale: '1-4', score: v5 },
-      { code: 'V6', title: { vi: 'Thiết bị nhạy cảm & Vận hành', en: 'Vibration sensitivity & occupancy' }, basis: { vi: v6 === 1 ? 'Không có thiết bị nhạy cảm rung' : v6 !== null ? 'Có thiết bị nhạy cảm / vận hành đặc biệt' : '--', en: v6 === 1 ? 'No vibration-sensitive equipment' : v6 !== null ? 'Sensitive equipment recorded' : '--' }, scale: '1-4', score: v6 },
+      { code: 'V6', title: { vi: 'Thiết bị nhạy cảm & Vận hành', en: 'Vibration sensitivity & occupancy' }, basis: resolveV6Basis(json.historyInterview), scale: '1-4', score: v6 },
     ];
     const viItems: ViAssessmentItem[] = viItemsRaw.map((it) => ({ ...it, scoreDisplay: it.score === null ? '--' : String(it.score) }));
 
@@ -229,13 +270,29 @@ export class Section8RiskAssessmentMapper {
       return 'KEEP';
     };
 
-    const ecsAction = parseAction(String(ecsData.engineeringJudgement?.action || rScores?.engineering_judgement_action || 'KEEP'));
-    const ecsReason = ecsData.engineeringJudgement?.reason || rScores?.engineering_judgement_reason || '';
-    const isEcsJudgementApplied = ecsAction !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied);
-
-    const viAction = parseAction(String(viData.engineeringJudgement?.action || rScores?.engineering_judgement_action || 'KEEP'));
-    const viReason = viData.engineeringJudgement?.reason || rScores?.engineering_judgement_reason || '';
-    const isViJudgementApplied = viAction !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied);
+    // Hai khối judgement độc lập: khối nào có quyết định riêng trong JSON thì chỉ in quyết định đó, không lấy lý do chung
+    // của thẻ điểm bù vào (trước đây khối "Giữ" in lý do nâng của khối kia). Hồ sơ cũ chưa có object riêng mới đọc thẻ điểm.
+    const resolveJudgement = (own: unknown) => {
+      if (isRecord(own)) {
+        const action = parseAction(String(own.action || 'KEEP'));
+        const reason = String(own.reason || '').trim();
+        return { action, reason, isApplied: action !== 'KEEP' };
+      }
+      const action = parseAction(String(rScores?.engineering_judgement_action || 'KEEP'));
+      return {
+        action,
+        reason: String(rScores?.engineering_judgement_reason || '').trim(),
+        isApplied: action !== 'KEEP' || Boolean(rScores?.is_engineering_judgement_applied),
+      };
+    };
+    const ecsJudgement = resolveJudgement(ecsData.engineeringJudgement);
+    const viJudgement = resolveJudgement(viData.engineeringJudgement);
+    const ecsAction = ecsJudgement.action;
+    const ecsReason = ecsJudgement.reason;
+    const isEcsJudgementApplied = ecsJudgement.isApplied;
+    const viAction = viJudgement.action;
+    const viReason = viJudgement.reason;
+    const isViJudgementApplied = viJudgement.isApplied;
 
     const impactOverrideReason = String(
       json.executiveSummary?.impactOverrideReason ||
@@ -275,6 +332,7 @@ export class Section8RiskAssessmentMapper {
         vCode,
         foundationCatScore: catScore ?? undefined,
         foundationCatDisplay: catScore === null ? '--' : `Cat ${catScore} / 5`,
+        foundationCatBasis,
         totalScoreDisplay: totalVi === null ? '--' : String(totalVi),
         averageScoreDisplay: viAvg === null ? '--' : viAvg.toFixed(2),
         engineeringJudgement: { isApplied: isViJudgementApplied, action: viAction, reason: viReason },
