@@ -571,6 +571,10 @@ export interface FloorDefectSummaryRow {
   burlandGrade: number;
   description: BilingualText;
   cadPinRef?: string;
+  /** D ghim trong vùng Z hay trên cấu kiện E. */
+  source?: 'ZONE' | 'ELEMENT';
+  /** Nhóm sàng lọc KSV/Admin đã chọn cho D (defectTaxonomy.ts) — căn cứ phân loại ở Mục VI. */
+  screeningCategory?: string;
 }
 
 export interface FloorPlanDefectReport {

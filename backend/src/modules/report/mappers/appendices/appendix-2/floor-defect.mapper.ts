@@ -30,6 +30,7 @@ import {
   replaceFloorSegment,
   resolveFloorCode,
 } from '../../../utils/metro-photo-code.utils';
+import { sortFloorsByElevation } from '../../../utils/floor-order.utils';
 
 export { isPhotoAlreadyWatermarked };
 
@@ -47,10 +48,13 @@ export class FloorDefectMapper {
     const parcelForCode = codeContext?.parcelCode || buildingId || 'CHƯA_ĐỊNH_DANH';
     const unitForCode = codeContext?.unitCode || undefined;
 
-    let floorIndex = 0;
-    for (const fl of rawFloors || []) {
-      floorIndex++;
-      const fIdx = floorIndex - 1;
+    // In theo cao độ (Hầm → Trệt → Lầu 1, 2… → Mái); fIdx/floorIndex giữ VỊ TRÍ GỐC trong mảng vì khóa xoay ảnh
+    // (floor_${fIdx}_cad, zone_f${fIdx}_…) dựa vào đó. floorOrder là thứ tự hiển thị.
+    let displayOrder = 0;
+    for (const { floor: fl, sourceIndex } of sortFloorsByElevation(rawFloors)) {
+      displayOrder++;
+      const fIdx = sourceIndex;
+      const floorIndex = sourceIndex + 1;
       // Mã tầng theo SỐ LẦU (Tầng N = Lầu N), không theo vị trí trong mảng floors.
       const floorCode = resolveFloorCode(fl);
       const flNameVi = fl.floorName || `Tầng ${floorIndex}`;
@@ -184,7 +188,7 @@ export class FloorDefectMapper {
       const beamDeflectionMm = Number(fl.beamDeflectionMm || 0);
 
       results.push({
-        floorOrder: floorIndex,
+        floorOrder: displayOrder,
         floorName: { vi: flNameVi, en: flNameEn },
         hasCadMap,
         damageMapUrl,

@@ -89,7 +89,7 @@
       <thead>
         <tr>
           <th style="width: 14%;">Tầng / Floor</th>
-          <th style="width: 9%; text-align: center;">Đối tượng</th>
+          <th style="width: 9%; text-align: center;">Vùng &amp; Cấu kiện<br><span class="text-muted">Zones &amp; Elements</span></th>
           <th style="width: 9%; text-align: center;">Nứt K.Cấu</th>
           <th style="width: 9%; text-align: center;">Nứt Tường</th>
           <th style="width: 8%; text-align: center;">Thấm ẩm</th>
@@ -115,12 +115,8 @@
             <td class="text-center font-bold">{{this.spallingCount}}</td>
             <td class="text-center font-bold">{{this.maxCrackWidthMm}}</td>
             <td>
-              {{#if (eq this.conditionStatus.vi 'Không')}}
-                Không<br><span class="text-muted">None</span>
-              {{else}}
-                {{this.conditionStatus.vi}}<br>
-                <span class="text-muted">{{this.conditionStatus.en}}</span>
-              {{/if}}
+              {{this.conditionStatus.vi}}<br>
+              <span class="text-muted">{{this.conditionStatus.en}}</span>
             </td>
           </tr>
         {{/each}}
@@ -171,7 +167,7 @@
                 {{this.locationSeverity.vi}}<br>
                 <span class="text-muted">{{this.locationSeverity.en}}</span>
               {{else}}
-                Không<br><span class="text-muted">None</span>
+                --
               {{/if}}
             </td>
           </tr>

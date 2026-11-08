@@ -30,6 +30,7 @@ import {
   RESIDENTIAL_ABSENT_CONCLUSION,
 } from './sections/condo-unit-absent.mapper';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
+import { sortFloorsByElevation } from '../utils/floor-order.utils';
 
 export { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime };
 
@@ -191,7 +192,8 @@ export class ReportViewModelMapper {
     );
 
     // 7. Chương VII: Phân loại Burland 1977 (Đọc 1:1 từ dữ liệu đã chốt)
-    const section7 = Section7BurlandMapper.map(rawFloors, json.burlandSummary);
+    // Cùng thứ tự tầng theo cao độ như Mục VI & Phụ lục 2.
+    const section7 = Section7BurlandMapper.map(sortFloorsByElevation(rawFloors).map((x) => x.floor), json.burlandSummary);
 
     // 8. Chương VIII: Đánh giá rủi ro & BRA (Đọc 1:1 từ dữ liệu đã chốt)
     const burlandMaxNum = (json.burlandSummary?.localMaxGrade !== undefined && json.burlandSummary?.localMaxGrade !== null && !isNaN(Number(json.burlandSummary.localMaxGrade)))

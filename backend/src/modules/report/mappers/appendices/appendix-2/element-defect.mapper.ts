@@ -110,6 +110,8 @@ export function mapFloorStructuralElements(
             en: descPartsEn.length > 0 ? descPartsEn.join(', ') : 'Structural member crack',
           },
           cadPinRef: cadPinRefStr,
+          source: 'ELEMENT',
+          screeningCategory: typeof d.screeningCategory === 'string' ? d.screeningCategory : undefined,
         });
 
         const rawCu0 = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : '';
