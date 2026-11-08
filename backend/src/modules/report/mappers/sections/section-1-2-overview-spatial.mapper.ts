@@ -144,6 +144,25 @@ function readSavedMeters(val: unknown): string {
   return Number.isFinite(num) ? num.toFixed(1) : '';
 }
 
+/**
+ * Cự ly đã lưu tới tim tuyến và biên kết cấu/ga (chuỗi 1 chữ số thập phân, '' khi chưa có số).
+ * Dùng chung cho bảng Mục II và nhãn trên sơ đồ vị trí để hai nơi luôn in cùng một số.
+ */
+export function resolveSavedMetroDistances(
+  rawReport: Record<string, unknown>,
+  json: Record<string, unknown>,
+  specs: Record<string, unknown> | null | undefined
+): { alignM: string; edgeM: string } {
+  return {
+    alignM: readSavedMeters(
+      json.manualMetroDistanceM ?? json.distanceToMetroM ?? json.metroOffsetDistance ?? specs?.metroOffsetDistance ?? rawReport.distance_to_centerline_m
+    ),
+    edgeM: readSavedMeters(
+      json.stationEdgeDistance ?? json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM ?? specs?.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
+    ),
+  };
+}
+
 export class Section1And2Mapper {
   public static map(
     rawReport: any,
@@ -319,12 +338,7 @@ export class Section1And2Mapper {
       mainDimensions = { vi: `Mặt tiền ${widthDisplay} × Chiều sâu ${depthDisplay}`, en: `Width ${widthDisplay} × Depth ${depthDisplay}` };
     }
 
-    const distanceToMetroAlignmentM = readSavedMeters(
-      json.manualMetroDistanceM ?? json.distanceToMetroM ?? json.metroOffsetDistance ?? specs?.metroOffsetDistance ?? rawReport.distance_to_centerline_m
-    );
-    const distanceToMetroEdgeM = readSavedMeters(
-      json.stationEdgeDistance ?? json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM ?? specs?.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
-    );
+    const { alignM: distanceToMetroAlignmentM, edgeM: distanceToMetroEdgeM } = resolveSavedMetroDistances(rawReport, json, specs);
 
     const alignLabel = distanceToMetroAlignmentM ? `${distanceToMetroAlignmentM} m` : '--';
     const edgeLabel = distanceToMetroEdgeM ? `${distanceToMetroEdgeM} m` : '--';

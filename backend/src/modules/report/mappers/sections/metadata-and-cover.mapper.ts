@@ -12,7 +12,6 @@ import { ReportImageResolver } from '../../services/report-image-resolver.servic
 import { LOGO_THACO_REC_BASE64 } from '../../assets/report-logos';
 import { isPhotoAlreadyWatermarked } from '../appendices/appendix-2/floor-defect.mapper';
 import { formatDateVi, extractPhotoDateTime } from '../formatters.mapper';
-import { extractParcelPolygonCoords, generateMetroSpatialVisualSvg } from '../../utils/spatial-svg.utils';
 import { normalizeMetroPhotoCode, parseCodeFromPhotoUrl } from '../../utils/metro-photo-code.utils';
 
 export interface MetadataMappingResult {
@@ -108,10 +107,8 @@ export class MetadataMapper {
     const coverPhotoBase64 = coverPhotoUrl ? ReportImageResolver.resolveToBase64(coverPhotoUrl, coverPhotoRot) : undefined;
     const coverWatermarkDateTime = extractPhotoDateTime(coverPhotoUrl, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate);
 
-    const polygonCoords = extractParcelPolygonCoords(rawReport, json);
-    const spatialVisualMapBase64 = polygonCoords
-      ? generateMetroSpatialVisualSvg(polygonCoords, buildingId || rawParcelCode, undefined, { width: 870, height: 300 })
-      : undefined;
+    // Sơ đồ vị trí Mục II được sinh tại ReportViewModelMapper (cần cự ly đã lưu trong specs để in nhãn).
+    const spatialVisualMapBase64: string | undefined = undefined;
 
     const isApprovedStatus = String(rawReport.status || '').toUpperCase() === 'APPROVED';
     const deterministicGenDate = isApprovedStatus && rawReport.approved_at

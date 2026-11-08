@@ -9,7 +9,8 @@
 import { ReportViewModel } from '../report.types';
 import { formatDateVi, formatWatermarkDateTime, extractPhotoDateTime } from './formatters.mapper';
 import { MetadataMapper } from './sections/metadata-and-cover.mapper';
-import { Section1And2Mapper } from './sections/section-1-2-overview-spatial.mapper';
+import { Section1And2Mapper, resolveSavedMetroDistances } from './sections/section-1-2-overview-spatial.mapper';
+import { extractParcelPolygonCoords, generateMetroSpatialVisualSvg } from '../utils/spatial-svg.utils';
 import { Section3And4Mapper, Section5DeformationMapper } from './sections/section-3-4-5-structure-history-deform.mapper';
 import { Section6DefectSummaryMapper } from './sections/section-6-defect-summary.mapper';
 import { Section7BurlandMapper } from './sections/section-7-burland.mapper';
@@ -133,6 +134,18 @@ export class ReportViewModelMapper {
       defaultLng,
       surveyDateWithTime
     );
+
+    // Sơ đồ vị trí Mục II: nhãn khoảng cách in đúng số đã lưu như bảng Mục II (không tự đo).
+    const polygonCoords = extractParcelPolygonCoords(rawReport, json);
+    metadata.spatialVisualMapBase64 = polygonCoords
+      ? generateMetroSpatialVisualSvg(
+          polygonCoords,
+          buildingId,
+          undefined,
+          { width: 870, height: 300 },
+          resolveSavedMetroDistances(rawReport, json, specs)
+        )
+      : undefined;
 
     // 3. Phụ lục 2: Map tầng & Gom khuyết tật
     const rawFloors = (json.floors && Array.isArray(json.floors) && json.floors.length > 0)
