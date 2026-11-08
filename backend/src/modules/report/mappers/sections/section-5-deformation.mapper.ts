@@ -8,6 +8,7 @@
 import { Section5TiltSettlement } from '../../report.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from '../appendices/appendix-2/floor-defect.mapper';
+import { MAJOR_REPAIR_LABELS } from './section-3-4-structural.mapper';
 
 export class Section5DeformationMapper {
   public static map(
@@ -66,64 +67,96 @@ export class Section5DeformationMapper {
     const diffPos = diffDeform.position?.trim() || '';
     const diffNotes = diffDeform.notes?.trim() || '';
     const hasDiff = (diffDeform.level ?? 0) > 0 || Boolean(diffPos) || Boolean(diffNotes);
-    const diffPhotoCode = diffDeform.photoCode || (p06Url ? 'P-06' : '');
+    // Mã ảnh trong bảng dùng đúng nhãn Phụ lục 1 (P-05 / P-06), không dùng mã file thô HCM_M2…
+    const diffPhotoCode = p06Url ? 'P-06' : '';
     const diffSummaryText = [diffPos, diffNotes].filter(Boolean).join(' - ');
 
     const hasDegradation = structuralCracksCount > 0;
     const hasRepair = majorRepair > 0;
+    const repairLabel = MAJOR_REPAIR_LABELS[majorRepair] ?? { vi: `Mức ${majorRepair}`, en: `Level ${majorRepair}` };
 
     const tiltLevel = tiltDeform.level ?? 0;
     const tiltX = tiltDeform.xPermille ?? deformObj.tilt_angle_x;
     const tiltY = tiltDeform.yPermille ?? deformObj.tilt_angle_y;
     const tiltDir = tiltDeform.direction || deformObj.tilt_direction;
     const tiltNotes = tiltDeform.notes?.trim() || '';
-    const tiltPhotoCode = tiltDeform.photoCode || deformObj.tilt_photo_code || (p05Url ? 'P-05' : '');
+    const tiltPhotoCode = p05Url ? 'P-05' : '';
+    const isEntered = (v: unknown) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v));
     const hasNonZeroTilt =
-      (tiltX !== undefined && tiltX !== null && tiltX !== '' && Number(tiltX) !== 0 && !isNaN(Number(tiltX))) ||
-      (tiltY !== undefined && tiltY !== null && tiltY !== '' && Number(tiltY) !== 0 && !isNaN(Number(tiltY)));
-    const hasExplicitLaserSource = Array.isArray(deformObj.dataSource)
-      ? deformObj.dataSource.some((s: unknown) => String(s).toUpperCase().includes('LASER'))
-      : String(deformObj.dataSource || '').toUpperCase().includes('LASER');
-    const hasTiltMeas =
-      hasNonZeroTilt ||
-      (hasExplicitLaserSource &&
-        [tiltX, tiltY].some((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v))));
+      (isEntered(tiltX) && Number(tiltX) !== 0) || (isEntered(tiltY) && Number(tiltY) !== 0);
+    // X/Y = 0 là giá trị mặc định của DB khi chỉ quan sát bằng mắt → chỉ coi là số đo khi có tick dụng cụ đo nghiêng
+    // (Thước Laser / Nivo, Thước nivo / Quả dọi). Không có số đo thì ẩn dòng số, KHÔNG tự kết luận "không đo đạc".
+    // Nguồn đã tick: JSON settlementTilt.dataSource; dự phòng cột deformation_assessments.measurement_method (chuỗi nối ',').
+    const rawSourceValue: unknown =
+      Array.isArray(deformObj.dataSource) && deformObj.dataSource.length > 0
+        ? deformObj.dataSource
+        : (deformObj.dataSource || deformObj.measurement_method);
+    const rawSourceList: unknown[] = Array.isArray(rawSourceValue)
+      ? rawSourceValue
+      : typeof rawSourceValue === 'string' ? rawSourceValue.split(',') : [];
+    const hasTiltInstrument = rawSourceList.some((s) => /LASER|NIVO|DỌI/i.test(String(s)));
+    const hasTiltMeas = hasNonZeroTilt || (hasTiltInstrument && (isEntered(tiltX) || isEntered(tiltY)));
 
-    const fmtPermille = (v: unknown): string =>
-      v === undefined || v === null || v === '' || isNaN(Number(v)) ? '--' : `${Number(v).toFixed(3)}‰`;
+    const fmtPermille = (v: unknown): string => (isEntered(v) ? `${Number(v).toFixed(3)}‰` : '--');
 
-    let measuredTilt = '';
     const formattedTiltX = hasTiltMeas ? fmtPermille(tiltX) : '--';
     const formattedTiltY = hasTiltMeas ? fmtPermille(tiltY) : '--';
-    if (hasTiltMeas) {
-      measuredTilt = `X = ${formattedTiltX} ; Y = ${formattedTiltY}`;
-      if (tiltDir) measuredTilt += ` (Hướng: ${tiltDir})`;
-    } else {
-      measuredTilt = '-- (Quan sát ngoại quan, không đo đạc)';
-    }
+    const measuredTilt = hasTiltMeas
+      ? `X = ${formattedTiltX} ; Y = ${formattedTiltY}${tiltDir ? ` (Hướng: ${tiltDir})` : ''}`
+      : '';
     const isTiltObserved = tiltLevel > 0 || hasNonZeroTilt || Boolean(tiltNotes);
 
     const sagLevel = sagDeform.level ?? 0;
     const sagMmVal = sagDeform.sagMm ?? deformObj.beam_deflection_mm;
     const sagPos = sagDeform.position;
     const sagDesc = sagDeform.description;
-    const hasSagMeas = sagMmVal !== '' && sagMmVal !== undefined && sagMmVal !== null && Number(sagMmVal) > 0;
+    const hasSagMeas = isEntered(sagMmVal) && Number(sagMmVal) > 0;
     const isSagObserved = hasSagMeas || sagLevel > 0;
-    const measuredSag = hasSagMeas ? `f = ${sagMmVal} mm` : 'Không phát hiện võng';
+    const measuredSag = hasSagMeas ? `f = ${sagMmVal} mm` : '';
 
     const tiltDetails: { vi: string; en: string } = isTiltObserved
       ? {
-          vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Mã ảnh: ${tiltPhotoCode}]` : ''}`,
+          vi: `Phát hiện độ nghiêng thân nhà (Mức ${tiltLevel}/4)${tiltDir ? `, hướng ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Ảnh: ${tiltPhotoCode}]` : ''}`,
           en: `Building inclination observed (Level ${tiltLevel}/4)${tiltDir ? `, direction ${tiltDir}` : ''}${tiltNotes ? ` - ${tiltNotes}` : ''}${tiltPhotoCode ? ` [Photo: ${tiltPhotoCode}]` : ''}`,
         }
       : {
-          vi: hasTiltMeas
-            ? `Thân nhà thẳng đứng, độ nghiêng trong giới hạn cho phép${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`
-            : `Quan sát ngoại quan: không ghi nhận nghiêng (chưa đo đạc)${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
-          en: hasTiltMeas
-            ? `Building upright, inclination within permissible limits${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`
-            : `Visual observation: no inclination noted (not measured)${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
+          vi: `Không phát hiện nghiêng${tiltPhotoCode ? ` [Ảnh kiểm tra: ${tiltPhotoCode}]` : ''}`,
+          en: `No inclination observed${tiltPhotoCode ? ` [Check photo: ${tiltPhotoCode}]` : ''}`,
         };
+
+    // Cơ sở xác định: chỉ các nguồn đã tick (form KSV + form thẩm định), dịch EN theo từ điển, gộp từ đồng nghĩa.
+    const SOURCE_EN: Record<string, string> = {
+      'Quan sát hiện trường': 'Site visual inspection',
+      'Thước Laser / Nivo': 'Laser / Spirit level measurement',
+      'Hồ sơ bản vẽ': 'As-built / design drawings',
+      'Chủ nhà cung cấp': 'Provided by owner',
+      'Thước dây / Thước thép': 'Measuring tape / Steel ruler',
+      'Thước nivo / Quả dọi': 'Spirit level / Plumb bob',
+    };
+    const SOURCE_SYNONYMS: Record<string, string> = {
+      'Quan sát trực quan': 'Quan sát hiện trường',
+      VISUAL: 'Quan sát hiện trường',
+    };
+    const sources = Array.from(new Set(
+      rawSourceList
+        .map((s) => String(s ?? '').trim())
+        .filter(Boolean)
+        .map((s) => SOURCE_SYNONYMS[s] ?? s)
+    ));
+    const basisOfDetermination = sources.length > 0
+      ? { vi: sources.join(', '), en: sources.map((s) => SOURCE_EN[s] ?? s).join(', ') }
+      : { vi: '--', en: '--' };
+
+    // Nhận xét: chỉ phần KSV/Admin đã nhập (bất thường ngoại quan, kiến nghị quan trắc); không tự sinh câu tổng kết.
+    const abnCase = deformObj.abnormalCase || {};
+    const abnDesc = String(abnCase.description || abnCase.notes || '').trim();
+    const monObj = deformObj.needAdditionalMonitoring || {};
+    const monNotes = String(monObj.notes || '').trim();
+    const remarkVi: string[] = [];
+    const remarkEn: string[] = [];
+    if (abnDesc) { remarkVi.push(`Ghi nhận bất thường ngoại quan: ${abnDesc}.`); remarkEn.push(`Exterior anomaly noted: ${abnDesc}.`); }
+    if (monNotes) { remarkVi.push(`Kiến nghị quan trắc bổ sung: ${monNotes}.`); remarkEn.push(`Additional monitoring recommendation: ${monNotes}.`); }
+    else if (monObj.required === true) { remarkVi.push('Kiến nghị quan trắc bổ sung: Có.'); remarkEn.push('Additional monitoring recommended: Yes.'); }
 
     const rotMap = json.photoRotations || rawReport.photoRotations || {};
 
@@ -133,8 +166,8 @@ export class Section5DeformationMapper {
         observedDisplay: hasDiff ? { vi: 'CÓ', en: 'YES' } : { vi: 'Không', en: 'None' },
         location: hasDiff
           ? {
-              vi: `Ghi nhận lún lệch (Mức ${diffDeform.level ?? 0}/4): ${diffSummaryText || 'tại chân móng/nền'}${diffPhotoCode ? ` [Ảnh: ${diffPhotoCode}]` : ''}`,
-              en: `Differential settlement observed (Level ${diffDeform.level ?? 0}/4): ${diffSummaryText || 'at foundation/ground'}${diffPhotoCode ? ` [Photo: ${diffPhotoCode}]` : ''}`,
+              vi: `Ghi nhận lún lệch (Mức ${diffDeform.level ?? 0}/4)${diffSummaryText ? `: ${diffSummaryText}` : ''}${diffPhotoCode ? ` [Ảnh: ${diffPhotoCode}]` : ''}`,
+              en: `Differential settlement observed (Level ${diffDeform.level ?? 0}/4)${diffSummaryText ? `: ${diffSummaryText}` : ''}${diffPhotoCode ? ` [Photo: ${diffPhotoCode}]` : ''}`,
             }
           : {
               vi: `Không phát hiện lún chênh bất thường tại móng${diffPhotoCode ? ` [Ảnh kiểm tra: ${diffPhotoCode}]` : ''}`,
@@ -150,33 +183,16 @@ export class Section5DeformationMapper {
               en: deformObj.componentDeterioration?.notes || `${structuralCracksCount} defect(s) recorded on load-bearing elements (see Section VI & App. 2)`,
             }
           : {
-              vi: 'Không phát hiện dấu hiệu suy thoái nghiêm trọng của cấu kiện kết cấu',
-              en: 'No critical structural component deterioration observed',
+              vi: 'Không ghi nhận khuyết tật trên cấu kiện chịu lực (xem Mục VI)',
+              en: 'No defects recorded on load-bearing elements (see Section VI)',
             },
       },
       evidenceOfRepairs: {
         observed: hasRepair,
         observedDisplay: hasRepair ? { vi: 'CÓ', en: 'YES' } : { vi: 'Không', en: 'None' },
-        location: hasRepair
-          ? {
-              vi: majorRepair === 1
-                ? 'Ghi nhận có sửa chữa nhẹ trước đây (đã xử lý ổn định, xem Mục III)'
-                : 'Ghi nhận có cải tạo / sửa chữa trước đây (xem chi tiết Mục III)',
-              en: majorRepair === 1
-                ? 'Minor past repairs recorded (stabilised, see Section III)'
-                : 'Past structural alteration / repair recorded (see Section III)',
-            }
-          : {
-              vi: 'Không phát hiện dấu vết sửa chữa, gia cường kết cấu lớn',
-              en: 'No signs of major past structural repairs or strengthening',
-            },
-      },
-      collapse: {
-        observed: false,
-        observedDisplay: { vi: 'Không', en: 'None' },
         location: {
-          vi: 'Không ghi nhận bất kỳ sự cố sụp đổ hoặc hư hỏng nghiêm trọng nào',
-          en: 'No collapse or severe structural damage observed',
+          vi: `Theo phỏng vấn chủ hộ (Mục III): ${repairLabel.vi}`,
+          en: `Per owner interview (Section III): ${repairLabel.en}`,
         },
       },
       buildingInclination: {
@@ -192,12 +208,12 @@ export class Section5DeformationMapper {
         measured: measuredSag,
         location: isSagObserved
           ? {
-              vi: `Ghi nhận độ võng dầm/sàn (f = ${sagMmVal} mm)${sagPos ? ` tại ${sagPos}` : ''}${sagDesc ? ` (${sagDesc})` : ''}`,
-              en: `Beam/slab deflection recorded (f = ${sagMmVal} mm)${sagPos ? ` at ${sagPos}` : ''}${sagDesc ? ` (${sagDesc})` : ''}`,
+              vi: `Ghi nhận võng dầm/sàn${sagLevel > 0 ? ` (Mức ${sagLevel}/4)` : ''}${sagPos ? ` tại ${sagPos}` : ''}${sagDesc ? ` (${sagDesc})` : ''}`,
+              en: `Beam/slab deflection recorded${sagLevel > 0 ? ` (Level ${sagLevel}/4)` : ''}${sagPos ? ` at ${sagPos}` : ''}${sagDesc ? ` (${sagDesc})` : ''}`,
             }
           : {
-              vi: 'Không phát hiện hiện tượng võng dầm, sàn kết cấu bằng mắt thường',
-              en: 'No visual deflection of structural beams or floor slabs observed',
+              vi: 'Không phát hiện võng dầm/sàn',
+              en: 'No beam/slab deflection observed',
             },
       },
       floorSlabInclination: { observed: false, measured: '/' },
@@ -205,53 +221,8 @@ export class Section5DeformationMapper {
       hasLaserTilt: hasTiltMeas,
       tiltX: formattedTiltX,
       tiltY: formattedTiltY,
-      basisOfDetermination: {
-        vi: Array.isArray(deformObj.dataSource) && deformObj.dataSource.length > 0
-          ? deformObj.dataSource.join(', ')
-          : (typeof deformObj.dataSource === 'string' && deformObj.dataSource.trim() !== ''
-            ? deformObj.dataSource.trim()
-            : (hasTiltMeas ? 'Đo nghiêng Laser & Quan sát hiện trường' : 'Quan sát hiện trường')),
-        en: typeof deformObj.dataSource === 'string' && deformObj.dataSource.trim() !== ''
-          ? deformObj.dataSource.trim()
-          : (hasTiltMeas ? 'Site visual inspection & Laser measurement' : 'Site visual inspection (Visual check only)'),
-      },
-      reliability: {
-        vi: deformObj.reliability || '--',
-        en: deformObj.reliability || '--',
-      },
-      remarks: (() => {
-        const attachedPhotos: string[] = [];
-        if (p05Url) attachedPhotos.push('ảnh kiểm tra độ nghiêng (P-05)');
-        if (p06Url) attachedPhotos.push('ảnh khảo sát lún móng (P-06)');
-        if (rawReport.deformation?.abnormal_photos_json?.[0] || deform.abnormalCase?.photos?.[0] || json.photoP07) {
-          attachedPhotos.push('ảnh kiểm tra ngoại quan (P-07)');
-        }
-        const photoNoteVi = attachedPhotos.length > 0 ? ` Đính kèm ${attachedPhotos.join(', ')} tại Phụ lục 1.` : '';
-        const photoNoteEn = attachedPhotos.length > 0 ? ' Attached corresponding check photos in Appendix 1.' : '';
-
-        const abnCase = deformObj.abnormalCase || {};
-        const abnDesc = (abnCase.description || abnCase.notes || '').trim();
-        const hasAbnDesc = Boolean(abnDesc);
-        const abnNoteVi = hasAbnDesc ? ` Ghi nhận bất thường ngoại quan: ${abnDesc}.` : '';
-        const abnNoteEn = hasAbnDesc ? ` Exterior anomaly noted: ${abnDesc}.` : '';
-
-        const monObj = deformObj.needAdditionalMonitoring || {};
-        const monNotes = (monObj.notes || '').trim();
-        const hasMonNotes = Boolean(monObj.required || monNotes);
-        const monNoteVi = hasMonNotes ? ` Kiến nghị quan trắc bổ sung: ${monNotes || 'Yêu cầu gắn mốc quan trắc theo dõi biến dạng'}.` : '';
-        const monNoteEn = hasMonNotes ? ` Additional monitoring recommendation: ${monNotes || 'Additional deformation monitoring required'}.` : '';
-
-        if (isTiltObserved || hasDiff || isSagObserved || hasAbnDesc || hasMonNotes) {
-          return {
-            vi: `Hiện trạng công trình ghi nhận biến dạng đo đạc tại hiện trường (chi tiết các chỉ tiêu đánh giá phía trên).${abnNoteVi}${monNoteVi}${photoNoteVi}`,
-            en: `Field survey recorded deformation on-site (detailed in criteria table above).${abnNoteEn}${monNoteEn}${photoNoteEn}`,
-          };
-        }
-        return {
-          vi: `Hiện trạng công trình không ghi nhận biến dạng nghiêng lún bất thường bằng trực quan.${photoNoteVi}`,
-          en: `No abnormal visual tilt or differential settlement observed.${photoNoteEn}`,
-        };
-      })(),
+      basisOfDetermination,
+      remarks: { vi: remarkVi.join(' '), en: remarkEn.join(' ') },
       tiltPhoto: p05Url ? {
         url: p05Url,
         base64: ReportImageResolver.resolveToBase64(

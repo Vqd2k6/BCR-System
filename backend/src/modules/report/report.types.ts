@@ -115,6 +115,11 @@ export interface Section2BasicBuildingInfo {
 }
 
 export interface Section3HistoryOccupancy {
+  /** Câu 1 form thẩm định: Cơi nới / Thay đổi tải trọng (renovationLoad). */
+  renovationLoadHistory: BilingualText;
+  /** Câu 2 form thẩm định: Sửa chữa lớn / Cải tạo kết cấu (majorRepair). */
+  majorRepairHistory: BilingualText;
+  /** @deprecated alias của renovationLoadHistory */
   changeOfUse: BilingualText;
   extension: BilingualText;
   structuralAlteration: BilingualText;
@@ -125,19 +130,17 @@ export interface Section3HistoryOccupancy {
   previousSettlementTilt: BilingualText;
   occupancyStatus: BilingualText;
   sensitiveEquipment: BilingualText;
-  continuousOperation?: BilingualText;
+  continuousOperation: BilingualText;
   damageByAdjacentWorks: BilingualText;
   informationSource: BilingualText;
 }
 
 export interface Section4StructuralFoundation {
   structuralType: BilingualText;
-  structuralForm: BilingualText;
   foundationType: BilingualText;
   pileSize: BilingualText;
   footingDensitySpacing: BilingualText;
   foundationDepth: BilingualText;
-  visibleStructuralCondition: BilingualText;
   adjacentBuildings: BilingualText;
   surroundingGround?: BilingualText;
   foundationEvidence: BilingualText;
@@ -160,14 +163,10 @@ export interface Section5TiltSettlement {
     observedDisplay: BilingualText;
     location: BilingualText;
   };
-  collapse: {
-    observed: boolean;
-    observedDisplay: BilingualText;
-    location: BilingualText;
-  };
   buildingInclination: {
     observed: boolean;
     observedDisplay: BilingualText;
+    /** Số đo X/Y đã nhập; '' khi KSV không nhập số đo (template ẩn dòng). */
     measured: string;
     details: BilingualText;
     location: BilingualText;
@@ -189,8 +188,9 @@ export interface Section5TiltSettlement {
   hasLaserTilt?: boolean;
   tiltX?: string;
   tiltY?: string;
+  /** Chỉ các nguồn KSV/Admin đã tick (dataSource), không kèm phân cấp độ tin cậy. */
   basisOfDetermination: BilingualText;
-  reliability: BilingualText;
+  /** Chỉ ghi chú bất thường ngoại quan + kiến nghị quan trắc đã nhập; rỗng thì template ẩn dòng. */
   remarks: BilingualText;
   tiltPhoto?: {
     url: string;

@@ -49,7 +49,6 @@ async function runTest() {
   console.log(' • Chương 5 (Độ nghiêng & Lún):');
   console.log('   - Đo độ nghiêng:', viewModel.section5.buildingInclination.measured);
   console.log('   - Phương pháp đo:', viewModel.section5.basisOfDetermination.vi);
-  console.log('   - Độ tin cậy:', viewModel.section5.reliability.vi);
   console.log('   - Lún chênh:', viewModel.section5.differentialSettlement.location.vi);
 
   // Section 6 & Appendix 2

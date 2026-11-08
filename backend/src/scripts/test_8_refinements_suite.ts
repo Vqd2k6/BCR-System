@@ -162,34 +162,35 @@ async function run15BusinessCases() {
     null
   );
 
-  // TC06: changeOfUse thống nhất "Không ghi nhận" / "Not recorded"
-  const tc06Passed = section3.changeOfUse.vi === 'Không ghi nhận' &&
-                     section3.changeOfUse.en === 'Not recorded';
+  // TC06: Câu 1 (Cơi nới / Thay đổi tải trọng) mức 0 in đúng nhãn form thẩm định "Không" / "No"
+  const tc06Passed = section3.renovationLoadHistory.vi === 'Không' &&
+                     section3.renovationLoadHistory.en === 'No';
   assert(
     'TC06',
-    'Chương III Thay đổi công năng thống nhất thuật ngữ "Không ghi nhận" / "Not recorded"',
+    'Chương III Cơi nới / Thay đổi tải trọng mức 0 = "Không" / "No" (khớp form thẩm định)',
     tc06Passed,
-    `vi="${section3.changeOfUse.vi}", en="${section3.changeOfUse.en}"`
+    `vi="${section3.renovationLoadHistory.vi}", en="${section3.renovationLoadHistory.en}"`
   );
 
-  // TC07: extension thống nhất "Không ghi nhận" / "Not recorded"
-  const tc07Passed = section3.extension.vi === 'Không ghi nhận' &&
-                     section3.extension.en === 'Not recorded';
+  // TC07: Alias cũ changeOfUse / extension trỏ cùng giá trị câu 1 (không còn nhân đôi khác nhau)
+  const tc07Passed = section3.changeOfUse === section3.renovationLoadHistory &&
+                     section3.extension === section3.renovationLoadHistory;
   assert(
     'TC07',
-    'Chương III Cơi nới / mở rộng thống nhất thuật ngữ "Không ghi nhận" / "Not recorded"',
+    'Chương III alias changeOfUse / extension trùng renovationLoadHistory',
     tc07Passed,
-    `vi="${section3.extension.vi}", en="${section3.extension.en}"`
+    `changeOfUse="${section3.changeOfUse.vi}", extension="${section3.extension.vi}"`
   );
 
-  // TC08: structuralAlteration thống nhất "Không ghi nhận" / "Not recorded"
-  const tc08Passed = section3.structuralAlteration.vi === 'Không ghi nhận' &&
-                     section3.structuralAlteration.en === 'Not recorded';
+  // TC08: Câu 2 (Sửa chữa lớn / Cải tạo kết cấu) mức 0 = "Không" / "No"; alias structuralAlteration trùng
+  const tc08Passed = section3.majorRepairHistory.vi === 'Không' &&
+                     section3.majorRepairHistory.en === 'No' &&
+                     section3.structuralAlteration === section3.majorRepairHistory;
   assert(
     'TC08',
-    'Chương III Cải tạo kết cấu thống nhất thuật ngữ "Không ghi nhận" / "Not recorded"',
+    'Chương III Sửa chữa lớn / Cải tạo kết cấu mức 0 = "Không" / "No", alias structuralAlteration trùng',
     tc08Passed,
-    `vi="${section3.structuralAlteration.vi}", en="${section3.structuralAlteration.en}"`
+    `vi="${section3.majorRepairHistory.vi}", en="${section3.majorRepairHistory.en}"`
   );
 
   // --------------------------------------------------------------------------

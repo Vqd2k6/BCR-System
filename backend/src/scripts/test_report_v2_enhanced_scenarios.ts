@@ -113,7 +113,7 @@ async function runEnhancedScenarioTests() {
   const vmConst = ReportViewModelMapper.buildViewModel(underConstructionData);
   assert(vmConst.scenarioFlags.isUnderConstruction === true, 'ScenarioFlags.isUnderConstruction = true');
   assert(Boolean(vmConst.section2.constructionStageNotes), 'Section 2 có constructionStageNotes');
-  assert(vmConst.section4.visibleStructuralCondition.vi.includes('thi công'), 'Section 4 ghi nhận công trình đang thi công dở dang');
+  assert(!('visibleStructuralCondition' in vmConst.section4), 'Section 4 không còn dòng "Tình trạng kết cấu" tự sinh (thi công ghi ở Section 2)');
 
   const htmlConst = compiled({ ...vmConst, styles: stylesSource });
   assert(htmlConst.includes('Giai đoạn thi công'), 'HTML Mục II có dòng Giai đoạn thi công');
@@ -317,8 +317,9 @@ async function runEnhancedScenarioTests() {
 
   const vmVisual = ReportViewModelMapper.buildViewModel(visualOnlyData);
   assert(
-    vmVisual.section5.buildingInclination.measured.includes('Không đo Laser'),
-    'Độ nghiêng ghi nhận rõ Quan sát hiện trường (Không đo Laser), không in số giả 0.000‰'
+    vmVisual.section5.buildingInclination.measured === '' &&
+      !vmVisual.section5.buildingInclination.location.vi.includes('không đo đạc'),
+    'Không đo Laser: ẩn dòng số đo, không tự kết luận "không đo đạc", không in số giả 0.000‰'
   );
   assert(
     !vmVisual.section5.buildingInclination.measured.includes('0.000‰'),

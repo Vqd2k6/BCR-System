@@ -6,6 +6,56 @@
  */
 
 import { Section3HistoryOccupancy, Section4StructuralFoundation } from '../../report.types';
+import { resolveHistoryInterviewAliases } from '../../../scoring/history-interview-aliases';
+
+type LevelLabel = { vi: string; en: string };
+
+/**
+ * Nhãn mức 0..3 của 5 câu phỏng vấn E5. Phần VI chép NGUYÊN VĂN từ form thẩm định / khảo sát:
+ * frontend/src/features/survey-phase1/constants/historyInterviewConstants.ts — sửa ở đó thì phải sửa ở đây.
+ */
+const RENOVATION_LABELS: LevelLabel[] = [
+  { vi: 'Không', en: 'No' },
+  { vi: 'Nhẹ - Đã xử lý ổn định', en: 'Minor - Stabilised' },
+  { vi: 'Nhiều - Chưa rõ kết cấu', en: 'Substantial - Structure unverified' },
+  { vi: 'Thay đổi lớn - Nghiêm trọng', en: 'Major change - Severe' },
+];
+export const MAJOR_REPAIR_LABELS: LevelLabel[] = [
+  { vi: 'Không', en: 'No' },
+  { vi: 'Nhẹ - Đã xử lý', en: 'Minor - Treated' },
+  { vi: 'Nhiều - Chưa rõ hồ sơ', en: 'Substantial - Undocumented' },
+  { vi: 'Cải tạo lớn ảnh hưởng chịu lực', en: 'Major alteration affecting load-bearing structure' },
+];
+const PAST_SETTLEMENT_LABELS: LevelLabel[] = [
+  { vi: 'Không', en: 'No' },
+  { vi: 'Nhẹ - Đã ổn định', en: 'Minor - Stabilised' },
+  { vi: 'Rõ - Tiếp diễn', en: 'Evident - Ongoing' },
+  { vi: 'Nghiêm trọng', en: 'Severe' },
+];
+const NEIGHBOR_DAMAGE_LABELS: LevelLabel[] = [
+  { vi: 'Không', en: 'No' },
+  { vi: 'Nhẹ - Đã bồi thường', en: 'Minor - Compensated' },
+  { vi: 'Đáng kể', en: 'Significant' },
+  { vi: 'Tranh chấp - Nghiêm trọng', en: 'Disputed - Severe' },
+];
+const FIRE_FLOOD_LABELS: LevelLabel[] = [
+  { vi: 'Không', en: 'No' },
+  { vi: 'Nhẹ - Đã khắc phục', en: 'Minor - Remediated' },
+  { vi: 'Trung bình - Chưa rõ mức ảnh hưởng', en: 'Moderate - Impact unclear' },
+  { vi: 'Nghiêm trọng', en: 'Severe' },
+];
+
+/** "<nhãn mức>[ (Năm: Y)][ – ghi chú]". Mức ngoài 0..3 in nguyên số, không tự quy đổi. */
+function fmtLevel(labels: LevelLabel[], score: number, year: string, notes: string): LevelLabel {
+  const label = Number.isInteger(score) && labels[score]
+    ? labels[score]
+    : { vi: `Mức ${score}`, en: `Level ${score}` };
+  const noteSuffix = notes ? ` – ${notes}` : '';
+  return {
+    vi: `${label.vi}${year ? ` (Năm: ${year})` : ''}${noteSuffix}`,
+    en: `${label.en}${year ? ` (Year: ${year})` : ''}${noteSuffix}`,
+  };
+}
 
 export interface Section3And4Result {
   section3: Section3HistoryOccupancy;
@@ -13,29 +63,42 @@ export interface Section3And4Result {
   majorRepair: number;
 }
 
+const STRUCT_RC = { vi: 'Khung bê tông cốt thép (BTCT) chịu lực', en: 'Reinforced Concrete (RC) Frame' };
+const STRUCT_STEEL = { vi: 'Kết cấu khung thép / Nhà thép tiền chế', en: 'Structural Steel Frame / Pre-engineered Steel' };
+const STRUCT_MASONRY = { vi: 'Tường gạch chịu lực (Unreinforced Masonry)', en: 'Unreinforced Load-bearing Masonry' };
+const STRUCT_MIXED = { vi: 'Kết cấu hỗn hợp (Khung BTCT kết hợp tường gạch chịu lực)', en: 'Mixed Structure (RC Frame & Load-bearing Brick Wall)' };
+const STRUCT_TEMP = { vi: 'Kết cấu tạm / Nhà cấp 4 / Khung gỗ - tôn', en: 'Substandard / Grade-4 / Timber-Corrugated Structure' };
+
+/**
+ * Nhãn hệ kết cấu chịu lực. Giá trị form có mã đầu chuỗi (STRUCTURE_SYSTEMS trong
+ * frontend/src/features/survey-phase1/constants/surveyOptionsConstants.ts): nhận theo mã, KHÔNG dò từ khóa
+ * — "RC - BTCT (Khung bê tông cốt thép …)" chứa chữ "thép" nên dò từ khóa sẽ ra nhầm khung thép.
+ * "Khác: <mô tả>" in nguyên mô tả. Chỉ giá trị cũ dạng chữ tự do mới dò từ khóa.
+ */
 function mapStructureLabel(raw: string | undefined | null): { vi: string; en: string } {
-  const s = (raw || '').toLowerCase();
-  if (!s.trim()) return { vi: 'Chưa xác định hệ kết cấu chịu lực', en: 'Unverified structural system' };
-  if (s.includes('tạm') || s.includes('cấp 4') || s.includes('cap 4') || s.includes('gỗ') || s.includes('substandard') || s.includes('timber')) {
-    return { vi: 'Kết cấu tạm / Nhà cấp 4 / Khung gỗ - tôn', en: 'Substandard / Grade-4 / Timber-Corrugated Structure' };
+  const text = String(raw ?? '').trim();
+  if (!text) return { vi: 'Chưa xác định hệ kết cấu chịu lực', en: 'Unverified structural system' };
+
+  const code = text.match(/^(RC|Steel|Masonry|Mixed|Other)\s*-/i)?.[1]?.toLowerCase();
+  if (code === 'rc') return STRUCT_RC;
+  if (code === 'steel') return STRUCT_STEEL;
+  if (code === 'masonry') return STRUCT_MASONRY;
+  if (code === 'mixed') return STRUCT_MIXED;
+
+  const customMatch = text.match(/^Khác\s*:(.*)$/i);
+  if (customMatch || code === 'other') {
+    const desc = customMatch ? customMatch[1].trim() : '';
+    return desc ? { vi: desc, en: desc } : { vi: 'Khác (chưa mô tả)', en: 'Other (not described)' };
   }
-  if (s.includes('thép') || s.includes('steel') || s.includes('tiền chế') || s.includes('peb') || s.includes('kèo thép')) {
-    return { vi: 'Kết cấu khung thép / Nhà thép tiền chế', en: 'Structural Steel Frame / Pre-engineered Steel' };
-  }
-  if (s.includes('tường gạch') || s.includes('masonry') || s.includes('gạch chịu lực') || s.includes('load-bearing')) {
-    return { vi: 'Tường gạch chịu lực (Unreinforced Masonry)', en: 'Unreinforced Load-bearing Masonry' };
-  }
-  if (s.includes('hỗn hợp') || s.includes('mixed') || (s.includes('btct') && s.includes('gạch')) || (s.includes('rc') && s.includes('brick'))) {
-    return { vi: 'Kết cấu hỗn hợp (Khung BTCT kết hợp tường gạch chịu lực)', en: 'Mixed Structure (RC Frame & Load-bearing Brick Wall)' };
-  }
-  if (s.includes('btct') || s.includes('rc') || s.includes('bê tông') || s.includes('be tong') || s.includes('reinforced')) {
-    return { vi: 'Khung bê tông cốt thép (BTCT) chịu lực', en: 'Reinforced Concrete (RC) Frame' };
-  }
-  const cleanCustom = String(raw).replace(/^Khác:\s*/i, '').trim();
-  return {
-    vi: cleanCustom || 'Hệ kết cấu khác (Theo khảo sát thực tế)',
-    en: cleanCustom || 'Other Structural System (As surveyed)',
-  };
+
+  // Giá trị cũ dạng chữ tự do / enum DB (vd. KHUNG_BTCT_CHIU_LUC): hỗn hợp → BTCT → gạch → thép → tạm.
+  const s = text.toLowerCase();
+  if (s.includes('hỗn hợp') || s.includes('mixed') || (s.includes('btct') && s.includes('gạch'))) return STRUCT_MIXED;
+  if (s.includes('btct') || s.includes('bê tông') || s.includes('be tong') || s.includes('reinforced') || /\brc\b/.test(s)) return STRUCT_RC;
+  if (s.includes('tường gạch') || s.includes('masonry') || s.includes('gạch chịu lực')) return STRUCT_MASONRY;
+  if (s.includes('thép') || s.includes('steel') || s.includes('tiền chế') || s.includes('peb')) return STRUCT_STEEL;
+  if (s.includes('tạm') || s.includes('cấp 4') || s.includes('cap 4') || s.includes('gỗ') || s.includes('timber')) return STRUCT_TEMP;
+  return { vi: text, en: text };
 }
 
 export class Section3And4Mapper {
@@ -43,8 +106,9 @@ export class Section3And4Mapper {
     rawReport: any,
     json: any,
     specs: any,
-    structuralCracksCount: number,
-    surfaceCracksCount: number,
+    // Không còn dùng: dòng "Tình trạng kết cấu quan sát được" đã bỏ (không có ô nhập; khuyết tật xem Mục VI).
+    _structuralCracksCount: number,
+    _surfaceCracksCount: number,
     rawFoundDepth: any
   ): Section3And4Result {
     const historyRaw = { ...(json.buildingHistory || {}), ...(json.historyInterview || {}) };
@@ -58,34 +122,34 @@ export class Section3And4Mapper {
     }
     const historyObj = { ...dbDetails, ...historyRaw };
 
+    // 5 câu phỏng vấn E5: đọc đúng khóa form thẩm định ghi (câu 4, 5 ưu tiên khóa mới, xem history-interview-aliases).
+    const aliases = resolveHistoryInterviewAliases(historyObj);
     const renovationLoad = Number(historyObj.renovationLoad ?? (rawReport.historicalSensitivity?.extended_or_renovated ? 1 : 0));
-    const changeOfUseVal = Number(historyObj.changeOfUse ?? renovationLoad);
-    const extensionVal = Number(historyObj.extension ?? renovationLoad);
     const majorRepair = Number(historyObj.majorRepair ?? historyObj.majorRepairHistory ?? 0);
-    const structAltVal = Number(historyObj.structuralAlteration ?? historyObj.renovationLoad ?? majorRepair);
     const pastSettlement = Number(historyObj.pastSettlement ?? (rawReport.historicalSensitivity?.previous_settlement_or_tilt ? 1 : 0));
-    const neighborDamage = Number(historyObj.neighborImpact ?? historyObj.neighborDamage ?? 0);
-    const fireFloodVal = historyObj.fireFloodHistory ?? historyObj.fireFloodIncident;
-    const fireFloodIncident = Number(fireFloodVal ?? (rawReport.historicalSensitivity?.fire_or_accident ? 1 : 0));
+    const neighborDamage = Number(aliases.neighbor ?? 0);
+    const fireFloodIncident = Number(aliases.fireFlood ?? (rawReport.historicalSensitivity?.fire_or_accident ? 1 : 0));
     const rawUsage = historyObj.usageStatus;
     const usageStr = rawUsage !== undefined && rawUsage !== null && String(rawUsage).trim() !== '' ? String(rawUsage) : 'Chưa ghi nhận thông tin';
     const sensEquip = historyObj.sensitiveEquipment || { has: Boolean(rawReport.historicalSensitivity?.sensitive_equipment_present), description: '' };
 
-    const renovationYear = String(json.renovationYear ?? historyObj.renovationYear ?? '').trim();
-    const changeUseYear = String(historyObj.changeUseYear ?? json.changeUseYear ?? renovationYear).trim();
-    const changeUseNotes = String(historyObj.changeUseNotes ?? json.changeUseNotes ?? '').trim();
-    const extensionYear = String(historyObj.extensionYear ?? json.extensionYear ?? renovationYear).trim();
-    const extensionNotes = String(historyObj.extensionNotes ?? json.extensionNotes ?? '').trim();
-    const alterationYear = String(historyObj.alterationYear ?? json.alterationYear ?? json.majorRepairYear ?? historyObj.majorRepairYear ?? '').trim();
-    const alterationNotes = String(historyObj.alterationNotes ?? json.alterationNotes ?? historyObj.repairNotes ?? historyObj.majorRepairNotes ?? '').trim();
-    const majorRepairYear = String(json.majorRepairYear ?? historyObj.majorRepairYear ?? historyObj.repairYear ?? json.repairYear ?? '').trim();
-    const repairNotes = String(historyObj.repairNotes ?? historyObj.majorRepairNotes ?? '').trim();
-    const settlementYear = String(historyObj.settlementYear ?? json.settlementYear ?? '').trim();
-    const settlementNotes = String(historyObj.settlementNotes ?? historyObj.pastSettlementNotes ?? '').trim();
-    const neighborYear = String(historyObj.neighborImpactYear ?? historyObj.neighborYear ?? json.neighborImpactYear ?? '').trim();
-    const neighborNotes = String(historyObj.neighborImpactNotes ?? historyObj.neighborNotes ?? '').trim();
-    const fireFloodYear = String(historyObj.fireFloodYear ?? json.fireFloodYear ?? '').trim();
-    const fireFloodNotes = String(historyObj.fireFloodNotes ?? '').trim();
+    // Năm & ghi chú: đọc khóa form thẩm định ghi trong historyInterview trước, khóa cũ chỉ là dự phòng.
+    const pickText = (...vals: unknown[]): string => {
+      for (const v of vals) {
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    };
+    const renovationYear = pickText(historyObj.renovationYear, json.renovationYear, historyObj.extensionYear, historyObj.changeUseYear);
+    const renovationNotes = pickText(historyObj.renovationNotes, historyObj.extensionNotes, historyObj.changeUseNotes);
+    const majorRepairYear = pickText(historyObj.majorRepairYear, historyObj.repairYear, json.majorRepairYear, json.repairYear, historyObj.alterationYear);
+    const repairNotes = pickText(historyObj.repairNotes, historyObj.majorRepairNotes, historyObj.alterationNotes);
+    const settlementYear = pickText(historyObj.settlementYear, json.settlementYear);
+    const settlementNotes = pickText(historyObj.settlementNotes, historyObj.pastSettlementNotes);
+    const neighborYear = pickText(historyObj.neighborYear, historyObj.neighborImpactYear, json.neighborImpactYear);
+    const neighborNotes = pickText(historyObj.neighborNotes, historyObj.neighborImpactNotes);
+    const fireFloodYear = pickText(historyObj.fireFloodYear, json.fireFloodYear);
+    const fireFloodNotes = pickText(historyObj.fireFloodNotes);
     const generalInterviewNotes = String(historyObj.generalInterviewNotes ?? historyObj.notes ?? '').trim();
 
     const rawContOp = historyObj.continuousOperation247 ?? json.continuousOperation247;
@@ -96,92 +160,25 @@ export class Section3And4Mapper {
       ? String((rawContOp as Record<string, unknown>).notes ?? (rawContOp as Record<string, unknown>).description ?? '').trim()
       : '';
 
-    const changeUseYearVi = changeUseYear ? ` (Năm: ${changeUseYear})` : '';
-    const changeUseYearEn = changeUseYear ? ` (Year: ${changeUseYear})` : '';
-    const changeUseNoteSuffix = changeUseNotes ? ` – ${changeUseNotes}` : '';
-    const extYearVi = extensionYear ? ` (Năm cải tạo/mở rộng: ${extensionYear})` : '';
-    const extYearEn = extensionYear ? ` (Extended/Renovated: ${extensionYear})` : '';
-    const extNoteSuffix = extensionNotes ? ` – ${extensionNotes}` : '';
-    const altYearVi = alterationYear ? ` (Năm cải tạo: ${alterationYear})` : '';
-    const altYearEn = alterationYear ? ` (Alteration year: ${alterationYear})` : '';
-    const altNoteSuffix = alterationNotes ? ` – ${alterationNotes}` : '';
-    const repYearVi = majorRepairYear ? ` (Năm sửa chữa: ${majorRepairYear})` : '';
-    const repYearEn = majorRepairYear ? ` (Repair year: ${majorRepairYear})` : '';
-    const repNoteSuffix = repairNotes ? ` – ${repairNotes}` : '';
-    const settleYearVi = settlementYear ? ` (Năm: ${settlementYear})` : '';
-    const settleYearEn = settlementYear ? ` (Year: ${settlementYear})` : '';
-    const settleNoteSuffix = settlementNotes ? ` – ${settlementNotes}` : '';
-    const neighborYearVi = neighborYear ? ` (Năm: ${neighborYear})` : '';
-    const neighborYearEn = neighborYear ? ` (Year: ${neighborYear})` : '';
-    const neighborNoteSuffix = neighborNotes ? ` – ${neighborNotes}` : '';
-    const fireFloodYearVi = fireFloodYear ? ` (Năm: ${fireFloodYear})` : '';
-    const fireFloodYearEn = fireFloodYear ? ` (Year: ${fireFloodYear})` : '';
-    const fireFloodNoteSuffix = fireFloodNotes ? ` – ${fireFloodNotes}` : '';
     const genNoteVi = generalInterviewNotes ? ` | Ghi chú phỏng vấn: ${generalInterviewNotes}` : '';
     const genNoteEn = generalInterviewNotes ? ` | Interview note: ${generalInterviewNotes}` : '';
 
-    const baseExtension = extensionVal === 0
-      ? { vi: 'Không ghi nhận', en: 'Not recorded' }
-      : extensionVal === 1 ? { vi: 'Có cơi nới nhẹ / sửa chữa nhỏ', en: 'Minor extension reported' }
-      : { vi: 'Có cơi nới / mở rộng quy mô lớn', en: 'Substantial extension reported' };
-
-    const baseStructAlt = structAltVal === 0
-      ? { vi: 'Không ghi nhận', en: 'Not recorded' }
-      : structAltVal === 1 ? { vi: 'Có cải tạo nhẹ kết cấu', en: 'Minor structural alteration' }
-      : { vi: 'Có cải tạo lớn ảnh hưởng chịu lực', en: 'Major structural alteration' };
-
-    const baseMajorRepair = majorRepair === 0
-      ? { vi: 'Không', en: 'No' }
-      : majorRepair === 1 ? { vi: 'Có – Nhẹ, đã xử lý ổn định', en: 'Yes – Minor, stabilised' }
-      : majorRepair === 2 ? { vi: 'Có – Nhiều, chưa rõ hồ sơ hoàn công', en: 'Yes – Substantial, unverified documentation' }
-      : { vi: 'Có – Cải tạo lớn ảnh hưởng chịu lực', en: 'Yes – Major structural repair' };
-
-    const baseFireFlood = fireFloodIncident === 0
-      ? { vi: 'Cháy: Không | Ngập lụt: Không', en: 'Fire: None | Flooding: None' }
-      : fireFloodIncident === 1 ? { vi: 'Cháy: Không | Ngập lụt: Nhẹ (đã khắc phục)', en: 'Fire: None | Flooding: Minor (remediated)' }
-      : fireFloodIncident === 2 ? { vi: 'Có sự cố trung bình (chưa rõ ảnh hưởng)', en: 'Moderate fire/flooding incident recorded' }
-      : { vi: 'Có sự cố nghiêm trọng (ảnh hưởng kết cấu)', en: 'Severe fire/flooding incident recorded' };
-
-    const basePastSettle = pastSettlement === 0
-      ? { vi: 'Không phát hiện lún nghiêng trước đây', en: 'No prior settlement or tilt observed' }
-      : pastSettlement === 1 ? { vi: 'Có ghi nhận lún nghiêng nhẹ (đã ổn định)', en: 'Minor past settlement/tilt reported (stabilised)' }
-      : pastSettlement === 2 ? { vi: 'Có ghi nhận lún nghiêng rõ (tiếp diễn)', en: 'Evident ongoing settlement/tilt reported' }
-      : { vi: 'Có sự cố lún nghiêng nghiêm trọng', en: 'Severe settlement/tilt incident reported' };
-
-    const baseNeighbor = neighborDamage === 0
-      ? { vi: 'Không', en: 'No' }
-      : neighborDamage === 1 ? { vi: 'Có – Nhẹ, đã bồi thường/khắc phục', en: 'Yes – Minor, compensated/repaired' }
-      : neighborDamage === 2 ? { vi: 'Có – Ảnh hưởng đáng kể', en: 'Yes – Substantial damage' }
-      : { vi: 'Có – Tranh chấp / Ảnh hưởng nghiêm trọng', en: 'Yes – Severe damage / Disputed' };
+    const renovationLoadHistory = fmtLevel(RENOVATION_LABELS, renovationLoad, renovationYear, renovationNotes);
+    const majorRepairHistory = fmtLevel(MAJOR_REPAIR_LABELS, majorRepair, majorRepairYear, repairNotes);
+    const fireFloodHistory = fmtLevel(FIRE_FLOOD_LABELS, fireFloodIncident, fireFloodYear, fireFloodNotes);
 
     const section3: Section3HistoryOccupancy = {
-      changeOfUse: changeOfUseVal === 0 && !changeUseYear && !changeUseNotes
-        ? { vi: 'Không ghi nhận', en: 'Not recorded' }
-        : changeOfUseVal <= 1 ? { vi: `Nhẹ – Đã xử lý ổn định${changeUseYearVi}${changeUseNoteSuffix}`, en: `Minor – Stabilised${changeUseYearEn}${changeUseNoteSuffix}` }
-        : changeOfUseVal === 2 ? { vi: `Nhiều – Chưa rõ kết cấu${changeUseYearVi}${changeUseNoteSuffix}`, en: `Moderate – Unclear structure${changeUseYearEn}${changeUseNoteSuffix}` }
-        : { vi: `Thay đổi lớn – Ảnh hưởng tải trọng${changeUseYearVi}${changeUseNoteSuffix}`, en: `Major – Significant loading change${changeUseYearEn}${changeUseNoteSuffix}` },
-      extension: {
-        vi: `${baseExtension.vi}${extYearVi}${extNoteSuffix}`,
-        en: `${baseExtension.en}${extYearEn}${extNoteSuffix}`,
-      },
-      structuralAlteration: {
-        vi: `${baseStructAlt.vi}${altYearVi}${altNoteSuffix}`,
-        en: `${baseStructAlt.en}${altYearEn}${altNoteSuffix}`,
-      },
-      majorRepair: {
-        vi: `${baseMajorRepair.vi}${repYearVi}${repNoteSuffix}`,
-        en: `${baseMajorRepair.en}${repYearEn}${repNoteSuffix}`,
-      },
-      fireHistory: fireFloodIncident <= 1 ? { vi: `Không${fireFloodYearVi}${fireFloodNoteSuffix}`, en: `None${fireFloodYearEn}${fireFloodNoteSuffix}` } : { vi: `Có ghi nhận${fireFloodYearVi}${fireFloodNoteSuffix}`, en: `Recorded${fireFloodYearEn}${fireFloodNoteSuffix}` },
-      flooding: fireFloodIncident === 0 ? { vi: `Không${fireFloodYearVi}${fireFloodNoteSuffix}`, en: `None${fireFloodYearEn}${fireFloodNoteSuffix}` } : fireFloodIncident === 1 ? { vi: `Nhẹ (đã khắc phục)${fireFloodYearVi}${fireFloodNoteSuffix}`, en: `Minor (remediated)${fireFloodYearEn}${fireFloodNoteSuffix}` } : { vi: `Có ghi nhận${fireFloodYearVi}${fireFloodNoteSuffix}`, en: `Recorded${fireFloodYearEn}${fireFloodNoteSuffix}` },
-      fireAndFlooding: {
-        vi: `${baseFireFlood.vi}${fireFloodYearVi}${fireFloodNoteSuffix}`,
-        en: `${baseFireFlood.en}${fireFloodYearEn}${fireFloodNoteSuffix}`,
-      },
-      previousSettlementTilt: {
-        vi: `${basePastSettle.vi}${settleYearVi}${settleNoteSuffix}`,
-        en: `${basePastSettle.en}${settleYearEn}${settleNoteSuffix}`,
-      },
+      renovationLoadHistory,
+      majorRepairHistory,
+      // Alias cũ giữ lại cho code/test còn đọc tên field trước khi gộp dòng.
+      changeOfUse: renovationLoadHistory,
+      extension: renovationLoadHistory,
+      structuralAlteration: majorRepairHistory,
+      majorRepair: majorRepairHistory,
+      fireHistory: fireFloodHistory,
+      flooding: fireFloodHistory,
+      fireAndFlooding: fireFloodHistory,
+      previousSettlementTilt: fmtLevel(PAST_SETTLEMENT_LABELS, pastSettlement, settlementYear, settlementNotes),
       occupancyStatus: usageStr === 'Chưa ghi nhận thông tin'
         ? { vi: 'Chưa ghi nhận thông tin', en: 'Unrecorded' }
         : usageStr.includes('Đầy đủ') ? { vi: 'Đang sử dụng bình thường (100%)', en: 'In normal full use (100%)' }
@@ -191,16 +188,11 @@ export class Section3And4Mapper {
       sensitiveEquipment: sensEquip.has
         ? { vi: `Có: ${sensEquip.description || 'Chủ hộ chưa cung cấp danh mục thiết bị cụ thể'}`, en: `Yes: ${sensEquip.description || 'Specific equipment list unrecorded'}` }
         : { vi: 'Không có thiết bị nhạy cảm rung động', en: 'No vibration-sensitive equipment' },
-      continuousOperation: (hasContOp || Boolean(contOpNotes))
-        ? {
-            vi: `${hasContOp ? 'Có hoạt động liên tục 24/7' : 'Vận hành thông thường'}${contOpNotes ? ` (${contOpNotes})` : ''}`,
-            en: `${hasContOp ? '24/7 continuous operation' : 'Standard operation'}${contOpNotes ? ` (${contOpNotes})` : ''}`,
-          }
-        : undefined,
-      damageByAdjacentWorks: {
-        vi: `${baseNeighbor.vi}${neighborYearVi}${neighborNoteSuffix}`,
-        en: `${baseNeighbor.en}${neighborYearEn}${neighborNoteSuffix}`,
+      continuousOperation: {
+        vi: `${hasContOp ? 'Có hoạt động liên tục 24/7' : 'Không'}${contOpNotes ? ` (${contOpNotes})` : ''}`,
+        en: `${hasContOp ? 'Yes – 24/7 continuous operation' : 'No'}${contOpNotes ? ` (${contOpNotes})` : ''}`,
       },
+      damageByAdjacentWorks: fmtLevel(NEIGHBOR_DAMAGE_LABELS, neighborDamage, neighborYear, neighborNotes),
       informationSource: (() => {
         const explicitSource = historyObj.informationSource || json.informationSource;
         let baseSrc = { vi: 'Phỏng vấn chủ hộ', en: 'Property owner interview' };
@@ -220,21 +212,10 @@ export class Section3And4Mapper {
     };
 
     const isVacantLand = Boolean(json.isVacantLand || rawReport.is_vacant_land || json.surveyCaseType === 'VACANT_LAND');
-    const isUnderConstruction = Boolean(json.surveyCaseType === 'UNDER_CONSTRUCTION');
 
     const mappedStruct = mapStructureLabel(json.structureSystem || specs.structural_system || specs.structuralSystem || '');
     const structTypeVi = isVacantLand ? 'Khu đất trống – Không có công trình xây dựng' : mappedStruct.vi;
     const structTypeEn = isVacantLand ? 'Vacant land – No building structure' : mappedStruct.en;
-
-    const explicitForm = json.structuralForm || specs.structural_form || specs.structuralForm;
-    const bldgTypeStr = (json.usageFunction || json.buildingName || rawReport.building_type || json.surveyCaseType || '').toLowerCase();
-    let structFormVi = explicitForm && String(explicitForm).trim() !== '' ? String(explicitForm).trim() : 'Nhà phố liên kế nhiều tầng (Row / Terraced House)';
-    let structFormEn = explicitForm && String(explicitForm).trim() !== '' ? String(explicitForm).trim() : 'Terraced Row House';
-    if (!explicitForm) {
-      if (isVacantLand) { structFormVi = 'Khu đất trống (Vacant land)'; structFormEn = 'Vacant land'; }
-      else if (bldgTypeStr.includes('biệt thự') || bldgTypeStr.includes('độc lập') || bldgTypeStr.includes('standalone')) { structFormVi = 'Nhà riêng lẻ độc lập (Detached Single House)'; structFormEn = 'Standalone / Detached House'; }
-      else if (bldgTypeStr.includes('thương mại') || bldgTypeStr.includes('shophouse') || bldgTypeStr.includes('văn phòng')) { structFormVi = 'Nhà phố thương mại / Văn phòng dịch vụ'; structFormEn = 'Commercial Shophouse / Office Building'; }
-    }
 
     const rawFoundType = (json.foundationType || specs.foundation_category || specs.foundationType || '').toLowerCase();
     let foundTypeVi = 'Chưa xác định / Chưa có hồ sơ móng';
@@ -274,33 +255,15 @@ export class Section3And4Mapper {
     }
 
     const rawFoundCat = Number(json.foundationCatScore || specs.foundation_cat_score || 5);
+    // Nhãn CAT chép nguyên văn từ ô chọn "Phân loại CAT móng" trên form thẩm định (AuditStep2OwnerInterview.tsx).
     const catEvidenceMap: Record<number, { vi: string; en: string }> = {
-      1: { vi: 'Hồ sơ hoàn công được phê duyệt (CAT 1)', en: 'Approved as-built documentation (CAT 1)' },
-      2: { vi: 'Bản vẽ thiết kế kết cấu do chủ hộ lưu giữ (CAT 2)', en: 'Design drawings kept by owner (CAT 2)' },
-      3: { vi: 'Phỏng vấn chủ hộ xác nhận (CAT 3)', en: 'Property owner statement (CAT 3)' },
-      4: { vi: 'Suy luận chuyên môn KSV tại hiện trường (CAT 4)', en: 'Surveyor on-site engineering assessment (CAT 4)' },
-      5: { vi: 'Chưa có hồ sơ móng / Chưa xác định (CAT 5)', en: 'Unverified / No foundation documentation (CAT 5)' },
+      1: { vi: 'CAT 1 - Có bản vẽ hoàn công phê duyệt', en: 'CAT 1 - Approved as-built drawings available' },
+      2: { vi: 'CAT 2 - Có bản vẽ thiết kế kết cấu chủ nhà giữ', en: 'CAT 2 - Structural design drawings kept by owner' },
+      3: { vi: 'CAT 3 - Không bản vẽ, chủ nhà nhớ và khai rõ', en: 'CAT 3 - No drawings, clearly recalled and declared by owner' },
+      4: { vi: 'CAT 4 - Suy luận từ số tầng & kết cấu', en: 'CAT 4 - Inferred from storey count & structure' },
+      5: { vi: 'CAT 5 - Hoàn toàn không có dữ liệu', en: 'CAT 5 - No data available at all' },
     };
     const foundEvidence = isVacantLand ? { vi: 'Khảo sát hiện trạng đất trống (N/A)', en: 'Vacant land observation (N/A)' } : (catEvidenceMap[rawFoundCat] || catEvidenceMap[5]);
-
-    const explicitVisibleStruct = json.visibleStructuralCondition || specs.visible_structural_condition || specs.visibleStructuralCondition;
-    let visibleStructVi = explicitVisibleStruct && String(explicitVisibleStruct).trim() !== ''
-      ? String(explicitVisibleStruct).trim()
-      : 'Các cấu kiện chịu lực chính (cột, dầm, sàn) nguyên vẹn, ổn định tại thời điểm khảo sát';
-    let visibleStructEn = explicitVisibleStruct && String(explicitVisibleStruct).trim() !== ''
-      ? String(explicitVisibleStruct).trim()
-      : 'Main load-bearing elements (columns, beams, slabs) intact and stable at survey time';
-    if (!explicitVisibleStruct) {
-      if (isVacantLand) { visibleStructVi = 'Hiện trạng đất trống, không có kết cấu công trình xây dựng'; visibleStructEn = 'Vacant land, no building structures present'; }
-      else if (isUnderConstruction) { visibleStructVi = 'Công trình đang thi công xây dựng dở dang (xem ghi chú kỹ thuật)'; visibleStructEn = 'Building under active construction / structural works in progress'; }
-      else if (structuralCracksCount > 0) {
-        visibleStructVi = `Ghi nhận khuyết tật trên cấu kiện kết cấu (${structuralCracksCount} vị trí, xem chi tiết Mục VI & Phụ lục 2)`;
-        visibleStructEn = `Structural member defects observed (${structuralCracksCount} location(s), see Section VI & Appendix 2)`;
-      } else if (surfaceCracksCount > 0) {
-        visibleStructVi = 'Các cấu kiện chịu lực chính (cột, dầm, sàn) ổn định; ghi nhận nứt vữa hoàn thiện kiến trúc';
-        visibleStructEn = 'Main load-bearing elements intact; minor aesthetic plaster cracks observed';
-      }
-    }
 
     let adjSummaryVi = 'Chưa ghi nhận thông tin công trình liền kề';
     let adjSummaryEn = 'Adjacent buildings data unrecorded';
@@ -337,43 +300,46 @@ export class Section3And4Mapper {
       } catch { /* ignore */ }
     }
 
-    const rawFDensity = json.foundationDensity || specs.foundation_density || specs.footingDensity;
-    const rawFSpacing = json.foundationSpacingM || specs.foundation_spacing_m || specs.footingSpacing;
-    let footingDensitySpacingVi = 'Chưa ghi nhận';
-    let footingDensitySpacingEn = 'Not recorded';
-    if (rawFDensity || rawFSpacing) {
+    // Mật độ (SL/m²) & khoảng cách giữa móng (m): đúng 2 ô trên form thẩm định; trống thì không bịa số.
+    const pickNum = (...vals: unknown[]): string => {
+      for (const v of vals) {
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    };
+    const rawFDensity = pickNum(json.foundationDensity, specs.foundation_density, specs.footingDensity);
+    const rawFSpacing = pickNum(json.foundationSpacingM, specs.foundation_spacing_m, specs.footingSpacing);
+    let footingDensitySpacingVi = 'Không có số liệu';
+    let footingDensitySpacingEn = 'No data';
+    if (isVacantLand) { footingDensitySpacingVi = 'Không có móng (Đất trống)'; footingDensitySpacingEn = 'No foundation (Vacant land)'; }
+    else if (rawFDensity || rawFSpacing) {
       const fdPartsVi: string[] = []; const fdPartsEn: string[] = [];
-      if (rawFDensity) { fdPartsVi.push(`Mật độ: ${rawFDensity}`); fdPartsEn.push(`Density: ${rawFDensity}`); }
-      if (rawFSpacing) { fdPartsVi.push(`Khoảng cách tim: ${rawFSpacing} m`); fdPartsEn.push(`Spacing: ${rawFSpacing} m`); }
+      // Chỉ gắn đơn vị của form khi giá trị là số thuần; dữ liệu cũ dạng chữ (vd. "4 cọc/đài") in nguyên văn.
+      const isPlainNum = (v: string) => /^-?\d+(\.\d+)?$/.test(v);
+      if (rawFDensity) {
+        fdPartsVi.push(`Mật độ: ${rawFDensity}${isPlainNum(rawFDensity) ? ' SL/m²' : ''}`);
+        fdPartsEn.push(`Density: ${rawFDensity}${isPlainNum(rawFDensity) ? ' units/m²' : ''}`);
+      }
+      if (rawFSpacing) {
+        fdPartsVi.push(`Khoảng cách giữa móng: ${rawFSpacing}${isPlainNum(rawFSpacing) ? ' m' : ''}`);
+        fdPartsEn.push(`Footing spacing: ${rawFSpacing}${isPlainNum(rawFSpacing) ? ' m' : ''}`);
+      }
       footingDensitySpacingVi = fdPartsVi.join(' | '); footingDensitySpacingEn = fdPartsEn.join(' | ');
     }
 
-    const rawFNotes = json.foundationNotes || specs.foundation_notes;
-    const hasDrawings = Boolean(
-      specs.hasAsBuiltDrawings ||
-      specs.hasDrawings ||
-      json.hasDrawings ||
-      json.hasAsBuiltDrawings ||
-      (Array.isArray(json.asBuiltDrawingPhotos) && json.asBuiltDrawingPhotos.length > 0) ||
-      rawFoundCat <= 2
-    );
-    const remarksVi = rawFNotes || (hasDrawings
-      ? 'Thông tin hệ kết cấu và móng được tổng hợp từ hồ sơ hoàn công và khảo sát trực quan hiện trường.'
-      : 'Thông tin hệ kết cấu và móng ghi nhận từ khảo sát trực quan hiện trường (chủ hộ chưa cung cấp hồ sơ hoàn công/thiết kế kết cấu).');
-    const remarksEn = rawFNotes
-      ? `Surveyor note: ${rawFNotes}`
-      : (hasDrawings ? 'Structural and foundation data gathered from as-built records and visual site observation.' : 'Structural and foundation data gathered from visual site observation (as-built records unavailable).');
+    // Ghi chú kỹ thuật = đúng ô "Ghi chú móng" trên form; trống thì "Không" như form hiển thị, không tự sinh câu.
+    const rawFNotes = pickNum(json.foundationNotes, specs.foundation_notes);
+    const remarksVi = rawFNotes || 'Không';
+    const remarksEn = rawFNotes || 'None';
 
     return {
       section3,
       section4: {
         structuralType: { vi: structTypeVi, en: structTypeEn },
-        structuralForm: { vi: structFormVi, en: structFormEn },
         foundationType: { vi: foundTypeVi, en: foundTypeEn },
         pileSize: { vi: pileSizeVi, en: pileSizeEn },
         footingDensitySpacing: { vi: footingDensitySpacingVi, en: footingDensitySpacingEn },
         foundationDepth: { vi: foundDepthVi, en: foundDepthEn },
-        visibleStructuralCondition: { vi: visibleStructVi, en: visibleStructEn },
         adjacentBuildings: { vi: adjSummaryVi, en: adjSummaryEn },
         foundationEvidence: foundEvidence,
         remarks: { vi: remarksVi, en: remarksEn },

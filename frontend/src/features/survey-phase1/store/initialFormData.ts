@@ -105,7 +105,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
     buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '', photoUrl: '', photos: [], notes: '' },
     beamSagging: { level: 0, position: '', sagMm: '', description: '', photoUrl: '', notes: '' },
     abnormalCase: { photoUrl: '', photos: [], notes: '' },
-    dataSource: ['Quan sát trực quan'],
+    dataSource: ['Quan sát hiện trường'],
     reliability: 'HIGH',
     needAdditionalMonitoring: { required: false, notes: '' },
   },

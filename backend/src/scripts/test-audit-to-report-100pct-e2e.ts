@@ -341,17 +341,16 @@ async function main() {
       assertEqual(vm.section2.clearanceVerticalM, '7.5', 'section2.clearanceVerticalM (22.0 - 14.5)');
 
       // Kiểm tra Chương III (Lịch sử và tình trạng sử dụng)
-      assertIncludes(vm.section3.changeOfUse.vi, 'Nhiều', 'section3.changeOfUse (renovationLoad=2)');
-      assertIncludes(vm.section3.majorRepair.vi, 'Nhẹ', 'section3.majorRepair (majorRepair=1)');
-      assertIncludes(vm.section3.previousSettlementTilt.vi, 'lún nghiêng nhẹ', 'section3.previousSettlementTilt (pastSettlement=1)');
-      assertIncludes(vm.section3.damageByAdjacentWorks.vi, 'Ảnh hưởng đáng kể', 'section3.damageByAdjacentWorks (neighborDamage=2)');
-      assertIncludes(vm.section3.flooding.vi, 'Nhẹ', 'section3.flooding (fireFloodIncident=1)');
+      assertIncludes(vm.section3.renovationLoadHistory.vi, 'Nhiều - Chưa rõ kết cấu', 'section3.renovationLoadHistory (renovationLoad=2)');
+      assertIncludes(vm.section3.majorRepairHistory.vi, 'Nhẹ - Đã xử lý', 'section3.majorRepairHistory (majorRepair=1)');
+      assertIncludes(vm.section3.previousSettlementTilt.vi, 'Nhẹ - Đã ổn định', 'section3.previousSettlementTilt (pastSettlement=1)');
+      assertIncludes(vm.section3.damageByAdjacentWorks.vi, 'Đáng kể', 'section3.damageByAdjacentWorks (neighborDamage=2)');
+      assertIncludes(vm.section3.fireAndFlooding?.vi ?? '', 'Nhẹ - Đã khắc phục', 'section3.fireAndFlooding (fireFloodIncident=1)');
       assertIncludes(vm.section3.occupancyStatus.vi, 'một phần', 'section3.occupancyStatus');
       assertIncludes(vm.section3.sensitiveEquipment.vi, 'Hệ thống máy chủ CNC', 'section3.sensitiveEquipment');
 
       // Kiểm tra Chương IV (Đặc điểm kết cấu & Móng)
       assertIncludes(vm.section4.structuralType.vi.toLowerCase(), 'bê tông cốt thép', 'section4.structuralType');
-      assertIncludes(vm.section4.structuralForm.vi, 'Nhà phố thương mại', 'section4.structuralForm');
       assertIncludes(vm.section4.foundationType.vi, 'Móng cọc khoan nhồi (CIP)', 'section4.foundationType');
       assertEqual(vm.section4.pileSize.vi, 'D400 mm', 'section4.pileSize');
       assertIncludes(vm.section4.footingDensitySpacing.vi, '4 cọc/đài', 'section4.footingDensitySpacing density');
