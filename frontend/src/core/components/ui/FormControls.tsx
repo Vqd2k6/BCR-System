@@ -68,7 +68,7 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
   label?: string;
   error?: string;
   hint?: string;
-  options?: { value: string | number; label: string }[];
+  options?: { value: string | number; label: string; disabled?: boolean }[];
   statusHighlight?: boolean;
 }
 
@@ -125,7 +125,7 @@ export const Select: React.FC<SelectProps> = ({
                 <option value={currentValue}>{currentValue}</option>
               )}
               {options.map((opt, index) => (
-                <option key={`${opt.value}-${index}`} value={opt.value}>
+                <option key={`${opt.value}-${index}`} value={opt.value} disabled={opt.disabled}>
                   {opt.label}
                 </option>
               ))}

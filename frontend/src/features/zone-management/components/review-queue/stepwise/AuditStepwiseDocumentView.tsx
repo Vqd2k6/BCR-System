@@ -140,6 +140,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
     discardDiffItem,
     handleReviewSave,
     getDiffPayload,
+    burlandAutoSync,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
 
   const {
@@ -707,6 +708,7 @@ const AuditStepwiseDocumentViewInner: React.FC<AuditStepwiseDocumentViewProps> =
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          burlandAutoSync={burlandAutoSync}
         />
 
         {/* Bước 06: Tương Quan Vị Trí Metro & Đột Biến GIS */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { crackGradeOf } from '../../../components/canvas/burlandGrade';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
 import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
@@ -450,17 +451,10 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         let maxBurland = 0;
         let repairNeeded = false;
         merged.defects.forEach((d) => {
-          const w = d.widthMaxMm || 0;
-          let bGrade = 0;
-          if (w <= 0.1) bGrade = 0;
-          else if (w <= 1) bGrade = 1;
-          else if (w <= 5) bGrade = 2;
-          else if (w <= 15) bGrade = 3;
-          else if (w <= 25) bGrade = 4;
-          else bGrade = 5;
-
-          if (bGrade > maxBurland) maxBurland = bGrade;
-          if (bGrade >= 2 || (d.functionalImpactE6 && d.functionalImpactE6 >= 1)) {
+          // Chỉ D loại nứt có cấp Burland: "bề rộng" của vết thấm/bong là kích thước mảng, không phải vết nứt.
+          const bGrade = d.isDeleted ? null : crackGradeOf(d);
+          if (bGrade !== null && bGrade > maxBurland) maxBurland = bGrade;
+          if ((bGrade !== null && bGrade >= 2) || (d.functionalImpactE6 && d.functionalImpactE6 >= 1)) {
             repairNeeded = true;
           }
         });

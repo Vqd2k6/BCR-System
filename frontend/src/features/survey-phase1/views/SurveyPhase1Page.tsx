@@ -788,7 +788,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   localMaxGrade: maxBurland,
                   governingZoneCode: 'Z-01',
                   governingZoneDescription: '',
-                  representativeness: 'GLOBAL',
+                  representativeness: '',
                   structuralFlagLevel: 'NONE',
                   needStructuralEngineerReview: false,
                 };

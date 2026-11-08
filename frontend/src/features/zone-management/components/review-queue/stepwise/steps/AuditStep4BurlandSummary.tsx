@@ -11,15 +11,8 @@ import React from 'react';
 import { AlertTriangle, ShieldAlert, Sparkles, Maximize2, BarChart2, Eye, RefreshCw, History, Navigation, CheckCircle2 } from 'lucide-react';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
 import { resolveOptimisticPhoto } from '../utils/optimisticPhotoResolver';
+import { deriveBurlandSummary, getBurlandGradeFromWidth } from '../../../../../../components/canvas/burlandGrade';
 
-const getBurlandGradeFromWidth = (w: number): number => {
-  if (w <= 0.1) return 0;
-  if (w <= 1) return 1;
-  if (w <= 5) return 2;
-  if (w <= 15) return 3;
-  if (w <= 25) return 4;
-  return 5;
-};
 
 const isSoftDeleted = (item: unknown): boolean => {
   if (!item || typeof item !== 'object') return false;
@@ -39,6 +32,8 @@ interface Props {
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
   stagedPhotoActions?: PhotoActionPayload[];
   stagedPhotoRotations?: Record<string, number>;
+  /** Số vùng Z hook đã tự đồng bộ cấp theo bề rộng đo khi mở hồ sơ (chưa Lưu). */
+  burlandAutoSync?: { zoneCount: number; summaryChanged: boolean };
 }
 
 const BURLAND_GRADES = [
@@ -67,6 +62,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   onOpenPhotoHistory,
   stagedPhotoActions = [],
   stagedPhotoRotations = {},
+  burlandAutoSync,
 }) => {
   const burland: StepwiseBurlandSummary = formState.burlandSummary || {};
   const flagLevel = burland.structuralFlagLevel || 'NONE';
@@ -207,6 +203,36 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   }
 
   const maxGrade = Number(burland.localMaxGrade ?? calculatedMaxGrade);
+
+  // Cấp theo bề rộng D loại nứt (cùng quy tắc chốt duyệt backend): đã lưu thấp hơn thì không được duyệt
+  const floorsForDerive = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
+  const measured = deriveBurlandSummary(floorsForDerive);
+  const measuredMax = measured.localMaxGrade;
+  const savedBelowMeasured = measured.crackCount > 0 && !(maxGrade >= measuredMax);
+  const zoneOptions = floorsForDerive.flatMap((fl, floorIndex) =>
+    isSoftDeleted(fl)
+      ? []
+      : (fl.zones || [])
+          .filter((z) => !isSoftDeleted(z))
+          .map((z) => ({
+            key: `${floorIndex}|${z.zoneCode}`,
+            zoneCode: z.zoneCode,
+            floorName: fl.floorName,
+            label: `${z.zoneCode} – ${fl.floorName}`,
+          }))
+  );
+  const savedGovFloor = typeof burland.governingFloorName === 'string' ? burland.governingFloorName : '';
+  const governingOption =
+    zoneOptions.find((o) => o.zoneCode === burland.governingZoneCode && (!savedGovFloor || o.floorName === savedGovFloor)) ||
+    zoneOptions.find((o) => o.zoneCode === burland.governingZoneCode);
+  const handleSyncFromZones = () => {
+    handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', measuredMax);
+    handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', measured.predominantGrade);
+    if (measured.governing) {
+      handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', measured.governing.zoneCode);
+      handleNestedFieldChange('burlandSummary', 'governingFloorName', 'Tầng vùng khống chế', measured.governing.floorName);
+    }
+  };
   const predGrade = Number(burland.predominantGrade ?? calculatedPredominantGrade);
 
   // Tìm vết nứt đại diện nặng nhất (Governing Defect)
@@ -470,6 +496,37 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
             </div>
           </div>
 
+          {burlandAutoSync && (burlandAutoSync.zoneCount > 0 || burlandAutoSync.summaryChanged) && (
+            <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 flex items-start gap-2">
+              <RefreshCw className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <span>
+                Đã tự đồng bộ cấp Burland theo bề rộng vết nứt đo được
+                {burlandAutoSync.zoneCount > 0 ? ` cho ${burlandAutoSync.zoneCount} vùng Z` : ''}
+                {burlandAutoSync.summaryChanged ? ' và phần tổng hợp' : ''} — cần <strong>Lưu</strong> để ghi nhận trước khi phê duyệt.
+              </span>
+            </div>
+          )}
+          {savedBelowMeasured && (
+            <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Cấp cục bộ lớn nhất đang lưu (<strong>Cấp {Number.isFinite(maxGrade) ? maxGrade : '--'}</strong>) thấp hơn cấp theo bề rộng vết nứt đo được
+                  (<strong>Cấp {measuredMax}</strong>{measured.governing ? ` tại ${measured.governing.zoneCode} – ${measured.governing.floorName}` : ''}). Hồ sơ sẽ bị chặn phê duyệt.
+                </span>
+              </span>
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleSyncFromZones}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs whitespace-nowrap cursor-pointer hover:bg-rose-700"
+                >
+                  Đồng bộ theo vùng Z
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 4 Chỉ số cốt lõi */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {/* Cấp cực đại */}
@@ -478,14 +535,16 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
               {isEditMode ? (
                 <select
                   value={maxGrade}
-                  onChange={(e) =>
-                    handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', Number(e.target.value))
-                  }
-                  className="w-full p-1.5 bg-white border border-red-300 rounded-lg text-xs font-black text-red-700"
+                  onChange={(e) => {
+                    const g = Number(e.target.value);
+                    if (g < measuredMax) return;
+                    handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', g);
+                  }}
+                  className="w-full p-1.5 bg-white border border-red-300 rounded-lg text-xs font-black text-red-700 cursor-pointer"
                 >
                   {BURLAND_GRADES.map((bg) => (
-                    <option key={bg.grade} value={bg.grade}>
-                      {bg.label}
+                    <option key={bg.grade} value={bg.grade} disabled={bg.grade < measuredMax}>
+                      {bg.label}{bg.grade < measuredMax ? ' — thấp hơn cấp đo' : ''}
                     </option>
                   ))}
                 </select>
@@ -493,6 +552,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                 <div>
                   <span className="text-xl font-black text-red-600">Cấp {maxGrade}</span>
                   <span className="text-[10px] text-red-700 block">{BURLAND_GRADES[maxGrade]?.desc}</span>
+                  <span className="text-[10px] text-slate-600 block font-mono">Theo bề rộng đo: Cấp {measuredMax}</span>
                 </div>
               )}
             </div>
@@ -526,24 +586,47 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
               <span className="text-[11px] font-bold text-slate-600 block">Vùng Khống Chế Nguy Cơ:</span>
               {isEditMode ? (
-                <select
-                  value={burland.governingZoneCode || availableZones[0] || 'Z-01'}
-                  onChange={(e) =>
-                    handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', e.target.value)
-                  }
-                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800"
-                >
-                  {availableZones.map((z) => (
-                    <option key={z} value={z}>
-                      {z}
-                    </option>
-                  ))}
-                </select>
+                zoneOptions.length > 0 ? (
+                  <select
+                    value={governingOption?.key || ''}
+                    onChange={(e) => {
+                      const opt = zoneOptions.find((o) => o.key === e.target.value);
+                      if (!opt) return;
+                      handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', opt.zoneCode);
+                      handleNestedFieldChange('burlandSummary', 'governingFloorName', 'Tầng vùng khống chế', opt.floorName);
+                    }}
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800 cursor-pointer"
+                  >
+                    {!governingOption && <option value="">— Chọn vùng —</option>}
+                    {zoneOptions.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={burland.governingZoneCode || availableZones[0] || 'Z-01'}
+                    onChange={(e) =>
+                      handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', e.target.value)
+                    }
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800 cursor-pointer"
+                  >
+                    {availableZones.map((z) => (
+                      <option key={z} value={z}>
+                        {z}
+                      </option>
+                    ))}
+                  </select>
+                )
               ) : (
                 <div>
                   <span className="text-base font-black font-mono text-sky-700">
                     {burland.governingZoneCode || 'Z-01'}
                   </span>
+                  {(savedGovFloor || governingOption?.floorName) && (
+                    <span className="text-[11px] font-bold text-slate-700 block">{savedGovFloor || governingOption?.floorName}</span>
+                  )}
                   <span className="text-[10px] text-slate-500 block">Vùng chịu hư hại nặng nhất</span>
                 </div>
               )}
@@ -554,19 +637,24 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
               <span className="text-[11px] font-bold text-slate-600 block">Tính Đại Diện Khảo Sát:</span>
               {isEditMode ? (
                 <select
-                  value={burland.representativeness || 'GLOBAL'}
+                  value={burland.representativeness || ''}
                   onChange={(e) =>
                     handleNestedFieldChange('burlandSummary', 'representativeness', 'Tính đại diện Burland', e.target.value)
                   }
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                 >
+                  <option value="">— Chưa chọn —</option>
                   <option value="GLOBAL">GLOBAL - Đại diện toàn bộ</option>
                   <option value="LOCAL">LOCAL - Cục bộ không gian</option>
                 </select>
               ) : (
                 <div>
                   <span className="text-sm font-bold text-slate-800">
-                    {burland.representativeness === 'LOCAL' ? 'LOCAL (Cục bộ)' : 'GLOBAL (Toàn thể)'}
+                    {burland.representativeness === 'LOCAL'
+                      ? 'LOCAL (Cục bộ)'
+                      : burland.representativeness === 'GLOBAL'
+                        ? 'GLOBAL (Toàn thể)'
+                        : '-- (Chưa chọn)'}
                   </span>
                   <span className="text-[10px] text-slate-500 block">Phạm vi ứng xử biến dạng</span>
                 </div>

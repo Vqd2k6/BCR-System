@@ -5,7 +5,7 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { InfoPopover } from '../../../core/components/ui/InfoPopover';
 import { Activity, ShieldAlert, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
-import { isCrackRelated } from '../../../components/canvas/defectHelpers';
+import { deriveBurlandSummary, summarizeZoneCracks } from '../../../components/canvas/burlandGrade';
 
 const STRUCTURAL_FLAG_LEVELS = [
   { value: 'NONE', label: 'None - Không có cờ kết cấu', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
@@ -22,64 +22,28 @@ export const Step4_BurlandSummary: React.FC = () => {
     localMaxGrade: 0,
     governingZoneCode: 'Z-01',
     governingZoneDescription: '',
-    representativeness: 'GLOBAL',
-    structuralFlagLevel: 'NONE',
+    representativeness: '' as const,
+    structuralFlagLevel: 'NONE' as const,
     needStructuralEngineerReview: false,
   };
 
-  // Lấy danh sách tất cả các mã Zone Z-xx hiện có
-  const allZones = (formData.floors || []).flatMap((f) => f.zones || []);
-
-  // Hàm tính cấp Burland từ bề rộng vết nứt (mm)
-  const getBurlandGradeFromWidth = (w: number): number => {
-    if (w <= 0.1) return 0;
-    if (w <= 1) return 1;
-    if (w <= 5) return 2;
-    if (w <= 15) return 3;
-    if (w <= 25) return 4;
-    return 5;
-  };
-
-  // Thu thập tất cả vết nứt CHỈ trong các Vùng Kiến trúc Z (bỏ qua hoàn toàn E và khuyết tật phi vết nứt như ẩm mốc)
-  const zDefects = (formData.floors || []).flatMap((f) =>
-    (f.zones || []).flatMap((z) =>
-      (z.defects || [])
-        .filter((d) => isCrackRelated(d.screeningCategory, d.defectType))
-        .map((d) => ({
-          grade: getBurlandGradeFromWidth(Number(d.widthMaxMm) || 0),
-          zoneCode: z.zoneCode,
-          roomName: z.roomName,
-          floorName: f.floorName,
-        }))
-    )
+  // Danh sách vùng Z kèm tầng: mỗi tầng đánh số lại từ Z-01 nên khóa chọn phải có chỉ số tầng.
+  const zoneOptions = (formData.floors || []).flatMap((f, floorIndex) =>
+    (f.zones || []).map((z) => ({
+      key: `${floorIndex}|${z.zoneCode}`,
+      floorName: f.floorName,
+      zoneCode: z.zoneCode,
+      label: `${z.zoneCode} - ${f.floorName} - ${z.roomName} (${summarizeZoneCracks(z.defects).crackCount} nứt)`,
+    }))
   );
 
-  let inheritedMax = 0;
-  let governingZoneSuggestion = allZones[0]?.zoneCode || 'Z-01';
-  let inheritedPredominant = 0;
-
-  if (zDefects.length > 0) {
-    zDefects.forEach((item) => {
-      if (item.grade >= inheritedMax) {
-        inheritedMax = item.grade;
-        governingZoneSuggestion = item.zoneCode;
-      }
-    });
-
-    const counts: Record<number, number> = {};
-    zDefects.forEach((item) => {
-      counts[item.grade] = (counts[item.grade] || 0) + 1;
-    });
-
-    let maxCount = -1;
-    Object.entries(counts).forEach(([gradeStr, count]) => {
-      const g = Number(gradeStr);
-      if (count > maxCount || (count === maxCount && g > inheritedPredominant)) {
-        maxCount = count;
-        inheritedPredominant = g;
-      }
-    });
-  }
+  // Tổng hợp từ D loại nứt trong vùng Z (cùng quy tắc với Bước 4 thẩm định, chốt duyệt và chấm điểm E1)
+  const derived = deriveBurlandSummary(formData.floors);
+  const inheritedMax = derived.localMaxGrade;
+  const inheritedPredominant = derived.predominantGrade;
+  const governingSuggestion = derived.governing;
+  const governingZoneSuggestion = governingSuggestion?.zoneCode || zoneOptions[0]?.zoneCode || 'Z-01';
+  const governingFloorSuggestion = governingSuggestion?.floorName || zoneOptions[0]?.floorName || '';
 
   // Đếm tổng số khuyết tật toàn công trình (Kiến trúc Z + Kết cấu E)
   let totalDefectsCount = 0;
@@ -93,7 +57,17 @@ export const Step4_BurlandSummary: React.FC = () => {
   });
   const isZeroDefects = totalDefectsCount === 0;
 
-  // Tự động đồng bộ và bảo vệ an toàn dữ liệu
+  const governingKey = (() => {
+    const savedFloor = bs.governingFloorName;
+    const match =
+      zoneOptions.find((o) => o.zoneCode === bs.governingZoneCode && (!savedFloor || o.floorName === savedFloor)) ||
+      zoneOptions.find((o) => o.zoneCode === governingZoneSuggestion && o.floorName === governingFloorSuggestion);
+    return match?.key || '';
+  })();
+
+  // Tự đồng bộ mỗi khi số liệu vết nứt thay đổi (trước đây chỉ chạy khi giá trị trống, mà form khởi tạo sẵn 0 nên
+  // không bao giờ chạy → nhiều hồ sơ nộp với cấp cục bộ = 0 dù có nứt). Cấp đã chọn CAO hơn cấp đo được giữ lại.
+  const derivedSignature = `${inheritedMax}|${inheritedPredominant}|${governingSuggestion?.floorIndex ?? ''}|${governingSuggestion?.zoneCode ?? ''}|${isZeroDefects}`;
   React.useEffect(() => {
     // Zero-defect guardrail: Nếu nhà 0 khuyết tật thì cờ kết cấu bắt buộc phải là NONE và cấp Burland = 0
     if (isZeroDefects) {
@@ -116,21 +90,29 @@ export const Step4_BurlandSummary: React.FC = () => {
       return;
     }
 
+    const savedMax = Number(bs.localMaxGrade);
+    const nextMax = Number.isInteger(savedMax) && savedMax > inheritedMax ? savedMax : inheritedMax;
+    const keepGoverning = Number.isInteger(savedMax) && savedMax > inheritedMax && !!bs.governingZoneCode;
+    const nextGovCode = keepGoverning ? bs.governingZoneCode : governingZoneSuggestion;
+    const nextGovFloor = keepGoverning ? bs.governingFloorName || '' : governingFloorSuggestion;
     if (
-      zDefects.length > 0 &&
-      (bs.predominantGrade === undefined || bs.predominantGrade === null) &&
-      (bs.localMaxGrade === undefined || bs.localMaxGrade === null)
+      bs.localMaxGrade !== nextMax ||
+      bs.predominantGrade !== inheritedPredominant ||
+      bs.governingZoneCode !== nextGovCode ||
+      (bs.governingFloorName || '') !== nextGovFloor
     ) {
       updateFormData({
         burlandSummary: {
           ...bs,
+          localMaxGrade: nextMax,
           predominantGrade: inheritedPredominant,
-          localMaxGrade: inheritedMax,
-          governingZoneCode: bs.governingZoneCode || governingZoneSuggestion,
+          governingZoneCode: nextGovCode,
+          governingFloorName: nextGovFloor,
         },
       });
     }
-  }, [isZeroDefects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [derivedSignature]);
 
   const handleApplyInheritedBurland = () => {
     updateFormData({
@@ -139,9 +121,32 @@ export const Step4_BurlandSummary: React.FC = () => {
         predominantGrade: inheritedPredominant,
         localMaxGrade: inheritedMax,
         governingZoneCode: governingZoneSuggestion,
+        governingFloorName: governingFloorSuggestion,
       },
     });
   };
+
+  // Tính đại diện bắt buộc chọn khi có vết nứt ở vùng Z (không điền sẵn GLOBAL)
+  const [showRepError, setShowRepError] = React.useState(false);
+  const representativenessMissing =
+    derived.crackCount > 0 && bs.representativeness !== 'GLOBAL' && bs.representativeness !== 'LOCAL';
+  const handleNext = () => {
+    if (representativenessMissing) {
+      setShowRepError(true);
+      document.getElementById('select-burland-representativeness')?.focus();
+      return;
+    }
+    nextStep();
+  };
+
+  const BURLAND_OPTIONS = [
+    { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
+    { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
+    { value: 2, label: '2 - Nhẹ (~1-5mm)' },
+    { value: 3, label: '3 - Trung bình (~5-15mm)' },
+    { value: 4, label: '4 - Nặng (~15-25mm)' },
+    { value: 5, label: '5 - Rất nặng (>=25mm)' },
+  ];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -215,7 +220,7 @@ export const Step4_BurlandSummary: React.FC = () => {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
             <span className="text-xs text-slate-700">
-              Tổng hợp từ <strong>{zDefects.length} vết nứt Vùng Kiến Trúc Z</strong>: Cấp chủ đạo (Mode) = <strong>Grade {inheritedPredominant}</strong>, Cấp cục bộ lớn nhất (Max) = <strong>Grade {inheritedMax}</strong> (tại {governingZoneSuggestion}).
+              Tổng hợp từ <strong>{derived.crackCount} vết nứt Vùng Kiến Trúc Z</strong>: Cấp chủ đạo (Mode) = <strong>Grade {inheritedPredominant}</strong>, Cấp cục bộ lớn nhất (Max) = <strong>Grade {inheritedMax}</strong> (tại {governingZoneSuggestion}{governingFloorSuggestion ? ` – ${governingFloorSuggestion}` : ''}).
             </span>
           </div>
           <Button
@@ -253,14 +258,7 @@ export const Step4_BurlandSummary: React.FC = () => {
                   burlandSummary: { ...bs, predominantGrade: Number(e.target.value) },
                 })
               }
-              options={[
-                { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
-                { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
-                { value: 2, label: '2 - Nhẹ (~1-5mm)' },
-                { value: 3, label: '3 - Trung bình (~5-15mm)' },
-                { value: 4, label: '4 - Nặng (~15-25mm)' },
-                { value: 5, label: '5 - Rất nặng (>=25mm)' },
-              ]}
+              options={BURLAND_OPTIONS}
               hint="Mức độ nứt xuất hiện phổ biến nhất trong các vùng Z"
             />
           </div>
@@ -283,20 +281,18 @@ export const Step4_BurlandSummary: React.FC = () => {
             <Select
               id="select-burland-localMax"
               value={bs.localMaxGrade ?? inheritedMax}
-              onChange={(e) =>
+              onChange={(e) => {
+                const g = Number(e.target.value);
+                // Không cho thấp hơn cấp theo bề rộng đo được; cao hơn là phán đoán chuyên môn
+                if (g < inheritedMax) return;
                 updateFormData({
-                  burlandSummary: { ...bs, localMaxGrade: Number(e.target.value) },
-                })
-              }
-              options={[
-                { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
-                { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
-                { value: 2, label: '2 - Nhẹ (~1-5mm)' },
-                { value: 3, label: '3 - Trung bình (~5-15mm)' },
-                { value: 4, label: '4 - Nặng (~15-25mm)' },
-                { value: 5, label: '5 - Rất nặng (>=25mm)' },
-              ]}
-              hint="Vết nứt nặng nhất trong các vùng Z (dùng để tính E1)"
+                  burlandSummary: { ...bs, localMaxGrade: g },
+                });
+              }}
+              options={BURLAND_OPTIONS.map((o) =>
+                o.value < inheritedMax ? { ...o, label: `${o.label} — thấp hơn cấp đo`, disabled: true } : o
+              )}
+              hint={`Vết nứt nặng nhất trong các vùng Z (dùng để tính E1). Không thấp hơn cấp đo: Cấp ${inheritedMax}`}
             />
           </div>
 
@@ -312,19 +308,18 @@ export const Step4_BurlandSummary: React.FC = () => {
             </div>
             <Select
               id="select-burland-governingZone"
-              value={bs.governingZoneCode || governingZoneSuggestion}
-              onChange={(e) =>
+              value={governingKey}
+              onChange={(e) => {
+                const opt = zoneOptions.find((o) => o.key === e.target.value);
+                if (!opt) return;
                 updateFormData({
-                  burlandSummary: { ...bs, governingZoneCode: e.target.value },
-                })
-              }
+                  burlandSummary: { ...bs, governingZoneCode: opt.zoneCode, governingFloorName: opt.floorName },
+                });
+              }}
               options={
-                allZones.length > 0
-                  ? allZones.map((z) => ({
-                      value: z.zoneCode,
-                      label: `${z.zoneCode} - ${z.floorName} - ${z.roomName} (${(z.defects || []).length} nứt)`,
-                    }))
-                  : [{ value: 'Z-01', label: 'Z-01 (Mặc định)' }]
+                zoneOptions.length > 0
+                  ? zoneOptions.map((o) => ({ value: o.key, label: o.label }))
+                  : [{ value: '', label: 'Chưa có vùng Z' }]
               }
             />
           </div>
@@ -353,19 +348,21 @@ export const Step4_BurlandSummary: React.FC = () => {
             </div>
             <Select
               id="select-burland-representativeness"
-              value={bs.representativeness || 'GLOBAL'}
+              value={bs.representativeness || ''}
               onChange={(e) =>
                 updateFormData({
                   burlandSummary: {
                     ...bs,
-                    representativeness: e.target.value as 'GLOBAL' | 'LOCAL',
+                    representativeness: e.target.value === 'GLOBAL' || e.target.value === 'LOCAL' ? e.target.value : '',
                   },
                 })
               }
               options={[
+                { value: '', label: '— Chọn —' },
                 { value: 'GLOBAL', label: 'Toàn công trình (Đại diện chung toàn nhà)' },
                 { value: 'LOCAL', label: 'Cục bộ (Chỉ xuất hiện tại một vài khu vực)' },
               ]}
+              error={representativenessMissing && showRepError ? 'Có vết nứt ở vùng Z: bắt buộc chọn Tính đại diện' : undefined}
             />
           </div>
 
@@ -487,7 +484,7 @@ export const Step4_BurlandSummary: React.FC = () => {
         <Button variant="outline" onClick={prevStep}>
           ⬅️ Quay lại Bước 3
         </Button>
-        <Button onClick={nextStep}>
+        <Button onClick={handleNext}>
           {formData.unitId
             ? 'Tiếp tục: Bước 5 (Bảng điểm ECS & VI) ➔'
             : 'Tiếp tục: Bước 5 (Phạm vi & Ranh GIS) ➔'}

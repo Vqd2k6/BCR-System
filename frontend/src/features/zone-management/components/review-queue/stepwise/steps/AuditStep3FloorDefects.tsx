@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
+import { getBurlandGradeFromWidth } from '../../../../../../components/canvas/burlandGrade';
 import {
   ACTIVITY_STATE_OPTIONS,
   ARCH_DEFECT_TYPES,
@@ -41,14 +42,6 @@ import { AuditPhotoCard } from '../components/AuditPhotoCard';
 import { RotatableImageFrame } from '../components/RotatableImageFrame';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
-const getBurlandGradeFromWidth = (w: number): number => {
-  if (w <= 0.1) return 0;
-  if (w <= 1) return 1;
-  if (w <= 5) return 2;
-  if (w <= 15) return 3;
-  if (w <= 25) return 4;
-  return 5;
-};
 
 const syncZoneBurlandGrade = (z: DamageZoneData, rawDefects: DefectItem[]): DamageZoneData => {
   const normalizedDefects = rawDefects.map((d) => {

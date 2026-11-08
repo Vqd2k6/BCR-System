@@ -95,7 +95,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
     localMaxGrade: 0,
     governingZoneCode: 'Z-01',
     governingZoneDescription: '',
-    representativeness: 'GLOBAL',
+    representativeness: '',
     structuralFlagLevel: 'NONE',
     needStructuralEngineerReview: false,
   },

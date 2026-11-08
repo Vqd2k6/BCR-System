@@ -332,8 +332,11 @@ export interface Phase1SurveyFormData {
     predominantGrade: number;
     localMaxGrade: number;
     governingZoneCode: string;
+    /** Tên tầng của vùng chi phối: mỗi tầng đánh số lại từ Z-01 nên chỉ mã vùng không xác định được vị trí. */
+    governingFloorName?: string;
     governingZoneDescription: string;
-    representativeness: 'GLOBAL' | 'LOCAL';
+    /** '' = KSV chưa chọn (không điền sẵn GLOBAL để phân biệt lựa chọn thật với mặc định). */
+    representativeness: 'GLOBAL' | 'LOCAL' | '';
     structuralFlagLevel: 'NONE' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
     needStructuralEngineerReview: boolean;
   };

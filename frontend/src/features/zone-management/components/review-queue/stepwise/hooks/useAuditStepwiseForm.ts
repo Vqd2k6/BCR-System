@@ -4,6 +4,7 @@ import { calculateEcsScore } from '../../../../../survey-phase1/engine/ecsCalcul
 import { calculateViScore } from '../../../../../survey-phase1/engine/viCalculator';
 import { calculateConstructionImpact, calculateBraRisk } from '../../../../../survey-phase1/engine/braEngine';
 import { isCrackRelated } from '../../../../../../components/canvas/defectHelpers';
+import { deriveBurlandSummary, getBurlandGradeFromWidth, zoneCrackGrade } from '../../../../../../components/canvas/burlandGrade';
 import type { Phase1SurveyFormData } from '../../../../../survey-phase1/types/phase1.types';
 import type {
   DiffItem,
@@ -47,14 +48,6 @@ export function deepReplaceUrlsInValue(val: unknown, replaceMap: Map<string, str
   return val;
 }
 
-const getBurlandGradeFromWidth = (w: number): number => {
-  if (w <= 0.1) return 0;
-  if (w <= 1) return 1;
-  if (w <= 5) return 2;
-  if (w <= 15) return 3;
-  if (w <= 25) return 4;
-  return 5;
-};
 
 // Dữ liệu chỉ có được khi vào nhà; khớp RESIDENTIAL_ABSENT_INTERIOR_KEYS ở absence-evidence.ts của backend.
 // Dùng danh sách cấm vì Bước 1 có khóa động (chuẩn hóa địa chỉ, ranh thửa) mà whitelist sẽ âm thầm làm mất.
@@ -140,6 +133,7 @@ interface RecomputeElementLike {
 interface RecomputeFloorLike {
   isDeleted?: boolean;
   is_deleted?: boolean;
+  floorName?: string;
   zones?: RecomputeZoneLike[];
   structuralElements?: RecomputeElementLike[];
 }
@@ -150,6 +144,108 @@ const IMPACT_LABELS_MAP: Record<'I1' | 'I2' | 'I3' | 'I4', string> = {
   I3: 'I3 (Tác động trung bình)',
   I4: 'I4 (Tác động nghiêm trọng)',
 };
+
+/**
+ * Ghép burlandSummary với cấp tính từ D loại nứt (cùng quy tắc Bước 4 KSV và chốt duyệt backend).
+ * Cấp cục bộ đã lưu CAO hơn cấp đo được giữ lại (phán đoán chuyên môn) cùng vùng chi phối đã chọn;
+ * thấp hơn thì nâng lên cấp đo. Vùng chi phối ghi kèm tên tầng vì mỗi tầng đánh số lại từ Z-01.
+ */
+export function mergeDerivedBurlandSummary(
+  curBs: Record<string, unknown>,
+  floors: RecomputeFloorLike[],
+  zCrackGrades?: Array<{ grade: number; zoneCode: string }>
+): Record<string, unknown> {
+  let derivedMax: number;
+  let derivedPredominant: number;
+  let govCode: string;
+  let govFloor: string;
+  if (floors.length > 0) {
+    const d = deriveBurlandSummary(floors);
+    derivedMax = d.localMaxGrade;
+    derivedPredominant = d.predominantGrade;
+    govCode = d.governing?.zoneCode || String(curBs.governingZoneCode || 'Z-01');
+    govFloor = d.governing?.floorName || '';
+  } else {
+    const grades = zCrackGrades || [];
+    derivedMax = 0;
+    govCode = String(curBs.governingZoneCode || 'Z-01');
+    const counts: Record<number, number> = {};
+    grades.forEach((item) => {
+      if (item.grade >= derivedMax) {
+        derivedMax = item.grade;
+        govCode = item.zoneCode;
+      }
+      counts[item.grade] = (counts[item.grade] || 0) + 1;
+    });
+    derivedPredominant = 0;
+    let maxCount = -1;
+    Object.entries(counts).forEach(([gStr, count]) => {
+      const g = Number(gStr);
+      if (count > maxCount || (count === maxCount && g > derivedPredominant)) {
+        maxCount = count;
+        derivedPredominant = g;
+      }
+    });
+    govFloor = '';
+  }
+  const savedMaxRaw = curBs.localMaxGrade;
+  const savedMax = savedMaxRaw === undefined || savedMaxRaw === null || savedMaxRaw === '' ? NaN : Number(savedMaxRaw);
+  const keepSaved = Number.isInteger(savedMax) && savedMax > derivedMax && !!curBs.governingZoneCode;
+  return {
+    ...curBs,
+    localMaxGrade: keepSaved ? savedMax : derivedMax,
+    predominantGrade: derivedPredominant,
+    governingZoneCode: keepSaved ? curBs.governingZoneCode : govCode,
+    governingFloorName: keepSaved ? curBs.governingFloorName ?? '' : govFloor,
+  };
+}
+
+/**
+ * Khi mở hồ sơ thẩm định: vùng Z thiếu cấp hoặc lưu cấp THẤP hơn cấp theo bề rộng vết nứt → điền theo cấp đo,
+ * rồi đồng bộ burlandSummary nếu cấp cục bộ thấp hơn cấp đo. Không hạ cấp đã lưu cao hơn.
+ * Trả về số vùng đã đồng bộ và cờ summary có đổi để đưa vào thay đổi dẫn xuất (ghi kèm diff ở lần Lưu đầu).
+ */
+export function syncBurlandOnAuditLoad(json: Record<string, unknown>): {
+  json: Record<string, unknown>;
+  syncedZoneCount: number;
+  summaryChanged: boolean;
+} {
+  const floors = Array.isArray(json.floors) ? (json.floors as Array<Record<string, unknown>>) : [];
+  let syncedZoneCount = 0;
+  const nextFloors = floors.map((f) => {
+    if (!f || f.isDeleted || f.is_deleted || !Array.isArray(f.zones)) return f;
+    let floorChanged = false;
+    const zones = (f.zones as Array<Record<string, unknown>>).map((z) => {
+      if (!z || z.isDeleted || z.is_deleted) return z;
+      const defects = Array.isArray(z.defects) ? (z.defects as RecomputeDefectLike[]) : [];
+      const measured = zoneCrackGrade(defects);
+      const rawSaved = z.burlandGrade ?? z.burland_grade;
+      const saved = rawSaved === undefined || rawSaved === null || rawSaved === '' ? NaN : Number(rawSaved);
+      const hasCrack = defects.some((d) => !d.isDeleted && !d.is_deleted && isCrackRelated(d.screeningCategory, d.defectType));
+      if (Number.isInteger(saved) && saved >= measured) return z;
+      if (!hasCrack && Number.isInteger(saved)) return z;
+      floorChanged = true;
+      syncedZoneCount++;
+      return { ...z, burlandGrade: measured };
+    });
+    return floorChanged ? { ...f, zones } : f;
+  });
+  const out: Record<string, unknown> = syncedZoneCount > 0 ? { ...json, floors: nextFloors } : { ...json };
+  const curBs = ((out.burlandSummary as Record<string, unknown>) || {}) as Record<string, unknown>;
+  const derived = deriveBurlandSummary(nextFloors as RecomputeFloorLike[]);
+  const savedMax = Number(curBs.localMaxGrade);
+  let summaryChanged = false;
+  if (derived.crackCount > 0 && (!Number.isInteger(savedMax) || savedMax < derived.localMaxGrade)) {
+    const merged = mergeDerivedBurlandSummary(curBs, nextFloors as RecomputeFloorLike[]);
+    summaryChanged =
+      merged.localMaxGrade !== curBs.localMaxGrade ||
+      merged.predominantGrade !== curBs.predominantGrade ||
+      merged.governingZoneCode !== curBs.governingZoneCode ||
+      merged.governingFloorName !== curBs.governingFloorName;
+    if (summaryChanged) out.burlandSummary = merged;
+  }
+  return { json: out, syncedZoneCount, summaryChanged };
+}
 
 function recomputeDerivedPhase1State(
   nextState: Record<string, unknown>,
@@ -214,31 +310,7 @@ function recomputeDerivedPhase1State(
         needStructuralEngineerReview: false,
       };
     } else if (zCrackGrades.length > 0) {
-      let inheritedMax = 0;
-      let governingZoneCode = String(curBs.governingZoneCode || 'Z-01');
-      const counts: Record<number, number> = {};
-      zCrackGrades.forEach((item) => {
-        if (item.grade >= inheritedMax) {
-          inheritedMax = item.grade;
-          governingZoneCode = item.zoneCode;
-        }
-        counts[item.grade] = (counts[item.grade] || 0) + 1;
-      });
-      let maxCount = -1;
-      let inheritedPredominant = 0;
-      Object.entries(counts).forEach(([gStr, count]) => {
-        const g = Number(gStr);
-        if (count > maxCount || (count === maxCount && g > inheritedPredominant)) {
-          maxCount = count;
-          inheritedPredominant = g;
-        }
-      });
-      updated.burlandSummary = {
-        ...curBs,
-        localMaxGrade: inheritedMax,
-        predominantGrade: inheritedPredominant,
-        governingZoneCode,
-      };
+      updated.burlandSummary = mergeDerivedBurlandSummary(curBs, floors, zCrackGrades);
     } else {
       updated.burlandSummary = {
         ...curBs,
@@ -477,6 +549,10 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   const [formState, setFormState] = useState<Record<string, unknown>>({});
   const [originalState, setOriginalState] = useState<Record<string, unknown>>({});
   const [dirtyFields, setDirtyFields] = useState<Record<string, { label: string; oldValue: unknown; newValue: unknown }>>({});
+  const [burlandAutoSync, setBurlandAutoSync] = useState<{ zoneCount: number; summaryChanged: boolean }>({
+    zoneCount: 0,
+    summaryChanged: false,
+  });
 
   // Refs to stabilize callbacks and prevent infinite render loops
   const originalStateRef = useRef<Record<string, unknown>>(originalState);
@@ -859,9 +935,38 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
           : {},
     };
 
-    setFormState(initial);
+    // Cấp Burland lưu thiếu / thấp hơn cấp đo (form KSV cũ không tự đồng bộ): điền theo cấp đo vào formState,
+    // giữ originalState như bản đang lưu → hiện trong diff và chỉ ghi DB khi Admin bấm Lưu (có nhật ký).
+    const statusUpper = String(data.status || '').toUpperCase();
+    const canAutoSync =
+      initial.surveyCaseType !== 'ABSENTEE' && statusUpper !== 'APPROVED' && statusUpper !== 'LOCKED_IMMUTABLE';
+    const sync = canAutoSync ? syncBurlandOnAuditLoad(initial) : { json: initial, syncedZoneCount: 0, summaryChanged: false };
+    const nextDirty: Record<string, { label: string; oldValue: unknown; newValue: unknown }> = {};
+    let initialForm = initial;
+    if (sync.syncedZoneCount > 0 || sync.summaryChanged) {
+      initialForm = sync.json;
+      if (sync.syncedZoneCount > 0) {
+        // Đổi floors → tính lại ECS/VI/BRA theo cấp mới (E1 dùng cấp cục bộ lớn nhất)
+        initialForm = recomputeDerivedPhase1State(initialForm, 'floors', undefined, new Set<string>());
+        nextDirty.floors = {
+          label: `Cấp Burland vùng Z (tự đồng bộ theo bề rộng đo: ${sync.syncedZoneCount} vùng)`,
+          oldValue: initial.floors,
+          newValue: initialForm.floors,
+        };
+      }
+      if (JSON.stringify(initialForm.burlandSummary) !== JSON.stringify(initial.burlandSummary)) {
+        nextDirty.burlandSummary = {
+          label: 'Tổng hợp Burland (tự đồng bộ theo bề rộng đo)',
+          oldValue: initial.burlandSummary,
+          newValue: initialForm.burlandSummary,
+        };
+      }
+    }
+    setBurlandAutoSync({ zoneCount: sync.syncedZoneCount, summaryChanged: sync.summaryChanged });
+
+    setFormState(initialForm);
     setOriginalState(initial);
-    setDirtyFields({});
+    setDirtyFields(nextDirty);
   }, [data]);
 
   // Helper to deep get value
@@ -1706,5 +1811,6 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     discardDiffItem,
     handleReviewSave,
     getDiffPayload,
+    burlandAutoSync,
   };
 };

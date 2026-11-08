@@ -92,6 +92,7 @@ export interface StepwiseBurlandSummary {
   predominantGrade?: number;
   structuralFlagLevel?: string;
   governingZoneCode?: string;
+  governingFloorName?: string;
   representativeness?: string;
   needStructuralEngineerReview?: boolean;
   evaluationNotes?: string;
