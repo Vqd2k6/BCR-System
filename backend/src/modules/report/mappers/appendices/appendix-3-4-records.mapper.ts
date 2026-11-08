@@ -311,9 +311,33 @@ export class Appendix3And4Mapper {
       ];
     }
 
+    // Mã ảnh định danh thật đang có (không dựng "P-01 – P-0N" từ số lượng ảnh)
+    const photoCodes = Array.from(
+      new Set(appendix1.map((p) => String(p.photoCode || '').trim()).filter((c) => /^P-\d+/.test(c)))
+    ).sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')));
+    const photoCodesText = photoCodes.length > 0 ? photoCodes.join(', ') : '--';
+    // Tầng miễn vùng Z là tầng hạn chế tiếp cận chi tiết: không ghi "khảo sát đầy đủ"
+    const exemptFloorCount = collectZoneExemptFloors(json?.floors).length;
+    // Tầng KSV khai không tiếp cận được (Bước 6) cũng không cho phép ghi "đầy đủ"
+    const accessLim = json?.accessLimitation || {};
+    const blockedFloors: string[] = accessLim.type !== 'FULL_100' && Array.isArray(accessLim.restrictedFloorLevels)
+      ? accessLim.restrictedFloorLevels.map((f: unknown) => String(f).trim()).filter(Boolean)
+      : [];
+    const floorNotes: { vi: string[]; en: string[] } = { vi: [], en: [] };
+    if (exemptFloorCount > 0) {
+      floorNotes.vi.push(`${exemptFloorCount} tầng hạn chế tiếp cận chi tiết`);
+      floorNotes.en.push(`${exemptFloorCount} with restricted detailed access`);
+    }
+    if (blockedFloors.length > 0) {
+      floorNotes.vi.push(`không tiếp cận: ${blockedFloors.join(', ')}`);
+      floorNotes.en.push(`not accessed: ${blockedFloors.join(', ')}`);
+    }
+    const floorsRemark = floorNotes.vi.length > 0
+      ? { vi: `${appendix2.length} tầng khảo sát (${floorNotes.vi.join('; ')})`, en: `${appendix2.length} floors surveyed (${floorNotes.en.join('; ')})` }
+      : { vi: `${appendix2.length} tầng khảo sát đầy đủ`, en: `${appendix2.length} floors fully surveyed` };
     const accessAreas = [
-      { area: { vi: 'Mặt ngoài', en: 'Exterior' }, accessed: appendix1.length > 0, notAccessed: appendix1.length === 0, remark: { vi: `P-01 – P-0${Math.min(7, appendix1.length)}`, en: `P-01 – P-0${Math.min(7, appendix1.length)}` } },
-      { area: { vi: 'Tầng trệt & các lầu', en: 'Ground floor & upper floors' }, accessed: appendix2.length > 0, notAccessed: appendix2.length === 0, remark: { vi: `${appendix2.length} tầng khảo sát đầy đủ`, en: `${appendix2.length} floors surveyed` } },
+      { area: { vi: 'Mặt ngoài', en: 'Exterior' }, accessed: appendix1.length > 0, notAccessed: appendix1.length === 0, remark: { vi: photoCodesText, en: photoCodesText } },
+      { area: { vi: 'Tầng trệt & các lầu', en: 'Ground floor & upper floors' }, accessed: appendix2.length > 0, notAccessed: appendix2.length === 0, remark: floorsRemark },
       { area: { vi: 'Mái / Sân thượng', en: 'Roof / Terrace' }, accessed: roofAccessed, notAccessed: roofNotAccessed, remark: { vi: roofRemarkVi, en: roofRemarkEn } },
     ];
     if (basementCount > 0) {

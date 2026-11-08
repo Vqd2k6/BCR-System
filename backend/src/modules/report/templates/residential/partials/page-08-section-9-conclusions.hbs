@@ -13,7 +13,7 @@
 
     <div style="margin-bottom: 8px;">
       {{#each section9.conclusions}}
-        <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+        <p>- {{this.vi}}{{#unless (eq this.vi this.en)}}<br><span class="text-muted">- {{this.en}}</span>{{/unless}}</p>
       {{/each}}
       {{#if section9.witnessNarrative.vi}}
         <p>- {{section9.witnessNarrative.vi}}<br><span class="text-muted">- {{section9.witnessNarrative.en}}</span></p>
@@ -51,8 +51,8 @@
               {{/if}}
             </td>
             <td>
-              {{this.remark.vi}}<br>
-              <span class="text-muted">{{this.remark.en}}</span>
+              {{this.remark.vi}}{{#unless (eq this.remark.vi this.remark.en)}}<br>
+              <span class="text-muted">{{this.remark.en}}</span>{{/unless}}
             </td>
           </tr>
         {{/each}}
@@ -71,14 +71,14 @@
     {{#if section9.limitations.length}}
     <div style="margin-bottom: 6px;">
       {{#each section9.limitations}}
-        <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+        <p>- {{this.vi}}{{#unless (eq this.vi this.en)}}<br><span class="text-muted">- {{this.en}}</span>{{/unless}}</p>
       {{/each}}
     </div>
     {{/if}}
 
     <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>
     {{#each section9.recommendations}}
-      <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      <p>- {{this.vi}}{{#unless (eq this.vi this.en)}}<br><span class="text-muted">- {{this.en}}</span>{{/unless}}</p>
     {{else}}
       <p>--</p>
     {{/each}}
@@ -86,7 +86,7 @@
     {{#if section9.pendingFieldDesignItems.length}}
     <h3 class="section-header">Nội dung cần bổ sung từ hiện trường / thiết kế - Items pending field or design data</h3>
     {{#each section9.pendingFieldDesignItems}}
-      <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      <p>- {{this.vi}}{{#unless (eq this.vi this.en)}}<br><span class="text-muted">- {{this.en}}</span>{{/unless}}</p>
     {{/each}}
     {{/if}}
 

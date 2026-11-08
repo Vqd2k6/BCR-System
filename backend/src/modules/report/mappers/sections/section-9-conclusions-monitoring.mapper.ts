@@ -29,28 +29,29 @@ export class Section9ConclusionMapper {
       json.ownerRemarks ??
       rawReport.owner_remarks ??
       '';
-    const surveyorConclusionText =
-      json.executiveSummary?.summaryConclusions ??
-      json.summaryConclusions ??
-      rawReport.summary_conclusions ??
-      '';
-    const keyRisksDefectsText = String(
-      json.executiveSummary?.keyRisksDefectsText ??
-      json.keyRisksDefectsText ??
-      ''
-    ).trim();
+    // Form KSV chỉ có một ô "Khuyết tật / rủi ro chính nổi bật của công trình" (executiveSummary.keyRisksDefectsText);
+    // khi nộp, ô này được chép sang summaryConclusions / summary_conclusions nên trước đây in 2 dòng y hệt.
+    // Chỉ in ô KSV (bản đã duyệt nếu Admin sửa); ô "Kết luận tóm tắt" riêng của thẩm định không in ở Mục IX.
+    // Ô chỉ có dấu câu (".", "-") coi như trống: không in "…: ." lên báo cáo
+    const hasContent = (v: string): boolean => /[\p{L}\p{N}]/u.test(v);
+    const pickText = (...candidates: unknown[]): string => {
+      for (const c of candidates) {
+        if (typeof c === 'string' && hasContent(c)) return c.trim();
+      }
+      return '';
+    };
+    const keyRisksDefectsText = pickText(
+      json.executiveSummary?.keyRisksDefectsText,
+      json.keyRisksDefectsText,
+      json.summaryConclusions,
+      rawReport.summary_conclusions
+    );
 
     const conclusionsList: BilingualText[] = [];
-    if (surveyorConclusionText) {
-      conclusionsList.push({
-        vi: `Kết luận của Khảo sát viên hiện trường: ${surveyorConclusionText}`,
-        en: `Surveyor field conclusion: ${surveyorConclusionText}`,
-      });
-    }
     if (keyRisksDefectsText && keyRisksDefectsText !== 'Không') {
       conclusionsList.push({
-        vi: `Các rủi ro / khuyết tật trọng yếu: ${keyRisksDefectsText}`,
-        en: `Key risks and defects: ${keyRisksDefectsText}`,
+        vi: `Khuyết tật / rủi ro chính nổi bật của công trình: ${keyRisksDefectsText}`,
+        en: `Key defects / risks of the building: ${keyRisksDefectsText}`,
       });
     }
 
@@ -200,13 +201,12 @@ export class Section9ConclusionMapper {
     }
 
     const recommendations: BilingualText[] = [...(standardText?.recommendations || [])];
-    const specificRecommendationsText = String(
+    const specificRecommendationsText = pickText(
       json.executiveSummary?.specificRecommendationsText ??
       json.specificRecommendationsText ??
       json.engineeringRecommendations ??
-      rawReport.engineering_recommendations ??
-      ''
-    ).trim();
+      rawReport.engineering_recommendations
+    );
     if (specificRecommendationsText && specificRecommendationsText !== 'Không') {
       recommendations.push({
         vi: `Kiến nghị kỹ thuật cụ thể của hồ sơ: ${specificRecommendationsText}`,
