@@ -62,6 +62,16 @@ const TABLES_TO_SYNC = [
   'audit_alert_items',
   'quality_gate_logs',
   'guest_share_links',
+  'photo_qc_reports',
+  'photo_qc_photos',
+  'report_releases',
+  'progress_report_config_versions',
+  'report_standard_text_versions',
+  'project_survey_equipment',
+  'zone_drawing_title_blocks',
+  'zone_drawing_revisions',
+  'attendance_periods',
+  'attendance_period_snapshots',
 ];
 
 async function restoreFromSnapshot() {
@@ -220,14 +230,24 @@ async function restoreFromSnapshot() {
     console.log(`   ├─ Parcels (Thửa đất):       ${summary['parcels'] || 0}`);
     console.log(`   ├─ Base Reports (Hồ sơ):     ${summary['base_survey_reports'] || 0}`);
     console.log(`   ├─ Photos (Ảnh hiện trường): ${summary['survey_identification_photos'] || 0}`);
-    console.log(`   └─ Defects (Khuyết tật/nứt): ${summary['defect_items'] || 0}`);
+    console.log(`   ├─ Defects (Khuyết tật/nứt): ${summary['defect_items'] || 0}`);
+    console.log(`   ├─ Photo QC Reports:         ${summary['photo_qc_reports'] || 0}`);
+    console.log(`   └─ Photo QC Photos:          ${summary['photo_qc_photos'] || 0}`);
   } catch (err: any) {
     if (localClient) {
       try {
         await localClient.query('ROLLBACK;');
       } catch (rbErr) {}
     }
-    console.error('\n❌ Lỗi khi khôi phục từ snapshot:', err.message || err);
+    const errDetail =
+      err?.message ||
+      (Array.isArray(err?.errors) ? err.errors.map((e: any) => e?.message || String(e)).join('; ') : String(err));
+    console.error('\n❌ Lỗi khi khôi phục từ snapshot:', errDetail);
+    if (String(errDetail).includes('ECONNREFUSED') || err?.code === 'ECONNREFUSED') {
+      console.error(
+        `👉 Không kết nối được PostgreSQL Local (${LOCAL_CONFIG.host}:${LOCAL_CONFIG.port}). Hãy bật Docker Desktop (container metro2_postgres_postgis) trước khi chạy lại.`
+      );
+    }
     process.exit(1);
   } finally {
     if (localClient) localClient.release();

@@ -87,6 +87,16 @@ const TABLES_TO_SYNC = [
   'audit_alert_items',
   'quality_gate_logs',
   'guest_share_links',
+  'photo_qc_reports',
+  'photo_qc_photos',
+  'report_releases',
+  'progress_report_config_versions',
+  'report_standard_text_versions',
+  'project_survey_equipment',
+  'zone_drawing_title_blocks',
+  'zone_drawing_revisions',
+  'attendance_periods',
+  'attendance_period_snapshots',
 ];
 
 function getTimestampFormatted(): string {
@@ -336,7 +346,9 @@ async function syncFromCloud() {
     console.log(`   ├─ Parcels:         ${syncSummary['parcels'] || 0} thửa đất`);
     console.log(`   ├─ Survey Reports:  ${syncSummary['base_survey_reports'] || 0} báo cáo khảo sát`);
     console.log(`   ├─ Photos:          ${syncSummary['survey_identification_photos'] || 0} ảnh hiện trường`);
-    console.log(`   └─ Defects:         ${syncSummary['defect_items'] || 0} vết nứt`);
+    console.log(`   ├─ Defects:         ${syncSummary['defect_items'] || 0} vết nứt`);
+    console.log(`   ├─ Photo QC Reports:${syncSummary['photo_qc_reports'] || 0} hồ sơ rà soát ảnh`);
+    console.log(`   └─ Photo QC Photos: ${syncSummary['photo_qc_photos'] || 0} ảnh đánh dấu QC / chụp lại`);
   } catch (err: any) {
     if (localClient) {
       try {
@@ -348,7 +360,15 @@ async function syncFromCloud() {
         await remoteClient.query('ROLLBACK;');
       } catch (rbErr) { }
     }
-    console.error('\n❌ Lỗi trong quá trình đồng bộ:', err.message || err);
+    const errDetail =
+      err?.message ||
+      (Array.isArray(err?.errors) ? err.errors.map((e: any) => e?.message || String(e)).join('; ') : String(err));
+    console.error('\n❌ Lỗi trong quá trình đồng bộ:', errDetail);
+    if (String(errDetail).includes('ECONNREFUSED') || err?.code === 'ECONNREFUSED') {
+      console.error(
+        `👉 Không kết nối được PostgreSQL Local (${LOCAL_CONFIG.host}:${LOCAL_CONFIG.port}). Hãy bật Docker Desktop (container metro2_postgres_postgis) rồi chạy: npm --prefix backend run restore:snapshot`
+      );
+    }
     process.exit(1);
   } finally {
     if (remoteClient) remoteClient.release();

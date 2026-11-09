@@ -13,7 +13,13 @@ import type { PoolClient } from 'pg';
 /** Không phải hash bcrypt hợp lệ, nên tài khoản không thể đăng nhập. */
 export const UNUSABLE_PASSWORD_HASH = '!cloud-sync-no-login!';
 
-const ADMIN_REFERENCE_COLUMNS = new Set(['zone_admin_id', 'assigned_admin_id']);
+const ADMIN_REFERENCE_COLUMNS = new Set([
+  'zone_admin_id',
+  'assigned_admin_id',
+  'updated_by',
+  'released_by_user_id',
+  'created_by_user_id',
+]);
 
 export interface CloudUserRow {
   id: string;
