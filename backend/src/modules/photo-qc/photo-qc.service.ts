@@ -60,6 +60,8 @@ import type {
 import { walkViewModelPhotos } from './photo-qc.vm-walker';
 import { describeJsonPhotos, isExcludedPhotoPath, sectionFromPoolCategory } from './photo-qc.unprinted';
 import { listReportPhotoPool } from '../audit/services/report-photo-pool';
+import { applyResurveyToViewModel } from '../photo-resurvey/photo-resurvey.render';
+import { PhotoResurveyRepository } from '../photo-resurvey/photo-resurvey.repository';
 
 type StudioMap = Record<string, { originalUrl?: unknown }>;
 type JsonObject = Record<string, unknown>;
@@ -222,6 +224,8 @@ export class PhotoQcService {
     await LegacyWatermarkIndex.load(allUrls);
     const config = await ReportConfigService.getActiveConfig();
     const vm = ReportViewModelMapper.buildViewModel(raw, undefined, config);
+    // Ảnh chụp lại đã duyệt in thay ảnh gốc → màn rà soát thấy đúng ảnh report sẽ in.
+    await applyResurveyToViewModel(vm, await PhotoResurveyRepository.loadRenderState(reportId), { loadImages: false });
     const printed = printedRotationResolver(raw);
 
     const seen = new Set<string>();

@@ -20,6 +20,9 @@ import { FloatingBatchActionBar } from './sweep-map/components/FloatingBatchActi
 import type { BatchOperationMode } from './sweep-map/components/FloatingBatchActionBar';
 import { BatchGisOperationsModal } from './sweep-map/components/modals/BatchGisOperationsModal';
 import { ADDRESS_BATCH_ZONES, BATCH_MAX_PARCELS } from './shared/parcelBatchApi';
+import { createPortal } from 'react-dom';
+import { useAuth } from '../../context/AuthContext';
+import { PhotoResurveyScreen, ResurveyMarkersLayer, useResurveyTasks } from '../../features/photo-resurvey';
 
 // Re-export GisParcel for backward compatibility across the entire system
 export type { GisParcel } from './shared/types';
@@ -48,6 +51,17 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   enableBatchTools = false,
 }) => {
   const { excludedParcels, canViewExcluded, reloadExcluded } = useExcludedParcels(selectedZone);
+
+  // --- Khảo sát bổ sung: dấu "!" trên thửa còn ảnh ngoài nhà cần chụp lại (KSV + Admin, không cho khách) ---
+  const { user } = useAuth();
+  const resurveyEnabled =
+    !hideBottomSheet && (user?.role === 'SURVEYOR' || user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN');
+  const {
+    tasks: resurveyTasks,
+    byParcel: resurveyByParcel,
+    reload: reloadResurvey,
+  } = useResurveyTasks(selectedZone, resurveyEnabled);
+  const [resurveyReportId, setResurveyReportId] = useState<string | null>(null);
   const [selectedExcluded, setSelectedExcluded] = useState<GisParcel | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<GisParcel | null>(null);
 
@@ -268,6 +282,22 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             onToggleSelect={toggleIdIn(setSelectedParcelIds)}
           />
 
+          {/* Dấu "!" thửa cần khảo sát bổ sung (đỏ cam: cần chụp, vàng: chờ duyệt) */}
+          {resurveyEnabled && !isBatchMode && (
+            <ResurveyMarkersLayer
+              tasks={resurveyTasks}
+              onSelect={(task) => {
+                const parcel = parcels.find((p) => p.id === task.parcelId);
+                if (!parcel) {
+                  console.error('[LeafletSweepMap:resurvey] Thửa của hồ sơ cần chụp lại không có trong danh sách đang tải', task.parcelId);
+                  return;
+                }
+                setActiveParcel(parcel);
+                onSelectParcel(parcel);
+              }}
+            />
+          )}
+
           {/* Lớp thửa đã loại trừ: nét đứt xám, chỉ Admin bật */}
           {canViewExcluded && appliedFilters.showExcluded && (
             <ExcludedParcelsLayer
@@ -443,8 +473,24 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           onParcelExcluded={handleLifecycleChanged}
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
+          resurveyTask={activeParcel ? resurveyByParcel.get(activeParcel.id) ?? null : null}
+          onOpenResurvey={(task) => setResurveyReportId(task.reportId)}
         />
       )}
+
+      {/* Màn khảo sát bổ sung full màn hình, đưa ra body để không bị khung bản đồ cắt */}
+      {resurveyReportId &&
+        createPortal(
+          <PhotoResurveyScreen
+            reportId={resurveyReportId}
+            onClose={() => {
+              setResurveyReportId(null);
+              void reloadResurvey();
+            }}
+            onChanged={() => void reloadResurvey()}
+          />,
+          document.body
+        )}
     </div>
   );
 };

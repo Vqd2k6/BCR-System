@@ -82,7 +82,12 @@ function swapCoverToP04(vm: ReportViewModel): boolean {
 function findRowForRef(ref: VmPhotoRef, byKey: Map<string, PhotoQcRenderPhoto>, pRowsByUrl: Map<string, PhotoQcRenderPhoto>): PhotoQcRenderPhoto | undefined {
   if (ref.section === 'P') {
     const bySlot = byKey.get(ref.photoKey);
-    if (bySlot) return bySlot;
+    if (bySlot) {
+      // Khoá ô có thể dịch (ảnh chụp lại đánh dấu N/A làm P-03#3 thành P-03#2): ưu tiên dòng cùng URL.
+      // Không có dòng cùng URL thì giữ dòng theo khoá (ảnh Studio đổi URL, isCropApplicable tự so ảnh gốc).
+      if (bySlot.photoUrl === ref.url) return bySlot;
+      return pRowsByUrl.get(ref.url) ?? bySlot;
+    }
   }
   return byKey.get(urlPhotoKey(ref.url)) ?? pRowsByUrl.get(ref.url);
 }

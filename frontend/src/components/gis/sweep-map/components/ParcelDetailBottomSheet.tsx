@@ -27,6 +27,7 @@ import type { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
 import { ExcludeParcelModal } from '../../shared/ExcludeParcelModal';
 import { canExcludeParcel } from '../../shared/parcelExclusion';
+import type { ResurveyTask } from '../../../../features/photo-resurvey';
 
 interface ParcelDetailBottomSheetProps {
   activeParcel: GisParcel | null;
@@ -41,6 +42,9 @@ interface ParcelDetailBottomSheetProps {
   onParcelExcluded?: () => void;
   absenceRecordedToday: { [parcelId: string]: string };
   handleOpenGoogleMapsDirections: (parcel: GisParcel) => void;
+  /** Hồ sơ của thửa còn ảnh ngoài nhà cần chụp lại (null = không có). */
+  resurveyTask?: ResurveyTask | null;
+  onOpenResurvey?: (task: ResurveyTask) => void;
 }
 
 export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = ({
@@ -56,6 +60,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   onParcelExcluded,
   absenceRecordedToday,
   handleOpenGoogleMapsDirections,
+  resurveyTask = null,
+  onOpenResurvey,
 }) => {
   const { user } = useAuth();
   const [showExcludeModal, setShowExcludeModal] = useState(false);
@@ -211,6 +217,34 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           {activeParcel.ownerName || 'Chưa cập nhật'}
         </div>
       </div>
+
+      {/* Khảo sát bổ sung: hồ sơ có ảnh ngoài nhà cần chụp lại theo rà soát Photo QC */}
+      {resurveyTask && (
+        <div
+          className={`rounded-xl border px-3 py-2 flex items-center gap-2 ${
+            resurveyTask.state === 'SUBMITTED' ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
+          }`}
+        >
+          <AlertCircle size={16} className={resurveyTask.state === 'SUBMITTED' ? 'text-amber-600 shrink-0' : 'text-rose-600 shrink-0'} />
+          <div className="text-xs flex-1 min-w-0 text-slate-800">
+            {resurveyTask.state === 'SUBMITTED'
+              ? 'Ảnh chụp lại đã nộp, đang chờ Zone Admin duyệt.'
+              : `Hồ sơ có ${resurveyTask.openOutdoorCount} ảnh ngoài nhà cần chụp lại theo yêu cầu rà soát Photo QC.`}
+            {resurveyTask.sessionStatus === 'DRAFT' && resurveyTask.reviewNote ? (
+              <div className="text-rose-700 font-semibold mt-0.5">Admin yêu cầu: {resurveyTask.reviewNote}</div>
+            ) : null}
+          </div>
+          {onOpenResurvey && (
+            <button
+              type="button"
+              onClick={() => onOpenResurvey(resurveyTask)}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 cursor-pointer"
+            >
+              Khảo sát bổ sung
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Condominium Progress Bar */}
       {activeParcel.buildingType === 'CONDOMINIUM' && (

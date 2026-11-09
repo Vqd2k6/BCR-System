@@ -35,6 +35,9 @@ export function applySnapshotToReportData<T extends JsonObject>(rawReport: T, sn
   // không bao giờ đọc bảng photo_qc_* sống, để bản đã phát hành giữ nguyên SHA-256.
   rec.photo_qc_frozen = true;
   rec.photo_qc = snapshot.frozenReportData?.photo_qc ?? null;
+  // Khảo sát bổ sung: cùng nguyên tắc, snapshot cũ không có khoá này → không áp ảnh chụp lại.
+  rec.photo_resurvey_frozen = true;
+  rec.photo_resurvey = snapshot.frozenReportData?.photo_resurvey ?? null;
 
   if (snapshot.pinnedConfig && typeof snapshot.pinnedConfig === 'object' && !rec.reportContentConfig) {
     rec.reportContentConfig = JSON.parse(JSON.stringify(snapshot.pinnedConfig));

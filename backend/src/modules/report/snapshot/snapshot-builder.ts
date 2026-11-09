@@ -34,6 +34,7 @@ import {
 import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
 import { overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
 import { PhotoQcRepository } from '../../photo-qc/photo-qc.repository';
+import { PhotoResurveyRepository } from '../../photo-resurvey/photo-resurvey.repository';
 
 export {
   type RiskCardRow,
@@ -313,8 +314,11 @@ export async function buildApprovedSnapshot(
   const zonesWithCtx = overlayZoneCtxFromJson(zonesRes.rows, rawSurveyJson, frozenParcel?.projectParcelCode);
   // Photo QC (bìa P04, crop, dập bù) đóng băng cùng revision: render ?rev=N không đọc bảng sống.
   const photoQc = await PhotoQcRepository.loadRenderState(reportId, client);
+  // Khảo sát bổ sung đã duyệt cũng đóng băng cùng revision (null = chưa có phiên nào được duyệt).
+  const photoResurvey = await PhotoResurveyRepository.loadRenderState(reportId, client);
   const frozenReportData: Record<string, unknown> = {
     photo_qc: photoQc,
+    photo_resurvey: photoResurvey,
     identificationPhotos: photosRes.rows,
     buildingSpecs: specsRes.rows[0] || null,
     historicalSensitivity: isAbsentUnit ? null : historyRes.rows[0] || null,

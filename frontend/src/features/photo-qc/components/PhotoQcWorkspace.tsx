@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ClipboardList, Flag, Images, Loader2, RefreshCw, Search } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Flag, Images, Loader2, RefreshCw, Search } from 'lucide-react';
+import { PhotoResurveyReviewList } from '../../photo-resurvey';
 import { useAuth } from '../../../context/AuthContext';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { fetchPhotoQcDetail, fetchPhotoQcList, savePhotoQcReport } from '../api/photoQc.api';
@@ -80,6 +81,7 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
   const [error, setError] = useState<string | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(() => readReviewParam());
   const [showRecapture, setShowRecapture] = useState(false);
+  const [showResurvey, setShowResurvey] = useState(false);
   const [lightbox, setLightbox] = useState<{ photos: PhotoQcSlotView[]; index: number } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const sizes = useRef<Map<string, NaturalSize>>(new Map());
@@ -265,13 +267,22 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
           </h2>
           <p className="text-xs text-slate-500">Bấm ảnh để xem lớn • "Mở" để rà mọi ảnh của hồ sơ, crop 4:3 / 3:4 và gắn cờ chụp lại.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowRecapture(true)}
-          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
-        >
-          <ClipboardList className="w-4 h-4" /> Danh sách giao KSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowResurvey(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+          >
+            <Camera className="w-4 h-4" /> Duyệt ảnh chụp lại
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRecapture(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+          >
+            <ClipboardList className="w-4 h-4" /> Danh sách giao KSV
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
@@ -445,6 +456,16 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
       )}
 
       {showRecapture && <PhotoQcRecaptureModal zone={zoneParam} station={station || undefined} onClose={() => setShowRecapture(false)} />}
+
+      {showResurvey && (
+        <PhotoResurveyReviewList
+          zone={zoneParam}
+          onClose={() => {
+            setShowResurvey(false);
+            void loadPage(false, null);
+          }}
+        />
+      )}
 
       {reviewId && (
         <PhotoQcReviewScreen
