@@ -92,11 +92,11 @@ const DEFAULT_SPATIAL_SVG_SIZE: SpatialSvgSize = { width: 300, height: 400 };
  * trọn thửa và điểm tim tuyến/ga gần nhất cộng FIT_MARGIN_M mỗi bên.
  */
 /** Cạnh ngắn tối thiểu của khung gốc (mét), trước khi chia hệ số phóng. Tăng = thấy rộng hơn với thửa nhỏ. */
-const MIN_VIEW_SHORT_SIDE_M = 110;
+const MIN_VIEW_SHORT_SIDE_M = 50; //110
 /** Hệ số phóng: lớn hơn = gần hơn (khung hẹp lại); 1 = không phóng thêm. Giảm (vd 1.6) để thấy nhiều thửa xung quanh. */
-const SECTION_ZOOM_FACTOR = 2.5;
+const SECTION_ZOOM_FACTOR = 3.5;
 /** Đệm luôn giữ quanh thửa và điểm tim tuyến/ga (mét); giới hạn dưới của khung dù tăng hệ số phóng. */
-const FIT_MARGIN_M = 15;
+const FIT_MARGIN_M = 2.5; //15
 /** Chỉ dóng tới đường bao công trình ga khi ga trong phạm vi này (khớp màn Thẩm định). */
 const STATION_LINE_MAX_M = 300;
 
