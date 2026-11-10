@@ -90,6 +90,7 @@ const TABLES_TO_SYNC = [
   'photo_qc_reports',
   'photo_qc_photos',
   'report_releases',
+  'photo_watermark_status',
   'progress_report_config_versions',
   'report_standard_text_versions',
   'project_survey_equipment',
