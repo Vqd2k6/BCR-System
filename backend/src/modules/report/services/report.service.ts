@@ -235,11 +235,12 @@ export class ReportService {
     }
 
     const allPhotoUrls = extractAllImageUrls(activeReport);
-    await LegacyWatermarkIndex.load(allPhotoUrls);
     const photoRotationsMap = activeReport.survey_data_json?.photoRotations || activeReport.photoRotations || {};
     await preloadImageOrientations(allPhotoUrls);
     const preloadItems = buildPreloadRotationItems(activeReport, allPhotoUrls, photoRotationsMap);
     await ReportImageResolver.preloadAndResolveAll(preloadItems, photoRotationsMap);
+    // Dò logo watermark FE cũ trên pixel (ảnh đã nạp sẵn ở bước trên), kết quả lưu vĩnh viễn theo URL.
+    await LegacyWatermarkIndex.load(allPhotoUrls, { detect: true });
 
     // Sơ đồ Mục II vẽ kiểu Bình đồ (nền trắng, không ảnh vệ tinh): nạp ranh thửa lân cận để vẽ ngữ cảnh.
     if (extractParcelPolygonCoords(activeReport, activeReport.survey_data_json)) {

@@ -215,6 +215,18 @@ export class ReportImageResolver {
     return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${rotated.toString('base64')}`;
   }
 
+  /**
+   * Bytes gốc của ảnh (chưa xoay, chưa dập). Dùng ảnh đã nạp sẵn trong cache nếu có,
+   * không thì tải chặt chẽ (thử lại nhiều lần). Ném lỗi nếu không đọc được.
+   */
+  public static async getImageBuffer(url: string): Promise<Buffer> {
+    const trimmed = url.trim();
+    const cached = this.remoteBase64Cache.get(trimmed);
+    const match = cached?.match(/^data:image\/[a-z+.-]+;base64,(.+)$/i);
+    if (match) return Buffer.from(match[1], 'base64');
+    return (await this.readImageBytesStrict(trimmed)).buffer;
+  }
+
   private static async readImageBytesStrict(trimmed: string): Promise<{ buffer: Buffer; mime: string }> {
     const dataUriMatch = trimmed.match(/^data:(image\/[a-z+.-]+);base64,(.+)$/i);
     if (dataUriMatch) {
