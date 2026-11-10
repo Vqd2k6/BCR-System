@@ -55,6 +55,8 @@ interface Phase1PreviewModalProps {
   selectedRevision?: number;
   handleSelectRevision?: (rev?: number) => void | Promise<void>;
   handleExportRevisionPdf?: (rev: number) => void | Promise<void>;
+  storedPdfBlobUrl?: string | null;
+  storedPdfSha256?: string | null;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -92,6 +94,8 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   selectedRevision,
   handleSelectRevision,
   handleExportRevisionPdf,
+  storedPdfBlobUrl,
+  storedPdfSha256,
 }) => {
   if (!previewParcel) return null;
 
@@ -126,7 +130,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
                 </span>
                 {selectedRevision !== null && selectedRevision !== undefined && (
                   <span className="text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 rounded-full font-mono font-bold">
-                    Bản lưu trữ Rev.{String(selectedRevision).padStart(2, '0')}
+                    PDF lưu trữ Rev.{String(selectedRevision).padStart(2, '0')}
                   </span>
                 )}
                 {hasUnsavedChanges && (
@@ -265,6 +269,10 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               enableWatermark={enableWatermark}
               handleToggleWatermark={handleToggleWatermark}
               onOpenAuditStudio={onOpenAuditStudio}
+              selectedRevision={selectedRevision}
+              storedPdfBlobUrl={storedPdfBlobUrl}
+              storedPdfSha256={storedPdfSha256}
+              handleExportRevisionPdf={handleExportRevisionPdf}
             />
           ) : (
             <Phase1JsonTab
@@ -303,11 +311,23 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               onClick={handleDirectPrint}
               disabled={isSavingEdits}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
-              title="Mở tệp PDF chuẩn máy chủ trong tab mới để in hoặc lưu trữ"
+              title={selectedRevision !== undefined ? 'Mở đúng file Rev đang xem trong tab mới để in' : 'Mở PDF bản hiện hành trong tab mới để in'}
             >
               <Printer size={14} />
-              <span>🖨️ In / Tải PDF</span>
+              <span>🖨️ In PDF</span>
             </button>
+
+            {selectedRevision !== undefined && handleExportRevisionPdf && (
+              <button
+                type="button"
+                onClick={() => void handleExportRevisionPdf(selectedRevision)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                title="Tải đúng file PDF Rev đã phát hành (kiểm SHA-256 tại máy chủ)"
+              >
+                <Download size={14} />
+                <span>Tải file Rev.{String(selectedRevision).padStart(2, '0')}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -318,10 +338,10 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               }}
               disabled={isSavingEdits}
               className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-sky-200 flex items-center gap-1.5 cursor-pointer"
-              title="Xuất file PDF theo tiêu chuẩn Báo cáo Song Ngữ Liên danh CRLG-CRSRI-TT (Mẫu 0410)"
+              title="Render và tải PDF bản hiện hành từ dữ liệu mới nhất (không phải file Rev đã phát hành)"
             >
               {isSavingEdits ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
-              <span>Xuất Tải PDF Báo Cáo</span>
+              <span>Tải PDF bản hiện hành</span>
             </button>
           </div>
         </div>

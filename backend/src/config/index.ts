@@ -108,6 +108,8 @@ export const config = {
       accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
       secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
       publicUrl: process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL || '',
+      // Bucket lưu file PDF Rev phát hành (nên là bucket private); trống thì dùng bucket chính.
+      releasesBucket: process.env.R2_RELEASES_BUCKET || '',
     },
   },
 

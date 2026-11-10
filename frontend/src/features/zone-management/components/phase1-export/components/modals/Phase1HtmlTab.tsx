@@ -11,6 +11,8 @@ import {
   PanelLeftOpen,
   Sliders,
   Stamp,
+  ShieldCheck,
+  FileArchive,
 } from 'lucide-react';
 import type { ExportParcelItem, EditFormData } from '../../types';
 import type { ServerReportData } from '../../utils/reportDataTransformers';
@@ -33,6 +35,11 @@ interface Phase1HtmlTabProps {
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
   onOpenAuditStudio?: (parcel: ExportParcelItem) => void;
+  /** Rev đang xem; có giá trị thì khung xem hiển thị đúng file PDF đã lưu. */
+  selectedRevision?: number;
+  storedPdfBlobUrl?: string | null;
+  storedPdfSha256?: string | null;
+  handleExportRevisionPdf?: (rev: number) => void | Promise<void>;
 }
 
 export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
@@ -50,7 +57,13 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   enableWatermark = true,
   handleToggleWatermark,
   onOpenAuditStudio,
+  selectedRevision,
+  storedPdfBlobUrl,
+  storedPdfSha256,
+  handleExportRevisionPdf,
 }) => {
+  const isStoredRevisionView = selectedRevision !== undefined;
+  const revLabel = selectedRevision !== undefined ? String(selectedRevision).padStart(2, '0') : '';
   // Trạng thái hiển thị thanh điều khiển bên trái (mặc định mở, có thể thu gọn để xem Full A4)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -99,11 +112,23 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               type="button"
               onClick={handleExportPdf}
               className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
-              title="Xuất file PDF chuẩn Song Ngữ 0410 Liên danh CRLG-CRSRI-TT"
+              title="Render và tải PDF bản hiện hành từ dữ liệu mới nhất (không phải file Rev đã phát hành)"
             >
               <Download size={15} />
-              <span>Xuất PDF Báo Cáo (0410)</span>
+              <span>Tải PDF bản hiện hành</span>
             </button>
+
+            {isStoredRevisionView && handleExportRevisionPdf && selectedRevision !== undefined && (
+              <button
+                type="button"
+                onClick={() => void handleExportRevisionPdf(selectedRevision)}
+                className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                title="Tải đúng file PDF Rev đã phát hành (kiểm SHA-256 tại máy chủ)"
+              >
+                <FileArchive size={15} />
+                <span>Tải file Rev.{revLabel} đã lưu</span>
+              </button>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               {handleDirectPrint && (
@@ -143,7 +168,23 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
             )}
           </div>
 
-          {/* Nhóm Tính Năng Watermark (Bật / Tắt Con Dấu) */}
+          {isStoredRevisionView ? (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1.5">
+              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-emerald-600" />
+                <span>File Rev.{revLabel} đã lưu trữ</span>
+              </span>
+              <p className="text-[10px] text-emerald-700 leading-tight">
+                Bản Rev phát hành luôn có watermark và không thể thay đổi. Khung bên phải hiển thị chính file sẽ tải về.
+              </p>
+              {storedPdfSha256 && (
+                <p className="text-[10px] font-mono text-emerald-800 break-all" title={storedPdfSha256}>
+                  SHA-256: {storedPdfSha256.substring(0, 16)}…
+                </p>
+              )}
+            </div>
+          ) : (
+          /* Nhóm Tính Năng Watermark (Bật / Tắt Con Dấu) — chỉ cho bản hiện hành */
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
@@ -171,8 +212,10 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                 : "Đã TẮT: Giữ ảnh gốc sạch (dành cho ảnh đã có sẵn timestamp hiện trường)."}
             </p>
           </div>
+          )}
 
-          {/* Nhóm Thu Phóng Khung Nhìn A4 (Zoom Controls) */}
+          {/* Nhóm Thu Phóng Khung Nhìn A4 (Zoom Controls) — trình xem PDF có thu phóng riêng */}
+          {!isStoredRevisionView && (
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -234,6 +277,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               </button>
             </div>
           </div>
+          )}
 
           {/* Thẻ Tóm Tắt Thông Tin Thửa Đất (Parcel Summary Card) */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
@@ -289,7 +333,32 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
         )}
 
         {/* Sân khấu Iframe A4 - Tận dụng 100% chiều cao và bề ngang */}
-        {previewHtmlContent ? (
+        {isStoredRevisionView ? (
+          storedPdfBlobUrl ? (
+            <div className="flex flex-col w-full h-full min-h-full gap-2 force-light">
+              <iframe
+                key={`stored-rev-pdf-${revLabel}`}
+                src={`${storedPdfBlobUrl}#toolbar=1&navpanes=0`}
+                title={`File PDF Rev.${revLabel} đã lưu`}
+                className="w-full flex-1 min-h-[calc(94vh-200px)] border border-slate-300 rounded-md shadow-2xl bg-white block force-light"
+              />
+              <button
+                type="button"
+                onClick={handleOpenPreviewInNewTab}
+                className="self-center px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <ExternalLink size={12} />
+                <span>Trình duyệt không hiện PDF? Mở trong tab mới</span>
+              </button>
+            </div>
+          ) : (
+            <div className="my-auto p-12 text-center flex flex-col items-center justify-center gap-3 bg-white rounded-2xl shadow-sm border border-slate-200 max-w-md">
+              <AlertCircle size={36} className="text-amber-500" />
+              <span className="text-sm font-bold text-slate-800">Chưa nạp được file Rev.{revLabel} đã lưu</span>
+              <p className="text-xs text-slate-500">Xem thông báo lỗi phía trên, hoặc chọn lại Rev trong danh sách phát hành.</p>
+            </div>
+          )
+        ) : previewHtmlContent ? (
           <div
             className={`transition-all duration-200 flex justify-center w-full min-h-full force-light ${
               previewZoom === '75'

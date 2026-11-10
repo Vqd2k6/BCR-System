@@ -134,6 +134,10 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
     }
   };
 
+  // Khớp quy tắc backend: bản đầu tiên khóa số Rev đang in trên bìa, các lần sau tăng dần.
+  const nextReleaseRevision =
+    releases.length === 0 ? currentExportRevision : Math.max(releases[0].revision + 1, currentExportRevision + 1);
+
   return (
     <div className="flex flex-wrap items-center gap-2 relative">
       {/* 1. Bộ chọn phiên bản Rev (Dropdown) */}
@@ -147,12 +151,12 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
               onSelectRevision(val === 'LATEST' ? undefined : Number(val));
             }}
             className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
-            title="Chọn phiên bản phát hành (Rev) để xem trước HTML, JSON hoặc tải PDF tương ứng"
+            title="Chọn Rev để xem đúng file PDF đã phát hành; chọn Bản hiện hành để xem bản render mới nhất"
           >
             <option value="LATEST">
               {hasPendingRelease
-                ? `Bản duyệt mới nhất (Chờ phát hành Rev.${String(currentExportRevision + 1).padStart(2, '0')})`
-                : `Hiện hành (Rev.${String(currentExportRevision).padStart(2, '0')})`}
+                ? `Bản hiện hành (Chờ phát hành Rev.${String(nextReleaseRevision).padStart(2, '0')})`
+                : 'Bản hiện hành (render mới nhất)'}
             </option>
             {releases.map((r) => (
               <option key={r.revision} value={String(r.revision)}>

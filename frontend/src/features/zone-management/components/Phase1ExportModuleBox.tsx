@@ -96,6 +96,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     selectedRevision,
     handleSelectRevision,
     handleExportRevisionPdf,
+    storedPdfBlobUrl,
+    storedPdfSha256,
   } = usePhase1ReportPreview({
     setActionMessage,
   });
@@ -227,6 +229,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         selectedRevision={selectedRevision}
         handleSelectRevision={handleSelectRevision}
         handleExportRevisionPdf={handleExportRevisionPdf}
+        storedPdfBlobUrl={storedPdfBlobUrl}
+        storedPdfSha256={storedPdfSha256}
       />
 
       {showSvgExportModal && (

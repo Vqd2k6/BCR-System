@@ -39,7 +39,13 @@ export function createApp(): express.Application {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
-  app.use(cors({ origin: config.cors.origin }));
+  app.use(
+    cors({
+      origin: config.cors.origin,
+      // Cho frontend đọc mã băm và số Rev của file PDF tải về
+      exposedHeaders: ['X-Content-SHA256', 'X-Report-Revision', 'X-Report-Status', 'X-Watermark-Enabled', 'Content-Disposition'],
+    })
+  );
   app.use(express.json({ limit: '150mb' }));
   app.use(express.urlencoded({ extended: true, limit: '150mb' }));
   if (config.env !== 'test') {
@@ -309,7 +315,7 @@ export function createApp(): express.Application {
   api.post('/reports/:id/releases',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
   api.get('/reports/:id/revisions',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listReleases);
   api.post('/reports/:id/release',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
-  api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
+  api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.downloadReleasePdf);
 
   api.get('/reports/:id/minutes/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportSingleMinutePdf);
   api.get('/reports/minutes/zone/:zoneId',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.getZoneMinutesSummary);

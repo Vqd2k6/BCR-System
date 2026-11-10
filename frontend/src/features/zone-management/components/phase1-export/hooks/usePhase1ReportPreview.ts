@@ -26,6 +26,16 @@ export const usePhase1ReportPreview = ({
   const [modalFeedback, setModalFeedback] = useState<ModalFeedbackMessage | null>(null);
   const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
   const [selectedRevision, setSelectedRevision] = useState<number | undefined>(undefined);
+  // File PDF Rev đã lưu đang xem (blob URL) và mã băm máy chủ trả về: xem Rev = đúng bytes tải về.
+  const [storedPdfBlobUrl, setStoredPdfBlobUrl] = useState<string | null>(null);
+  const [storedPdfSha256, setStoredPdfSha256] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!storedPdfBlobUrl) return;
+    return () => {
+      URL.revokeObjectURL(storedPdfBlobUrl);
+    };
+  }, [storedPdfBlobUrl]);
 
   // Manage Blob URL for HTML preview
   useEffect(() => {
@@ -46,30 +56,80 @@ export const usePhase1ReportPreview = ({
   }, [previewHtmlContent, previewRenderKey]);
 
   const parcelIdOrFallback = (p: ExportParcelItem) => p.activePhase1ReportId || p.id;
+  const reportIdOf = (p: ExportParcelItem): string => p.activePhase1ReportId || p.id || p.projectParcelCode;
+  const revLabel = (rev: number): string => String(rev).padStart(2, '0');
+
+  const readHeader = (headers: unknown, name: string): string | null => {
+    if (!headers || typeof headers !== 'object') return null;
+    const value = (headers as Record<string, unknown>)[name.toLowerCase()];
+    return typeof value === 'string' && value ? value : null;
+  };
+
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  };
+
+  /** Lấy đúng file PDF Rev đã lưu trên máy chủ (không render lại). */
+  const fetchStoredReleasePdf = async (reportId: string, rev: number): Promise<{ blob: Blob; sha256: string | null }> => {
+    const response = await api.get(`/reports/${encodeURIComponent(reportId)}/releases/${rev}/pdf`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: new Blob([response.data], { type: 'application/pdf' }),
+      sha256: readHeader(response.headers, 'x-content-sha256'),
+    };
+  };
+
+  /** Xem một Rev: nạp file PDF đã lưu vào iframe và JSON chi tiết của Rev đó. */
+  const loadStoredRevision = async (parcel: ExportParcelItem, rev: number): Promise<void> => {
+    const reportId = reportIdOf(parcel);
+    const [pdf, dataRes] = await Promise.all([
+      fetchStoredReleasePdf(reportId, rev),
+      api.get(`/reports/${encodeURIComponent(reportId)}`, { params: { rev } }),
+    ]);
+    setStoredPdfBlobUrl(URL.createObjectURL(pdf.blob));
+    setStoredPdfSha256(pdf.sha256);
+    const repData = dataRes.data?.data || dataRes.data;
+    setPreviewReportData(repData);
+    setEditFormData(initializeEditFormData(repData, parcel));
+    setModalFeedback({
+      type: 'info',
+      text: `Đang hiển thị file PDF Rev.${revLabel(rev)} đã lưu trữ${pdf.sha256 ? ` (SHA-256: ${pdf.sha256.substring(0, 12)}…)` : ''}. Đây chính là file tải về.`,
+      timestamp: new Date().toLocaleTimeString('vi-VN'),
+    });
+  };
 
   const handleOpenPreview = async (parcel: ExportParcelItem, revOverride?: number) => {
     setPreviewParcel(parcel);
     setSelectedRevision(revOverride);
+    setStoredPdfBlobUrl(null);
+    setStoredPdfSha256(null);
     setIsPreviewLoading(true);
     setPreviewTab('html');
     setPreviewHtmlContent(null);
     setPreviewReportData(null);
 
-    const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
+    const reportId = reportIdOf(parcel);
     const previewEndpoint = `/reports/${encodeURIComponent(reportId)}/preview/html`;
 
     try {
+      if (revOverride !== undefined) {
+        await loadStoredRevision(parcel, revOverride);
+        return;
+      }
       const [htmlResResult, dataResResult] = await Promise.allSettled([
         api.get(previewEndpoint, {
-          params: {
-            watermark: String(enableWatermark),
-            ...(revOverride !== undefined ? { rev: revOverride } : {}),
-          },
+          params: { watermark: String(enableWatermark) },
           responseType: 'text',
         }),
-        api.get(`/reports/${encodeURIComponent(reportId)}`, {
-          params: revOverride !== undefined ? { rev: revOverride } : {},
-        }),
+        api.get(`/reports/${encodeURIComponent(reportId)}`),
       ]);
 
       if (htmlResResult.status === 'fulfilled') {
@@ -97,7 +157,7 @@ export const usePhase1ReportPreview = ({
         });
       }
     } catch (err: unknown) {
-      console.warn('Lỗi khi nạp HTML preview hoặc report data:', err);
+      console.error('[usePhase1ReportPreview:handleOpenPreview] Lỗi khi nạp xem trước:', err);
       setEditFormData(initializeEditFormData(null, parcel));
       setActionMessage({
         type: 'error',
@@ -114,17 +174,18 @@ export const usePhase1ReportPreview = ({
     const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
     setIsPreviewLoading(true);
     try {
+      if (rev !== undefined) {
+        await loadStoredRevision(previewParcel, rev);
+        return;
+      }
+      setStoredPdfBlobUrl(null);
+      setStoredPdfSha256(null);
       const [htmlRes, dataRes] = await Promise.all([
         api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
-          params: {
-            watermark: String(enableWatermark),
-            ...(rev !== undefined ? { rev } : {}),
-          },
+          params: { watermark: String(enableWatermark) },
           responseType: 'text',
         }),
-        api.get(`/reports/${encodeURIComponent(reportId)}`, {
-          params: rev !== undefined ? { rev } : {},
-        }),
+        api.get(`/reports/${encodeURIComponent(reportId)}`),
       ]);
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
@@ -135,14 +196,11 @@ export const usePhase1ReportPreview = ({
 
       setModalFeedback({
         type: 'info',
-        text:
-          rev !== undefined
-            ? `Đang hiển thị bản phát hành đã lưu trữ: Rev.${String(rev).padStart(2, '0')}`
-            : 'Đang hiển thị bản phê duyệt hiện hành mới nhất.',
+        text: 'Đang hiển thị bản hiện hành (render từ dữ liệu mới nhất).',
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } catch (err: unknown) {
-      console.warn('[Preview] Lỗi khi chuyển đổi phiên bản Rev:', err);
+      console.error('[usePhase1ReportPreview:handleSelectRevision] Lỗi khi chuyển phiên bản Rev:', err);
       setModalFeedback({
         type: 'error',
         text: `Không thể tải phiên bản Rev: ${getErrorMessage(err, 'Lỗi server')}`,
@@ -232,6 +290,10 @@ export const usePhase1ReportPreview = ({
   };
 
   const handleOpenPreviewInNewTab = () => {
+    if (selectedRevision !== undefined && storedPdfBlobUrl) {
+      window.open(storedPdfBlobUrl, '_blank');
+      return;
+    }
     if (previewBlobUrl) {
       window.open(previewBlobUrl, '_blank');
     } else if (previewHtmlContent) {
@@ -241,8 +303,7 @@ export const usePhase1ReportPreview = ({
     } else {
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
       const baseApi = (api.defaults.baseURL || '/api/v1').replace(/\/+$/, '');
-      const revQuery = selectedRevision !== undefined ? `&rev=${selectedRevision}` : '';
-      window.open(`${baseApi}/reports/${encodeURIComponent(activeReportId)}/preview/html?watermark=${enableWatermark}${revQuery}`, '_blank');
+      window.open(`${baseApi}/reports/${encodeURIComponent(activeReportId)}/preview/html?watermark=${enableWatermark}`, '_blank');
     }
   };
 
@@ -265,20 +326,22 @@ export const usePhase1ReportPreview = ({
     });
 
     try {
-      const endpoint = `/reports/${reportId}/export/pdf`;
-      const response = await api.get(endpoint, {
-        params: {
-          watermark: String(enableWatermark),
-          ...(selectedRevision !== undefined ? { rev: selectedRevision } : {}),
-        },
-        responseType: 'blob',
-      });
+      // Đang xem một Rev: in đúng file đã lưu. Còn lại: render bản hiện hành.
+      let blob: Blob;
+      if (selectedRevision !== undefined) {
+        blob = (await fetchStoredReleasePdf(rawId, selectedRevision)).blob;
+      } else {
+        const response = await api.get(`/reports/${reportId}/export/pdf`, {
+          params: { watermark: String(enableWatermark) },
+          responseType: 'blob',
+        });
+        blob = new Blob([response.data], { type: 'application/pdf' });
+      }
 
-      const blob = new Blob([response.data], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(blob);
       const printWindow = window.open(pdfUrl, '_blank');
 
-      const revSuffix = selectedRevision !== undefined ? `_Rev${String(selectedRevision).padStart(2, '0')}` : '';
+      const revSuffix = selectedRevision !== undefined ? `_Rev${revLabel(selectedRevision)}` : '';
       const filename = `BaoCao_SongNgu_Phase1_${previewParcel.projectParcelCode}${revSuffix}.pdf`;
 
       if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
@@ -303,7 +366,7 @@ export const usePhase1ReportPreview = ({
         });
       }
     } catch (err: unknown) {
-      console.error('Lỗi khi mở bản in PDF:', err);
+      console.error('[usePhase1ReportPreview:handleDirectPrint] Lỗi khi mở bản in PDF:', err);
       setModalFeedback({
         type: 'error',
         text: `Không thể tạo PDF để in: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`,
@@ -313,6 +376,8 @@ export const usePhase1ReportPreview = ({
   };
 
   const handleToggleWatermark = async (enabled: boolean) => {
+    // File Rev đã phát hành luôn có watermark và không đổi được: chỉ bản hiện hành mới bật/tắt.
+    if (selectedRevision !== undefined) return;
     setEnableWatermark(enabled);
     try {
       const iframes = document.querySelectorAll('iframe');
@@ -328,10 +393,7 @@ export const usePhase1ReportPreview = ({
     try {
       const endpoint = `/reports/${encodeURIComponent(reportId)}/preview/html`;
       const htmlRes = await api.get(endpoint, {
-        params: {
-          watermark: String(enabled),
-          ...(selectedRevision !== undefined ? { rev: selectedRevision } : {}),
-        },
+        params: { watermark: String(enabled) },
         responseType: 'text',
       });
 
@@ -346,53 +408,43 @@ export const usePhase1ReportPreview = ({
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } catch (err: unknown) {
-      console.warn('Lỗi khi đổi trạng thái watermark:', err);
+      console.error('[usePhase1ReportPreview:handleToggleWatermark] Lỗi khi đổi trạng thái watermark:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không thể nạp lại bản xem trước: ${getErrorMessage(err, 'Lỗi server')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
     } finally {
       setIsPreviewLoading(false);
     }
   };
 
-  const handleExportSinglePdf = async (
-    parcel: ExportParcelItem,
-    _overrides?: Record<string, unknown>,
-    revOverride?: number
-  ) => {
-    const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
-    const reportId = encodeURIComponent(rawId);
-    const activeRev = revOverride !== undefined ? revOverride : selectedRevision;
-    const revSuffix = activeRev !== undefined ? `_Rev${String(activeRev).padStart(2, '0')}` : '';
+  /** "Tải PDF": luôn render bản hiện hành từ dữ liệu mới nhất, không bao giờ trả hay tạo Rev. */
+  const handleExportSinglePdf = async (parcel: ExportParcelItem, _overrides?: Record<string, unknown>) => {
+    const reportId = encodeURIComponent(reportIdOf(parcel));
+    const wmSuffix = enableWatermark ? '' : '_NoWM';
 
     setActionMessage({
       type: 'info',
-      text: `Đang kết nối backend và tạo PDF Song Ngữ chuẩn 0410 cho lô ${parcel.projectParcelCode}${revSuffix}...`,
+      text: `Đang tạo PDF bản hiện hành cho lô ${parcel.projectParcelCode}...`,
     });
 
     try {
-      const endpoint = `/reports/${reportId}/export/pdf`;
-      const response = await api.get(endpoint, {
-        params: {
-          watermark: String(enableWatermark),
-          ...(activeRev !== undefined ? { rev: activeRev } : {}),
-        },
+      const response = await api.get(`/reports/${reportId}/export/pdf`, {
+        params: { watermark: String(enableWatermark) },
         responseType: 'blob',
       });
-
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `BaoCao_SongNgu_Phase1_${parcel.projectParcelCode}${revSuffix}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-
+      const status = readHeader(response.headers, 'x-report-status') === 'FINAL' ? 'HienHanh' : 'Draft';
+      triggerBlobDownload(
+        new Blob([response.data], { type: 'application/pdf' }),
+        `BaoCao_SongNgu_Phase1_${parcel.projectParcelCode}_${status}${wmSuffix}.pdf`
+      );
       setActionMessage({
         type: 'success',
-        text: `Tải xuống thành công Báo cáo PDF Song Ngữ (Mẫu 0410) cho lô ${parcel.projectParcelCode}${revSuffix}!`,
+        text: `Đã tải PDF bản hiện hành cho lô ${parcel.projectParcelCode}.`,
       });
     } catch (err: unknown) {
-      console.error('[usePhase1ReportPreview:handleExportSinglePdf] Lỗi đã xử lý bằng nhánh dự phòng:', err);
+      console.error('[usePhase1ReportPreview:handleExportSinglePdf] Lỗi khi xuất PDF bản hiện hành:', err);
       setActionMessage({
         type: 'error',
         text: `Không thể xuất PDF cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi không xác định')}`,
@@ -400,9 +452,23 @@ export const usePhase1ReportPreview = ({
     }
   };
 
+  /** Tải đúng file Rev đã phát hành (bytes đã lưu, kiểm SHA-256 ở máy chủ). */
   const handleExportRevisionPdf = async (rev: number) => {
     if (!previewParcel) return;
-    await handleExportSinglePdf(previewParcel, undefined, rev);
+    const code = previewParcel.projectParcelCode;
+    setActionMessage({ type: 'info', text: `Đang tải file Rev.${revLabel(rev)} đã lưu của lô ${code}...` });
+    try {
+      const { blob, sha256 } = await fetchStoredReleasePdf(reportIdOf(previewParcel), rev);
+      triggerBlobDownload(blob, `BaoCao_SongNgu_Phase1_${code}_Rev${revLabel(rev)}.pdf`);
+      const text = `Đã tải file Rev.${revLabel(rev)} của lô ${code}${sha256 ? ` (SHA-256: ${sha256.substring(0, 12)}…)` : ''}.`;
+      setActionMessage({ type: 'success', text });
+      setModalFeedback({ type: 'success', text, timestamp: new Date().toLocaleTimeString('vi-VN') });
+    } catch (err: unknown) {
+      console.error('[usePhase1ReportPreview:handleExportRevisionPdf] Lỗi khi tải file Rev:', err);
+      const text = `Không thể tải Rev.${revLabel(rev)}: ${getErrorMessage(err, 'Lỗi không xác định')}`;
+      setActionMessage({ type: 'error', text });
+      setModalFeedback({ type: 'error', text, timestamp: new Date().toLocaleTimeString('vi-VN') });
+    }
   };
 
   return {
@@ -428,6 +494,8 @@ export const usePhase1ReportPreview = ({
     setEnableWatermark,
     selectedRevision,
     setSelectedRevision,
+    storedPdfBlobUrl,
+    storedPdfSha256,
     handleSelectRevision,
     handleExportRevisionPdf,
     handleToggleWatermark,

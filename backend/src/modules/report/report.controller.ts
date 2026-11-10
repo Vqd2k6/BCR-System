@@ -2,10 +2,11 @@
  * ============================================================================
  * REPORT CONTROLLER (SINGLE CANONICAL API: /api/v1/reports/*)
  *   GET  /reports/:id                     – Chi tiết hồ sơ khảo sát (hỗ trợ ?rev=N)
- *   GET  /reports/:id/export/pdf[?rev=N]  – Xuất PDF FINAL (APPROVED) hoặc DRAFT
+ *   GET  /reports/:id/export/pdf          – Render PDF bản hiện tại (luôn render mới, không đụng Rev)
  *   GET  /reports/:id/preview/html        – Xem trước HTML báo cáo
  *   GET  /reports/:id/releases            – Danh sách các bản phát hành Rev
  *   POST /reports/:id/releases            – Phát hành Rev mới { reason }
+ *   GET  /reports/:id/releases/:rev/pdf   – Tải đúng file Rev đã lưu (kiểm SHA-256)
  *   GET  /reports/minutes/zone/:zoneId    – Danh sách biên bản hiện trường theo Zone
  *   GET  /reports/:id/minutes/pdf         – PDF biên bản 1 căn
  *   POST /reports/minutes/zone/:zoneId/batch-zip – Tạo job xuất ZIP theo Zone
@@ -13,7 +14,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../common/errors/problem-details';
 import { ReportService } from './services/report.service';
 import { ReportReleaseService } from './services/report-release.service';
 import { MinutesExportService } from './services/minutes-export.service';
@@ -66,34 +67,8 @@ export class ReportController {
         req.body?.enableWatermark !== false &&
         req.body?.watermark !== false;
 
-      const forceFresh = req.query.fresh === '1' || req.query.force === 'true';
-
-      if (resolved.status === 'APPROVED' && enableWatermark && !forceFresh) {
-        let shouldUseStoredRelease = true;
-        if (rev === undefined) {
-          const summary = await ReportReleaseService.getReleaseSummary(resolved.id);
-          if (summary.hasPendingRelease && summary.latestRelease) {
-            shouldUseStoredRelease = false;
-          }
-        }
-
-        if (shouldUseStoredRelease) {
-          const { buffer, release } = await ReportReleaseService.getOrCreateFinalFile(resolved, req.user, rev);
-          const label = `_Rev${String(release.revision).padStart(2, '0')}`;
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader(
-            'Content-Disposition',
-            `inline; filename="${encodeURIComponent(safeFilename(String(resolved.raw.report_code || resolved.id), label))}"`
-          );
-          res.setHeader('X-Report-Status', 'FINAL');
-          res.setHeader('X-Report-Revision', String(release.revision));
-          res.setHeader('X-Content-SHA256', release.sha256);
-          res.setHeader('X-Watermark-Enabled', 'true');
-          res.status(200).send(buffer);
-          return;
-        }
-      }
-
+      // "Tải PDF" luôn render bản hiện tại: không đọc và không tự phát hành Rev.
+      // File Rev đã lưu chỉ tải qua GET /reports/:id/releases/:rev/pdf (downloadReleasePdf).
       const { pdfBuffer, reportNo } = await ReportService.renderDraftPdf(resolved, overrides, enableWatermark, rev);
       const isApproved = resolved.status === 'APPROVED';
       const suffix = isApproved
@@ -105,6 +80,39 @@ export class ReportController {
       res.setHeader('X-Report-Revision', String(rev ?? resolved.exportRevision));
       res.setHeader('X-Watermark-Enabled', String(enableWatermark));
       res.status(200).send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Trả đúng bytes của file Rev đã phát hành (kiểm SHA-256), không bao giờ render lại.
+   */
+  public static async downloadReleasePdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const resolved = await ReportService.resolve(req.params.id);
+      if (!canAccessZone(req.user, resolved.zoneId)) {
+        throw new ForbiddenError('Bạn không có quyền tải bản phát hành của phân khu này');
+      }
+      const rev = parseRevision(req.params.rev);
+      if (rev === undefined) throw new BadRequestError('Thiếu số Rev cần tải');
+      const release = await ReportReleaseService.get(resolved.id, rev);
+      if (!release) throw new NotFoundError(`Hồ sơ chưa có Rev ${String(rev).padStart(2, '0')}`);
+
+      const buffer = await ReportReleaseService.readVerifiedBuffer(release);
+      const label = `_Rev${String(release.revision).padStart(2, '0')}`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', String(buffer.length));
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(safeFilename(String(resolved.raw.report_code || resolved.id), label))}"`
+      );
+      res.setHeader('X-Report-Status', 'RELEASED');
+      res.setHeader('X-Report-Revision', String(release.revision));
+      res.setHeader('X-Content-SHA256', release.sha256);
+      res.setHeader('X-Watermark-Enabled', 'true');
+      res.status(200).send(buffer);
     } catch (err) {
       next(err);
     }

@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * REPORT RELEASE SERVICE
- * Quản lý các Rev phát hành (D2): mỗi Rev lưu file riêng + SHA-256; xuất lại Rev cũ
- * trả đúng file cũ. Rev chỉ tăng khi Zone Admin / Super Admin bấm "Phát hành Rev mới".
+ * Quản lý các Rev phát hành (D2): mỗi Rev lưu file riêng + SHA-256 trên Cloudflare R2
+ * (máy dev STORAGE_TYPE=local thì ghi đĩa). Tải Rev trả đúng file đã lưu.
+ * Rev chỉ sinh khi Zone Admin / Super Admin bấm "Phát hành Rev mới"; nút "Tải PDF" không bao giờ tạo Rev.
  * ============================================================================
  */
 
@@ -16,6 +17,9 @@ import { ReportSnapshotService, sha256Hex } from '../snapshot/report-snapshot.se
 import { ReportService, type ResolvedReport } from './report.service';
 import { ReportConfigService } from '../../report_config/report-config.service';
 import { canAccessZone } from '../utils/zone-access.utils';
+import { StorageService } from '../../../common/services/storage.service';
+
+export type ReleaseStorageProvider = 'local' | 'r2' | 's3';
 
 export const MIN_RELEASE_REASON_LENGTH = 10;
 
@@ -40,6 +44,9 @@ export interface ReportReleaseRecord {
   releasedAt: string;
   standardTextVersionId?: string | null;
   equipmentSnapshotJson?: unknown;
+  storageProvider: ReleaseStorageProvider;
+  storageKey: string | null;
+  storageBucket: string | null;
 }
 
 interface ReleaseRow {
@@ -58,6 +65,13 @@ interface ReleaseRow {
   released_at: Date;
   standard_text_version_id?: string | null;
   equipment_snapshot_json?: unknown;
+  storage_provider?: string | null;
+  storage_key?: string | null;
+  storage_bucket?: string | null;
+}
+
+function toProvider(value: string | null | undefined): ReleaseStorageProvider {
+  return value === 'r2' || value === 's3' ? value : 'local';
 }
 
 function toRecord(row: ReleaseRow): ReportReleaseRecord {
@@ -77,6 +91,9 @@ function toRecord(row: ReleaseRow): ReportReleaseRecord {
     releasedAt: row.released_at instanceof Date ? row.released_at.toISOString() : String(row.released_at),
     standardTextVersionId: row.standard_text_version_id ?? null,
     equipmentSnapshotJson: row.equipment_snapshot_json ?? null,
+    storageProvider: toProvider(row.storage_provider),
+    storageKey: row.storage_key ?? null,
+    storageBucket: row.storage_bucket ?? null,
   };
 }
 
@@ -84,10 +101,15 @@ function releaseFilePath(reportId: string, revision: number): string {
   return path.join(getReleaseStorageDir(), reportId, `rev-${String(revision).padStart(2, '0')}.pdf`);
 }
 
+export function releaseStorageKey(reportId: string, revision: number): string {
+  return `report-releases/${reportId}/rev-${String(revision).padStart(2, '0')}.pdf`;
+}
+
 const SELECT_RELEASE_COLS = `rr.id, rr.report_id, rr.revision, rr.reason, rr.is_final, rr.file_path,
   rr.file_size_bytes, rr.sha256, rr.snapshot_version_id,
   rr.released_by_user_id, u.full_name AS released_by_name, u.role::text AS released_by_role,
-  rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json`;
+  rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json,
+  rr.storage_provider, rr.storage_key, rr.storage_bucket`;
 
 export class ReportReleaseService {
   public static async list(reportId: string): Promise<ReportReleaseRecord[]> {
@@ -155,34 +177,42 @@ export class ReportReleaseService {
     return res.rows[0] ? toRecord(res.rows[0]) : null;
   }
 
-  public static readVerifiedFile(release: ReportReleaseRecord): Buffer {
-    if (!fs.existsSync(release.filePath)) {
-      console.error('[ReportRelease] Thiếu file Rev trên đĩa:', release.filePath);
-      throw new NotFoundError(`Không tìm thấy file của Rev ${release.revision} trên máy chủ`);
+  /**
+   * Đọc bytes của file Rev đã lưu và kiểm SHA-256. Không bao giờ render lại.
+   */
+  public static async readVerifiedBuffer(release: ReportReleaseRecord): Promise<Buffer> {
+    const revLabel = String(release.revision).padStart(2, '0');
+    let buf: Buffer | null = null;
+
+    if (release.storageProvider !== 'local') {
+      if (!release.storageKey) {
+        console.error('[ReportRelease:read] Bản ghi Rev trên R2 thiếu storage_key:', release.id);
+        throw new NotFoundError(`Bản ghi Rev ${revLabel} thiếu khóa lưu trữ`);
+      }
+      buf = await StorageService.getObjectBuffer(release.storageKey, release.storageBucket || StorageService.getReleasesBucket());
+      if (!buf) {
+        console.error('[ReportRelease:read] Thiếu object Rev trên R2:', release.storageKey);
+        throw new NotFoundError(`Không tìm thấy file Rev ${revLabel} trên kho lưu trữ R2`);
+      }
+    } else {
+      if (!path.isAbsolute(release.filePath) || !fs.existsSync(release.filePath)) {
+        console.error('[ReportRelease:read] Thiếu file Rev trên đĩa:', release.filePath);
+        throw new NotFoundError(`Không tìm thấy file Rev ${revLabel} trên máy chủ (bản lưu đĩa cục bộ)`);
+      }
+      buf = fs.readFileSync(release.filePath);
     }
-    const buf = fs.readFileSync(release.filePath);
+
     const actual = sha256Hex(buf);
     if (actual !== release.sha256) {
-      console.error('[ReportRelease] SHA-256 không khớp!', { expected: release.sha256, actual, file: release.filePath });
-      throw new ConflictError(`File Rev ${release.revision} không còn toàn vẹn (SHA-256 không khớp)`);
+      console.error('[ReportRelease] SHA-256 không khớp!', {
+        expected: release.sha256,
+        actual,
+        provider: release.storageProvider,
+        location: release.storageKey ?? release.filePath,
+      });
+      throw new ConflictError(`File Rev ${revLabel} không còn toàn vẹn (SHA-256 không khớp)`);
     }
     return buf;
-  }
-
-  public static async getOrCreateFinalFile(
-    resolved: ResolvedReport,
-    user: JwtPayload,
-    revision?: number
-  ): Promise<{ buffer: Buffer; release: ReportReleaseRecord; created: boolean }> {
-    const existing = await this.get(resolved.id, revision);
-    if (existing) {
-      return { buffer: this.readVerifiedFile(existing), release: existing, created: false };
-    }
-    if (revision !== undefined) {
-      throw new NotFoundError(`Hồ sơ chưa có Rev ${revision}`);
-    }
-    const release = await this.issue(resolved.id, user, 'Phát hành bản Final đầu tiên khi APPROVED', true);
-    return { buffer: this.readVerifiedFile(release), release, created: true };
   }
 
   public static async issueNewRevision(
@@ -196,7 +226,7 @@ export class ReportReleaseService {
     }
     const resolved = await ReportService.resolve(reportIdentifier);
     this.assertCanRelease(resolved, user);
-    return this.issue(resolved.id, user, trimmed, false);
+    return this.issue(resolved.id, user, trimmed);
   }
 
   public static assertCanRelease(resolved: ResolvedReport, user: JwtPayload): void {
@@ -207,10 +237,10 @@ export class ReportReleaseService {
   private static async issue(
     reportId: string,
     user: JwtPayload,
-    reason: string,
-    isFirstFinal: boolean
+    reason: string
   ): Promise<ReportReleaseRecord> {
     let writtenFile: string | null = null;
+    const cleanup: { uploadedObject: { key: string; bucket: string } | null } = { uploadedObject: null };
     try {
       return await Database.transaction(async (client: PoolClient) => {
         await client.query(`SELECT pg_advisory_xact_lock(hashtext($1));`, [`report_release:${reportId}`]);
@@ -231,16 +261,11 @@ export class ReportReleaseService {
         );
         const maxRev = maxRes.rows[0]?.max_rev;
         const hasAny = maxRev !== null && maxRev !== undefined;
-        if (isFirstFinal && hasAny) {
-          const cur = await client.query<ReleaseRow>(
-            `SELECT * FROM report_releases WHERE report_id = $1 AND revision = $2;`,
-            [reportId, maxRev]
-          );
-          return toRecord(cur.rows[0]);
-        }
-        const nextRev = isFirstFinal
-          ? (hasAny ? Number(maxRev) + 1 : 0)
-          : Math.max(hasAny ? Number(maxRev) + 1 : 1, (Number(rep.export_revision) || 0) + 1);
+        // Bản phát hành đầu tiên khóa đúng số Rev đang in trên bìa (mặc định 00), không bao giờ lùi số;
+        // các lần sau tăng dần và không thấp hơn số trên bìa + 1.
+        const currentCoverRev = Math.max(0, Number(rep.export_revision) || 0);
+        const nextRev = hasAny ? Math.max(Number(maxRev) + 1, currentCoverRev + 1) : currentCoverRev;
+        const isFirstRelease = !hasAny;
 
         const approvedAt = rep.approved_at ?? new Date();
         const latestApprovedSnap = await ReportSnapshotService.getLatestApprovedSnapshot(reportId);
@@ -276,18 +301,48 @@ export class ReportReleaseService {
         const resolved = await ReportService.resolve(reportId);
         const { pdfBuffer } = await ReportService.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig);
 
-        const filePath = releaseFilePath(reportId, nextRev);
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, pdfBuffer, { flag: 'wx' });
-        writtenFile = filePath;
         const sha = sha256Hex(pdfBuffer);
+        const provider: ReleaseStorageProvider = StorageService.getEffectiveStorageType();
+        let filePath: string;
+        let storageKey: string | null = null;
+        let storageBucket: string | null = null;
+
+        if (provider === 'local') {
+          filePath = releaseFilePath(reportId, nextRev);
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          fs.writeFileSync(filePath, pdfBuffer, { flag: 'wx' });
+          writtenFile = filePath;
+        } else {
+          storageKey = releaseStorageKey(reportId, nextRev);
+          storageBucket = StorageService.getReleasesBucket();
+          try {
+            await StorageService.putObjectExact(storageKey, pdfBuffer, 'application/pdf', storageBucket, {
+              'sha256-checksum': sha,
+              'report-id': reportId,
+              revision: String(nextRev),
+            });
+          } catch (uploadErr: unknown) {
+            const code = typeof uploadErr === 'object' && uploadErr !== null && 'code' in uploadErr ? (uploadErr as { code: unknown }).code : undefined;
+            if (code === 'OBJECT_EXISTS') {
+              throw new ConflictError(`File Rev ${String(nextRev).padStart(2, '0')} đã tồn tại trên R2, không ghi đè bản pháp lý`);
+            }
+            throw uploadErr;
+          }
+          cleanup.uploadedObject = { key: storageKey, bucket: storageBucket };
+          filePath = storageKey;
+        }
 
         const ins = await client.query<ReleaseRow>(
           `INSERT INTO report_releases (
              report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
-             snapshot_version_id, released_by_user_id, standard_text_version_id, equipment_snapshot_json
-           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10) RETURNING *;`,
-          [reportId, nextRev, reason, filePath, pdfBuffer.length, sha, snap.versionId, user.userId, activeConfig.standardTextVersionId, JSON.stringify(activeConfig.equipment)]
+             snapshot_version_id, released_by_user_id, standard_text_version_id, equipment_snapshot_json,
+             storage_provider, storage_key, storage_bucket
+           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;`,
+          [
+            reportId, nextRev, reason, filePath, pdfBuffer.length, sha, snap.versionId, user.userId,
+            activeConfig.standardTextVersionId, JSON.stringify(activeConfig.equipment),
+            provider, storageKey, storageBucket,
+          ]
         );
 
         await client.query(
@@ -298,7 +353,7 @@ export class ReportReleaseService {
                  THEN survey_data_json - 'hasPendingRelease' ELSE survey_data_json END,
                updated_at = NOW()
            WHERE id = $1;`,
-          [reportId, nextRev, `/reports/${reportId}/export/pdf?rev=${nextRev}`]
+          [reportId, nextRev, `/reports/${reportId}/releases/${nextRev}/pdf`]
         );
 
         await client.query(
@@ -307,7 +362,7 @@ export class ReportReleaseService {
           [
             'BASE_SURVEY_REPORT',
             reportId,
-            isFirstFinal ? 'REPORT_FINAL_RELEASED' : 'REPORT_NEW_REVISION_RELEASED',
+            isFirstRelease ? 'REPORT_FINAL_RELEASED' : 'REPORT_NEW_REVISION_RELEASED',
             user.userId,
             JSON.stringify({
               reportId,
@@ -315,6 +370,9 @@ export class ReportReleaseService {
               newRevision: nextRev,
               reason,
               sha256: sha,
+              fileSizeBytes: pdfBuffer.length,
+              storageProvider: provider,
+              storageKey,
               snapshotVersionId: snap.versionId,
               standardTextVersionNumber: activeConfig.standardTextVersionNumber,
               equipmentCount: activeConfig.equipment.length,
@@ -327,7 +385,15 @@ export class ReportReleaseService {
       });
     } catch (err) {
       if (writtenFile && fs.existsSync(writtenFile)) {
-        try { fs.unlinkSync(writtenFile); } catch { /* ignore */ }
+        try {
+          fs.unlinkSync(writtenFile);
+        } catch (unlinkErr: unknown) {
+          console.error('[ReportRelease] Không dọn được file Rev dở dang:', writtenFile, unlinkErr);
+        }
+      }
+      // DB đã rollback nên object chưa từng được đăng ký: xóa để không còn file mồ côi.
+      if (cleanup.uploadedObject) {
+        await StorageService.deleteObjectQuietly(cleanup.uploadedObject.key, cleanup.uploadedObject.bucket);
       }
       console.error('[ReportRelease] Phát hành Rev thất bại:', reportId, err);
       throw err;

@@ -1,7 +1,7 @@
 # Checklist nghiệm thu – Báo cáo BCS V3
 
 Script: `cd backend && NODE_OPTIONS=--max-old-space-size=6144 npx ts-node src/scripts/test_report_v3_business_cases.ts`
-(Test ghi vào DB local: duyệt 6 hồ sơ + tạo Rev. Để chạy lại sạch: `DELETE FROM report_releases;` và xóa `backend/storage/report-releases/`.)
+(Test ghi vào DB local: duyệt 6 hồ sơ + tạo Rev. File Rev lưu ở R2 `report-releases/{reportId}/rev-NN.pdf` khi STORAGE_TYPE=r2, hoặc `backend/storage/report-releases/` khi local. Nút "Tải PDF" không bao giờ tạo Rev; Rev chỉ phát hành qua POST /reports/:id/releases và tải qua GET /reports/:id/releases/:rev/pdf.)
 
 ## Kết quả lần chạy cuối: 50/50 PASS (21 ca thuần + 29 ca tích hợp)
 

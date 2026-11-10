@@ -1,4 +1,12 @@
-import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  PutBucketCorsCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -487,6 +495,95 @@ export class StorageService {
     } while (continuationToken);
 
     return keys;
+  }
+
+  /**
+   * Bucket chứa file PDF Rev phát hành. Key Rev không bao giờ được trả ra client:
+   * bucket chính đang public-read nên chỉ tải qua API có xác thực.
+   */
+  public static getReleasesBucket(): string {
+    return config.storage.s3.releasesBucket || config.storage.s3.bucket;
+  }
+
+  private static isNotFoundError(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const rec = err as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+    return rec.name === 'NotFound' || rec.name === 'NoSuchKey' || rec.$metadata?.httpStatusCode === 404;
+  }
+
+  private static isPreconditionFailed(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const rec = err as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+    return rec.name === 'PreconditionFailed' || rec.$metadata?.httpStatusCode === 412;
+  }
+
+  /** Object có tồn tại trong bucket hay không (404 → false, lỗi khác ném ra). */
+  public static async objectExists(key: string, bucket: string): Promise<boolean> {
+    try {
+      await this.getS3Client().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return true;
+    } catch (err: unknown) {
+      if (this.isNotFoundError(err)) return false;
+      console.error(`[StorageService:objectExists] Không kiểm tra được key "${key}":`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Ghi object đúng key (không thêm hậu tố ngẫu nhiên), chỉ khi key chưa tồn tại.
+   * Ném lỗi có code OBJECT_EXISTS nếu key đã có.
+   */
+  public static async putObjectExact(
+    key: string,
+    buffer: Buffer,
+    mimeType: string,
+    bucket: string,
+    metadata: Record<string, string>
+  ): Promise<void> {
+    if (await this.objectExists(key, bucket)) {
+      throw Object.assign(new Error(`Object đã tồn tại: ${key}`), { code: 'OBJECT_EXISTS' });
+    }
+    try {
+      await this.getS3Client().send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+          Metadata: { project: 'METRO2_HCM', 'uploaded-at': new Date().toISOString(), ...metadata },
+          IfNoneMatch: '*',
+        })
+      );
+    } catch (err: unknown) {
+      if (this.isPreconditionFailed(err)) {
+        throw Object.assign(new Error(`Object đã tồn tại: ${key}`), { code: 'OBJECT_EXISTS' });
+      }
+      console.error(`[StorageService:putObjectExact] Không ghi được key "${key}":`, err);
+      throw err;
+    }
+  }
+
+  /** Đọc toàn bộ object thành Buffer. Không có key → null. */
+  public static async getObjectBuffer(key: string, bucket: string): Promise<Buffer | null> {
+    try {
+      const res = await this.getS3Client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      if (!res.Body) return null;
+      const bytes = await res.Body.transformToByteArray();
+      return Buffer.from(bytes);
+    } catch (err: unknown) {
+      if (this.isNotFoundError(err)) return null;
+      console.error(`[StorageService:getObjectBuffer] Không đọc được key "${key}":`, err);
+      throw err;
+    }
+  }
+
+  /** Xóa object khi dọn dẹp lúc rollback. Không ném lỗi. */
+  public static async deleteObjectQuietly(key: string, bucket: string): Promise<void> {
+    try {
+      await this.getS3Client().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    } catch (err: unknown) {
+      console.error(`[StorageService:deleteObjectQuietly] Không xóa được key "${key}" khi rollback:`, err);
+    }
   }
 
   /**

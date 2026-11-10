@@ -1090,6 +1090,10 @@ CREATE TABLE IF NOT EXISTS report_releases (
   released_by_user_id UUID NOT NULL REFERENCES users(id),
   released_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ,
+  -- Kho lưu file Rev (đồng bộ với migration 20261112_report_releases_storage_key.sql)
+  storage_provider TEXT NOT NULL DEFAULT 'local' CHECK (storage_provider IN ('local', 'r2', 's3')),
+  storage_key TEXT,
+  storage_bucket TEXT,
   UNIQUE (report_id, revision)
 );
 
