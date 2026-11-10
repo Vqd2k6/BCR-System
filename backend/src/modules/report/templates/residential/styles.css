@@ -1335,33 +1335,51 @@ h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after:
 .defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-f1); }
 
 /* ==========================================================================
-   QUY CHUẨN TRANG 4 & 5 (MỤC III-IV VÀ MỤC V-VI VỪA KHÍT 1 TRANG A4 MỖI SHEET)
-   Tránh ngắt trang cưỡng bức và chống tràn trang gây chênh lệch Mục lục (TOC)
+   QUY CHUẨN TRANG 4, 5, 7 (MỤC III-IV, V-VI, VÀ VIII VỪA KHÍT TỪNG TRANG IN A4)
+   Tránh ngắt trang cưỡng bức và chống tràn bảng gây rớt dòng tạo trang trống
    ========================================================================== */
 .sections-3-4-sheet table.tech-table,
-.sections-5-6-sheet table.tech-table {
-  font-size: 10pt !important;
+.sections-5-6-sheet table.tech-table,
+.sections-8-sheet table.tech-table {
+  font-size: 9.5pt !important;
   margin-bottom: 2pt !important;
 }
 
 .sections-3-4-sheet table.tech-table td,
 .sections-3-4-sheet table.tech-table th,
 .sections-5-6-sheet table.tech-table td,
-.sections-5-6-sheet table.tech-table th {
+.sections-5-6-sheet table.tech-table th,
+.sections-8-sheet table.tech-table td,
+.sections-8-sheet table.tech-table th {
   padding: 1.2pt 3pt !important;
-  font-size: 10pt !important;
+  font-size: 9.5pt !important;
   line-height: 1.15 !important;
 }
 
 .sections-3-4-sheet .text-muted,
-.sections-5-6-sheet .text-muted {
+.sections-5-6-sheet .text-muted,
+.sections-8-sheet .text-muted {
   font-size: 8.5pt !important;
   line-height: 1.05 !important;
 }
 
 .sections-3-4-sheet h2.chapter-header,
-.sections-5-6-sheet h2.chapter-header {
+.sections-5-6-sheet h2.chapter-header,
+.sections-8-sheet h2.chapter-header {
   font-size: 12.5pt !important;
   padding-bottom: 1.5pt !important;
   margin: 3pt 0 2pt 0 !important;
+}
+
+.sections-8-sheet .summary-choice-item {
+  font-size: 9pt !important;
+  gap: 1.5pt !important;
+}
+
+.sections-8-sheet .summary-choice-group {
+  gap: 5pt !important;
+}
+
+.sections-8-sheet .summary-label {
+  font-size: 9pt !important;
 }
