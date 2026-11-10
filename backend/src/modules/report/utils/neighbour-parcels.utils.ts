@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * THỬA LÂN CẬN CHO SƠ ĐỒ MỤC II (chỉ để vẽ ngữ cảnh, không phải số liệu pháp lý)
- * Lấy ranh các thửa quanh thửa khảo sát theo cùng quy tắc hình học với thửa chính:
- * COALESCE(footprint_polygon_geom, cadastral_polygon_geom), hệ EPSG:4326.
+ * Khớp Bình đồ khảo sát (/parcels/zone-map → CadastralRepository.listParcelsByZone):
+ * chỉ thửa lifecycle_status = 'ACTIVE', vẽ ranh địa chính cadastral_polygon_geom, hệ EPSG:4326.
+ * Không giới hạn theo Zone để sơ đồ liền mạch ở mép Zone.
  * Bộ vẽ tự cắt theo khung nhìn, nên chỉ cần bán kính đủ rộng hơn khung.
  * ============================================================================
  */
@@ -61,13 +62,14 @@ export async function loadNeighbourParcelRings(parcelId: string | null | undefin
          SELECT COALESCE(footprint_polygon_geom, cadastral_polygon_geom) AS g
          FROM parcels WHERE id = $1
        )
-       SELECT ST_AsGeoJSON(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)) AS geo
+       SELECT ST_AsGeoJSON(p.cadastral_polygon_geom) AS geo
        FROM parcels p, target t
        WHERE p.id <> $1
+         AND p.lifecycle_status = 'ACTIVE'
          AND t.g IS NOT NULL
-         AND COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom) IS NOT NULL
-         AND ST_DWithin(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, t.g::geography, $2)
-       ORDER BY ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, t.g::geography)
+         AND p.cadastral_polygon_geom IS NOT NULL
+         AND ST_DWithin(p.cadastral_polygon_geom::geography, t.g::geography, $2)
+       ORDER BY ST_Distance(p.cadastral_polygon_geom::geography, t.g::geography)
        LIMIT $3;`,
       [parcelId, NEIGHBOUR_RADIUS_M, NEIGHBOUR_LIMIT]
     );

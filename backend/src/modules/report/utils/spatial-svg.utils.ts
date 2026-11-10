@@ -85,11 +85,17 @@ export function metersPerDegreeWgs84(latDeg: number): {
 }
 
 const DEFAULT_SPATIAL_SVG_SIZE: SpatialSvgSize = { width: 300, height: 400 };
-/** Cạnh ngắn tối thiểu của vùng nhìn (mét) để thửa nhỏ vẫn thấy bối cảnh xung quanh. */
+/*
+ * ===== ĐỘ ZOOM SƠ ĐỒ MỤC II (chỉnh 3 hằng số dưới đây) =====
+ * Khung gốc = max(phạm vi thửa + tim tuyến/ga + 80 m, MIN_VIEW_SHORT_SIDE_M),
+ * sau đó chia cho SECTION_ZOOM_FACTOR, nhưng không bao giờ hẹp hơn mức cần để thấy
+ * trọn thửa và điểm tim tuyến/ga gần nhất cộng FIT_MARGIN_M mỗi bên.
+ */
+/** Cạnh ngắn tối thiểu của khung gốc (mét), trước khi chia hệ số phóng. Tăng = thấy rộng hơn với thửa nhỏ. */
 const MIN_VIEW_SHORT_SIDE_M = 110;
-/** Hệ số phóng to thêm cho sơ đồ so với khung gốc (2.25 = vùng nhìn hẹp lại 2.25 lần). */
-const SECTION_ZOOM_FACTOR = 2.25;
-/** Đệm tối thiểu (mét) quanh thửa và điểm ga/tim tuyến để không bị cắt viền khi phóng to. */
+/** Hệ số phóng: lớn hơn = gần hơn (khung hẹp lại); 1 = không phóng thêm. Giảm (vd 1.6) để thấy nhiều thửa xung quanh. */
+const SECTION_ZOOM_FACTOR = 2.5;
+/** Đệm luôn giữ quanh thửa và điểm tim tuyến/ga (mét); giới hạn dưới của khung dù tăng hệ số phóng. */
 const FIT_MARGIN_M = 15;
 /** Chỉ dóng tới đường bao công trình ga khi ga trong phạm vi này (khớp màn Thẩm định). */
 const STATION_LINE_MAX_M = 300;
@@ -384,7 +390,9 @@ export function generateMetroSpatialVisualSvg(
   let neighboursSvg = "";
   for (const ring of neighbourRings) {
     if (!Array.isArray(ring) || ring.length < 3) continue;
-    const pts = ptsOf(ring.map((p) => (p[0] > p[1] ? [p[1], p[0]] : p) as [number, number]));
+    const pts = ptsOf(
+      ring.map((p) => (p[0] > p[1] ? [p[1], p[0]] : p) as [number, number]),
+    );
     if (pts === targetKey) continue;
     neighboursSvg += `<polygon points="${pts}" />`;
   }
@@ -401,12 +409,17 @@ export function generateMetroSpatialVisualSvg(
     stationsSvg += `<polygon points="${ptsOf(st.coords)}" />`;
   }
 
-  const centerlineSvg = centerline.length >= 2 ? `<polyline points="${ptsOf(centerline)}" />` : "";
+  const centerlineSvg =
+    centerline.length >= 2 ? `<polyline points="${ptsOf(centerline)}" />` : "";
 
   // Thước tỉ lệ: đoạn tròn số mét gần 1/5 bề ngang khung.
   const niceSteps = [5, 10, 20, 25, 50, 100, 200];
   const targetBarM = viewW / 5;
-  const barM = niceSteps.reduce((best, v) => (Math.abs(v - targetBarM) < Math.abs(best - targetBarM) ? v : best), niceSteps[0]);
+  const barM = niceSteps.reduce(
+    (best, v) =>
+      Math.abs(v - targetBarM) < Math.abs(best - targetBarM) ? v : best,
+    niceSteps[0],
+  );
   const barPx = barM * scale;
   const scaleBarSvg = `<g transform="translate(14, ${svgHeight - 16})" font-size="8" fill="${BINH_DO_STYLE.ink}">
       <rect x="-4" y="-12" width="${(barPx + 34).toFixed(1)}" height="20" fill="rgba(255,255,255,0.9)" />
