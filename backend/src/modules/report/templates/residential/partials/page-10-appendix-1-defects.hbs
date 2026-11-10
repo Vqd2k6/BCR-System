@@ -25,6 +25,7 @@
               <div class="cad-map-pinning-wrapper">
                 <div class="cad-map-tight-box">
                   <img crossorigin="anonymous" src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-cad-portrait">
+                  {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                   {{#each this.cadPins}}
                     <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                       <span class="cad-pin-badge">{{this.code}}</span>
@@ -39,6 +40,7 @@
               <div class="cad-map-pinning-wrapper">
                 <div class="cad-map-tight-box">
                   <img crossorigin="anonymous" src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-cad-portrait">
+                  {{> watermark-overlay applied=this.structuralMapAlreadyWatermarked code=this.structuralMapWatermarkCode}}
                   {{#each this.cadStructuralPins}}
                     <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                       <span class="cad-pin-badge">{{this.code}}</span>
@@ -55,6 +57,7 @@
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
                 <img crossorigin="anonymous" src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
+                {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                 {{#each this.cadPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>
@@ -70,6 +73,7 @@
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
                 <img crossorigin="anonymous" src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
+                {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                 {{#each this.cadPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>

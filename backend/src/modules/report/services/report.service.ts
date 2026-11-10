@@ -12,7 +12,7 @@ import Handlebars from 'handlebars';
 import { Database } from '../../../database/db';
 import { SurveyRepository } from '../../survey/survey.repository';
 import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
-import { NotFoundError } from '../../../common/errors/problem-details';
+import { ConflictError, NotFoundError } from '../../../common/errors/problem-details';
 import { maskReportPii } from '../../../common/utils/pii.utils';
 import { ReportViewModel } from '../report.types';
 import { ReportViewModelMapper } from '../mappers/report-viewmodel.mapper';
@@ -22,7 +22,7 @@ import { applyOverridesToReport } from '../utils/report-override.utils';
 import { preloadImageOrientations } from '../utils/image-sniff.utils';
 import { extractParcelPolygonCoords, preloadSatelliteTiles } from '../utils/spatial-svg.utils';
 import { extractAllImageUrls, buildPreloadRotationItems } from '../utils/report-preload.utils';
-import { ReportWatermarkCanvasService } from './report-watermark-canvas.service';
+import { ReportWatermarkCanvasService, type WatermarkVerifyReport } from './report-watermark-canvas.service';
 import { ReportImageResolver } from './report-image-resolver.service';
 import { LegacyWatermarkIndex } from './legacy-watermark-index.service';
 import { ReportFontsService } from './report-fonts.service';
@@ -196,7 +196,7 @@ export class ReportService {
     overrides?: any,
     maskPii: boolean = false,
     enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel }> {
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
     return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark);
   }
 
@@ -223,7 +223,7 @@ export class ReportService {
     overrides?: any,
     maskPii: boolean = false,
     enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel }> {
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
     let activeReport = await applyCondoReportContext(applyOverridesToReport(rawReport, overrides));
     if (maskPii) {
       activeReport = maskReportPii(activeReport);
@@ -272,8 +272,9 @@ export class ReportService {
         studioEnhanced: activeReport.survey_data_json?.studioEnhancedPhotos ?? null,
       });
     }
+    let watermark: WatermarkVerifyReport | undefined;
     if (effectiveWatermark) {
-      await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel);
+      watermark = await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel);
     }
 
     const { template, styles } = this.getCompiledTemplate();
@@ -286,7 +287,7 @@ export class ReportService {
       isDraft: String(activeReport.status || '').toUpperCase() !== 'APPROVED',
     });
 
-    return { html, viewModel };
+    return { html, viewModel, watermark };
   }
 
   public static buildFinalReport(
@@ -305,13 +306,19 @@ export class ReportService {
     snapshot: ReportSnapshot,
     revision: number,
     pinnedConfig?: ReportContentConfig
-  ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string }> {
+  ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string; watermark?: WatermarkVerifyReport }> {
     const finalReport = this.buildFinalReport(resolved, snapshot, revision);
     if (pinnedConfig) {
       finalReport.reportContentConfig = pinnedConfig;
     }
     return RenderQueue.run(async () => {
-      const { html, viewModel } = await this.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
+      const { html, viewModel, watermark } = await this.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
+      // Bản Rev pháp lý: không phát hành khi có ảnh dập watermark lỗi ở máy chủ (chỉ còn lớp CSS dự phòng).
+      if (watermark && watermark.errors > 0 && process.env.REPORT_RELEASE_REQUIRE_FULL_WATERMARK !== 'false') {
+        throw new ConflictError(
+          `Không phát hành Rev: ${watermark.errors}/${watermark.total} ảnh không dập được watermark. Kiểm tra log [ReportWatermark:verify] rồi thử lại.`
+        );
+      }
       const reportNo = viewModel.metadata.reportNo;
       const buildingId = viewModel.metadata.buildingId;
       const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {
@@ -322,7 +329,7 @@ export class ReportService {
         selfContainedHtml: true,
         waitForReportReady: true,
       });
-      return { pdfBuffer, reportNo, buildingId };
+      return { pdfBuffer, reportNo, buildingId, watermark };
     });
   }
 
@@ -332,7 +339,7 @@ export class ReportService {
     maskPii: boolean,
     enableWatermark: boolean,
     revision?: number
-  ): Promise<{ html: string; viewModel: ReportViewModel }> {
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
     const effectiveOverrides = resolved.status === 'APPROVED' ? undefined : overrides;
     let reportData = resolved.raw;
     if (resolved.status === 'APPROVED') {

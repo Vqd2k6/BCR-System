@@ -1,0 +1,16 @@
+{{!--
+  Lớp watermark CSS dự phòng: chỉ hiện khi bật watermark mà ảnh CHƯA được dập ở máy chủ
+  (dập lỗi, ảnh quá nhỏ, hoặc ảnh chưa nạp thành data URI).
+  Tham số: applied (cờ *AlreadyWatermarked), code (mã ảnh), dateTime (ngày giờ), size ('sm' tuỳ chọn).
+--}}
+{{#if @root.enableWatermark}}
+  {{#unless applied}}
+    {{#if @root.metadata.headerLogoBase64}}
+      <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right{{#if size}} watermark-logo-{{size}}{{/if}}" alt="THACO REG">
+    {{/if}}
+    <div class="watermark-text-bottom-right{{#if size}} watermark-text-{{size}}{{/if}}">
+      <div class="watermark-datetime">{{#if dateTime}}{{dateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+      <div class="watermark-code">{{code}}</div>
+    </div>
+  {{/unless}}
+{{/if}}

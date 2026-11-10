@@ -14,13 +14,15 @@
   <div class="asbuilt-drawings-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px;">
     {{#each this.drawings}}
     <div class="asbuilt-drawing-card" style="border: 1px solid #1e293b; background: #ffffff; padding: 4px; border-radius: 2px; break-inside: avoid; page-break-inside: avoid; display: flex; flex-direction: column;">
-      <div style="text-align: center; height: 185mm; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff;">
+      <div style="text-align: center; height: 185mm; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; background: #ffffff;">
         {{#if this.base64}}
         <img src="{{this.base64}}" alt="{{this.title.vi}}"
           style="max-height: 100%; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;">
+        {{> watermark-overlay applied=this.alreadyWatermarked code=this.photoCode}}
         {{else if this.url}}
         <img src="{{this.url}}" alt="{{this.title.vi}}"
           style="max-height: 100%; max-width: 100%; object-fit: contain; display: block; margin: 0 auto;">
+        {{> watermark-overlay applied=this.alreadyWatermarked code=this.photoCode}}
         {{else}}
         <div class="photo-placeholder" style="height: 80px; color: #94a3b8; display: flex; align-items: center; justify-content: center;">
           [ Chưa có ảnh bản vẽ {{this.index}} ]

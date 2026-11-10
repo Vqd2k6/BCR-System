@@ -299,7 +299,7 @@ export class ReportReleaseService {
 
         const activeConfig = await ReportConfigService.getActiveConfig();
         const resolved = await ReportService.resolve(reportId);
-        const { pdfBuffer } = await ReportService.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig);
+        const { pdfBuffer, watermark } = await ReportService.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig);
 
         const sha = sha256Hex(pdfBuffer);
         const provider: ReleaseStorageProvider = StorageService.getEffectiveStorageType();
@@ -373,6 +373,9 @@ export class ReportReleaseService {
               fileSizeBytes: pdfBuffer.length,
               storageProvider: provider,
               storageKey,
+              watermark: watermark
+                ? { total: watermark.total, stamped: watermark.stamped, legacy: watermark.legacy, cssFallback: watermark.cssFallback, errors: watermark.errors }
+                : null,
               snapshotVersionId: snap.versionId,
               standardTextVersionNumber: activeConfig.standardTextVersionNumber,
               equipmentCount: activeConfig.equipment.length,
