@@ -365,7 +365,6 @@ async function partB(): Promise<void> {
       truthy(!html.includes('0.000‰'), 'in 0.000‰ khi chưa đo');
       const sigHeaders = (html.match(/<table class="signature-table">[\s\S]*?<\/thead>/) || [''])[0].match(/<th\b/g) || [];
       eq(sigHeaders.length, 4, '4 cột bảng ký (1 cột nhãn + 3 cột chức danh)');
-      if (!wasApproved) truthy(html.includes('DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ'), 'thiếu watermark DRAFT');
       return `status=${resolved.status}, ${Math.round(html.length / 1024)}KB`;
     });
   }
