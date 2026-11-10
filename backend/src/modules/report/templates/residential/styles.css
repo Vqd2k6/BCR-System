@@ -128,8 +128,8 @@ body {
     box-shadow: none !important;
     page-break-after: always !important;
     break-after: page !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   .a4-page-sheet:last-child {
@@ -1333,3 +1333,35 @@ h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after:
   overflow-wrap: break-word;
 }
 .defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-f1); }
+
+/* ==========================================================================
+   QUY CHUẨN TRANG 4 & 5 (MỤC III-IV VÀ MỤC V-VI VỪA KHÍT 1 TRANG A4 MỖI SHEET)
+   Tránh ngắt trang cưỡng bức và chống tràn trang gây chênh lệch Mục lục (TOC)
+   ========================================================================== */
+.sections-3-4-sheet table.tech-table,
+.sections-5-6-sheet table.tech-table {
+  font-size: 10pt !important;
+  margin-bottom: 2pt !important;
+}
+
+.sections-3-4-sheet table.tech-table td,
+.sections-3-4-sheet table.tech-table th,
+.sections-5-6-sheet table.tech-table td,
+.sections-5-6-sheet table.tech-table th {
+  padding: 1.2pt 3pt !important;
+  font-size: 10pt !important;
+  line-height: 1.15 !important;
+}
+
+.sections-3-4-sheet .text-muted,
+.sections-5-6-sheet .text-muted {
+  font-size: 8.5pt !important;
+  line-height: 1.05 !important;
+}
+
+.sections-3-4-sheet h2.chapter-header,
+.sections-5-6-sheet h2.chapter-header {
+  font-size: 12.5pt !important;
+  padding-bottom: 1.5pt !important;
+  margin: 3pt 0 2pt 0 !important;
+}
