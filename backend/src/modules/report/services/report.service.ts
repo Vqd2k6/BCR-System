@@ -20,7 +20,8 @@ import { PdfRenderEngine } from '../engine/pdf-render.engine';
 import { RenderQueue } from '../engine/render-queue';
 import { applyOverridesToReport } from '../utils/report-override.utils';
 import { preloadImageOrientations } from '../utils/image-sniff.utils';
-import { extractParcelPolygonCoords, preloadSatelliteTiles } from '../utils/spatial-svg.utils';
+import { extractParcelPolygonCoords } from '../utils/spatial-svg.utils';
+import { loadNeighbourParcelRings } from '../utils/neighbour-parcels.utils';
 import { extractAllImageUrls, buildPreloadRotationItems } from '../utils/report-preload.utils';
 import { ReportWatermarkCanvasService, type WatermarkVerifyReport } from './report-watermark-canvas.service';
 import { ReportImageResolver } from './report-image-resolver.service';
@@ -240,13 +241,11 @@ export class ReportService {
     const preloadItems = buildPreloadRotationItems(activeReport, allPhotoUrls, photoRotationsMap);
     await ReportImageResolver.preloadAndResolveAll(preloadItems, photoRotationsMap);
 
-    try {
-      const polygonCoords = extractParcelPolygonCoords(activeReport, activeReport.survey_data_json);
-      if (polygonCoords) {
-        await preloadSatelliteTiles(polygonCoords);
-      }
-    } catch {
-      // Graceful fallback
+    // Sơ đồ Mục II vẽ kiểu Bình đồ (nền trắng, không ảnh vệ tinh): nạp ranh thửa lân cận để vẽ ngữ cảnh.
+    if (extractParcelPolygonCoords(activeReport, activeReport.survey_data_json)) {
+      activeReport.spatialNeighbourRings = await loadNeighbourParcelRings(
+        typeof activeReport.parcel_id === 'string' ? activeReport.parcel_id : null
+      );
     }
 
     const config: ReportContentConfig =

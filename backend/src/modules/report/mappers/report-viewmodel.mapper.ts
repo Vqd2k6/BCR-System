@@ -144,7 +144,8 @@ export class ReportViewModelMapper {
           buildingId,
           undefined,
           { width: 870, height: 300 },
-          resolveSavedMetroDistances(rawReport, json, specs)
+          resolveSavedMetroDistances(rawReport, json, specs),
+          Array.isArray(rawReport.spatialNeighbourRings) ? rawReport.spatialNeighbourRings : []
         )
       : undefined;
 

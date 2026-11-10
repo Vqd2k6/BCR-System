@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * SPATIAL SVG RENDERING UTILS (PURE VISUALIZATION — ZERO DISTANCE CALCULATION)
- * Chỉ phục vụ trích xuất tọa độ đa giác đã lưu và dựng sơ đồ trực quan SVG
- * trên nền ảnh vệ tinh Esri World Imagery (LOD 18) cho Trang Bìa & Chương II.
+ * Chỉ phục vụ trích xuất tọa độ đa giác đã lưu và dựng sơ đồ SVG Mục II theo ngôn ngữ nét
+ * của Bình đồ khảo sát (frontend/src/features/zone-management/utils/zoneSvgTechnicalExporter.ts):
+ * nền trắng, ranh thửa lân cận nét đen mảnh, thửa khảo sát tô đỏ nổi bật.
  * TUYỆT ĐỐI KHÔNG tự tính toán khoảng cách hoặc suy luận vùng ảnh hưởng.
  * ============================================================================
  */
@@ -104,8 +105,33 @@ export interface SpatialDistanceLabels {
 
 type Px = [number, number];
 
-const LINE_ALIGN_COLOR = "#facc15";
-const LINE_EDGE_COLOR = "#38bdf8";
+/**
+ * Token nét theo Bình đồ khảo sát (zoneSvgTechnicalExporter.ts: màu lớp & GIS_LINE_WEIGHT),
+ * quy đổi về đơn vị SVG của sơ đồ 870x300.
+ */
+const BINH_DO_STYLE = {
+  background: "#ffffff",
+  grid: "#eef2f6",
+  neighbourStroke: "#1f2937",
+  neighbourFill: "rgba(148,163,184,0.12)",
+  neighbourWidth: 0.6,
+  targetFill: "rgba(220,38,38,0.35)",
+  targetStroke: "#b91c1c",
+  targetWidth: 1.6,
+  corridor: "#0284c7",
+  corridorWidth: 1.1,
+  corridorDash: "6,4",
+  station: "#7c3aed",
+  stationFill: "rgba(124,58,237,0.06)",
+  stationWidth: 1.3,
+  centerline: "#fe0000",
+  centerlineWidth: 1.6,
+  centerlineDash: "14,3,2.4,3",
+  ink: "#111827",
+} as const;
+
+const LINE_ALIGN_COLOR = "#d97706";
+const LINE_EDGE_COLOR = "#0284c7";
 const LABEL_FONT_PX = 9;
 const LABEL_H_PX = 12;
 /** Đệm ngang mỗi bên của nhãn (px). */
@@ -173,6 +199,7 @@ export function generateMetroSpatialVisualSvg(
   boundaryDataInput?: any,
   size: SpatialSvgSize = DEFAULT_SPATIAL_SVG_SIZE,
   distanceLabels?: SpatialDistanceLabels,
+  neighbourRings: [number, number][][] = [],
 ): string {
   const boundaryData = boundaryDataInput || getMetroBoundaryData();
   if (!polygonCoords || polygonCoords.length < 3) {
@@ -322,82 +349,17 @@ export function generateMetroSpatialVisualSvg(
   const toSvgX = (xM: number) => cxPx + (xM - midX) * scale;
   const toSvgY = (yM: number) => cyPx - (yM - midY) * scale;
 
-  const zoom = 18;
-  const n = 2 ** zoom;
+  const ptsOf = (ring: [number, number][]) =>
+    ring
+      .map((c) => {
+        const lc = toLocal(c);
+        return `${toSvgX(lc[0]).toFixed(1)},${toSvgY(lc[1]).toFixed(1)}`;
+      })
+      .join(" ");
 
-  const leftLng = parcelCenterLng + ((0 - cxPx) / scale + midX) / mPerDegLng;
-  const rightLng =
-    parcelCenterLng + ((svgWidth - cxPx) / scale + midX) / mPerDegLng;
-  const topLat = parcelCenterLat + ((cyPx - 0) / scale + midY) / mPerDegLat;
-  const bottomLat =
-    parcelCenterLat + ((cyPx - svgHeight) / scale + midY) / mPerDegLat;
-
-  const minTileX = Math.floor(((leftLng + 180) / 360) * n);
-  const maxTileX = Math.floor(((rightLng + 180) / 360) * n);
-  const minTileY = Math.floor(
-    ((1 -
-      Math.log(
-        Math.tan((topLat * Math.PI) / 180) +
-          1 / Math.cos((topLat * Math.PI) / 180),
-      ) /
-        Math.PI) /
-      2) *
-      n,
-  );
-  const maxTileY = Math.floor(
-    ((1 -
-      Math.log(
-        Math.tan((bottomLat * Math.PI) / 180) +
-          1 / Math.cos((bottomLat * Math.PI) / 180),
-      ) /
-        Math.PI) /
-      2) *
-      n,
-  );
-
-  let tilesSvg = "";
-  if (
-    Math.abs(maxTileX - minTileX) + 1 <= 10 &&
-    Math.abs(maxTileY - minTileY) + 1 <= 10
-  ) {
-    for (
-      let tx = Math.min(minTileX, maxTileX);
-      tx <= Math.max(minTileX, maxTileX);
-      tx++
-    ) {
-      for (
-        let ty = Math.min(minTileY, maxTileY);
-        ty <= Math.max(minTileY, maxTileY);
-        ty++
-      ) {
-        const tileBase64 = fetchSatelliteTileBase64Sync(zoom, ty, tx);
-        if (!tileBase64) continue;
-
-        const tileLng = (tx / n) * 360 - 180;
-        const tileLat =
-          (Math.atan(Math.sinh(Math.PI * (1 - (2 * ty) / n))) * 180) / Math.PI;
-        const nextTileLng = ((tx + 1) / n) * 360 - 180;
-        const nextTileLat =
-          (Math.atan(Math.sinh(Math.PI * (1 - (2 * (ty + 1)) / n))) * 180) /
-          Math.PI;
-
-        const locTopLeft = toLocal([tileLat, tileLng]);
-        const locBottomRight = toLocal([nextTileLat, nextTileLng]);
-
-        const xPx = toSvgX(locTopLeft[0]);
-        const yPx = toSvgY(locTopLeft[1]);
-        const wPx = toSvgX(locBottomRight[0]) - xPx;
-        const hPx = toSvgY(locBottomRight[1]) - yPx;
-
-        tilesSvg += `<image href="${tileBase64}" x="${xPx.toFixed(2)}" y="${yPx.toFixed(2)}" width="${(wPx + 0.6).toFixed(2)}" height="${(hPx + 0.6).toFixed(2)}" preserveAspectRatio="none" />`;
-      }
-    }
-  }
-
+  // Lưới mảnh 20 m giúp đọc tỉ lệ (như lưới Bình đồ), không lấn nét thửa.
   let gridSvg = "";
   const gridStepM = 20;
-  const hasTiles = tilesSvg.length > 0;
-  const gridStroke = hasTiles ? "rgba(255,255,255,0.14)" : "#e2e8f0";
   for (
     let gx = Math.floor((midX - viewW) / gridStepM) * gridStepM;
     gx <= Math.ceil((midX + viewW) / gridStepM) * gridStepM;
@@ -405,7 +367,7 @@ export function generateMetroSpatialVisualSvg(
   ) {
     const sx = toSvgX(gx);
     if (sx >= 0 && sx <= svgWidth)
-      gridSvg += `<line x1="${sx.toFixed(1)}" y1="0" x2="${sx.toFixed(1)}" y2="${svgHeight}" stroke="${gridStroke}" stroke-width="0.6" />`;
+      gridSvg += `<line x1="${sx.toFixed(1)}" y1="0" x2="${sx.toFixed(1)}" y2="${svgHeight}" stroke="${BINH_DO_STYLE.grid}" stroke-width="0.5" />`;
   }
   for (
     let gy = Math.floor((midY - viewH) / gridStepM) * gridStepM;
@@ -414,40 +376,46 @@ export function generateMetroSpatialVisualSvg(
   ) {
     const sy = toSvgY(gy);
     if (sy >= 0 && sy <= svgHeight)
-      gridSvg += `<line x1="0" y1="${sy.toFixed(1)}" x2="${svgWidth}" y2="${sy.toFixed(1)}" stroke="${gridStroke}" stroke-width="0.6" />`;
+      gridSvg += `<line x1="0" y1="${sy.toFixed(1)}" x2="${svgWidth}" y2="${sy.toFixed(1)}" stroke="${BINH_DO_STYLE.grid}" stroke-width="0.5" />`;
+  }
+
+  // Thửa lân cận: chỉ vẽ ranh, không nhãn. Bỏ vòng trùng thửa khảo sát (dữ liệu nhân bản).
+  const targetKey = ptsOf(normalizedCoords);
+  let neighboursSvg = "";
+  for (const ring of neighbourRings) {
+    if (!Array.isArray(ring) || ring.length < 3) continue;
+    const pts = ptsOf(ring.map((p) => (p[0] > p[1] ? [p[1], p[0]] : p) as [number, number]));
+    if (pts === targetKey) continue;
+    neighboursSvg += `<polygon points="${pts}" />`;
   }
 
   let corridorsSvg = "";
   for (const cor of corridorBoundaries) {
     if (!cor.coords || cor.coords.length < 2) continue;
-    const pts = cor.coords.map((c) => {
-      const lc = toLocal(c);
-      return `${toSvgX(lc[0]).toFixed(1)},${toSvgY(lc[1]).toFixed(1)}`;
-    });
-    corridorsSvg += `<polyline points="${pts.join(" ")}" fill="none" stroke="${hasTiles ? "#fde047" : "#64748b"}" stroke-width="1.3" stroke-dasharray="5,3" opacity="0.9" />`;
+    corridorsSvg += `<polyline points="${ptsOf(cor.coords)}" />`;
   }
 
   let stationsSvg = "";
   for (const st of stations) {
     if (!st.coords || st.coords.length < 3) continue;
-    const pts = st.coords.map((c) => {
-      const lc = toLocal(c);
-      return `${toSvgX(lc[0]).toFixed(1)},${toSvgY(lc[1]).toFixed(1)}`;
-    });
-    stationsSvg += `<polygon points="${pts.join(" ")}" fill="${hasTiles ? "rgba(56,189,248,0.22)" : "rgba(148,163,184,0.22)"}" stroke="${hasTiles ? "#38bdf8" : "#475569"}" stroke-width="1.4" stroke-dasharray="4,2" />`;
+    stationsSvg += `<polygon points="${ptsOf(st.coords)}" />`;
   }
 
-  let centerlineSvg = "";
-  if (centerline.length >= 2) {
-    const pts = centerline.map((c) => {
-      const lc = toLocal(c);
-      return `${toSvgX(lc[0]).toFixed(1)},${toSvgY(lc[1]).toFixed(1)}`;
-    });
-    centerlineSvg = `
-      <polyline points="${pts.join(" ")}" fill="none" stroke="#ffffff" stroke-width="3.6" opacity="${hasTiles ? "0.85" : "0.5"}" />
-      <polyline points="${pts.join(" ")}" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-dasharray="8,4" />
-    `;
-  }
+  const centerlineSvg = centerline.length >= 2 ? `<polyline points="${ptsOf(centerline)}" />` : "";
+
+  // Thước tỉ lệ: đoạn tròn số mét gần 1/5 bề ngang khung.
+  const niceSteps = [5, 10, 20, 25, 50, 100, 200];
+  const targetBarM = viewW / 5;
+  const barM = niceSteps.reduce((best, v) => (Math.abs(v - targetBarM) < Math.abs(best - targetBarM) ? v : best), niceSteps[0]);
+  const barPx = barM * scale;
+  const scaleBarSvg = `<g transform="translate(14, ${svgHeight - 16})" font-size="8" fill="${BINH_DO_STYLE.ink}">
+      <rect x="-4" y="-12" width="${(barPx + 34).toFixed(1)}" height="20" fill="rgba(255,255,255,0.9)" />
+      <rect x="0" y="-3" width="${(barPx / 2).toFixed(1)}" height="4" fill="${BINH_DO_STYLE.ink}" />
+      <rect x="${(barPx / 2).toFixed(1)}" y="-3" width="${(barPx / 2).toFixed(1)}" height="4" fill="#ffffff" stroke="${BINH_DO_STYLE.ink}" stroke-width="0.6" />
+      <rect x="0" y="-3" width="${barPx.toFixed(1)}" height="4" fill="none" stroke="${BINH_DO_STYLE.ink}" stroke-width="0.6" />
+      <text x="0" y="-5">0</text>
+      <text x="${barPx.toFixed(1)}" y="-5" text-anchor="middle">${barM} m</text>
+    </g>`;
 
   const parcelPts = localParcel
     .map((p) => `${toSvgX(p[0]).toFixed(1)},${toSvgY(p[1]).toFixed(1)}`)
@@ -534,7 +502,7 @@ export function generateMetroSpatialVisualSvg(
   let distanceLinesSvg = "";
   for (const ln of drawnLines) {
     const coords = `x1="${ln.a[0].toFixed(1)}" y1="${ln.a[1].toFixed(1)}" x2="${ln.b[0].toFixed(1)}" y2="${ln.b[1].toFixed(1)}"`;
-    distanceLinesSvg += `<line ${coords} stroke="rgba(15,23,42,0.6)" stroke-width="${(ln.width + 1.6).toFixed(1)}" stroke-linecap="round" />`;
+    distanceLinesSvg += `<line ${coords} stroke="#ffffff" stroke-width="${(ln.width + 1.6).toFixed(1)}" stroke-linecap="round" />`;
     distanceLinesSvg += `<line ${coords} stroke="${ln.color}" stroke-width="${ln.width}" stroke-dasharray="${ln.dash}" stroke-linecap="round" />`;
     for (const p of [ln.a, ln.b]) {
       distanceLinesSvg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="${ln.color}" stroke="#ffffff" stroke-width="1" />`;
@@ -642,34 +610,37 @@ export function generateMetroSpatialVisualSvg(
     // Tránh vùng la bàn ở góc trên phải.
     if (x + hx > svgWidth - 46 && y - hy < 48) y = 48 + hy;
     distanceLabelsSvg += `<g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) rotate(${lab.angle.toFixed(1)})">
-      <rect x="${(-w / 2).toFixed(1)}" y="${(-LABEL_H_PX / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${LABEL_H_PX}" rx="3" fill="rgba(255,255,255,0.82)" stroke="${lab.color}" stroke-width="1" />
+      <rect x="${(-w / 2).toFixed(1)}" y="${(-LABEL_H_PX / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${LABEL_H_PX}" rx="3" fill="rgba(255,255,255,0.92)" stroke="${lab.color}" stroke-width="1" />
       <text x="0" y="3.2" text-anchor="middle" font-size="${LABEL_FONT_PX}" font-weight="bold" fill="#0f172a">${escapeSvgText(lab.text)}</text>
     </g>`;
   }
 
-  const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%" style="display:block; background:${hasTiles ? "#0f172a" : "#f8fafc"}; font-family:'Times New Roman', serif;">
+  const codeText = escapeSvgText(_parcelCode || "");
+  const S = BINH_DO_STYLE;
+  const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="100%" style="display:block; background:${S.background}; font-family:'Times New Roman', serif;">
     <defs>
       <clipPath id="mapViewportClip">
         <rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" />
       </clipPath>
     </defs>
+    <rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" fill="${S.background}" />
     <g clip-path="url(#mapViewportClip)">
-      ${tilesSvg}
       ${gridSvg}
-      ${corridorsSvg}
-      ${stationsSvg}
-      ${centerlineSvg}
-      <polygon points="${parcelPts}" fill="rgba(239, 68, 68, 0.35)" stroke="#ffffff" stroke-width="3.2" stroke-linejoin="round" />
-      <polygon points="${parcelPts}" fill="rgba(220, 38, 38, 0.28)" stroke="#dc2626" stroke-width="2" stroke-linejoin="round" />
-      <circle cx="${parcelCentroidX.toFixed(1)}" cy="${parcelCentroidY.toFixed(1)}" r="3.2" fill="#dc2626" stroke="#ffffff" stroke-width="1.2" />
+      <g id="thua-lan-can" fill="${S.neighbourFill}" stroke="${S.neighbourStroke}" stroke-width="${S.neighbourWidth}" stroke-linejoin="round">${neighboursSvg}</g>
+      <g id="cong-trinh-nha-ga" fill="${S.stationFill}" stroke="${S.station}" stroke-width="${S.stationWidth}" stroke-linejoin="round">${stationsSvg}</g>
+      <g id="mep-ho-dao" fill="none" stroke="${S.corridor}" stroke-width="${S.corridorWidth}" stroke-dasharray="${S.corridorDash}">${corridorsSvg}</g>
+      <g id="tim-tuyen" fill="none" stroke="${S.centerline}" stroke-width="${S.centerlineWidth}" stroke-dasharray="${S.centerlineDash}">${centerlineSvg}</g>
+      <polygon id="thua-khao-sat" points="${parcelPts}" fill="${S.targetFill}" stroke="${S.targetStroke}" stroke-width="${S.targetWidth}" stroke-linejoin="round" />
       ${distanceLinesSvg}
+      ${codeText ? `<text x="${parcelCentroidX.toFixed(1)}" y="${(parcelCentroidY + 3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="bold" fill="${S.targetStroke}" stroke="#ffffff" stroke-width="2.4" paint-order="stroke">${codeText}</text>` : ""}
     </g>
     ${distanceLabelsSvg}
+    ${scaleBarSvg}
     <g transform="translate(${svgWidth - 26}, 28)">
-      <circle cx="0" cy="0" r="15" fill="rgba(15,23,42,0.72)" stroke="#ffffff" stroke-width="1" />
-      <polygon points="0,-11 -4,3 0,0 4,3" fill="#ef4444" />
-      <polygon points="0,9 -4,3 0,0 4,3" fill="#cbd5e1" />
-      <text x="0" y="-17" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${hasTiles ? "#ffffff" : "#0f172a"}">N</text>
+      <circle cx="0" cy="0" r="15" fill="#ffffff" stroke="${S.ink}" stroke-width="0.8" />
+      <polygon points="0,-11 -4,3 0,0 4,3" fill="${S.ink}" />
+      <polygon points="0,9 -4,3 0,0 4,3" fill="#ffffff" stroke="${S.ink}" stroke-width="0.6" />
+      <text x="0" y="-17" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${S.ink}">N</text>
     </g>
   </svg>`;
 
