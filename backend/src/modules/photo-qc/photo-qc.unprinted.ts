@@ -11,9 +11,9 @@ import type { PhotoQcSection } from './photo-qc.types';
 
 const STORED_IMAGE_URL = /^https?:\/\/\S+\.(jpe?g|png|webp)(\?\S*)?$/i;
 
-/** Không phải ảnh khảo sát để rà: chữ ký và sơ đồ CAD. */
+/** Không phải ảnh khảo sát để rà: chữ ký (trừ biên bản hiện trường). */
 export function isExcludedPhotoPath(path: string): boolean {
-  return /signature/i.test(path) && !/workingMinutes/i.test(path) ? true : /cad/i.test(path);
+  return /signature/i.test(path) && !/workingMinutes/i.test(path);
 }
 
 export interface UnprintedPhotoInfo {
@@ -33,6 +33,7 @@ const KEY_LABELS: Array<[RegExp, string, PhotoQcSection]> = [
   [/buildingTilt|tilt/i, 'Kiểm tra nghiêng', 'OVERVIEW'],
   [/diffSettlement|settle/i, 'Khảo sát lún', 'OVERVIEW'],
   [/abnormal/i, 'Bất thường ngoại quan', 'OVERVIEW'],
+  [/cad/i, 'Sơ đồ CAD', 'CAD'],
   [/photoP0(\d)/i, 'Ảnh P', 'P'],
 ];
 
@@ -87,5 +88,6 @@ export function sectionFromPoolCategory(category: string): PhotoQcSection {
   if (category === 'MINUTES' || category === 'ABSENCE') return 'DOCUMENT';
   if (category === 'IDENTIFICATION') return 'P';
   if (category === 'OVERVIEW') return 'OVERVIEW';
+  if (category === 'CAD') return 'CAD';
   return 'DEFECT';
 }

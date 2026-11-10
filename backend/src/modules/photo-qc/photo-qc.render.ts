@@ -135,6 +135,7 @@ export async function applyPhotoQcToViewModel(
       });
       ref.setBase64(out);
       if (opts.watermark) ref.markWatermarked();
+      if (ref.onCropApplied) ref.onCropApplied(row.crop);
     } catch (err) {
       console.error(`[PhotoQcRender:crop] Không cắt được ảnh ${ref.label}, in ảnh gốc không crop`, err);
     }

@@ -12,7 +12,7 @@ import type { ReportViewModel } from '../report/report.types';
 import { normalizeMetroPhotoCode } from '../report/utils/metro-photo-code.utils';
 import { assignSlotKeys, urlPhotoKey } from './photo-qc.rules';
 
-export type VmPhotoSection = 'COVER' | 'P' | 'SECTION5' | 'DEFECT' | 'OVERVIEW';
+export type VmPhotoSection = 'COVER' | 'P' | 'SECTION5' | 'DEFECT' | 'OVERVIEW' | 'CAD';
 
 export interface VmPhotoRef {
   section: VmPhotoSection;
@@ -28,6 +28,10 @@ export interface VmPhotoRef {
   setBase64(value: string): void;
   isWatermarked(): boolean;
   markWatermarked(): void;
+  /** Điểm ghim Vùng Z hoặc Cấu kiện E trên sơ đồ CAD (nếu có). */
+  pins?: Array<{ code: string; pinX: number; pinY: number; type: string }>;
+  /** Callback tái chiếu tọa độ điểm ghim khi ảnh bị crop. */
+  onCropApplied?: (crop: { x: number; y: number; w: number; h: number }) => void;
 }
 
 export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
@@ -111,6 +115,65 @@ export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
 
   for (const fl of vm.appendix2 || []) {
     const floorLabel = fl.floorName?.vi || `Tầng ${fl.floorOrder}`;
+    const floorCode = `F${String(fl.floorOrder).padStart(2, '0')}`;
+
+    if (fl.damageMapUrl) {
+      const cadUrl = fl.damageMapUrl;
+      const cadRot = Number(fl.damageMapRotation) || 0;
+      refs.push({
+        section: 'CAD',
+        photoKey: urlPhotoKey(cadUrl),
+        url: cadUrl,
+        label: `${floorLabel} • Sơ đồ mặt bằng kiến trúc`,
+        rotation: cadRot,
+        dateTimeText: defaultDate,
+        photoCodeText: fl.damageMapWatermarkCode || code(`${floorCode}_CAD_ARCH`),
+        getBase64: () => fl.damageMapBase64,
+        setBase64: (v) => { fl.damageMapBase64 = v; },
+        isWatermarked: () => Boolean(fl.damageMapAlreadyWatermarked),
+        markWatermarked: () => { fl.damageMapAlreadyWatermarked = true; },
+        pins: fl.cadPins?.map((p) => ({ code: p.code, pinX: p.pinX, pinY: p.pinY, type: p.typeLower || p.type })),
+        onCropApplied: (crop) => {
+          if (crop && crop.w > 0 && crop.h > 0 && Array.isArray(fl.cadPins)) {
+            for (const pin of fl.cadPins) {
+              const newX = (pin.pinX - crop.x * 100) / crop.w;
+              const newY = (pin.pinY - crop.y * 100) / crop.h;
+              pin.pinX = Math.max(1, Math.min(99, Math.round(newX * 100) / 100));
+              pin.pinY = Math.max(1, Math.min(99, Math.round(newY * 100) / 100));
+            }
+          }
+        },
+      });
+    }
+
+    if (fl.hasStructuralCadMap && fl.structuralMapUrl && fl.structuralMapUrl !== fl.damageMapUrl) {
+      const cadUrl = fl.structuralMapUrl;
+      const cadRot = Number(fl.structuralMapRotation) || 0;
+      refs.push({
+        section: 'CAD',
+        photoKey: urlPhotoKey(cadUrl),
+        url: cadUrl,
+        label: `${floorLabel} • Sơ đồ kết cấu`,
+        rotation: cadRot,
+        dateTimeText: defaultDate,
+        photoCodeText: fl.structuralMapWatermarkCode || code(`${floorCode}_CAD_STRUCT`),
+        getBase64: () => fl.structuralMapBase64,
+        setBase64: (v) => { fl.structuralMapBase64 = v; },
+        isWatermarked: () => Boolean(fl.structuralMapAlreadyWatermarked),
+        markWatermarked: () => { fl.structuralMapAlreadyWatermarked = true; },
+        pins: fl.cadStructuralPins?.map((p) => ({ code: p.code, pinX: p.pinX, pinY: p.pinY, type: p.typeLower || p.type })),
+        onCropApplied: (crop) => {
+          if (crop && crop.w > 0 && crop.h > 0 && Array.isArray(fl.cadStructuralPins)) {
+            for (const pin of fl.cadStructuralPins) {
+              const newX = (pin.pinX - crop.x * 100) / crop.w;
+              const newY = (pin.pinY - crop.y * 100) / crop.h;
+              pin.pinX = Math.max(1, Math.min(99, Math.round(newX * 100) / 100));
+              pin.pinY = Math.max(1, Math.min(99, Math.round(newY * 100) / 100));
+            }
+          }
+        },
+      });
+    }
     for (const pair of fl.defectPairPhotos || []) {
       if (pair.contextPhotoUrl) {
         const url = pair.contextPhotoUrl;

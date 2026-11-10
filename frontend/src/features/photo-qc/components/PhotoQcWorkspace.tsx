@@ -224,7 +224,7 @@ export const PhotoQcWorkspace: React.FC<PhotoQcWorkspaceProps> = ({ zoneId }) =>
     const key = `${item.reportId}|${p.photoKey}`;
     const s = sizes.current.get(key);
     const validCrop = p.qc?.crop && !p.qcStale ? p.qc.crop : null;
-    const bad = s && !validCrop ? !isStandardRatio(rotatedSize(s, p.rotation)) : false;
+    const bad = s && !validCrop && p.section !== 'DOCUMENT' && p.section !== 'CAD' ? !isStandardRatio(rotatedSize(s, p.rotation)) : false;
     const flagged = Boolean(p.qc?.recapture && p.qc.status !== 'RESOLVED');
     const coverKey = item.qc?.coverSource === 'P04' ? 'P-04' : 'P-02';
     return (

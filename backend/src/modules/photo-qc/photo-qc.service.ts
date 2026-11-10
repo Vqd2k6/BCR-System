@@ -109,7 +109,7 @@ function decodeCursor(cursor?: string): string | null {
 
 const PREVIEW_LIMIT = 8;
 const PREVIEW_CONCURRENCY = 4;
-const PREVIEW_ORDER: Record<PhotoQcSection, number> = { OVERVIEW: 0, DEFECT: 1, P: 2, DOCUMENT: 3 };
+const PREVIEW_ORDER: Record<PhotoQcSection, number> = { OVERVIEW: 0, DEFECT: 1, P: 2, CAD: 3, DOCUMENT: 4 };
 
 interface ZoneRow {
   zone_code: string;
@@ -233,7 +233,10 @@ export class PhotoQcService {
     for (const ref of walkViewModelPhotos(vm)) {
       if (ref.section === 'COVER' || seen.has(ref.url)) continue;
       seen.add(ref.url);
-      const section: PhotoQcSection = ref.section === 'P' ? 'P' : ref.section === 'OVERVIEW' ? 'OVERVIEW' : 'DEFECT';
+      const section: PhotoQcSection =
+        ref.section === 'P' ? 'P' :
+        ref.section === 'OVERVIEW' ? 'OVERVIEW' :
+        ref.section === 'CAD' ? 'CAD' : 'DEFECT';
       slots.push({
         photoKey: ref.photoKey,
         url: ref.url,
@@ -243,6 +246,7 @@ export class PhotoQcService {
         photoGroup: photoGroupFor(kind, ref.photoKey, section),
         legacyWatermarked: LegacyWatermarkIndex.has(ref.url),
         printed: true,
+        pins: ref.pins,
       });
     }
 
@@ -256,7 +260,7 @@ export class PhotoQcService {
     if (!isAbsent) {
       // Hồ sơ vắng: chỉ ảnh có trong dữ liệu đã chiếu vắng mặt, không lôi dữ liệu nội thất cũ ra rà.
       for (const item of await listReportPhotoPool(reportId)) {
-        if (item.category === 'CAD' || isExcludedPhotoPath(item.source) || described.has(item.url)) continue;
+        if (isExcludedPhotoPath(item.source) || described.has(item.url)) continue;
         candidates.push({ url: item.url, label: item.label, section: sectionFromPoolCategory(item.category) });
       }
     }

@@ -98,7 +98,56 @@
         THỜI GIAN/TIME: {{metadata.surveyDateFormatted}}
       </div>
 
-      <!-- BẢNG KÝ DUYỆT 3 BÊN -->
+      <!-- BẢNG KÝ DUYỆT 3 Ô (NGƯỜI LẬP - NGƯỜI KIỂM TRA - NGƯỜI PHÊ DUYỆT) -->
+      <table class="signature-table">
+        <thead>
+          <tr>
+            <th class="sig-label-col">&nbsp;</th>
+            <th class="sig-role-col">
+              NGƯỜI LẬP<br>
+              <span class="sig-en-sub">PREPARED BY</span>
+            </th>
+            <th class="sig-role-col">
+              NGƯỜI KIỂM TRA<br>
+              <span class="sig-en-sub">CHECKED BY</span>
+            </th>
+            <th class="sig-role-col">
+              NGƯỜI PHÊ DUYỆT<br>
+              <span class="sig-en-sub">APPROVED BY</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="sig-row-name">
+            <td class="sig-row-label">
+              <strong>HỌ TÊN</strong><br>
+              <span class="sig-en-sub">FULL NAME</span>
+            </td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>
+          <tr class="sig-row-sign">
+            <td class="sig-row-label">
+              <strong>CHỮ KÝ</strong><br>
+              <span class="sig-en-sub">SIGNATURE</span>
+            </td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>
+          <tr class="sig-row-date">
+            <td class="sig-row-label">
+              <strong>NGÀY</strong><br>
+              <span class="sig-en-sub">DATE</span>
+            </td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>
+        </tbody>
+      </table>
+      {{!-- Bảng ký 2 ô cũ (đã ẩn để chuyển sang mẫu 3 ô chuẩn ký tay):
       <table class="signature-table">
         <thead>
           <tr>
@@ -134,6 +183,7 @@
           </tr>
         </tbody>
       </table>
+      --}}
     </div>
 
     <div class="page-number-footer">1</div>

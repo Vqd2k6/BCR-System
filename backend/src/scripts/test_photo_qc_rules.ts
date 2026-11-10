@@ -88,6 +88,16 @@ async function main(): Promise<void> {
     assert.strictEqual(photoGroupFor('HOUSE', 'P-05-2', 'P'), 'OUTDOOR');
     assert.strictEqual(photoGroupFor('HOUSE', 'P-06B-1', 'P'), 'INDOOR');
     assert.strictEqual(photoGroupFor('HOUSE', 'U:abc', 'OVERVIEW'), 'INDOOR');
+    assert.strictEqual(photoGroupFor('HOUSE', 'U:cad', 'CAD'), 'INDOOR');
+  });
+
+  await tc('Tái chiếu tọa độ điểm ghim khi crop CAD', () => {
+    const crop = { x: 0.1, y: 0.25, w: 0.8, h: 0.5, ratio: '4:3' as const, rotationAtCrop: 0 };
+    const pin = { code: 'Z-01', pinX: 35, pinY: 50 };
+    const newX = Math.round(((pin.pinX - crop.x * 100) / crop.w) * 100) / 100;
+    const newY = Math.round(((pin.pinY - crop.y * 100) / crop.h) * 100) / 100;
+    assert.strictEqual(newX, 31.25);
+    assert.strictEqual(newY, 50);
   });
 
   await tc('Gợi ý mức: chỉ cờ OUTDOOR → OUTDOOR_ONLY, có INDOOR → FULL, RESOLVED bỏ qua', () => {

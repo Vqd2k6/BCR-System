@@ -199,6 +199,39 @@ export class MetadataMapper {
       {
         roleVi: 'NGƯỜI LẬP',
         roleEn: 'PREPARED BY',
+        fullName: '',
+        titleVi: '',
+        titleEn: '',
+        signatureUrl: undefined,
+        signatureBase64: undefined,
+        date: '',
+      },
+      {
+        roleVi: 'NGƯỜI KIỂM TRA',
+        roleEn: 'CHECKED BY',
+        fullName: '',
+        titleVi: '',
+        titleEn: '',
+        signatureUrl: undefined,
+        signatureBase64: undefined,
+        date: '',
+      },
+      {
+        roleVi: 'NGƯỜI PHÊ DUYỆT',
+        roleEn: 'APPROVED BY',
+        fullName: '',
+        titleVi: '',
+        titleEn: '',
+        signatureUrl: undefined,
+        signatureBase64: undefined,
+        date: '',
+      },
+    ];
+    /* Mẫu 2 ô cũ (đã ẩn để chuyển sang mẫu 3 ô để trống ký tay):
+    const signatures3PartyOld: ApprovalSignatureItem[] = [
+      {
+        roleVi: 'NGƯỜI LẬP',
+        roleEn: 'PREPARED BY',
         fullName: surveyorName,
         titleVi: 'Trưởng nhóm khảo sát',
         titleEn: 'Survey Team Leader',
@@ -217,6 +250,10 @@ export class MetadataMapper {
         date: approvalDateFormatted,
       },
     ];
+    */
+    void surveyorSigUrl;
+    void zoneAdminSigUrl;
+    void approvalDateFormatted;
 
     return {
       metadata,

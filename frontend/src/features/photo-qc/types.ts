@@ -3,7 +3,7 @@
 export type PhotoQcReportKind = 'HOUSE' | 'MASTER' | 'M' | 'U';
 export type PhotoQcRecaptureLevel = 'AUTO' | 'NONE' | 'OUTDOOR_ONLY' | 'FULL';
 export type PhotoQcEffectiveLevel = Exclude<PhotoQcRecaptureLevel, 'AUTO'>;
-export type PhotoQcSection = 'P' | 'DEFECT' | 'OVERVIEW' | 'DOCUMENT';
+export type PhotoQcSection = 'P' | 'DEFECT' | 'OVERVIEW' | 'CAD' | 'DOCUMENT';
 export type PhotoQcRestampMode = 'NONE' | 'LOGO' | 'TEXT' | 'BOTH';
 export type PhotoQcGroup = 'OUTDOOR' | 'INDOOR';
 export type PhotoQcFlagStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
@@ -60,6 +60,8 @@ export interface PhotoQcSlotView {
   printed: boolean;
   qc: PhotoQcPhotoRow | null;
   qcStale: boolean;
+  /** Điểm ghim Vùng Z hoặc Cấu kiện E trên sơ đồ CAD (nếu có). */
+  pins?: Array<{ code: string; pinX: number; pinY: number; type: string }>;
 }
 
 export interface PhotoQcListItem {
@@ -153,6 +155,7 @@ export const SECTION_LABEL: Record<PhotoQcSection, string> = {
   P: 'Ảnh P',
   DEFECT: 'Bên trong',
   OVERVIEW: 'Tổng quan',
+  CAD: 'Sơ đồ CAD mặt bằng',
   DOCUMENT: 'Tài liệu',
 };
 

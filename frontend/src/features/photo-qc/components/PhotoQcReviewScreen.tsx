@@ -34,7 +34,7 @@ interface PhotoQcReviewScreenProps {
 }
 
 const FLAG_DEBOUNCE_MS = 1000;
-const TABS: PhotoQcSection[] = ['P', 'DEFECT', 'OVERVIEW', 'DOCUMENT'];
+const TABS: PhotoQcSection[] = ['P', 'DEFECT', 'OVERVIEW', 'CAD', 'DOCUMENT'];
 
 function mergeRows(detail: PhotoQcDetail, rows: PhotoQcPhotoRow[]): PhotoQcDetail {
   const byKey = new Map(rows.map((r) => [r.photoKey, r]));
@@ -372,10 +372,11 @@ export const PhotoQcReviewScreen: React.FC<PhotoQcReviewScreenProps> = ({ report
                 const size = sizesRef.current.get(p.photoKey);
                 const validCrop = p.qc?.crop && !p.qcStale ? p.qc.crop : null;
                 const printedSize = size ? rotatedSize(size, p.rotation) : null;
-                const badRatio = printedSize && !validCrop && p.section !== 'DOCUMENT' ? !isStandardRatio(printedSize) : false;
+                const badRatio = printedSize && !validCrop && p.section !== 'DOCUMENT' && p.section !== 'CAD' ? !isStandardRatio(printedSize) : false;
                 const flagged = Boolean(p.qc?.recapture && p.qc.status !== 'RESOLVED');
                 const isCover = (coverOn && p.photoKey === 'P-04') || (!coverOn && p.photoKey === 'P-02');
                 const canCrop = p.section !== 'DOCUMENT';
+                const isCad = p.section === 'CAD';
                 return (
                   <div key={p.photoKey} className={`rounded-xl border p-2 space-y-2 bg-white ${flagged ? 'border-rose-300' : 'border-slate-200'}`}>
                     <RotatedPhoto
@@ -401,6 +402,9 @@ export const PhotoQcReviewScreen: React.FC<PhotoQcReviewScreenProps> = ({ report
                         {badRatio && <span className="px-1.5 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold">⚠ Sai tỉ lệ</span>}
                         {p.legacyWatermarked && <span className="px-1.5 py-0.5 rounded bg-slate-700 text-white text-[10px] font-bold">Dấu cũ</span>}
                         {!p.printed && <span className="px-1.5 py-0.5 rounded bg-violet-600 text-white text-[10px] font-bold">Chưa in trong report</span>}
+                        {isCad && p.pins && p.pins.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-bold">{p.pins.length} ghim</span>
+                        )}
                       </div>
                       <Maximize2 className="absolute bottom-1.5 right-1.5 w-4 h-4 text-white drop-shadow pointer-events-none" />
                     </RotatedPhoto>
@@ -418,13 +422,15 @@ export const PhotoQcReviewScreen: React.FC<PhotoQcReviewScreenProps> = ({ report
                       </p>
                     )}
                     <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleFlag(p)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 cursor-pointer ${flagged ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-rose-50'}`}
-                      >
-                        <Flag className="w-3.5 h-3.5" /> {flagged ? 'Cần chụp lại' : 'Chụp lại'}
-                      </button>
+                      {!isCad && (
+                        <button
+                          type="button"
+                          onClick={() => toggleFlag(p)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 cursor-pointer ${flagged ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-rose-50'}`}
+                        >
+                          <Flag className="w-3.5 h-3.5" /> {flagged ? 'Cần chụp lại' : 'Chụp lại'}
+                        </button>
+                      )}
                       {canCrop && (
                         <button
                           type="button"

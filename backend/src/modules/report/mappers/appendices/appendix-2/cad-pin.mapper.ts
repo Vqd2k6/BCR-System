@@ -69,8 +69,9 @@ export function extractFloorCadPins(
   }
 
   const seenCadZoneCodes = new Set<string>();
-  if (Array.isArray(fl.cadZonePins)) {
-    for (const p of fl.cadZonePins) {
+  const rawCadZonePins = fl.cadZonePins || fl.cad_zone_pins_json;
+  if (Array.isArray(rawCadZonePins)) {
+    for (const p of rawCadZonePins) {
       if (!p || p.isDeleted || p.is_deleted) continue;
       const pX = p.pinX ?? p.pin_x ?? p.x;
       const pY = p.pinY ?? p.pin_y ?? p.y;
@@ -112,8 +113,9 @@ export function extractFloorCadPins(
   }
 
   const seenCadElemCodes = new Set<string>();
-  if (Array.isArray(fl.cadElementPins)) {
-    for (const p of fl.cadElementPins) {
+  const rawCadElemPins = fl.cadElementPins || fl.cad_element_pins_json;
+  if (Array.isArray(rawCadElemPins)) {
+    for (const p of rawCadElemPins) {
       if (!p || p.isDeleted || p.is_deleted) continue;
       const pX = p.pinX ?? p.pin_x ?? p.x;
       const pY = p.pinY ?? p.pin_y ?? p.y;

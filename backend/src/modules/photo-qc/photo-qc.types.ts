@@ -10,7 +10,7 @@ export type PhotoQcCoverSource = 'P04';
 export type PhotoQcRecaptureLevel = 'AUTO' | 'NONE' | 'OUTDOOR_ONLY' | 'FULL';
 /** Mức thật sự áp dụng (AUTO đã quy về gợi ý). */
 export type PhotoQcEffectiveLevel = Exclude<PhotoQcRecaptureLevel, 'AUTO'>;
-export type PhotoQcSection = 'P' | 'DEFECT' | 'OVERVIEW' | 'DOCUMENT';
+export type PhotoQcSection = 'P' | 'DEFECT' | 'OVERVIEW' | 'CAD' | 'DOCUMENT';
 export type PhotoQcRestampMode = 'NONE' | 'LOGO' | 'TEXT' | 'BOTH';
 export type PhotoQcGroup = 'OUTDOOR' | 'INDOOR';
 export type PhotoQcFlagStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
@@ -74,6 +74,8 @@ export interface PhotoQcSlot {
   legacyWatermarked: boolean;
   /** Report hiện tại có in ảnh này không (ảnh chưa in vẫn rà và crop được, crop áp khi report in). */
   printed: boolean;
+  /** Điểm ghim Vùng Z hoặc Cấu kiện E trên sơ đồ CAD (nếu có). */
+  pins?: Array<{ code: string; pinX: number; pinY: number; type: string }>;
 }
 
 export interface PhotoQcSlotView extends PhotoQcSlot {

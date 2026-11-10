@@ -72,6 +72,15 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, savi
   const effectiveRestamp: PhotoQcRestampMode = restamp ?? suggested;
   const warnings = zones && rect ? doubleStampWarnings(zones, rect, effectiveRestamp) : [];
 
+  const cutPins = useMemo(() => {
+    if (slot.section !== 'CAD' || !slot.pins || !rect) return [];
+    return slot.pins.filter((p) => {
+      const nx = p.pinX / 100;
+      const ny = p.pinY / 100;
+      return nx < rect.x - 0.01 || nx > rect.x + rect.w + 0.01 || ny < rect.y - 0.01 || ny > rect.y + rect.h + 0.01;
+    });
+  }, [slot.section, slot.pins, rect]);
+
   const changeRatio = (next: PhotoQcCropRatio) => {
     setRatio(next);
     if (rot) setRect(defaultCrop(rot, next));
@@ -187,8 +196,39 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, savi
               <span onPointerDown={startDrag('se')} className={`${handleCls} -right-2 -bottom-2 cursor-nwse-resize`} />
             </div>
           )}
+          {slot.section === 'CAD' && slot.pins && slot.pins.map((pin) => {
+            const pinNormX = pin.pinX / 100;
+            const pinNormY = pin.pinY / 100;
+            const isCut = cutPins.some((cp) => cp.code === pin.code && cp.pinX === pin.pinX && cp.pinY === pin.pinY);
+            return (
+              <div
+                key={`${pin.code}-${pin.pinX}-${pin.pinY}`}
+                className="absolute pointer-events-none transform -translate-x-1/2 -translate-y-full z-10 flex flex-col items-center"
+                style={{ left: pinNormX * boxW, top: pinNormY * boxH }}
+                title={`${pin.code} (${pin.pinX}%, ${pin.pinY}%)`}
+              >
+                <span className={`px-1 py-0.5 rounded text-[9px] font-bold font-mono shadow-sm ${
+                  isCut ? 'bg-rose-600 text-white border border-rose-300 animate-pulse' : 'bg-indigo-700 text-white border border-indigo-400'
+                }`}>
+                  {pin.code}
+                </span>
+                <div className={`w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[4px] ${
+                  isCut ? 'border-t-rose-600' : 'border-t-indigo-700'
+                }`} />
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {cutPins.length > 0 && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+          <span>
+            Khung crop đang cắt qua <strong>{cutPins.length}</strong> điểm ghim ({cutPins.map((p) => p.code).join(', ')}). Vui lòng kéo rộng khung để bao trọn toàn bộ điểm ghim trên mặt bằng.
+          </span>
+        </div>
+      )}
 
       {slot.legacyWatermarked && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">

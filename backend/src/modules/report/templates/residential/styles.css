@@ -417,7 +417,7 @@ body {
 }
 
 /* ==========================================================================
-   BẢNG KÝ DUYỆT 2 BÊN (TRANG BÌA)
+   BẢNG KÝ DUYỆT 3 Ô (TRANG BÌA: NGƯỜI LẬP - NGƯỜI KIỂM TRA - NGƯỜI PHÊ DUYỆT)
    ========================================================================== */
 table.signature-table {
   width: 100%;
@@ -426,27 +426,69 @@ table.signature-table {
   margin-top: 4pt;
   page-break-inside: avoid;
   break-inside: avoid;
+  table-layout: fixed;
+}
+
+table.signature-table thead tr {
+  border-bottom: 2.5pt double #000000;
 }
 
 table.signature-table th {
   background-color: transparent !important;
   color: var(--c-black);
-  padding: 3pt;
+  padding: 3.5pt 4pt;
   font-size: var(--fs-b2);
   font-weight: bold;
   text-transform: uppercase;
   border: var(--border-line);
+  border-bottom: 2.5pt double #000000;
   text-align: center;
-  width: 50%;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+
+table.signature-table th.sig-label-col {
+  width: 19%;
+}
+
+table.signature-table th.sig-role-col {
+  width: 27%;
 }
 
 table.signature-table td {
   border: var(--border-line);
-  padding: 3pt 5pt;
+  padding: 3.5pt 6pt;
   text-align: center;
-  vertical-align: top;
-  width: 50%;
+  vertical-align: middle;
   font-size: var(--fs-b2);
+  line-height: 1.25;
+}
+
+table.signature-table td.sig-row-label {
+  width: 19%;
+  text-align: left;
+  vertical-align: middle;
+  color: var(--c-black);
+}
+
+table.signature-table .sig-en-sub {
+  font-size: var(--fs-e1);
+  font-weight: normal;
+  font-style: italic;
+  text-transform: uppercase;
+  color: var(--c-black);
+}
+
+table.signature-table tr.sig-row-name td {
+  height: 28px;
+}
+
+table.signature-table tr.sig-row-sign td {
+  height: 44px;
+}
+
+table.signature-table tr.sig-row-date td {
+  height: 26px;
 }
 
 .signature-box {

@@ -281,17 +281,15 @@ async function partA(): Promise<void> {
     truthy(!a.surveyId.includes('8F3A'), 'không dùng UUID');
   });
 
-  await tc('A19', 'Chữ ký 2 cấp: Người lập (ngày KS) + Kiểm tra/Duyệt (ngày APPROVE); chưa duyệt → trống', () => {
+  await tc('A19', 'Bảng ký 3 ô (Người lập / Người kiểm tra / Người phê duyệt): để trống dữ liệu để ký tay', () => {
     const base = { project_parcel_code: 'C&C-05-B-0063', zone_id: 'ZONE_09', surveyor_name: 'KSV A', zone_admin_name: 'ZA B' };
     const draft = MetadataMapper.map({ ...base, status: 'SUBMITTED' }, {}, [], undefined, '05/10/2026', '', '2026-10-05');
-    eq(draft.signatures3Party.length, 2, 'số khung ký');
-    eq(draft.signatures3Party[0].date, '05/10/2026', 'ngày lập');
-    eq(draft.signatures3Party[1].date, '', 'chưa duyệt không có ngày');
-    const approved = MetadataMapper.map(
-      { ...base, status: 'APPROVED', approved_at: '2026-10-18T05:00:00.000Z' }, {}, [], undefined, '05/10/2026', '', '2026-10-05'
-    );
-    eq(approved.signatures3Party[1].date, '18/10/2026', 'ngày duyệt');
-    truthy(!approved.signatures3Party.some((s) => s.roleVi.includes('PHÊ DUYỆT') && s.roleVi !== 'KIỂM TRA / DUYỆT'), 'không còn ô Super Admin');
+    eq(draft.signatures3Party.length, 3, 'số khung ký');
+    eq(draft.signatures3Party[0].roleVi, 'NGƯỜI LẬP', 'cột 1');
+    eq(draft.signatures3Party[1].roleVi, 'NGƯỜI KIỂM TRA', 'cột 2');
+    eq(draft.signatures3Party[2].roleVi, 'NGƯỜI PHÊ DUYỆT', 'cột 3');
+    eq(draft.signatures3Party[0].fullName, '', 'ô tên trống');
+    eq(draft.signatures3Party[0].date, '', 'ô ngày trống');
   });
 
   await tc('A20', 'Mục IX không tự sinh kết luận / người chứng kiến / "Không"', () => {
@@ -362,11 +360,11 @@ async function partB(): Promise<void> {
       truthy(!html.includes('đang sử dụng ổn định'), 'còn câu tự sinh "đang sử dụng ổn định"');
       truthy(!html.includes('Không phát hiện lún, nghiêng, võng bất thường bằng trực quan'), 'còn câu tự sinh về lún/nghiêng/võng');
       truthy(!html.includes('26 + A') && !html.includes('Điểm BRA'), 'còn bảng điểm A');
-      truthy(!html.includes('NGƯỜI PHÊ DUYỆT'), 'còn ô Super Admin');
+      truthy(html.includes('NGƯỜI LẬP') && html.includes('NGƯỜI KIỂM TRA') && html.includes('NGƯỜI PHÊ DUYỆT'), 'đủ 3 ô ký Người lập / Người kiểm tra / Người phê duyệt');
       truthy(!/>NaN</.test(html) && !html.includes('undefined'), 'có NaN/undefined');
       truthy(!html.includes('0.000‰'), 'in 0.000‰ khi chưa đo');
-      const sigHeaders = (html.match(/<table class="signature-table">[\s\S]*?<\/thead>/) || [''])[0].match(/<th>/g) || [];
-      eq(sigHeaders.length, 2, 'số cột ký');
+      const sigHeaders = (html.match(/<table class="signature-table">[\s\S]*?<\/thead>/) || [''])[0].match(/<th\b/g) || [];
+      eq(sigHeaders.length, 4, '4 cột bảng ký (1 cột nhãn + 3 cột chức danh)');
       if (!wasApproved) truthy(html.includes('DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ'), 'thiếu watermark DRAFT');
       return `status=${resolved.status}, ${Math.round(html.length / 1024)}KB`;
     });
