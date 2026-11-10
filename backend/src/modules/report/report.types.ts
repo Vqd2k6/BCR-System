@@ -760,6 +760,8 @@ export interface CondoUnitAbsentReport {
 
 export interface ReportViewModel {
   metadata: ReportMetadata;
+  /** Bản xem của khách: che thông tin cá nhân. */
+  isPiiMasked?: boolean;
   condoUnitAbsent?: CondoUnitAbsentReport | null;
   scenarioFlags: ReportScenarioFlags;
   tocPageNumbers: TocPageNumbers;

@@ -254,7 +254,7 @@ export class ReportService {
 
     const viewModel = ReportViewModelMapper.buildViewModel(activeReport, overrides, config);
     if (maskPii) {
-      (viewModel as any).isPiiMasked = true;
+      viewModel.isPiiMasked = true;
     }
 
     const effectiveWatermark = maskPii ? true : enableWatermark;
@@ -318,6 +318,9 @@ export class ReportService {
         buildingId,
         reportNo,
         headerTitle: REPORT_PDF_HEADER_TITLE,
+        // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
+        selfContainedHtml: true,
+        waitForReportReady: true,
       });
       return { pdfBuffer, reportNo, buildingId };
     });
@@ -360,6 +363,9 @@ export class ReportService {
         buildingId,
         reportNo,
         headerTitle: REPORT_PDF_HEADER_TITLE,
+        // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
+        selfContainedHtml: true,
+        waitForReportReady: true,
       });
       return { pdfBuffer, reportNo, buildingId };
     });

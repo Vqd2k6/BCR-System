@@ -45,7 +45,20 @@ interface ApiErrorData {
 // Response Interceptor: Ghi log lỗi có cấu trúc (RFC 7807) & Giữ nguyên Promise.reject để UI xử lý
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiErrorData>) => {
+  async (error: AxiosError<ApiErrorData>) => {
+    // Request responseType 'blob' (tải PDF) nhận lỗi problem+json dưới dạng Blob: đọc lại để UI và log thấy `detail` thật.
+    const rawData: unknown = error.response?.data;
+    if (error.response && typeof Blob !== 'undefined' && rawData instanceof Blob && /json/i.test(rawData.type || '')) {
+      try {
+        const parsed: unknown = JSON.parse(await rawData.text());
+        if (parsed && typeof parsed === 'object') {
+          error.response.data = parsed as ApiErrorData;
+        }
+      } catch (parseErr: unknown) {
+        console.error('[Api:blobError] Không đọc được problem+json từ Blob:', parseErr);
+      }
+    }
+
     const status = error.response?.status;
     const url = error.config?.url;
     const method = error.config?.method?.toUpperCase();

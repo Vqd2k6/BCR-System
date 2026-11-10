@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { formatGmt7Now, getProjectRootDir } from '../../common/utils/app-error-log';
 
 /**
  * Payload báo cáo lỗi từ Frontend
@@ -16,26 +17,6 @@ export interface DevErrorPayload {
   timestamp?: string;
   userAgent?: string;
   componentStack?: string;
-}
-
-/**
- * Tìm thư mục gốc của dự án (chứa đồng thời thư mục frontend và backend)
- */
-function getProjectRootDir(): string {
-  let currentDir = process.cwd();
-  if (path.basename(currentDir) === 'backend') {
-    return path.resolve(currentDir, '..');
-  }
-
-  let dir = currentDir;
-  while (dir !== path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, 'backend')) && fs.existsSync(path.join(dir, 'frontend'))) {
-      return dir;
-    }
-    dir = path.dirname(dir);
-  }
-
-  return currentDir;
 }
 
 export class DevController {
@@ -56,18 +37,7 @@ export class DevController {
       const stack = payload.stack;
       const componentStack = payload.componentStack;
 
-      // Định dạng thời gian GMT+7
-      const now = new Date();
-      const timeFormatted = now.toLocaleString('vi-VN', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        hour12: false,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+      const timeFormatted = formatGmt7Now();
 
       const separator = '='.repeat(80);
       const lines = [

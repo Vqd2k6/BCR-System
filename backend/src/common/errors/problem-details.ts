@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { appendAppErrorLog } from '../utils/app-error-log';
+
+function readNumericOrStringProp(err: unknown, key: 'type' | 'status'): unknown {
+  if (typeof err !== 'object' || err === null || !(key in err)) return undefined;
+  return (err as Record<string, unknown>)[key];
+}
 
 export interface ProblemDetails {
   type: string;
@@ -101,8 +107,8 @@ export function problemDetailsErrorHandler(
 
   const isAppError = err instanceof AppError;
   const isPayloadTooLarge =
-    (err as any).type === 'entity.too.large' ||
-    (err as any).status === 413 ||
+    readNumericOrStringProp(err, 'type') === 'entity.too.large' ||
+    readNumericOrStringProp(err, 'status') === 413 ||
     (err.message && err.message.toLowerCase().includes('too large'));
 
   const status = isAppError ? err.status : isPayloadTooLarge ? 413 : 500;
@@ -124,6 +130,16 @@ export function problemDetailsErrorHandler(
 
   if (status >= 500) {
     console.error(`[SERVER 500 ERROR] ${req.method} ${req.originalUrl}:`, err);
+    // Lỗi 500 trước đây chỉ in ra terminal backend: ghi thêm vào app_errors.log để điều tra được sau.
+    if (process.env.APP_ERROR_LOG_SERVER !== 'false') {
+      void appendAppErrorLog('SERVER_500', [
+        `Request: ${req.method} ${req.originalUrl}`,
+        `User: ${req.user?.userId ?? 'anonymous'} (${req.user?.role ?? '-'})`,
+        `Code: ${code}`,
+        `Message: ${err.name}: ${err.message}`,
+        `Stack Trace:\n${err.stack ?? '(no stack)'}`,
+      ]);
+    }
   }
 
   res.status(status).header('Content-Type', 'application/problem+json').json(problem);

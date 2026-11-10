@@ -6,11 +6,18 @@
  */
 
 import * as fs from 'fs';
-import puppeteer, { Browser } from 'puppeteer-core';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
+
+declare global {
+  interface Window {
+    /** Đặt bởi templates/residential/partials/report-scripts.hbs sau khi dựng khung ảnh và đánh số trang. */
+    __reportReady?: boolean;
+  }
+}
 
 /**
  * Ảnh pháp lý nhúng nguyên chất lượng → HTML lớn; cho phép render lâu thay vì giảm chất lượng ảnh.
- * Ngân sách: chờ hàng đợi 60s (render-queue) + nạp HTML 150s + in PDF 75s = 285s,
+ * Ngân sách: chờ hàng đợi 60s (render-queue) + nạp HTML 150s + chờ script 10s + in PDF 75s = 295s,
  * phải dưới mốc 300s của client (services/api.ts) và server (server.ts).
  */
 function readTimeoutMs(envName: string, fallbackMs: number): number {
@@ -19,6 +26,7 @@ function readTimeoutMs(envName: string, fallbackMs: number): number {
 }
 const RENDER_TIMEOUT_MS = readTimeoutMs('REPORT_PDF_RENDER_TIMEOUT_MS', 150000);
 const PRINT_TIMEOUT_MS = readTimeoutMs('REPORT_PDF_PRINT_TIMEOUT_MS', 75000);
+const READY_TIMEOUT_MS = readTimeoutMs('REPORT_PDF_READY_TIMEOUT_MS', 10000);
 
 export interface PdfRenderOptions {
   buildingId: string;
@@ -26,6 +34,8 @@ export interface PdfRenderOptions {
   headerTitle?: string;
   /** HTML đã nhúng sẵn mọi ảnh: networkidle không hoàn tất với data URI lớn nên chỉ chờ sự kiện load. */
   selfContainedHtml?: boolean;
+  /** Template có script đặt window.__reportReady (report Phase 1): chờ cờ này trước khi in. */
+  waitForReportReady?: boolean;
 }
 
 function resolveChromeExecutablePath(): string | undefined {
@@ -89,10 +99,17 @@ export class PdfRenderEngine {
   }
 
   public static async renderHtmlToPdf(html: string, options: PdfRenderOptions): Promise<Buffer> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
+    const startedAt = Date.now();
+    const htmlBytes = Buffer.byteLength(html, 'utf8');
+    let page: Page | null = null;
 
     try {
+      const browser = await this.getBrowser();
+      page = await browser.newPage();
+      page.on('pageerror', (pageErr: unknown) => {
+        console.error(`[PdfRenderEngine:pageerror] reportNo=${options.reportNo}`, pageErr);
+      });
+
       await page.setViewport({
         width: 1240,
         height: 1754,
@@ -105,10 +122,22 @@ export class PdfRenderEngine {
       });
 
       await page.evaluate(async () => {
-        if ((document as any).fonts && (document as any).fonts.ready) {
-          await (document as any).fonts.ready;
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
         }
       });
+
+      // Script trong template dựng khung ảnh và đánh số trang; in trước khi xong thì số trang/khung ảnh lệch preview.
+      if (options.waitForReportReady) {
+        try {
+          await page.waitForFunction(() => window.__reportReady === true, { timeout: READY_TIMEOUT_MS });
+        } catch (readyErr: unknown) {
+          console.error(
+            `[PdfRenderEngine:ready] reportNo=${options.reportNo}: __reportReady chưa bật sau ${READY_TIMEOUT_MS}ms, in với trạng thái hiện tại`,
+            readyErr
+          );
+        }
+      }
 
       const pdfUint8Array = await page.pdf({
         timeout: PRINT_TIMEOUT_MS,
@@ -125,8 +154,20 @@ export class PdfRenderEngine {
       });
 
       return Buffer.from(pdfUint8Array);
+    } catch (err: unknown) {
+      console.error(
+        `[PdfRenderEngine:render] reportNo=${options.reportNo} buildingId=${options.buildingId} html=${htmlBytes} bytes, lỗi sau ${Date.now() - startedAt}ms`,
+        err
+      );
+      throw err;
     } finally {
-      await page.close();
+      if (page) {
+        try {
+          await page.close();
+        } catch (closeErr: unknown) {
+          console.error('[PdfRenderEngine:close] Không đóng được trang Chromium:', closeErr);
+        }
+      }
     }
   }
 
