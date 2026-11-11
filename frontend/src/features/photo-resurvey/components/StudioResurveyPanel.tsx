@@ -5,6 +5,7 @@ import { decideResurveyApply } from '../api/photoResurvey.api';
 import type { ResurveyApplyStatus, ResurveySessionView } from '../types';
 import { STATUS_LABEL } from '../types';
 import { ResurveyPhoto } from './ResurveyPhoto';
+import { ResurveyTime2Editor } from './ResurveyTime2Editor';
 import {
   buildStudioResurveyRows,
   STUDIO_RESURVEY_STATE_CLASS,
@@ -195,8 +196,19 @@ export const StudioResurveyPanel: React.FC<StudioResurveyPanelProps> = ({ view, 
                 <div className="space-y-1">
                   <div className="text-[10px] font-bold uppercase text-slate-500">
                     Ảnh mới KSV chụp{r.capturedAt ? ` • ${formatTime(r.capturedAt)}` : ''}
-                    {r.newUrl && r.printTimeText && (
-                      <span className="block normal-case font-semibold text-emerald-700">Giờ in trên report: {r.printTimeText}</span>
+                    {r.newUrl && r.action === 'ADD_EXTRA' && r.itemId && sessionId ? (
+                      <ResurveyTime2Editor
+                        sessionId={sessionId}
+                        itemId={r.itemId}
+                        text={r.printTimeText}
+                        isAdminEdited={r.time2Source === 'ADMIN'}
+                        canEdit={canDecide}
+                        onSaved={onDecided}
+                      />
+                    ) : (
+                      r.newUrl && r.printTimeText && (
+                        <span className="block normal-case font-semibold text-emerald-700">Giờ in trên report: {r.printTimeText} (theo ảnh gốc)</span>
+                      )
                     )}
                   </div>
                   {r.action === 'MARK_NA' ? (

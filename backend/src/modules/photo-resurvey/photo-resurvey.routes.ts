@@ -27,6 +27,8 @@ export function createPhotoResurveyRouter(): Router {
   router.post('/sessions/:sessionId/reject', authenticateJwt, admins, PhotoResurveyController.reject);
   // Thẩm định đưa vào / bỏ qua / hoàn tác từng mục của phiên đã duyệt.
   router.put('/sessions/:sessionId/apply', authenticateJwt, admins, PhotoResurveyController.apply);
+  // Admin chỉnh tay giờ in của ảnh phát sinh (phiên đã duyệt).
+  router.put('/sessions/:sessionId/items/:itemId/time2', authenticateJwt, admins, PhotoResurveyController.updateTime2);
 
   return router;
 }

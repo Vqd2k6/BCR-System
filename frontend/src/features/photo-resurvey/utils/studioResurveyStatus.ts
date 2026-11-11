@@ -29,6 +29,8 @@ export interface StudioResurveyRow {
   oldTimeText: string | null;
   /** Giờ sẽ in trên report nếu Đưa vào (Time 2: thay ảnh giữ giờ gốc, ảnh phát sinh chèn giữa 2 ảnh kề). */
   printTimeText: string | null;
+  /** Nguồn giờ in của ảnh phát sinh (ADMIN = Admin chỉnh tay). */
+  time2Source: ResurveyItemRow['time2Source'];
   naReason: string | null;
 }
 
@@ -74,7 +76,9 @@ export function buildStudioResurveyRows(view: ResurveySessionView): StudioResurv
       state: stateFor(item),
       capturedAt: item?.capturedAtClient ?? item?.receivedAt ?? null,
       oldTimeText: slot.dateTimeText || null,
-      printTimeText: item?.time2Text ?? null,
+      // Ảnh thay thế: report luôn in giờ ảnh gốc ở vị trí đó (không đọc time2 đã lưu).
+      printTimeText: item?.action === 'REPLACE' ? slot.dateTimeText || null : item?.time2Text ?? null,
+      time2Source: item?.time2Source ?? null,
       naReason: item?.naReason ?? null,
     });
   }
@@ -95,6 +99,7 @@ export function buildStudioResurveyRows(view: ResurveySessionView): StudioResurv
       capturedAt: item.capturedAtClient ?? item.receivedAt,
       oldTimeText: null,
       printTimeText: item.time2Text,
+      time2Source: item.time2Source,
       naReason: item.naReason,
     });
   }

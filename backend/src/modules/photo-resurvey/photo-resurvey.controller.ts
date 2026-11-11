@@ -3,6 +3,7 @@ import { UnauthorizedError } from '../../common/errors/problem-details';
 import type { JwtPayload } from '../../common/guards/auth.guard';
 import {
   ApplyDecisionSchema,
+  UpdateTime2Schema,
   ApproveSchema,
   MarkNaSchema,
   RejectSchema,
@@ -69,6 +70,16 @@ export class PhotoResurveyController {
 
   static apply = wrap((req) =>
     PhotoResurveyService.decideApply(requireUser(req), UuidSchema.parse(req.params.sessionId), ApplyDecisionSchema.parse(req.body), req.ip)
+  );
+
+  static updateTime2 = wrap((req) =>
+    PhotoResurveyService.updateExtraTime2(
+      requireUser(req),
+      UuidSchema.parse(req.params.sessionId),
+      UuidSchema.parse(req.params.itemId),
+      UpdateTime2Schema.parse(req.body),
+      req.ip
+    )
   );
 
   static reject = wrap((req) =>

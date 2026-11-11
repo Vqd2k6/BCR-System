@@ -55,6 +55,11 @@ export const ApplyDecisionSchema = z.object({
   decision: z.enum(['APPLIED', 'DECLINED', 'PENDING']),
 });
 
+export const UpdateTime2Schema = z.object({
+  /** Giờ Việt Nam, không ghi múi giờ: YYYY-MM-DDTHH:mm:ss. */
+  at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, 'Giờ phải dạng YYYY-MM-DDTHH:mm:ss'),
+});
+
 export const RejectSchema = z.object({
   note: z.string().trim().min(REJECT_NOTE_MIN_LENGTH, `Lý do từ chối tối thiểu ${REJECT_NOTE_MIN_LENGTH} ký tự`).max(1000),
 });
@@ -68,5 +73,6 @@ export type UploadResurveyPhotoInput = z.infer<typeof UploadResurveyPhotoSchema>
 export type MarkNaInput = z.infer<typeof MarkNaSchema>;
 export type ApproveInput = z.infer<typeof ApproveSchema>;
 export type ApplyDecisionInput = z.infer<typeof ApplyDecisionSchema>;
+export type UpdateTime2Input = z.infer<typeof UpdateTime2Schema>;
 export type RejectInput = z.infer<typeof RejectSchema>;
 export type TaskQuery = z.infer<typeof TaskQuerySchema>;

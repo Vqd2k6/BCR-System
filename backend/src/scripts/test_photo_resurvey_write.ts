@@ -272,6 +272,29 @@ async function main(): Promise<void> {
       );
       assert.strictEqual(logs.rows[0]?.n, '3');
     });
+    await tc('Admin chỉnh tay giờ ảnh phát sinh: trong khoảng lưu ADMIN; ngoài khoảng, ảnh thay thế, KSV bị chặn', async () => {
+      const v = await PhotoResurveyService.getView(admin09, reportId);
+      const extra = v.items.find((i) => i.action === 'ADD_EXTRA');
+      const repl = v.items.find((i) => i.action === 'REPLACE');
+      assert.ok(extra?.time2Text && repl, 'cần 1 ảnh phát sinh và 1 ảnh thay thế');
+      // Giờ VN của giờ đang lưu (nằm trong khoảng hợp lệ) → dạng YYYY-MM-DDTHH:mm:ss.
+      const m = extra!.time2Text!.match(/^(\d{1,2}) thg (\d{1,2}), (\d{4}) (\d{2}:\d{2}:\d{2})$/);
+      assert.ok(m, `giờ phát sinh phải có giờ: ${extra!.time2Text}`);
+      const iso = `${m![3]}-${m![2].padStart(2, '0')}-${m![1].padStart(2, '0')}T${m![4]}`;
+      const saved = await PhotoResurveyService.updateExtraTime2(admin09, sessionId, extra!.id, { at: iso });
+      const after = saved.items.find((i) => i.id === extra!.id);
+      assert.strictEqual(after?.time2Source, 'ADMIN');
+      assert.strictEqual(after?.time2Text, extra!.time2Text);
+      await assert.rejects(PhotoResurveyService.updateExtraTime2(admin09, sessionId, extra!.id, { at: '2000-01-01T08:00:00' }), /phải nằm trong khoảng/);
+      await assert.rejects(PhotoResurveyService.updateExtraTime2(admin09, sessionId, extra!.id, { at: '2026-02-31T08:00:00' }), /không hợp lệ/);
+      await assert.rejects(PhotoResurveyService.updateExtraTime2(admin09, sessionId, repl!.id, { at: iso }), /giờ của ảnh gốc/);
+      await assert.rejects(PhotoResurveyService.updateExtraTime2(surveyor09, sessionId, extra!.id, { at: iso }));
+      const logs = await Database.query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM system_audit_logs WHERE entity_type = 'PHOTO_RESURVEY' AND entity_id = $1 AND action = 'PHOTO_RESURVEY_TIME2_EDIT';`,
+        [sessionId]
+      );
+      assert.strictEqual(logs.rows[0]?.n, '1');
+    });
     await tc('Bản in kế tiếp: P-02 là ảnh mới (giờ in giữ nguyên), P-05 gốc bị bỏ, ảnh phát sinh có mặt', async () => {
       const v = await PhotoResurveyService.getView(admin09, reportId);
       const slot02 = v.slots.find((s) => s.photoKey === 'P-02');

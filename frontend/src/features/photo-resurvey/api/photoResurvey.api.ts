@@ -85,3 +85,9 @@ export async function decideResurveyApply(sessionId: string, itemIds: string[], 
   const res = await api.put<Envelope<ResurveySessionView>>(`${BASE}/sessions/${enc(sessionId)}/apply`, { itemIds, decision });
   return res.data.data;
 }
+
+/** Admin chỉnh tay giờ in của ảnh phát sinh (giờ VN, dạng YYYY-MM-DDTHH:mm:ss). */
+export async function updateResurveyExtraTime2(sessionId: string, itemId: string, at: string): Promise<ResurveySessionView> {
+  const res = await api.put<Envelope<ResurveySessionView>>(`${BASE}/sessions/${enc(sessionId)}/items/${enc(itemId)}/time2`, { at });
+  return res.data.data;
+}

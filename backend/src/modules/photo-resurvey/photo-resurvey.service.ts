@@ -21,7 +21,7 @@ import { PhotoQcRepository } from '../photo-qc/photo-qc.repository';
 import { isSameSourcePhoto } from '../photo-qc/photo-qc.rules';
 import { PhotoQcService } from '../photo-qc/photo-qc.service';
 import { walkViewModelPhotos } from '../photo-qc/photo-qc.vm-walker';
-import { formatWatermarkDateTime } from '../report/mappers/formatters.mapper';
+import { formatWatermarkDateTime, fromVnWallClock, toVnWallClock } from '../report/mappers/formatters.mapper';
 import { ReportViewModelMapper } from '../report/mappers/report-viewmodel.mapper';
 import { ReportService } from '../report/services/report.service';
 import { applyCondoReportContext } from '../report/snapshot/condo-absent-projection';
@@ -42,7 +42,7 @@ import {
   stableSha256,
   type TimelineEntry,
 } from './photo-resurvey.rules';
-import type { ApplyDecisionInput, ApproveInput, MarkNaInput, RejectInput, TaskQuery, UploadResurveyPhotoInput } from './photo-resurvey.schemas';
+import type { ApplyDecisionInput, ApproveInput, MarkNaInput, RejectInput, TaskQuery, UpdateTime2Input, UploadResurveyPhotoInput } from './photo-resurvey.schemas';
 import type {
   ResurveyExtraTimePreview,
   ResurveyIdentity,
@@ -854,6 +854,80 @@ export class PhotoResurveyService {
           after: i.applyStatus,
         })),
         sha256: stableSha256({ sessionId: session.id, items: after.map((i) => ({ id: i.id, applyStatus: i.applyStatus })) }),
+        clientIp: clientIp ?? null,
+      });
+      await this.freezeForNextRelease(client, session.reportId, userId);
+    });
+    return this.buildView(user, session.reportId);
+  }
+
+  /**
+   * Admin chỉnh tay giờ in (Time 2) của ẢNH PHÁT SINH trong phiên đã duyệt.
+   * Giờ nhập là giờ Việt Nam; phải nằm giữa ảnh trước / ảnh sau trong dòng thời gian ảnh GỐC
+   * và giữ thứ tự với các ảnh phát sinh cùng mục (#1 < #2 < ...). Ảnh thay thế luôn in giờ ảnh gốc nên không chỉnh.
+   */
+  static async updateExtraTime2(
+    user: JwtPayload,
+    sessionId: string,
+    itemId: string,
+    body: UpdateTime2Input,
+    clientIp?: string
+  ): Promise<ResurveySessionView> {
+    const userId = requireUserId(user);
+    const session = await PhotoResurveyRepository.getSession(sessionId);
+    if (!session) throw new NotFoundError('Không tìm thấy phiên khảo sát bổ sung');
+    const meta = await this.loadMeta(session.reportId);
+    this.assertReviewer(user, meta.zone_id);
+    if (session.status !== 'APPROVED') throw new ConflictError('Chỉ chỉnh giờ được khi phiên đã duyệt (phiên chờ duyệt chỉnh lúc duyệt)');
+    const items = await PhotoResurveyRepository.getActiveItems(session.id);
+    const item = items.find((i) => i.id === itemId);
+    if (!item) throw new NotFoundError('Không tìm thấy ảnh trong phiên');
+    if (item.action !== 'ADD_EXTRA') throw new BadRequestError('Ảnh thay thế luôn in giờ của ảnh gốc, không chỉnh tay');
+
+    const m = body.at.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+    if (!m) throw new BadRequestError('Giờ không đúng định dạng');
+    const parts = m.slice(1, 7).map(Number);
+    const at = fromVnWallClock(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
+    // Ngày/giờ không tồn tại (31/02, 25:00) bị Date tự cuộn sang ngày khác: đọc lại phải khớp từng thành phần.
+    const back = toVnWallClock(at);
+    if ([back.year, back.month, back.day, back.hour, back.minute, back.second].some((v, i) => v !== parts[i])) {
+      throw new BadRequestError('Ngày giờ không hợp lệ');
+    }
+
+    const base = await this.loadCurrentState(session.reportId, { withResurvey: false });
+    const bounds = extraTimeBounds(base.timeline, item.slotCode);
+    if (!bounds.prev) throw new BadRequestError(`Mục ${item.slotCode} không có mốc giờ để chỉnh, ảnh in theo ngày khảo sát`);
+    // Giữ thứ tự với ảnh phát sinh cùng mục.
+    const siblings = items
+      .filter((i) => i.action === 'ADD_EXTRA' && i.slotCode === item.slotCode && i.id !== item.id && i.time2At)
+      .map((i) => ({ idx: i.extraIndex ?? 0, ms: new Date(i.time2At as string).getTime() }));
+    const myIdx = item.extraIndex ?? 0;
+    let lo = bounds.prev.getTime();
+    let hi = bounds.next ? bounds.next.getTime() : Number.POSITIVE_INFINITY;
+    const baseLo = lo;
+    const baseHi = hi;
+    // Ảnh cùng mục đang mang giờ sai (ngoài khoảng, vd lệch múi giờ cũ) thì không dùng làm mốc, để sửa được theo bất kỳ thứ tự nào.
+    for (const s of siblings.filter((x) => x.ms > baseLo && x.ms < baseHi)) {
+      if (s.idx < myIdx) lo = Math.max(lo, s.ms);
+      if (s.idx > myIdx) hi = Math.min(hi, s.ms);
+    }
+    if (at.getTime() <= lo || at.getTime() >= hi) {
+      const range = `${formatTime2(new Date(lo))} → ${Number.isFinite(hi) ? formatTime2(new Date(hi)) : 'không giới hạn'}`;
+      throw new BadRequestError(`Giờ của ảnh phát sinh ${item.slotCode} #${myIdx} phải nằm trong khoảng ${range}`);
+    }
+
+    const text = formatTime2(at);
+    await Database.transaction(async (client) => {
+      const locked = await PhotoResurveyRepository.lockSession(client, session.id);
+      if (!locked || locked.status !== 'APPROVED') throw new ConflictError('Phiên không còn ở trạng thái đã duyệt');
+      await PhotoResurveyRepository.updateTime2(client, item.id, { text, at, source: 'ADMIN' });
+      await PhotoResurveyRepository.writeAuditLog(client, session.id, userId, 'PHOTO_RESURVEY_TIME2_EDIT', {
+        reportId: session.reportId,
+        itemId: item.id,
+        slotCode: item.slotCode,
+        extraIndex: item.extraIndex,
+        before: { text: item.time2Text, source: item.time2Source },
+        after: { text, source: 'ADMIN' },
         clientIp: clientIp ?? null,
       });
       await this.freezeForNextRelease(client, session.reportId, userId);
