@@ -34,7 +34,7 @@ import type { ReportContentConfig } from '../../report_config/report-config.type
 import { applyPhotoQcToViewModel, resolvePhotoQcStateForRender } from '../../photo-qc/photo-qc.render';
 import { applyResurveyToViewModel, resolveResurveyStateForRender } from '../../photo-resurvey/photo-resurvey.render';
 
-export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG';
+export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG';
 
 export interface ResolvedReport {
   id: string;
@@ -328,6 +328,8 @@ export class ReportService {
         // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
         selfContainedHtml: true,
         waitForReportReady: true,
+        headerFooter: true,
+        tocTwoPass: true,
       });
       return { pdfBuffer, reportNo, buildingId, watermark };
     });
@@ -373,6 +375,8 @@ export class ReportService {
         // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
         selfContainedHtml: true,
         waitForReportReady: true,
+        headerFooter: true,
+        tocTwoPass: true,
       });
       return { pdfBuffer, reportNo, buildingId };
     });
