@@ -65,7 +65,9 @@ export interface PhotoQcCropReviewItem {
   photoUrl: string;
   /** Khung crop admin đang xem; server chỉ ghi khi DB vẫn đúng khung này. */
   crop: Pick<PhotoQcCrop, 'x' | 'y' | 'w' | 'h' | 'rotationAtCrop'>;
-  decision: 'APPROVED' | 'REJECTED';
+  decision: 'APPROVED' | 'REJECTED' | 'ADJUST';
+  /** Chỉ với ADJUST: khung Thẩm định vừa chỉnh, lưu là duyệt luôn. */
+  newCrop?: PhotoQcCropInput;
 }
 
 export interface PhotoQcSlotView {

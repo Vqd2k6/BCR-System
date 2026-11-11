@@ -30,6 +30,15 @@ interface PhotoQcCropEditorProps {
   saving: boolean;
   onCancel: () => void;
   onSave: (crop: PhotoQcCropInput, restampMode: PhotoQcRestampMode | undefined) => void;
+  /** Khung tối đa (px) của ảnh trong trình chỉnh; mặc định 720×480. */
+  maxWidth?: number;
+  maxHeight?: number;
+  /** Nhãn nút lưu (vd "Lưu khung & duyệt"). */
+  saveLabel?: string;
+  /** Ẩn phần chọn dập bù watermark (màn duyệt crop chỉ chỉnh khung). */
+  hideRestamp?: boolean;
+  /** Khoá nút lưu khi khung cắt qua ghim CAD (server cũng chặn). */
+  blockCutPins?: boolean;
 }
 
 const RESTAMP_LABEL: Record<PhotoQcRestampMode, string> = {
@@ -43,7 +52,17 @@ const RESTAMP_LABEL: Record<PhotoQcRestampMode, string> = {
  * Khung crop khoá tỉ lệ 4:3 / 3:4 trên ảnh đã xoay như bản in. Chỉ lưu toạ độ, không tạo ảnh mới.
  * Ảnh có watermark cũ: hiện vùng dấu cũ, gợi ý chế độ dập bù và cảnh báo chồng 2 lớp.
  */
-export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, saving, onCancel, onSave }) => {
+export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
+  slot,
+  saving,
+  onCancel,
+  onSave,
+  maxWidth = MAX_W,
+  maxHeight = MAX_H,
+  saveLabel = 'Lưu khung crop',
+  hideRestamp = false,
+  blockCutPins = false,
+}) => {
   const deg = normalizeDeg(slot.rotation);
   const [natural, setNatural] = useState<NaturalSize | null>(null);
   const rot = natural ? rotatedSize(natural, deg) : null;
@@ -53,9 +72,9 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, savi
   const [restamp, setRestamp] = useState<PhotoQcRestampMode | null>(slot.qc && slot.qc.restampMode !== 'NONE' ? slot.qc.restampMode : null);
   const dragRef = useRef<DragState | null>(null);
 
-  const scale = rot ? Math.min(MAX_W / rot.width, MAX_H / rot.height) : 0;
-  const boxW = rot ? rot.width * scale : MAX_W;
-  const boxH = rot ? rot.height * scale : MAX_H;
+  const scale = rot ? Math.min(maxWidth / rot.width, maxHeight / rot.height) : 0;
+  const boxW = rot ? rot.width * scale : maxWidth;
+  const boxH = rot ? rot.height * scale : maxHeight;
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const s = { width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight };
@@ -230,7 +249,7 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, savi
         </div>
       )}
 
-      {slot.legacyWatermarked && (
+      {slot.legacyWatermarked && !hideRestamp && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
           <p className="text-xs text-amber-900">
             Ảnh này đã có watermark cháy sẵn (vùng viền vàng là ước lượng, hãy đối chiếu với ảnh). Gợi ý theo khung hiện tại: <strong>{RESTAMP_LABEL[suggested]}</strong>.
@@ -268,10 +287,10 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({ slot, savi
         <button
           type="button"
           onClick={handleSave}
-          disabled={!rect || !rot || saving}
+          disabled={!rect || !rot || saving || (blockCutPins && cutPins.length > 0)}
           className="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 text-white hover:bg-teal-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Crop className="w-4 h-4" /> {saving ? 'Đang lưu…' : 'Lưu khung crop'}
+          <Crop className="w-4 h-4" /> {saving ? 'Đang lưu…' : saveLabel}
         </button>
       </div>
     </div>

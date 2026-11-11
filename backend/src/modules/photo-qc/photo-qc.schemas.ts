@@ -57,8 +57,11 @@ export const ReviewPhotoQcCropsSchema = z
         h: z.number(),
         rotationAtCrop: z.number().int(),
       }),
-      decision: z.enum(['APPROVED', 'REJECTED']),
+      decision: z.enum(['APPROVED', 'REJECTED', 'ADJUST']),
+      /** Chỉ với ADJUST: khung crop Thẩm định vừa chỉnh, lưu là duyệt luôn. */
+      newCrop: PhotoQcCropSchema.optional(),
     })
+    .refine((i) => (i.decision === 'ADJUST') === Boolean(i.newCrop), 'ADJUST bắt buộc kèm khung crop mới (và chỉ ADJUST mới có)')
   )
   .min(1)
   .max(200);

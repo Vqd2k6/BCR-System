@@ -17,7 +17,15 @@ import {
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 import { RotatableImageFrame } from './RotatableImageFrame';
 import { RotatedPhoto } from '../../../../../photo-qc/components/RotatedPhoto';
-import { useApprovedCrop } from '../context/ApprovedCropContext';
+import { useApprovedCrop, useStudioPhotoStatus, type StudioResurveyPhotoMark } from '../context/ApprovedCropContext';
+
+const RESURVEY_BADGE: Record<StudioResurveyPhotoMark['state'], { label: string; cls: string }> = {
+  NEED: { label: 'Cần chụp lại', cls: 'bg-rose-950 text-rose-300 border-rose-700' },
+  CAPTURED: { label: 'KSV đã chụp lại', cls: 'bg-sky-950 text-sky-300 border-sky-700' },
+  SUBMITTED: { label: 'Ảnh mới chờ duyệt', cls: 'bg-amber-950 text-amber-300 border-amber-700' },
+  APPLIED: { label: 'Ảnh mới chụp lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' },
+  NA: { label: 'Bỏ khỏi report', cls: 'bg-slate-800 text-slate-300 border-slate-600' },
+};
 import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface AuditPhotoCardProps {
@@ -99,8 +107,14 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
 }) => {
   const studioCtx = useAuditStudioImgOptional();
   const approvedCrop = useApprovedCrop(url);
+  const photoStatus = useStudioPhotoStatus();
+  const resurveyMark = url ? photoStatus.resurvey.get(url) ?? null : null;
+  // Phiên chụp lại đã duyệt: report in ảnh mới ở ô này, Studio hiện đúng ảnh đó (ảnh gốc vẫn giữ trong hồ sơ).
+  const replacedByResurvey = resurveyMark?.state === 'APPLIED' && Boolean(resurveyMark.newUrl);
+  const pendingCropKey = url && !replacedByResurvey ? photoStatus.pendingCrops.get(url) ?? null : null;
+  const isRecentlyUpdated = Boolean(url && photoStatus.recent.has(url));
   // Chỉ hiện ảnh crop (và badge) khi góc xoay hiện tại còn khớp lúc crop; lệch thì hiện ảnh nguyên.
-  const cropApplied = Boolean(approvedCrop) && (((approvedCrop?.rotationAtCrop ?? 0) % 360) + 360) % 360 === (((rotation ?? 0) % 360) + 360) % 360;
+  const cropApplied = !replacedByResurvey && Boolean(approvedCrop) &&(((approvedCrop?.rotationAtCrop ?? 0) % 360) + 360) % 360 === (((rotation ?? 0) % 360) + 360) % 360;
   const hasUrl = Boolean(url && url.trim().length > 0);
   const effectiveUrl = studioCtx && hasUrl ? studioCtx.resolveEffectiveStudioUrl(url!) : url || '';
   const isSelectedInStudio = Boolean(
@@ -384,7 +398,16 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     >
       {/* Vùng hiển thị ảnh (Image Viewport) - Tự động co giãn tỷ lệ khi xoay 90°/270°, không cắt 2 đầu và cân bằng ngang/dọc */}
       <div className={`relative w-full overflow-hidden bg-slate-950 flex items-center justify-center shrink-0 p-1 ${viewportHeightClass}`}>
-        {cropApplied && approvedCrop ? (
+        {replacedByResurvey && resurveyMark?.newUrl ? (
+          <RotatableImageFrame
+            src={resurveyMark.newUrl}
+            alt={title}
+            rotation={resurveyMark.newRotation}
+            maxHeightPx={resolvedMaxHeightPx}
+            wrapperClassName="w-full h-full"
+            stageClassName="max-h-full rounded-sm shadow-xs"
+          />
+        ) : cropApplied && approvedCrop ? (
           // Crop đã duyệt: hiện đúng phần sẽ in vào report (ảnh gốc không bị sửa).
           <RotatedPhoto url={url!} rotation={rotation} boxHeight={resolvedMaxHeightPx} fitHeight crop={approvedCrop} />
         ) : (
@@ -397,10 +420,36 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             stageClassName="max-h-full rounded-sm shadow-xs"
           />
         )}
-        {cropApplied && (
-          <span className="absolute bottom-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-emerald-950 text-emerald-300 border-emerald-700 pointer-events-none">
-            Đã crop
-          </span>
+        <div className="absolute bottom-1.5 left-1.5 z-10 flex flex-wrap items-center gap-1 max-w-[calc(100%-12px)]">
+          {cropApplied && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold border bg-emerald-950 text-emerald-300 border-emerald-700 pointer-events-none">
+              Đã crop
+            </span>
+          )}
+          {pendingCropKey && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                photoStatus.openCropReview?.(pendingCropKey);
+              }}
+              className="px-1.5 py-0.5 rounded text-[10px] font-bold border bg-amber-950 text-amber-300 border-amber-700 cursor-pointer hover:brightness-125"
+              title="Crop của ảnh này chưa được duyệt: report chưa in phần crop. Bấm để duyệt."
+            >
+              Crop chờ duyệt
+            </button>
+          )}
+          {resurveyMark && (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border pointer-events-none ${RESURVEY_BADGE[resurveyMark.state].cls}`}
+              title="Trạng thái ảnh KSV chụp lại (xem ở nút Ảnh Chụp Lại trên header)"
+            >
+              {RESURVEY_BADGE[resurveyMark.state].label}
+            </span>
+          )}
+        </div>
+        {isRecentlyUpdated && (
+          <span className="absolute inset-0 z-20 rounded-sm ring-4 ring-inset ring-teal-400 animate-pulse pointer-events-none" />
         )}
 
         {/* Minimal Chips góc trên bên trái: Mã ảnh & góc xoay */}

@@ -106,6 +106,24 @@ async function main(): Promise<void> {
         assert.ok(!state || !state.photos.some((p) => p.photoKey === 'P-TEST'));
       });
 
+      await tc('H1. Thẩm định chỉnh khung: ghi khung mới và APPROVED luôn, vào render', async () => {
+        const current = await PhotoQcRepository.upsertPhoto(client, { ...base, crop: CROP });
+        assert.equal(current.cropStatus, 'PENDING');
+        const fixed = { ...CROP, x: 0.25, y: 0.2 };
+        const row = await PhotoQcRepository.adjustCrop(client, reportId, 'P-TEST', { photoUrl: base.photoUrl, crop: fixed }, userId, { photoUrl: base.photoUrl, crop: CROP });
+        assert.equal(row?.cropStatus, 'APPROVED');
+        assert.equal(row?.crop?.x, 0.25);
+        const state = await PhotoQcRepository.loadRenderState(reportId, client);
+        assert.ok(state?.photos.some((p) => p.photoKey === 'P-TEST'));
+      });
+
+      await tc('H2. Chỉnh khung theo bản cũ (khung đã bị đổi) bị từ chối, giữ nguyên', async () => {
+        const row = await PhotoQcRepository.adjustCrop(client, reportId, 'P-TEST', { photoUrl: base.photoUrl, crop: { ...CROP, x: 0.05 } }, userId, { photoUrl: base.photoUrl, crop: CROP });
+        assert.equal(row, null);
+        const rows = await PhotoQcRepository.getPhotoRows([reportId], client);
+        assert.equal(rows.find((r) => r.photoKey === 'P-TEST')?.crop?.x, 0.25);
+      });
+
       await tc('D. ô không có crop không duyệt được', async () => {
         const none = await PhotoQcRepository.setCropStatus(client, reportId, 'P-KHONG-CO', 'APPROVED', userId);
         assert.equal(none, null);

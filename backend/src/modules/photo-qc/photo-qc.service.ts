@@ -652,7 +652,23 @@ export class PhotoQcService {
       const qc = rowByKey.get(item.photoKey);
       if (!slot || !qc?.crop) throw new BadRequestError(`Ô ảnh ${item.photoKey} không có crop để duyệt, vui lòng tải lại`);
       if (slot.url !== item.photoUrl) throw new ConflictError(`Ảnh ${slot.label} đã thay đổi, vui lòng tải lại trước khi duyệt`);
-      if (item.decision === 'APPROVED' && !isCropApplicable(qc.crop, qc.photoUrl, slot.url, slot.rotation, built.studio)) {
+      if (item.decision === 'ADJUST') {
+        // Khung mới vẽ trên ảnh hiện tại của ô với góc xoay hiện tại, nên chỉnh được cả crop quá hạn.
+        if (!item.newCrop || normalizeDeg(item.newCrop.rotationAtCrop) !== normalizeDeg(slot.rotation)) {
+          throw new ConflictError(`Góc xoay của ${slot.label} đã đổi, vui lòng tải lại rồi chỉnh khung`);
+        }
+        if (slot.section === 'CAD' && slot.pins && slot.pins.length > 0) {
+          const c = item.newCrop;
+          const cut = slot.pins.filter((p) => {
+            const nx = p.pinX / 100;
+            const ny = p.pinY / 100;
+            return nx < c.x - 0.01 || nx > c.x + c.w + 0.01 || ny < c.y - 0.01 || ny > c.y + c.h + 0.01;
+          });
+          if (cut.length > 0) throw new BadRequestError(`Khung crop ${slot.label} cắt qua ghim ${cut.map((p) => p.code).join(', ')}`);
+        }
+        continue;
+      }
+      if (item.decision === 'APPROVED' &&!isCropApplicable(qc.crop, qc.photoUrl, slot.url, slot.rotation, built.studio)) {
         throw new ConflictError(`Crop của ${slot.label} đã quá hạn (đổi ảnh hoặc góc xoay), cần crop lại trước khi duyệt`);
       }
     }
@@ -664,17 +680,30 @@ export class PhotoQcService {
         const before = rowByKey.get(item.photoKey)!;
         // Chỉ ghi khi ảnh và khung crop vẫn đúng bản admin đã xem; người khác vừa đổi thì từ chối để xem lại.
         // So với photo_url ĐÃ LƯU (có thể là ảnh gốc khi ô đang hiện ảnh Studio-enhanced), không phải URL ô hiện tại.
-        const row = await PhotoQcRepository.setCropStatus(client, reportId, item.photoKey, item.decision, user.userId, {
-          photoUrl: before.photoUrl,
-          crop: { ...before.crop!, ...item.crop },
-        });
+        const expected = { photoUrl: before.photoUrl, crop: { ...before.crop!, ...item.crop } };
+        let row: PhotoQcPhotoRow | null;
+        if (item.decision === 'ADJUST' && item.newCrop) {
+          const n = item.newCrop;
+          const crop = { x: n.x, y: n.y, w: n.w, h: n.h, ratio: n.ratio, rotationAtCrop: normalizeDeg(n.rotationAtCrop) };
+          row = await PhotoQcRepository.adjustCrop(client, reportId, item.photoKey, { photoUrl: slotByKey.get(item.photoKey)!.url, crop }, user.userId, expected);
+          if (row) renderChanged = true;
+        } else {
+          const decision = item.decision === 'REJECTED' ? 'REJECTED' : 'APPROVED';
+          row = await PhotoQcRepository.setCropStatus(client, reportId, item.photoKey, decision, user.userId, expected);
+          // Mọi thay đổi trạng thái đều đóng băng lại: snapshot chờ phát hành cũ có thể đã chứa crop vừa bị từ chối.
+          if (row && before.cropStatus !== row.cropStatus) renderChanged = true;
+        }
         if (!row) throw new ConflictError(`Crop của ô ${item.photoKey} vừa bị thay đổi hoặc không còn, vui lòng tải lại rồi duyệt`);
-        // Mọi thay đổi trạng thái đều đóng băng lại: snapshot chờ phát hành cũ có thể đã chứa crop vừa bị từ chối.
-        if (before.cropStatus !== row.cropStatus) renderChanged = true;
         saved.push(row);
       }
       await PhotoQcRepository.writeAuditLog(client, reportId, user.userId, 'PHOTO_QC_CROP_REVIEW', {
-        items: items.map((i) => ({ photoKey: i.photoKey, decision: i.decision, before: rowByKey.get(i.photoKey)?.cropStatus ?? null })),
+        items: items.map((i) => ({
+          photoKey: i.photoKey,
+          decision: i.decision,
+          before: rowByKey.get(i.photoKey)?.cropStatus ?? null,
+          cropBefore: i.decision === 'ADJUST' ? rowByKey.get(i.photoKey)?.crop ?? null : undefined,
+          cropAfter: i.newCrop ?? undefined,
+        })),
         clientIp: clientIp ?? null,
       });
       if (renderChanged) {

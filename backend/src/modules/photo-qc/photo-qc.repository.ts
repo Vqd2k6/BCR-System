@@ -285,6 +285,36 @@ export class PhotoQcRepository {
     return rows[0] ? toPhotoRow(rows[0]) : null;
   }
 
+  /**
+   * Thẩm định chỉnh lại khung crop: ghi khung mới + ảnh hiện tại của ô và đặt APPROVED trong một lệnh.
+   * Chỉ ghi khi DB vẫn đúng ảnh + khung admin đã xem (cùng điều kiện với setCropStatus).
+   */
+  static async adjustCrop(
+    client: Queryable,
+    reportId: string,
+    photoKey: string,
+    input: { photoUrl: string; crop: PhotoQcCrop },
+    userId: string,
+    expected: { photoUrl: string; crop: PhotoQcCrop }
+  ): Promise<PhotoQcPhotoRow | null> {
+    const rows = await run<QcPhotoDbRow>(
+      client,
+      `UPDATE photo_qc_photos
+          SET crop = $3::jsonb, photo_url = $4, crop_status = 'APPROVED', crop_reviewed_by = $5, crop_reviewed_at = NOW(),
+              updated_by = $5, updated_at = NOW()
+        WHERE report_id = $1 AND photo_key = $2 AND crop IS NOT NULL AND deleted_at IS NULL
+          AND photo_url = $6
+          AND (crop->>'x')::float8 = ($7::jsonb->>'x')::float8
+          AND (crop->>'y')::float8 = ($7::jsonb->>'y')::float8
+          AND (crop->>'w')::float8 = ($7::jsonb->>'w')::float8
+          AND (crop->>'h')::float8 = ($7::jsonb->>'h')::float8
+          AND COALESCE((crop->>'rotationAtCrop')::int, 0) = COALESCE(($7::jsonb->>'rotationAtCrop')::int, 0)
+        RETURNING *;`,
+      [reportId, photoKey, JSON.stringify(input.crop), input.photoUrl, userId, expected.photoUrl, JSON.stringify(expected.crop)]
+    );
+    return rows[0] ? toPhotoRow(rows[0]) : null;
+  }
+
   static async writeAuditLog(client: Queryable, reportId: string, userId: string, action: string, payload: Record<string, unknown>): Promise<void> {
     await client.query(
       `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, diff_payload)

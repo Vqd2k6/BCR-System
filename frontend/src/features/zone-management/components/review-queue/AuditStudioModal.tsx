@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   X,
   CheckCircle2,
@@ -25,8 +25,15 @@ import {
 } from 'lucide-react';
 import { PhotoQcCropReviewModal } from '../../../photo-qc';
 import { fetchPhotoQcDetail } from '../../../photo-qc/api/photoQc.api';
-import { ApprovedCropContext, type ApprovedCropMap, type ApprovedCropRect } from './stepwise/context/ApprovedCropContext';
-import { StudioResurveyButton } from '../../../photo-resurvey';
+import {
+  ApprovedCropContext,
+  StudioPhotoStatusContext,
+  type ApprovedCropMap,
+  type ApprovedCropRect,
+  type StudioPhotoStatus,
+  type StudioResurveyPhotoMark,
+} from './stepwise/context/ApprovedCropContext';
+import { StudioResurveyButton, buildStudioResurveyMarks, buildStudioResurveyRows, type ResurveySessionView } from '../../../photo-resurvey';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
 import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
@@ -285,22 +292,90 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   // Crop đã duyệt (Photo QC): Studio hiện ảnh đã crop giống bản in. Lỗi tải chỉ log, Studio vẫn dùng ảnh nguyên.
   const [approvedCrops, setApprovedCrops] = useState<ApprovedCropMap>(new Map());
-  const loadApprovedCrops = useCallback(async () => {
-    try {
-      const detail = await fetchPhotoQcDetail(reportId);
-      const next = new Map<string, ApprovedCropRect>();
-      for (const slot of detail.photos) {
-        const crop = slot.qc?.crop;
-        if (crop && slot.qc?.cropStatus === 'APPROVED' && !slot.qcStale) {
-          next.set(slot.url, { x: crop.x, y: crop.y, w: crop.w, h: crop.h, rotationAtCrop: crop.rotationAtCrop });
+  const [pendingCrops, setPendingCrops] = useState<ReadonlyMap<string, string>>(new Map());
+  const [resurveyMarks, setResurveyMarks] = useState<ReadonlyMap<string, StudioResurveyPhotoMark>>(new Map());
+  const [recentUrls, setRecentUrls] = useState<ReadonlySet<string>>(new Set());
+  const [cropReviewKey, setCropReviewKey] = useState<string | null>(null);
+  const approvedCropsRef = useRef<ApprovedCropMap>(approvedCrops);
+  const resurveyMarksRef = useRef<ReadonlyMap<string, StudioResurveyPhotoMark>>(resurveyMarks);
+  const recentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Nháy viền các ảnh vừa đổi 5 giây để Thẩm định thấy ngay ảnh nào đã cập nhật.
+  const flashUrls = useCallback((urls: string[]) => {
+    if (urls.length === 0) return;
+    setRecentUrls(new Set(urls));
+    if (recentTimerRef.current) clearTimeout(recentTimerRef.current);
+    recentTimerRef.current = setTimeout(() => setRecentUrls(new Set()), 5000);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (recentTimerRef.current) clearTimeout(recentTimerRef.current);
+    },
+    []
+  );
+
+  const loadApprovedCrops = useCallback(
+    async (flash = false) => {
+      try {
+        const detail = await fetchPhotoQcDetail(reportId);
+        const next = new Map<string, ApprovedCropRect>();
+        const pending = new Map<string, string>();
+        for (const slot of detail.photos) {
+          const crop = slot.qc?.crop;
+          if (!crop) continue;
+          if (slot.qc?.cropStatus === 'APPROVED' && !slot.qcStale) {
+            next.set(slot.url, { x: crop.x, y: crop.y, w: crop.w, h: crop.h, rotationAtCrop: crop.rotationAtCrop });
+          } else if (slot.qc?.cropStatus === 'PENDING' || (slot.qcStale && slot.qc?.cropStatus !== 'REJECTED')) {
+            pending.set(slot.url, slot.photoKey);
+          }
         }
+        if (flash) {
+          const prev = approvedCropsRef.current;
+          const changed = new Set<string>();
+          for (const [u, c] of next) {
+            const p = prev.get(u);
+            if (!p || p.x !== c.x || p.y !== c.y || p.w !== c.w || p.h !== c.h) changed.add(u);
+          }
+          for (const u of prev.keys()) if (!next.has(u)) changed.add(u);
+          flashUrls([...changed]);
+        }
+        approvedCropsRef.current = next;
+        setApprovedCrops(next);
+        setPendingCrops(pending);
+      } catch (err: unknown) {
+        console.error('[AuditStudioModal:loadApprovedCrops] Không tải được crop đã duyệt', err);
+        approvedCropsRef.current = new Map();
+        setApprovedCrops(new Map());
+        setPendingCrops(new Map());
       }
-      setApprovedCrops(next);
-    } catch (err: unknown) {
-      console.error('[AuditStudioModal:loadApprovedCrops] Không tải được crop đã duyệt', err);
-      setApprovedCrops(new Map());
-    }
-  }, [reportId]);
+    },
+    [reportId, flashUrls]
+  );
+
+  const handleResurveyView = useCallback(
+    (view: ResurveySessionView | null) => {
+      const marks = view ? buildStudioResurveyMarks(buildStudioResurveyRows(view)) : new Map<string, StudioResurveyPhotoMark>();
+      const prev = resurveyMarksRef.current;
+      // Lần tải đầu (prev rỗng) không nháy; về sau nháy ô đổi trạng thái.
+      if (prev.size > 0) {
+        flashUrls([...marks.entries()].filter(([u, m]) => prev.get(u)?.state !== m.state).map(([u]) => u));
+      }
+      resurveyMarksRef.current = marks;
+      setResurveyMarks(marks);
+    },
+    [flashUrls]
+  );
+
+  const openCropReviewAt = useCallback((photoKey: string | null) => {
+    setCropReviewKey(photoKey);
+    setShowCropReview(true);
+  }, []);
+
+  const photoStatus = useMemo<StudioPhotoStatus>(
+    () => ({ pendingCrops, resurvey: resurveyMarks, recent: recentUrls, openCropReview: (k: string) => openCropReviewAt(k) }),
+    [pendingCrops, resurveyMarks, recentUrls, openCropReviewAt]
+  );
 
   useEffect(() => {
     if (isOpen && reportId) void loadApprovedCrops();
@@ -668,6 +743,7 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   return (
     <ApprovedCropContext.Provider value={approvedCrops}>
+    <StudioPhotoStatusContext.Provider value={photoStatus}>
     <div className={`fixed inset-0 !m-0 top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in duration-200 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4 overflow-y-auto'}`}>
       <div className={`relative w-full !m-0 bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 ${isFullscreen ? 'h-screen w-screen rounded-none border-t-0' : 'max-w-7xl h-[94vh] rounded-2xl'}`}>
         {/* Top Header Bar (Ultra-Compact Single-Line Clean Light Theme) */}
@@ -772,12 +848,19 @@ export const AuditStudioModal: React.FC<Props> = ({
             )}
 
             {/* Ảnh KSV chụp lại: đối chiếu cũ – mới và duyệt */}
-            <StudioResurveyButton reportId={reportId} onChanged={fetchAuditData} />
+            <StudioResurveyButton
+              reportId={reportId}
+              onChanged={() => {
+                void fetchAuditData();
+                void loadApprovedCrops();
+              }}
+              onViewLoaded={handleResurveyView}
+            />
 
             {/* Duyệt crop ảnh (Photo QC): chỉ crop đã duyệt mới in vào report */}
             <button
               type="button"
-              onClick={() => setShowCropReview(true)}
+              onClick={() => openCropReviewAt(null)}
               className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
               title="Xem trước và duyệt các ô ảnh đã crop trước khi xuất report"
             >
@@ -1142,7 +1225,8 @@ export const AuditStudioModal: React.FC<Props> = ({
           isOpen={showCropReview}
           reportId={reportId}
           onClose={() => setShowCropReview(false)}
-          onReviewed={() => void loadApprovedCrops()}
+          onReviewed={() => void loadApprovedCrops(true)}
+          initialPhotoKey={cropReviewKey}
         />
       )}
 
@@ -1758,6 +1842,7 @@ export const AuditStudioModal: React.FC<Props> = ({
         </div>
       )}
     </div>
+    </StudioPhotoStatusContext.Provider>
     </ApprovedCropContext.Provider>
   );
 };
