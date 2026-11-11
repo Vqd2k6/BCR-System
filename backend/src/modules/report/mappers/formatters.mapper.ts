@@ -38,42 +38,94 @@ export function parseSurveyDate(dateVal: any): Date | null {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** Việt Nam: UTC+7 cố định (không có giờ mùa hè). */
+export const VN_OFFSET_MS = 7 * 3600 * 1000;
+
+export interface VnWallClock {
+  year: number;
+  month: number; // 1–12
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+/**
+ * Giờ treo tường Việt Nam của một thời điểm, KHÔNG phụ thuộc múi giờ tiến trình Node.
+ * Máy chủ prod chạy UTC: đọc bằng getHours() sẽ lệch –7 giờ.
+ */
+export function toVnWallClock(at: Date): VnWallClock {
+  const v = new Date(at.getTime() + VN_OFFSET_MS);
+  return {
+    year: v.getUTCFullYear(),
+    month: v.getUTCMonth() + 1,
+    day: v.getUTCDate(),
+    hour: v.getUTCHours(),
+    minute: v.getUTCMinutes(),
+    second: v.getUTCSeconds(),
+  };
+}
+
+/** Thời điểm ứng với giờ treo tường Việt Nam (ngược của toVnWallClock). */
+export function fromVnWallClock(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): Date {
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second) - VN_OFFSET_MS);
+}
+
+/** Chữ watermark "6 thg 10, 2026 15:49:55" (00:00:00 → chỉ in ngày) từ giờ treo tường VN. */
+export function formatVnWatermark(c: VnWallClock): string {
+  if (c.hour === 0 && c.minute === 0 && c.second === 0) return `${c.day} thg ${c.month}, ${c.year}`;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${c.day} thg ${c.month}, ${c.year} ${p(c.hour)}:${p(c.minute)}:${p(c.second)}`;
+}
+
+/**
+ * Chữ giờ watermark in trên report, luôn theo giờ Việt Nam:
+ *   - Date / ISO có múi giờ (Z, +07:00) / epoch: quy đổi sang giờ VN.
+ *   - "dd/mm/yyyy (hh:mm:ss)" và ISO không ghi múi giờ: đã là giờ VN, giữ nguyên.
+ *   - "yyyy-mm-dd" chỉ có ngày: in ngày.
+ */
 export function formatWatermarkDateTime(dateVal: any): string {
   if (!dateVal) return '';
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return '';
+    // pg trả cột DATE thành Date lúc 00:00 giờ máy chủ: đó là "chỉ có ngày", không quy đổi múi giờ.
+    if (dateVal.getHours() === 0 && dateVal.getMinutes() === 0 && dateVal.getSeconds() === 0 && dateVal.getMilliseconds() === 0) {
+      return `${dateVal.getDate()} thg ${dateVal.getMonth() + 1}, ${dateVal.getFullYear()}`;
+    }
+    return formatVnWatermark(toVnWallClock(dateVal));
+  }
   const str = String(dateVal).trim();
   if (str.includes('thg')) {
     return str;
   }
-  let d: Date;
   const vnMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s*\(?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?\)?)?/);
   if (vnMatch) {
-    const day = parseInt(vnMatch[1], 10);
-    const month = parseInt(vnMatch[2], 10) - 1;
-    const year = parseInt(vnMatch[3], 10);
-    const hour = vnMatch[4] ? parseInt(vnMatch[4], 10) : 0;
-    const min = vnMatch[5] ? parseInt(vnMatch[5], 10) : 0;
-    const sec = vnMatch[6] ? parseInt(vnMatch[6], 10) : 0;
-    d = new Date(year, month, day, hour, min, sec);
-  } else {
-    d = new Date(str);
+    return formatVnWatermark({
+      day: parseInt(vnMatch[1], 10),
+      month: parseInt(vnMatch[2], 10),
+      year: parseInt(vnMatch[3], 10),
+      hour: vnMatch[4] ? parseInt(vnMatch[4], 10) : 0,
+      minute: vnMatch[5] ? parseInt(vnMatch[5], 10) : 0,
+      second: vnMatch[6] ? parseInt(vnMatch[6], 10) : 0,
+    });
   }
-
+  // ISO không có múi giờ: JS coi là giờ máy chủ → đọc thẳng như giờ VN.
+  const naive = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?$/);
+  if (naive) {
+    return formatVnWatermark({
+      year: Number(naive[1]),
+      month: Number(naive[2]),
+      day: Number(naive[3]),
+      hour: naive[4] ? Number(naive[4]) : 0,
+      minute: naive[5] ? Number(naive[5]) : 0,
+      second: naive[6] ? Number(naive[6]) : 0,
+    });
+  }
+  const d = new Date(str);
   if (isNaN(d.getTime())) {
     return str;
   }
-
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  const year = d.getFullYear();
-
-  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) {
-    return `${day} thg ${month}, ${year}`;
-  }
-
-  const hours = String(d.getHours()).padStart(2, '0');
-  const mins = String(d.getMinutes()).padStart(2, '0');
-  const secs = String(d.getSeconds()).padStart(2, '0');
-  return `${day} thg ${month}, ${year} ${hours}:${mins}:${secs}`;
+  return formatVnWatermark(toVnWallClock(d));
 }
 
 export function extractPhotoDateTime(photoUrl?: string, itemShotAt?: any, fallbackDate?: any): string {

@@ -5,7 +5,7 @@
  */
 import assert from 'assert';
 import { StorageService } from '../common/services/storage.service';
-import { extractPhotoDateTime } from '../modules/report/mappers/formatters.mapper';
+import { extractPhotoDateTime, formatWatermarkDateTime } from '../modules/report/mappers/formatters.mapper';
 import type { ReportViewModel } from '../modules/report/report.types';
 import { applyResurveyToViewModel, parseFrozenResurvey } from '../modules/photo-resurvey/photo-resurvey.render';
 import {
@@ -56,6 +56,33 @@ async function main(): Promise<void> {
     const p = parseWatermarkText(txt(8, 45, 10));
     assert.ok(p.hasTime);
     assert.strictEqual(p.at?.getTime(), at(8, 45, 10).getTime());
+  });
+  await tc(`giờ watermark luôn là giờ Việt Nam, không theo múi giờ máy chủ (TZ hiện tại: ${process.env.TZ ?? 'mặc định'})`, () => {
+    // Lỗi gốc: prod chạy UTC → ảnh gốc 15:49:55 bị lưu thành 08:49:55.
+    assert.strictEqual(formatWatermarkDateTime('2026-10-06T08:49:55.000Z'), '6 thg 10, 2026 15:49:55');
+    assert.strictEqual(formatWatermarkDateTime(new Date('2026-10-06T08:49:55.000Z')), '6 thg 10, 2026 15:49:55');
+    assert.strictEqual(formatWatermarkDateTime('2026-10-06T15:49:55+07:00'), '6 thg 10, 2026 15:49:55');
+    assert.strictEqual(formatWatermarkDateTime('2026-10-06T15:49:55'), '6 thg 10, 2026 15:49:55', 'ISO không múi giờ = giờ VN');
+    assert.strictEqual(formatWatermarkDateTime('06/10/2026 (15:49:55)'), '6 thg 10, 2026 15:49:55');
+    assert.strictEqual(formatWatermarkDateTime('2026-10-06'), '6 thg 10, 2026', 'chỉ có ngày thì in ngày');
+    assert.strictEqual(formatWatermarkDateTime(new Date(2026, 9, 6)), '6 thg 10, 2026', 'cột DATE của pg (00:00 giờ máy) in ngày');
+    assert.strictEqual(extractPhotoDateTime('https://x/a_1791276595000.jpg'), formatTime2(new Date(1791276595000)));
+    const p = parseWatermarkText('6 thg 10, 2026 15:49:55');
+    assert.strictEqual(p.at?.toISOString(), '2026-10-06T08:49:55.000Z');
+    assert.strictEqual(formatTime2(p.at as Date), '6 thg 10, 2026 15:49:55');
+  });
+  await tc('ảnh phát sinh chèn giữa 2 ảnh buổi chiều vẫn ra giờ buổi chiều', () => {
+    const times = computeExtraTimes(
+      [
+        { slotCode: 'P-05', dateTimeText: '6 thg 10, 2026 15:51:38' },
+        { slotCode: 'P-06', dateTimeText: '6 thg 10, 2026 15:49:55' },
+      ],
+      [{ itemId: 'a', slotCode: 'P-06' }],
+      '6 thg 10, 2026'
+    );
+    const t = times.times.get('a');
+    assert.ok(t, 'phải có giờ cho ảnh phát sinh');
+    assert.match(t!.text, /^6 thg 10, 2026 15:/);
   });
   await tc('chữ chỉ có ngày → không có giờ', () => {
     const p = parseWatermarkText('10 thg 10, 2026');

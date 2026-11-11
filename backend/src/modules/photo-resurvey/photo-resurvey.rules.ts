@@ -6,7 +6,7 @@
  */
 
 import { createHash } from 'crypto';
-import { formatWatermarkDateTime } from '../report/mappers/formatters.mapper';
+import { formatVnWatermark, fromVnWallClock, toVnWallClock, VN_OFFSET_MS } from '../report/mappers/formatters.mapper';
 import type { ResurveySlotCode, ResurveyTime2Source } from './photo-resurvey.types';
 
 export const RESURVEY_SLOT_CODES: readonly ResurveySlotCode[] = ['P-01', 'P-02', 'P-03', 'P-04', 'P-05', 'P-06', 'P-07'];
@@ -43,16 +43,17 @@ export function slotOrder(slot: ResurveySlotCode): number {
 }
 
 /**
- * Đọc lại chữ watermark ("9 thg 11, 2026 08:45:10") thành thời điểm theo giờ máy chủ,
+ * Đọc lại chữ watermark ("9 thg 11, 2026 08:45:10", giờ Việt Nam) thành thời điểm tuyệt đối,
  * đúng chiều ngược của formatWatermarkDateTime. Chữ chỉ có ngày → hasTime = false.
  */
 export function parseWatermarkText(text: string | null | undefined): { at: Date | null; hasTime: boolean } {
   const m = String(text || '').trim().match(/^(\d{1,2}) thg (\d{1,2}), (\d{4})(?: (\d{2}):(\d{2}):(\d{2}))?$/);
   if (!m) return { at: null, hasTime: false };
   const hasTime = m[4] !== undefined;
-  const at = new Date(
+  // Chữ watermark là giờ Việt Nam: dựng thời điểm theo UTC+7, không theo múi giờ máy chủ (prod chạy UTC).
+  const at = fromVnWallClock(
     Number(m[3]),
-    Number(m[2]) - 1,
+    Number(m[2]),
     Number(m[1]),
     hasTime ? Number(m[4]) : 0,
     hasTime ? Number(m[5]) : 0,
@@ -62,7 +63,7 @@ export function parseWatermarkText(text: string | null | undefined): { at: Date 
 }
 
 export function formatTime2(at: Date): string {
-  return formatWatermarkDateTime(at.toISOString());
+  return formatVnWatermark(toVnWallClock(at));
 }
 
 export interface TimelineEntry {
@@ -164,7 +165,7 @@ export function extraTimeBounds(timeline: TimelineEntry[], slot: ResurveySlotCod
 
 /** yyyyMMddHHmmss theo giờ Việt Nam (UTC+7), 14 chữ số. */
 export function vnCompactStamp(at: Date): string {
-  const vn = new Date(at.getTime() + 7 * 3600 * 1000);
+  const vn = new Date(at.getTime() + VN_OFFSET_MS);
   const p = (n: number, w = 2) => String(n).padStart(w, '0');
   return `${vn.getUTCFullYear()}${p(vn.getUTCMonth() + 1)}${p(vn.getUTCDate())}${p(vn.getUTCHours())}${p(vn.getUTCMinutes())}${p(vn.getUTCSeconds())}`;
 }
