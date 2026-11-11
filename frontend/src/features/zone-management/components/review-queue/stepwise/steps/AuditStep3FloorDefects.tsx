@@ -5,7 +5,7 @@ import { getNextAvailablePinCode, type CadZonePin } from '../../../../../../comp
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
 import type { PhotoOrientationViolation } from '../hooks/usePhotoOrientationAudit';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useContext } from 'react';
 import {
   Layers,
   Maximize2,
@@ -40,6 +40,8 @@ import {
 } from '../constants/defect-taxonomy';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
 import { RotatableImageFrame } from '../components/RotatableImageFrame';
+import { applicableCrop, CropFrameOverlay, CroppedCadView } from '../components/ApprovedCadCrop';
+import { ApprovedCropContext } from '../context/ApprovedCropContext';
 import { rotatePinCoords } from '../utils/pinCoordinates';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
@@ -360,6 +362,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       ];
 
   const [showCadPins, setShowCadPins] = useState(true);
+  // Crop CAD đã duyệt (Photo QC): chế độ xem hiện đúng phần report in, ghim đổi theo khung crop.
+  const approvedCropMap = useContext(ApprovedCropContext);
+  const focusPinCard = (domId: string, code: string) => {
+    setSelectedPinCode(code);
+    const target = document.getElementById(domId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('ring-4', 'ring-emerald-400');
+      setTimeout(() => target.classList.remove('ring-4', 'ring-emerald-400'), 2500);
+    }
+  };
   const [showCtxPins, setShowCtxPins] = useState(true);
   const [showDeletedItems, setShowDeletedItems] = useState(false);
   const [zoneToDelete, setZoneToDelete] = useState<{ floorIdx: number; zone: DamageZoneData } | null>(null);
@@ -1841,6 +1854,27 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         <span>Bắt buộc xoay Dọc (Portrait) — Bấm &quot;Xoay CAD 90°&quot; để chuẩn hóa</span>
                       </div>
                     )}
+                    {(() => {
+                      const zCrop = applicableCrop(approvedCropMap, effectiveCad, cadRotation);
+                      if (!zCrop || isEditMode || cadPinningMode?.floorIdx === flIdx) return null;
+                      return (
+                        <CroppedCadView
+                          url={effectiveCad}
+                          rotation={cadRotation}
+                          crop={zCrop}
+                          showPins={showCadPins}
+                          pins={displayedCadZonePins.map((pin: CadZonePin, pIdx: number) => ({
+                            code: pin.zoneCode || pin.zone_code || `Z-${pIdx + 1}`,
+                            x: Number(pin.pinX ?? pin.pin_x ?? 50),
+                            y: Number(pin.pinY ?? pin.pin_y ?? 50),
+                          }))}
+                          labelClass="bg-emerald-600 text-white"
+                          dotClass="bg-emerald-400"
+                          selectedCode={selectedPinCode}
+                          onSelectPin={(code) => focusPinCard(`zone-card-f${flIdx}-${code}`, code)}
+                        />
+                      );
+                    })() ?? (
                     <RotatableImageFrame
                       url={effectiveCad}
                       alt={`CAD Kiến trúc ${floorName}`}
@@ -1852,6 +1886,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'Z' ? 'cursor-crosshair' : ''
                       }
                     >
+                      {(() => {
+                        const zCrop = applicableCrop(approvedCropMap, effectiveCad, cadRotation);
+                        return zCrop ? <CropFrameOverlay crop={zCrop} /> : null;
+                      })()}
                       {/* Ghim Vùng Z trên CAD */}
                       {showCadPins &&
                         displayedCadZonePins.map((pin: CadZonePin, pIdx: number) => {
@@ -1950,6 +1988,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           );
                         })}
                     </RotatableImageFrame>
+                    )}
                   </div>
                 ) : (
                   <div className="py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
@@ -3190,6 +3229,28 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         <span>Bắt buộc xoay Dọc (Portrait) &mdash; Bấm "Xoay CAD 90&deg;" để chuẩn hóa</span>
                       </div>
                     )}
+                    {(() => {
+                      const eUrl = effectiveStructCad || effectiveCad;
+                      const eCrop = applicableCrop(approvedCropMap, eUrl, structCadRotation);
+                      if (!eCrop || isEditMode || cadPinningMode?.floorIdx === flIdx) return null;
+                      return (
+                        <CroppedCadView
+                          url={eUrl}
+                          rotation={structCadRotation}
+                          crop={eCrop}
+                          showPins={showCadPins}
+                          pins={displayedCadElementPins.map((pin: CadZonePin, pIdx: number) => ({
+                            code: pin.zoneCode || pin.zone_code || `E-${pIdx + 1}`,
+                            x: Number(pin.pinX ?? pin.pin_x ?? 50),
+                            y: Number(pin.pinY ?? pin.pin_y ?? 50),
+                          }))}
+                          labelClass="bg-amber-600 text-white"
+                          dotClass="bg-amber-400"
+                          selectedCode={selectedPinCode}
+                          onSelectPin={(code) => focusPinCard(`element-card-f${flIdx}-${code}`, code)}
+                        />
+                      );
+                    })() ?? (
                     <RotatableImageFrame
                       src={effectiveStructCad || effectiveCad}
                       alt={`CAD Kết cấu ${floorName}`}
@@ -3200,6 +3261,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         cadPinningMode?.floorIdx === flIdx && cadPinningMode?.mode === 'E' ? 'cursor-crosshair' : ''
                       }`}
                     >
+                      {(() => {
+                        const eCrop = applicableCrop(approvedCropMap, effectiveStructCad || effectiveCad, structCadRotation);
+                        return eCrop ? <CropFrameOverlay crop={eCrop} /> : null;
+                      })()}
                       {/* Ghim Cấu kiện E trên CAD */}
                       {showCadPins &&
                         displayedCadElementPins.map((pin: CadZonePin, pIdx: number) => {
@@ -3297,6 +3362,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           );
                         })}
                     </RotatableImageFrame>
+                    )}
                   </div>
                 ) : (
                   <div className="py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">

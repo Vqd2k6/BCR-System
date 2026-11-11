@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { RotatableImageFrame } from '../components/RotatableImageFrame';
 import { clampPinCoord } from '../utils/pinCoordinates';
+import { CropFrameOverlay, CroppedCadView, useApplicableCrop } from '../components/ApprovedCadCrop';
 
 export interface AuditBoardPin {
   code: string;
@@ -58,6 +59,8 @@ export const AuditPinBoard: React.FC<AuditPinBoardProps> = ({
   const hasDraggedRef = useRef(false);
   const toneClass = PIN_TONE_CLASS[tone];
   const canDrag = isEditMode && Boolean(onMove);
+  // Crop đã duyệt: xem thì hiện đúng phần report in (ghim đổi theo khung); sửa thì ảnh nguyên + khung crop.
+  const crop = useApplicableCrop(url, rotation);
 
   const handleStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isPinning || !onAddAt) return;
@@ -67,6 +70,23 @@ export const AuditPinBoard: React.FC<AuditPinBoardProps> = ({
       clampPinCoord(((e.clientY - rect.top) / rect.height) * 100, 2, 98)
     );
   };
+
+  if (crop && !isEditMode && !isPinning) {
+    return (
+      <CroppedCadView
+        url={url}
+        rotation={rotation}
+        crop={crop}
+        pins={pins}
+        showPins={showPins}
+        labelClass={toneClass.label}
+        dotClass={toneClass.dot}
+        maxHeightPx={maxHeightPx}
+        selectedCode={selectedCode}
+        onSelectPin={onSelectPin}
+      />
+    );
+  }
 
   return (
     <div
@@ -82,6 +102,7 @@ export const AuditPinBoard: React.FC<AuditPinBoardProps> = ({
         onStageClick={handleStageClick}
         stageClassName={isPinning ? 'cursor-crosshair' : ''}
       >
+        {crop && <CropFrameOverlay crop={crop} />}
         {showPins &&
           pins.map((pin) => {
             const isDragging = dragging?.code === pin.code;
