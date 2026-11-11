@@ -235,14 +235,17 @@ export class PhotoResurveyService {
    * Trạng thái như bản in kế tiếp: dữ liệu sống + mọi phiên chụp lại đã duyệt.
    * Dùng chung cho màn KSV, lúc ghi và lúc nộp/duyệt để khoá ô luôn khớp với lớp phủ render.
    */
-  static async loadCurrentState(reportId: string): Promise<CurrentState> {
+  static async loadCurrentState(reportId: string, opts: { withResurvey?: boolean } = {}): Promise<CurrentState> {
     const meta = await this.loadMeta(reportId);
     const raw = (await applyCondoReportContext(
       (await ReportService.resolveReport(reportId)) as JsonObject
     )) as JsonObject;
     const config = await ReportConfigService.getActiveConfig();
     const vm = ReportViewModelMapper.buildViewModel(raw, undefined, config);
-    await applyResurveyToViewModel(vm, await PhotoResurveyRepository.loadRenderState(reportId), { loadImages: false });
+    // withResurvey = false: dòng thời gian ảnh GỐC (dùng khi tính lại Time 2 đã lưu).
+    if (opts.withResurvey !== false) {
+      await applyResurveyToViewModel(vm, await PhotoResurveyRepository.loadRenderState(reportId), { loadImages: false });
+    }
 
     const surveyDateText = vm.metadata?.surveyDateFormatted || formatWatermarkDateTime(meta.survey_date) || '';
     const [qcReport, qcRows] = await Promise.all([
