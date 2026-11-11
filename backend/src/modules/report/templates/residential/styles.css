@@ -36,6 +36,11 @@
   margin: 18mm 15mm 18mm 15mm;
 }
 
+/* Bìa không lề: Chrome không vẽ đầu/chân trang ở trang đầu. Các trang sau dùng lề 18mm ở trên. */
+@page :first {
+  margin: 0;
+}
+
 @page landscape-section {
   size: A4 landscape;
   margin: 15mm 15mm 15mm 15mm;
@@ -88,6 +93,26 @@ body {
     justify-content: flex-start;
   }
 
+  /* Mục I–IX chảy liên tục như trong PDF: các khung liền kề nối thành một văn bản, đầu trang chỉ ở khung đầu. */
+  .a4-page-sheet.flow-body {
+    min-height: 0;
+  }
+
+  .a4-page-sheet.flow-body + .a4-page-sheet.flow-body {
+    margin-top: -24px;
+    border-top: none;
+    padding-top: 6mm;
+  }
+
+  .a4-page-sheet.flow-body + .a4-page-sheet.flow-body .report-subpage-topbar {
+    display: none;
+  }
+
+  /* Số trang thật chỉ có trong PDF (Chrome đánh số); preview không biết chỗ ngắt trang nên không in "Trang i / N". */
+  .page-number-footer .pf-page {
+    display: none;
+  }
+
   .screen-print-guide {
     display: block;
     max-width: 210mm;
@@ -137,9 +162,27 @@ body {
     break-after: avoid !important;
   }
 
-  /* Trang bìa chiếm trọn vùng in A4 (297mm - lề @page 18mm x 2) để ảnh mặt tiền co giãn lấp khoảng trống */
+  /* Mục I–IX chảy liên tục như một văn bản: chỉ ngắt trang sau khung cuối (Mục IX).
+     Phần dư của bảng/mục dài không còn bị đẩy sang một trang riêng gần trống. */
+  .a4-page-sheet.flow-body {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .a4-page-sheet.flow-body.flow-end {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  /* Khoảng cách giữa hai khung nối tiếp (thay cho khoảng trống cuối trang trước); bị bỏ khi rơi đầu trang. */
+  .a4-page-sheet.flow-body + .a4-page-sheet.flow-body {
+    margin-top: 10pt !important;
+  }
+
+  /* Trang bìa: @page :first không lề nên khung tự giữ lề 18mm 15mm bằng đệm; thấp hơn 1mm để không sinh trang trống */
   .a4-page-sheet.cover-sheet {
-    height: 261mm !important;
+    height: 296mm !important;
+    padding: 18mm 15mm !important;
     display: flex !important;
     flex-direction: column !important;
   }
@@ -1333,53 +1376,3 @@ h2, h3, .chapter-header, .section-header { break-after: avoid; page-break-after:
   overflow-wrap: break-word;
 }
 .defect-summary-table td .text-muted, .defect-summary-table td span { font-size: var(--fs-f1); }
-
-/* ==========================================================================
-   QUY CHUẨN TRANG 4, 5, 7 (MỤC III-IV, V-VI, VÀ VIII VỪA KHÍT TỪNG TRANG IN A4)
-   Tránh ngắt trang cưỡng bức và chống tràn bảng gây rớt dòng tạo trang trống
-   ========================================================================== */
-.sections-3-4-sheet table.tech-table,
-.sections-5-6-sheet table.tech-table,
-.sections-8-sheet table.tech-table {
-  font-size: 9.5pt !important;
-  margin-bottom: 2pt !important;
-}
-
-.sections-3-4-sheet table.tech-table td,
-.sections-3-4-sheet table.tech-table th,
-.sections-5-6-sheet table.tech-table td,
-.sections-5-6-sheet table.tech-table th,
-.sections-8-sheet table.tech-table td,
-.sections-8-sheet table.tech-table th {
-  padding: 1.2pt 3pt !important;
-  font-size: 9.5pt !important;
-  line-height: 1.15 !important;
-}
-
-.sections-3-4-sheet .text-muted,
-.sections-5-6-sheet .text-muted,
-.sections-8-sheet .text-muted {
-  font-size: 8.5pt !important;
-  line-height: 1.05 !important;
-}
-
-.sections-3-4-sheet h2.chapter-header,
-.sections-5-6-sheet h2.chapter-header,
-.sections-8-sheet h2.chapter-header {
-  font-size: 12.5pt !important;
-  padding-bottom: 1.5pt !important;
-  margin: 3pt 0 2pt 0 !important;
-}
-
-.sections-8-sheet .summary-choice-item {
-  font-size: 9pt !important;
-  gap: 1.5pt !important;
-}
-
-.sections-8-sheet .summary-choice-group {
-  gap: 5pt !important;
-}
-
-.sections-8-sheet .summary-label {
-  font-size: 9pt !important;
-}
