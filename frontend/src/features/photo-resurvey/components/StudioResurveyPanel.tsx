@@ -33,9 +33,9 @@ function formatTime(iso: string | null): string {
 }
 
 function applyLabel(row: StudioResurveyRow): string {
-  if (row.action === 'MARK_NA') return 'Đưa vào (bỏ ô khỏi report)';
-  if (row.action === 'ADD_EXTRA') return 'Đưa vào (thêm ảnh)';
-  return 'Đưa vào (thay ảnh cũ)';
+  if (row.action === 'MARK_NA') return 'Đưa vào thẩm định (bỏ ô)';
+  if (row.action === 'ADD_EXTRA') return 'Đưa vào thẩm định (thêm ảnh)';
+  return 'Đưa vào thẩm định (thay ảnh cũ)';
 }
 
 /**
@@ -54,7 +54,7 @@ export const StudioResurveyPanel: React.FC<StudioResurveyPanelProps> = ({ view, 
   const status = view.session?.status ?? null;
   const sessionId = view.session?.id ?? null;
   const canOpenReview = status === 'SUBMITTED' && view.canReview;
-  const canDecide = status === 'APPROVED' && view.canReview && Boolean(sessionId);
+  const canDecide = view.canApply && Boolean(sessionId);
   const readyIds = rows.filter((r) => r.state === 'READY' && r.itemId).map((r) => r.itemId as string);
 
   const decide = async (itemIds: string[], decision: ResurveyApplyStatus) => {

@@ -398,7 +398,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   }, []);
 
   const photoStatus = useMemo<StudioPhotoStatus>(
-    () => ({ pendingCrops, resurvey: resurveyMarks, recent: recentUrls, openCropReview: (k: string) => openCropReviewAt(k) }),
+    () => ({ pendingCrops, resurvey: resurveyMarks, recent: recentUrls, openCropReview: (k: string) => openCropReviewAt(k), openResurveyPanel: () => setResurveyOpenSignal((n) => n + 1) }),
     [pendingCrops, resurveyMarks, recentUrls, openCropReviewAt]
   );
 

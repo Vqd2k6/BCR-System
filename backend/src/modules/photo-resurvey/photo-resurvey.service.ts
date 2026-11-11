@@ -332,6 +332,8 @@ export class PhotoResurveyService {
       appliesFromNextRevision: st.meta.status === 'APPROVED',
       canEdit,
       canReview: isAdmin(user) && open?.status === 'SUBMITTED',
+      // Thẩm định đưa vào / bỏ qua từng mục của phiên đã duyệt.
+      canApply: isAdmin(user) && canAccessZone(user, st.meta.zone_id) && session?.status === 'APPROVED',
     };
   }
 

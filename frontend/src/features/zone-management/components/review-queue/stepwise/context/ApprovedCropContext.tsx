@@ -38,9 +38,11 @@ export interface StudioPhotoStatus {
   /** URL vừa đổi (duyệt crop / ảnh chụp lại) để thẻ ảnh nháy viền cho dễ thấy. */
   recent: ReadonlySet<string>;
   openCropReview: ((photoKey: string) => void) | null;
+  /** Mở panel Ảnh Chụp Lại để Đưa vào ngay. */
+  openResurveyPanel: (() => void) | null;
 }
 
-const EMPTY_STATUS: StudioPhotoStatus = { pendingCrops: new Map(), resurvey: new Map(), recent: new Set(), openCropReview: null };
+const EMPTY_STATUS: StudioPhotoStatus = { pendingCrops: new Map(), resurvey: new Map(), recent: new Set(), openCropReview: null, openResurveyPanel: null };
 
 export const StudioPhotoStatusContext = createContext<StudioPhotoStatus>(EMPTY_STATUS);
 

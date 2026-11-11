@@ -446,7 +446,19 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               Crop chờ duyệt
             </button>
           )}
-          {resurveyMark && (
+          {resurveyMark?.state === 'READY' && photoStatus.openResurveyPanel ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                photoStatus.openResurveyPanel?.();
+              }}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer hover:brightness-125 animate-pulse ${resurveyBadge(resurveyMark).cls}`}
+              title="Có ảnh KSV chụp lại đã duyệt. Bấm để so sánh và Đưa vào thẩm định."
+            >
+              Có ảnh mới – bấm để đưa vào
+            </button>
+          ) : resurveyMark && (
             <span
               className={`px-1.5 py-0.5 rounded text-[10px] font-bold border pointer-events-none ${resurveyBadge(resurveyMark).cls}`}
               title="Trạng thái ảnh KSV chụp lại (xem ở nút Ảnh Chụp Lại trên header)"

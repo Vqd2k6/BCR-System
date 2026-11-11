@@ -126,6 +126,8 @@ export interface ResurveySessionView {
   appliesFromNextRevision: boolean;
   canEdit: boolean;
   canReview: boolean;
+  /** Zone Admin / Super Admin đúng phân khu, phiên đã duyệt: được Đưa vào / Bỏ qua từng mục. */
+  canApply: boolean;
 }
 
 export interface ResurveyTask {

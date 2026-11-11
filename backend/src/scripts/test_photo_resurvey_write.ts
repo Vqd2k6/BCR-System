@@ -254,6 +254,8 @@ async function main(): Promise<void> {
     });
     await tc('Duyệt phiên CHƯA đổi report: mục chờ đưa vào, P-02 vẫn ảnh cũ; Thẩm định đưa vào, bỏ qua, hoàn tác', async () => {
       const v0 = await PhotoResurveyService.getView(admin09, reportId);
+      assert.strictEqual(v0.canApply, true, 'Zone Admin đúng Zone phải được Đưa vào sau khi duyệt');
+      assert.strictEqual((await PhotoResurveyService.getView(surveyor09, reportId)).canApply, false, 'KSV không được Đưa vào');
       assert.ok(v0.items.every((i) => i.applyStatus === 'PENDING'), 'mục mới duyệt phải chờ đưa vào');
       assert.strictEqual(v0.slots.find((s) => s.photoKey === 'P-02')?.url, p02.url, 'chưa đưa vào thì report in ảnh cũ');
       assert.strictEqual(await PhotoResurveyRepository.loadRenderState(reportId), null);
