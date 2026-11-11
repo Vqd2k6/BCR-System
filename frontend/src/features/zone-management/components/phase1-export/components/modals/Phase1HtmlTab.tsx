@@ -13,6 +13,7 @@ import {
   Stamp,
   ShieldCheck,
   FileArchive,
+  FileCheck,
 } from 'lucide-react';
 import type { ExportParcelItem, EditFormData } from '../../types';
 import type { ServerReportData } from '../../utils/reportDataTransformers';
@@ -40,6 +41,11 @@ interface Phase1HtmlTabProps {
   storedPdfBlobUrl?: string | null;
   storedPdfSha256?: string | null;
   handleExportRevisionPdf?: (rev: number) => void | Promise<void>;
+  /** Bản PDF hiện hành đang xem (đúng file tải về); null = xem HTML. */
+  currentPdfBlobUrl?: string | null;
+  isCurrentPdfLoading?: boolean;
+  handleViewCurrentPdf?: () => void | Promise<void>;
+  handleCloseCurrentPdf?: () => void;
 }
 
 export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
@@ -61,8 +67,13 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   storedPdfBlobUrl,
   storedPdfSha256,
   handleExportRevisionPdf,
+  currentPdfBlobUrl,
+  isCurrentPdfLoading = false,
+  handleViewCurrentPdf,
+  handleCloseCurrentPdf,
 }) => {
   const isStoredRevisionView = selectedRevision !== undefined;
+  const isCurrentPdfView = !isStoredRevisionView && Boolean(currentPdfBlobUrl);
   const revLabel = selectedRevision !== undefined ? String(selectedRevision).padStart(2, '0') : '';
   // Trạng thái hiển thị thanh điều khiển bên trái (mặc định mở, có thể thu gọn để xem Full A4)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -117,6 +128,19 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               <Download size={15} />
               <span>Tải PDF bản hiện hành</span>
             </button>
+
+            {!isStoredRevisionView && handleViewCurrentPdf && (
+              <button
+                type="button"
+                onClick={() => (isCurrentPdfView ? handleCloseCurrentPdf?.() : void handleViewCurrentPdf())}
+                disabled={isCurrentPdfLoading}
+                className="w-full py-2 px-3 bg-white hover:bg-sky-50 disabled:opacity-50 disabled:cursor-not-allowed text-sky-800 border border-sky-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title={isCurrentPdfView ? 'Quay lại bản xem HTML nhanh' : 'Tạo và xem đúng file PDF sẽ tải về (ngắt trang, đầu/chân trang, số trang thật)'}
+              >
+                {isCurrentPdfLoading ? <RefreshCw size={14} className="animate-spin" /> : <FileCheck size={14} />}
+                <span>{isCurrentPdfLoading ? 'Đang tạo PDF…' : isCurrentPdfView ? 'Quay lại xem HTML' : 'Xem bản PDF (đúng file tải)'}</span>
+              </button>
+            )}
 
             {isStoredRevisionView && handleExportRevisionPdf && selectedRevision !== undefined && (
               <button
@@ -215,7 +239,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
           )}
 
           {/* Nhóm Thu Phóng Khung Nhìn A4 (Zoom Controls) — trình xem PDF có thu phóng riêng */}
-          {!isStoredRevisionView && (
+          {!isStoredRevisionView && !isCurrentPdfView && (
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -333,7 +357,24 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
         )}
 
         {/* Sân khấu Iframe A4 - Tận dụng 100% chiều cao và bề ngang */}
-        {isStoredRevisionView ? (
+        {isCurrentPdfView && currentPdfBlobUrl ? (
+          <div className="flex flex-col w-full h-full min-h-full gap-2 force-light">
+            <iframe
+              key="current-pdf"
+              src={`${currentPdfBlobUrl}#toolbar=1&navpanes=0`}
+              title="Bản PDF hiện hành"
+              className="w-full flex-1 min-h-[calc(94vh-200px)] border border-slate-300 rounded-md shadow-2xl bg-white block force-light"
+            />
+            <button
+              type="button"
+              onClick={() => window.open(currentPdfBlobUrl, '_blank')}
+              className="self-center px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <ExternalLink size={12} />
+              <span>Trình duyệt không hiện PDF? Mở trong tab mới</span>
+            </button>
+          </div>
+        ) : isStoredRevisionView ? (
           storedPdfBlobUrl ? (
             <div className="flex flex-col w-full h-full min-h-full gap-2 force-light">
               <iframe

@@ -98,6 +98,10 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     handleExportRevisionPdf,
     storedPdfBlobUrl,
     storedPdfSha256,
+    currentPdfBlobUrl,
+    isCurrentPdfLoading,
+    handleViewCurrentPdf,
+    handleCloseCurrentPdf,
   } = usePhase1ReportPreview({
     setActionMessage,
   });
@@ -231,6 +235,10 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleExportRevisionPdf={handleExportRevisionPdf}
         storedPdfBlobUrl={storedPdfBlobUrl}
         storedPdfSha256={storedPdfSha256}
+        currentPdfBlobUrl={currentPdfBlobUrl}
+        isCurrentPdfLoading={isCurrentPdfLoading}
+        handleViewCurrentPdf={handleViewCurrentPdf}
+        handleCloseCurrentPdf={handleCloseCurrentPdf}
       />
 
       {showSvgExportModal && (

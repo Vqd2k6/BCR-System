@@ -37,6 +37,17 @@ export const usePhase1ReportPreview = ({
     };
   }, [storedPdfBlobUrl]);
 
+  // Bản PDF hiện hành đang xem trong khung (đúng file "Tải PDF", ngắt trang thật); null = xem HTML.
+  const [currentPdfBlobUrl, setCurrentPdfBlobUrl] = useState<string | null>(null);
+  const [isCurrentPdfLoading, setIsCurrentPdfLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!currentPdfBlobUrl) return;
+    return () => {
+      URL.revokeObjectURL(currentPdfBlobUrl);
+    };
+  }, [currentPdfBlobUrl]);
+
   // Manage Blob URL for HTML preview
   useEffect(() => {
     if (!previewHtmlContent) {
@@ -111,6 +122,7 @@ export const usePhase1ReportPreview = ({
     setSelectedRevision(revOverride);
     setStoredPdfBlobUrl(null);
     setStoredPdfSha256(null);
+    setCurrentPdfBlobUrl(null);
     setIsPreviewLoading(true);
     setPreviewTab('html');
     setPreviewHtmlContent(null);
@@ -180,6 +192,7 @@ export const usePhase1ReportPreview = ({
       }
       setStoredPdfBlobUrl(null);
       setStoredPdfSha256(null);
+      setCurrentPdfBlobUrl(null);
       const [htmlRes, dataRes] = await Promise.all([
         api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
           params: { watermark: String(enableWatermark) },
@@ -379,6 +392,8 @@ export const usePhase1ReportPreview = ({
     // File Rev đã phát hành luôn có watermark và không đổi được: chỉ bản hiện hành mới bật/tắt.
     if (selectedRevision !== undefined) return;
     setEnableWatermark(enabled);
+    // PDF đang xem được render với trạng thái watermark cũ: bỏ để quay về HTML, xem lại PDF sẽ render mới.
+    setCurrentPdfBlobUrl(null);
     try {
       const iframes = document.querySelectorAll('iframe');
       iframes.forEach((ifr) => {
@@ -471,6 +486,35 @@ export const usePhase1ReportPreview = ({
     }
   };
 
+  /** Xem bản PDF hiện hành ngay trong modal: cùng endpoint và tham số với nút "Tải PDF". */
+  const handleViewCurrentPdf = async () => {
+    if (!previewParcel || selectedRevision !== undefined) return;
+    setIsCurrentPdfLoading(true);
+    try {
+      const response = await api.get(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/export/pdf`, {
+        params: { watermark: String(enableWatermark) },
+        responseType: 'blob',
+      });
+      setCurrentPdfBlobUrl(URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' })));
+      setModalFeedback({
+        type: 'info',
+        text: 'Đang xem bản PDF hiện hành: đúng bố cục, ngắt trang và số trang của file tải về.',
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err: unknown) {
+      console.error('[usePhase1ReportPreview:handleViewCurrentPdf] Lỗi khi tạo bản PDF để xem:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không thể tạo bản PDF để xem: ${getErrorMessage(err, 'Lỗi không xác định')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } finally {
+      setIsCurrentPdfLoading(false);
+    }
+  };
+
+  const handleCloseCurrentPdf = () => setCurrentPdfBlobUrl(null);
+
   return {
     previewParcel,
     setPreviewParcel,
@@ -496,6 +540,10 @@ export const usePhase1ReportPreview = ({
     setSelectedRevision,
     storedPdfBlobUrl,
     storedPdfSha256,
+    currentPdfBlobUrl,
+    isCurrentPdfLoading,
+    handleViewCurrentPdf,
+    handleCloseCurrentPdf,
     handleSelectRevision,
     handleExportRevisionPdf,
     handleToggleWatermark,

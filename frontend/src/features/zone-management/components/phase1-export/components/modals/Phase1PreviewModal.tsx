@@ -57,6 +57,10 @@ interface Phase1PreviewModalProps {
   handleExportRevisionPdf?: (rev: number) => void | Promise<void>;
   storedPdfBlobUrl?: string | null;
   storedPdfSha256?: string | null;
+  currentPdfBlobUrl?: string | null;
+  isCurrentPdfLoading?: boolean;
+  handleViewCurrentPdf?: () => void | Promise<void>;
+  handleCloseCurrentPdf?: () => void;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -96,6 +100,10 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   handleExportRevisionPdf,
   storedPdfBlobUrl,
   storedPdfSha256,
+  currentPdfBlobUrl,
+  isCurrentPdfLoading,
+  handleViewCurrentPdf,
+  handleCloseCurrentPdf,
 }) => {
   if (!previewParcel) return null;
 
@@ -272,6 +280,10 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               selectedRevision={selectedRevision}
               storedPdfBlobUrl={storedPdfBlobUrl}
               storedPdfSha256={storedPdfSha256}
+              currentPdfBlobUrl={currentPdfBlobUrl}
+              isCurrentPdfLoading={isCurrentPdfLoading}
+              handleViewCurrentPdf={handleViewCurrentPdf}
+              handleCloseCurrentPdf={handleCloseCurrentPdf}
               handleExportRevisionPdf={handleExportRevisionPdf}
             />
           ) : (
