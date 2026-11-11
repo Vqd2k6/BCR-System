@@ -77,6 +77,15 @@ export const CondoCadPinSection: React.FC<CondoCadPinSectionProps> = ({
                 <RotateCw className="w-3.5 h-3.5" />
                 <span>Xoay 90°</span>
               </button>
+              <button
+                type="button"
+                onClick={board.rotatePinsOnly}
+                title="Chỉ xoay toạ độ các ghim 90°, không xoay ảnh. Dùng khi ghim bị lệch so với ảnh."
+                className={TOOL_BUTTON_CLASS}
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Xoay ghim 90°</span>
+              </button>
               <button type="button" disabled={!canUndo} onClick={onUndo} className={TOOL_BUTTON_CLASS}>
                 <Undo2 className="w-3.5 h-3.5" />
                 <span>Hoàn tác</span>

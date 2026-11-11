@@ -40,6 +40,7 @@ import {
 } from '../constants/defect-taxonomy';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
 import { RotatableImageFrame } from '../components/RotatableImageFrame';
+import { rotatePinCoords } from '../utils/pinCoordinates';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
 
 
@@ -102,7 +103,16 @@ interface PinUndoActionRotate {
   prevElementPins: CadZonePin[];
 }
 
-type PinUndoAction = PinUndoActionMove | PinUndoActionRotate;
+/** Chỉ xoay toạ độ ghim (giữ nguyên ảnh): hoàn tác khôi phục ghim, không đụng góc xoay ảnh. */
+interface PinUndoActionPinsRotate {
+  type: 'PINS_ROTATE';
+  floorId?: string;
+  floorIndex: number;
+  prevZonePins: CadZonePin[];
+  prevElementPins: CadZonePin[];
+}
+
+type PinUndoAction = PinUndoActionMove | PinUndoActionRotate | PinUndoActionPinsRotate;
 
 interface AuditExtendedMeta {
   isDeleted?: boolean;
@@ -402,6 +412,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         });
         handleFieldChange('floors', `Hoàn tác xoay CAD tầng ${lastAction.floorIndex + 1}`, updatedFloors);
       }
+    } else if (lastAction.type === 'PINS_ROTATE' && hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== lastAction.floorIndex && fl.id !== lastAction.floorId) return fl;
+        return { ...fl, cadZonePins: lastAction.prevZonePins, cadElementPins: lastAction.prevElementPins };
+      });
+      handleFieldChange('floors', `Hoàn tác xoay toạ độ ghim tầng ${lastAction.floorIndex + 1}`, updatedFloors);
     }
   }, [undoPinStack, hasFloors, rawFloors, onRotatePhoto, handleFieldChange]);
 
@@ -529,6 +545,90 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('floors', `Xoay CAD ${isStruct ? 'Kết cấu' : 'Kiến trúc'} tầng ${floor.floorName || floorIdx + 1} 90°`, updatedFloors);
     }
+  };
+
+  /**
+   * Chỉ xoay toạ độ ghim 90° theo chiều kim đồng hồ, KHÔNG xoay ảnh (không đổi rotation CAD).
+   * Dùng khi ghim Z/E lệch so với ảnh; giữ nguyên góc xoay để crop Photo QC không bị mất hiệu lực.
+   */
+  const handleRotatePinsOnly = (floorIdx: number, isStruct: boolean) => {
+    const floor = floorsList[floorIdx];
+    if (!floor || !hasFloors) return;
+    const hasSeparateStructCad = Boolean(floor.cadStructuralSketchPhotoUrl || floor.cad_structural_drawing_url);
+    const shouldRotateZonePins = !isStruct || !hasSeparateStructCad;
+    const shouldRotateElementPins = isStruct || !hasSeparateStructCad;
+    const oldZonePins = floor.cadZonePins || [];
+    const oldElementPins = floor.cadElementPins || [];
+
+    // Ghim chưa có toạ độ thì giữ nguyên, không bịa vị trí mặc định cho dữ liệu pháp lý.
+    const rotate = (pins: CadZonePin[]) =>
+      pins.map((p) => {
+        const rawX = p.pinX ?? p.pin_x;
+        const rawY = p.pinY ?? p.pin_y;
+        if (rawX === undefined || rawX === null || rawY === undefined || rawY === null) return p;
+        const next = rotatePinCoords(Number(rawX), Number(rawY));
+        return { ...p, pinX: next.x, pinY: next.y, pin_x: next.x, pin_y: next.y };
+      });
+
+    setUndoPinStack((prev) => [
+      ...prev.slice(-19),
+      { type: 'PINS_ROTATE', floorId: floor.id, floorIndex: floorIdx, prevZonePins: oldZonePins, prevElementPins: oldElementPins },
+    ]);
+    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) =>
+      fi !== floorIdx
+        ? fl
+        : {
+            ...fl,
+            cadZonePins: shouldRotateZonePins ? rotate(oldZonePins) : oldZonePins,
+            cadElementPins: shouldRotateElementPins ? rotate(oldElementPins) : oldElementPins,
+          }
+    );
+    handleFieldChange(
+      'floors',
+      `Xoay toạ độ ghim ${isStruct ? 'Kết cấu' : 'Kiến trúc'} tầng ${floor.floorName || floorIdx + 1} 90° (giữ nguyên ảnh)`,
+      updatedFloors
+    );
+  };
+
+  /**
+   * Chỉ xoay toạ độ ghim khuyết tật D 90° trên ảnh bối cảnh của một vùng Z hoặc cấu kiện E,
+   * KHÔNG xoay ảnh (giữ nguyên rotation để không làm mất hiệu lực crop Photo QC).
+   */
+  const handleRotateDefectPinsOnly = (floorIdx: number, kind: 'ZONE' | 'ELEMENT', target: DamageZoneData | StructuralElementData) => {
+    if (!hasFloors) return;
+    // Ghim chưa có toạ độ thì giữ nguyên, không bịa vị trí mặc định cho dữ liệu pháp lý.
+    const rotateDefects = (defects: DefectItem[] | undefined) =>
+      (defects || []).map((d: DefectItem) => {
+        const rawX = d.pinX ?? d.pin_x;
+        const rawY = d.pinY ?? d.pin_y;
+        if (rawX === undefined || rawX === null || rawY === undefined || rawY === null) return d;
+        const next = rotatePinCoords(Number(rawX), Number(rawY));
+        return { ...d, pinX: next.x, pinY: next.y, pin_x: next.x, pin_y: next.y };
+      });
+    const code =
+      kind === 'ZONE'
+        ? (target as DamageZoneData).zoneCode || (target as DamageZoneData).zone_code
+        : (target as StructuralElementData).elementCode || (target as StructuralElementData).element_code;
+    // Khớp theo id khi cả hai có id; thiếu id thì khớp theo mã. Không khớp được thì không đụng tới mục nào.
+    const isTarget = (id: string | undefined, itemCode: string | undefined) => {
+      const targetId = (target as { id?: string }).id;
+      if (id && targetId) return id === targetId;
+      return Boolean(code) && itemCode === code;
+    };
+    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+      if (fi !== floorIdx) return fl;
+      if (kind === 'ZONE') {
+        const zones = (fl.zones || []).map((z: DamageZoneData) =>
+          isTarget(z.id, z.zoneCode || z.zone_code) ? { ...z, defects: rotateDefects(z.defects) } : z
+        );
+        return { ...fl, zones };
+      }
+      const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) =>
+        isTarget(e.id, e.elementCode || e.element_code) ? { ...e, defects: rotateDefects(e.defects) } : e
+      );
+      return { ...fl, structuralElements };
+    });
+    handleFieldChange('floors', `Xoay toạ độ ghim D của ${code} 90° (giữ nguyên ảnh)`, updatedFloors);
   };
 
   // Rotate Zone CTX photo with defect pins transformation
@@ -1618,6 +1718,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </button>
                     )}
 
+                    {effectiveCad && isEditMode && (
+                      <button
+                        type="button"
+                        onClick={() => handleRotatePinsOnly(flIdx, false)}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-300 text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                        title="Chỉ xoay toạ độ các ghim 90°, không xoay ảnh. Dùng khi ghim bị lệch so với ảnh."
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Xoay ghim 90°</span>
+                      </button>
+                    )}
+
                     {isEditMode && (
                       <button
                         type="button"
@@ -2199,6 +2311,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     >
                                       <RotateCw className="w-3 h-3" />
                                       <span>Xoay 90° {ctxRot ? `(${ctxRot}°)` : ''}</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && ctxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRotateDefectPinsOnly(flIdx, 'ZONE', z)}
+                                      className="px-2 py-0.5 rounded bg-white text-indigo-700 hover:bg-slate-50 border border-indigo-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                      title="Chỉ xoay toạ độ ghim D 90°, không xoay ảnh"
+                                    >
+                                      <RotateCw className="w-3 h-3" />
+                                      <span>Xoay ghim D</span>
                                     </button>
                                   )}
                                   {isEditMode && ctxUrl && (
@@ -2944,6 +3067,18 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </button>
                     )}
 
+                    {(effectiveStructCad || effectiveCad) && isEditMode && (
+                      <button
+                        type="button"
+                        onClick={() => handleRotatePinsOnly(flIdx, true)}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-300 text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                        title="Chỉ xoay toạ độ các ghim 90°, không xoay ảnh. Dùng khi ghim bị lệch so với ảnh."
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Xoay ghim 90°</span>
+                      </button>
+                    )}
+
                     {isEditMode && (
                       <button
                         type="button"
@@ -3530,6 +3665,17 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     >
                                       <RotateCw className="w-3 h-3" />
                                       <span>Xoay 90&deg;</span>
+                                    </button>
+                                  )}
+                                  {isEditMode && effectiveElemCtxUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRotateDefectPinsOnly(flIdx, 'ELEMENT', elem)}
+                                      className="px-2 py-0.5 rounded bg-white text-amber-800 hover:bg-amber-50 border border-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                      title="Chỉ xoay toạ độ ghim D 90°, không xoay ảnh"
+                                    >
+                                      <RotateCw className="w-3 h-3" />
+                                      <span>Xoay ghim D</span>
                                     </button>
                                   )}
                                   {isEditMode && effectiveElemCtxUrl && (

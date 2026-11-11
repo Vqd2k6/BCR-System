@@ -30,7 +30,9 @@ export const AuditExistingPhotoPicker: React.FC<AuditExistingPhotoPickerProps> =
       if (photo.url === excludedUrl || failedUrls.includes(photo.url)) continue;
       byLabel.set(photo.label, [...(byLabel.get(photo.label) || []), photo]);
     }
-    return [...byLabel.entries()];
+    // Nhóm "Ảnh MỚI chụp lại" luôn đứng đầu, tách khỏi ảnh cũ để không chọn nhầm.
+    const isNew = (items: ReportPhotoPoolItem[]) => items[0]?.category === 'RESURVEY_NEW';
+    return [...byLabel.entries()].sort((a, b) => Number(isNew(b[1])) - Number(isNew(a[1])));
   }, [photos, excludedUrl, failedUrls]);
 
   if (isLoading) {
@@ -50,7 +52,13 @@ export const AuditExistingPhotoPicker: React.FC<AuditExistingPhotoPickerProps> =
     <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
       {groups.map(([label, items]) => (
         <div key={label} className="space-y-1.5">
-          <span className="text-[11px] font-bold text-slate-700 block">
+          <span
+            className={`text-[11px] font-bold block ${
+              items[0]?.category === 'RESURVEY_NEW'
+                ? 'w-fit px-2 py-0.5 rounded-lg border bg-amber-950 text-amber-300 border-amber-700'
+                : 'text-slate-700'
+            }`}
+          >
             {label} ({items.length})
           </span>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">

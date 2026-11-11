@@ -44,6 +44,25 @@ export const UpdatePhotoQcPhotosSchema = z
   .min(1)
   .max(200);
 
+export const ReviewPhotoQcCropsSchema = z
+  .array(
+    z.object({
+      photoKey: z.string().min(1).max(64),
+      photoUrl: z.string().min(1).max(2048),
+      /** Khung crop admin đã xem: server chỉ ghi khi DB vẫn đúng khung này. */
+      crop: z.object({
+        x: z.number(),
+        y: z.number(),
+        w: z.number(),
+        h: z.number(),
+        rotationAtCrop: z.number().int(),
+      }),
+      decision: z.enum(['APPROVED', 'REJECTED']),
+    })
+  )
+  .min(1)
+  .max(200);
+
 export const PhotoQcListQuerySchema = z.object({
   station: z.string().max(16).optional(),
   zone: z.string().max(32).optional(),
@@ -63,5 +82,6 @@ export const PhotoQcRecaptureQuerySchema = z.object({
 
 export type UpdatePhotoQcReportInput = z.infer<typeof UpdatePhotoQcReportSchema>;
 export type UpdatePhotoQcPhotosInput = z.infer<typeof UpdatePhotoQcPhotosSchema>;
+export type ReviewPhotoQcCropsInput = z.infer<typeof ReviewPhotoQcCropsSchema>;
 export type PhotoQcListQuery = z.infer<typeof PhotoQcListQuerySchema>;
 export type PhotoQcRecaptureQuery = z.infer<typeof PhotoQcRecaptureQuerySchema>;

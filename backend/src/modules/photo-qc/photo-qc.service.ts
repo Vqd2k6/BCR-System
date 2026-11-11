@@ -40,10 +40,12 @@ import {
 import type {
   PhotoQcListQuery,
   PhotoQcRecaptureQuery,
+  ReviewPhotoQcCropsInput,
   UpdatePhotoQcPhotosInput,
   UpdatePhotoQcReportInput,
 } from './photo-qc.schemas';
 import type {
+  PhotoQcCropReviewSummary,
   PhotoQcDetail,
   PhotoQcListItem,
   PhotoQcListResult,
@@ -464,6 +466,7 @@ export class PhotoQcService {
     const built = await this.buildAllSlots(reportId);
     this.assertReportAccess(user, built.zoneId);
     const [qc, rows] = await Promise.all([PhotoQcRepository.getReportRow(reportId), PhotoQcRepository.getPhotoRows([reportId])]);
+    const views = this.attachQc(built.slots, rows, built.studio);
     return {
       reportId,
       reportCode: built.reportCode,
@@ -472,7 +475,8 @@ export class PhotoQcService {
       coverEligible: isCoverEligibleKind(built.kind),
       hasP04: built.slots.some((s) => s.photoKey === 'P-04'),
       qc,
-      photos: this.attachQc(built.slots, rows, built.studio),
+      cropReview: this.summarizeCrops(views),
+      photos: views,
       suggestedLevel: suggestRecaptureLevel(rows),
       effectiveLevel: effectiveLevel(qc?.recaptureLevel, suggestRecaptureLevel(rows)),
       appliesFromNextRevision: built.status === 'APPROVED',
@@ -604,6 +608,75 @@ export class PhotoQcService {
       });
       if (renderChanged) {
         await this.freezeForNextRelease(client, reportId, user.userId, 'cập nhật crop / dập bù watermark');
+      }
+      return saved;
+    });
+  }
+
+  /** Đếm crop theo trạng thái duyệt. Crop quá hạn (đổi ảnh/góc xoay) tính là stale, không tính vào approved/pending. */
+  private static summarizeCrops(views: PhotoQcSlotView[]): PhotoQcCropReviewSummary {
+    const sum: PhotoQcCropReviewSummary = { approved: 0, pending: 0, rejected: 0, stale: 0 };
+    for (const v of views) {
+      if (!v.qc?.crop) continue;
+      // Crop bị từ chối không in nên không bao giờ chặn xuất, kể cả khi ảnh/góc xoay đổi sau đó.
+      if (v.qc.cropStatus === 'REJECTED') sum.rejected += 1;
+      else if (v.qcStale) sum.stale += 1;
+      else if (v.qc.cropStatus === 'APPROVED') sum.approved += 1;
+      else sum.pending += 1;
+    }
+    return sum;
+  }
+
+  /** Chặn xuất report khi còn crop chờ duyệt hoặc quá hạn (crop bị từ chối thì in ảnh không crop, không chặn). */
+  static async assertCropsReviewed(reportId: string): Promise<void> {
+    const built = await this.buildAllSlots(reportId);
+    const rows = await PhotoQcRepository.getPhotoRows([reportId]);
+    const sum = this.summarizeCrops(this.attachQc(built.slots, rows, built.studio));
+    if (sum.pending + sum.stale > 0) {
+      throw new ConflictError(
+        `Không thể xuất report: còn ${sum.pending} crop chờ duyệt và ${sum.stale} crop quá hạn (đổi ảnh/góc xoay). Thẩm định cần duyệt hoặc từ chối trước khi xuất.`
+      );
+    }
+  }
+
+  static async reviewCrops(user: JwtPayload, reportId: string, items: ReviewPhotoQcCropsInput, clientIp?: string): Promise<PhotoQcPhotoRow[]> {
+    if (!user.userId) throw new UnauthorizedError('Người dùng chưa xác thực');
+    const built = await this.buildAllSlots(reportId);
+    this.assertReportAccess(user, built.zoneId);
+    const slotByKey = new Map(built.slots.map((s) => [s.photoKey, s]));
+    const rows = await PhotoQcRepository.getPhotoRows([reportId]);
+    const rowByKey = new Map(rows.map((r) => [r.photoKey, r]));
+
+    for (const item of items) {
+      const slot = slotByKey.get(item.photoKey);
+      const qc = rowByKey.get(item.photoKey);
+      if (!slot || !qc?.crop) throw new BadRequestError(`Ô ảnh ${item.photoKey} không có crop để duyệt, vui lòng tải lại`);
+      if (slot.url !== item.photoUrl) throw new ConflictError(`Ảnh ${slot.label} đã thay đổi, vui lòng tải lại trước khi duyệt`);
+      if (item.decision === 'APPROVED' && !isCropApplicable(qc.crop, qc.photoUrl, slot.url, slot.rotation, built.studio)) {
+        throw new ConflictError(`Crop của ${slot.label} đã quá hạn (đổi ảnh hoặc góc xoay), cần crop lại trước khi duyệt`);
+      }
+    }
+
+    return Database.transaction(async (client) => {
+      const saved: PhotoQcPhotoRow[] = [];
+      let renderChanged = false;
+      for (const item of items) {
+        const before = rowByKey.get(item.photoKey)!;
+        // Chỉ ghi khi ảnh và khung crop vẫn đúng bản admin đã xem; người khác vừa đổi thì từ chối để xem lại.
+        const row = await PhotoQcRepository.setCropStatus(client, reportId, item.photoKey, item.decision, user.userId, {
+          photoUrl: item.photoUrl,
+          crop: { ...before.crop!, ...item.crop },
+        });
+        if (!row) throw new ConflictError(`Crop của ô ${item.photoKey} vừa bị thay đổi hoặc không còn, vui lòng tải lại rồi duyệt`);
+        if ((before.cropStatus === 'APPROVED') !== (row.cropStatus === 'APPROVED')) renderChanged = true;
+        saved.push(row);
+      }
+      await PhotoQcRepository.writeAuditLog(client, reportId, user.userId, 'PHOTO_QC_CROP_REVIEW', {
+        items: items.map((i) => ({ photoKey: i.photoKey, decision: i.decision, before: rowByKey.get(i.photoKey)?.cropStatus ?? null })),
+        clientIp: clientIp ?? null,
+      });
+      if (renderChanged) {
+        await this.freezeForNextRelease(client, reportId, user.userId, 'duyệt crop');
       }
       return saved;
     });

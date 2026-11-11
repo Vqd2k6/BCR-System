@@ -5,3 +5,4 @@
  */
 export { PhotoQcWorkspace } from './components/PhotoQcWorkspace';
 export type { PhotoQcWorkspaceProps } from './components/PhotoQcWorkspace';
+export { PhotoQcCropReviewModal } from './components/PhotoQcCropReviewModal';

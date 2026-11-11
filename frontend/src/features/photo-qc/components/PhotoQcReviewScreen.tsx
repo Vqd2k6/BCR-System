@@ -142,6 +142,8 @@ export const PhotoQcReviewScreen: React.FC<PhotoQcReviewScreenProps> = ({ report
                         photoUrl: p.url,
                         photoLabel: p.label,
                         crop: p.qc?.crop ?? null,
+                        cropStatus: p.qc?.cropStatus ?? 'PENDING',
+                        cropReviewedAt: p.qc?.cropReviewedAt ?? null,
                         restampMode: p.qc?.restampMode ?? 'NONE',
                         recapture: next,
                         photoGroup: p.photoGroup,

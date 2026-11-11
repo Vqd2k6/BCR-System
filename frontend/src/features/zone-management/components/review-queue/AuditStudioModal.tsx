@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X,
   CheckCircle2,
@@ -21,7 +21,12 @@ import {
   MoreVertical,
   KeyRound,
   Lock,
+  Crop,
 } from 'lucide-react';
+import { PhotoQcCropReviewModal } from '../../../photo-qc';
+import { fetchPhotoQcDetail } from '../../../photo-qc/api/photoQc.api';
+import { ApprovedCropContext, type ApprovedCropMap, type ApprovedCropRect } from './stepwise/context/ApprovedCropContext';
+import { StudioResurveyButton } from '../../../photo-resurvey';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
 import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
@@ -64,6 +69,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string>('');
   const [selectedPhotoTitle, setSelectedPhotoTitle] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showCropReview, setShowCropReview] = useState(false);
   const [showJudgementModal, setShowJudgementModal] = useState(false);
   const [showImageZoom, setShowImageZoom] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -276,6 +282,29 @@ export const AuditStudioModal: React.FC<Props> = ({
       fetchVersions();
     }
   }, [isOpen, reportId]);
+
+  // Crop đã duyệt (Photo QC): Studio hiện ảnh đã crop giống bản in. Lỗi tải chỉ log, Studio vẫn dùng ảnh nguyên.
+  const [approvedCrops, setApprovedCrops] = useState<ApprovedCropMap>(new Map());
+  const loadApprovedCrops = useCallback(async () => {
+    try {
+      const detail = await fetchPhotoQcDetail(reportId);
+      const next = new Map<string, ApprovedCropRect>();
+      for (const slot of detail.photos) {
+        const crop = slot.qc?.crop;
+        if (crop && slot.qc?.cropStatus === 'APPROVED' && !slot.qcStale) {
+          next.set(slot.url, { x: crop.x, y: crop.y, w: crop.w, h: crop.h, rotationAtCrop: crop.rotationAtCrop });
+        }
+      }
+      setApprovedCrops(next);
+    } catch (err: unknown) {
+      console.error('[AuditStudioModal:loadApprovedCrops] Không tải được crop đã duyệt', err);
+      setApprovedCrops(new Map());
+    }
+  }, [reportId]);
+
+  useEffect(() => {
+    if (isOpen && reportId) void loadApprovedCrops();
+  }, [isOpen, reportId, loadApprovedCrops]);
 
   if (!isOpen) return null;
 
@@ -638,6 +667,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const riskCard = data?.leftPane?.riskScoreCard;
 
   return (
+    <ApprovedCropContext.Provider value={approvedCrops}>
     <div className={`fixed inset-0 !m-0 top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in duration-200 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4 overflow-y-auto'}`}>
       <div className={`relative w-full !m-0 bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 ${isFullscreen ? 'h-screen w-screen rounded-none border-t-0' : 'max-w-7xl h-[94vh] rounded-2xl'}`}>
         {/* Top Header Bar (Ultra-Compact Single-Line Clean Light Theme) */}
@@ -740,6 +770,20 @@ export const AuditStudioModal: React.FC<Props> = ({
                 )}
               </div>
             )}
+
+            {/* Ảnh KSV chụp lại: đối chiếu cũ – mới và duyệt */}
+            <StudioResurveyButton reportId={reportId} onChanged={fetchAuditData} />
+
+            {/* Duyệt crop ảnh (Photo QC): chỉ crop đã duyệt mới in vào report */}
+            <button
+              type="button"
+              onClick={() => setShowCropReview(true)}
+              className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+              title="Xem trước và duyệt các ô ảnh đã crop trước khi xuất report"
+            >
+              <Crop className="w-3 h-3 text-teal-600" />
+              <span>Duyệt Crop</span>
+            </button>
 
             {/* Nút Yêu Cầu Khảo Sát Lại (Reject) trên Header */}
             {data?.status !== 'APPROVED' && (
@@ -1093,6 +1137,15 @@ export const AuditStudioModal: React.FC<Props> = ({
       </div>
 
       {/* Child Modals */}
+      {showCropReview && (
+        <PhotoQcCropReviewModal
+          isOpen={showCropReview}
+          reportId={reportId}
+          onClose={() => setShowCropReview(false)}
+          onReviewed={() => void loadApprovedCrops()}
+        />
+      )}
+
       {showRejectModal && data && (
         <RejectReportModal
           isOpen={showRejectModal}
@@ -1705,5 +1758,6 @@ export const AuditStudioModal: React.FC<Props> = ({
         </div>
       )}
     </div>
+    </ApprovedCropContext.Provider>
   );
 };

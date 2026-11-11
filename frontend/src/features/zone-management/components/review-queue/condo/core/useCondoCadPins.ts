@@ -22,6 +22,8 @@ export interface CondoCadBoard {
   moveCadPin: (code: string, x: number, y: number) => void;
   addCadPin: (code: string, x: number, y: number) => void;
   rotateCad: () => void;
+  /** Chỉ xoay toạ độ ghim, giữ nguyên ảnh. */
+  rotatePinsOnly: () => void;
 }
 
 export interface CondoPhotoRotations {
@@ -140,6 +142,34 @@ export function useCondoCadPins({
     });
   };
 
+  /**
+   * Chỉ xoay toạ độ ghim 90° theo chiều kim đồng hồ, KHÔNG đổi góc xoay ảnh (photoRotations)
+   * để không làm mất hiệu lực crop Photo QC (rotationAtCrop). Dùng khi ghim bị lệch so với ảnh.
+   */
+  const rotatePinsOnly = (isElementBoard: boolean) => {
+    const rotatesElementOnly = isElementBoard && hasSeparateElementCad;
+    const fields: Array<'cadZonePins' | 'cadElementPins'> = rotatesElementOnly
+      ? ['cadElementPins']
+      : hasSeparateElementCad
+        ? ['cadZonePins']
+        : ['cadZonePins', 'cadElementPins'];
+    const previous = fields.map((field) => ({ field, pins: latestRef.current[field] }));
+
+    for (const { field, pins } of previous) {
+      setPins(
+        field,
+        pins.map((pin) => {
+          const position = getCadPinPosition(pin);
+          if (!position) return pin;
+          const next = rotatePinCoords(position.x, position.y);
+          return withCoords(pin, next.x, next.y);
+        }),
+        'Xoay toạ độ ghim 90° (giữ nguyên ảnh)'
+      );
+    }
+    pushUndo(() => previous.forEach(({ field, pins }) => setPins(field, pins, 'Hoàn tác xoay toạ độ ghim')));
+  };
+
   return {
     undoState,
     getRotation,
@@ -151,6 +181,7 @@ export function useCondoCadPins({
       moveCadPin: moveCadPin('cadZonePins'),
       addCadPin: addCadPin('cadZonePins'),
       rotateCad: () => rotateCad(false),
+      rotatePinsOnly: () => rotatePinsOnly(false),
     },
     elementBoard: {
       url: structuralCadUrl || cadUrl,
@@ -159,6 +190,7 @@ export function useCondoCadPins({
       moveCadPin: moveCadPin('cadElementPins'),
       addCadPin: addCadPin('cadElementPins'),
       rotateCad: () => rotateCad(true),
+      rotatePinsOnly: () => rotatePinsOnly(true),
     },
   };
 }

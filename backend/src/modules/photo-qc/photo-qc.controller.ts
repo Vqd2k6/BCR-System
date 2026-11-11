@@ -5,6 +5,7 @@ import type { JwtPayload } from '../../common/guards/auth.guard';
 import {
   PhotoQcListQuerySchema,
   PhotoQcRecaptureQuerySchema,
+  ReviewPhotoQcCropsSchema,
   UpdatePhotoQcPhotosSchema,
   UpdatePhotoQcReportSchema,
 } from './photo-qc.schemas';
@@ -56,6 +57,20 @@ export class PhotoQcController {
         requireUser(req),
         ReportIdSchema.parse(req.params.id),
         UpdatePhotoQcPhotosSchema.parse(req.body?.items),
+        req.ip
+      );
+      res.status(200).json({ success: true, data });
+    } catch (err: unknown) {
+      next(err);
+    }
+  }
+
+  static async reviewCrops(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await PhotoQcService.reviewCrops(
+        requireUser(req),
+        ReportIdSchema.parse(req.params.id),
+        ReviewPhotoQcCropsSchema.parse(req.body?.items),
         req.ip
       );
       res.status(200).json({ success: true, data });

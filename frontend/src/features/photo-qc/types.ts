@@ -8,6 +8,8 @@ export type PhotoQcRestampMode = 'NONE' | 'LOGO' | 'TEXT' | 'BOTH';
 export type PhotoQcGroup = 'OUTDOOR' | 'INDOOR';
 export type PhotoQcFlagStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
 export type PhotoQcCropRatio = '4:3' | '3:4';
+/** Trạng thái duyệt crop của Thẩm định: chỉ APPROVED mới in vào report. */
+export type PhotoQcCropStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type PhotoQcListFilter = 'ALL' | 'UNREVIEWED' | 'FLAGGED' | 'REVIEWED';
 
 export interface PhotoQcCrop {
@@ -41,11 +43,29 @@ export interface PhotoQcPhotoRow {
   photoUrl: string;
   photoLabel: string | null;
   crop: PhotoQcCrop | null;
+  cropStatus: PhotoQcCropStatus;
+  cropReviewedAt: string | null;
   restampMode: PhotoQcRestampMode;
   recapture: boolean;
   photoGroup: PhotoQcGroup;
   status: PhotoQcFlagStatus;
   updatedAt: string | null;
+}
+
+export interface PhotoQcCropReviewSummary {
+  approved: number;
+  pending: number;
+  rejected: number;
+  /** Crop đã lưu nhưng ảnh đổi URL hoặc góc xoay: phải crop lại và duyệt lại. */
+  stale: number;
+}
+
+export interface PhotoQcCropReviewItem {
+  photoKey: string;
+  photoUrl: string;
+  /** Khung crop admin đang xem; server chỉ ghi khi DB vẫn đúng khung này. */
+  crop: Pick<PhotoQcCrop, 'x' | 'y' | 'w' | 'h' | 'rotationAtCrop'>;
+  decision: 'APPROVED' | 'REJECTED';
 }
 
 export interface PhotoQcSlotView {
@@ -95,6 +115,7 @@ export interface PhotoQcDetail {
   coverEligible: boolean;
   hasP04: boolean;
   qc: PhotoQcReportRow | null;
+  cropReview: PhotoQcCropReviewSummary;
   photos: PhotoQcSlotView[];
   suggestedLevel: PhotoQcEffectiveLevel;
   effectiveLevel: PhotoQcEffectiveLevel;

@@ -9,5 +9,6 @@ export { PhotoResurveyScreen } from './components/PhotoResurveyScreen';
 export type { PhotoResurveyScreenProps } from './components/PhotoResurveyScreen';
 export { ResurveyMarkersLayer } from './components/ResurveyMarkersLayer';
 export { PhotoResurveyReviewList } from './components/PhotoResurveyReviewList';
+export { StudioResurveyButton } from './components/StudioResurveyButton';
 export { useResurveyTasks } from './hooks/useResurveyTasks';
 export type { ResurveyTask } from './types';

@@ -301,12 +301,20 @@ export class ReportService {
     return withScores;
   }
 
+  /** Import động: photo-qc.service phụ thuộc ngược vào ReportService nên không import tĩnh được. */
+  private static async assertPhotoQcCropsReviewed(reportId: string): Promise<void> {
+    const { PhotoQcService } = await import('../../photo-qc/photo-qc.service');
+    await PhotoQcService.assertCropsReviewed(reportId);
+  }
+
   public static async renderFinalPdf(
     resolved: ResolvedReport,
     snapshot: ReportSnapshot,
     revision: number,
     pinnedConfig?: ReportContentConfig
   ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string; watermark?: WatermarkVerifyReport }> {
+    // Phát hành Rev: crop chưa duyệt sẽ không in, nên bắt buộc Thẩm định duyệt/từ chối hết trước khi phát hành.
+    await this.assertPhotoQcCropsReviewed(resolved.id);
     const finalReport = this.buildFinalReport(resolved, snapshot, revision);
     if (pinnedConfig) {
       finalReport.reportContentConfig = pinnedConfig;
@@ -364,6 +372,8 @@ export class ReportService {
     enableWatermark: boolean,
     revision?: number
   ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string }> {
+    // Hồ sơ APPROVED render theo snapshot đã đóng băng nên không cần gate; bản nháp phải duyệt xong crop.
+    if (resolved.status !== 'APPROVED') await this.assertPhotoQcCropsReviewed(resolved.id);
     return RenderQueue.run(async () => {
       const { html, viewModel } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision);
       const reportNo = viewModel.metadata.reportNo;

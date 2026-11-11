@@ -1,5 +1,6 @@
 import { api } from '../../../services/api';
 import type {
+  PhotoQcCropReviewItem,
   PhotoQcDetail,
   PhotoQcListParams,
   PhotoQcListResult,
@@ -45,6 +46,12 @@ export async function savePhotoQcReport(reportId: string, body: PhotoQcReportUpd
 
 export async function savePhotoQcPhotos(reportId: string, items: PhotoQcPhotoUpdate[]): Promise<PhotoQcPhotoRow[]> {
   const res = await api.put<Envelope<PhotoQcPhotoRow[]>>(`${BASE}/reports/${encodeURIComponent(reportId)}/photos`, { items });
+  return res.data.data;
+}
+
+/** Thẩm định duyệt/từ chối crop. Chỉ crop APPROVED mới in vào report. */
+export async function reviewPhotoQcCrops(reportId: string, items: PhotoQcCropReviewItem[]): Promise<PhotoQcPhotoRow[]> {
+  const res = await api.put<Envelope<PhotoQcPhotoRow[]>>(`${BASE}/reports/${encodeURIComponent(reportId)}/crop-review`, { items });
   return res.data.data;
 }
 

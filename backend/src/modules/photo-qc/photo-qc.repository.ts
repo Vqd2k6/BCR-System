@@ -8,6 +8,7 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import { Database } from '../../database/db';
 import type {
   PhotoQcCrop,
+  PhotoQcCropStatus,
   PhotoQcFlagStatus,
   PhotoQcGroup,
   PhotoQcPhotoRow,
@@ -42,6 +43,8 @@ interface QcPhotoDbRow {
   photo_url: string;
   photo_label: string | null;
   crop: unknown;
+  crop_status: string;
+  crop_reviewed_at: Date | null;
   restamp_mode: string;
   recapture: boolean;
   photo_group: string;
@@ -88,6 +91,8 @@ export function toPhotoRow(r: QcPhotoDbRow): PhotoQcPhotoRow {
     photoUrl: r.photo_url,
     photoLabel: r.photo_label,
     crop: parseCrop(r.crop),
+    cropStatus: (['PENDING', 'APPROVED', 'REJECTED'].includes(r.crop_status) ? r.crop_status : 'PENDING') as PhotoQcCropStatus,
+    cropReviewedAt: r.crop_reviewed_at ? new Date(r.crop_reviewed_at).toISOString() : null,
     restampMode: (['NONE', 'LOGO', 'TEXT', 'BOTH'].includes(r.restamp_mode) ? r.restamp_mode : 'NONE') as PhotoQcRestampMode,
     recapture: Boolean(r.recapture),
     photoGroup: (r.photo_group === 'INDOOR' ? 'INDOOR' : 'OUTDOOR') as PhotoQcGroup,
@@ -103,7 +108,7 @@ export class PhotoQcRepository {
     const reportRows = await run<QcReportDbRow>(client, `SELECT * FROM photo_qc_reports WHERE report_id = $1 AND deleted_at IS NULL;`, [reportId]);
     const photoRows = await run<QcPhotoDbRow>(
       client,
-      `SELECT * FROM photo_qc_photos WHERE report_id = $1 AND deleted_at IS NULL AND crop IS NOT NULL ORDER BY photo_key;`,
+      `SELECT * FROM photo_qc_photos WHERE report_id = $1 AND deleted_at IS NULL AND crop IS NOT NULL AND crop_status = 'APPROVED' ORDER BY photo_key;`,
       [reportId]
     );
     const coverSource: PhotoQcCoverSource | null = reportRows[0]?.cover_source === 'P04' ? 'P04' : null;
@@ -202,6 +207,18 @@ export class PhotoQcRepository {
        ON CONFLICT (report_id, photo_key) DO UPDATE SET
          photo_url = EXCLUDED.photo_url,
          photo_label = EXCLUDED.photo_label,
+         crop_status = CASE
+           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN 'PENDING'
+           ELSE photo_qc_photos.crop_status
+         END,
+         crop_reviewed_by = CASE
+           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN NULL
+           ELSE photo_qc_photos.crop_reviewed_by
+         END,
+         crop_reviewed_at = CASE
+           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN NULL
+           ELSE photo_qc_photos.crop_reviewed_at
+         END,
          crop = CASE WHEN $9::boolean THEN EXCLUDED.crop ELSE photo_qc_photos.crop END,
          restamp_mode = COALESCE($5, photo_qc_photos.restamp_mode),
          recapture = COALESCE($6, photo_qc_photos.recapture),
@@ -228,6 +245,40 @@ export class PhotoQcRepository {
       ]
     );
     return toPhotoRow(rows[0]);
+  }
+
+  /** Duyệt hoặc từ chối crop của một ô. Chỉ ô đang có crop; crop không bị xoá khi từ chối. */
+  static async setCropStatus(
+    client: Queryable,
+    reportId: string,
+    photoKey: string,
+    status: Exclude<PhotoQcCropStatus, 'PENDING'>,
+    userId: string,
+    /** Bản ảnh + crop admin đã xem: chỉ cập nhật khi DB vẫn đúng bản này (chống ghi đè crop vừa đổi). */
+    expected?: { photoUrl: string; crop: PhotoQcCrop }
+  ): Promise<PhotoQcPhotoRow | null> {
+    const rows = await run<QcPhotoDbRow>(
+      client,
+      `UPDATE photo_qc_photos
+          SET crop_status = $3, crop_reviewed_by = $4, crop_reviewed_at = NOW(), updated_at = NOW()
+        WHERE report_id = $1 AND photo_key = $2 AND crop IS NOT NULL AND deleted_at IS NULL
+          AND ($5::text IS NULL OR photo_url = $5)
+          AND ($6::jsonb IS NULL OR (crop->>'x')::float8 = ($6::jsonb->>'x')::float8
+               AND (crop->>'y')::float8 = ($6::jsonb->>'y')::float8
+               AND (crop->>'w')::float8 = ($6::jsonb->>'w')::float8
+               AND (crop->>'h')::float8 = ($6::jsonb->>'h')::float8
+               AND COALESCE((crop->>'rotationAtCrop')::int, 0) = COALESCE(($6::jsonb->>'rotationAtCrop')::int, 0))
+        RETURNING *;`,
+      [
+        reportId,
+        photoKey,
+        status,
+        userId,
+        expected?.photoUrl ?? null,
+        expected ? JSON.stringify(expected.crop) : null,
+      ]
+    );
+    return rows[0] ? toPhotoRow(rows[0]) : null;
   }
 
   static async writeAuditLog(client: Queryable, reportId: string, userId: string, action: string, payload: Record<string, unknown>): Promise<void> {

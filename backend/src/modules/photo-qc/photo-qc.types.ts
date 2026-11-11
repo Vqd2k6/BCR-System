@@ -15,6 +15,8 @@ export type PhotoQcRestampMode = 'NONE' | 'LOGO' | 'TEXT' | 'BOTH';
 export type PhotoQcGroup = 'OUTDOOR' | 'INDOOR';
 export type PhotoQcFlagStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
 export type PhotoQcCropRatio = '4:3' | '3:4';
+/** Trạng thái duyệt crop của Thẩm định: chỉ APPROVED mới in vào report. */
+export type PhotoQcCropStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 /** Khung crop tỉ lệ 0–1 trên ảnh SAU KHI XOAY (đúng như hiển thị). */
 export interface PhotoQcCrop {
@@ -56,11 +58,22 @@ export interface PhotoQcPhotoRow {
   photoUrl: string;
   photoLabel: string | null;
   crop: PhotoQcCrop | null;
+  cropStatus: PhotoQcCropStatus;
+  cropReviewedAt: string | null;
   restampMode: PhotoQcRestampMode;
   recapture: boolean;
   photoGroup: PhotoQcGroup;
   status: PhotoQcFlagStatus;
   updatedAt: string | null;
+}
+
+/** Tổng hợp trạng thái duyệt crop của một hồ sơ (dùng chặn xuất report). */
+export interface PhotoQcCropReviewSummary {
+  approved: number;
+  pending: number;
+  rejected: number;
+  /** Crop đã lưu nhưng ảnh đổi URL hoặc đổi góc xoay: phải crop lại và duyệt lại. */
+  stale: number;
 }
 
 /** Một ô ảnh như report sẽ in. */
@@ -116,6 +129,7 @@ export interface PhotoQcDetail {
   coverEligible: boolean;
   hasP04: boolean;
   qc: PhotoQcReportRow | null;
+  cropReview: PhotoQcCropReviewSummary;
   photos: PhotoQcSlotView[];
   suggestedLevel: PhotoQcEffectiveLevel;
   effectiveLevel: PhotoQcEffectiveLevel;

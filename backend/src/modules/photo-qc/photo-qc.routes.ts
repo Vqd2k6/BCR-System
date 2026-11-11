@@ -11,6 +11,7 @@ export function createPhotoQcRouter(): Router {
   router.get('/reports/:id/photos', authenticateJwt, admins, PhotoQcController.detail);
   router.put('/reports/:id', authenticateJwt, admins, PhotoQcController.updateReport);
   router.put('/reports/:id/photos', authenticateJwt, admins, PhotoQcController.updatePhotos);
+  router.put('/reports/:id/crop-review', authenticateJwt, admins, PhotoQcController.reviewCrops);
   router.get('/recapture-list', authenticateJwt, admins, PhotoQcController.recaptureList);
 
   return router;
