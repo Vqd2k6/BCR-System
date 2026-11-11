@@ -22,7 +22,7 @@ interface PhotoQcCropReviewModalProps {
 
 type ReviewState = 'PENDING' | 'APPROVED' | 'REJECTED' | 'STALE';
 type Filter = 'ALL' | ReviewState;
-type ViewMode = 'RESULT' | 'ORIGINAL' | 'EDIT';
+type ViewMode = 'COMPARE' | 'RESULT' | 'ORIGINAL' | 'EDIT';
 
 const STATE_BADGE: Record<ReviewState, { label: string; className: string }> = {
   PENDING: { label: 'Chờ duyệt', className: 'bg-amber-950 text-amber-300 border-amber-700' },
@@ -69,7 +69,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [activeKey, setActiveKey] = useState<string | null>(initialPhotoKey);
-  const [mode, setMode] = useState<ViewMode>('RESULT');
+  const [mode, setMode] = useState<ViewMode>('COMPARE');
   const [zoom, setZoom] = useState(false);
 
   const load = useCallback(async () => {
@@ -113,7 +113,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
       const next = visible[activeIndex + delta];
       if (next) {
         setActiveKey(next.photoKey);
-        setMode('RESULT');
+        setMode('COMPARE');
       }
     },
     [visible, activeIndex]
@@ -131,7 +131,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
         const nextPending = after.find((s) => stateOf(s) === 'PENDING');
         if (nextPending) setActiveKey(nextPending.photoKey);
       }
-      setMode('RESULT');
+      setMode('COMPARE');
       await load();
       onReviewed?.();
     } catch (err: unknown) {
@@ -163,7 +163,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
       if (e.key === 'Escape') {
-        if (mode === 'EDIT') setMode('RESULT');
+        if (mode === 'EDIT') setMode('COMPARE');
         else onClose();
       } else if (mode === 'EDIT') {
         return;
@@ -263,7 +263,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
                   type="button"
                   onClick={() => {
                     setActiveKey(slot.photoKey);
-                    setMode('RESULT');
+                    setMode('COMPARE');
                   }}
                   className={`w-full flex items-center gap-2 px-2 py-1.5 text-left border-b border-slate-100 cursor-pointer ${
                     selected ? 'bg-teal-50' : 'hover:bg-slate-50'
@@ -309,6 +309,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
                 <div className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 p-0.5">
                   {(
                     [
+                      ['COMPARE', 'So sánh'],
                       ['RESULT', 'Kết quả in'],
                       ['ORIGINAL', 'Ảnh gốc'],
                       ...(readOnly ? [] : [['EDIT', 'Chỉnh khung']]),
@@ -372,7 +373,7 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
                       saveLabel="Lưu khung & duyệt"
                       hideRestamp
                       blockCutPins
-                      onCancel={() => setMode('RESULT')}
+                      onCancel={() => setMode('COMPARE')}
                       onSave={(crop) => void submit(toItem(active, 'ADJUST', crop), true)}
                     />
                   </div>
@@ -391,6 +392,31 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({
                       <div className="max-w-md text-center text-sm text-rose-700 px-4">
                         Ảnh hoặc góc xoay đã đổi sau khi crop, khung cũ không còn đúng. Bấm <strong>Chỉnh khung</strong> để vẽ lại (lưu là duyệt), hoặc
                         <strong> Từ chối</strong> để in ảnh không crop.
+                      </div>
+                    ) : mode === 'COMPARE' ? (
+                      <div className="flex items-stretch justify-center gap-6 px-16">
+                        {(
+                          [
+                            ['Ảnh gốc – khung crop', null],
+                            [activeState === 'STALE' ? 'Sau crop (khung cũ đã lệch)' : 'Sau crop – như report in', active.qc?.crop ?? null],
+                          ] as const
+                        ).map(([label, crop]) => (
+                          <div key={label} className="flex flex-col items-center gap-1.5">
+                            <span className="text-[11px] font-bold uppercase text-slate-500">{label}</span>
+                            <button type="button" onClick={() => setZoom(true)} className="cursor-pointer" title="Bấm để phóng to">
+                              <RotatedPhoto
+                                key={`${active.url}|${crop ? 'crop' : 'frame'}`}
+                                url={active.url}
+                                rotation={active.rotation}
+                                boxWidth={Math.floor((stageW - 180) / 2)}
+                                boxHeight={stageH - 50}
+                                crop={crop}
+                                frame={crop ? null : active.qc?.crop ?? null}
+                                className={`bg-transparent ${crop && activeState === 'STALE' ? 'opacity-50' : ''}`}
+                              />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <button type="button" onClick={() => setZoom(true)} className="cursor-pointer" title="Bấm để phóng to">

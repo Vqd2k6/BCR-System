@@ -30,6 +30,8 @@ interface RotatedPhotoProps {
   fitHeight?: boolean;
   /** Xem trước đúng phần sẽ in (khung crop trên ảnh đã xoay). */
   crop?: NormRect | null;
+  /** Vẽ khung crop đè lên ảnh nguyên (vùng ngoài khung làm tối), chỉ khi không truyền `crop`. */
+  frame?: NormRect | null;
   useThumb?: boolean;
   /** Kích thước đã biết từ lần tải trước: dựng đúng khung ngay, không giật bố cục khi ảnh về. */
   knownSize?: NaturalSize | null;
@@ -53,6 +55,7 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({
   boxHeight,
   fitHeight = false,
   crop,
+  frame = null,
   useThumb = false,
   knownSize = null,
   lowPriority = false,
@@ -130,6 +133,12 @@ export const RotatedPhoto: React.FC<RotatedPhotoProps> = ({
             }
           />
         </div>
+        {frame && rot && !crop && (
+          <div
+            className="absolute border-2 border-teal-400 pointer-events-none"
+            style={{ left: frame.x * viewW, top: frame.y * viewH, width: frame.w * viewW, height: frame.h * viewH, boxShadow: '0 0 0 9999px rgba(2, 6, 23, 0.5)' }}
+          />
+        )}
       </div>
       {children}
     </div>
