@@ -25,6 +25,10 @@ export interface StudioResurveyRow {
   action: ResurveyItemRow['action'] | null;
   state: StudioResurveyState;
   capturedAt: string | null;
+  /** Giờ ảnh gốc đang in trên report (watermark). */
+  oldTimeText: string | null;
+  /** Giờ sẽ in trên report nếu Đưa vào (Time 2: thay ảnh giữ giờ gốc, ảnh phát sinh chèn giữa 2 ảnh kề). */
+  printTimeText: string | null;
   naReason: string | null;
 }
 
@@ -69,6 +73,8 @@ export function buildStudioResurveyRows(view: ResurveySessionView): StudioResurv
       action: item?.action ?? null,
       state: stateFor(item),
       capturedAt: item?.capturedAtClient ?? item?.receivedAt ?? null,
+      oldTimeText: slot.dateTimeText || null,
+      printTimeText: item?.time2Text ?? null,
       naReason: item?.naReason ?? null,
     });
   }
@@ -87,6 +93,8 @@ export function buildStudioResurveyRows(view: ResurveySessionView): StudioResurv
       action: item.action,
       state: stateFor(item),
       capturedAt: item.capturedAtClient ?? item.receivedAt,
+      oldTimeText: null,
+      printTimeText: item.time2Text,
       naReason: item.naReason,
     });
   }

@@ -178,7 +178,10 @@ export const StudioResurveyPanel: React.FC<StudioResurveyPanelProps> = ({ view, 
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 force-light">
                 <div className="space-y-1">
                   <div className="text-[10px] font-bold uppercase text-slate-500">
-                    Ảnh cũ trong hồ sơ{r.state === 'APPLIED' ? ' (đã thay)' : ''}
+                    Ảnh cũ trong hồ sơ{r.state === 'APPLIED' && r.action === 'REPLACE' ? ' (đã thay)' : ''}
+                    {r.oldUrl && (
+                      <span className="ml-1 normal-case font-semibold text-slate-700">• Giờ chụp gốc: {r.oldTimeText ?? '---'}</span>
+                    )}
                   </div>
                   {r.oldUrl ? (
                     <ResurveyPhoto url={r.oldUrl} rotation={r.oldRotation} alt={`Ảnh cũ ${r.label}`} height={180} tone="flag" />
@@ -192,6 +195,9 @@ export const StudioResurveyPanel: React.FC<StudioResurveyPanelProps> = ({ view, 
                 <div className="space-y-1">
                   <div className="text-[10px] font-bold uppercase text-slate-500">
                     Ảnh mới KSV chụp{r.capturedAt ? ` • ${formatTime(r.capturedAt)}` : ''}
+                    {r.newUrl && r.printTimeText && (
+                      <span className="block normal-case font-semibold text-emerald-700">Giờ in trên report: {r.printTimeText}</span>
+                    )}
                   </div>
                   {r.action === 'MARK_NA' ? (
                     <div className="h-[180px] rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-xs text-slate-600 px-3 text-center">
