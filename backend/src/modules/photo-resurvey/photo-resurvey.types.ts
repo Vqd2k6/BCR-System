@@ -7,6 +7,7 @@
 
 export type ResurveyStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED';
 export type ResurveyAction = 'REPLACE' | 'ADD_EXTRA' | 'MARK_NA';
+export type ResurveyApplyStatus = 'PENDING' | 'APPLIED' | 'DECLINED';
 export type ResurveySlotCode = 'P-01' | 'P-02' | 'P-03' | 'P-04' | 'P-05' | 'P-06' | 'P-07';
 /**
  * Nguồn của Time 2 (chữ ngày giờ in watermark):
@@ -59,6 +60,9 @@ export interface ResurveyItemRow {
   captureLng: number | null;
   captureAccuracyM: number | null;
   distanceToParcelM: number | null;
+  /** Thẩm định quyết định Đưa vào report: chỉ APPLIED mới in. */
+  applyStatus: ResurveyApplyStatus;
+  applyDecidedAt: string | null;
   createdAt: string;
 }
 

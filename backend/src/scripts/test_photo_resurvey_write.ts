@@ -252,6 +252,24 @@ async function main(): Promise<void> {
         assert.ok(actions.includes(a), `thiếu nhật ký ${a}`);
       }
     });
+    await tc('Duyệt phiên CHƯA đổi report: mục chờ đưa vào, P-02 vẫn ảnh cũ; Thẩm định đưa vào, bỏ qua, hoàn tác', async () => {
+      const v0 = await PhotoResurveyService.getView(admin09, reportId);
+      assert.ok(v0.items.every((i) => i.applyStatus === 'PENDING'), 'mục mới duyệt phải chờ đưa vào');
+      assert.strictEqual(v0.slots.find((s) => s.photoKey === 'P-02')?.url, p02.url, 'chưa đưa vào thì report in ảnh cũ');
+      assert.strictEqual(await PhotoResurveyRepository.loadRenderState(reportId), null);
+      const ids = v0.items.map((i) => i.id);
+      const declined = await PhotoResurveyService.decideApply(admin09, sessionId, { itemIds: ids, decision: 'DECLINED' });
+      assert.ok(declined.items.every((i) => i.applyStatus === 'DECLINED'));
+      assert.strictEqual(await PhotoResurveyRepository.loadRenderState(reportId), null);
+      await PhotoResurveyService.decideApply(admin09, sessionId, { itemIds: ids, decision: 'PENDING' });
+      const applied = await PhotoResurveyService.decideApply(admin09, sessionId, { itemIds: ids, decision: 'APPLIED' });
+      assert.ok(applied.items.every((i) => i.applyStatus === 'APPLIED' && i.applyDecidedAt));
+      const logs = await Database.query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM system_audit_logs WHERE entity_type = 'PHOTO_RESURVEY' AND entity_id = $1 AND action = 'PHOTO_RESURVEY_APPLY';`,
+        [sessionId]
+      );
+      assert.strictEqual(logs.rows[0]?.n, '3');
+    });
     await tc('Bản in kế tiếp: P-02 là ảnh mới (giờ in giữ nguyên), P-05 gốc bị bỏ, ảnh phát sinh có mặt', async () => {
       const v = await PhotoResurveyService.getView(admin09, reportId);
       const slot02 = v.slots.find((s) => s.photoKey === 'P-02');
@@ -299,8 +317,8 @@ async function main(): Promise<void> {
             [appr.id, appr.parcel_id, surveyor09.userId]
           );
           await client.query(
-            `INSERT INTO survey_photo_resurvey_items (resurvey_id, action, slot_code, photo_key, original_url, new_url, time2_text, created_by)
-             VALUES ($1, 'REPLACE', 'P-02', 'P-02', 'u/old.jpg', 'u/new.jpg', '1 thg 1, 2026 08:00:00', $2);`,
+            `INSERT INTO survey_photo_resurvey_items (resurvey_id, action, slot_code, photo_key, original_url, new_url, time2_text, created_by, apply_status)
+             VALUES ($1, 'REPLACE', 'P-02', 'P-02', 'u/old.jpg', 'u/new.jpg', '1 thg 1, 2026 08:00:00', $2, 'APPLIED');`,
             [s.rows[0].id, surveyor09.userId]
           );
           const snap = await ReportSnapshotService.writeApprovedRelease(client, appr.id, admin09.userId, appr.approved_at, 'TEST resurvey', appr.export_revision);

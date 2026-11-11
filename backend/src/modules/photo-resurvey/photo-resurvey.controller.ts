@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { UnauthorizedError } from '../../common/errors/problem-details';
 import type { JwtPayload } from '../../common/guards/auth.guard';
 import {
+  ApplyDecisionSchema,
   ApproveSchema,
   MarkNaSchema,
   RejectSchema,
@@ -64,6 +65,10 @@ export class PhotoResurveyController {
 
   static approve = wrap((req) =>
     PhotoResurveyService.approve(requireUser(req), UuidSchema.parse(req.params.sessionId), ApproveSchema.parse(req.body ?? {}), req.ip)
+  );
+
+  static apply = wrap((req) =>
+    PhotoResurveyService.decideApply(requireUser(req), UuidSchema.parse(req.params.sessionId), ApplyDecisionSchema.parse(req.body), req.ip)
   );
 
   static reject = wrap((req) =>

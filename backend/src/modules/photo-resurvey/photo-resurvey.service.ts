@@ -42,7 +42,7 @@ import {
   stableSha256,
   type TimelineEntry,
 } from './photo-resurvey.rules';
-import type { ApproveInput, MarkNaInput, RejectInput, TaskQuery, UploadResurveyPhotoInput } from './photo-resurvey.schemas';
+import type { ApplyDecisionInput, ApproveInput, MarkNaInput, RejectInput, TaskQuery, UploadResurveyPhotoInput } from './photo-resurvey.schemas';
 import type {
   ResurveyExtraTimePreview,
   ResurveyIdentity,
@@ -808,6 +808,47 @@ export class PhotoResurveyService {
         time2Overrides: overrideTimes.map((o) => ({ itemId: o.itemId, at: o.at.toISOString() })),
         qcResolved: resolved,
         note: body.note ?? null,
+        clientIp: clientIp ?? null,
+      });
+      await this.freezeForNextRelease(client, session.reportId, userId);
+    });
+    return this.buildView(user, session.reportId);
+  }
+
+  /**
+   * Thẩm định quyết định từng mục của phiên ĐÃ DUYỆT: APPLIED = đưa vào report (thay ảnh cũ / thêm ảnh / bỏ ô N/A),
+   * DECLINED = giữ ảnh cũ, PENDING = hoàn tác về chờ quyết định. Hồ sơ đã phát hành áp từ Rev kế tiếp.
+   */
+  static async decideApply(user: JwtPayload, sessionId: string, body: ApplyDecisionInput, clientIp?: string): Promise<ResurveySessionView> {
+    const userId = requireUserId(user);
+    const session = await PhotoResurveyRepository.getSession(sessionId);
+    if (!session) throw new NotFoundError('Không tìm thấy phiên khảo sát bổ sung');
+    const meta = await this.loadMeta(session.reportId);
+    this.assertReviewer(user, meta.zone_id);
+    if (session.status !== 'APPROVED') throw new ConflictError('Chỉ đưa vào report được ảnh của phiên đã duyệt');
+    const before = await PhotoResurveyRepository.getActiveItems(session.id);
+    const beforeById = new Map(before.map((i) => [i.id, i]));
+    const missing = body.itemIds.filter((id) => !beforeById.has(id));
+    if (missing.length > 0) throw new ConflictError('Có mục ảnh không còn trong phiên, vui lòng tải lại');
+
+    await Database.transaction(async (client) => {
+      const locked = await PhotoResurveyRepository.lockSession(client, session.id);
+      if (!locked || locked.status !== 'APPROVED') throw new ConflictError('Phiên không còn ở trạng thái đã duyệt');
+      const changed = await PhotoResurveyRepository.setApplyStatus(client, session.id, body.itemIds, body.decision, userId);
+      if (changed.length !== body.itemIds.length) throw new ConflictError('Có mục ảnh vừa thay đổi, vui lòng tải lại');
+      const after = await PhotoResurveyRepository.getActiveItems(session.id, client);
+      await PhotoResurveyRepository.writeAuditLog(client, session.id, userId, 'PHOTO_RESURVEY_APPLY', {
+        reportId: session.reportId,
+        decision: body.decision,
+        items: changed.map((i) => ({
+          itemId: i.id,
+          action: i.action,
+          slotCode: i.slotCode,
+          photoKey: i.photoKey,
+          before: beforeById.get(i.id)?.applyStatus ?? null,
+          after: i.applyStatus,
+        })),
+        sha256: stableSha256({ sessionId: session.id, items: after.map((i) => ({ id: i.id, applyStatus: i.applyStatus })) }),
         clientIp: clientIp ?? null,
       });
       await this.freezeForNextRelease(client, session.reportId, userId);

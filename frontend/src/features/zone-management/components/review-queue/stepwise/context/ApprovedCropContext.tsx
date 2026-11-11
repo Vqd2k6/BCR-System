@@ -23,7 +23,8 @@ export function useApprovedCrop(url: string | undefined): ApprovedCropRect | nul
 
 /** Dấu ảnh chụp lại trên một ảnh gốc (URL) của Studio. */
 export interface StudioResurveyPhotoMark {
-  state: 'NEED' | 'CAPTURED' | 'SUBMITTED' | 'APPLIED' | 'NA';
+  state: 'NEED' | 'CAPTURED' | 'SUBMITTED' | 'READY' | 'APPLIED' | 'DECLINED';
+  action: 'REPLACE' | 'ADD_EXTRA' | 'MARK_NA' | null;
   newUrl: string | null;
   newRotation: number;
 }

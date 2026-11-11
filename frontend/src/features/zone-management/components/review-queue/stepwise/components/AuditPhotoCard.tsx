@@ -22,10 +22,17 @@ import { useApprovedCrop, useStudioPhotoStatus, type StudioResurveyPhotoMark } f
 const RESURVEY_BADGE: Record<StudioResurveyPhotoMark['state'], { label: string; cls: string }> = {
   NEED: { label: 'Cần chụp lại', cls: 'bg-rose-950 text-rose-300 border-rose-700' },
   CAPTURED: { label: 'KSV đã chụp lại', cls: 'bg-sky-950 text-sky-300 border-sky-700' },
-  SUBMITTED: { label: 'Ảnh mới chờ duyệt', cls: 'bg-amber-950 text-amber-300 border-amber-700' },
+  SUBMITTED: { label: 'Ảnh mới chờ duyệt phiên', cls: 'bg-sky-950 text-sky-300 border-sky-700' },
+  READY: { label: 'Có ảnh mới – chờ đưa vào', cls: 'bg-amber-950 text-amber-300 border-amber-700' },
   APPLIED: { label: 'Ảnh mới chụp lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' },
-  NA: { label: 'Bỏ khỏi report', cls: 'bg-slate-800 text-slate-300 border-slate-600' },
+  DECLINED: { label: 'Đã bỏ qua ảnh mới', cls: 'bg-slate-800 text-slate-300 border-slate-600' },
 };
+
+function resurveyBadge(mark: StudioResurveyPhotoMark): { label: string; cls: string } {
+  // Ô N/A đã đưa vào: report bỏ ô này (Studio vẫn hiện ảnh gốc để đối chiếu).
+  if (mark.state === 'APPLIED' && mark.action === 'MARK_NA') return { label: 'Đã bỏ khỏi report', cls: 'bg-slate-800 text-slate-300 border-slate-600' };
+  return RESURVEY_BADGE[mark.state];
+}
 import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface AuditPhotoCardProps {
@@ -110,7 +117,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   const photoStatus = useStudioPhotoStatus();
   const resurveyMark = url ? photoStatus.resurvey.get(url) ?? null : null;
   // Phiên chụp lại đã duyệt: report in ảnh mới ở ô này, Studio hiện đúng ảnh đó (ảnh gốc vẫn giữ trong hồ sơ).
-  const replacedByResurvey = resurveyMark?.state === 'APPLIED' && Boolean(resurveyMark.newUrl);
+  const replacedByResurvey = resurveyMark?.state === 'APPLIED' && resurveyMark.action === 'REPLACE' && Boolean(resurveyMark.newUrl);
   const pendingCropKey = url && !replacedByResurvey ? photoStatus.pendingCrops.get(url) ?? null : null;
   const isRecentlyUpdated = Boolean(url && photoStatus.recent.has(url));
   // Chỉ hiện ảnh crop (và badge) khi góc xoay hiện tại còn khớp lúc crop; lệch thì hiện ảnh nguyên.
@@ -441,10 +448,10 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
           )}
           {resurveyMark && (
             <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border pointer-events-none ${RESURVEY_BADGE[resurveyMark.state].cls}`}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border pointer-events-none ${resurveyBadge(resurveyMark).cls}`}
               title="Trạng thái ảnh KSV chụp lại (xem ở nút Ảnh Chụp Lại trên header)"
             >
-              {RESURVEY_BADGE[resurveyMark.state].label}
+              {resurveyBadge(resurveyMark).label}
             </span>
           )}
         </div>

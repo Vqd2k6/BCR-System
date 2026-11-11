@@ -8,6 +8,7 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import { Database } from '../../database/db';
 import type {
   ResurveyAction,
+  ResurveyApplyStatus,
   ResurveyItemRow,
   ResurveyRenderState,
   ResurveySessionRow,
@@ -63,6 +64,8 @@ interface ItemDbRow {
   capture_lng: number | null;
   capture_accuracy_m: number | null;
   distance_to_parcel_m: number | null;
+  apply_status: string | null;
+  apply_decided_at: Date | null;
   created_at: Date;
 }
 
@@ -116,6 +119,8 @@ function toItem(r: ItemDbRow): ResurveyItemRow {
     captureLng: r.capture_lng,
     captureAccuracyM: r.capture_accuracy_m,
     distanceToParcelM: r.distance_to_parcel_m,
+    applyStatus: (r.apply_status as ResurveyApplyStatus | null) ?? 'PENDING',
+    applyDecidedAt: iso(r.apply_decided_at),
     createdAt: iso(r.created_at) ?? '',
   };
 }
@@ -356,7 +361,9 @@ export class PhotoResurveyRepository {
     const out: ResurveyRenderState = { sessions: [] };
     // Tuần tự: client trong transaction không chạy song song.
     for (const s of sessions) {
-      const items = await this.getActiveItems(s.id, client);
+      // Chỉ mục Thẩm định đã "Đưa vào" mới in; duyệt phiên chưa đổi report.
+      const items = (await this.getActiveItems(s.id, client)).filter((i) => i.applyStatus === 'APPLIED');
+      if (items.length === 0) continue;
       out.sessions.push({
         sessionId: s.id,
         approvedAt: iso(s.reviewed_at),
@@ -372,7 +379,34 @@ export class PhotoResurveyRepository {
         })),
       });
     }
-    return out;
+    return out.sessions.length > 0 ? out : null;
+  }
+
+  /**
+   * Thẩm định quyết định Đưa vào / Bỏ qua / Hoàn tác (PENDING) các mục của một phiên ĐÃ DUYỆT.
+   * Trả về các dòng đã đổi (trước khi đổi để ghi audit được lấy riêng).
+   */
+  static async setApplyStatus(
+    client: Queryable,
+    sessionId: string,
+    itemIds: string[],
+    status: ResurveyApplyStatus,
+    userId: string
+  ): Promise<ResurveyItemRow[]> {
+    const rows = await run<ItemDbRow>(
+      client,
+      `UPDATE survey_photo_resurvey_items i
+          SET apply_status = $3::varchar,
+              apply_decided_by = CASE WHEN $3::varchar = 'PENDING' THEN NULL ELSE $4::uuid END,
+              apply_decided_at = CASE WHEN $3::varchar = 'PENDING' THEN NULL ELSE NOW() END,
+              updated_at = NOW()
+         FROM survey_photo_resurveys s
+        WHERE i.resurvey_id = s.id AND s.id = $1 AND s.status = 'APPROVED' AND s.deleted_at IS NULL
+          AND i.id = ANY($2::uuid[]) AND i.deleted_at IS NULL
+        RETURNING i.*;`,
+      [sessionId, itemIds, status, userId]
+    );
+    return rows.map(toItem);
   }
 
   static async writeAuditLog(

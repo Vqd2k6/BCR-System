@@ -33,6 +33,7 @@ import {
   type StudioPhotoStatus,
   type StudioResurveyPhotoMark,
 } from './stepwise/context/ApprovedCropContext';
+import { StudioPendingNotice } from './stepwise/components/StudioPendingNotice';
 import { StudioResurveyButton, buildStudioResurveyMarks, buildStudioResurveyRows, type ResurveySessionView } from '../../../photo-resurvey';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
@@ -299,6 +300,11 @@ export const AuditStudioModal: React.FC<Props> = ({
   const approvedCropsRef = useRef<ApprovedCropMap>(approvedCrops);
   const resurveyMarksRef = useRef<ReadonlyMap<string, StudioResurveyPhotoMark>>(resurveyMarks);
   const recentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [readyResurvey, setReadyResurvey] = useState<string[] | null>(null);
+  const [cropsLoaded, setCropsLoaded] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [resurveyOpenSignal, setResurveyOpenSignal] = useState(0);
+  const noticeShownRef = useRef(false);
 
   // Nháy viền các ảnh vừa đổi 5 giây để Thẩm định thấy ngay ảnh nào đã cập nhật.
   const flashUrls = useCallback((urls: string[]) => {
@@ -348,6 +354,8 @@ export const AuditStudioModal: React.FC<Props> = ({
         approvedCropsRef.current = new Map();
         setApprovedCrops(new Map());
         setPendingCrops(new Map());
+      } finally {
+        setCropsLoaded(true);
       }
     },
     [reportId, flashUrls]
@@ -363,9 +371,26 @@ export const AuditStudioModal: React.FC<Props> = ({
       }
       resurveyMarksRef.current = marks;
       setResurveyMarks(marks);
+      setReadyResurvey(
+        view ? buildStudioResurveyRows(view).filter((r) => r.state === 'READY').map((r) => `${r.slotCode} • ${r.label}`) : []
+      );
     },
     [flashUrls]
   );
+
+  // Hộp thông báo: hiện một lần mỗi lần mở Studio, sau khi đã có cả dữ liệu ảnh chụp lại và crop.
+  useEffect(() => {
+    noticeShownRef.current = false;
+    setNoticeOpen(false);
+    setReadyResurvey(null);
+    setCropsLoaded(false);
+  }, [isOpen, reportId]);
+
+  useEffect(() => {
+    if (!isOpen || noticeShownRef.current || readyResurvey === null || !cropsLoaded) return;
+    noticeShownRef.current = true;
+    if (readyResurvey.length > 0 || pendingCrops.size > 0) setNoticeOpen(true);
+  }, [isOpen, readyResurvey, cropsLoaded, pendingCrops]);
 
   const openCropReviewAt = useCallback((photoKey: string | null) => {
     setCropReviewKey(photoKey);
@@ -855,6 +880,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                 void loadApprovedCrops();
               }}
               onViewLoaded={handleResurveyView}
+              openSignal={resurveyOpenSignal}
             />
 
             {/* Duyệt crop ảnh (Photo QC): chỉ crop đã duyệt mới in vào report */}
@@ -1220,6 +1246,23 @@ export const AuditStudioModal: React.FC<Props> = ({
       </div>
 
       {/* Child Modals */}
+      {noticeOpen && (
+        <StudioPendingNotice
+          reportCode={data?.projectParcelCode || reportId}
+          readyResurvey={readyResurvey ?? []}
+          pendingCropCount={pendingCrops.size}
+          onClose={() => setNoticeOpen(false)}
+          onOpenResurvey={() => {
+            setNoticeOpen(false);
+            setResurveyOpenSignal((n) => n + 1);
+          }}
+          onOpenCropReview={() => {
+            setNoticeOpen(false);
+            openCropReviewAt(null);
+          }}
+        />
+      )}
+
       {showCropReview && (
         <PhotoQcCropReviewModal
           isOpen={showCropReview}

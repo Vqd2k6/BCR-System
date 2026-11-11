@@ -25,6 +25,8 @@ export function createPhotoResurveyRouter(): Router {
 
   router.post('/sessions/:sessionId/approve', authenticateJwt, admins, PhotoResurveyController.approve);
   router.post('/sessions/:sessionId/reject', authenticateJwt, admins, PhotoResurveyController.reject);
+  // Thẩm định đưa vào / bỏ qua / hoàn tác từng mục của phiên đã duyệt.
+  router.put('/sessions/:sessionId/apply', authenticateJwt, admins, PhotoResurveyController.apply);
 
   return router;
 }

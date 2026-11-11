@@ -13,13 +13,15 @@ interface StudioResurveyButtonProps {
   onChanged?: () => void;
   /** Báo dữ liệu chụp lại mới nhất lên Studio để thẻ ảnh đổi sang ảnh mới / gắn nhãn. */
   onViewLoaded?: (view: ResurveySessionView | null) => void;
+  /** Tăng số để mở panel từ ngoài (hộp thông báo khi mở Studio). */
+  openSignal?: number;
 }
 
 /**
  * Lối vào ảnh KSV chụp lại trong Studio thẩm định: hiện khi căn có ô cần chụp lại hoặc đã có phiên.
  * Mở panel theo từng ô (cũ – mới – trạng thái); duyệt phiên vẫn ở PhotoResurveyScreen.
  */
-export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ reportId, onChanged, onViewLoaded }) => {
+export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ reportId, onChanged, onViewLoaded, openSignal = 0 }) => {
   const [view, setView] = useState<ResurveySessionView | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -45,15 +47,23 @@ export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ repo
     void load();
   }, [load]);
 
+  // Hộp thông báo của Studio mở panel bằng cách tăng openSignal.
+  useEffect(() => {
+    if (openSignal > 0) setPanelOpen(true);
+  }, [openSignal]);
+
   const rows = useMemo(() => (view ? buildStudioResurveyRows(view) : []), [view]);
   if (!view || rows.length === 0) return null;
 
+  const ready = rows.filter((r) => r.state === 'READY').length;
   const waiting = rows.filter((r) => r.state === 'SUBMITTED').length;
   const need = rows.filter((r) => r.state === 'NEED' || r.state === 'CAPTURED').length;
-  const applied = rows.filter((r) => r.state === 'APPLIED' || r.state === 'NA').length;
+  const applied = rows.filter((r) => r.state === 'APPLIED').length;
   const badge =
-    waiting > 0
-      ? { text: `${waiting} ảnh chờ duyệt`, cls: 'bg-amber-950 text-amber-300 border-amber-700' }
+    ready > 0
+      ? { text: `${ready} ảnh chờ đưa vào`, cls: 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse' }
+      : waiting > 0
+      ? { text: `${waiting} ảnh chờ duyệt phiên`, cls: 'bg-sky-950 text-sky-300 border-sky-700' }
       : need > 0
       ? { text: `${need} ô chưa có ảnh`, cls: 'bg-rose-950 text-rose-300 border-rose-700' }
       : { text: `${applied} ảnh đã thay`, cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' };
@@ -75,6 +85,11 @@ export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ repo
           <StudioResurveyPanel
             view={view}
             onClose={() => setPanelOpen(false)}
+            onDecided={(next) => {
+              setView(next);
+              onViewLoadedRef.current?.(next);
+              onChanged?.();
+            }}
             onOpenReview={() => {
               setPanelOpen(false);
               setReviewOpen(true);

@@ -49,6 +49,12 @@ export const ApproveSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+export const ApplyDecisionSchema = z.object({
+  itemIds: z.array(z.string().uuid()).min(1).max(50),
+  /** APPLIED = đưa vào report, DECLINED = giữ ảnh cũ, PENDING = hoàn tác. */
+  decision: z.enum(['APPLIED', 'DECLINED', 'PENDING']),
+});
+
 export const RejectSchema = z.object({
   note: z.string().trim().min(REJECT_NOTE_MIN_LENGTH, `Lý do từ chối tối thiểu ${REJECT_NOTE_MIN_LENGTH} ký tự`).max(1000),
 });
@@ -61,5 +67,6 @@ export const TaskQuerySchema = z.object({
 export type UploadResurveyPhotoInput = z.infer<typeof UploadResurveyPhotoSchema>;
 export type MarkNaInput = z.infer<typeof MarkNaSchema>;
 export type ApproveInput = z.infer<typeof ApproveSchema>;
+export type ApplyDecisionInput = z.infer<typeof ApplyDecisionSchema>;
 export type RejectInput = z.infer<typeof RejectSchema>;
 export type TaskQuery = z.infer<typeof TaskQuerySchema>;

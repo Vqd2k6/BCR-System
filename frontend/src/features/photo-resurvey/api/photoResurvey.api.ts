@@ -1,5 +1,5 @@
 import { api } from '../../../services/api';
-import type { CapturedPhoto, ResurveyMarkerState, ResurveySessionView, ResurveySlotCode, ResurveyTask } from '../types';
+import type { CapturedPhoto, ResurveyApplyStatus, ResurveyMarkerState, ResurveySessionView, ResurveySlotCode, ResurveyTask } from '../types';
 
 /** API client Khảo sát bổ sung – mọi endpoint nằm dưới /photo-resurvey. */
 const BASE = '/photo-resurvey';
@@ -77,5 +77,11 @@ export async function approveResurvey(
 
 export async function rejectResurvey(sessionId: string, note: string): Promise<ResurveySessionView> {
   const res = await api.post<Envelope<ResurveySessionView>>(`${BASE}/sessions/${enc(sessionId)}/reject`, { note });
+  return res.data.data;
+}
+
+/** Thẩm định: APPLIED = đưa vào report, DECLINED = giữ ảnh cũ, PENDING = hoàn tác (chỉ phiên đã duyệt). */
+export async function decideResurveyApply(sessionId: string, itemIds: string[], decision: ResurveyApplyStatus): Promise<ResurveySessionView> {
+  const res = await api.put<Envelope<ResurveySessionView>>(`${BASE}/sessions/${enc(sessionId)}/apply`, { itemIds, decision });
   return res.data.data;
 }

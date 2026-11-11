@@ -1472,10 +1472,15 @@ CREATE TABLE IF NOT EXISTS survey_photo_resurvey_items (
     capture_lng DOUBLE PRECISION,
     capture_accuracy_m DOUBLE PRECISION,
     distance_to_parcel_m DOUBLE PRECISION,
+    -- Thẩm định quyết định Đưa vào report từng mục (report chỉ in APPLIED).
+    apply_status VARCHAR(10) NOT NULL DEFAULT 'PENDING',
+    apply_decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    apply_decided_at TIMESTAMPTZ,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
+    CONSTRAINT chk_photo_resurvey_item_apply_status CHECK (apply_status IN ('PENDING', 'APPLIED', 'DECLINED')),
     CONSTRAINT chk_photo_resurvey_item_action CHECK (action IN ('REPLACE', 'ADD_EXTRA', 'MARK_NA')),
     CONSTRAINT chk_photo_resurvey_item_slot CHECK (slot_code IN ('P-01', 'P-02', 'P-03', 'P-04', 'P-05', 'P-06', 'P-07')),
     CONSTRAINT chk_photo_resurvey_item_time2_source CHECK (
@@ -1496,3 +1501,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_photo_resurvey_item_target
     ON survey_photo_resurvey_items(resurvey_id, photo_key)
     WHERE photo_key IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_photo_resurvey_items_session ON survey_photo_resurvey_items(resurvey_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_photo_resurvey_items_apply
+    ON survey_photo_resurvey_items(resurvey_id, apply_status) WHERE deleted_at IS NULL;
