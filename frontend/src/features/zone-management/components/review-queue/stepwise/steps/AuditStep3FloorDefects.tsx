@@ -112,7 +112,21 @@ interface PinUndoActionPinsRotate {
   prevElementPins: CadZonePin[];
 }
 
-type PinUndoAction = PinUndoActionMove | PinUndoActionRotate | PinUndoActionPinsRotate;
+interface DefectTargetRef {
+  id?: string;
+  code?: string;
+}
+
+/** Chỉ xoay ghim D của một vùng/cấu kiện: hoàn tác trả lại đúng danh sách khuyết tật của mục đó. */
+interface PinUndoActionDefectPinsRotate {
+  type: 'DEFECT_PINS_ROTATE';
+  floorIndex: number;
+  kind: 'ZONE' | 'ELEMENT';
+  ref: DefectTargetRef;
+  prevDefects: DefectItem[];
+}
+
+type PinUndoAction = PinUndoActionMove | PinUndoActionRotate | PinUndoActionPinsRotate | PinUndoActionDefectPinsRotate;
 
 interface AuditExtendedMeta {
   isDeleted?: boolean;
@@ -413,11 +427,22 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         handleFieldChange('floors', `Hoàn tác xoay CAD tầng ${lastAction.floorIndex + 1}`, updatedFloors);
       }
     } else if (lastAction.type === 'PINS_ROTATE' && hasFloors) {
-      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-        if (fi !== lastAction.floorIndex && fl.id !== lastAction.floorId) return fl;
-        return { ...fl, cadZonePins: lastAction.prevZonePins, cadElementPins: lastAction.prevElementPins };
-      });
+      // Đúng MỘT tầng: theo id khi cả hai có id, thiếu id thì theo vị trí (không khớp undefined === undefined).
+      const isTargetFloor = (fl: FloorSurveyData, fi: number) =>
+        lastAction.floorId && fl.id ? String(fl.id) === String(lastAction.floorId) : fi === lastAction.floorIndex;
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) =>
+        isTargetFloor(fl, fi) ? { ...fl, cadZonePins: lastAction.prevZonePins, cadElementPins: lastAction.prevElementPins } : fl
+      );
       handleFieldChange('floors', `Hoàn tác xoay toạ độ ghim tầng ${lastAction.floorIndex + 1}`, updatedFloors);
+    } else if (lastAction.type === 'DEFECT_PINS_ROTATE') {
+      const restored = applyTargetDefects(
+        lastAction.floorIndex,
+        lastAction.kind,
+        lastAction.ref,
+        () => lastAction.prevDefects,
+        `Hoàn tác xoay toạ độ ghim D của ${lastAction.ref.code ?? '?'}`
+      );
+      if (!restored) console.error('[AuditStep3:undoDefectPins] Không tìm thấy mục để hoàn tác ghim D', lastAction);
     }
   }, [undoPinStack, hasFloors, rawFloors, onRotatePhoto, handleFieldChange]);
 
@@ -590,45 +615,80 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     );
   };
 
+  /** Mã/id nhận diện một vùng Z hoặc cấu kiện E để áp thay đổi ghim D đúng một mục. */
+  const defectTargetRef = (kind: 'ZONE' | 'ELEMENT', target: DamageZoneData | StructuralElementData): DefectTargetRef => ({
+    id: target.id ? String(target.id) : undefined,
+    code:
+      kind === 'ZONE'
+        ? (target as DamageZoneData).zoneCode || (target as DamageZoneData).zone_code
+        : (target as StructuralElementData).elementCode || (target as StructuralElementData).element_code,
+  });
+
+  /**
+   * Thay danh sách khuyết tật của đúng MỘT vùng/cấu kiện (khớp id khi cả hai có id, thiếu id thì theo mã).
+   * Chạy cả khi hồ sơ có tầng (floors) lẫn hồ sơ cũ chỉ có damageZones. Trả về danh sách khuyết tật cũ để hoàn tác,
+   * hoặc null nếu không tìm thấy mục nào.
+   */
+  const applyTargetDefects = (
+    floorIdx: number,
+    kind: 'ZONE' | 'ELEMENT',
+    ref: DefectTargetRef,
+    transform: (defects: DefectItem[]) => DefectItem[],
+    label: string
+  ): DefectItem[] | null => {
+    const isTarget = (id: string | undefined, itemCode: string | undefined) => {
+      if (id && ref.id) return String(id) === ref.id;
+      return Boolean(ref.code) && itemCode === ref.code;
+    };
+    let previous: DefectItem[] | null = null;
+    const patchZone = (z: DamageZoneData) => {
+      if (previous || !isTarget(z.id, z.zoneCode || z.zone_code)) return z;
+      previous = z.defects || [];
+      return { ...z, defects: transform(previous) };
+    };
+    const patchElement = (e: StructuralElementData) => {
+      if (previous || !isTarget(e.id, e.elementCode || e.element_code)) return e;
+      previous = e.defects || [];
+      return { ...e, defects: transform(previous) };
+    };
+
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== floorIdx) return fl;
+        return kind === 'ZONE'
+          ? { ...fl, zones: (fl.zones || []).map(patchZone) }
+          : { ...fl, structuralElements: (fl.structuralElements || []).map(patchElement) };
+      });
+      if (previous) handleFieldChange('floors', label, updatedFloors);
+      return previous;
+    }
+    if (kind !== 'ZONE') return null;
+    const updatedZones = rawDamageZones.map(patchZone);
+    if (previous) handleFieldChange('damageZones', label, updatedZones);
+    return previous;
+  };
+
   /**
    * Chỉ xoay toạ độ ghim khuyết tật D 90° trên ảnh bối cảnh của một vùng Z hoặc cấu kiện E,
    * KHÔNG xoay ảnh (giữ nguyên rotation để không làm mất hiệu lực crop Photo QC).
    */
   const handleRotateDefectPinsOnly = (floorIdx: number, kind: 'ZONE' | 'ELEMENT', target: DamageZoneData | StructuralElementData) => {
-    if (!hasFloors) return;
+    const ref = defectTargetRef(kind, target);
     // Ghim chưa có toạ độ thì giữ nguyên, không bịa vị trí mặc định cho dữ liệu pháp lý.
-    const rotateDefects = (defects: DefectItem[] | undefined) =>
-      (defects || []).map((d: DefectItem) => {
+    const rotateDefects = (defects: DefectItem[]) =>
+      defects.map((d: DefectItem) => {
         const rawX = d.pinX ?? d.pin_x;
         const rawY = d.pinY ?? d.pin_y;
         if (rawX === undefined || rawX === null || rawY === undefined || rawY === null) return d;
         const next = rotatePinCoords(Number(rawX), Number(rawY));
         return { ...d, pinX: next.x, pinY: next.y, pin_x: next.x, pin_y: next.y };
       });
-    const code =
-      kind === 'ZONE'
-        ? (target as DamageZoneData).zoneCode || (target as DamageZoneData).zone_code
-        : (target as StructuralElementData).elementCode || (target as StructuralElementData).element_code;
-    // Khớp theo id khi cả hai có id; thiếu id thì khớp theo mã. Không khớp được thì không đụng tới mục nào.
-    const isTarget = (id: string | undefined, itemCode: string | undefined) => {
-      const targetId = (target as { id?: string }).id;
-      if (id && targetId) return id === targetId;
-      return Boolean(code) && itemCode === code;
-    };
-    const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
-      if (fi !== floorIdx) return fl;
-      if (kind === 'ZONE') {
-        const zones = (fl.zones || []).map((z: DamageZoneData) =>
-          isTarget(z.id, z.zoneCode || z.zone_code) ? { ...z, defects: rotateDefects(z.defects) } : z
-        );
-        return { ...fl, zones };
-      }
-      const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) =>
-        isTarget(e.id, e.elementCode || e.element_code) ? { ...e, defects: rotateDefects(e.defects) } : e
-      );
-      return { ...fl, structuralElements };
-    });
-    handleFieldChange('floors', `Xoay toạ độ ghim D của ${code} 90° (giữ nguyên ảnh)`, updatedFloors);
+    const prevDefects = applyTargetDefects(floorIdx, kind, ref, rotateDefects, `Xoay toạ độ ghim D của ${ref.code ?? '?'} 90° (giữ nguyên ảnh)`);
+    if (!prevDefects) {
+      console.error('[AuditStep3:rotateDefectPins] Không tìm thấy mục để xoay ghim D', { floorIdx, kind, ref });
+      return;
+    }
+    setUndoPinStack((prev) => [...prev.slice(-19), { type: 'DEFECT_PINS_ROTATE', floorIndex: floorIdx, kind, ref, prevDefects }]);
   };
 
   // Rotate Zone CTX photo with defect pins transformation

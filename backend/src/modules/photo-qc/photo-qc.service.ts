@@ -663,12 +663,14 @@ export class PhotoQcService {
       for (const item of items) {
         const before = rowByKey.get(item.photoKey)!;
         // Chỉ ghi khi ảnh và khung crop vẫn đúng bản admin đã xem; người khác vừa đổi thì từ chối để xem lại.
+        // So với photo_url ĐÃ LƯU (có thể là ảnh gốc khi ô đang hiện ảnh Studio-enhanced), không phải URL ô hiện tại.
         const row = await PhotoQcRepository.setCropStatus(client, reportId, item.photoKey, item.decision, user.userId, {
-          photoUrl: item.photoUrl,
+          photoUrl: before.photoUrl,
           crop: { ...before.crop!, ...item.crop },
         });
         if (!row) throw new ConflictError(`Crop của ô ${item.photoKey} vừa bị thay đổi hoặc không còn, vui lòng tải lại rồi duyệt`);
-        if ((before.cropStatus === 'APPROVED') !== (row.cropStatus === 'APPROVED')) renderChanged = true;
+        // Mọi thay đổi trạng thái đều đóng băng lại: snapshot chờ phát hành cũ có thể đã chứa crop vừa bị từ chối.
+        if (before.cropStatus !== row.cropStatus) renderChanged = true;
         saved.push(row);
       }
       await PhotoQcRepository.writeAuditLog(client, reportId, user.userId, 'PHOTO_QC_CROP_REVIEW', {

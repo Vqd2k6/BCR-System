@@ -207,16 +207,20 @@ export class PhotoQcRepository {
        ON CONFLICT (report_id, photo_key) DO UPDATE SET
          photo_url = EXCLUDED.photo_url,
          photo_label = EXCLUDED.photo_label,
+         -- Đổi khung crop HOẶC đổi ảnh (photo_url) đều phải duyệt lại: không để crop đã duyệt trượt sang ảnh khác.
          crop_status = CASE
-           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN 'PENDING'
+           WHEN ($9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop)
+             OR photo_qc_photos.photo_url IS DISTINCT FROM EXCLUDED.photo_url THEN 'PENDING'
            ELSE photo_qc_photos.crop_status
          END,
          crop_reviewed_by = CASE
-           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN NULL
+           WHEN ($9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop)
+             OR photo_qc_photos.photo_url IS DISTINCT FROM EXCLUDED.photo_url THEN NULL
            ELSE photo_qc_photos.crop_reviewed_by
          END,
          crop_reviewed_at = CASE
-           WHEN $9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop THEN NULL
+           WHEN ($9::boolean AND photo_qc_photos.crop IS DISTINCT FROM EXCLUDED.crop)
+             OR photo_qc_photos.photo_url IS DISTINCT FROM EXCLUDED.photo_url THEN NULL
            ELSE photo_qc_photos.crop_reviewed_at
          END,
          crop = CASE WHEN $9::boolean THEN EXCLUDED.crop ELSE photo_qc_photos.crop END,

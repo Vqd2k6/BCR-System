@@ -156,8 +156,9 @@ export const PhotoQcCropReviewModal: React.FC<PhotoQcCropReviewModalProps> = ({ 
                     <div className="ml-auto flex items-center gap-2">
                       <button
                         type="button"
-                        disabled={saving || slot.qcStale}
+                        disabled={saving || qc.cropStatus === 'REJECTED'}
                         onClick={() => void decide(slot, 'REJECTED')}
+                        title={slot.qcStale ? 'Từ chối crop quá hạn: report in ảnh không crop' : undefined}
                         className={`${ACTION_BUTTON} bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200`}
                       >
                         <XCircle className="w-3.5 h-3.5" />

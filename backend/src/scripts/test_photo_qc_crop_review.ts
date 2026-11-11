@@ -81,6 +81,23 @@ async function main(): Promise<void> {
         await PhotoQcRepository.upsertPhoto(client, { ...base, crop: { ...CROP, x: 0.3 } });
       });
 
+      await tc('G. đổi ảnh (chỉ bật cờ, không gửi crop) thì crop đã duyệt về PENDING, không trượt sang ảnh mới', async () => {
+        const ok = await PhotoQcRepository.setCropStatus(client, reportId, 'P-TEST', 'APPROVED', userId, {
+          photoUrl: base.photoUrl,
+          crop: { ...CROP, x: 0.3 },
+        });
+        assert.equal(ok?.cropStatus, 'APPROVED');
+        const moved = await PhotoQcRepository.upsertPhoto(client, { ...base, photoUrl: 'https://example.invalid/moi.jpg', recapture: true });
+        assert.equal(moved.cropStatus, 'PENDING');
+        assert.equal(moved.cropReviewedAt, null);
+        const state = await PhotoQcRepository.loadRenderState(reportId, client);
+        assert.ok(!state || !state.photos.some((p) => p.photoKey === 'P-TEST'));
+        // cùng ảnh, chỉ bật/tắt cờ: giữ nguyên trạng thái
+        const same = await PhotoQcRepository.upsertPhoto(client, { ...base, photoUrl: 'https://example.invalid/moi.jpg', recapture: false });
+        assert.equal(same.cropStatus, 'PENDING');
+        await PhotoQcRepository.upsertPhoto(client, { ...base });
+      });
+
       await tc('B2. REJECTED ra khỏi render nhưng crop vẫn giữ', async () => {
         const row = await PhotoQcRepository.setCropStatus(client, reportId, 'P-TEST', 'REJECTED', userId);
         assert.equal(row?.cropStatus, 'REJECTED');

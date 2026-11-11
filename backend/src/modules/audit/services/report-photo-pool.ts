@@ -66,7 +66,8 @@ export async function listReportPhotoPool(reportId: string): Promise<ReportPhoto
       if (!sources.has(url) && !/signature/i.test(category)) sources.set(url, category);
     }
 
-    // Ảnh KSV chụp lại (chờ duyệt hoặc đã duyệt): nhóm riêng, nhãn ghi rõ ô gốc để không lẫn với ảnh cũ.
+    // Ảnh KSV chụp lại ĐÃ DUYỆT: nhóm riêng, nhãn ghi rõ ô gốc để không lẫn với ảnh cũ.
+    // Không đưa ảnh phiên chờ duyệt vào: gán tay ảnh chưa duyệt sẽ đi vòng qua bước duyệt chụp lại.
     // Bảng chỉ có sau migration 20261111: kiểm trước để DB chưa migrate không làm hỏng cả pool (lỗi SQL huỷ transaction).
     const hasResurvey = await client.query<{ ok: boolean }>(
       `SELECT to_regclass('survey_photo_resurvey_items') IS NOT NULL AS ok;`
@@ -76,7 +77,7 @@ export async function listReportPhotoPool(reportId: string): Promise<ReportPhoto
         ? `SELECT i.new_url, i.slot_code, s.status::text AS status
          FROM survey_photo_resurvey_items i
          JOIN survey_photo_resurveys s ON s.id = i.resurvey_id
-        WHERE s.report_id = $1 AND s.deleted_at IS NULL AND s.status IN ('SUBMITTED', 'APPROVED')
+        WHERE s.report_id = $1 AND s.deleted_at IS NULL AND s.status = 'APPROVED'
           AND i.deleted_at IS NULL AND i.new_url IS NOT NULL
         ORDER BY i.slot_code, i.created_at;`
         : `SELECT NULL::text AS new_url, NULL::text AS slot_code, NULL::text AS status WHERE FALSE AND $1::uuid IS NOT NULL;`,
@@ -87,7 +88,7 @@ export async function listReportPhotoPool(reportId: string): Promise<ReportPhoto
     for (const row of resurvey.rows) {
       if (seenNew.has(row.new_url)) continue;
       seenNew.add(row.new_url);
-      newPhotos.push({ url: row.new_url, category: 'RESURVEY_NEW', label: `Ảnh MỚI chụp lại – ${row.slot_code}${row.status === 'SUBMITTED' ? ' (chờ duyệt)' : ''}`, source: 'photo_resurvey_items' });
+      newPhotos.push({ url: row.new_url, category: 'RESURVEY_NEW', label: `Ảnh MỚI chụp lại – ${row.slot_code}`, source: 'photo_resurvey_items' });
     }
 
     const old = [...sources.entries()]

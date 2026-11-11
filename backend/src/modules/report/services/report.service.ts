@@ -302,7 +302,7 @@ export class ReportService {
   }
 
   /** Import động: photo-qc.service phụ thuộc ngược vào ReportService nên không import tĩnh được. */
-  private static async assertPhotoQcCropsReviewed(reportId: string): Promise<void> {
+  public static async assertPhotoQcCropsReviewed(reportId: string): Promise<void> {
     const { PhotoQcService } = await import('../../photo-qc/photo-qc.service');
     await PhotoQcService.assertCropsReviewed(reportId);
   }
@@ -313,8 +313,7 @@ export class ReportService {
     revision: number,
     pinnedConfig?: ReportContentConfig
   ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string; watermark?: WatermarkVerifyReport }> {
-    // Phát hành Rev: crop chưa duyệt sẽ không in, nên bắt buộc Thẩm định duyệt/từ chối hết trước khi phát hành.
-    await this.assertPhotoQcCropsReviewed(resolved.id);
+    // Chốt chặn crop chưa duyệt chạy ở ReportReleaseService.issue (trước transaction khoá hàng).
     const finalReport = this.buildFinalReport(resolved, snapshot, revision);
     if (pinnedConfig) {
       finalReport.reportContentConfig = pinnedConfig;

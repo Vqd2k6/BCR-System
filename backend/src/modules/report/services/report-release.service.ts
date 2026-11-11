@@ -241,6 +241,9 @@ export class ReportReleaseService {
   ): Promise<ReportReleaseRecord> {
     let writtenFile: string | null = null;
     const cleanup: { uploadedObject: { key: string; bucket: string } | null } = { uploadedObject: null };
+    // Chặn phát hành khi còn crop chờ duyệt/quá hạn. Chạy TRƯỚC transaction để không dựng ViewModel lần nữa
+    // trong lúc đang giữ khoá hàng base_survey_reports.
+    await ReportService.assertPhotoQcCropsReviewed(reportId);
     try {
       return await Database.transaction(async (client: PoolClient) => {
         await client.query(`SELECT pg_advisory_xact_lock(hashtext($1));`, [`report_release:${reportId}`]);
