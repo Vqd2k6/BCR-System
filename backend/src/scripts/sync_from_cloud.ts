@@ -89,6 +89,8 @@ const TABLES_TO_SYNC = [
   'guest_share_links',
   'photo_qc_reports',
   'photo_qc_photos',
+  'survey_photo_resurveys',
+  'survey_photo_resurvey_items',
   'report_releases',
   'photo_watermark_status',
   'progress_report_config_versions',
