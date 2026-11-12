@@ -20,8 +20,12 @@ import { Database } from '../../../database/db';
 import { ReportImageResolver } from './report-image-resolver.service';
 import { WATERMARK_DETECTOR_VERSION, WatermarkDetectorService } from './watermark-detector.service';
 
-/** Ảnh không phải ảnh hiện trường chụp bằng app (CAD, chữ ký, scan biên bản, bản vẽ): không dò logo. */
-const NON_FIELD_PHOTO_PATTERN = /(cad|blueprint|drawing|asbuilt|as-built|signature|chu[-_]?ky|minutes|bien[-_]?ban|\.pdf)(\b|_|\/|\.)/i;
+/**
+ * Ảnh không phải ảnh chụp bằng app (sơ đồ CAD, bản vẽ, PDF): không dò logo.
+ * Ảnh biên bản / chữ ký chụp bằng app (DOC_MINUTES_xx) VẪN phải dò: PWA cũ dập dấu lên cả các ảnh này,
+ * bỏ qua chúng làm report rơi về luật ngày và dập chồng lớp thứ hai.
+ */
+const NON_FIELD_PHOTO_PATTERN = /(cad|blueprint|drawing|asbuilt|as-built|\.pdf)(\b|_|\/|\.)/i;
 const DETECT_CONCURRENCY = 4;
 
 export interface LegacyWatermarkLoadOptions {
@@ -68,6 +72,14 @@ function uploadMsFromFilename(url: string): number | undefined {
 export class LegacyWatermarkIndex {
   private static legacyUrls = new Set<string>();
   private static checkedUrls = new Set<string>();
+  /** URL có kết quả từ pixel (bảng photo_watermark_status hoặc vừa dò): không bao giờ quay về luật ngày. */
+  private static pixelResolvedUrls = new Set<string>();
+
+  private static setPixelResult(url: string, hasLegacy: boolean): void {
+    this.pixelResolvedUrls.add(url);
+    if (hasLegacy) this.legacyUrls.add(url);
+    else this.legacyUrls.delete(url);
+  }
 
   public static has(url?: string): boolean {
     if (!url) return false;
@@ -82,7 +94,10 @@ export class LegacyWatermarkIndex {
    * Luồng report gọi với { detect: true } sau khi ảnh đã nạp vào cache của ReportImageResolver.
    */
   public static async load(urls: string[], options: LegacyWatermarkLoadOptions = {}): Promise<void> {
-    const pending = [...new Set(urls.filter((u) => u && !this.checkedUrls.has(u)))];
+    // Lượt có dò (report, lưu crop) xét lại cả URL trước đó chỉ được kiểm bằng luật ngày dự phòng.
+    const pending = [
+      ...new Set(urls.filter((u) => u && (!this.checkedUrls.has(u) || (options.detect && !this.pixelResolvedUrls.has(u) && isFieldPhotoUrl(u))))),
+    ];
     if (pending.length === 0) return;
 
     const stats = { detector: 0, detectorClean: 0, detectedNow: 0, unsure: 0, registry: 0, filename: 0, detectFailed: 0 };
@@ -98,8 +113,8 @@ export class LegacyWatermarkIndex {
       );
       for (const row of saved.rows) {
         resolved.add(row.photo_url);
+        this.setPixelResult(row.photo_url, row.has_legacy_watermark);
         if (row.has_legacy_watermark) {
-          this.legacyUrls.add(row.photo_url);
           stats.detector += 1;
           if (row.verdict === 'UNSURE') stats.unsure += 1;
         } else {
@@ -129,8 +144,8 @@ export class LegacyWatermarkIndex {
             );
             resolved.add(url);
             stats.detectedNow += 1;
+            this.setPixelResult(url, result.hasLegacyWatermark);
             if (result.hasLegacyWatermark) {
-              this.legacyUrls.add(url);
               stats.detector += 1;
               if (result.verdict === 'UNSURE') {
                 stats.unsure += 1;

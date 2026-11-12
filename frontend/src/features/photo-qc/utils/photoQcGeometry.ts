@@ -123,18 +123,6 @@ export function suggestRestamp(zones: { logo: NormRect; text: NormRect }, crop: 
   return 'NONE';
 }
 
-/** Cảnh báo chồng 2 lớp: vẫn còn (một phần) dấu cũ trong khung mà lại bật dập bù phần đó. */
-export function doubleStampWarnings(zones: { logo: NormRect; text: NormRect }, crop: NormRect, mode: PhotoQcRestampMode): string[] {
-  const out: string[] = [];
-  if ((mode === 'LOGO' || mode === 'BOTH') && zoneCoverage(zones.logo, crop) !== 'OUTSIDE') {
-    out.push('Khung còn giữ logo cũ mà vẫn dập bù logo: sẽ có 2 lớp logo.');
-  }
-  if ((mode === 'TEXT' || mode === 'BOTH') && zoneCoverage(zones.text, crop) !== 'OUTSIDE') {
-    out.push('Khung còn giữ dòng giờ/mã cũ mà vẫn dập bù chữ: sẽ có 2 lớp chữ.');
-  }
-  return out;
-}
-
 /**
  * Khung lớn nhất đúng tỉ lệ (theo hướng ảnh in) nằm giữa dải không có dấu cũ:
  * dưới logo (góc trên phải) và trên dòng chữ (góc dưới phải) của ảnh gốc.

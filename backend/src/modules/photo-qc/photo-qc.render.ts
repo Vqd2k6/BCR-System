@@ -14,7 +14,7 @@ import type { ReportViewModel } from '../report/report.types';
 import { ReportImageResolver } from '../report/services/report-image-resolver.service';
 import { ReportWatermarkCanvasService } from '../report/services/report-watermark-canvas.service';
 import { PhotoQcRepository } from './photo-qc.repository';
-import { isCropApplicable, restampLayers, urlPhotoKey } from './photo-qc.rules';
+import { isCropApplicable, restampModeOf, urlPhotoKey } from './photo-qc.rules';
 import type { PhotoQcRenderPhoto, PhotoQcRenderState } from './photo-qc.types';
 import { walkViewModelPhotos, type VmPhotoRef } from './photo-qc.vm-walker';
 
@@ -122,8 +122,10 @@ export async function applyPhotoQcToViewModel(
       continue;
     }
 
-    const legacy = ref.isWatermarked();
-    const layers = !opts.watermark ? { logo: false, text: false } : legacy ? restampLayers(row.restampMode) : { logo: true, text: true };
+    // Ảnh có dấu cũ cháy sẵn: BE tự quyết dập lại phần logo / chữ bị khung cắt bỏ (restamp_mode đã lưu chỉ để tham khảo,
+    // vì nó được chốt lúc crop theo cờ "dấu cũ" có thể sai khi ảnh chưa được dò logo).
+    const legacy = opts.watermark && ref.isWatermarked();
+    const layers = opts.watermark && !legacy ? { logo: true, text: true } : { logo: false, text: false };
     try {
       const out = await ReportWatermarkCanvasService.cropStampRotate({
         base64Uri: base64,
@@ -132,6 +134,13 @@ export async function applyPhotoQcToViewModel(
         photoCodeText: ref.photoCodeText,
         stampLogo: layers.logo,
         stampText: layers.text,
+        legacyAuto: legacy,
+        onLayersDecided: (decided, reason) => {
+          const mode = restampModeOf(decided);
+          if (mode !== row.restampMode) {
+            console.info(`[PhotoQcRender:restamp] ${ref.label}: tự dập lại ${mode} (đã lưu ${row.restampMode}), ${reason}`, ref.url);
+          }
+        },
       });
       ref.setBase64(out);
       if (opts.watermark) ref.markWatermarked();

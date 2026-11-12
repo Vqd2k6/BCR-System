@@ -165,6 +165,33 @@ export function restampLayers(mode: string): { logo: boolean; text: boolean } {
   return { logo: mode === 'LOGO' || mode === 'BOTH', text: mode === 'TEXT' || mode === 'BOTH' };
 }
 
+export function restampModeOf(layers: { logo: boolean; text: boolean }): 'NONE' | 'LOGO' | 'TEXT' | 'BOTH' {
+  if (layers.logo && layers.text) return 'BOTH';
+  if (layers.logo) return 'LOGO';
+  if (layers.text) return 'TEXT';
+  return 'NONE';
+}
+
+/** Vùng còn "trọn" trong khung khi phần giao ≥ 98% diện tích vùng (cùng ngưỡng với FE photoQcGeometry). */
+const ZONE_INSIDE_RATIO = 0.98;
+
+export function isZoneInside(zone: PixelRect, rect: PixelRect): boolean {
+  const ix = Math.max(0, Math.min(zone.left + zone.width, rect.left + rect.width) - Math.max(zone.left, rect.left));
+  const iy = Math.max(0, Math.min(zone.top + zone.height, rect.top + rect.height) - Math.max(zone.top, rect.top));
+  const area = zone.width * zone.height;
+  if (area <= 0) return true;
+  return ix * iy >= area * ZONE_INSIDE_RATIO;
+}
+
+/**
+ * Ảnh có dấu cũ cháy sẵn bị crop: dập lại phần nào không còn trọn trong khung cắt.
+ * Người duyệt không cắt dở dấu cũ, nên mỗi vùng chỉ có hai khả năng: còn trọn (không dập) hoặc bị cắt (dập mới).
+ * Toạ độ đều là pixel trên ảnh gốc đã xoay theo EXIF (cùng hệ với cropToNativeRect).
+ */
+export function autoRestampLayers(zones: { logo: PixelRect; text: PixelRect }, rect: PixelRect): { logo: boolean; text: boolean } {
+  return { logo: !isZoneInside(zones.logo, rect), text: !isZoneInside(zones.text, rect) };
+}
+
 /** AUTO đi theo gợi ý từ các cờ; mức chọn tay (kể cả NONE) được giữ nguyên. */
 export function effectiveLevel(stored: PhotoQcRecaptureLevel | null | undefined, suggested: PhotoQcEffectiveLevel): PhotoQcEffectiveLevel {
   if (!stored || stored === 'AUTO') return suggested;

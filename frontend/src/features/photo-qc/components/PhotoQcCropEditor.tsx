@@ -4,7 +4,6 @@ import type { NaturalSize, PhotoQcCropInput, PhotoQcCropRatio, PhotoQcRestampMod
 import {
   constrainCrop,
   defaultCrop,
-  doubleStampWarnings,
   legacyWatermarkZones,
   normalizeDeg,
   ratioForSize,
@@ -42,15 +41,16 @@ interface PhotoQcCropEditorProps {
 }
 
 const RESTAMP_LABEL: Record<PhotoQcRestampMode, string> = {
-  NONE: 'Không dập bù',
-  LOGO: 'Dập bù logo',
-  TEXT: 'Dập bù giờ + mã',
-  BOTH: 'Dập bù cả logo và chữ',
+  NONE: 'không dập thêm (khung giữ trọn dấu cũ)',
+  LOGO: 'dập lại logo',
+  TEXT: 'dập lại giờ + mã ảnh',
+  BOTH: 'dập lại cả logo và giờ + mã ảnh',
 };
 
 /**
  * Khung crop khoá tỉ lệ 4:3 / 3:4 trên ảnh đã xoay như bản in. Chỉ lưu toạ độ, không tạo ảnh mới.
- * Ảnh có watermark cũ: hiện vùng dấu cũ, gợi ý chế độ dập bù và cảnh báo chồng 2 lớp.
+ * Ảnh có watermark cũ: hiện vùng dấu cũ và báo trước phần dấu máy chủ sẽ tự dập lại khi xuất
+ * (máy chủ quyết theo vị trí logo thật trên pixel; gợi ý ở đây chỉ để admin biết trước).
  */
 export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
   slot,
@@ -69,7 +69,6 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
   const savedCrop = slot.qc?.crop && !slot.qcStale ? slot.qc.crop : null;
   const [ratio, setRatio] = useState<PhotoQcCropRatio>(savedCrop?.ratio ?? '4:3');
   const [rect, setRect] = useState<NormRect | null>(savedCrop ? { x: savedCrop.x, y: savedCrop.y, w: savedCrop.w, h: savedCrop.h } : null);
-  const [restamp, setRestamp] = useState<PhotoQcRestampMode | null>(slot.qc && slot.qc.restampMode !== 'NONE' ? slot.qc.restampMode : null);
   const dragRef = useRef<DragState | null>(null);
 
   const scale = rot ? Math.min(maxWidth / rot.width, maxHeight / rot.height) : 0;
@@ -87,9 +86,7 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
   };
 
   const zones = useMemo(() => (natural && slot.legacyWatermarked ? legacyWatermarkZones(natural, deg) : null), [natural, slot.legacyWatermarked, deg]);
-  const suggested = zones && rect ? suggestRestamp(zones, rect) : 'NONE';
-  const effectiveRestamp: PhotoQcRestampMode = restamp ?? suggested;
-  const warnings = zones && rect ? doubleStampWarnings(zones, rect, effectiveRestamp) : [];
+  const suggested: PhotoQcRestampMode = zones && rect ? suggestRestamp(zones, rect) : 'NONE';
 
   const cutPins = useMemo(() => {
     if (slot.section !== 'CAD' || !slot.pins || !rect) return [];
@@ -155,7 +152,7 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
     if (!rect || !rot) return;
     onSave(
       { ...rect, ratio, rotationAtCrop: deg, imageWidth: rot.width, imageHeight: rot.height },
-      slot.legacyWatermarked ? effectiveRestamp : undefined
+      slot.legacyWatermarked ? suggested : undefined
     );
   };
 
@@ -250,33 +247,10 @@ export const PhotoQcCropEditor: React.FC<PhotoQcCropEditorProps> = ({
       )}
 
       {slot.legacyWatermarked && !hideRestamp && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p className="text-xs text-amber-900">
-            Ảnh này đã có watermark cháy sẵn (vùng viền vàng là ước lượng, hãy đối chiếu với ảnh). Gợi ý theo khung hiện tại: <strong>{RESTAMP_LABEL[suggested]}</strong>.
+            Ảnh này đã có watermark cháy sẵn (vùng viền vàng là ước lượng). Khi xuất report, máy chủ tự dập lại phần dấu bị khung cắt bỏ. Theo khung hiện tại: <strong>{RESTAMP_LABEL[suggested]}</strong>.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {(['NONE', 'LOGO', 'TEXT', 'BOTH'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setRestamp(m)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${effectiveRestamp === m ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100'}`}
-              >
-                {RESTAMP_LABEL[m]}
-                {restamp === null && suggested === m ? ' (gợi ý)' : ''}
-              </button>
-            ))}
-            {restamp !== null && (
-              <button type="button" onClick={() => setRestamp(null)} className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-700 underline cursor-pointer">
-                Theo gợi ý
-              </button>
-            )}
-          </div>
-          {warnings.map((w) => (
-            <p key={w} className="text-[11px] text-rose-700 flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {w}
-            </p>
-          ))}
         </div>
       )}
 

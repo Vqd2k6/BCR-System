@@ -41,6 +41,8 @@ export interface LegacyWatermarkDetection {
   /** true cho WATERMARKED và UNSURE: không bao giờ dập chồng khi chưa chắc. */
   hasLegacyWatermark: boolean;
   score: number;
+  /** Khung logo khớp nhất, tỉ lệ 0–1 trên ảnh đã xoay theo EXIF (null khi không tìm được khung nào). */
+  logoBox: { x: number; y: number; w: number; h: number } | null;
 }
 
 interface LogoTemplate {
@@ -127,6 +129,7 @@ export class WatermarkDetectorService {
     const ch = info.channels;
     const shortSide = Math.min(W, H);
     let best = 0;
+    let bestBox: LegacyWatermarkDetection['logoBox'] = null;
 
     for (let wr = WIDTH_RATIO_MIN; wr <= WIDTH_RATIO_MAX + 1e-9; wr += WIDTH_RATIO_STEP) {
       const lw = Math.round(shortSide * wr);
@@ -161,12 +164,15 @@ export class WatermarkDetectorService {
         }
         if (!inN || !outN) continue;
         const score = outSum / outN / (inSum / inN + 1);
-        if (score > best) best = score;
+        if (score > best) {
+          best = score;
+          bestBox = { x: x0 / W, y: y0 / H, w: lw / W, h: tpl.height / H };
+        }
       }
     }
 
     const score = Math.round(best * 1000) / 1000;
     const verdict = verdictOf(score);
-    return { verdict, hasLegacyWatermark: verdict !== 'CLEAN', score };
+    return { verdict, hasLegacyWatermark: verdict !== 'CLEAN', score, logoBox: bestBox };
   }
 }

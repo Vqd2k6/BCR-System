@@ -16,7 +16,19 @@ import { ReportViewModel } from '../report.types';
 import { LOGO_THACO_REC_BASE64 } from '../assets/report-logos';
 import { normalizeMetroPhotoCode } from '../utils/metro-photo-code.utils';
 import { ReportImageResolver } from './report-image-resolver.service';
-import { cropToNativeRect } from '../../photo-qc/photo-qc.rules';
+import { autoRestampLayers, cropToNativeRect, type PixelRect } from '../../photo-qc/photo-qc.rules';
+import { WatermarkDetectorService, type LegacyWatermarkDetection } from './watermark-detector.service';
+
+function clampRect(r: PixelRect, W: number, H: number): PixelRect {
+  const left = Math.max(0, Math.min(W, r.left));
+  const top = Math.max(0, Math.min(H, r.top));
+  return {
+    left,
+    top,
+    width: Math.max(0, Math.min(W, r.left + r.width) - left),
+    height: Math.max(0, Math.min(H, r.top + r.height) - top),
+  };
+}
 
 function escapeXml(str: string): string {
   return String(str || '')
@@ -155,6 +167,9 @@ export class ReportWatermarkCanvasService {
    * (giống stampImageBase64), sau đó mới xoay và encode MỘT lần.
    * - Khung crop tính trên ảnh đã xoay (như admin thấy), được quy về toạ độ ảnh gốc.
    * - stampLogo / stampText tách riêng để dập bù cho ảnh đã có watermark cháy sẵn.
+   * - legacyAuto: ảnh có dấu cũ cháy sẵn → tự quyết theo khung cắt (bỏ qua stampLogo/stampText):
+   *   vùng logo cũ (vị trí thật do bộ dò tìm) hoặc dòng giờ + mã cũ không còn trọn trong khung thì dập lại phần đó.
+   *   Bộ dò không thấy logo trên pixel (cờ "dấu cũ" đến từ luật ngày dự phòng) → ảnh không có dấu, dập đủ cả hai.
    * - Không cache, không ghi file: ảnh gốc trên R2 giữ nguyên từng bit.
    */
   public static async cropStampRotate(opts: {
@@ -164,8 +179,11 @@ export class ReportWatermarkCanvasService {
     photoCodeText: string;
     stampLogo: boolean;
     stampText: boolean;
+    legacyAuto?: boolean;
+    onLayersDecided?: (layers: { logo: boolean; text: boolean }, reason: string) => void;
   }): Promise<string> {
-    const { base64Uri, crop, dateTimeText, photoCodeText, stampLogo, stampText } = opts;
+    const { base64Uri, crop, dateTimeText, photoCodeText, legacyAuto, onLayersDecided } = opts;
+    let { stampLogo, stampText } = opts;
     const origin = ReportImageResolver.getRotationOrigin(base64Uri);
     const sourceUri = origin?.nativeUri ?? base64Uri;
     const deg = origin?.deg ?? 0;
@@ -180,6 +198,12 @@ export class ReportWatermarkCanvasService {
     const oriented = await sharp(input).rotate().raw().toBuffer({ resolveWithObject: true });
     const { width: nativeW, height: nativeH, channels } = oriented.info;
     const rect = cropToNativeRect(crop, nativeW, nativeH, deg);
+    if (legacyAuto) {
+      const decided = await this.decideLegacyRestamp(input, nativeW, nativeH, rect, dateTimeText, photoCodeText);
+      stampLogo = decided.layers.logo;
+      stampText = decided.layers.text;
+      if (onLayersDecided) onLayersDecided(decided.layers, decided.reason);
+    }
     const cut = await sharp(oriented.data, { raw: { width: nativeW, height: nativeH, channels } })
       .extract(rect)
       .raw()
@@ -213,6 +237,103 @@ export class ReportWatermarkCanvasService {
     return `data:${isPng ? 'image/png' : 'image/jpeg'};base64,${outBuffer.toString('base64')}`;
   }
 
+  /**
+   * Quyết định dập lại logo / chữ cho mảnh crop của ảnh có dấu cũ. Toạ độ: pixel ảnh gốc đã xoay theo EXIF.
+   * - Logo: khung bộ dò tìm được (+ quầng sáng); bộ dò không thấy logo → coi ảnh không có dấu, dập cả hai.
+   * - Chữ: bố cục FE cũ giống hệt bố cục BE (cùng tỉ lệ), ước bề ngang theo độ dài dòng giờ / mã.
+   */
+  private static async decideLegacyRestamp(
+    encoded: Buffer,
+    nativeW: number,
+    nativeH: number,
+    rect: PixelRect,
+    dateTimeText: string,
+    photoCodeText: string
+  ): Promise<{ layers: { logo: boolean; text: boolean }; reason: string }> {
+    let detection: LegacyWatermarkDetection;
+    try {
+      detection = await WatermarkDetectorService.detectLegacyLogo(encoded);
+    } catch (err) {
+      // Không dò được: giữ an toàn pháp lý theo hướng "mọi ảnh in ra đều có dấu" → vùng logo theo bố cục chuẩn.
+      console.error('[ReportWatermark:crop] Không dò được logo cũ trên ảnh crop, dùng vùng logo chuẩn', err);
+      detection = { verdict: 'UNSURE', hasLegacyWatermark: true, score: 0, logoBox: null };
+    }
+    if (!detection.hasLegacyWatermark) {
+      return { layers: { logo: true, text: true }, reason: `bộ dò không thấy logo cũ (score ${detection.score})` };
+    }
+
+    const shortSide = Math.min(nativeW, nativeH);
+    const glow = Math.round(shortSide * 0.014);
+    const logoZone: PixelRect = detection.logoBox
+      ? {
+          left: detection.logoBox.x * nativeW - glow,
+          top: detection.logoBox.y * nativeH - glow,
+          width: detection.logoBox.w * nativeW + 2 * glow,
+          height: detection.logoBox.h * nativeH + 2 * glow,
+        }
+      : {
+          left: nativeW - shortSide * (LOGO_PADDING_RATIO + LOGO_WIDTH_RATIO) - glow,
+          top: shortSide * LOGO_PADDING_RATIO - glow,
+          width: shortSide * LOGO_WIDTH_RATIO + 2 * glow,
+          height: shortSide * LOGO_WIDTH_RATIO * 0.3 + 2 * glow,
+        };
+    const textZone = await this.textZone(nativeW, nativeH, shortSide, [dateTimeText, photoCodeText]);
+    const layers = autoRestampLayers({ logo: clampRect(logoZone, nativeW, nativeH), text: clampRect(textZone, nativeW, nativeH) }, rect);
+    return { layers, reason: `dấu cũ ${detection.verdict} (score ${detection.score})` };
+  }
+
+  /**
+   * Khung bao 2 dòng chữ góc dưới phải: render đúng SVG chữ (cùng bố cục buildTextSvg) rồi lấy khung pixel thật
+   * (gồm viền + bóng đổ). Dấu cũ cùng bố cục; mã cũ "HCM_M2.[...]" ngắn hơn mã mới nên khung này phủ trọn chữ cũ.
+   */
+  private static async textZone(width: number, height: number, shortSide: number, lines: string[]): Promise<PixelRect> {
+    const layout = this.textLayout(width, shortSide, Math.max(1, ...lines.map((l) => (l || '').length)));
+    const fallback: PixelRect = {
+      left: width * 0.3,
+      top: height - layout.paddingBottom - layout.lineHeight - layout.fontSize * 1.3,
+      width: width * 0.7,
+      height: layout.paddingBottom + layout.lineHeight + layout.fontSize * 1.3,
+    };
+    const svg = this.buildTextSvg(width, height, shortSide, lines[0] || '', lines[1] || '');
+    if (!svg) return fallback;
+    try {
+      const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().extractChannel(3).raw().toBuffer({ resolveWithObject: true });
+      let minX = info.width;
+      let minY = info.height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < info.height; y++) {
+        const row = y * info.width;
+        for (let x = 0; x < info.width; x++) {
+          if (data[row + x] < 24) continue;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX < 0) return fallback;
+      const margin = Math.round(layout.fontSize * 0.25);
+      return { left: minX - margin, top: minY - margin, width: maxX - minX + 1 + 2 * margin, height: maxY - minY + 1 + 2 * margin };
+    } catch (err) {
+      console.error('[ReportWatermark:crop] Không đo được vùng chữ cũ, dùng vùng ước lượng', err);
+      return fallback;
+    }
+  }
+
+  private static textLayout(width: number, shortSide: number, maxChars: number): { fontSize: number; lineHeight: number; paddingRight: number; paddingBottom: number } {
+    const paddingRight = Math.round(shortSide * TEXT_PADDING_RIGHT_RATIO);
+    const paddingBottom = Math.round(shortSide * TEXT_PADDING_BOTTOM_RATIO);
+    let fontSize = Math.max(FONT_MIN_PX, Math.round(shortSide * FONT_RATIO));
+    // Co chữ khi dòng dài nhất vượt bề ngang khả dụng (mã căn hộ dài), tối thiểu 60% cỡ chuẩn.
+    const available = width - 2 * paddingRight;
+    const estimated = maxChars * fontSize * AVG_CHAR_WIDTH_EM;
+    if (estimated > available) {
+      fontSize = Math.max(Math.round(fontSize * MIN_FONT_SHRINK), Math.floor(available / (maxChars * AVG_CHAR_WIDTH_EM)));
+    }
+    return { fontSize, lineHeight: Math.round(fontSize * LINE_HEIGHT_RATIO), paddingRight, paddingBottom };
+  }
+
   /** 2 dòng chữ trắng góc dưới phải: ngày giờ (trên) + mã ảnh (dưới). */
   private static buildTextSvg(
     width: number,
@@ -224,19 +345,8 @@ export class ReportWatermarkCanvasService {
     const lines = [dateTimeText, photoCodeText].filter((t) => Boolean(t && t.trim()));
     if (lines.length === 0) return null;
 
-    const paddingRight = Math.round(shortSide * TEXT_PADDING_RIGHT_RATIO);
-    const paddingBottom = Math.round(shortSide * TEXT_PADDING_BOTTOM_RATIO);
-    let fontSize = Math.max(FONT_MIN_PX, Math.round(shortSide * FONT_RATIO));
-
-    // Co chữ khi dòng dài nhất vượt bề ngang khả dụng (mã căn hộ dài), tối thiểu 60% cỡ chuẩn.
     const maxChars = Math.max(...lines.map((l) => l.length));
-    const available = width - 2 * paddingRight;
-    const estimated = maxChars * fontSize * AVG_CHAR_WIDTH_EM;
-    if (estimated > available) {
-      fontSize = Math.max(Math.round(fontSize * MIN_FONT_SHRINK), Math.floor(available / (maxChars * AVG_CHAR_WIDTH_EM)));
-    }
-
-    const lineHeight = Math.round(fontSize * LINE_HEIGHT_RATIO);
+    const { fontSize, lineHeight, paddingRight, paddingBottom } = this.textLayout(width, shortSide, maxChars);
     const x = width - paddingRight;
     const lastY = height - paddingBottom;
     const strokeW = Math.max(2, fontSize * 0.07).toFixed(1);

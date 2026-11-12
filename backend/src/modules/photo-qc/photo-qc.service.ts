@@ -194,7 +194,7 @@ export class PhotoQcService {
   }
 
   /** Toàn bộ ảnh report in (P + khuyết tật + phòng) qua ViewModel thật – dùng cho màn chi tiết và kiểm tra khi ghi. */
-  static async buildAllSlots(reportId: string): Promise<{
+  static async buildAllSlots(reportId: string, detectUrls: string[] = []): Promise<{
     slots: PhotoQcSlot[];
     kind: PhotoQcReportKind;
     raw: JsonObject;
@@ -223,6 +223,11 @@ export class PhotoQcService {
     // Luôn dùng dữ liệu sống: QC áp vào bản in kế tiếp (bản nháp hoặc revision mới).
     const raw = (await applyCondoReportContext(await ReportService.resolveReport(reportId))) as JsonObject;
     const allUrls = extractAllImageUrls(raw);
+    // Ảnh đã/đang crop phải biết chắc có dấu cũ hay không (nhìn pixel), vì crop có thể cắt mất dấu cũ.
+    // Chỉ dò nhóm này (ít ảnh); ảnh khác vẫn đọc kết quả đã lưu như trước.
+    const croppedUrls = (await PhotoQcRepository.getPhotoRows([reportId])).filter((r) => r.crop).map((r) => r.photoUrl);
+    const toDetect = [...new Set([...croppedUrls, ...detectUrls])];
+    if (toDetect.length > 0) await LegacyWatermarkIndex.load(toDetect, { detect: true });
     await LegacyWatermarkIndex.load(allUrls);
     const config = await ReportConfigService.getActiveConfig();
     const vm = ReportViewModelMapper.buildViewModel(raw, undefined, config);
@@ -545,7 +550,7 @@ export class PhotoQcService {
 
   static async updatePhotos(user: JwtPayload, reportId: string, items: UpdatePhotoQcPhotosInput, clientIp?: string): Promise<PhotoQcPhotoRow[]> {
     if (!user.userId) throw new UnauthorizedError('Người dùng chưa xác thực');
-    const built = await this.buildAllSlots(reportId);
+    const built = await this.buildAllSlots(reportId, items.filter((i) => i.crop).map((i) => i.photoUrl));
     this.assertReportAccess(user, built.zoneId);
     const slotByKey = new Map(built.slots.map((s) => [s.photoKey, s]));
 
@@ -558,9 +563,6 @@ export class PhotoQcService {
       }
       if (item.crop && slot.section === 'DOCUMENT') {
         throw new BadRequestError(`${slot.label} là tài liệu scan, chỉ gắn cờ chụp lại, không crop`);
-      }
-      if (item.restampMode && item.restampMode !== 'NONE' && !slot.legacyWatermarked) {
-        throw new BadRequestError(`Ảnh ${slot.label} chưa có watermark cũ, không cần dập bù`);
       }
     }
 
