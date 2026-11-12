@@ -205,14 +205,14 @@ export async function buildApprovedSnapshot(
   }
 
   const edgeDist =
-    asNumber(frozenSurveyDataJson.stationEdgeDistance) ??
     asNumber(frozenSurveyDataJson.clearanceOffsetDistance) ??
+    asNumber(frozenSurveyDataJson.stationEdgeDistance) ??
     asNumber(frozenSurveyDataJson.distanceToTunnelEdgeM) ??
     asNumber((specsRes.rows[0] as any)?.clearanceOffsetDistance);
   const centerDist =
+    asNumber(frozenSurveyDataJson.metroOffsetDistance) ??
     asNumber(frozenSurveyDataJson.manualMetroDistanceM) ??
     asNumber(frozenSurveyDataJson.distanceToMetroM) ??
-    asNumber(frozenSurveyDataJson.metroOffsetDistance) ??
     asNumber((specsRes.rows[0] as any)?.metroOffsetDistance) ??
     frozenParcel?.distanceToCenterlineM ??
     null;

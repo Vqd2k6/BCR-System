@@ -167,6 +167,8 @@ function readSavedMeters(val: unknown): string {
 /**
  * Cự ly đã lưu tới tim tuyến và biên kết cấu/ga (chuỗi 1 chữ số thập phân, '' khi chưa có số).
  * Dùng chung cho bảng Mục II và nhãn trên sơ đồ vị trí để hai nơi luôn in cùng một số.
+ * Thứ tự ưu tiên giống Thẩm định và Excel tiến độ (record.normalizer.ts): `metroOffsetDistance`, `clearanceOffsetDistance` là
+ * trường Thẩm định luôn ghi lại; `manualMetroDistanceM`, `stationEdgeDistance` có thể là số nhập tay cũ nên đứng sau.
  */
 export function resolveSavedMetroDistances(
   rawReport: Record<string, unknown>,
@@ -175,10 +177,10 @@ export function resolveSavedMetroDistances(
 ): { alignM: string; edgeM: string } {
   return {
     alignM: readSavedMeters(
-      json.manualMetroDistanceM ?? json.distanceToMetroM ?? json.metroOffsetDistance ?? specs?.metroOffsetDistance ?? rawReport.distance_to_centerline_m
+      json.metroOffsetDistance ?? json.manualMetroDistanceM ?? json.distanceToMetroM ?? specs?.metroOffsetDistance ?? rawReport.distance_to_centerline_m
     ),
     edgeM: readSavedMeters(
-      json.stationEdgeDistance ?? json.clearanceOffsetDistance ?? json.distanceToTunnelEdgeM ?? specs?.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
+      json.clearanceOffsetDistance ?? json.stationEdgeDistance ?? json.distanceToTunnelEdgeM ?? specs?.clearanceOffsetDistance ?? rawReport.distance_to_tunnel_edge_m
     ),
   };
 }
