@@ -7,7 +7,7 @@ Cập nhật: 13/11/2026. Nhánh `dev`.
 - **Tạm dừng** vì phần nhà dân sắp có thay đổi lớn. Khi quay lại: đọc file này, rồi đọc phần thay đổi nhà dân đã làm trong khoảng tạm dừng (mục "Lưu ý khi quay lại") trước khi code tiếp.
 - Plan đã duyệt và đã vấn đáp 6 câu: `~/.claude/plans/hi-n-t-i-modun-xu-t-optimized-raven.md`. Plan là nguồn chi tiết từng trường; file này chỉ ghi tiến độ và quyết định.
 - **Đã code xong:** GĐ0 (nền) và tab "Báo Cáo Chung Cư" (làm sớm phần UI của GĐ4).
-- **CHƯA commit.** Toàn bộ thay đổi đang nằm trong working tree của `dev` (danh sách ở mục 3).
+- **Đã commit và push lên `dev`** ngày 14/11/2026: `634b2ed` (GĐ0) và `8c0a3a2` (tab).
 - **Chưa làm:** GĐ1 (căn U), GĐ2 (khu vực M), GĐ3 (Tòa mẹ + xương cá), GĐ5 (ZIP).
 
 ---
@@ -71,7 +71,7 @@ Cập nhật: 13/11/2026. Nhánh `dev`.
 
 ---
 
-## 3. File thay đổi chưa commit (của task này)
+## 3. File thay đổi của task này (đã commit)
 
 ```
 backend/src/modules/report/services/report-template-kind.ts          (mới)
@@ -90,9 +90,7 @@ frontend/src/features/zone-management/components/review-queue/condo/types/condo-
 
 **KHÔNG thuộc task này, không động vào:** `TASK_DANG_DO.md` (đang sửa dở của người dùng), thư mục `Xuất 11.11/`, các script `backend/scripts/export-1111-*.ts`.
 
-Commit dự kiến (khi người dùng đồng ý): 2 commit trên `dev`.
-- `feat(report): condo report template kinds, child doc numbers, unit identity snapshot`
-- `feat(export): condo reports tab in Phase 1 export`
+Đã commit: `634b2ed` feat(report) GĐ0, `8c0a3a2` feat(export) tab.
 
 ---
 
@@ -110,7 +108,7 @@ Commit dự kiến (khi người dùng đồng ý): 2 commit trên `dev`.
 
 ## 5. Bước tiếp theo (theo plan)
 
-1. Kiểm tra tab trên UI, chốt vấn đề mở 1, rồi commit 2 commit trên `dev`.
+1. Kiểm tra tab trên UI, chốt vấn đề mở 1.
 2. **GĐ1 — Căn U** (`templates/condo-unit/` + `report/mappers/condo/condo-unit-report.mapper.ts`):
    - Nhánh đủ: 9 trường I; II lịch sử + bảng biến dạng; III sơ đồ căn; IV khuyết tật (áp `projectCondoZonesToFloors` để sửa lỗi U không in vùng); V Burland; VI kết luận; VII xác nhận; PL1–PL3.
    - Nhánh B (vắng): chuyển logic từ `condo-absent-projection.ts`, `condo-unit-absent.mapper.ts`, `page-04-absent-unit-notice.hbs`. Xác định vắng chỉ qua `condo-absence.resolver.ts`.
@@ -130,6 +128,6 @@ Kiểm thử mỗi GĐ: xem mục 7 của plan (mở rộng `test_report_paginat
   - Tên partial, khóa ViewModel và thứ tự Mục có đổi không. Plan giả định bố cục Mục I–XII, Mục lục 2 lượt, header/footer hộp lề.
   - `buildViewModel` và pipeline ảnh/watermark (`assertWatermarkComplete`, Photo QC, resurvey) có đổi chữ ký không; mapper chung cư phải đưa mọi URL ảnh qua cùng collector ở lượt chạy khô.
   - `metadata-and-cover.mapper.ts`, `cadastral-info.mapper.ts`, `report.service.ts`, `snapshot-*` có bị sửa cùng chỗ với GĐ0 không. Nếu GĐ0 chưa commit trước đợt sửa nhà dân, sẽ dễ xung đột ở các file này.
-- Khuyến nghị: **commit GĐ0 + tab lên `dev` trước khi bắt đầu đợt sửa nhà dân.** Nếu không commit, ít nhất `git stash` có đặt tên, để đợt sửa nhà dân bắt đầu từ cây sạch.
+- GĐ0 + tab đã lên `dev` (634b2ed, 8c0a3a2) trước đợt sửa nhà dân; nếu đợt đó sửa trùng file, xem diff từ 8c0a3a2.
 - Sau khi nhà dân đổi xong, chạy lại phép so HTML nhà dân trước/sau, để chắc phần cache template theo kind không làm lệch bản mới.
 - Memory liên quan: `condo-report-export-decisions`, `condo-absent-legacy-data`, `report-pdf-pagination-decisions`.
