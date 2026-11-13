@@ -107,22 +107,90 @@
         el.classList.add('wm-flash');
         setTimeout(function () { el.classList.remove('wm-flash'); }, 1800);
       }
-      function jumpToImage(index) {
-        var target = issueImages().filter(function (img) { return issueIndexOf(img) === index; })[0];
-        if (!target) return;
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        flash(target);
-      }
-      function jumpToRow(index) {
-        var row = box.querySelector('li[data-wm-index="' + index + '"]');
-        (row || box).scrollIntoView({ block: 'center', behavior: 'smooth' });
-        flash(row || box);
+      // Báo cáo dựng xong (report-scripts.hbs: buildStage + numberPages) thì body có data-report-ready="1".
+      // Trước đó ảnh còn đang giải mã / dựng khung, toạ độ chưa ổn định.
+      function isReady() { return document.body && document.body.getAttribute('data-report-ready') === '1'; }
+      function whenReady(cb) {
+        if (isReady()) return cb();
+        var done = false;
+        var finish = function () { if (done) return; done = true; obs.disconnect(); cb(); };
+        var obs = new MutationObserver(function () { if (isReady()) finish(); });
+        obs.observe(document.body, { attributes: true, attributeFilter: ['data-report-ready'] });
+        setTimeout(finish, 20000);
       }
 
-      function onAction(btn, index) {
+      // Chỉ cuộn khung của CHÍNH bản xem trước, tức thì (không 'smooth', không scrollIntoView): bản xem trước là blob cùng origin,
+      // scrollIntoView lan sang khung cuộn của modal màn Xuất và Chrome huỷ giữa chừng khi cuộn mượt nhiều khung lồng nhau.
+      // Nếu iframe được kéo cao bằng cả tài liệu (không tự cuộn) thì cuộn khung cuộn gần nhất ở trang cha.
+      function scrollDocTo(y) {
+        var doc = document.scrollingElement || document.documentElement;
+        if (doc.scrollHeight - window.innerHeight > 4) {
+          window.scrollTo({ top: Math.max(0, y), left: window.scrollX, behavior: 'auto' });
+          return;
+        }
+        try {
+          var frame = window.frameElement;
+          var el = frame ? frame.parentElement : null;
+          while (el) {
+            var oy = window.parent.getComputedStyle(el).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 4) break;
+            el = el.parentElement;
+          }
+          if (!frame || !el) return;
+          var frameTop = frame.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+          el.scrollTop = Math.max(0, frameTop + y);
+        } catch (err) {
+          console.error('[WatermarkIssues:scroll] Không cuộn được khung cha', err);
+        }
+      }
+      function centerOn(el) {
+        var r = el.getBoundingClientRect();
+        scrollDocTo(r.top + window.scrollY - Math.max(0, (window.innerHeight - r.height) / 2));
+      }
+      // Cuộn tới phần tử, rồi đo lại 2 lần: layout còn giãn (ảnh giải mã muộn) thì cuộn bù.
+      function goTo(getTarget, btn) {
+        var label = btn ? btn.textContent : '';
+        if (btn && !isReady()) btn.textContent = 'Đang nạp ảnh…';
+        whenReady(function () {
+          if (btn) btn.textContent = label;
+          var target = getTarget();
+          if (!target) {
+            console.error('[WatermarkIssues:jump] Không tìm thấy phần tử đích trong báo cáo');
+            return;
+          }
+          centerOn(target);
+          flash(target);
+          [400, 1200].forEach(function (ms) {
+            setTimeout(function () {
+              var r = target.getBoundingClientRect();
+              var want = Math.max(0, (window.innerHeight - r.height) / 2);
+              if (Math.abs(r.top - want) > 40) centerOn(target);
+            }, ms);
+          });
+        });
+      }
+      function imageOf(index) {
+        return issueImages().filter(function (img) { return issueIndexOf(img) === index; })[0] || null;
+      }
+      function jumpToImage(index, btn) {
+        goTo(function () { return imageOf(index); }, btn);
+      }
+      function jumpToRow(index, btn) {
+        goTo(function () { return box.querySelector('li[data-wm-index="' + index + '"]') || box; }, btn);
+      }
+      // Ảnh lỗi kế tiếp theo thứ tự trong tài liệu (vòng lại ảnh đầu khi hết).
+      function jumpToNext(fromImg, btn) {
+        var all = issueImages();
+        var at = all.indexOf(fromImg);
+        var next = all[(at + 1) % all.length];
+        goTo(function () { return next; }, btn);
+      }
+
+      function onAction(btn, index, img) {
         var action = btn.getAttribute('data-wm-action');
-        if (action === 'WM_JUMP') return jumpToImage(index);
-        if (action === 'WM_LIST') return jumpToRow(index);
+        if (action === 'WM_JUMP') return jumpToImage(index, btn);
+        if (action === 'WM_LIST') return jumpToRow(index, btn);
+        if (action === 'WM_NEXT') return jumpToNext(img, btn);
         send(action, issues[index], btn.getAttribute('data-wm-value'));
       }
 
@@ -186,10 +254,11 @@
           } else if (issue.reason === 'LOAD_FAILED') {
             bar.appendChild(button('Thử lại', 'WATERMARK_RETRY'));
           }
+          if (issueImages().length > 1) bar.appendChild(button('↓ Ảnh lỗi kế tiếp', 'WM_NEXT'));
           bar.appendChild(button('↑ Danh sách lỗi', 'WM_LIST'));
           bar.addEventListener('click', function (evt) {
             var btn = evt.target && evt.target.closest ? evt.target.closest('button[data-wm-action]') : null;
-            if (btn) onAction(btn, index);
+            if (btn) onAction(btn, index, img);
           });
           document.body.appendChild(bar);
           bars.push({ img: img, bar: bar });
@@ -198,21 +267,25 @@
         placeBars();
       }
       // Script nằm trước trang bìa: ảnh thân báo cáo chỉ có trong DOM sau khi phân tích xong tài liệu.
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountBars); else mountBars();
+      function onDomReady() {
+        mountBars();
+        // buildStage / numberPages đổi layout sau khi ảnh nạp: đặt lại thanh nút khi báo cáo dựng xong và mỗi khi body đổi cỡ.
+        whenReady(placeBars);
+        if (window.ResizeObserver) new ResizeObserver(function () { placeBars(); }).observe(document.body);
+        // Nạp lại sau khi xác nhận: về đúng chỗ đang làm (chỉ trong 2 phút sau thao tác), sau khi báo cáo dựng xong.
+        try {
+          var saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || 'null');
+          sessionStorage.removeItem(SCROLL_KEY);
+          if (saved && typeof saved.y === 'number' && Date.now() - saved.t < 120000) {
+            whenReady(function () { scrollDocTo(saved.y); });
+          }
+        } catch (err) {
+          console.error('[WatermarkIssues:scroll] Không khôi phục được vị trí cuộn', err);
+        }
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onDomReady); else onDomReady();
       window.addEventListener('resize', placeBars);
       window.addEventListener('load', placeBars);
-
-      // Nạp lại sau khi xác nhận: về đúng chỗ đang làm (chỉ trong 2 phút sau thao tác).
-      try {
-        var saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || 'null');
-        sessionStorage.removeItem(SCROLL_KEY);
-        if (saved && typeof saved.y === 'number' && Date.now() - saved.t < 120000) {
-          var restore = function () { window.scrollTo(0, saved.y); };
-          if (document.readyState === 'complete') restore(); else window.addEventListener('load', restore);
-        }
-      } catch (err) {
-        console.error('[WatermarkIssues:scroll] Không khôi phục được vị trí cuộn', err);
-      }
     })();
   </script>
 </div>

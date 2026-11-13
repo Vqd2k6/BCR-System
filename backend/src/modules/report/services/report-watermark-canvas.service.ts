@@ -21,6 +21,24 @@ import { WatermarkDetectorService, type LegacyWatermarkDetection } from './water
 import { LegacyWatermarkIndex } from './legacy-watermark-index.service';
 import { walkViewModelPhotos, type VmPhotoRef } from '../../photo-qc/photo-qc.vm-walker';
 
+/**
+ * Phần lõi chung của mọi cỡ logo cũ (FE dập vào pixel trước 03/10/2026, logo ~0,44–0,72 cạnh ngắn, đều bám góc trên phải):
+ * vùng của cỡ NHỎ NHẤT (= bố cục BE: rộng 0,4375 cạnh ngắn, cao 0,3 bề rộng, cách mép 0,025) cộng quầng sáng.
+ * Quy trình duyệt không cắt dở dấu cũ (người dùng chốt 13/11), nên: crop làm mất lõi này = đã bỏ góc logo → dập lại logo;
+ * lõi còn trọn = góc logo được giữ → không dập thêm. Dùng vùng lớn nhất (như viền vàng cảnh báo ở Studio) sẽ dập chồng
+ * logo lên ảnh dọc khi crop chỉ bỏ dải trái. Pixel trên ảnh gốc đã xoay theo EXIF.
+ */
+export function legacyLogoZone(W: number, H: number): PixelRect {
+  const s = Math.min(W, H);
+  const glow = Math.round(s * 0.014);
+  return {
+    left: W - s * (LOGO_PADDING_RATIO + LOGO_WIDTH_RATIO) - glow,
+    top: s * LOGO_PADDING_RATIO - glow,
+    width: s * LOGO_WIDTH_RATIO + 2 * glow,
+    height: s * LOGO_WIDTH_RATIO * 0.3 + 2 * glow,
+  };
+}
+
 function clampRect(r: PixelRect, W: number, H: number): PixelRect {
   const left = Math.max(0, Math.min(W, r.left));
   const top = Math.max(0, Math.min(H, r.top));
@@ -206,8 +224,9 @@ export class ReportWatermarkCanvasService {
    * - Khung crop tính trên ảnh đã xoay (như admin thấy), được quy về toạ độ ảnh gốc.
    * - stampLogo / stampText tách riêng để dập bù cho ảnh đã có watermark cháy sẵn.
    * - legacyAuto: ảnh có dấu cũ cháy sẵn → tự quyết theo khung cắt (bỏ qua stampLogo/stampText):
-   *   vùng logo cũ (vị trí thật do bộ dò tìm) hoặc dòng giờ + mã cũ không còn trọn trong khung thì dập lại phần đó.
-   *   Bộ dò không thấy logo trên pixel (cờ "dấu cũ" đến từ luật ngày dự phòng) → ảnh không có dấu, dập đủ cả hai.
+   *   vùng logo cũ hoặc dòng giờ + mã cũ không còn trọn trong khung thì dập lại phần đó (từng lớp riêng).
+   *   Bộ dò không thấy logo trên pixel và không có người xác nhận → ảnh không có dấu, dập đủ cả hai.
+   * - legacyTrusted: "có dấu cũ" do người xác nhận (MANUAL) hoặc đã đóng băng trong snapshot Rev → không để bộ dò lật lại.
    * - Không cache, không ghi file: ảnh gốc trên R2 giữ nguyên từng bit.
    */
   public static async cropStampRotate(opts: {
@@ -218,9 +237,10 @@ export class ReportWatermarkCanvasService {
     stampLogo: boolean;
     stampText: boolean;
     legacyAuto?: boolean;
+    legacyTrusted?: boolean;
     onLayersDecided?: (layers: { logo: boolean; text: boolean }, reason: string) => void;
   }): Promise<string> {
-    const { base64Uri, crop, dateTimeText, photoCodeText, legacyAuto, onLayersDecided } = opts;
+    const { base64Uri, crop, dateTimeText, photoCodeText, legacyAuto, legacyTrusted, onLayersDecided } = opts;
     let { stampLogo, stampText } = opts;
     const origin = ReportImageResolver.getRotationOrigin(base64Uri);
     const sourceUri = origin?.nativeUri ?? base64Uri;
@@ -237,7 +257,7 @@ export class ReportWatermarkCanvasService {
     const { width: nativeW, height: nativeH, channels } = oriented.info;
     const rect = cropToNativeRect(crop, nativeW, nativeH, deg);
     if (legacyAuto) {
-      const decided = await this.decideLegacyRestamp(input, nativeW, nativeH, rect, dateTimeText, photoCodeText);
+      const decided = await this.decideLegacyRestamp(input, nativeW, nativeH, rect, dateTimeText, photoCodeText, legacyTrusted === true);
       stampLogo = decided.layers.logo;
       stampText = decided.layers.text;
       if (onLayersDecided) onLayersDecided(decided.layers, decided.reason);
@@ -277,7 +297,10 @@ export class ReportWatermarkCanvasService {
 
   /**
    * Quyết định dập lại logo / chữ cho mảnh crop của ảnh có dấu cũ. Toạ độ: pixel ảnh gốc đã xoay theo EXIF.
-   * - Logo: khung bộ dò tìm được (+ quầng sáng); bộ dò không thấy logo → coi ảnh không có dấu, dập cả hai.
+   * Mỗi lớp xét riêng: còn trọn trong khung → không dập; bị bỏ khỏi khung → dập lại lớp đó (NONE / LOGO / TEXT / BOTH).
+   * - Logo: chỉ dùng khung bộ dò tìm được khi kết luận WATERMARKED (điểm ≥ ngưỡng, khung đáng tin).
+   *   Còn lại (UNSURE đã được người xác nhận, dò lỗi, snapshot) dùng lõi chung của mọi cỡ logo cũ (legacyLogoZone).
+   * - Bộ dò không thấy logo và không có người xác nhận (`trusted`) → coi ảnh không có dấu, dập cả hai.
    * - Chữ: bố cục FE cũ giống hệt bố cục BE (cùng tỉ lệ), ước bề ngang theo độ dài dòng giờ / mã.
    */
   private static async decideLegacyRestamp(
@@ -286,7 +309,8 @@ export class ReportWatermarkCanvasService {
     nativeH: number,
     rect: PixelRect,
     dateTimeText: string,
-    photoCodeText: string
+    photoCodeText: string,
+    trusted: boolean
   ): Promise<{ layers: { logo: boolean; text: boolean }; reason: string }> {
     let detection: LegacyWatermarkDetection;
     try {
@@ -296,28 +320,28 @@ export class ReportWatermarkCanvasService {
       console.error('[ReportWatermark:crop] Không dò được logo cũ trên ảnh crop, dùng vùng logo chuẩn', err);
       detection = { verdict: 'UNSURE', hasLegacyWatermark: true, score: 0, logoBox: null };
     }
-    if (!detection.hasLegacyWatermark) {
+    if (!detection.hasLegacyWatermark && !trusted) {
       return { layers: { logo: true, text: true }, reason: `bộ dò không thấy logo cũ (score ${detection.score})` };
     }
 
     const shortSide = Math.min(nativeW, nativeH);
     const glow = Math.round(shortSide * 0.014);
-    const logoZone: PixelRect = detection.logoBox
+    const useDetectorBox = detection.verdict === 'WATERMARKED' && detection.logoBox !== null;
+    const logoZone: PixelRect = useDetectorBox && detection.logoBox
       ? {
           left: detection.logoBox.x * nativeW - glow,
           top: detection.logoBox.y * nativeH - glow,
           width: detection.logoBox.w * nativeW + 2 * glow,
           height: detection.logoBox.h * nativeH + 2 * glow,
         }
-      : {
-          left: nativeW - shortSide * (LOGO_PADDING_RATIO + LOGO_WIDTH_RATIO) - glow,
-          top: shortSide * LOGO_PADDING_RATIO - glow,
-          width: shortSide * LOGO_WIDTH_RATIO + 2 * glow,
-          height: shortSide * LOGO_WIDTH_RATIO * 0.3 + 2 * glow,
-        };
+      : legacyLogoZone(nativeW, nativeH);
     const textZone = await this.textZone(nativeW, nativeH, shortSide, [dateTimeText, photoCodeText]);
     const layers = autoRestampLayers({ logo: clampRect(logoZone, nativeW, nativeH), text: clampRect(textZone, nativeW, nativeH) }, rect);
-    return { layers, reason: `dấu cũ ${detection.verdict} (score ${detection.score})` };
+    const source = trusted ? 'người xác nhận / snapshot' : 'bộ dò';
+    return {
+      layers,
+      reason: `dấu cũ ${detection.verdict} (score ${detection.score}, ${source}), vùng logo ${useDetectorBox ? 'theo bộ dò' : 'theo bố cục chuẩn'}`,
+    };
   }
 
   /**

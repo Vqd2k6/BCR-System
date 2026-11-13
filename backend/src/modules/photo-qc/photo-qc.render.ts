@@ -13,6 +13,7 @@
 import type { ReportViewModel } from '../report/report.types';
 import { ReportImageResolver } from '../report/services/report-image-resolver.service';
 import { ReportWatermarkCanvasService } from '../report/services/report-watermark-canvas.service';
+import { LegacyWatermarkIndex } from '../report/services/legacy-watermark-index.service';
 import { PhotoQcRepository } from './photo-qc.repository';
 import { isCropApplicable, restampModeOf, urlPhotoKey } from './photo-qc.rules';
 import type { PhotoQcRenderPhoto, PhotoQcRenderState } from './photo-qc.types';
@@ -126,6 +127,9 @@ export async function applyPhotoQcToViewModel(
     // vì nó được chốt lúc crop theo cờ "dấu cũ" có thể sai khi ảnh chưa được dò logo).
     const legacy = opts.watermark && ref.isWatermarked();
     const layers = opts.watermark && !legacy ? { logo: true, text: true } : { logo: false, text: false };
+    // "Có dấu cũ" do người xác nhận hoặc đã đóng băng trong snapshot Rev: bộ dò chạy lại trên ảnh không được lật kết luận.
+    const legacySource = legacy ? LegacyWatermarkIndex.statusOf(ref.url)?.source : undefined;
+    const legacyTrusted = legacySource === 'MANUAL' || legacySource === 'FROZEN';
     try {
       const out = await ReportWatermarkCanvasService.cropStampRotate({
         base64Uri: base64,
@@ -135,6 +139,7 @@ export async function applyPhotoQcToViewModel(
         stampLogo: layers.logo,
         stampText: layers.text,
         legacyAuto: legacy,
+        legacyTrusted,
         onLayersDecided: (decided, reason) => {
           const mode = restampModeOf(decided);
           if (mode !== row.restampMode) {

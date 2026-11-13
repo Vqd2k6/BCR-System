@@ -9,7 +9,7 @@ import sharp from 'sharp';
 import { autoRestampLayers, isZoneInside } from '../modules/photo-qc/photo-qc.rules';
 import { isFieldPhotoUrl } from '../modules/report/services/legacy-watermark-index.service';
 import { ReportImageResolver } from '../modules/report/services/report-image-resolver.service';
-import { ReportWatermarkCanvasService } from '../modules/report/services/report-watermark-canvas.service';
+import { ReportWatermarkCanvasService, legacyLogoZone } from '../modules/report/services/report-watermark-canvas.service';
 import { WatermarkDetectorService } from '../modules/report/services/watermark-detector.service';
 
 let passed = 0;
@@ -54,8 +54,13 @@ function fromUri(uri: string): Buffer {
   return Buffer.from(uri.split(',')[1], 'base64');
 }
 
-async function cropLegacy(uri: string, crop: { x: number; y: number; w: number; h: number }): Promise<{ out: string; mode: string }> {
+async function cropLegacy(
+  uri: string,
+  crop: { x: number; y: number; w: number; h: number },
+  legacyTrusted = false
+): Promise<{ out: string; mode: string; reason: string }> {
   let mode = '?';
+  let reason = '';
   const out = await ReportWatermarkCanvasService.cropStampRotate({
     base64Uri: uri,
     crop,
@@ -64,11 +69,13 @@ async function cropLegacy(uri: string, crop: { x: number; y: number; w: number; 
     stampLogo: false,
     stampText: false,
     legacyAuto: true,
-    onLayersDecided: (l) => {
+    legacyTrusted,
+    onLayersDecided: (l, why) => {
+      reason = why;
       mode = l.logo && l.text ? 'BOTH' : l.logo ? 'LOGO' : l.text ? 'TEXT' : 'NONE';
     },
   });
-  return { out, mode };
+  return { out, mode, reason };
 }
 
 async function main(): Promise<void> {
@@ -145,6 +152,40 @@ async function main(): Promise<void> {
     assert.ok(ReportImageResolver.getRotationOrigin(rotated), 'phải có rotationOrigin');
     const { mode } = await cropLegacy(rotated, { x: 0, y: 0, w: 0.75, h: 1 });
     assert.strictEqual(mode, 'LOGO');
+  });
+
+  await tc('Ảnh có dấu WATERMARKED → vùng logo theo khung bộ dò', async () => {
+    const { reason } = await cropLegacy(legacyUri, { x: 0, y: 0.25, w: 1, h: 0.75 });
+    assert.ok(reason.includes('theo bộ dò'), reason);
+  });
+
+  console.log('Ảnh được người xác nhận "có dấu cũ" (MANUAL / snapshot) – bộ dò không được lật kết luận');
+  await tc('Bộ dò không thấy logo nhưng người đã xác nhận có dấu: giữ trọn 2 góc phải → không dập gì (trước đây dập cả hai)', async () => {
+    const { mode, reason } = await cropLegacy(toUri(clean), { x: 0.25, y: 0, w: 0.75, h: 1 }, true);
+    assert.strictEqual(mode, 'NONE', reason);
+    assert.ok(reason.includes('bố cục chuẩn'), reason);
+  });
+  await tc('Người đã xác nhận có dấu: bỏ phần trên (mất logo), giữ chữ → chỉ dập logo theo vùng bố cục chuẩn', async () => {
+    const { mode, reason } = await cropLegacy(toUri(clean), { x: 0, y: 0.25, w: 1, h: 0.75 }, true);
+    assert.strictEqual(mode, 'LOGO', reason);
+  });
+  await tc('Người đã xác nhận có dấu: bỏ phần dưới (mất chữ), giữ logo → chỉ dập chữ', async () => {
+    const { mode, reason } = await cropLegacy(toUri(clean), { x: 0, y: 0, w: 1, h: 0.75 }, true);
+    assert.strictEqual(mode, 'TEXT', reason);
+  });
+  await tc('Người đã xác nhận có dấu: cắt giữa (mất cả hai) → dập cả hai', async () => {
+    const { mode, reason } = await cropLegacy(toUri(clean), { x: 0.1, y: 0.12, w: 0.8, h: 0.76 }, true);
+    assert.strictEqual(mode, 'BOTH', reason);
+  });
+  await tc('Ảnh dọc, người đã xác nhận có dấu, crop chỉ bỏ dải trái 25% (giữ góc logo) → không dập chồng logo', async () => {
+    const { mode, reason } = await cropLegacy(toUri(clean), { x: 0.25, y: 0, w: 0.75, h: 1 }, true);
+    assert.strictEqual(mode, 'NONE', reason);
+  });
+  await tc('legacyLogoZone = lõi cỡ logo nhỏ nhất, bám góc trên phải', () => {
+    const z = legacyLogoZone(4000, 3000);
+    const glow = Math.round(3000 * 0.014);
+    assert.ok(Math.abs(z.width - (3000 * 0.4375 + 2 * glow)) < 1e-6);
+    assert.ok(Math.abs(z.left + z.width - (4000 - 3000 * 0.025 + glow)) < 1e-6);
   });
 
   console.log(`\n${passed} ca đạt${process.exitCode ? ', CÓ CA LỖI' : ''}`);
