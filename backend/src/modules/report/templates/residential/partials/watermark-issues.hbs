@@ -18,7 +18,11 @@
     .screen-watermark-issues ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
     .screen-watermark-issues li { font-size: 12px; line-height: 1.45; }
     .screen-watermark-issues .wm-code { font-family: monospace; font-weight: 700; }
-    .screen-watermark-issues .wm-compare { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+    .screen-watermark-issues .wm-compare { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; padding: 6px 8px 8px; border: 1px dashed #c81e1e; border-radius: 6px; background: #ffffff; }
+    .screen-watermark-issues .wm-compare-title { flex-basis: 100%; font-size: 11px; font-weight: 700; color: #7a2b2b; }
+    .screen-watermark-issues .wm-full { position: relative; display: inline-block; line-height: 0; }
+    .screen-watermark-issues .wm-zone { position: absolute; right: 0; width: 35%; height: 25%; border: 2px dashed #f59e0b; box-sizing: border-box; pointer-events: none; font: 700 10px/1 Arial, sans-serif; color: #ffffff; background: rgba(245, 158, 11, 0.18); }
+    .screen-watermark-issues .wm-zone span { position: absolute; left: 2px; top: 2px; background: #f59e0b; padding: 1px 3px; border-radius: 2px; }
     .screen-watermark-issues figure { margin: 0; display: flex; flex-direction: column; gap: 2px; }
     .screen-watermark-issues figure img { display: block; height: 120px; width: auto; max-width: 100%; border: 1px solid #c81e1e; border-radius: 4px; background: #ffffff; cursor: zoom-in; }
     .screen-watermark-issues figcaption { font-size: 10px; color: #7a2b2b; }
@@ -40,15 +44,16 @@
         {{this.hint}}
         {{#if this.preview}}
           <div class="wm-compare">
-            <figure><img src="{{this.preview.full}}" alt="Ảnh gốc {{this.photoCode}}"><figcaption>Ảnh gốc (chưa dập)</figcaption></figure>
-            <figure><img src="{{this.preview.topRight}}" alt="Góc trên phải {{this.photoCode}}"><figcaption>Góc trên phải – vùng logo THACO/CREC</figcaption></figure>
-            <figure><img src="{{this.preview.bottomRight}}" alt="Góc dưới phải {{this.photoCode}}"><figcaption>Góc dưới phải – vùng ngày giờ / mã ảnh</figcaption></figure>
+            <div class="wm-compare-title">Cùng 1 ảnh {{this.photoCode}}: ảnh toàn cảnh và 2 góc phóng to (A, B) của chính ảnh này. Nút bên dưới chỉ xác nhận cho ảnh này.</div>
+            <figure><span class="wm-full"><img src="{{this.preview.full}}" alt="Ảnh gốc {{this.photoCode}}"><i class="wm-zone" style="top: 0"><span>A</span></i><i class="wm-zone" style="bottom: 0"><span>B</span></i></span><figcaption>Toàn cảnh (chưa dập)</figcaption></figure>
+            <figure><img src="{{this.preview.topRight}}" alt="Góc A của {{this.photoCode}}"><figcaption>A – phóng to góc trên phải (vùng logo THACO/CREC)</figcaption></figure>
+            <figure><img src="{{this.preview.bottomRight}}" alt="Góc B của {{this.photoCode}}"><figcaption>B – phóng to góc dưới phải (vùng ngày giờ / mã ảnh)</figcaption></figure>
           </div>
         {{/if}}
         <div class="wm-actions">
           {{#if this.needsLegacyConfirmation}}
-            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="true">Có dấu cũ (không dập thêm)</button>
-            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="false">Chưa có dấu (máy chủ dập)</button>
+            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="true">Ảnh này: Có dấu cũ (không dập thêm)</button>
+            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="false">Ảnh này: Chưa có dấu (máy chủ dập)</button>
           {{/if}}
           {{#if (or this.fileMissing (or (eq this.reason "TOO_SMALL") (eq this.reason "STAMP_ERROR")))}}
             <button type="button" data-wm-action="WATERMARK_OPEN_STUDIO">Mở ô ảnh trong Studio</button>
