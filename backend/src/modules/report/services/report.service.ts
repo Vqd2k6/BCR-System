@@ -35,6 +35,7 @@ import { ReportConfigService } from '../../report_config/report-config.service';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
 import { applyPhotoQcToViewModel, resolvePhotoQcStateForRender } from '../../photo-qc/photo-qc.render';
 import { applyResurveyToViewModel, resolveResurveyStateForRender } from '../../photo-resurvey/photo-resurvey.render';
+import { resolveReportTemplateKind, type ReportTemplateKind } from './report-template-kind';
 
 export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG';
 
@@ -54,6 +55,19 @@ export function watermarkIssueHint(issue: WatermarkIssue): string {
   }
 }
 
+interface CompiledReportTemplate {
+  template: Handlebars.TemplateDelegate;
+  styles: string;
+  mtime: number;
+}
+
+const TEMPLATE_DIR_BY_KIND: Record<ReportTemplateKind, string> = {
+  STANDALONE: 'residential',
+  BUILDING_MASTER: 'condo-master',
+  MASTER_AREA: 'condo-area',
+  CONDO_UNIT: 'condo-unit',
+};
+
 export interface ResolvedReport {
   id: string;
   status: string;
@@ -64,94 +78,115 @@ export interface ResolvedReport {
 }
 
 export class ReportService {
-  private static cachedTemplate: Handlebars.TemplateDelegate | null = null;
-  private static cachedStyles: string | null = null;
-  private static cachedTemplatesMtime = 0;
+  /** Bộ template đã biên dịch theo loại hồ sơ (nhà dân / Tòa mẹ / khu vực chung / căn hộ). */
+  private static templateCache = new Map<ReportTemplateKind, CompiledReportTemplate>();
 
-  private static getTemplatesDir(): string {
-    return path.join(__dirname, '../templates/residential');
+  private static getTemplatesDir(kind: ReportTemplateKind = 'STANDALONE'): string {
+    return path.join(__dirname, '../templates', TEMPLATE_DIR_BY_KIND[kind]);
   }
 
-  private static latestTemplateMtime(): number {
-    const dir = this.getTemplatesDir();
+  /**
+   * Thư mục template thật sự dùng cho loại hồ sơ. Template chung cư được triển khai theo giai đoạn (GĐ1 căn U,
+   * GĐ2 khu vực M, GĐ3 Tòa mẹ): loại nào chưa có thư mục thì vẫn in bằng template nhà dân như trước.
+   */
+  private static resolveTemplateKind(kind: ReportTemplateKind): ReportTemplateKind {
+    if (kind === 'STANDALONE') return kind;
+    return fs.existsSync(path.join(this.getTemplatesDir(kind), 'index.hbs')) ? kind : 'STANDALONE';
+  }
+
+  private static latestTemplateMtime(kind: ReportTemplateKind): number {
+    const dirs = kind === 'STANDALONE' ? [this.getTemplatesDir()] : [this.getTemplatesDir(), this.getTemplatesDir(kind)];
     let latest = 0;
-    for (const sub of ['', 'partials']) {
-      const d = path.join(dir, sub);
-      if (!fs.existsSync(d)) continue;
-      for (const f of fs.readdirSync(d)) {
-        if (!/\.(hbs|css)$/.test(f)) continue;
-        latest = Math.max(latest, fs.statSync(path.join(d, f)).mtimeMs);
+    for (const dir of dirs) {
+      for (const sub of ['', 'partials']) {
+        const d = path.join(dir, sub);
+        if (!fs.existsSync(d)) continue;
+        for (const f of fs.readdirSync(d)) {
+          if (!/\.(hbs|css)$/.test(f)) continue;
+          latest = Math.max(latest, fs.statSync(path.join(d, f)).mtimeMs);
+        }
       }
     }
     return latest;
   }
 
-  public static registerHelpersAndPartials(baseDir?: string): void {
-    Handlebars.registerHelper('eq', (a, b) => a === b);
-    Handlebars.registerHelper('ne', (a, b) => a !== b);
-    Handlebars.registerHelper('gt', (a, b) => Number(a) > Number(b));
-    Handlebars.registerHelper('gte', (a, b) => Number(a) >= Number(b));
-    Handlebars.registerHelper('lt', (a, b) => Number(a) < Number(b));
-    Handlebars.registerHelper('lte', (a, b) => Number(a) <= Number(b));
-    Handlebars.registerHelper('or', function (...args: any[]) {
+  private static registerHelpers(hbs: typeof Handlebars): void {
+    hbs.registerHelper('eq', (a, b) => a === b);
+    hbs.registerHelper('ne', (a, b) => a !== b);
+    hbs.registerHelper('gt', (a, b) => Number(a) > Number(b));
+    hbs.registerHelper('gte', (a, b) => Number(a) >= Number(b));
+    hbs.registerHelper('lt', (a, b) => Number(a) < Number(b));
+    hbs.registerHelper('lte', (a, b) => Number(a) <= Number(b));
+    hbs.registerHelper('or', function (...args: unknown[]) {
       args.pop();
       return args.some(Boolean);
     });
-    Handlebars.registerHelper('and', function (...args: any[]) {
+    hbs.registerHelper('and', function (...args: unknown[]) {
       args.pop();
       return args.every(Boolean);
     });
+  }
 
-    const partialsDir = baseDir || path.join(this.getTemplatesDir(), 'partials');
-    if (fs.existsSync(partialsDir)) {
-      const partialFiles = fs.readdirSync(partialsDir).filter((f) => f.endsWith('.hbs'));
-      for (const file of partialFiles) {
-        const partialName = file.replace(/\.hbs$/, '');
-        const content = fs.readFileSync(path.join(partialsDir, file), 'utf8');
-        Handlebars.registerPartial(partialName, content);
-      }
+  private static registerPartialsFrom(hbs: typeof Handlebars, partialsDir: string): void {
+    if (!fs.existsSync(partialsDir)) return;
+    for (const file of fs.readdirSync(partialsDir).filter((f) => f.endsWith('.hbs'))) {
+      hbs.registerPartial(file.replace(/\.hbs$/, ''), fs.readFileSync(path.join(partialsDir, file), 'utf8'));
     }
   }
 
-  public static getCompiledTemplate(): {
+  /** Đăng ký helper + partial nhà dân vào môi trường Handlebars toàn cục (các script kiểm thử dùng). */
+  public static registerHelpersAndPartials(baseDir?: string): void {
+    this.registerHelpers(Handlebars);
+    this.registerPartialsFrom(Handlebars, baseDir || path.join(this.getTemplatesDir(), 'partials'));
+  }
+
+  /**
+   * Biên dịch template theo loại hồ sơ. Nhà dân dùng môi trường Handlebars toàn cục như trước.
+   * Loại chung cư có môi trường riêng: nạp partial nhà dân trước rồi partial của loại đó (cùng tên thì ghi đè),
+   * để partial chung cư không bao giờ đè lên report nhà dân. CSS dùng chung `residential/styles.css`.
+   */
+  public static getCompiledTemplate(requestedKind: ReportTemplateKind = 'STANDALONE'): {
     template: Handlebars.TemplateDelegate;
     styles: string;
   } {
-    if (process.env.NODE_ENV !== 'production' && this.cachedTemplate) {
-      const mtime = this.latestTemplateMtime();
-      if (mtime > this.cachedTemplatesMtime) {
-        this.cachedTemplate = null;
-        this.cachedStyles = null;
-      }
+    const kind = this.resolveTemplateKind(requestedKind);
+    const cached = this.templateCache.get(kind);
+    if (cached && (process.env.NODE_ENV === 'production' || this.latestTemplateMtime(kind) <= cached.mtime)) {
+      return { template: cached.template, styles: cached.styles };
     }
-    if (!this.cachedTemplate || !this.cachedStyles) {
-      this.cachedTemplatesMtime = this.latestTemplateMtime();
-      const templatesDir = this.getTemplatesDir();
-      const templatePath = path.join(templatesDir, 'index.hbs');
-      const stylesPath = path.join(templatesDir, 'styles.css');
 
-      if (!fs.existsSync(templatePath)) {
-        throw new Error(`Không tìm thấy file template Handlebars tại: ${templatePath}`);
-      }
-      if (!fs.existsSync(stylesPath)) {
-        throw new Error(`Không tìm thấy file CSS Paged Media tại: ${stylesPath}`);
-      }
+    const mtime = this.latestTemplateMtime(kind);
+    const baseDir = this.getTemplatesDir();
+    const kindDir = this.getTemplatesDir(kind);
+    const templatePath = path.join(kindDir, 'index.hbs');
+    const stylesPath = path.join(baseDir, 'styles.css');
 
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`Không tìm thấy file template Handlebars tại: ${templatePath}`);
+    }
+    if (!fs.existsSync(stylesPath)) {
+      throw new Error(`Không tìm thấy file CSS Paged Media tại: ${stylesPath}`);
+    }
+
+    let hbs: typeof Handlebars;
+    if (kind === 'STANDALONE') {
       this.registerHelpersAndPartials();
-
-      const templateSource = fs.readFileSync(templatePath, 'utf8');
-      const baseStyles = fs.readFileSync(stylesPath, 'utf8');
-      const fontStyles = ReportFontsService.getFontCss();
-      this.cachedStyles = `${fontStyles}\n${baseStyles}`;
-
-      this.cachedTemplate = Handlebars.compile(templateSource);
+      hbs = Handlebars;
+    } else {
+      hbs = Handlebars.create();
+      this.registerHelpers(hbs);
+      this.registerPartialsFrom(hbs, path.join(baseDir, 'partials'));
+      this.registerPartialsFrom(hbs, path.join(kindDir, 'partials'));
     }
 
-    return {
-      template: this.cachedTemplate,
-      styles: this.cachedStyles,
-    };
+    const kindStylesPath = path.join(kindDir, 'styles.css');
+    const kindStyles = kind !== 'STANDALONE' && fs.existsSync(kindStylesPath) ? `\n${fs.readFileSync(kindStylesPath, 'utf8')}` : '';
+    const styles = `${ReportFontsService.getFontCss()}\n${fs.readFileSync(stylesPath, 'utf8')}${kindStyles}`;
+    const template = hbs.compile(fs.readFileSync(templatePath, 'utf8'));
+    this.templateCache.set(kind, { template, styles, mtime });
+    return { template, styles };
   }
+
 
   public static async resolveReport(identifier: string): Promise<any> {
     if (!identifier || typeof identifier !== 'string') {
@@ -320,7 +355,7 @@ export class ReportService {
       // Luôn kiểm 100% ảnh: bật watermark thì dập + xét dấu cũ, tắt thì chỉ kiểm ảnh có nạp được không.
       const watermark = await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel, { stamp: effectiveWatermark });
 
-      const { template, styles } = this.getCompiledTemplate();
+      const { template, styles } = this.getCompiledTemplate(resolveReportTemplateKind(activeReport));
       const html = template({
         ...viewModel,
         styles,

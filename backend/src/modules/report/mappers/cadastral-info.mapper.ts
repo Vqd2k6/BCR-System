@@ -122,7 +122,8 @@ export class CadastralInfoMapper {
     parcelCode?: string,
     segmentType?: string,
     zoneId?: string,
-    revision: string = '00'
+    revision: string = '00',
+    childUnitCode?: string | null
   ): string {
     const srcCode = parcelCode || buildingId;
     const numMatch = srcCode.match(/(?:B-)?(\d{3,5})/i);
@@ -147,12 +148,25 @@ export class CadastralInfoMapper {
     const revClean = revision.replace(/\D/g, '') || '0';
     const revStr = revClean.padStart(2, '0');
 
-    return `R-${seq}-${seg}-(${locationCode})-R${revStr}`;
+    // Hồ sơ con chung cư (khu vực chung M / căn hộ U): số hiệu Tòa mẹ + mã căn, chèn trước Rev
+    // để mỗi file con có số hiệu và tên file riêng (chốt 13/11/2026). Nhà dân / Tòa mẹ không đổi.
+    const unitPart = CadastralInfoMapper.normalizeChildUnitCode(childUnitCode);
+    return unitPart
+      ? `R-${seq}-${seg}-(${locationCode})-${unitPart}-R${revStr}`
+      : `R-${seq}-${seg}-(${locationCode})-R${revStr}`;
   }
 
-  public static formatFilingNo(buildingId: string, year: number = 2026): string {
+  /** Mã căn dùng trong số hiệu / tên file: viết hoa, bỏ khoảng trắng và ký tự không an toàn cho tên file. */
+  public static normalizeChildUnitCode(unitCode?: string | null): string | null {
+    if (typeof unitCode !== 'string') return null;
+    const cleaned = unitCode.trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9.\-_]/g, '');
+    return cleaned || null;
+  }
+
+  public static formatFilingNo(buildingId: string, year: number = 2026, childUnitCode?: string | null): string {
     const numMatch = buildingId.match(/B-(\d+)/i);
     const seq = numMatch ? numMatch[1].padStart(5, '0') : '00001';
-    return `Số: ${seq}/BCS-P1/CRLG-${year}`;
+    const unitPart = CadastralInfoMapper.normalizeChildUnitCode(childUnitCode);
+    return unitPart ? `Số: ${seq}-${unitPart}/BCS-P1/CRLG-${year}` : `Số: ${seq}/BCS-P1/CRLG-${year}`;
   }
 }

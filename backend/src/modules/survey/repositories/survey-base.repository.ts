@@ -104,18 +104,20 @@ export class SurveyBaseRepository {
                   THEN BTRIM(bu.owner_name)
                   ELSE NULL
                 END,
+                -- Hồ sơ con chung cư: chủ thửa là liên hệ BQL tòa, không được dùng làm chủ căn hộ.
                 CASE
-                  WHEN NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
+                  WHEN r.unit_id IS NULL
+                   AND NULLIF(BTRIM(p.owner_name), '') IS NOT NULL
                    AND BTRIM(p.owner_name) !~* '^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)'
                   THEN BTRIM(p.owner_name)
                   ELSE NULL
                 END,
                 NULLIF(BTRIM(r.survey_data_json->>'ownerName'), ''),
                 bu.owner_name,
-                p.owner_name
+                CASE WHEN r.unit_id IS NULL THEN p.owner_name END
               ) AS owner_name,
-              COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone, p.owner_phone) AS owner_phone,
-              bu.unit_code, bu.floor_number AS unit_floor_number,
+              COALESCE(NULLIF(BTRIM(r.survey_data_json->>'ownerPhone'), ''), bu.owner_phone, CASE WHEN r.unit_id IS NULL THEN p.owner_phone END) AS owner_phone,
+              bu.unit_code, bu.unit_type, bu.display_code AS unit_display_code, bu.floor_number AS unit_floor_number,
               p.zone_id, p.building_type, p.segment_type,
               p.local_authority_name AS parcel_local_authority_name, p.local_authority_role AS parcel_local_authority_role, p.local_authority_phone AS parcel_local_authority_phone,
               p.land_area_m2, p.construction_area_m2 AS parcel_construction_area_m2, p.floor_count AS parcel_floor_count,

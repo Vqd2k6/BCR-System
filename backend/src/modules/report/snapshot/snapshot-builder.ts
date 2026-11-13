@@ -89,6 +89,26 @@ export async function buildApprovedSnapshot(
     const standardizedAddress = await fetchMasterStandardizedAddress(parcelId);
     if (standardizedAddress) frozenSurveyDataJson.standardizedAddress = standardizedAddress;
   }
+  // Định danh hồ sơ con chung cư: số hiệu (Tòa mẹ + mã căn) và loại template đọc từ đây khi render Rev,
+  // để Admin đổi mã căn / loại căn sau khi phát hành không làm đổi file đã phát hành.
+  let frozenUnitIdentity: Record<string, unknown> = {};
+  if (unitId) {
+    const uRes = await client.query<{ unit_code: string | null; unit_type: string | null; display_code: string | null; floor_number: string | number | null }>(
+      `SELECT unit_code, unit_type, display_code, floor_number FROM building_units WHERE id = $1 LIMIT 1;`,
+      [unitId]
+    );
+    const u = uRes.rows[0];
+    if (!u) {
+      console.error(`[SnapshotBuilder:unitIdentity] Không tìm thấy building_units ${unitId} của hồ sơ ${reportId}`);
+    } else {
+      frozenUnitIdentity = {
+        unit_code: u.unit_code,
+        unit_type: u.unit_type,
+        unit_display_code: u.display_code,
+        unit_floor_number: u.floor_number,
+      };
+    }
+  }
   let frozenParcel: any = undefined;
   if (parcelId) {
     const pRes = await client.query<Record<string, any>>(
@@ -327,6 +347,8 @@ export async function buildApprovedSnapshot(
   });
   const photoWatermark = await LegacyWatermarkIndex.decisionsForSnapshot(watermarkUrls, client);
   const frozenReportData: Record<string, unknown> = {
+    ...frozenUnitIdentity,
+    report_type: repRow?.report_type ?? null,
     photo_qc: photoQc,
     photo_resurvey: photoResurvey,
     photo_watermark: photoWatermark,

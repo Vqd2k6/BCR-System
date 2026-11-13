@@ -54,14 +54,20 @@ export class MetadataMapper {
     const rawRev = Number(rawReport.export_revision);
     const revFromDb = Number.isFinite(rawRev) && rawRev >= 0 ? String(Math.floor(rawRev)).padStart(2, '0') : '00';
     const revision = overrides?.revision || revFromDb;
+    // Hồ sơ con chung cư (có unit_id): số hiệu riêng = số hiệu Tòa mẹ + mã căn (U-060 / M-001).
+    const childUnitCode = rawReport.unit_id ? String(rawReport.unit_code || '').trim() || null : null;
+    if (rawReport.unit_id && !childUnitCode) {
+      console.error(`[MetadataMapper:reportNo] Hồ sơ con ${rawReport.id} thiếu unit_code, số hiệu sẽ trùng Tòa mẹ`);
+    }
     const reportNo = overrides?.reportNo || (rawParcelCode ? CadastralInfoMapper.formatReportNo(
       buildingId,
       rawParcelCode,
       rawReport.segment_type,
       rawReport.zone_id,
-      revision
+      revision,
+      childUnitCode
     ) : 'BC-CHƯA_SỐ');
-    const filingNo = overrides?.filingNo || CadastralInfoMapper.formatFilingNo(buildingId);
+    const filingNo = overrides?.filingNo || CadastralInfoMapper.formatFilingNo(buildingId, undefined, childUnitCode);
     const cadastralCode = json.officialCadastralCode || rawReport.official_cadastral_code || '';
 
     const p02Item = identPhotos.find((p: any) =>

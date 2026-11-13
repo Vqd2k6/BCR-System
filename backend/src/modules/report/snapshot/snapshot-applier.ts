@@ -58,8 +58,10 @@ export function applySnapshotToReportData<T extends JsonObject>(rawReport: T, sn
     if (fp.street !== undefined) rec.street = fp.street;
     if (fp.ward !== undefined) rec.ward = fp.ward;
     if (fp.district !== undefined) rec.district = fp.district;
-    if (fp.ownerName !== undefined) rec.owner_name = fp.ownerName;
-    if (fp.ownerPhone !== undefined) rec.owner_phone = fp.ownerPhone;
+    // Hồ sơ con chung cư: chủ thửa là liên hệ BQL tòa; chủ căn đã đóng băng trong survey_data_json / building_units.
+    const isCondoChild = typeof rec.unit_id === 'string' && rec.unit_id !== '';
+    if (fp.ownerName !== undefined && !isCondoChild) rec.owner_name = fp.ownerName;
+    if (fp.ownerPhone !== undefined && !isCondoChild) rec.owner_phone = fp.ownerPhone;
     if (fp.landAreaM2 !== undefined) rec.land_area_m2 = fp.landAreaM2;
     if (fp.constructionAreaM2 !== undefined) rec.parcel_construction_area_m2 = fp.constructionAreaM2;
     if (fp.floorCount !== undefined) rec.parcel_floor_count = fp.floorCount;
