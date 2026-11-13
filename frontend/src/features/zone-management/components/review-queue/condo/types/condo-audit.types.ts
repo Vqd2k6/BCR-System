@@ -95,6 +95,8 @@ export interface CondoFloorMatrixUnitCell {
   unitType: 'MASTER_AREA' | 'CONDO_UNIT';
   status: string;
   reportId: string | null;
+  /** Trạng thái hồ sơ khảo sát (base_survey_reports.status), khác `status` của building_units. */
+  reportStatus?: string | null;
   burlandScore: number | null;
   ownerName: string | null;
 }

@@ -264,6 +264,7 @@ export class CondoQueueService {
         SELECT r_sub.id, r_sub.status, r_sub.report_type, r_sub.created_at, r_sub.updated_at, r_sub.survey_date
         FROM base_survey_reports r_sub
         WHERE r_sub.parcel_id = p.id AND (r_sub.unit_id IS NULL OR r_sub.report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))
+          AND r_sub.deleted_at IS NULL
         ORDER BY r_sub.created_at DESC
         LIMIT 1
       ) r ON true
@@ -347,7 +348,7 @@ export class CondoQueueService {
            CASE WHEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade') ~ '^[0-9]+$'
                 THEN (r_sub.survey_data_json->'burlandSummary'->>'localMaxGrade')::int END AS burland_grade
          FROM base_survey_reports r_sub
-         WHERE r_sub.unit_id = bu.id
+         WHERE r_sub.unit_id = bu.id AND r_sub.deleted_at IS NULL
          ORDER BY r_sub.created_at DESC
          LIMIT 1
        ) r ON true
@@ -427,6 +428,7 @@ export class CondoQueueService {
        FROM base_survey_reports r
        LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
        WHERE r.parcel_id = $1 AND (r.unit_id IS NULL OR r.report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))
+         AND r.deleted_at IS NULL
        ORDER BY r.created_at DESC
        LIMIT 1;`,
       [parcelId]
@@ -508,6 +510,7 @@ export class CondoQueueService {
         unitType: isArea ? 'MASTER_AREA' : 'CONDO_UNIT',
         status: u.status,
         reportId: u.report_id,
+        reportStatus: u.report_status,
         burlandScore: u.e1_burland_score !== null ? Number(u.e1_burland_score) : null,
         ownerName: u.owner_name,
       });

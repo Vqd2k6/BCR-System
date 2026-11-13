@@ -11,6 +11,7 @@ import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPre
 import { ProgressReportExportButton } from '../../progress-report';
 import { ZoneSvgPreviewModal } from './modals/ZoneSvgPreviewModal';
 import { ZoneMinutesTab } from './phase1-export/components/ZoneMinutesTab';
+import { CondoReportsTab } from './phase1-export/components/CondoReportsTab';
 import { getSvgExportDisabledReason } from '../utils/zoneSvgTechnicalExporter';
 import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
 
@@ -25,10 +26,15 @@ export type {
   ModalFeedbackMessage,
 };
 
-type ModuleTab = 'REPORTS' | 'MINUTES';
+type ModuleTab = 'REPORTS' | 'CONDO' | 'MINUTES';
+
+/** Thửa chung cư (Tòa mẹ + khu vực chung + căn hộ) chỉ xem / xuất ở tab "Báo Cáo Chung Cư". */
+const isCondoParcel = (buildingType: string | undefined): boolean =>
+  ['CONDOMINIUM', 'CONDO'].includes(String(buildingType || '').toUpperCase());
 
 const MODULE_TABS: { value: ModuleTab; label: string }[] = [
   { value: 'REPORTS', label: 'Báo Cáo Kỹ Thuật (Phase 1)' },
+  { value: 'CONDO', label: 'Báo Cáo Chung Cư' },
   { value: 'MINUTES', label: 'Biên Bản Hiện Trường' },
 ];
 
@@ -112,6 +118,9 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
 
   const canExportSvg = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels.length);
+  // Có tab chung cư (Zone Admin / Super Admin) thì bảng nhà dân không lặp lại dòng Tòa mẹ chung cư.
+  const residentialParcels = canExportSvg ? filteredParcels.filter((p) => !isCondoParcel(p.buildingType)) : filteredParcels;
+  const hiddenCondoCount = filteredParcels.length - residentialParcels.length;
 
   const handleOpenAuditStudio = (parcel: ExportParcelItem) => {
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
@@ -152,6 +161,16 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         <ZoneMinutesTab zoneId={selectedZone} onZoneChange={setSelectedZone} hideZoneSelect={hideZoneSelect} />
       )}
 
+      {activeTab === 'CONDO' && canExportSvg && (
+        <CondoReportsTab
+          zoneId={selectedZone}
+          onZoneChange={setSelectedZone}
+          hideZoneSelect={hideZoneSelect}
+          onOpenPreview={handleOpenPreview}
+          onExportPdf={handleExportSinglePdf}
+        />
+      )}
+
       {activeTab === 'REPORTS' && (
         <>
       {/* 2. Thanh lọc phân khu, trạng thái & tìm kiếm */}
@@ -184,9 +203,22 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         }
       />
 
+      {hiddenCondoCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800">
+          <span>{hiddenCondoCount} tòa chung cư được xem / xuất ở tab riêng (Tòa mẹ, khu vực chung, căn hộ).</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('CONDO')}
+            className="rounded-lg border border-sky-300 bg-white px-3 py-1 font-bold text-sky-700 hover:bg-sky-100 cursor-pointer"
+          >
+            Mở tab Báo Cáo Chung Cư
+          </button>
+        </div>
+      )}
+
       {/* 4. Bảng danh sách công trình & các nút thao tác xuất báo cáo */}
       <Phase1ParcelsTable
-        filteredParcels={filteredParcels}
+        filteredParcels={residentialParcels}
         isLoading={isLoading}
         selectedParcelIds={selectedParcelIds}
         onToggleSelectAll={toggleSelectAll}

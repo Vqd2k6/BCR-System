@@ -213,6 +213,7 @@ export interface CondoFloorMatrixRow {
     unitType: 'MASTER_AREA' | 'CONDO_UNIT';
     status: string;
     reportId: string | null;
+    reportStatus: string | null;
     burlandScore: number | null;
     ownerName: string | null;
   }>;
