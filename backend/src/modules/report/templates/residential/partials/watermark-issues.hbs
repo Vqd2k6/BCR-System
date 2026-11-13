@@ -1,31 +1,50 @@
 {{!--
   Hộp "ảnh chưa dập được watermark" ở đầu bản XEM TRƯỚC HTML (không in; PDF bị chặn khi còn ảnh lỗi).
-  Mỗi dòng: mã ảnh, vị trí, lý do, cách khắc phục. Nút gửi postMessage lên màn Xuất:
-    - WATERMARK_CONFIRM_LEGACY { photoUrl, hasLegacyWatermark }: Zone Admin / Super Admin xác nhận từng ảnh nghi ngờ.
+  Mỗi dòng: mã ảnh, vị trí, lý do, cách khắc phục; ảnh nghi ngờ dấu cũ có thêm ảnh đối chứng
+  (toàn cảnh + góc logo + góc chữ giờ/mã phóng to).
+  Trong thân báo cáo, mỗi ảnh lỗi (data URI "data:image/svg+xml;wmissue=<n>;...") được gắn thanh nút ngay trên ảnh,
+  cùng thao tác với hộp này. Các nút gửi postMessage lên màn Xuất:
+    - WATERMARK_CONFIRM_LEGACY { photoUrl, hasLegacyWatermark }: Zone Admin / Super Admin xác nhận TỪNG ảnh nghi ngờ.
     - WATERMARK_OPEN_STUDIO { photoUrl, photoCode }: mở ô ảnh trong Studio để thay ảnh.
     - WATERMARK_RETRY: render lại (ảnh tải lỗi tạm thời).
+  Trước khi gửi, lưu vị trí cuộn để bản xem trước nạp lại giữ đúng chỗ (làm tiếp ảnh kế bên).
 --}}
 {{#if watermarkIssueCount}}
-<div class="screen-watermark-issues" role="alert">
+<div class="screen-watermark-issues" id="wm-issues-box" role="alert">
   <style>
     .screen-watermark-issues { margin: 12px auto; max-width: 210mm; border: 3px solid #c81e1e; border-radius: 8px; background: #fff5f5; padding: 12px 16px; font-family: Arial, sans-serif; color: #3b0d0d; }
     .screen-watermark-issues h2 { margin: 0 0 4px; font-size: 16px; color: #c81e1e; }
     .screen-watermark-issues p { margin: 0 0 8px; font-size: 12px; }
-    .screen-watermark-issues ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .screen-watermark-issues ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
     .screen-watermark-issues li { font-size: 12px; line-height: 1.45; }
     .screen-watermark-issues .wm-code { font-family: monospace; font-weight: 700; }
-    .screen-watermark-issues .wm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-    .screen-watermark-issues button { cursor: pointer; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid #c81e1e; background: #ffffff; color: #c81e1e; }
-    .screen-watermark-issues button.wm-primary { background: #c81e1e; color: #ffffff; }
-    @media print { .screen-watermark-issues { display: none !important; } }
+    .screen-watermark-issues .wm-compare { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+    .screen-watermark-issues figure { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+    .screen-watermark-issues figure img { display: block; height: 120px; width: auto; max-width: 100%; border: 1px solid #c81e1e; border-radius: 4px; background: #ffffff; cursor: zoom-in; }
+    .screen-watermark-issues figcaption { font-size: 10px; color: #7a2b2b; }
+    .wm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .wm-actions button, .wm-bar button { cursor: pointer; font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid #c81e1e; background: #ffffff; color: #c81e1e; }
+    .wm-actions button.wm-primary, .wm-bar button.wm-primary { background: #c81e1e; color: #ffffff; }
+    .wm-bar { position: absolute; z-index: 50; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: rgba(255, 245, 245, 0.95); border: 1px solid #c81e1e; border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); box-sizing: border-box; }
+    .wm-flash { outline: 4px solid #f59e0b !important; outline-offset: 2px; transition: outline-color 0.3s; }
+    .wm-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.85); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+    .wm-lightbox img { max-width: 94vw; max-height: 94vh; background: #ffffff; }
+    @media print { .screen-watermark-issues, .wm-bar, .wm-lightbox { display: none !important; } }
   </style>
   <h2>{{watermarkIssueCount}} ảnh chưa dập được watermark – không xuất được PDF nháp / Rev</h2>
-  <p>Ảnh lỗi được thay bằng khung đỏ ngay trong báo cáo bên dưới. Xử lý hết các dòng dưới đây rồi xuất lại.</p>
+  <p>Ảnh lỗi được đánh dấu viền đỏ ngay trong báo cáo bên dưới, có nút xử lý ngay trên ảnh. Xử lý hết các dòng dưới đây rồi xuất lại.</p>
   <ol>
     {{#each watermarkIssues}}
-      <li data-photo-url="{{this.url}}">
+      <li data-wm-index="{{@index}}" data-photo-url="{{this.url}}">
         <span class="wm-code">{{this.photoCode}}</span> – {{this.label}}<br>
         {{this.hint}}
+        {{#if this.preview}}
+          <div class="wm-compare">
+            <figure><img src="{{this.preview.full}}" alt="Ảnh gốc {{this.photoCode}}"><figcaption>Ảnh gốc (chưa dập)</figcaption></figure>
+            <figure><img src="{{this.preview.topRight}}" alt="Góc trên phải {{this.photoCode}}"><figcaption>Góc trên phải – vùng logo THACO/CREC</figcaption></figure>
+            <figure><img src="{{this.preview.bottomRight}}" alt="Góc dưới phải {{this.photoCode}}"><figcaption>Góc dưới phải – vùng ngày giờ / mã ảnh</figcaption></figure>
+          </div>
+        {{/if}}
         <div class="wm-actions">
           {{#if this.needsLegacyConfirmation}}
             <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="true">Có dấu cũ (không dập thêm)</button>
@@ -37,30 +56,163 @@
           {{#if (and (eq this.reason "LOAD_FAILED") (eq this.fileMissing false))}}
             <button type="button" data-wm-action="WATERMARK_RETRY">Thử lại</button>
           {{/if}}
+          <button type="button" data-wm-action="WM_JUMP">Xem ảnh trong báo cáo ↓</button>
         </div>
       </li>
     {{/each}}
   </ol>
+  <script type="application/json" id="wm-issues-data">{{{watermarkIssuesJson}}}</script>
   <script>
     (function () {
       var box = document.currentScript && document.currentScript.parentElement;
       if (!box) return;
-      box.addEventListener('click', function (evt) {
-        var btn = evt.target && evt.target.closest ? evt.target.closest('button[data-wm-action]') : null;
-        if (!btn) return;
-        var li = btn.closest('li');
-        var code = li ? (li.querySelector('.wm-code') || {}).textContent : '';
+      var SCROLL_KEY = 'wm-preview-scroll';
+      var PREFIX = 'data:image/svg+xml;wmissue=';
+      var issues = [];
+      try {
+        issues = JSON.parse((document.getElementById('wm-issues-data') || {}).textContent || '[]');
+      } catch (err) {
+        console.error('[WatermarkIssues:data] Không đọc được danh sách ảnh lỗi', err);
+      }
+
+      function issueIndexOf(img) {
+        var src = img.getAttribute('src') || '';
+        if (src.indexOf(PREFIX) !== 0) return -1;
+        var n = parseInt(src.slice(PREFIX.length), 10);
+        return isNaN(n) ? -1 : n;
+      }
+      function issueImages() {
+        return Array.prototype.filter.call(document.images, function (img) { return issueIndexOf(img) >= 0; });
+      }
+
+      function send(action, issue, value) {
+        try {
+          sessionStorage.setItem(SCROLL_KEY, JSON.stringify({ y: window.scrollY, t: Date.now() }));
+        } catch (err) {
+          console.error('[WatermarkIssues:scroll] Không lưu được vị trí cuộn', err);
+        }
         try {
           window.parent.postMessage({
-            type: btn.getAttribute('data-wm-action'),
-            photoUrl: li ? li.getAttribute('data-photo-url') : null,
-            photoCode: code || null,
-            hasLegacyWatermark: btn.getAttribute('data-wm-value') === 'true'
+            type: action,
+            photoUrl: issue ? issue.url : null,
+            photoCode: issue ? issue.photoCode : null,
+            hasLegacyWatermark: value === 'true'
           }, '*');
         } catch (err) {
           console.error('[WatermarkIssues:postMessage] Không gửi được thao tác lên màn Xuất', err);
         }
+      }
+
+      function flash(el) {
+        el.classList.add('wm-flash');
+        setTimeout(function () { el.classList.remove('wm-flash'); }, 1800);
+      }
+      function jumpToImage(index) {
+        var target = issueImages().filter(function (img) { return issueIndexOf(img) === index; })[0];
+        if (!target) return;
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        flash(target);
+      }
+      function jumpToRow(index) {
+        var row = box.querySelector('li[data-wm-index="' + index + '"]');
+        (row || box).scrollIntoView({ block: 'center', behavior: 'smooth' });
+        flash(row || box);
+      }
+
+      function onAction(btn, index) {
+        var action = btn.getAttribute('data-wm-action');
+        if (action === 'WM_JUMP') return jumpToImage(index);
+        if (action === 'WM_LIST') return jumpToRow(index);
+        send(action, issues[index], btn.getAttribute('data-wm-value'));
+      }
+
+      // Hộp lỗi: nút thao tác + bấm ảnh đối chứng để phóng to.
+      box.addEventListener('click', function (evt) {
+        var t = evt.target;
+        if (t && t.tagName === 'IMG' && t.closest('.wm-compare')) {
+          var lb = document.createElement('div');
+          lb.className = 'wm-lightbox';
+          var big = document.createElement('img');
+          big.src = t.src;
+          lb.appendChild(big);
+          lb.addEventListener('click', function () { lb.remove(); });
+          document.body.appendChild(lb);
+          return;
+        }
+        var btn = t && t.closest ? t.closest('button[data-wm-action]') : null;
+        if (!btn) return;
+        var li = btn.closest('li');
+        onAction(btn, li ? parseInt(li.getAttribute('data-wm-index'), 10) : -1);
       });
+
+      // Thân báo cáo: thanh nút đặt chồng lên mép trên bên trái của từng ảnh lỗi (tránh 2 góc phải cần soi).
+      // Gắn vào body, đặt tuyệt đối theo toạ độ tài liệu của ảnh: không chèn vào luồng trang nên không xô lệch trang A4.
+      // Thu phóng ở màn Xuất là transform bên ngoài iframe, không ảnh hưởng toạ độ trong tài liệu.
+      function button(label, action, value, primary) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = label;
+        b.setAttribute('data-wm-action', action);
+        if (value) b.setAttribute('data-wm-value', value);
+        if (primary) b.className = 'wm-primary';
+        return b;
+      }
+      var bars = [];
+      function placeBars() {
+        // body có thể được định vị (position khác static): khi đó toạ độ tính theo khung body.
+        var bodyPositioned = window.getComputedStyle(document.body).position !== 'static';
+        var b = document.body.getBoundingClientRect();
+        var baseLeft = bodyPositioned ? b.left - document.body.clientLeft : -window.scrollX;
+        var baseTop = bodyPositioned ? b.top - document.body.clientTop : -window.scrollY;
+        bars.forEach(function (entry) {
+          var r = entry.img.getBoundingClientRect();
+          entry.bar.style.left = (r.left - baseLeft) + 'px';
+          entry.bar.style.top = (r.top - baseTop) + 'px';
+          entry.bar.style.maxWidth = Math.max(r.width, 160) + 'px';
+        });
+      }
+      function mountBars() {
+        issueImages().forEach(function (img) {
+          var index = issueIndexOf(img);
+          var issue = issues[index];
+          if (!issue) return;
+          var bar = document.createElement('div');
+          bar.className = 'wm-bar';
+          if (issue.needsLegacyConfirmation) {
+            bar.appendChild(button('Có dấu cũ', 'WATERMARK_CONFIRM_LEGACY', 'true', true));
+            bar.appendChild(button('Chưa có dấu', 'WATERMARK_CONFIRM_LEGACY', 'false', true));
+          } else if (issue.fileMissing || issue.reason === 'TOO_SMALL' || issue.reason === 'STAMP_ERROR') {
+            bar.appendChild(button('Mở Studio', 'WATERMARK_OPEN_STUDIO'));
+          } else if (issue.reason === 'LOAD_FAILED') {
+            bar.appendChild(button('Thử lại', 'WATERMARK_RETRY'));
+          }
+          bar.appendChild(button('↑ Danh sách lỗi', 'WM_LIST'));
+          bar.addEventListener('click', function (evt) {
+            var btn = evt.target && evt.target.closest ? evt.target.closest('button[data-wm-action]') : null;
+            if (btn) onAction(btn, index);
+          });
+          document.body.appendChild(bar);
+          bars.push({ img: img, bar: bar });
+          if (!img.complete) img.addEventListener('load', placeBars);
+        });
+        placeBars();
+      }
+      // Script nằm trước trang bìa: ảnh thân báo cáo chỉ có trong DOM sau khi phân tích xong tài liệu.
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountBars); else mountBars();
+      window.addEventListener('resize', placeBars);
+      window.addEventListener('load', placeBars);
+
+      // Nạp lại sau khi xác nhận: về đúng chỗ đang làm (chỉ trong 2 phút sau thao tác).
+      try {
+        var saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || 'null');
+        sessionStorage.removeItem(SCROLL_KEY);
+        if (saved && typeof saved.y === 'number' && Date.now() - saved.t < 120000) {
+          var restore = function () { window.scrollTo(0, saved.y); };
+          if (document.readyState === 'complete') restore(); else window.addEventListener('load', restore);
+        }
+      } catch (err) {
+        console.error('[WatermarkIssues:scroll] Không khôi phục được vị trí cuộn', err);
+      }
     })();
   </script>
 </div>

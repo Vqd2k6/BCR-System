@@ -330,6 +330,11 @@ export class ReportService {
         isDraft: String(activeReport.status || '').toUpperCase() !== 'APPROVED',
         watermarkIssues: watermark.issues.map((i) => ({ ...i, hint: watermarkIssueHint(i) })),
         watermarkIssueCount: watermark.issues.length,
+        // Script bản xem trước tra theo số thứ tự lỗi trong data URI khung đỏ (WM_ISSUE_URI_PREFIX<n>).
+        // Thoát "<" để chuỗi JSON không đóng được thẻ <script>.
+        watermarkIssuesJson: JSON.stringify(
+          watermark.issues.map((i) => ({ url: i.url, photoCode: i.photoCode, reason: i.reason, needsLegacyConfirmation: i.needsLegacyConfirmation, fileMissing: i.fileMissing }))
+        ).replace(/</g, '\\u003c'),
       });
 
       return { html, viewModel, watermark };

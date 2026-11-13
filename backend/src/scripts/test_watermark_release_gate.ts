@@ -11,7 +11,7 @@ import sharp from 'sharp';
 import type { ReportViewModel } from '../modules/report/report.types';
 import { ReportImageResolver } from '../modules/report/services/report-image-resolver.service';
 import { currentRenderImageScope, runWithRenderImageScope } from '../modules/report/services/report-image-scope';
-import { ReportWatermarkCanvasService } from '../modules/report/services/report-watermark-canvas.service';
+import { ReportWatermarkCanvasService, WM_ISSUE_URI_PREFIX } from '../modules/report/services/report-watermark-canvas.service';
 import { LegacyWatermarkIndex, isFieldPhotoUrl } from '../modules/report/services/legacy-watermark-index.service';
 import { verdictOfScore } from '../modules/report/services/watermark-detector.service';
 import { ReportService } from '../modules/report/services/report.service';
@@ -175,8 +175,18 @@ async function main(): Promise<void> {
       assert.strictEqual(byUrl.get(small)?.reason, 'TOO_SMALL');
       assert.strictEqual(byUrl.get(suspect)?.reason, 'SUSPECT_LEGACY');
       assert.strictEqual(byUrl.get(suspect)?.needsLegacyConfirmation, true);
-      // Ảnh lỗi trong bản xem trước được thay bằng khung đỏ.
-      assert.ok(vm.appendix1?.[2].base64?.startsWith('data:image/svg+xml'));
+      // Ảnh lỗi trong bản xem trước được thay bằng khung đỏ, data URI mang số thứ tự lỗi để script gắn thanh nút.
+      const suspectIndex = report.issues.findIndex((i) => i.url === suspect);
+      assert.ok(vm.appendix1?.[2].base64?.startsWith(`${WM_ISSUE_URI_PREFIX}${suspectIndex};base64,`));
+      assert.ok(vm.appendix1?.[0].base64?.startsWith(`${WM_ISSUE_URI_PREFIX}${report.issues.findIndex((i) => i.url === gone)};base64,`));
+      // Ảnh nghi ngờ có ảnh đối chứng (toàn cảnh + 2 góc phải) cho người xác nhận; lỗi khác thì không.
+      const pv = byUrl.get(suspect)?.preview;
+      assert.ok(pv && [pv.full, pv.topRight, pv.bottomRight].every((u) => u.startsWith('data:image/jpeg;base64,')));
+      assert.ok(!byUrl.get(gone)?.preview);
+      // Khung ảnh nghi ngờ giữ ảnh gốc rõ nét (không làm mờ) và đúng tỉ lệ ảnh.
+      const svg = Buffer.from(String(vm.appendix1?.[2].base64).split(',')[1], 'base64').toString();
+      assert.ok(!svg.includes('opacity="0.55"'));
+      assert.ok(svg.includes('viewBox="0 0 400 300"'), svg.slice(0, 120));
       // Ảnh có dấu cũ không bị dập thêm (giữ nguyên bytes).
       assert.strictEqual(vm.appendix1?.[4].base64, uri(big));
       assert.throws(() => ReportService.assertWatermarkComplete(report, 'nháp'), WatermarkIncompleteError);

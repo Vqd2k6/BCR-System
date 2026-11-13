@@ -86,6 +86,21 @@ export interface WatermarkIssue {
   /** File không còn trên R2: Admin phải thay ảnh qua Studio (hệ thống chỉ gợi ý bản thay). */
   fileMissing: boolean;
   score: number | null;
+  /** Ảnh nghi ngờ dấu cũ: ảnh gốc thu nhỏ + 2 góc phóng to (logo, chữ giờ/mã) để người xác nhận đối chứng. */
+  preview?: WatermarkIssuePreview | null;
+}
+
+/** Ảnh đối chứng (data URI JPEG nhỏ) cho hộp lỗi của bản xem trước. */
+export interface WatermarkIssuePreview {
+  full: string;
+  topRight: string;
+  bottomRight: string;
+}
+
+/** Data URI khung lỗi mang số thứ tự lỗi để script bản xem trước tìm ảnh: data:image/svg+xml;wmissue=<n>;base64,... */
+export const WM_ISSUE_URI_PREFIX = 'data:image/svg+xml;wmissue=';
+
+/** Bộ đếm| null;
 }
 
 /** Bộ đếm để chứng minh 100% ảnh có watermark thật khi bật chế độ. */
@@ -428,31 +443,105 @@ export class ReportWatermarkCanvasService {
   }
 
 
+  /** Tách data URI ảnh raster thành Buffer; SVG / không phải data URI → null. */
+  private static rasterBuffer(imageUri: string | undefined): Buffer | null {
+    if (!imageUri || !imageUri.startsWith('data:image/') || imageUri.startsWith('data:image/svg')) return null;
+    const comma = imageUri.indexOf(',');
+    return comma > 0 ? Buffer.from(imageUri.slice(comma + 1), 'base64') : null;
+  }
+
+  /** Kích thước hiển thị (đã tính EXIF xoay) của ảnh raster trong data URI; lỗi → null kèm log. */
+  private static async rasterDims(imageUri: string | undefined, photoCode: string): Promise<{ width: number; height: number } | null> {
+    const buf = this.rasterBuffer(imageUri);
+    if (!buf) return null;
+    try {
+      const meta = await sharp(buf).metadata();
+      if (!meta.width || !meta.height) return null;
+      const swap = (meta.orientation ?? 1) >= 5;
+      return swap ? { width: meta.height, height: meta.width } : { width: meta.width, height: meta.height };
+    } catch (err) {
+      console.error(`[ReportWatermark:preview] Không đọc được kích thước ảnh ${photoCode}:`, err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+
   /**
-   * Ảnh minh hoạ chỗ ảnh chưa dập được trong bản XEM TRƯỚC HTML (PDF không bao giờ in khi còn ảnh lỗi):
-   * khung đỏ, nhãn "CHƯA DẬP ĐƯỢC: <lý do>", có ảnh gốc mờ bên dưới nếu đã nạp được.
+   * Ảnh đối chứng cho ảnh nghi ngờ dấu cũ: ảnh gốc thu nhỏ, góc trên phải (vùng logo) và góc dưới phải
+   * (vùng chữ giờ/mã) phóng to. Lỗi thì log và bỏ preview, không làm hỏng lượt render.
    */
-  private static issuePlaceholder(issue: WatermarkIssue, imageUri: string | undefined): string {
+  private static async buildIssuePreview(imageUri: string | undefined, photoCode: string): Promise<{ preview: WatermarkIssuePreview; width: number; height: number } | null> {
+    const buf = this.rasterBuffer(imageUri);
+    if (!buf) return null;
+    try {
+      const oriented = await sharp(buf).rotate().toBuffer({ resolveWithObject: true });
+      const W = oriented.info.width;
+      const H = oriented.info.height;
+      const toUri = (b: Buffer) => `data:image/jpeg;base64,${b.toString('base64')}`;
+      const cw = Math.max(1, Math.round(W * 0.35));
+      const ch = Math.max(1, Math.round(H * 0.25));
+      const corner = (top: number) => sharp(oriented.data)
+        .extract({ left: W - cw, top, width: cw, height: ch })
+        .resize({ width: 280 })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+      const [full, topRight, bottomRight] = await Promise.all([
+        sharp(oriented.data).resize({ width: 360, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
+        corner(0),
+        corner(H - ch),
+      ]);
+      return { preview: { full: toUri(full), topRight: toUri(topRight), bottomRight: toUri(bottomRight) }, width: W, height: H };
+    } catch (err) {
+      console.error(`[ReportWatermark:preview] Không tạo được ảnh đối chứng cho ${photoCode}:`, err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+
+  /**
+   * Ảnh thay chỗ ảnh chưa dập được trong bản XEM TRƯỚC HTML (PDF không bao giờ in khi còn ảnh lỗi).
+   * - Nghi ngờ dấu cũ: ảnh gốc RÕ NÉT, đúng tỉ lệ, chỉ viền đỏ + dải nhãn nhỏ ở cạnh dưới bên trái
+   *   (để trống 2 góc phải, nơi người xác nhận cần soi logo và chữ giờ/mã).
+   * - Lỗi khác: khung đỏ, băng nhãn giữa ảnh, ảnh gốc mờ bên dưới nếu đã nạp được.
+   * Data URI mang số thứ tự lỗi (`WM_ISSUE_URI_PREFIX<n>`) để script bản xem trước gắn thanh nút cạnh ảnh.
+   */
+  private static issuePlaceholder(issue: WatermarkIssue, issueIndex: number, imageUri: string | undefined, dims: { width: number; height: number } | null): string {
     const label = {
       LOAD_FAILED: issue.fileMissing ? 'KHÔNG CÒN FILE ẢNH TRÊN R2' : 'KHÔNG TẢI ĐƯỢC ẢNH',
       TOO_SMALL: 'ẢNH QUÁ NHỎ ĐỂ DẬP DẤU',
       STAMP_ERROR: 'DẬP DẤU LỖI (FILE HỎNG)',
       SUSPECT_LEGACY: 'NGHI NGỜ CÓ DẤU CŨ – CẦN XÁC NHẬN',
     }[issue.reason];
-    const W = 800;
-    const H = 600;
-    const img = imageUri && imageUri.startsWith('data:image/') && !imageUri.startsWith('data:image/svg')
-      ? `<image href="${imageUri}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`
-      : '';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
-      + `<rect width="${W}" height="${H}" fill="#f1f1f1"/>${img}`
-      + `<rect x="6" y="6" width="${W - 12}" height="${H - 12}" fill="none" stroke="#c81e1e" stroke-width="12"/>`
-      + `<rect x="40" y="${H / 2 - 70}" width="${W - 80}" height="140" fill="#c81e1e" opacity="0.92"/>`
-      + `<text x="${W / 2}" y="${H / 2 - 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">CHƯA DẬP ĐƯỢC</text>`
-      + `<text x="${W / 2}" y="${H / 2 + 24}" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">${escapeXml(label)}</text>`
-      + `<text x="${W / 2}" y="${H / 2 + 56}" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#ffffff">${escapeXml(issue.photoCode)}</text>`
-      + `</svg>`;
-    return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+    const raster = this.rasterBuffer(imageUri) ? imageUri : undefined;
+    let svg: string;
+    if (issue.reason === 'SUSPECT_LEGACY' && raster && dims) {
+      const W = dims.width;
+      const H = dims.height;
+      const u = Math.max(W, H) / 800;
+      const stroke = Math.round(8 * u);
+      const stripW = Math.round(W * 0.6);
+      const stripH = Math.round(64 * u);
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+        + `<image href="${raster}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/>`
+        + `<rect x="${stroke / 2}" y="${stroke / 2}" width="${W - stroke}" height="${H - stroke}" fill="none" stroke="#c81e1e" stroke-width="${stroke}"/>`
+        + `<rect x="${stroke}" y="${H - stroke - stripH}" width="${stripW}" height="${stripH}" fill="#c81e1e" opacity="0.9"/>`
+        + `<text x="${stroke + 12 * u}" y="${H - stroke - stripH + 27 * u}" font-family="Arial, sans-serif" font-size="${Math.round(20 * u)}" font-weight="700" fill="#ffffff">CHƯA DẬP · ${escapeXml(label)}</text>`
+        + `<text x="${stroke + 12 * u}" y="${H - stroke - stripH + 52 * u}" font-family="Arial, sans-serif" font-size="${Math.round(15 * u)}" fill="#ffffff">${escapeXml(issue.photoCode)}</text>`
+        + `</svg>`;
+    } else {
+      const W = 800;
+      const H = 600;
+      const img = raster
+        ? `<image href="${raster}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`
+        : '';
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+        + `<rect width="${W}" height="${H}" fill="#f1f1f1"/>${img}`
+        + `<rect x="6" y="6" width="${W - 12}" height="${H - 12}" fill="none" stroke="#c81e1e" stroke-width="12"/>`
+        + `<rect x="40" y="${H / 2 - 70}" width="${W - 80}" height="140" fill="#c81e1e" opacity="0.92"/>`
+        + `<text x="${W / 2}" y="${H / 2 - 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">CHƯA DẬP ĐƯỢC</text>`
+        + `<text x="${W / 2}" y="${H / 2 + 24}" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">${escapeXml(label)}</text>`
+        + `<text x="${W / 2}" y="${H / 2 + 56}" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#ffffff">${escapeXml(issue.photoCode)}</text>`
+        + `</svg>`;
+    }
+    return `${WM_ISSUE_URI_PREFIX}${issueIndex};base64,${Buffer.from(svg).toString('base64')}`;
   }
 
   /**
@@ -474,13 +563,27 @@ export class ReportWatermarkCanvasService {
         t[kind] += 1;
       }
     };
-    const fail = (ref: VmPhotoRef, issue: Omit<WatermarkIssue, 'section' | 'label' | 'photoCode' | 'url'>) => {
+    const issueIndexByUrl = new Map<string, number>();
+    const fail = async (ref: VmPhotoRef, issue: Omit<WatermarkIssue, 'section' | 'label' | 'photoCode' | 'url'>): Promise<void> => {
       const full: WatermarkIssue = { ...issue, section: ref.section, label: ref.label, photoCode: ref.photoCodeText, url: ref.url };
-      if (!issueByUrl.has(ref.url)) issueByUrl.set(ref.url, full);
+      const imageUri = ref.getBase64();
+      let dims: { width: number; height: number } | null = null;
+      if (!issueByUrl.has(ref.url)) {
+        if (issue.reason === 'SUSPECT_LEGACY') {
+          const built = await this.buildIssuePreview(imageUri, ref.photoCodeText);
+          full.preview = built?.preview ?? null;
+          dims = built ? { width: built.width, height: built.height } : null;
+        }
+        issueIndexByUrl.set(ref.url, issueByUrl.size);
+        issueByUrl.set(ref.url, full);
+      } else if (issue.reason === 'SUSPECT_LEGACY') {
+        // Cùng URL ở ô khác (có thể crop/xoay khác): chỉ cần kích thước ảnh của ô này.
+        dims = await this.rasterDims(imageUri, ref.photoCodeText);
+      }
       tally(ref.section, 'failed');
       console.error(`[ReportWatermark:verify] ${ref.label} (${ref.photoCodeText}) chưa dập được: ${issue.reason} – ${issue.detail}`, ref.url);
       // Bản xem trước: thay bằng khung đỏ, đánh dấu đã xử lý để template không phủ thêm chữ.
-      ref.setBase64(this.issuePlaceholder(full, ref.getBase64()));
+      ref.setBase64(this.issuePlaceholder(full, issueIndexByUrl.get(ref.url) ?? 0, imageUri, dims));
       ref.markWatermarked();
     };
 
@@ -493,7 +596,7 @@ export class ReportWatermarkCanvasService {
       const base64 = ref.getBase64();
       if (!base64 || !base64.startsWith('data:image/')) {
         const lf = ReportImageResolver.getLoadFailure(ref.url);
-        fail(ref, {
+        await fail(ref, {
           reason: 'LOAD_FAILED',
           detail: lf ? lf.message : 'Ảnh chưa được nạp vào lượt render',
           httpStatus: lf?.httpStatus ?? null,
@@ -513,7 +616,7 @@ export class ReportWatermarkCanvasService {
         const why = legacy.suspectReason === 'UNSURE'
           ? `Điểm dò logo ${legacy.score?.toFixed(2)} nằm trong vùng nghi ngờ`
           : legacy.suspectReason === 'DETECT_FAILED' ? 'Bộ dò logo không đọc được ảnh' : 'Ảnh chưa được dò dấu cũ';
-        fail(ref, { reason: 'SUSPECT_LEGACY', detail: why, httpStatus: null, needsLegacyConfirmation: true, fileMissing: false, score: legacy.score });
+        await fail(ref, { reason: 'SUSPECT_LEGACY', detail: why, httpStatus: null, needsLegacyConfirmation: true, fileMissing: false, score: legacy.score });
         continue;
       }
       if (legacy?.status === 'LEGACY') {
@@ -537,7 +640,7 @@ export class ReportWatermarkCanvasService {
         tally(ref.section, 'stamped');
         continue;
       }
-      fail(ref, {
+      await fail(ref, {
         reason: r.outcome === 'too-small' ? 'TOO_SMALL' : 'STAMP_ERROR',
         detail: r.outcome === 'too-small' ? 'Ảnh nhỏ hơn 80px, không đủ chỗ dập dấu' : 'Dập dấu lỗi sau 2 lần thử (file ảnh có thể hỏng)',
         httpStatus: null,
