@@ -68,6 +68,16 @@ export class ConflictError extends AppError {
   }
 }
 
+/**
+ * Report còn ảnh chưa dập được watermark thật (tải lỗi, quá nhỏ, dập lỗi, nghi ngờ dấu cũ chưa xác nhận):
+ * chặn cả PDF nháp lẫn Rev. invalidParams: mỗi ảnh một dòng (field = URL ảnh, message = mã ảnh + lý do).
+ */
+export class WatermarkIncompleteError extends AppError {
+  constructor(message: string, invalidParams: Array<{ field: string; message: string }>) {
+    super(message, 409, 'WATERMARK_INCOMPLETE', invalidParams);
+  }
+}
+
 export class UnprocessableEntityError extends AppError {
   constructor(message: string = 'Dữ liệu không đáp ứng quy tắc nghiệp vụ', invalidParams?: Array<{ field: string; message: string }>) {
     super(message, 422, 'UNPROCESSABLE_ENTITY', invalidParams);

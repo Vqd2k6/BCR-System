@@ -14,17 +14,35 @@ export function formatDateVi(dateVal: any, includeTime: boolean = false): string
     }
     return str;
   }
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return str;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  if (includeTime && (d.getHours() !== 0 || d.getMinutes() !== 0)) {
-    const hours = String(d.getHours()).padStart(2, '0');
-    const mins = String(d.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} (${hours}:${mins})`;
+  // Luôn theo giờ Việt Nam, không phụ thuộc múi giờ máy chủ (prod chạy UTC):
+  //   - Date lúc 00:00:00.000 giờ máy chủ = cột DATE của pg → chỉ có ngày, lấy đúng ngày đó.
+  //   - "yyyy-mm-dd" / ISO không ghi múi giờ: đã là giờ VN, đọc thẳng.
+  //   - Date có giờ / ISO có múi giờ (Z, +07:00): quy đổi sang giờ VN.
+  let c: VnWallClock | null = null;
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return '';
+    const isPgDate = dateVal.getHours() === 0 && dateVal.getMinutes() === 0 && dateVal.getSeconds() === 0 && dateVal.getMilliseconds() === 0;
+    c = isPgDate
+      ? { year: dateVal.getFullYear(), month: dateVal.getMonth() + 1, day: dateVal.getDate(), hour: 0, minute: 0, second: 0 }
+      : toVnWallClock(dateVal);
+  } else {
+    const naive = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?$/);
+    if (naive) {
+      c = {
+        year: Number(naive[1]), month: Number(naive[2]), day: Number(naive[3]),
+        hour: naive[4] ? Number(naive[4]) : 0, minute: naive[5] ? Number(naive[5]) : 0, second: naive[6] ? Number(naive[6]) : 0,
+      };
+    } else {
+      const d = new Date(str);
+      if (isNaN(d.getTime())) return str;
+      c = toVnWallClock(d);
+    }
   }
-  return `${day}/${month}/${year}`;
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  if (includeTime && (c.hour !== 0 || c.minute !== 0)) {
+    return `${p2(c.day)}/${p2(c.month)}/${c.year} (${p2(c.hour)}:${p2(c.minute)})`;
+  }
+  return `${p2(c.day)}/${p2(c.month)}/${c.year}`;
 }
 
 /** Ngày nhập tay có thể ở dạng dd/mm/yyyy: new Date() sẽ ném lỗi hoặc đảo ngày tháng nên phải tách riêng. */

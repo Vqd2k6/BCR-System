@@ -81,10 +81,13 @@ async function main(): Promise<void> {
     assert.strictEqual(isZoneInside(logo, rect), false);
     assert.deepStrictEqual(autoRestampLayers({ logo, text }, rect), { logo: true, text: false });
   });
-  await tc('Ảnh biên bản chụp bằng app được dò logo; sơ đồ CAD / bản vẽ thì không', () => {
+  // 13/11/2026: sơ đồ CAD chụp tay cũng mang dấu PWA cũ (C&C-05-B-0038 tầng trệt bị dập 2 lớp) → mọi ảnh raster đều được dò.
+  await tc('Mọi ảnh raster đều được dò logo (biên bản, sơ đồ CAD, bản vẽ); PDF thì không', () => {
     assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-05-B-0028/DOC/HCM_M2__C_C-05-B-0028__DOC_MINUTES_03_1793438837210_7e4b7c.jpg'), true);
-    assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-05-B-0074/CAD_STRUCT/HCM_M2__C_C-05-B-0074__F04_CAD_STRUCT_01_1.jpg'), false);
-    assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-04-B-0148/DRAWING/HCM_M2__C_C-04-B-0148__DOC_HOANCONG_DRAWING_01.jpg'), false);
+    assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-05-B-0074/CAD_STRUCT/HCM_M2__C_C-05-B-0074__F04_CAD_STRUCT_01_1.jpg'), true);
+    assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-04-B-0148/DRAWING/HCM_M2__C_C-04-B-0148__DOC_HOANCONG_DRAWING_01.jpg'), true);
+    assert.strictEqual(isFieldPhotoUrl('https://x/surveys/C_C-04-B-0148/DRAWING/ban_ve.pdf'), false);
+    assert.strictEqual(isFieldPhotoUrl('data:image/jpeg;base64,AAAA'), false);
   });
 
   const clean = await texturedPhoto(1500, 2000);

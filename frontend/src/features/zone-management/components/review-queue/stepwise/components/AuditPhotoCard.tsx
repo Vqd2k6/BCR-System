@@ -17,22 +17,7 @@ import {
 import type { AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 import { RotatableImageFrame } from './RotatableImageFrame';
 import { RotatedPhoto } from '../../../../../photo-qc/components/RotatedPhoto';
-import { useApprovedCrop, useStudioPhotoStatus, type StudioResurveyPhotoMark } from '../context/ApprovedCropContext';
-
-const RESURVEY_BADGE: Record<StudioResurveyPhotoMark['state'], { label: string; cls: string }> = {
-  NEED: { label: 'Cần chụp lại', cls: 'bg-rose-950 text-rose-300 border-rose-700' },
-  CAPTURED: { label: 'KSV đã chụp lại', cls: 'bg-sky-950 text-sky-300 border-sky-700' },
-  SUBMITTED: { label: 'Ảnh mới chờ duyệt phiên', cls: 'bg-sky-950 text-sky-300 border-sky-700' },
-  READY: { label: 'Có ảnh mới – chờ đưa vào', cls: 'bg-amber-950 text-amber-300 border-amber-700' },
-  APPLIED: { label: 'Ảnh mới chụp lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' },
-  DECLINED: { label: 'Đã bỏ qua ảnh mới', cls: 'bg-slate-800 text-slate-300 border-slate-600' },
-};
-
-function resurveyBadge(mark: StudioResurveyPhotoMark): { label: string; cls: string } {
-  // Ô N/A đã đưa vào: report bỏ ô này (Studio vẫn hiện ảnh gốc để đối chiếu).
-  if (mark.state === 'APPLIED' && mark.action === 'MARK_NA') return { label: 'Đã bỏ khỏi report', cls: 'bg-slate-800 text-slate-300 border-slate-600' };
-  return RESURVEY_BADGE[mark.state];
-}
+import { StudioPhotoBadges, ResurveyNaPlaceholder, useStudioPhotoView } from './studioPhotoView';
 import { useAuditStudioImgOptional } from '../context/AuditStudioImgContext';
 
 export interface AuditPhotoCardProps {
@@ -113,15 +98,12 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
   className = '',
 }) => {
   const studioCtx = useAuditStudioImgOptional();
-  const approvedCrop = useApprovedCrop(url);
-  const photoStatus = useStudioPhotoStatus();
-  const resurveyMark = url ? photoStatus.resurvey.get(url) ?? null : null;
-  // Phiên chụp lại đã duyệt: report in ảnh mới ở ô này, Studio hiện đúng ảnh đó (ảnh gốc vẫn giữ trong hồ sơ).
-  const replacedByResurvey = resurveyMark?.state === 'APPLIED' && resurveyMark.action === 'REPLACE' && Boolean(resurveyMark.newUrl);
-  const pendingCropKey = url && !replacedByResurvey ? photoStatus.pendingCrops.get(url) ?? null : null;
-  const isRecentlyUpdated = Boolean(url && photoStatus.recent.has(url));
-  // Chỉ hiện ảnh crop (và badge) khi góc xoay hiện tại còn khớp lúc crop; lệch thì hiện ảnh nguyên.
-  const cropApplied = !replacedByResurvey && Boolean(approvedCrop) &&(((approvedCrop?.rotationAtCrop ?? 0) % 360) + 360) % 360 === (((rotation ?? 0) % 360) + 360) % 360;
+  // Ảnh chụp lại đã Đưa vào (thay / bỏ ô N/A) và crop đã duyệt: hiện đúng như report sẽ in (ảnh gốc vẫn giữ trong hồ sơ).
+  const photoView = useStudioPhotoView(url, rotation);
+  const { approvedCrop, resurveyMark, isRecentlyUpdated } = photoView;
+  const replacedByResurvey = photoView.mode === 'REPLACED';
+  const removedByResurvey = photoView.mode === 'NA_REMOVED';
+  const cropApplied = photoView.mode === 'CROPPED';
   const hasUrl = Boolean(url && url.trim().length > 0);
   const effectiveUrl = studioCtx && hasUrl ? studioCtx.resolveEffectiveStudioUrl(url!) : url || '';
   const isSelectedInStudio = Boolean(
@@ -144,8 +126,13 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
       });
       return;
     }
+    if (replacedByResurvey && resurveyMark?.newUrl && onOpenPhotoZoom) {
+      // Ô đã thay bằng ảnh chụp lại: phóng to đúng ảnh report đang in.
+      onOpenPhotoZoom(resurveyMark.newUrl, `${title} (ảnh mới chụp lại)`, photoKey || photoCode, resurveyMark.newRotation);
+      return;
+    }
     if (hasUrl && onOpenPhotoZoom) {
-      onOpenPhotoZoom(effectiveUrl, title, photoKey || photoCode, rotation);
+      onOpenPhotoZoom(effectiveUrl, removedByResurvey ? `${title} (ảnh gốc – đã bỏ khỏi report)` : title, photoKey || photoCode, rotation);
     }
   };
 
@@ -405,7 +392,13 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
     >
       {/* Vùng hiển thị ảnh (Image Viewport) - Tự động co giãn tỷ lệ khi xoay 90°/270°, không cắt 2 đầu và cân bằng ngang/dọc */}
       <div className={`relative w-full overflow-hidden bg-slate-950 flex items-center justify-center shrink-0 p-1 ${viewportHeightClass}`}>
-        {replacedByResurvey && resurveyMark?.newUrl ? (
+        {removedByResurvey ? (
+          // KSV khảo sát lại đánh dấu N/A và Thẩm định đã Đưa vào: report không in ô này.
+          <ResurveyNaPlaceholder
+            reason={resurveyMark?.naReason ?? null}
+            onViewOriginal={hasUrl && onOpenPhotoZoom ? () => onOpenPhotoZoom(effectiveUrl, `${title} (ảnh gốc – đã bỏ khỏi report)`, photoKey || photoCode, rotation) : undefined}
+          />
+        ) : replacedByResurvey && resurveyMark?.newUrl ? (
           <RotatableImageFrame
             src={resurveyMark.newUrl}
             alt={title}
@@ -427,46 +420,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             stageClassName="max-h-full rounded-sm shadow-xs"
           />
         )}
-        <div className="absolute bottom-1.5 left-1.5 z-10 flex flex-wrap items-center gap-1 max-w-[calc(100%-12px)]">
-          {cropApplied && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold border bg-emerald-950 text-emerald-300 border-emerald-700 pointer-events-none">
-              Đã crop
-            </span>
-          )}
-          {pendingCropKey && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                photoStatus.openCropReview?.(pendingCropKey);
-              }}
-              className="px-1.5 py-0.5 rounded text-[10px] font-bold border bg-amber-950 text-amber-300 border-amber-700 cursor-pointer hover:brightness-125"
-              title="Crop của ảnh này chưa được duyệt: report chưa in phần crop. Bấm để duyệt."
-            >
-              Crop chờ duyệt
-            </button>
-          )}
-          {resurveyMark?.state === 'READY' && photoStatus.openResurveyPanel ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                photoStatus.openResurveyPanel?.();
-              }}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer hover:brightness-125 animate-pulse ${resurveyBadge(resurveyMark).cls}`}
-              title="Có ảnh KSV chụp lại đã duyệt. Bấm để so sánh và Đưa vào thẩm định."
-            >
-              Có ảnh mới – bấm để đưa vào
-            </button>
-          ) : resurveyMark && (
-            <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border pointer-events-none ${resurveyBadge(resurveyMark).cls}`}
-              title="Trạng thái ảnh KSV chụp lại (xem ở nút Ảnh Chụp Lại trên header)"
-            >
-              {resurveyBadge(resurveyMark).label}
-            </span>
-          )}
-        </div>
+        <StudioPhotoBadges view={photoView} />
         {isRecentlyUpdated && (
           <span className="absolute inset-0 z-20 rounded-sm ring-4 ring-inset ring-teal-400 animate-pulse pointer-events-none" />
         )}
@@ -480,7 +434,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               {photoCode}
             </span>
           )}
-          {rotation > 0 && (
+          {rotation > 0 && !removedByResurvey && !replacedByResurvey && (
             <span
               className="px-1.5 py-0.5 rounded font-mono font-black text-[9px] bg-amber-500 text-slate-950 shadow-xs"
               title={`Ảnh đã xoay ${rotation}°`}
@@ -495,7 +449,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/85 backdrop-blur-xs rounded-lg p-0.5 shadow-sm transition-all z-10 cursor-default"
         >
-          {onRotate && isEditMode && (
+          {onRotate && isEditMode && !removedByResurvey && !replacedByResurvey && (
             <>
               <button
                 type="button"
@@ -552,7 +506,7 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
             </button>
           )}
 
-          {isEditMode && onOpenPhotoAction && (
+          {isEditMode && onOpenPhotoAction && !removedByResurvey && (
             <>
               <button
                 type="button"

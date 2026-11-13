@@ -434,6 +434,102 @@ export const usePhase1ReportPreview = ({
     }
   };
 
+  /** Render lại bản xem trước HTML hiện hành (sau khi xác nhận dấu cũ hoặc khi ảnh tải lỗi tạm thời). */
+  const reloadCurrentPreviewHtml = async (notice: string): Promise<void> => {
+    if (!previewParcel || selectedRevision !== undefined) return;
+    setIsPreviewLoading(true);
+    try {
+      const htmlRes = await api.get(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/preview/html`, {
+        params: { watermark: String(enableWatermark) },
+        responseType: 'text',
+      });
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      setModalFeedback({ type: 'success', text: notice, timestamp: new Date().toLocaleTimeString('vi-VN') });
+    } catch (err: unknown) {
+      console.error('[usePhase1ReportPreview:reloadCurrentPreviewHtml] Không nạp lại được bản xem trước:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không nạp lại được bản xem trước: ${getErrorMessage(err, 'Lỗi server')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  /**
+   * Thao tác từ hộp "ảnh chưa dập được" trong iframe xem trước (watermark-issues.hbs):
+   *   - WATERMARK_CONFIRM_LEGACY: xác nhận TỪNG ảnh nghi ngờ dấu cũ (không có xác nhận hàng loạt).
+   *   - WATERMARK_RETRY: render lại khi ảnh tải lỗi tạm thời.
+   *   - WATERMARK_OPEN_STUDIO: ảnh mất file / quá nhỏ / hỏng → liệt kê gợi ý ảnh thay, Admin thay qua Studio thẩm định.
+   * Chỉ nhận message từ iframe xem trước của chính trang này.
+   */
+  useEffect(() => {
+    const onMessage = async (evt: MessageEvent<unknown>) => {
+      const fromPreview = Array.from(document.querySelectorAll('iframe')).some((f) => f.contentWindow === evt.source);
+      if (!fromPreview || !previewParcel) return;
+      const data = evt.data;
+      if (!data || typeof data !== 'object') return;
+      const msg = data as { type?: unknown; photoUrl?: unknown; photoCode?: unknown; hasLegacyWatermark?: unknown };
+      const photoUrl = typeof msg.photoUrl === 'string' ? msg.photoUrl : '';
+      const photoCode = typeof msg.photoCode === 'string' ? msg.photoCode : photoUrl;
+      const reportId = encodeURIComponent(reportIdOf(previewParcel));
+
+      if (msg.type === 'WATERMARK_RETRY') {
+        await reloadCurrentPreviewHtml('Đã thử nạp lại toàn bộ ảnh của báo cáo.');
+        return;
+      }
+      if (msg.type === 'WATERMARK_CONFIRM_LEGACY' && photoUrl && typeof msg.hasLegacyWatermark === 'boolean') {
+        const verdict = msg.hasLegacyWatermark ? 'ĐÃ CÓ dấu cũ (máy chủ không dập thêm)' : 'CHƯA CÓ dấu (máy chủ sẽ dập dấu)';
+        if (!window.confirm(`Xác nhận ảnh ${photoCode} ${verdict}?\nKết quả áp cho mọi ô dùng ảnh này và được ghi vào nhật ký.`)) return;
+        try {
+          await api.post(`/reports/${reportId}/watermark-confirmations`, { photoUrl, hasLegacyWatermark: msg.hasLegacyWatermark });
+          await reloadCurrentPreviewHtml(`Đã xác nhận ảnh ${photoCode}: ${verdict}.`);
+        } catch (err: unknown) {
+          console.error('[usePhase1ReportPreview:confirmWatermark] Không lưu được xác nhận dấu cũ:', err);
+          setModalFeedback({
+            type: 'error',
+            text: `Không lưu được xác nhận cho ảnh ${photoCode}: ${getErrorMessage(err, 'Lỗi server')}`,
+            timestamp: new Date().toLocaleTimeString('vi-VN'),
+          });
+        }
+        return;
+      }
+      if (msg.type === 'WATERMARK_OPEN_STUDIO' && photoUrl) {
+        try {
+          const res = await api.get<{ data: Array<{ url: string; kind: 'SAME_SHA' | 'PREVIOUS_VERSION'; photoCode: string | null; exists: boolean | null }> }>(
+            `/reports/${reportId}/watermark-candidates`,
+            { params: { photoUrl } }
+          );
+          const list = (res.data?.data ?? []).filter((c) => c.exists !== false);
+          const lines = list.slice(0, 5).map((c) => `• ${c.kind === 'SAME_SHA' ? 'Trùng từng bit' : 'Ảnh trước đó (khác nội dung)'}: ${c.url.split('/').pop()}`);
+          setModalFeedback({
+            type: 'info',
+            text: `Ảnh ${photoCode} cần thay. Mở Studio thẩm định của hồ sơ này, chọn ô ảnh rồi "Chọn ảnh trong hồ sơ" hoặc lịch sử phiên bản. ${
+              lines.length > 0 ? `Gợi ý:\n${lines.join('\n')}` : 'Không tìm thấy bản thay trong sổ cái, cần KSV chụp lại.'
+            }`,
+            timestamp: new Date().toLocaleTimeString('vi-VN'),
+          });
+        } catch (err: unknown) {
+          console.error('[usePhase1ReportPreview:watermarkCandidates] Không tải được gợi ý ảnh thay:', err);
+          setModalFeedback({
+            type: 'error',
+            text: `Không tải được gợi ý ảnh thay cho ${photoCode}: ${getErrorMessage(err, 'Lỗi server')}`,
+            timestamp: new Date().toLocaleTimeString('vi-VN'),
+          });
+        }
+      }
+    };
+    const listener = (evt: MessageEvent<unknown>) => {
+      void onMessage(evt);
+    };
+    window.addEventListener('message', listener);
+    return () => window.removeEventListener('message', listener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewParcel, enableWatermark, selectedRevision]);
+
   /** "Tải PDF": luôn render bản hiện hành từ dữ liệu mới nhất, không bao giờ trả hay tạo Rev. */
   const handleExportSinglePdf = async (parcel: ExportParcelItem, _overrides?: Record<string, unknown>) => {
     const reportId = encodeURIComponent(reportIdOf(parcel));

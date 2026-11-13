@@ -10,8 +10,8 @@ export type { PhotoResurveyScreenProps } from './components/PhotoResurveyScreen'
 export { ResurveyMarkersLayer } from './components/ResurveyMarkersLayer';
 export { PhotoResurveyReviewList } from './components/PhotoResurveyReviewList';
 export { StudioResurveyButton } from './components/StudioResurveyButton';
-export { buildStudioResurveyRows, buildStudioResurveyMarks } from './utils/studioResurveyStatus';
-export type { StudioResurveyMark, StudioResurveyState } from './utils/studioResurveyStatus';
+export { buildStudioResurveyRows, buildStudioResurveyMarks, buildStudioResurveyExtras } from './utils/studioResurveyStatus';
+export type { StudioResurveyMark, StudioResurveyState, StudioResurveyExtra } from './utils/studioResurveyStatus';
 export type { ResurveySessionView } from './types';
 export { useResurveyTasks } from './hooks/useResurveyTasks';
 export type { ResurveyTask } from './types';

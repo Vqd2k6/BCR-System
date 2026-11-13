@@ -9,6 +9,9 @@
  *   GET  /reports/:id/releases/:rev/pdf   – Tải đúng file Rev đã lưu (kiểm SHA-256)
  *   GET  /reports/minutes/zone/:zoneId    – Danh sách biên bản hiện trường theo Zone
  *   GET  /reports/:id/minutes/pdf         – PDF biên bản 1 căn
+ *   POST /reports/:id/watermark-confirmations – Xác nhận từng ảnh nghi ngờ dấu cũ { photoUrl, hasLegacyWatermark }
+ *   GET  /reports/:id/watermark-candidates?photoUrl= – Gợi ý ảnh thay cho ảnh mất file / quá nhỏ
+ *   GET  /reports/:id/watermark-suspects     – Ảnh nghi ngờ dấu cũ (badge trong Studio)
  *   POST /reports/minutes/zone/:zoneId/batch-zip – Tạo job xuất ZIP theo Zone
  * ============================================================================
  */
@@ -21,6 +24,14 @@ import { MinutesExportService } from './services/minutes-export.service';
 import { ZoneMinutesBatchService } from './services/zone-minutes-batch.service';
 import { canAccessZone } from './utils/zone-access.utils';
 import { sha256Hex } from './snapshot/report-snapshot.service';
+import { z } from 'zod';
+import { WatermarkConfirmationService } from './services/watermark-confirmation.service';
+
+const ConfirmWatermarkSchema = z.object({
+  photoUrl: z.string().trim().min(1).max(2048),
+  hasLegacyWatermark: z.boolean(),
+  reason: z.string().trim().max(500).nullish(),
+});
 
 function parseRevision(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
@@ -259,6 +270,41 @@ export class ReportController {
       res.download(download.filePath, download.fileName, (err) => {
         if (err) console.error('[MinutesExport:Download] Lỗi truyền file ZIP:', err);
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Zone Admin / Super Admin xác nhận TỪNG ảnh nghi ngờ dấu cũ (không có xác nhận hàng loạt). */
+  public static async confirmWatermark(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const body = ConfirmWatermarkSchema.parse(req.body);
+      const data = await WatermarkConfirmationService.confirmLegacy(req.user, req.params.id, body, req.ip ?? null);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Ảnh nghi ngờ dấu cũ của hồ sơ (Studio gắn badge "Cần xác nhận dấu cũ"). */
+  public static async watermarkSuspects(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const data = await WatermarkConfirmationService.listSuspects(req.user, req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Gợi ý ảnh thay cho ảnh mất file / quá nhỏ (chỉ gợi ý, Admin tự thay qua Studio). */
+  public static async watermarkReplacementCandidates(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const photoUrl = typeof req.query.photoUrl === 'string' ? req.query.photoUrl : '';
+      const data = await WatermarkConfirmationService.replacementCandidates(req.user, req.params.id, photoUrl);
+      res.status(200).json({ success: true, data });
     } catch (err) {
       next(err);
     }

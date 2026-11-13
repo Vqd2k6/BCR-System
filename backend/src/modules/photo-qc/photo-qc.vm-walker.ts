@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * PHOTO QC – DUYỆT ẢNH TRÊN VIEWMODEL REPORT
- * Một danh sách duy nhất các ô ảnh mà report in ra (bìa, Phụ lục 1, Mục V, khuyết tật,
+ * Một danh sách duy nhất các ô ảnh mà report in ra (bìa, Phụ lục 1, khuyết tật,
  * ảnh tổng quan phòng). Dùng cho cả màn rà soát và bước cắt/dập dấu khi render,
  * nên hai nơi luôn cùng khoá ô, cùng mã ảnh và cùng ngày giờ watermark.
  * Không gồm sơ đồ CAD, bản scan biên bản, bản vẽ hoàn công (không phải ảnh hiện trường).
@@ -12,7 +12,7 @@ import type { ReportViewModel } from '../report/report.types';
 import { normalizeMetroPhotoCode } from '../report/utils/metro-photo-code.utils';
 import { assignSlotKeys, urlPhotoKey } from './photo-qc.rules';
 
-export type VmPhotoSection = 'COVER' | 'P' | 'SECTION5' | 'DEFECT' | 'OVERVIEW' | 'CAD';
+export type VmPhotoSection = 'COVER' | 'P' | 'DEFECT' | 'OVERVIEW' | 'CAD' | 'MINUTES' | 'ASBUILT';
 
 export interface VmPhotoRef {
   section: VmPhotoSection;
@@ -34,7 +34,15 @@ export interface VmPhotoRef {
   onCropApplied?: (crop: { x: number; y: number; w: number; h: number }) => void;
 }
 
-export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
+export interface WalkViewModelOptions {
+  /**
+   * Thêm bản scan biên bản (Mục XI) và bản vẽ chủ hộ cung cấp (Mục XII). Lượt dập watermark cần,
+   * còn Photo QC (rà soát, crop) không dùng hai loại này.
+   */
+  includeDocuments?: boolean;
+}
+
+export function walkViewModelPhotos(vm: ReportViewModel, options: WalkViewModelOptions = {}): VmPhotoRef[] {
   const refs: VmPhotoRef[] = [];
   const defaultDate = vm.metadata?.surveyDateFormatted || '';
   const parcel = vm.metadata?.projectParcelCode || vm.metadata?.buildingId || 'CHƯA_ĐỊNH_DANH';
@@ -79,39 +87,7 @@ export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
     });
   });
 
-  const s5 = vm.section5;
-  const tilt = s5?.tiltPhoto;
-  if (tilt?.url) {
-    refs.push({
-      section: 'SECTION5',
-      photoKey: urlPhotoKey(tilt.url),
-      url: tilt.url,
-      label: 'Mục V • Ảnh kiểm tra nghiêng',
-      rotation: 0,
-      dateTimeText: defaultDate,
-      photoCodeText: code('EXT_TILT_01'),
-      getBase64: () => tilt.base64,
-      setBase64: (v) => { tilt.base64 = v; },
-      isWatermarked: () => Boolean(tilt.alreadyWatermarked),
-      markWatermarked: () => { tilt.alreadyWatermarked = true; },
-    });
-  }
-  const settle = s5?.settlementPhoto;
-  if (settle?.url) {
-    refs.push({
-      section: 'SECTION5',
-      photoKey: urlPhotoKey(settle.url),
-      url: settle.url,
-      label: 'Mục V • Ảnh khảo sát lún',
-      rotation: 0,
-      dateTimeText: defaultDate,
-      photoCodeText: code('FOUND_SETTLE_01'),
-      getBase64: () => settle.base64,
-      setBase64: (v) => { settle.base64 = v; },
-      isWatermarked: () => Boolean(settle.alreadyWatermarked),
-      markWatermarked: () => { settle.alreadyWatermarked = true; },
-    });
-  }
+  // Ảnh Mục V (tiltPhoto / settlementPhoto) không được template nào in: không crop, không dập (cùng ảnh đã in ở Phụ lục 1).
 
   for (const fl of vm.appendix2 || []) {
     const floorLabel = fl.floorName?.vi || `Tầng ${fl.floorOrder}`;
@@ -126,7 +102,7 @@ export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
         url: cadUrl,
         label: `${floorLabel} • Sơ đồ mặt bằng kiến trúc`,
         rotation: cadRot,
-        dateTimeText: defaultDate,
+        dateTimeText: fl.damageMapWatermarkDateTime || defaultDate,
         photoCodeText: fl.damageMapWatermarkCode || code(`${floorCode}_CAD_ARCH`),
         getBase64: () => fl.damageMapBase64,
         setBase64: (v) => { fl.damageMapBase64 = v; },
@@ -155,7 +131,7 @@ export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
         url: cadUrl,
         label: `${floorLabel} • Sơ đồ kết cấu`,
         rotation: cadRot,
-        dateTimeText: defaultDate,
+        dateTimeText: fl.structuralMapWatermarkDateTime || defaultDate,
         photoCodeText: fl.structuralMapWatermarkCode || code(`${floorCode}_CAD_STRUCT`),
         getBase64: () => fl.structuralMapBase64,
         setBase64: (v) => { fl.structuralMapBase64 = v; },
@@ -240,6 +216,45 @@ export function walkViewModelPhotos(vm: ReportViewModel): VmPhotoRef[] {
           setBase64: (v) => { photo.base64 = v; },
           isWatermarked: () => Boolean(photo.alreadyWatermarked),
           markWatermarked: () => { photo.alreadyWatermarked = true; },
+        });
+      }
+    }
+  }
+
+  if (options.includeDocuments) {
+    // Mục XI: bản scan biên bản hiện trường / thông báo vắng chủ.
+    for (const page of vm.appendix3?.signedRecordPages || []) {
+      if (!page.url) continue;
+      refs.push({
+        section: 'MINUTES',
+        photoKey: urlPhotoKey(page.url),
+        url: page.url,
+        label: `Mục XI • Biên bản trang ${page.pageIndex}`,
+        rotation: Number(page.rotation) || 0,
+        dateTimeText: page.watermarkDateTime || defaultDate,
+        photoCodeText: page.metroPhotoCode || code(`DOC_MINUTES_${String(page.pageIndex).padStart(2, '0')}`),
+        getBase64: () => page.base64,
+        setBase64: (v) => { page.base64 = v; },
+        isWatermarked: () => Boolean(page.alreadyWatermarked),
+        markWatermarked: () => { page.alreadyWatermarked = true; },
+      });
+    }
+    // Mục XII: bản vẽ thiết kế / hoàn công do chủ hộ cung cấp.
+    for (const sheet of vm.section12AsBuilt?.sheets || []) {
+      for (const drawing of sheet.drawings || []) {
+        if (!drawing.url) continue;
+        refs.push({
+          section: 'ASBUILT',
+          photoKey: urlPhotoKey(drawing.url),
+          url: drawing.url,
+          label: `Mục XII • Bản vẽ ${drawing.index}`,
+          rotation: Number(drawing.rotation) || 0,
+          dateTimeText: drawing.watermarkDateTime || defaultDate,
+          photoCodeText: code(drawing.photoCode || `CAT-DWG-${String(drawing.index).padStart(2, '0')}`),
+          getBase64: () => drawing.base64,
+          setBase64: (v) => { drawing.base64 = v; },
+          isWatermarked: () => Boolean(drawing.alreadyWatermarked),
+          markWatermarked: () => { drawing.alreadyWatermarked = true; },
         });
       }
     }

@@ -17,11 +17,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
 
-export const WATERMARK_DETECTOR_VERSION = 'logo-v1';
+export const WATERMARK_DETECTOR_VERSION = 'logo-v2';
 
-/** Ngưỡng: ≥ WATERMARKED chắc chắn có dấu; [UNSURE, WATERMARKED) lưng chừng → coi như có dấu, ghi log. */
-const SCORE_WATERMARKED = 2;
-const SCORE_UNSURE = 1.3;
+/**
+ * Ngưỡng (logo-v2, chốt 13/11/2026): ≥ WATERMARKED chắc chắn có dấu; [UNSURE, WATERMARKED) là NGHI NGỜ,
+ * report chặn xuất tới khi người xác nhận. Ảnh sạch thật đo được 0,98–1,21; ảnh có dấu ≥ 4,79.
+ * Điểm đã lưu từ logo-v1 vẫn dùng được: chỉ phân loại lại theo ngưỡng này (verdictOfScore).
+ */
+export const SCORE_WATERMARKED = 4.5;
+export const SCORE_UNSURE = 1.15;
 
 /** Thu ảnh về cạnh dài này trước khi quét để nhanh và ổn định giữa các độ phân giải. */
 const SCAN_LONG_SIDE_PX = 1200;
@@ -109,7 +113,7 @@ async function templateAt(width: number): Promise<LogoTemplate> {
   return tpl;
 }
 
-function verdictOf(score: number): LegacyWatermarkVerdict {
+export function verdictOfScore(score: number): LegacyWatermarkVerdict {
   if (score >= SCORE_WATERMARKED) return 'WATERMARKED';
   if (score >= SCORE_UNSURE) return 'UNSURE';
   return 'CLEAN';
@@ -172,7 +176,7 @@ export class WatermarkDetectorService {
     }
 
     const score = Math.round(best * 1000) / 1000;
-    const verdict = verdictOf(score);
+    const verdict = verdictOfScore(score);
     return { verdict, hasLegacyWatermark: verdict !== 'CLEAN', score, logoBox: bestBox };
   }
 }

@@ -1503,3 +1503,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_photo_resurvey_item_target
 CREATE INDEX IF NOT EXISTS idx_photo_resurvey_items_session ON survey_photo_resurvey_items(resurvey_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_photo_resurvey_items_apply
     ON survey_photo_resurvey_items(resurvey_id, apply_status) WHERE deleted_at IS NULL;
+
+-- ============================================================================
+-- 20261113 + 20261116: Trạng thái dấu cũ (logo PWA cũ cháy sẵn) theo URL ảnh
+-- xem migration 20261113_create_photo_watermark_status.sql, 20261116_photo_watermark_manual_confirm.sql
+-- source = DETECTOR (bộ dò, được ghi đè) | MANUAL (người xác nhận, bộ dò không ghi đè)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS photo_watermark_status (
+    photo_url TEXT PRIMARY KEY,
+    has_legacy_watermark BOOLEAN NOT NULL,
+    verdict TEXT NOT NULL,
+    score NUMERIC(8, 3),
+    detector_version TEXT NOT NULL,
+    detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    source TEXT NOT NULL DEFAULT 'DETECTOR',
+    confirmed_by UUID NULL,
+    confirmed_at TIMESTAMPTZ NULL,
+    confirm_reason TEXT NULL,
+    CONSTRAINT chk_photo_watermark_status_verdict CHECK (verdict IN ('WATERMARKED', 'UNSURE', 'CLEAN')),
+    CONSTRAINT chk_photo_watermark_status_source CHECK (source IN ('DETECTOR', 'MANUAL'))
+);
+CREATE INDEX IF NOT EXISTS idx_photo_watermark_status_verdict ON photo_watermark_status (verdict);
+CREATE INDEX IF NOT EXISTS idx_photo_watermark_status_source ON photo_watermark_status (source);

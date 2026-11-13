@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { sleep, withFetchSlot } from '../services/report-image-resolver.service';
 
 /**
  * Global In-Memory Cache lưu trữ tỷ lệ khung ảnh (Portrait: true, Landscape: false)
@@ -49,16 +50,19 @@ export async function preloadImageOrientations(urls: (string | undefined | null)
     await Promise.allSettled(
       batch.map(async (url) => {
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          // Dùng chung giới hạn tải của cả tiến trình; bị r2.dev giới hạn (429) thì chờ và thử lại tối đa 3 lần.
+          let res: Response | null = null;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            res = await withFetchSlot(() => fetch(url, { headers: { Range: 'bytes=0-32767' }, signal: AbortSignal.timeout(8000) }));
+            if (res.status !== 429 && res.status < 500) break;
+            if (attempt < 3) await sleep(1500 * attempt);
+          }
+          if (!res) return;
 
-          const res = await fetch(url, {
-            headers: { Range: 'bytes=0-32767' },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (!res.ok && res.status !== 206) return;
+          if (!res.ok && res.status !== 206) {
+            console.warn(`[ImageSniff:orientation] Không đọc được đầu file ảnh (HTTP ${res.status}), coi như ảnh ngang: ${url}`);
+            return;
+          }
 
           const arrayBuf = await res.arrayBuffer();
           const buf = Buffer.from(arrayBuf);
@@ -74,8 +78,8 @@ export async function preloadImageOrientations(urls: (string | undefined | null)
             portraitCache.set(url, pngDim.height > pngDim.width);
             return;
           }
-        } catch {
-          // Bỏ qua lỗi kết nối mạng, fallback về false
+        } catch (err) {
+          console.warn(`[ImageSniff:orientation] Không đọc được hướng ảnh, coi như ảnh ngang: ${url}`, err);
         }
       })
     );

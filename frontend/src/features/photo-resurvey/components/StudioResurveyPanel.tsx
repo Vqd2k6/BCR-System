@@ -181,7 +181,7 @@ export const StudioResurveyPanel: React.FC<StudioResurveyPanelProps> = ({ view, 
                   <div className="text-[10px] font-bold uppercase text-slate-500">
                     Ảnh cũ trong hồ sơ{r.state === 'APPLIED' && r.action === 'REPLACE' ? ' (đã thay)' : ''}
                     {r.oldUrl && (
-                      <span className="ml-1 normal-case font-semibold text-slate-700">• Giờ chụp gốc: {r.oldTimeText ?? '---'}</span>
+                      <span className="ml-1 normal-case font-semibold text-slate-700">• Giờ chụp gốc: {r.oldTimeText ?? (r.action === 'MARK_NA' && r.state === 'APPLIED' ? '--- (ô đã bỏ khỏi report)' : '---')}</span>
                     )}
                   </div>
                   {r.oldUrl ? (

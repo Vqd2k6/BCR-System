@@ -27,6 +27,18 @@ export interface StudioResurveyPhotoMark {
   action: 'REPLACE' | 'ADD_EXTRA' | 'MARK_NA' | null;
   newUrl: string | null;
   newRotation: number;
+  naReason: string | null;
+}
+
+/** Ảnh phát sinh thêm của phiên chụp lại (không có ảnh gốc), Studio hiện thành thẻ riêng sau ảnh cuối của mục. */
+export interface StudioResurveyExtraCard {
+  key: string;
+  slotCode: string;
+  label: string;
+  newUrl: string;
+  newRotation: number;
+  printTimeText: string | null;
+  state: StudioResurveyPhotoMark['state'];
 }
 
 /** Trạng thái ảnh dùng chung cho mọi thẻ ảnh Studio (crop chờ duyệt, ảnh chụp lại, ảnh vừa cập nhật). */
@@ -35,14 +47,29 @@ export interface StudioPhotoStatus {
   pendingCrops: ReadonlyMap<string, string>;
   /** URL ảnh gốc → trạng thái chụp lại. */
   resurvey: ReadonlyMap<string, StudioResurveyPhotoMark>;
+  /** Ảnh phát sinh thêm (ADD_EXTRA) đã duyệt phiên: APPLIED (report in) hoặc READY (chờ đưa vào). */
+  extras: ReadonlyArray<StudioResurveyExtraCard>;
   /** URL vừa đổi (duyệt crop / ảnh chụp lại) để thẻ ảnh nháy viền cho dễ thấy. */
   recent: ReadonlySet<string>;
   openCropReview: ((photoKey: string) => void) | null;
   /** Mở panel Ảnh Chụp Lại để Đưa vào ngay. */
   openResurveyPanel: (() => void) | null;
+  /** URL ảnh nghi ngờ dấu cũ (điểm dò lưng chừng) → điểm. Report chặn xuất tới khi xác nhận từng ảnh. */
+  legacySuspects: ReadonlyMap<string, number | null>;
+  /** Xác nhận một ảnh nghi ngờ: có / chưa có dấu cũ. */
+  confirmLegacy: ((url: string) => void) | null;
 }
 
-const EMPTY_STATUS: StudioPhotoStatus = { pendingCrops: new Map(), resurvey: new Map(), recent: new Set(), openCropReview: null, openResurveyPanel: null };
+const EMPTY_STATUS: StudioPhotoStatus = {
+  pendingCrops: new Map(),
+  resurvey: new Map(),
+  extras: [],
+  recent: new Set(),
+  openCropReview: null,
+  openResurveyPanel: null,
+  legacySuspects: new Map(),
+  confirmLegacy: null,
+};
 
 export const StudioPhotoStatusContext = createContext<StudioPhotoStatus>(EMPTY_STATUS);
 

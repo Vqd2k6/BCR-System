@@ -40,6 +40,19 @@ export interface StudioResurveyMark {
   action: ResurveyItemRow['action'] | null;
   newUrl: string | null;
   newRotation: number;
+  /** Lý do KSV đánh dấu N/A (chỉ có với MARK_NA). */
+  naReason: string | null;
+}
+
+/** Ảnh phát sinh thêm (ADD_EXTRA): không có ảnh gốc nên không khóa theo URL, Studio hiện thành thẻ riêng. */
+export interface StudioResurveyExtra {
+  key: string;
+  slotCode: ResurveySlotCode;
+  label: string;
+  newUrl: string;
+  newRotation: number;
+  printTimeText: string | null;
+  state: StudioResurveyState;
 }
 
 export function buildStudioResurveyRows(view: ResurveySessionView): StudioResurveyRow[] {
@@ -111,9 +124,18 @@ export function buildStudioResurveyMarks(rows: StudioResurveyRow[]): Map<string,
   const marks = new Map<string, StudioResurveyMark>();
   for (const r of rows) {
     if (!r.oldUrl) continue;
-    marks.set(r.oldUrl, { state: r.state, action: r.action, newUrl: r.newUrl, newRotation: r.newRotation });
+    marks.set(r.oldUrl, { state: r.state, action: r.action, newUrl: r.newUrl, newRotation: r.newRotation, naReason: r.naReason });
   }
   return marks;
+}
+
+/** Ảnh phát sinh thêm có ảnh mới, để Studio hiện đúng các ô report sẽ in thêm (APPLIED) hoặc đang chờ đưa vào (READY). */
+export function buildStudioResurveyExtras(rows: StudioResurveyRow[]): StudioResurveyExtra[] {
+  return rows.flatMap((r): StudioResurveyExtra[] =>
+    r.action === 'ADD_EXTRA' && r.newUrl
+      ? [{ key: r.key, slotCode: r.slotCode, label: r.label, newUrl: r.newUrl, newRotation: r.newRotation, printTimeText: r.printTimeText, state: r.state }]
+      : []
+  );
 }
 
 export const STUDIO_RESURVEY_STATE_LABEL: Record<StudioResurveyState, string> = {

@@ -12,7 +12,7 @@ import Handlebars from 'handlebars';
 import { Database } from '../../../database/db';
 import { SurveyRepository } from '../../survey/survey.repository';
 import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
-import { ConflictError, NotFoundError } from '../../../common/errors/problem-details';
+import { ConflictError, NotFoundError, WatermarkIncompleteError } from '../../../common/errors/problem-details';
 import { maskReportPii } from '../../../common/utils/pii.utils';
 import { ReportViewModel } from '../report.types';
 import { ReportViewModelMapper } from '../mappers/report-viewmodel.mapper';
@@ -22,8 +22,10 @@ import { applyOverridesToReport } from '../utils/report-override.utils';
 import { preloadImageOrientations } from '../utils/image-sniff.utils';
 import { extractParcelPolygonCoords } from '../utils/spatial-svg.utils';
 import { loadNeighbourParcelRings } from '../utils/neighbour-parcels.utils';
-import { extractAllImageUrls, buildPreloadRotationItems } from '../utils/report-preload.utils';
-import { ReportWatermarkCanvasService, type WatermarkVerifyReport } from './report-watermark-canvas.service';
+import { extractAllImageUrls } from '../utils/report-preload.utils';
+import { ReportWatermarkCanvasService, type WatermarkIssue, type WatermarkVerifyReport } from './report-watermark-canvas.service';
+import { runWithRenderImageScope } from './report-image-scope';
+import { walkViewModelPhotos } from '../../photo-qc/photo-qc.vm-walker';
 import { ReportImageResolver } from './report-image-resolver.service';
 import { LegacyWatermarkIndex } from './legacy-watermark-index.service';
 import { ReportFontsService } from './report-fonts.service';
@@ -35,6 +37,22 @@ import { applyPhotoQcToViewModel, resolvePhotoQcStateForRender } from '../../pho
 import { applyResurveyToViewModel, resolveResurveyStateForRender } from '../../photo-resurvey/photo-resurvey.render';
 
 export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG';
+
+/** Cách khắc phục cho từng loại ảnh chưa dập được (hiện ở bản xem trước và trong lỗi chặn xuất). */
+export function watermarkIssueHint(issue: WatermarkIssue): string {
+  switch (issue.reason) {
+    case 'LOAD_FAILED':
+      return issue.fileMissing
+        ? 'File ảnh không còn trên R2. Mở ô ảnh trong Studio để thay ảnh (xem gợi ý bản trùng SHA / ảnh trước trong lịch sử).'
+        : `Không tải được ảnh (${issue.httpStatus ? `HTTP ${issue.httpStatus}` : issue.detail}). Đã thử lại và đọc thẳng R2; bấm Thử lại sau ít phút.`;
+    case 'TOO_SMALL':
+      return 'Ảnh nhỏ hơn 80px (thường là ảnh thu nhỏ lưu nhầm). Mở ô ảnh trong Studio để thay bằng ảnh đầy đủ trong lịch sử.';
+    case 'STAMP_ERROR':
+      return 'Dập dấu lỗi 2 lần, file ảnh có thể hỏng. Mở ô ảnh trong Studio để thay ảnh.';
+    case 'SUSPECT_LEGACY':
+      return `${issue.detail}. Zone Admin / Super Admin xác nhận ảnh này "Có dấu cũ" hoặc "Chưa có dấu".`;
+  }
+}
 
 export interface ResolvedReport {
   id: string;
@@ -197,7 +215,7 @@ export class ReportService {
     overrides?: any,
     maskPii: boolean = false,
     enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
     return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark);
   }
 
@@ -224,70 +242,111 @@ export class ReportService {
     overrides?: any,
     maskPii: boolean = false,
     enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
-    let activeReport = await applyCondoReportContext(applyOverridesToReport(rawReport, overrides));
-    if (maskPii) {
-      activeReport = maskReportPii(activeReport);
-    }
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
+    // Mỗi lượt render một kho ảnh riêng: hồ sơ nhiều ảnh hoặc nhiều lượt chạy song song không đẩy ảnh của nhau ra.
+    return runWithRenderImageScope(async (scope) => {
+      let activeReport = await applyCondoReportContext(applyOverridesToReport(rawReport, overrides));
+      if (maskPii) {
+        activeReport = maskReportPii(activeReport);
+      }
 
-    if (activeReport.unit_id && !activeReport.unit_code) {
-      activeReport = { ...activeReport, unit_code: await this.fetchUnitCode(String(activeReport.unit_id)) };
-    }
+      if (activeReport.unit_id && !activeReport.unit_code) {
+        activeReport = { ...activeReport, unit_code: await this.fetchUnitCode(String(activeReport.unit_id)) };
+      }
 
-    const allPhotoUrls = extractAllImageUrls(activeReport);
-    const photoRotationsMap = activeReport.survey_data_json?.photoRotations || activeReport.photoRotations || {};
-    await preloadImageOrientations(allPhotoUrls);
-    const preloadItems = buildPreloadRotationItems(activeReport, allPhotoUrls, photoRotationsMap);
-    await ReportImageResolver.preloadAndResolveAll(preloadItems, photoRotationsMap);
-    // Dò logo watermark FE cũ trên pixel (ảnh đã nạp sẵn ở bước trên), kết quả lưu vĩnh viễn theo URL.
-    await LegacyWatermarkIndex.load(allPhotoUrls, { detect: true });
+      // Bản Rev đã phát hành: trạng thái dấu cũ đọc từ snapshot, không đọc bảng sống.
+      if (activeReport.photo_watermark_frozen === true && activeReport.photo_watermark && typeof activeReport.photo_watermark === 'object') {
+        scope.frozenLegacy = new Map(
+          Object.entries(activeReport.photo_watermark as Record<string, unknown>)
+            .filter((e): e is [string, boolean] => typeof e[1] === 'boolean')
+        );
+      }
 
-    // Sơ đồ Mục II vẽ kiểu Bình đồ (nền trắng, không ảnh vệ tinh): nạp ranh thửa lân cận để vẽ ngữ cảnh.
-    if (extractParcelPolygonCoords(activeReport, activeReport.survey_data_json)) {
-      activeReport.spatialNeighbourRings = await loadNeighbourParcelRings(
-        typeof activeReport.parcel_id === 'string' ? activeReport.parcel_id : null
-      );
-    }
+      // Hướng ảnh (dọc/ngang) chỉ đọc vài KB đầu file, mapper cần để chọn góc xoay trước lượt dò.
+      await preloadImageOrientations(extractAllImageUrls(activeReport));
 
-    const config: ReportContentConfig =
-      activeReport.reportContentConfig || (await ReportConfigService.getActiveConfig());
+      // Sơ đồ Mục II vẽ kiểu Bình đồ (nền trắng, không ảnh vệ tinh): nạp ranh thửa lân cận để vẽ ngữ cảnh.
+      if (extractParcelPolygonCoords(activeReport, activeReport.survey_data_json)) {
+        activeReport.spatialNeighbourRings = await loadNeighbourParcelRings(
+          typeof activeReport.parcel_id === 'string' ? activeReport.parcel_id : null
+        );
+      }
 
-    const viewModel = ReportViewModelMapper.buildViewModel(activeReport, overrides, config);
-    if (maskPii) {
-      viewModel.isPiiMasked = true;
-    }
+      const config: ReportContentConfig =
+        activeReport.reportContentConfig || (await ReportConfigService.getActiveConfig());
 
-    const effectiveWatermark = maskPii ? true : enableWatermark;
-    // Khảo sát bổ sung (ảnh ngoài nhà chụp lại đã duyệt): chạy TRƯỚC Photo QC để bìa P04 / crop thấy ảnh mới.
-    // Không có phiên đã duyệt thì bỏ qua hoàn toàn (report giữ nguyên từng byte).
-    const resurveyState = await resolveResurveyStateForRender(activeReport);
-    if (resurveyState) {
-      await applyResurveyToViewModel(viewModel, resurveyState, { loadImages: true });
-    }
-    // Photo QC (bìa P04, crop 4:3/3:4, dập bù): không có thao tác QC thì bỏ qua hoàn toàn.
-    const photoQcState = await resolvePhotoQcStateForRender(activeReport);
-    if (photoQcState) {
-      await applyPhotoQcToViewModel(viewModel, photoQcState, {
-        watermark: effectiveWatermark,
-        studioEnhanced: activeReport.survey_data_json?.studioEnhancedPhotos ?? null,
+      // Lượt dò: dựng ViewModel trên bản sao để biết đúng ảnh (URL + góc xoay) report sẽ in, chỉ nạp các ảnh đó.
+      // Mapper gặp ảnh chưa nạp sẽ ghi vào scope.requested (xem ReportImageResolver.resolveToBase64).
+      // Lặp tối đa 3 lượt vì có mapper chỉ yêu cầu ảnh phụ sau khi ảnh chính đã nạp. Ảnh tải lỗi không thử lại
+      // trong cùng lượt render (lỗi đã ghi vào scope.failures để báo và chặn xuất).
+      for (let pass = 0; pass < 3; pass++) {
+        scope.requested.clear();
+        ReportViewModelMapper.buildViewModel(structuredClone(activeReport), overrides, config);
+        const items = [...scope.requested]
+          .filter(([url]) => !scope.failures.has(url))
+          .flatMap(([url, degs]) => [...degs].map((rotation) => ({ url, rotation })));
+        if (items.length === 0) break;
+        await ReportImageResolver.preloadAndResolveAll(items);
+      }
+      // Dò logo dấu cũ trên pixel cho đúng các ảnh được in (kể cả sơ đồ CAD), kết quả lưu vĩnh viễn theo URL.
+      // Bản Rev: ảnh đã có trong snapshot dùng kết quả đóng băng; ảnh snapshot chưa có (chưa từng được dò lúc chốt)
+      // vẫn được dò ở đây, để không bắt người xác nhận tay hàng loạt ảnh chỉ vì chưa dò.
+      const notFrozen = (u: string) => !scope.frozenLegacy?.has(u);
+      const printedUrls = [...scope.native.keys(), ...scope.failures.keys()].filter(notFrozen);
+      await LegacyWatermarkIndex.load(printedUrls, { detect: true });
+
+      const viewModel = ReportViewModelMapper.buildViewModel(activeReport, overrides, config);
+      if (maskPii) {
+        viewModel.isPiiMasked = true;
+      }
+
+      const effectiveWatermark = maskPii ? true : enableWatermark;
+      // Khảo sát bổ sung (ảnh ngoài nhà chụp lại đã duyệt): chạy TRƯỚC Photo QC để bìa P04 / crop thấy ảnh mới.
+      // Không có phiên đã duyệt thì bỏ qua hoàn toàn (report giữ nguyên từng byte).
+      const resurveyState = await resolveResurveyStateForRender(activeReport);
+      if (resurveyState) {
+        await applyResurveyToViewModel(viewModel, resurveyState, { loadImages: true });
+        // Ảnh mới chụp lại cũng phải có kết quả dò trước khi dập.
+        await LegacyWatermarkIndex.load(walkViewModelPhotos(viewModel).map((r) => r.url).filter(notFrozen), { detect: true });
+      }
+      // Photo QC (bìa P04, crop 4:3/3:4, dập bù): không có thao tác QC thì bỏ qua hoàn toàn.
+      const photoQcState = await resolvePhotoQcStateForRender(activeReport);
+      if (photoQcState) {
+        await applyPhotoQcToViewModel(viewModel, photoQcState, {
+          watermark: effectiveWatermark,
+          studioEnhanced: activeReport.survey_data_json?.studioEnhancedPhotos ?? null,
+        });
+      }
+      // Luôn kiểm 100% ảnh: bật watermark thì dập + xét dấu cũ, tắt thì chỉ kiểm ảnh có nạp được không.
+      const watermark = await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel, { stamp: effectiveWatermark });
+
+      const { template, styles } = this.getCompiledTemplate();
+      const html = template({
+        ...viewModel,
+        styles,
+        isPiiMasked: maskPii,
+        isGuestWatermark: maskPii,
+        enableWatermark: effectiveWatermark,
+        isDraft: String(activeReport.status || '').toUpperCase() !== 'APPROVED',
+        watermarkIssues: watermark.issues.map((i) => ({ ...i, hint: watermarkIssueHint(i) })),
+        watermarkIssueCount: watermark.issues.length,
       });
-    }
-    let watermark: WatermarkVerifyReport | undefined;
-    if (effectiveWatermark) {
-      watermark = await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel);
-    }
 
-    const { template, styles } = this.getCompiledTemplate();
-    const html = template({
-      ...viewModel,
-      styles,
-      isPiiMasked: maskPii,
-      isGuestWatermark: maskPii,
-      enableWatermark: effectiveWatermark,
-      isDraft: String(activeReport.status || '').toUpperCase() !== 'APPROVED',
+      return { html, viewModel, watermark };
     });
+  }
 
-    return { html, viewModel, watermark };
+  /**
+   * Chốt chặn cứng (chốt 13/11/2026): còn bất kỳ ảnh nào chưa dập được watermark thật thì không xuất
+   * PDF nào (nháp lẫn Rev). Xem trước HTML vẫn mở được để chẩn đoán, ảnh lỗi có khung đỏ và cách khắc phục.
+   */
+  public static assertWatermarkComplete(watermark: WatermarkVerifyReport, kind: 'nháp' | 'Rev'): void {
+    if (watermark.failed === 0) return;
+    const list = watermark.issues.slice(0, 5).map((i) => `${i.photoCode} (${i.label}): ${watermarkIssueHint(i)}`).join('; ');
+    throw new WatermarkIncompleteError(
+      `Không xuất PDF ${kind}: ${watermark.issues.length} ảnh chưa dập được watermark. ${list}${watermark.issues.length > 5 ? '; …' : ''} Mở tab xem trước HTML để xem từng ảnh và cách khắc phục.`,
+      watermark.issues.map((i) => ({ field: i.url, message: `${i.photoCode}: ${watermarkIssueHint(i)}` }))
+    );
   }
 
   public static buildFinalReport(
@@ -320,12 +379,8 @@ export class ReportService {
     }
     return RenderQueue.run(async () => {
       const { html, viewModel, watermark } = await this.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
-      // Bản Rev pháp lý: không phát hành khi có ảnh dập watermark lỗi ở máy chủ (chỉ còn lớp CSS dự phòng).
-      if (watermark && watermark.errors > 0 && process.env.REPORT_RELEASE_REQUIRE_FULL_WATERMARK !== 'false') {
-        throw new ConflictError(
-          `Không phát hành Rev: ${watermark.errors}/${watermark.total} ảnh không dập được watermark. Kiểm tra log [ReportWatermark:verify] rồi thử lại.`
-        );
-      }
+      // Bản Rev pháp lý: 100% ảnh phải được dập thật (không còn cờ môi trường nào cho lách).
+      this.assertWatermarkComplete(watermark, 'Rev');
       const reportNo = viewModel.metadata.reportNo;
       const buildingId = viewModel.metadata.buildingId;
       const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {
@@ -348,7 +403,7 @@ export class ReportService {
     maskPii: boolean,
     enableWatermark: boolean,
     revision?: number
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark?: WatermarkVerifyReport }> {
+  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
     const effectiveOverrides = resolved.status === 'APPROVED' ? undefined : overrides;
     let reportData = resolved.raw;
     if (resolved.status === 'APPROVED') {
@@ -374,7 +429,9 @@ export class ReportService {
     // Hồ sơ APPROVED render theo snapshot đã đóng băng nên không cần gate; bản nháp phải duyệt xong crop.
     if (resolved.status !== 'APPROVED') await this.assertPhotoQcCropsReviewed(resolved.id);
     return RenderQueue.run(async () => {
-      const { html, viewModel } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision);
+      const { html, viewModel, watermark } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision);
+      // PDF nháp cũng chặn cứng như Rev (chốt 13/11/2026): bản nháp hay được gửi đi, không để ảnh lỗi lọt ra file.
+      this.assertWatermarkComplete(watermark, 'nháp');
       const reportNo = viewModel.metadata.reportNo;
       const buildingId = viewModel.metadata.buildingId;
       const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {

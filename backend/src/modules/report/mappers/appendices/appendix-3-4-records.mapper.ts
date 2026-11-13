@@ -382,6 +382,8 @@ export class Appendix3And4Mapper {
         photoCode,
         rotation,
         alreadyWatermarked: isPhotoAlreadyWatermarked(url),
+        // Cùng kiểu giờ với ảnh khác: giờ chụp / mốc trong tên file, cuối cùng mới là ngày khảo sát.
+        watermarkDateTime: extractPhotoDateTime(url, item?.shotAt ?? item?.capturedAt ?? null, json.surveyDate || rawReport.survey_date || null) || undefined,
       };
     });
 

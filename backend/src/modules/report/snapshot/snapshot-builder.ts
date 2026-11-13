@@ -35,6 +35,8 @@ import { isResidentialAbsentSurvey } from '../../audit/absence-evidence';
 import { overlayZoneCtxFromJson } from '../../survey/zone-ctx.utils';
 import { PhotoQcRepository } from '../../photo-qc/photo-qc.repository';
 import { PhotoResurveyRepository } from '../../photo-resurvey/photo-resurvey.repository';
+import { LegacyWatermarkIndex } from '../services/legacy-watermark-index.service';
+import { extractAllImageUrls } from '../utils/report-preload.utils';
 
 export {
   type RiskCardRow,
@@ -316,9 +318,18 @@ export async function buildApprovedSnapshot(
   const photoQc = await PhotoQcRepository.loadRenderState(reportId, client);
   // Khảo sát bổ sung đã duyệt cũng đóng băng cùng revision (null = chưa có phiên nào được duyệt).
   const photoResurvey = await PhotoResurveyRepository.loadRenderState(reportId, client);
+  // Trạng thái dấu cũ (dò / xác nhận tay) của mọi ảnh trong hồ sơ cũng đóng băng: xem lại Rev cũ không đổi
+  // khi sau này Super Admin sửa một lần xác nhận hoặc đổi ngưỡng bộ dò.
+  const watermarkUrls = extractAllImageUrls({
+    survey: rawSurveyJson,
+    rows: [photosRes.rows, floorsRes.rows, zonesRes.rows],
+    resurvey: photoResurvey,
+  });
+  const photoWatermark = await LegacyWatermarkIndex.decisionsForSnapshot(watermarkUrls, client);
   const frozenReportData: Record<string, unknown> = {
     photo_qc: photoQc,
     photo_resurvey: photoResurvey,
+    photo_watermark: photoWatermark,
     identificationPhotos: photosRes.rows,
     buildingSpecs: specsRes.rows[0] || null,
     historicalSensitivity: isAbsentUnit ? null : historyRes.rows[0] || null,

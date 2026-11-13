@@ -25,7 +25,6 @@
               <div class="cad-map-pinning-wrapper">
                 <div class="cad-map-tight-box">
                   <img crossorigin="anonymous" src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-cad-portrait">
-                  {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                   {{#each this.cadPins}}
                     <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                       <span class="cad-pin-badge">{{this.code}}</span>
@@ -40,7 +39,6 @@
               <div class="cad-map-pinning-wrapper">
                 <div class="cad-map-tight-box">
                   <img crossorigin="anonymous" src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-cad-portrait">
-                  {{> watermark-overlay applied=this.structuralMapAlreadyWatermarked code=this.structuralMapWatermarkCode}}
                   {{#each this.cadStructuralPins}}
                     <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                       <span class="cad-pin-badge">{{this.code}}</span>
@@ -57,7 +55,6 @@
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
                 <img crossorigin="anonymous" src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
-                {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                 {{#each this.cadPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>
@@ -73,7 +70,6 @@
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
                 <img crossorigin="anonymous" src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
-                {{> watermark-overlay applied=this.damageMapAlreadyWatermarked code=this.damageMapWatermarkCode}}
                 {{#each this.cadPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>
@@ -215,17 +211,6 @@
                           </div>
                         {{/if}}
                         {{#if this.contextPhotoUrl}}
-                          {{#if @root.enableWatermark}}
-                            {{#unless this.contextAlreadyWatermarked}}
-                              {{#if @root.metadata.headerLogoBase64}}
-                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                              {{/if}}
-                              <div class="watermark-text-bottom-right watermark-text-sm">
-                                <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">{{this.contextWatermarkCode}}</div>
-                              </div>
-                            {{/unless}}
-                          {{/if}}
                         {{/if}}
                       </div>
                       <div class="photo-caption font-bold">{{this.contextCaption.vi}}</div>
@@ -245,17 +230,6 @@
                           </div>
                         {{/if}}
                         {{#if this.closeUpPhotoUrl}}
-                          {{#if @root.enableWatermark}}
-                            {{#unless this.closeUpAlreadyWatermarked}}
-                              {{#if @root.metadata.headerLogoBase64}}
-                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                              {{/if}}
-                              <div class="watermark-text-bottom-right watermark-text-sm">
-                                <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">{{this.closeUpWatermarkCode}}</div>
-                              </div>
-                            {{/unless}}
-                          {{/if}}
                         {{/if}}
                       </div>
                       <div class="photo-caption font-bold">{{this.closeUpCaption.vi}}</div>
@@ -273,17 +247,6 @@
                           </div>
                         {{/if}}
                         {{#if this.extraCloseUpPhotoUrl}}
-                          {{#if @root.enableWatermark}}
-                            {{#unless this.extraCloseUpAlreadyWatermarked}}
-                              {{#if @root.metadata.headerLogoBase64}}
-                                <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                              {{/if}}
-                              <div class="watermark-text-bottom-right watermark-text-sm">
-                                <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                                <div class="watermark-code">{{this.extraCloseUpWatermarkCode}}</div>
-                              </div>
-                            {{/unless}}
-                          {{/if}}
                         {{/if}}
                       </div>
                       <div class="photo-caption font-bold">{{this.extraCloseUpCaption.vi}}</div>
@@ -324,17 +287,6 @@
                         </div>
                       {{/if}}
                       {{#if this.contextPhotoUrl}}
-                        {{#if @root.enableWatermark}}
-                          {{#unless this.contextAlreadyWatermarked}}
-                            {{#if @root.metadata.headerLogoBase64}}
-                              <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                            {{/if}}
-                            <div class="watermark-text-bottom-right watermark-text-sm">
-                              <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">{{this.contextWatermarkCode}}</div>
-                            </div>
-                          {{/unless}}
-                        {{/if}}
                       {{/if}}
                     </div>
                     <div class="photo-caption">{{this.contextCaption.vi}}</div>
@@ -352,17 +304,6 @@
                         </div>
                       {{/if}}
                       {{#if this.closeUpPhotoUrl}}
-                        {{#if @root.enableWatermark}}
-                          {{#unless this.closeUpAlreadyWatermarked}}
-                            {{#if @root.metadata.headerLogoBase64}}
-                              <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                            {{/if}}
-                            <div class="watermark-text-bottom-right watermark-text-sm">
-                              <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
-                              <div class="watermark-code">{{this.closeUpWatermarkCode}}</div>
-                            </div>
-                          {{/unless}}
-                        {{/if}}
                       {{/if}}
                     </div>
                     <div class="photo-caption font-bold">{{this.closeUpCaption.vi}}</div>

@@ -19,6 +19,7 @@ import {
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES as PHASE1_DATA_SOURCES } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
+import { ResurveyExtraCards } from '../components/studioPhotoView';
 import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload, PhotoOrientationViolation } from '../types';
 
 interface Props {
@@ -411,6 +412,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         </div>
                       );
                     })}
+                  {/* Ảnh KSV chụp thêm khi khảo sát lại (P-06) – report in sau ảnh cuối của mục */}
+                  <ResurveyExtraCards slotCodes={['P-06']} onOpenPhotoZoom={onOpenPhotoZoom} />
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
@@ -712,6 +715,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         </div>
                       );
                     })}
+                  {/* Ảnh KSV chụp thêm khi khảo sát lại (P-05) – report in sau ảnh cuối của mục */}
+                  <ResurveyExtraCards slotCodes={['P-05']} onOpenPhotoZoom={onOpenPhotoZoom} />
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
@@ -1250,6 +1255,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                         </div>
                       );
                     })}
+                  {/* Ảnh KSV chụp thêm khi khảo sát lại (P-07) – report in sau ảnh cuối của mục */}
+                  <ResurveyExtraCards slotCodes={['P-07']} onOpenPhotoZoom={onOpenPhotoZoom} />
                 </div>
               ) : (
                 <div className="p-3 rounded-xl bg-white border border-dashed border-slate-200 text-center space-y-1.5">

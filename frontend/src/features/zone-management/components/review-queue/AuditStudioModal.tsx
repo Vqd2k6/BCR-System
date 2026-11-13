@@ -32,9 +32,10 @@ import {
   type ApprovedCropRect,
   type StudioPhotoStatus,
   type StudioResurveyPhotoMark,
+  type StudioResurveyExtraCard,
 } from './stepwise/context/ApprovedCropContext';
 import { StudioPendingNotice } from './stepwise/components/StudioPendingNotice';
-import { StudioResurveyButton, buildStudioResurveyMarks, buildStudioResurveyRows, type ResurveySessionView } from '../../../photo-resurvey';
+import { StudioResurveyButton, buildStudioResurveyExtras, buildStudioResurveyMarks, buildStudioResurveyRows, type ResurveySessionView } from '../../../photo-resurvey';
 import { evaluateAddressStandard } from './stepwise/utils/residentialAddressStandards';
 import { api } from '../../../../services/api';
 import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
@@ -295,6 +296,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const [approvedCrops, setApprovedCrops] = useState<ApprovedCropMap>(new Map());
   const [pendingCrops, setPendingCrops] = useState<ReadonlyMap<string, string>>(new Map());
   const [resurveyMarks, setResurveyMarks] = useState<ReadonlyMap<string, StudioResurveyPhotoMark>>(new Map());
+  const [resurveyExtras, setResurveyExtras] = useState<ReadonlyArray<StudioResurveyExtraCard>>([]);
   const [recentUrls, setRecentUrls] = useState<ReadonlySet<string>>(new Set());
   const [cropReviewKey, setCropReviewKey] = useState<string | null>(null);
   const approvedCropsRef = useRef<ApprovedCropMap>(approvedCrops);
@@ -363,7 +365,10 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   const handleResurveyView = useCallback(
     (view: ResurveySessionView | null) => {
-      const marks = view ? buildStudioResurveyMarks(buildStudioResurveyRows(view)) : new Map<string, StudioResurveyPhotoMark>();
+      const rows = view ? buildStudioResurveyRows(view) : [];
+      const marks = view ? buildStudioResurveyMarks(rows) : new Map<string, StudioResurveyPhotoMark>();
+      // Ảnh phát sinh thêm chỉ hiện khi phiên đã duyệt: APPLIED (report in) hoặc READY (chờ Thẩm định đưa vào).
+      setResurveyExtras(buildStudioResurveyExtras(rows).filter((x) => x.state === 'APPLIED' || x.state === 'READY'));
       const prev = resurveyMarksRef.current;
       // Lần tải đầu (prev rỗng) không nháy; về sau nháy ô đổi trạng thái.
       if (prev.size > 0) {
@@ -372,7 +377,7 @@ export const AuditStudioModal: React.FC<Props> = ({
       resurveyMarksRef.current = marks;
       setResurveyMarks(marks);
       setReadyResurvey(
-        view ? buildStudioResurveyRows(view).filter((r) => r.state === 'READY').map((r) => `${r.slotCode} • ${r.label}`) : []
+        view ? rows.filter((r) => r.state === 'READY').map((r) => `${r.slotCode} • ${r.label}`) : []
       );
     },
     [flashUrls]
@@ -397,14 +402,59 @@ export const AuditStudioModal: React.FC<Props> = ({
     setShowCropReview(true);
   }, []);
 
+  // Ảnh nghi ngờ dấu cũ: report chặn xuất tới khi Zone Admin / Super Admin xác nhận từng ảnh.
+  const [legacySuspects, setLegacySuspects] = useState<ReadonlyMap<string, number | null>>(new Map());
+  const loadLegacySuspects = useCallback(async () => {
+    if (!reportId) return;
+    try {
+      const res = await api.get<{ data: Array<{ url: string; score: number | null }> }>(`/reports/${encodeURIComponent(reportId)}/watermark-suspects`);
+      setLegacySuspects(new Map((res.data?.data ?? []).map((s) => [s.url, s.score])));
+    } catch (err: unknown) {
+      console.error('[AuditStudioModal:loadLegacySuspects] Không tải được danh sách ảnh nghi ngờ dấu cũ', err);
+      setLegacySuspects(new Map());
+    }
+  }, [reportId]);
+
+  const confirmLegacy = useCallback(
+    async (url: string) => {
+      // Không có xác nhận hàng loạt: mỗi ảnh hỏi riêng, 2 bước để tránh bấm nhầm.
+      const hasLegacy = window.confirm(
+        'Ảnh này có DẤU CŨ (logo THACO-CREC góc trên phải + giờ/mã góc dưới phải) cháy sẵn không?\n\nOK = Có dấu cũ (máy chủ không dập thêm)\nHủy = xem lựa chọn còn lại'
+      );
+      if (!hasLegacy && !window.confirm('Xác nhận ảnh này CHƯA CÓ dấu cũ (máy chủ sẽ dập dấu khi xuất report)?')) return;
+      try {
+        await api.post(`/reports/${encodeURIComponent(reportId)}/watermark-confirmations`, { photoUrl: url, hasLegacyWatermark: hasLegacy });
+        window.alert(hasLegacy ? 'Đã xác nhận: ảnh có dấu cũ, không dập thêm.' : 'Đã xác nhận: ảnh chưa có dấu, máy chủ sẽ dập khi xuất.');
+        flashUrls([url]);
+        await loadLegacySuspects();
+      } catch (err: unknown) {
+        console.error('[AuditStudioModal:confirmLegacy] Không lưu được xác nhận dấu cũ', err);
+        window.alert(`Không lưu được xác nhận: ${getErrorMessage(err, 'Lỗi server')}`);
+      }
+    },
+    [reportId, flashUrls, loadLegacySuspects]
+  );
+
   const photoStatus = useMemo<StudioPhotoStatus>(
-    () => ({ pendingCrops, resurvey: resurveyMarks, recent: recentUrls, openCropReview: (k: string) => openCropReviewAt(k), openResurveyPanel: () => setResurveyOpenSignal((n) => n + 1) }),
-    [pendingCrops, resurveyMarks, recentUrls, openCropReviewAt]
+    () => ({
+      pendingCrops,
+      resurvey: resurveyMarks,
+      extras: resurveyExtras,
+      recent: recentUrls,
+      openCropReview: (k: string) => openCropReviewAt(k),
+      openResurveyPanel: () => setResurveyOpenSignal((n) => n + 1),
+      legacySuspects,
+      confirmLegacy: (url: string) => void confirmLegacy(url),
+    }),
+    [pendingCrops, resurveyMarks, resurveyExtras, recentUrls, openCropReviewAt, legacySuspects, confirmLegacy]
   );
 
   useEffect(() => {
-    if (isOpen && reportId) void loadApprovedCrops();
-  }, [isOpen, reportId, loadApprovedCrops]);
+    if (isOpen && reportId) {
+      void loadApprovedCrops();
+      void loadLegacySuspects();
+    }
+  }, [isOpen, reportId, loadApprovedCrops, loadLegacySuspects]);
 
   if (!isOpen) return null;
 

@@ -70,17 +70,6 @@
                 </div>
               {{/if}}
               {{#if (or metadata.coverPhotoBase64 metadata.coverPhotoUrl)}}
-                {{#if @root.enableWatermark}}
-                  {{#unless metadata.coverAlreadyWatermarked}}
-                    {{#if metadata.headerLogoBase64}}
-                      <img src="{{metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                    {{/if}}
-                    <div class="watermark-text-bottom-right watermark-text-sm">
-                      <div class="watermark-datetime">{{#if metadata.coverWatermarkDateTime}}{{metadata.coverWatermarkDateTime}}{{else}}{{metadata.watermarkDateTime}}{{/if}}</div>
-                      <div class="watermark-code">{{metadata.coverWatermarkCode}}</div>
-                    </div>
-                  {{/unless}}
-                {{/if}}
               {{/if}}
             </div>
             <div class="cover-sub-caption">ẢNH MẶT TIỀN CÔNG TRÌNH / FACADE PHOTO</div>

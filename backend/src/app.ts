@@ -316,6 +316,9 @@ export function createApp(): express.Application {
   api.get('/reports/:id/revisions',         authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listReleases);
   api.post('/reports/:id/release',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
   api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.downloadReleasePdf);
+  api.post('/reports/:id/watermark-confirmations', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.confirmWatermark);
+  api.get('/reports/:id/watermark-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.watermarkReplacementCandidates);
+  api.get('/reports/:id/watermark-suspects', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.watermarkSuspects);
 
   api.get('/reports/:id/minutes/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportSingleMinutePdf);
   api.get('/reports/minutes/zone/:zoneId',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.getZoneMinutesSummary);

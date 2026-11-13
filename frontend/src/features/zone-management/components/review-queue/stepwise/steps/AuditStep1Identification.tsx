@@ -6,6 +6,9 @@ import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../.
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
 import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
 import { RotatableImageFrame } from '../components/RotatableImageFrame';
+import { RotatedPhoto } from '../../../../../photo-qc/components/RotatedPhoto';
+import { ApprovedCropContext, useStudioPhotoStatus } from '../context/ApprovedCropContext';
+import { ResurveyExtraCards, ResurveyNaPlaceholder, StudioPhotoBadges, resolveStudioPhotoView } from '../components/studioPhotoView';
 
 import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem, PhotoActionPayload } from '../types';
 import { resolveOptimisticPhoto, getOptimisticAddedPhotos } from '../utils/optimisticPhotoResolver';
@@ -283,6 +286,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
     handleEditAddress,
     handleChangeStandardizedAddress,
   } = useAddressStandardization({ formState, surveyJson: sJson, data, handleFieldChange });
+  // Ảnh chụp lại đã Đưa vào + crop đã duyệt: ô P-01→P-04 hiện đúng như report sẽ in.
+  const approvedCrops = React.useContext(ApprovedCropContext);
+  const studioPhotoStatus = useStudioPhotoStatus();
 
   // Adjacent Buildings Data (Đồng bộ hai chiều cả key 'note' của Phase 1 FE và 'notes' của Audit)
   const rawAdjacent = (formState.adjacentBuildings || sJson.adjacentBuildings || {
@@ -443,8 +449,22 @@ export const AuditStep1Identification: React.FC<Props> = ({
               const hasPolygon = item.key === 'photoP02' && item.polygonPoints && Array.isArray(item.polygonPoints) && item.polygonPoints.length >= 3;
               const rotation = stagedPhotoRotations[item.key] ?? stagedPhotoRotations[item.code] ?? 0;
               const violation = violationsMap?.get(item.key) || violationsMap?.get(item.code);
-              const isMismatched = Boolean(violation) && !isStagedDeleted;
+              // Ô đang chờ lưu Diff thì hiện theo ảnh chờ lưu, không áp lớp phủ chụp lại / crop của ảnh cũ.
+              const photoView = resolveStudioPhotoView(isStagedReplaced ? undefined : url, rotation, approvedCrops, studioPhotoStatus);
+              const removedByResurvey = photoView.mode === 'NA_REMOVED';
+              const replacedByResurvey = photoView.mode === 'REPLACED' && Boolean(photoView.resurveyMark?.newUrl);
+              const isMismatched = Boolean(violation) && !isStagedDeleted && !removedByResurvey && !replacedByResurvey;
               const isStrict = violation?.isStrict ?? false;
+              // Ảnh report đang in ở ô này (ảnh mới chụp lại nếu đã Đưa vào) để phóng to đúng ảnh.
+              const printedUrl = replacedByResurvey ? (photoView.resurveyMark?.newUrl ?? url) : url;
+              const printedRotation = replacedByResurvey ? (photoView.resurveyMark?.newRotation ?? 0) : rotation;
+              const zoomTitle = isStagedReplaced
+                ? `${item.code} - ${item.label} (Chờ lưu Diff)`
+                : replacedByResurvey
+                ? `${item.code} - ${item.label} (ảnh mới chụp lại)`
+                : removedByResurvey
+                ? `${item.code} - ${item.label} (ảnh gốc – đã bỏ khỏi report)`
+                : `${item.code} - ${item.label}`;
 
               if (item.isExtra && isStagedDeleted) {
                 return (
@@ -495,15 +515,27 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   <div
                     className="flex-1 bg-slate-950/90 relative cursor-pointer overflow-hidden flex items-center justify-center p-1.5"
                     onClick={() => {
-                      if (url) {
-                        const zoomTitle = isStagedReplaced
-                          ? `${item.code} - ${item.label} (Chờ lưu Diff)`
-                          : `${item.code} - ${item.label}`;
-                        onOpenPhotoZoom(url, zoomTitle, item.key, rotation);
-                      }
+                      if (printedUrl) onOpenPhotoZoom(printedUrl, zoomTitle, item.key, printedRotation);
                     }}
                   >
-                    {url ? (
+                    {url && removedByResurvey ? (
+                      // KSV khảo sát lại đánh dấu N/A và Thẩm định đã Đưa vào: report không in ô này.
+                      <ResurveyNaPlaceholder
+                        reason={photoView.resurveyMark?.naReason ?? null}
+                        onViewOriginal={() => onOpenPhotoZoom(url, zoomTitle, item.key, rotation)}
+                      />
+                    ) : url && replacedByResurvey ? (
+                      <RotatableImageFrame
+                        url={printedUrl}
+                        alt={`${item.label} (ảnh mới chụp lại)`}
+                        rotation={printedRotation}
+                        maxHeightPx={350}
+                        className="w-full h-full"
+                      />
+                    ) : url && photoView.mode === 'CROPPED' && photoView.approvedCrop ? (
+                      // Crop đã duyệt: hiện đúng phần sẽ in vào report (ảnh gốc không bị sửa).
+                      <RotatedPhoto url={url} rotation={rotation} boxHeight={340} fitHeight crop={photoView.approvedCrop} />
+                    ) : url ? (
                       <RotatableImageFrame
                         url={url}
                         alt={item.label}
@@ -563,8 +595,14 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       {hasPolygon && <span className="text-emerald-400 text-[9px]">● Polygon</span>}
                     </div>
 
+                    {/* Badge Đã crop / Crop chờ duyệt / trạng thái ảnh chụp lại (giống AuditPhotoCard) */}
+                    {url && !isStagedReplaced && <StudioPhotoBadges view={photoView} />}
+                    {photoView.isRecentlyUpdated && (
+                      <span className="absolute inset-0 z-20 rounded-sm ring-4 ring-inset ring-teal-400 animate-pulse pointer-events-none" />
+                    )}
+
                     {/* Badge Góc xoay nếu khác 0° */}
-                    {rotation !== 0 && url && (
+                    {rotation !== 0 && url && !removedByResurvey && !replacedByResurvey && (
                       <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono font-bold text-[9px] z-10 pointer-events-none shadow-xs flex items-center gap-0.5">
                         <RotateCw className="w-2.5 h-2.5" />
                         <span>{rotation}°</span>
@@ -625,10 +663,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const zoomTitle = isStagedReplaced
-                              ? `${item.code} - ${item.label} (Chờ lưu Diff)`
-                              : `${item.code} - ${item.label}`;
-                            onOpenPhotoZoom(url, zoomTitle, item.key, rotation);
+                            onOpenPhotoZoom(printedUrl, zoomTitle, item.key, printedRotation);
                           }}
                           className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
                           title="Phóng to soi chi tiết"
@@ -637,7 +672,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         </button>
                       )}
 
-                      {url && onRotatePhoto && (
+                      {url && onRotatePhoto && !removedByResurvey && !replacedByResurvey && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -671,7 +706,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                         </button>
                       )}
 
-                      {isEditMode && (
+                      {isEditMode && !removedByResurvey && (
                         <>
                           <button
                             type="button"
@@ -743,6 +778,12 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 </div>
               );
             })}
+            {/* Ảnh KSV chụp thêm khi khảo sát lại (report in sau ảnh cuối của mục) */}
+            <ResurveyExtraCards
+              slotCodes={['P-01', 'P-02', 'P-03', 'P-04']}
+              cardClassName="w-[calc((100%-2rem)/2.5)] min-w-[280px] shrink-0 snap-start"
+              onOpenPhotoZoom={onOpenPhotoZoom}
+            />
           </div>
         </div>
 

@@ -589,10 +589,13 @@ export interface FloorPlanDefectReport {
   /** Mã dấu sơ đồ CAD: HCM_M2.1_[Mã thửa]_F01_CAD_ARCH. */
   damageMapWatermarkCode?: string;
   damageMapAlreadyWatermarked?: boolean;
+  /** Giờ in trên dấu sơ đồ CAD: giờ chụp của chính ảnh, cùng kiểu với ảnh khác (không chỉ ngày khảo sát). */
+  damageMapWatermarkDateTime?: string;
   structuralMapUrl?: string;
   structuralMapBase64?: string;
   structuralMapWatermarkCode?: string;
   structuralMapAlreadyWatermarked?: boolean;
+  structuralMapWatermarkDateTime?: string;
   structuralMapRotation?: number;
   hasStructuralCadMap: boolean;
   hasCadMap?: boolean;
@@ -664,6 +667,8 @@ export interface AsBuiltDrawingItem {
   photoCode?: string;
   rotation?: number;
   alreadyWatermarked?: boolean;
+  /** Giờ in trên dấu bản vẽ: giờ tải ảnh lên (mốc trong tên file) hoặc ngày khảo sát. */
+  watermarkDateTime?: string;
 }
 
 export interface AsBuiltDrawingSheet {

@@ -38,6 +38,9 @@ export function applySnapshotToReportData<T extends JsonObject>(rawReport: T, sn
   // Khảo sát bổ sung: cùng nguyên tắc, snapshot cũ không có khoá này → không áp ảnh chụp lại.
   rec.photo_resurvey_frozen = true;
   rec.photo_resurvey = snapshot.frozenReportData?.photo_resurvey ?? null;
+  // Trạng thái dấu cũ (dò / xác nhận tay) đóng băng theo revision. Snapshot cũ không có khoá này → null (đọc bảng sống).
+  rec.photo_watermark_frozen = true;
+  rec.photo_watermark = snapshot.frozenReportData?.photo_watermark ?? null;
 
   if (snapshot.pinnedConfig && typeof snapshot.pinnedConfig === 'object' && !rec.reportContentConfig) {
     rec.reportContentConfig = JSON.parse(JSON.stringify(snapshot.pinnedConfig));

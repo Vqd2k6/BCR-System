@@ -467,6 +467,33 @@ export class StorageService {
    * Có đủ cấu hình để đọc bucket hay không. Cố ý không xét STORAGE_TYPE: máy local vẫn được
    * đọc bucket để cứu ảnh, trong khi ảnh test mới vẫn ghi ra đĩa local.
    */
+  /**
+   * Key R2/S3 của một URL ảnh công khai (bỏ tiền tố publicUrl hoặc endpoint/bucket). Không phải URL cloud → null.
+   * Dùng để đọc lại đúng file qua kết nối có xác thực khi URL công khai lỗi (CDN chập chờn, 403 tạm thời).
+   */
+  public static keyFromPublicUrl(url: string): string | null {
+    const trimmed = (url || '').trim().split('?')[0];
+    if (!/^https?:\/\//i.test(trimmed)) return null;
+    const { publicUrl, endpoint, bucket } = config.storage.s3;
+    const bases = [publicUrl, endpoint && bucket ? `${endpoint.replace(/\/$/, '')}/${bucket}` : '']
+      .map((b) => (b || '').replace(/\/$/, ''))
+      .filter(Boolean);
+    for (const base of bases) {
+      if (trimmed.startsWith(`${base}/`)) return decodeURIComponent(trimmed.slice(base.length + 1));
+    }
+    try {
+      return decodeURIComponent(new URL(trimmed).pathname).replace(/^\/+/, '') || null;
+    } catch (err) {
+      console.error('[StorageService:keyFromPublicUrl] URL ảnh không hợp lệ:', url, err);
+      return null;
+    }
+  }
+
+  /** Bucket chứa ảnh khảo sát (null khi thiếu cấu hình đọc bucket). */
+  public static getPhotoBucket(): string | null {
+    return this.canListObjects() ? config.storage.s3.bucket || null : null;
+  }
+
   public static canListObjects(): boolean {
     const { endpoint, accessKeyId, secretAccessKey, bucket } = config.storage.s3;
     return Boolean(endpoint && accessKeyId && secretAccessKey && bucket);

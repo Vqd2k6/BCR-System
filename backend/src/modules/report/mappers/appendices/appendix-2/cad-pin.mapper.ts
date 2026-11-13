@@ -7,17 +7,18 @@
  */
 
 import { CadPinOverlayItem } from '../../../report.types';
-import { LegacyWatermarkIndex } from '../../../services/legacy-watermark-index.service';
+import { LegacyWatermarkIndex, isFieldPhotoUrl } from '../../../services/legacy-watermark-index.service';
 
 /**
  * Kiểm tra xem một bức ảnh đã được nhúng watermark từ thiết bị/hệ thống hay chưa
  */
 export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
   if (!url && !photoObj) return false;
-  if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true || photoObj?.alreadyWatermarked === true) return true;
   const rawUrl: string = url || photoObj?.url || '';
-  // Ảnh upload trước mốc FE ngừng dập watermark: đã có logo + mã + giờ ngay trong pixel.
-  if (LegacyWatermarkIndex.has(rawUrl)) return true;
+  // Ảnh raster trên cloud/local: chỉ tin kết quả dò logo hoặc người xác nhận (LegacyWatermarkIndex).
+  // Không đoán theo tên file hay cờ client gửi: đoán sai là in ảnh không dấu hoặc dập chồng.
+  if (isFieldPhotoUrl(rawUrl)) return LegacyWatermarkIndex.has(rawUrl);
+  if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true || photoObj?.alreadyWatermarked === true) return true;
   // Chỉ dò từ khóa trên TÊN FILE: thư mục cloud tên "/watermark/" không có nghĩa ảnh đã có dấu.
   const u = (rawUrl.split('?')[0].split('#')[0].split('/').pop() || '').toLowerCase();
   return (

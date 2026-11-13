@@ -377,7 +377,7 @@ export class ReportReleaseService {
               storageProvider: provider,
               storageKey,
               watermark: watermark
-                ? { total: watermark.total, stamped: watermark.stamped, legacy: watermark.legacy, cssFallback: watermark.cssFallback, errors: watermark.errors }
+                ? { total: watermark.total, stamped: watermark.stamped, legacy: watermark.legacy, failed: watermark.failed }
                 : null,
               snapshotVersionId: snap.versionId,
               standardTextVersionNumber: activeConfig.standardTextVersionNumber,

@@ -88,11 +88,9 @@
       {{#if this.base64}}
       <img src="{{this.base64}}" alt="{{this.title.vi}}"
         style="height: 205mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto;">
-      {{> watermark-overlay applied=this.alreadyWatermarked code=this.metroPhotoCode dateTime=this.watermarkDateTime}}
       {{else if this.url}}
       <img src="{{this.url}}" alt="{{this.title.vi}}"
         style="height: 205mm; max-width: 100%; object-fit: contain; border: 1px solid #000000; display: block; margin: 0 auto;">
-      {{> watermark-overlay applied=this.alreadyWatermarked code=this.metroPhotoCode dateTime=this.watermarkDateTime}}
       {{else}}
       <div class="photo-placeholder" style="height: 205mm;">[ Chưa có ảnh biên bản trang {{this.pageIndex}} ]</div>
       {{/if}}

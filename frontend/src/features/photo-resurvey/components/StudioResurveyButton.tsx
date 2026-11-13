@@ -58,7 +58,17 @@ export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ repo
   const ready = rows.filter((r) => r.state === 'READY').length;
   const waiting = rows.filter((r) => r.state === 'SUBMITTED').length;
   const need = rows.filter((r) => r.state === 'NEED' || r.state === 'CAPTURED').length;
-  const applied = rows.filter((r) => r.state === 'APPLIED').length;
+  const appliedRows = rows.filter((r) => r.state === 'APPLIED');
+  // Đếm theo đúng loại thao tác: thay ảnh / bỏ ô N/A / ảnh thêm (trước đây gộp hết thành "ảnh đã thay").
+  const appliedText =
+    [
+      [appliedRows.filter((r) => r.action === 'REPLACE').length, 'ảnh đã thay'],
+      [appliedRows.filter((r) => r.action === 'MARK_NA').length, 'ô bỏ N/A'],
+      [appliedRows.filter((r) => r.action === 'ADD_EXTRA').length, 'ảnh thêm'],
+    ]
+      .filter(([n]) => Number(n) > 0)
+      .map(([n, label]) => `${n} ${label}`)
+      .join(' · ') || '0 mục đã đưa vào';
   const badge =
     ready > 0
       ? { text: `${ready} ảnh chờ đưa vào`, cls: 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse' }
@@ -66,7 +76,7 @@ export const StudioResurveyButton: React.FC<StudioResurveyButtonProps> = ({ repo
       ? { text: `${waiting} ảnh chờ duyệt phiên`, cls: 'bg-sky-950 text-sky-300 border-sky-700' }
       : need > 0
       ? { text: `${need} ô chưa có ảnh`, cls: 'bg-rose-950 text-rose-300 border-rose-700' }
-      : { text: `${applied} ảnh đã thay`, cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' };
+      : { text: appliedText, cls: 'bg-emerald-950 text-emerald-300 border-emerald-700' };
 
   return (
     <>

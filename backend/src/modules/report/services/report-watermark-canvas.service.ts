@@ -18,6 +18,8 @@ import { normalizeMetroPhotoCode } from '../utils/metro-photo-code.utils';
 import { ReportImageResolver } from './report-image-resolver.service';
 import { autoRestampLayers, cropToNativeRect, type PixelRect } from '../../photo-qc/photo-qc.rules';
 import { WatermarkDetectorService, type LegacyWatermarkDetection } from './watermark-detector.service';
+import { LegacyWatermarkIndex } from './legacy-watermark-index.service';
+import { walkViewModelPhotos, type VmPhotoRef } from '../../photo-qc/photo-qc.vm-walker';
 
 function clampRect(r: PixelRect, W: number, H: number): PixelRect {
   const left = Math.max(0, Math.min(W, r.left));
@@ -49,8 +51,8 @@ export interface StampOptions {
 /**
  * Kết quả dập 1 ảnh:
  * - stamped / cached: ảnh trả về đã có dấu.
- * - already: ảnh đã có dấu cháy sẵn (ảnh cũ), không dập thêm.
- * - not-data-uri / too-small / error: ảnh trả về KHÔNG có dấu → template phải hiện lớp CSS dự phòng.
+ * - already: ảnh đã có dấu cháy sẵn (ảnh cũ, đã dò hoặc đã xác nhận), không dập thêm.
+ * - not-data-uri / too-small / error: ảnh KHÔNG có dấu → report chặn xuất PDF.
  */
 export type StampOutcome = 'stamped' | 'cached' | 'already' | 'not-data-uri' | 'too-small' | 'error';
 
@@ -63,13 +65,34 @@ export interface WatermarkSectionTally {
   total: number;
   stamped: number;
   legacy: number;
-  cssFallback: number;
-  errors: number;
+  /** Ảnh chưa dập được (mọi loại lỗi). Khác 0 thì PDF nháp và Rev đều bị chặn. */
+  failed: number;
 }
 
-/** Bộ đếm để chứng minh 100% ảnh có watermark khi bật chế độ. */
+/** Vì sao một ảnh chưa dập được dấu thật. */
+export type WatermarkIssueReason = 'LOAD_FAILED' | 'TOO_SMALL' | 'STAMP_ERROR' | 'SUSPECT_LEGACY';
+
+export interface WatermarkIssue {
+  reason: WatermarkIssueReason;
+  section: string;
+  label: string;
+  photoCode: string;
+  url: string;
+  /** Chi tiết cho người xem: mã HTTP, lý do nghi ngờ, điểm dò… */
+  detail: string;
+  httpStatus: number | null;
+  /** Ảnh dò dấu cũ lưng chừng / dò lỗi: Zone Admin hoặc Super Admin xác nhận từng ảnh. */
+  needsLegacyConfirmation: boolean;
+  /** File không còn trên R2: Admin phải thay ảnh qua Studio (hệ thống chỉ gợi ý bản thay). */
+  fileMissing: boolean;
+  score: number | null;
+}
+
+/** Bộ đếm để chứng minh 100% ảnh có watermark thật khi bật chế độ. */
 export interface WatermarkVerifyReport extends WatermarkSectionTally {
   bySection: Record<string, WatermarkSectionTally>;
+  /** Từng ảnh chưa dập được (mỗi URL một dòng dù xuất hiện ở nhiều ô). */
+  issues: WatermarkIssue[];
 }
 
 export function isStampApplied(outcome: StampOutcome): boolean {
@@ -404,190 +427,130 @@ export class ReportWatermarkCanvasService {
     ];
   }
 
-  /**
-   * Dập watermark lên mọi ảnh của report. Cờ *AlreadyWatermarked chỉ bật khi ảnh thực sự có dấu;
-   * ảnh dập thất bại giữ cờ tắt để template hiện lớp watermark CSS dự phòng.
-   */
-  public static async applyWatermarksToViewModel(vm: ReportViewModel): Promise<WatermarkVerifyReport> {
-    const defaultDate = vm.metadata?.surveyDateFormatted || '';
-    const parcel = vm.metadata?.projectParcelCode || vm.metadata?.buildingId || 'CHƯA_ĐỊNH_DANH';
-    const unit = vm.metadata?.unitCode;
-    const code = (raw: string) => normalizeMetroPhotoCode(raw, parcel, unit);
 
-    const report: WatermarkVerifyReport = { total: 0, stamped: 0, legacy: 0, cssFallback: 0, errors: 0, bySection: {} };
-    const tally = (section: string, outcome: StampOutcome) => {
-      const sec = (report.bySection[section] ||= { total: 0, stamped: 0, legacy: 0, cssFallback: 0, errors: 0 });
+  /**
+   * Ảnh minh hoạ chỗ ảnh chưa dập được trong bản XEM TRƯỚC HTML (PDF không bao giờ in khi còn ảnh lỗi):
+   * khung đỏ, nhãn "CHƯA DẬP ĐƯỢC: <lý do>", có ảnh gốc mờ bên dưới nếu đã nạp được.
+   */
+  private static issuePlaceholder(issue: WatermarkIssue, imageUri: string | undefined): string {
+    const label = {
+      LOAD_FAILED: issue.fileMissing ? 'KHÔNG CÒN FILE ẢNH TRÊN R2' : 'KHÔNG TẢI ĐƯỢC ẢNH',
+      TOO_SMALL: 'ẢNH QUÁ NHỎ ĐỂ DẬP DẤU',
+      STAMP_ERROR: 'DẬP DẤU LỖI (FILE HỎNG)',
+      SUSPECT_LEGACY: 'NGHI NGỜ CÓ DẤU CŨ – CẦN XÁC NHẬN',
+    }[issue.reason];
+    const W = 800;
+    const H = 600;
+    const img = imageUri && imageUri.startsWith('data:image/') && !imageUri.startsWith('data:image/svg')
+      ? `<image href="${imageUri}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`
+      : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+      + `<rect width="${W}" height="${H}" fill="#f1f1f1"/>${img}`
+      + `<rect x="6" y="6" width="${W - 12}" height="${H - 12}" fill="none" stroke="#c81e1e" stroke-width="12"/>`
+      + `<rect x="40" y="${H / 2 - 70}" width="${W - 80}" height="140" fill="#c81e1e" opacity="0.92"/>`
+      + `<text x="${W / 2}" y="${H / 2 - 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">CHƯA DẬP ĐƯỢC</text>`
+      + `<text x="${W / 2}" y="${H / 2 + 24}" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">${escapeXml(label)}</text>`
+      + `<text x="${W / 2}" y="${H / 2 + 56}" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#ffffff">${escapeXml(issue.photoCode)}</text>`
+      + `</svg>`;
+    return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  }
+
+  /**
+   * Dập watermark lên mọi ảnh report sẽ in (walkViewModelPhotos, gồm cả biên bản và bản vẽ) và kiểm 100%:
+   * - Ảnh có dấu cũ (dò ≥ ngưỡng hoặc người xác nhận): không dập thêm.
+   * - Ảnh nghi ngờ dấu cũ (lưng chừng / dò lỗi / chưa dò): KHÔNG dập, ghi lỗi chờ người xác nhận.
+   * - Ảnh không nạp được, quá nhỏ, dập lỗi (đã thử lại 1 lần): ghi lỗi kèm lý do.
+   * Ảnh lỗi được thay bằng khung đỏ để bản xem trước chỉ rõ; PDF nháp và Rev bị chặn khi còn lỗi.
+   * `stamp = false` (tắt watermark): chỉ kiểm ảnh nạp được hay không, không dập, không xét dấu cũ.
+   */
+  public static async applyWatermarksToViewModel(vm: ReportViewModel, options: { stamp?: boolean } = {}): Promise<WatermarkVerifyReport> {
+    const doStamp = options.stamp !== false;
+    const report: WatermarkVerifyReport = { total: 0, stamped: 0, legacy: 0, failed: 0, bySection: {}, issues: [] };
+    const issueByUrl = new Map<string, WatermarkIssue>();
+    const tally = (section: string, kind: 'stamped' | 'legacy' | 'failed') => {
+      const sec = (report.bySection[section] ||= { total: 0, stamped: 0, legacy: 0, failed: 0 });
       for (const t of [report, sec]) {
         t.total += 1;
-        if (outcome === 'stamped' || outcome === 'cached') t.stamped += 1;
-        else if (outcome === 'already') t.legacy += 1;
-        else {
-          t.cssFallback += 1;
-          if (outcome === 'error') t.errors += 1;
-        }
+        t[kind] += 1;
       }
     };
-    const stamp = async (
-      section: string,
-      base64Uri: string,
-      dateTimeText: string,
-      photoCodeText: string,
-      alreadyWatermarked?: boolean
-    ): Promise<StampResult> => {
-      const r = await this.stampImage({ base64Uri, dateTimeText, photoCodeText, alreadyWatermarked });
-      tally(section, r.outcome);
-      if (!isStampApplied(r.outcome)) {
-        console.error(`[ReportWatermark:verify] Ảnh ${photoCodeText} (${section}) không dập được (${r.outcome}), dùng lớp CSS dự phòng`);
-      }
-      return r;
+    const fail = (ref: VmPhotoRef, issue: Omit<WatermarkIssue, 'section' | 'label' | 'photoCode' | 'url'>) => {
+      const full: WatermarkIssue = { ...issue, section: ref.section, label: ref.label, photoCode: ref.photoCodeText, url: ref.url };
+      if (!issueByUrl.has(ref.url)) issueByUrl.set(ref.url, full);
+      tally(ref.section, 'failed');
+      console.error(`[ReportWatermark:verify] ${ref.label} (${ref.photoCodeText}) chưa dập được: ${issue.reason} – ${issue.detail}`, ref.url);
+      // Bản xem trước: thay bằng khung đỏ, đánh dấu đã xử lý để template không phủ thêm chữ.
+      ref.setBase64(this.issuePlaceholder(full, ref.getBase64()));
+      ref.markWatermarked();
     };
 
-    if (vm.metadata?.coverPhotoBase64) {
-      const p02Item = (vm.appendix1 || []).find((p) => p.photoCode === 'P-02');
-      const heroDt = vm.metadata.coverWatermarkDateTime || p02Item?.watermarkDateTime || defaultDate;
-      const coverCode = vm.metadata.coverWatermarkCode || code('P02_MAIN');
-      vm.metadata.coverWatermarkCode = coverCode;
-      // Cờ của chính ảnh bìa (ảnh bìa có thể lấy từ P-01 khi thiếu P-02), không mượn cờ của P-02.
-      const r = await stamp('cover', vm.metadata.coverPhotoBase64, heroDt, coverCode, vm.metadata.coverAlreadyWatermarked);
-      vm.metadata.coverPhotoBase64 = r.uri;
-      vm.metadata.coverAlreadyWatermarked = isStampApplied(r.outcome);
+    if (vm.metadata && !vm.metadata.coverWatermarkCode) {
+      const parcel = vm.metadata.projectParcelCode || vm.metadata.buildingId || 'CHƯA_ĐỊNH_DANH';
+      vm.metadata.coverWatermarkCode = normalizeMetroPhotoCode('P02_MAIN', parcel, vm.metadata.unitCode);
     }
 
-    if (vm.section5?.tiltPhoto?.base64) {
-      const r = await stamp('section5', vm.section5.tiltPhoto.base64, defaultDate, code('EXT_TILT_01'), vm.section5.tiltPhoto.alreadyWatermarked);
-      vm.section5.tiltPhoto.base64 = r.uri;
-      vm.section5.tiltPhoto.alreadyWatermarked = isStampApplied(r.outcome);
-    }
-
-    if (vm.section5?.settlementPhoto?.base64) {
-      const r = await stamp('section5', vm.section5.settlementPhoto.base64, defaultDate, code('FOUND_SETTLE_01'), vm.section5.settlementPhoto.alreadyWatermarked);
-      vm.section5.settlementPhoto.base64 = r.uri;
-      vm.section5.settlementPhoto.alreadyWatermarked = isStampApplied(r.outcome);
-    }
-
-    for (const item of vm.appendix1 || []) {
-      if (!item.base64) continue;
-      const r = await stamp(
-        'appendix1',
-        item.base64,
-        item.watermarkDateTime || item.capturedAt || defaultDate,
-        item.metroPhotoCode || code(item.originalTag || item.photoCode),
-        item.alreadyWatermarked
-      );
-      item.base64 = r.uri;
-      item.alreadyWatermarked = isStampApplied(r.outcome);
-    }
-
-    for (const fl of vm.appendix2 || []) {
-      // Sơ đồ CAD mặt bằng kiến trúc / kết cấu (dấu theo chiều gốc bản vẽ, trình duyệt xoay dọc thì dấu xoay theo).
-      if (fl.damageMapBase64) {
-        const r = await stamp(
-          'cad',
-          fl.damageMapBase64,
-          defaultDate,
-          fl.damageMapWatermarkCode || code(`F${String(fl.floorOrder).padStart(2, '0')}_CAD_ARCH`),
-          fl.damageMapAlreadyWatermarked
-        );
-        fl.damageMapBase64 = r.uri;
-        fl.damageMapAlreadyWatermarked = isStampApplied(r.outcome);
+    for (const ref of walkViewModelPhotos(vm, { includeDocuments: true })) {
+      const base64 = ref.getBase64();
+      if (!base64 || !base64.startsWith('data:image/')) {
+        const lf = ReportImageResolver.getLoadFailure(ref.url);
+        fail(ref, {
+          reason: 'LOAD_FAILED',
+          detail: lf ? lf.message : 'Ảnh chưa được nạp vào lượt render',
+          httpStatus: lf?.httpStatus ?? null,
+          needsLegacyConfirmation: false,
+          fileMissing: lf?.kind === 'NOT_FOUND',
+          score: null,
+        });
+        continue;
       }
-      if (fl.structuralMapBase64) {
-        const r = await stamp(
-          'cad',
-          fl.structuralMapBase64,
-          defaultDate,
-          fl.structuralMapWatermarkCode || code(`F${String(fl.floorOrder).padStart(2, '0')}_CAD_STRUCT`),
-          fl.structuralMapAlreadyWatermarked
-        );
-        fl.structuralMapBase64 = r.uri;
-        fl.structuralMapAlreadyWatermarked = isStampApplied(r.outcome);
+      if (!doStamp) {
+        tally(ref.section, 'stamped');
+        continue;
       }
 
-      for (const pair of fl.defectPairPhotos || []) {
-        if (pair.contextPhotoBase64) {
-          const r = await stamp(
-            'defects',
-            pair.contextPhotoBase64,
-            pair.contextDateTime || defaultDate,
-            pair.contextWatermarkCode || code(pair.contextPhotoCode || `${pair.defectId}_CTX`),
-            pair.contextAlreadyWatermarked
-          );
-          pair.contextPhotoBase64 = r.uri;
-          pair.contextAlreadyWatermarked = isStampApplied(r.outcome);
-        }
-        if (pair.closeUpPhotoBase64) {
-          const r = await stamp(
-            'defects',
-            pair.closeUpPhotoBase64,
-            pair.closeUpDateTime || defaultDate,
-            pair.closeUpWatermarkCode || code(pair.closeUpPhotoCode || `${pair.defectId}_CU_01`),
-            pair.closeUpAlreadyWatermarked
-          );
-          pair.closeUpPhotoBase64 = r.uri;
-          pair.closeUpAlreadyWatermarked = isStampApplied(r.outcome);
-        }
-        if (pair.extraCloseUpPhotoBase64) {
-          const r = await stamp(
-            'defects',
-            pair.extraCloseUpPhotoBase64,
-            pair.extraCloseUpDateTime || defaultDate,
-            pair.extraCloseUpWatermarkCode || code(pair.extraCloseUpPhotoCode || `${pair.defectId}_CU_02`),
-            pair.extraCloseUpAlreadyWatermarked
-          );
-          pair.extraCloseUpPhotoBase64 = r.uri;
-          pair.extraCloseUpAlreadyWatermarked = isStampApplied(r.outcome);
-        }
+      const legacy = LegacyWatermarkIndex.statusOf(ref.url);
+      if (legacy?.status === 'SUSPECT') {
+        const why = legacy.suspectReason === 'UNSURE'
+          ? `Điểm dò logo ${legacy.score?.toFixed(2)} nằm trong vùng nghi ngờ`
+          : legacy.suspectReason === 'DETECT_FAILED' ? 'Bộ dò logo không đọc được ảnh' : 'Ảnh chưa được dò dấu cũ';
+        fail(ref, { reason: 'SUSPECT_LEGACY', detail: why, httpStatus: null, needsLegacyConfirmation: true, fileMissing: false, score: legacy.score });
+        continue;
       }
-
-      for (const page of [...(fl.overviewPages || []), ...(fl.elementOverviewPages || [])]) {
-        for (const photo of page.photos || []) {
-          if (!photo.base64) continue;
-          const r = await stamp(
-            'overview',
-            photo.base64,
-            photo.watermarkDateTime || defaultDate,
-            photo.metroPhotoCode || code(`${photo.zoneCode}_${photo.photoId}`),
-            photo.alreadyWatermarked
-          );
-          photo.base64 = r.uri;
-          photo.alreadyWatermarked = isStampApplied(r.outcome);
-        }
+      if (legacy?.status === 'LEGACY') {
+        ref.markWatermarked();
+        tally(ref.section, 'legacy');
+        continue;
       }
+      // Sạch (hoặc ảnh không phải URL ảnh hiện trường). Đã dập ở bước crop Photo QC thì không dập lại.
+      if (ref.isWatermarked()) {
+        tally(ref.section, 'stamped');
+        continue;
+      }
+      let r = await this.stampImage({ base64Uri: base64, dateTimeText: ref.dateTimeText, photoCodeText: ref.photoCodeText });
+      if (r.outcome === 'error') {
+        console.warn(`[ReportWatermark:stamp] Dập lỗi, thử lại 1 lần: ${ref.label}`, ref.url);
+        r = await this.stampImage({ base64Uri: base64, dateTimeText: ref.dateTimeText, photoCodeText: ref.photoCodeText });
+      }
+      if (isStampApplied(r.outcome)) {
+        ref.setBase64(r.uri);
+        ref.markWatermarked();
+        tally(ref.section, 'stamped');
+        continue;
+      }
+      fail(ref, {
+        reason: r.outcome === 'too-small' ? 'TOO_SMALL' : 'STAMP_ERROR',
+        detail: r.outcome === 'too-small' ? 'Ảnh nhỏ hơn 80px, không đủ chỗ dập dấu' : 'Dập dấu lỗi sau 2 lần thử (file ảnh có thể hỏng)',
+        httpStatus: null,
+        needsLegacyConfirmation: false,
+        fileMissing: false,
+        score: null,
+      });
     }
 
-    // Mục XI: bản scan biên bản hiện trường / thông báo vắng chủ.
-    for (const page of vm.appendix3?.signedRecordPages || []) {
-      if (!page.base64) continue;
-      const r = await stamp(
-        'minutes',
-        page.base64,
-        page.watermarkDateTime || defaultDate,
-        page.metroPhotoCode || code(`DOC_MINUTES_${String(page.pageIndex).padStart(2, '0')}`),
-        page.alreadyWatermarked
-      );
-      page.base64 = r.uri;
-      page.alreadyWatermarked = isStampApplied(r.outcome);
-    }
-
-    // Mục XII: bản vẽ thiết kế / hoàn công do chủ hộ cung cấp.
-    for (const sheet of vm.section12AsBuilt?.sheets || []) {
-      for (const drawing of sheet.drawings || []) {
-        if (!drawing.base64) continue;
-        const r = await stamp(
-          'asbuilt',
-          drawing.base64,
-          defaultDate,
-          code(drawing.photoCode || `CAT-DWG-${String(drawing.index).padStart(2, '0')}`),
-          drawing.alreadyWatermarked
-        );
-        drawing.base64 = r.uri;
-        drawing.alreadyWatermarked = isStampApplied(r.outcome);
-      }
-    }
-
-    const summary = { reportNo: vm.metadata?.reportNo, total: report.total, stamped: report.stamped, legacy: report.legacy, cssFallback: report.cssFallback, errors: report.errors };
-    if (report.cssFallback > 0) {
-      console.error('[ReportWatermark:verify] Có ảnh không dập được watermark ở máy chủ:', summary, report.bySection);
+    report.issues = [...issueByUrl.values()];
+    const summary = { reportNo: vm.metadata?.reportNo, total: report.total, stamped: report.stamped, legacy: report.legacy, failed: report.failed };
+    if (report.failed > 0) {
+      console.error('[ReportWatermark:verify] Có ảnh chưa dập được watermark, PDF sẽ bị chặn:', summary, report.bySection);
     } else {
       console.log('[ReportWatermark:verify]', summary);
     }

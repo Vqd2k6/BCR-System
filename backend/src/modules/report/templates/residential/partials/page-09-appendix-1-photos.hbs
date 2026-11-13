@@ -32,17 +32,6 @@
                 {{else if this.url}}
                   <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
                 {{/if}}
-                {{#if @root.enableWatermark}}
-                  {{#unless this.alreadyWatermarked}}
-                    {{#if @root.metadata.headerLogoBase64}}
-                      <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                    {{/if}}
-                    <div class="watermark-text-bottom-right watermark-text-sm">
-                      <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
-                      <div class="watermark-code">{{this.metroPhotoCode}}</div>
-                    </div>
-                  {{/unless}}
-                {{/if}}
               </div>
               <div class="photo-caption">
                 <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
@@ -81,17 +70,6 @@
                 <img src="{{this.base64}}" class="photo-card-main-img" alt="{{this.name.vi}}">
               {{else if this.url}}
                 <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
-              {{/if}}
-              {{#if @root.enableWatermark}}
-                {{#unless this.alreadyWatermarked}}
-                  {{#if @root.metadata.headerLogoBase64}}
-                    <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
-                  {{/if}}
-                  <div class="watermark-text-bottom-right watermark-text-sm">
-                    <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
-                    <div class="watermark-code">{{this.metroPhotoCode}}</div>
-                  </div>
-                {{/unless}}
               {{/if}}
             </div>
             <div class="photo-caption">

@@ -1,133 +1,153 @@
 /**
  * ============================================================================
  * LEGACY WATERMARK INDEX
- * Nhận diện ảnh hiện trường đã được FE dập watermark sẵn vào pixel (logo + mã + giờ)
- * trước mốc FE chuyển sang upload ảnh sạch. Ảnh loại này KHÔNG được dập thêm ở BE
- * (tránh chồng 2 lớp watermark lên chứng cứ pháp lý).
+ * Nhận diện ảnh đã được PWA cũ dập watermark sẵn vào pixel (logo + mã + giờ). Ảnh loại này
+ * KHÔNG được dập thêm ở BE (tránh chồng 2 lớp watermark lên chứng cứ pháp lý).
  *
- * Nguồn xác định (theo thứ tự):
- *   1. photo_watermark_status: kết quả dò logo trên pixel (WatermarkDetectorService). Đây là nguồn chính:
- *      máy chạy PWA cũ vẫn upload ảnh có dấu sau mốc cutover, và ảnh khôi phục mang ngày ghi mới.
- *   2. Chưa có kết quả và được phép dò (luồng report): dò ngay rồi lưu vào bảng.
- *   3. Dự phòng khi không dò được: survey_photo_registry.created_at < cutover, hoặc mốc ms 13 chữ số
- *      trong tên file chuẩn hóa (..._1790650546342_xxxxxx.jpg) trước cutover.
- *
- * "Ảnh cũ" là thuộc tính của URL (không phụ thuộc hồ sơ) → Set dùng chung an toàn giữa các lượt render.
+ * Luật (chốt 13/11/2026, thay luật đoán theo ngày):
+ *   - Nguồn duy nhất là photo_watermark_status: kết quả dò logo trên pixel (DETECTOR) hoặc người xác nhận (MANUAL).
+ *   - Mọi ảnh raster được in đều được dò, kể cả sơ đồ CAD chụp tay, bản vẽ, biên bản
+ *     (trước đây URL có chữ "cad" bị loại khỏi bộ dò → C&C-05-B-0038 bị dập 2 lớp ở sơ đồ tầng trệt).
+ *   - Điểm dò phân loại theo verdictOfScore (ngưỡng logo-v2). Điểm cũ của logo-v1 được phân loại lại.
+ *   - Lưng chừng hoặc dò thất bại → NGHI NGỜ: report chặn xuất tới khi người xác nhận từng ảnh.
+ *   - Hệ thống không bao giờ tự đoán (không còn luật ngày tải lên).
+ *   - Lượt render bản Rev đã phát hành đọc trạng thái đóng băng trong snapshot, không đọc bảng sống.
  * ============================================================================
  */
 
+import type { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
 import { ReportImageResolver } from './report-image-resolver.service';
-import { WATERMARK_DETECTOR_VERSION, WatermarkDetectorService } from './watermark-detector.service';
+import { currentRenderImageScope } from './report-image-scope';
+import { WATERMARK_DETECTOR_VERSION, WatermarkDetectorService, verdictOfScore } from './watermark-detector.service';
 
-/**
- * Ảnh không phải ảnh chụp bằng app (sơ đồ CAD, bản vẽ, PDF): không dò logo.
- * Ảnh biên bản / chữ ký chụp bằng app (DOC_MINUTES_xx) VẪN phải dò: PWA cũ dập dấu lên cả các ảnh này,
- * bỏ qua chúng làm report rơi về luật ngày và dập chồng lớp thứ hai.
- */
-const NON_FIELD_PHOTO_PATTERN = /(cad|blueprint|drawing|asbuilt|as-built|\.pdf)(\b|_|\/|\.)/i;
 const DETECT_CONCURRENCY = 4;
+
+export type LegacyWatermarkStatus = 'LEGACY' | 'CLEAN' | 'SUSPECT';
+export type LegacyWatermarkSource = 'DETECTOR' | 'MANUAL' | 'FROZEN';
+/** Vì sao ảnh nghi ngờ: điểm lưng chừng, dò thất bại, hoặc chưa từng được dò. */
+export type LegacyWatermarkSuspectReason = 'UNSURE' | 'DETECT_FAILED' | 'NOT_DETECTED';
+
+export interface LegacyWatermarkInfo {
+  status: LegacyWatermarkStatus;
+  source: LegacyWatermarkSource;
+  score: number | null;
+  suspectReason: LegacyWatermarkSuspectReason | null;
+}
 
 export interface LegacyWatermarkLoadOptions {
   /** Dò logo cho URL chưa có kết quả (tải ảnh nếu cần). Mặc định false: chỉ đọc kết quả đã lưu. */
   detect?: boolean;
 }
 
+/** Ảnh raster có thể mang dấu PWA cũ: mọi JPEG/PNG/WEBP (kể cả sơ đồ CAD chụp tay, biên bản). PDF và data URI thì không. */
 export function isFieldPhotoUrl(url: string): boolean {
   if (!url || url.startsWith('data:')) return false;
   const clean = url.split('?')[0];
-  if (!/\.(jpe?g)$/i.test(clean)) return false;
-  return !NON_FIELD_PHOTO_PATTERN.test(clean);
+  return /\.(jpe?g|png|webp)$/i.test(clean);
 }
 
-const DEFAULT_CUTOVER_ISO = '2026-10-03T00:00:00+07:00';
-
-function resolveCutoverMs(): number {
-  const raw = process.env.REPORT_LEGACY_WATERMARK_CUTOVER || DEFAULT_CUTOVER_ISO;
-  const ms = Date.parse(raw);
-  if (Number.isNaN(ms)) {
-    console.error(`[LegacyWatermark:cutover] Giá trị REPORT_LEGACY_WATERMARK_CUTOVER không hợp lệ: "${raw}", dùng mặc định ${DEFAULT_CUTOVER_ISO}`);
-    return Date.parse(DEFAULT_CUTOVER_ISO);
+function infoFromRow(row: { has_legacy_watermark: boolean; score: string | number | null; source: string | null }): LegacyWatermarkInfo {
+  const score = row.score === null || row.score === undefined ? null : Number(row.score);
+  if (row.source === 'MANUAL') {
+    return { status: row.has_legacy_watermark ? 'LEGACY' : 'CLEAN', source: 'MANUAL', score, suspectReason: null };
   }
-  return ms;
-}
-
-export const LEGACY_WATERMARK_CUTOVER_MS = resolveCutoverMs();
-
-/** Mốc ms hợp lệ của dự án (2026-01-01 → 2030-01-01) để không bắt nhầm chuỗi số khác trong tên file. */
-const FILENAME_TS_MIN = Date.parse('2026-01-01T00:00:00Z');
-const FILENAME_TS_MAX = Date.parse('2030-01-01T00:00:00Z');
-
-function uploadMsFromFilename(url: string): number | undefined {
-  const fileName = url.split('?')[0].split('/').pop() || '';
-  const matches = fileName.match(/_(\d{13})(?=[_.])/g);
-  if (!matches) return undefined;
-  for (const m of matches) {
-    const ms = Number(m.slice(1));
-    if (ms >= FILENAME_TS_MIN && ms < FILENAME_TS_MAX) return ms;
+  if (score === null || !Number.isFinite(score)) {
+    return { status: 'SUSPECT', source: 'DETECTOR', score: null, suspectReason: 'DETECT_FAILED' };
   }
-  return undefined;
+  const verdict = verdictOfScore(score);
+  if (verdict === 'WATERMARKED') return { status: 'LEGACY', source: 'DETECTOR', score, suspectReason: null };
+  if (verdict === 'CLEAN') return { status: 'CLEAN', source: 'DETECTOR', score, suspectReason: null };
+  return { status: 'SUSPECT', source: 'DETECTOR', score, suspectReason: 'UNSURE' };
 }
 
 export class LegacyWatermarkIndex {
-  private static legacyUrls = new Set<string>();
-  private static checkedUrls = new Set<string>();
-  /** URL có kết quả từ pixel (bảng photo_watermark_status hoặc vừa dò): không bao giờ quay về luật ngày. */
-  private static pixelResolvedUrls = new Set<string>();
+  /** Kết quả mới nhất đọc từ DB / vừa dò, theo URL. Mỗi lượt load đọc lại DB để thấy xác nhận tay mới. */
+  private static infoByUrl = new Map<string, LegacyWatermarkInfo>();
+  /** Ảnh dò thất bại trong tiến trình này (không lưu DB để lượt sau dò lại). */
+  private static failedUrls = new Set<string>();
 
-  private static setPixelResult(url: string, hasLegacy: boolean): void {
-    this.pixelResolvedUrls.add(url);
-    if (hasLegacy) this.legacyUrls.add(url);
-    else this.legacyUrls.delete(url);
+  /** Trạng thái của URL; undefined = không phải ảnh raster hoặc chưa nạp/chưa dò. */
+  public static statusOf(url?: string): LegacyWatermarkInfo | undefined {
+    if (!url) return undefined;
+    const frozen = currentRenderImageScope()?.frozenLegacy;
+    if (frozen) {
+      const v = frozen.get(url);
+      if (v !== undefined) return { status: v ? 'LEGACY' : 'CLEAN', source: 'FROZEN', score: null, suspectReason: null };
+    }
+    const info = this.infoByUrl.get(url);
+    if (info) return info;
+    if (this.failedUrls.has(url)) return { status: 'SUSPECT', source: 'DETECTOR', score: null, suspectReason: 'DETECT_FAILED' };
+    if (isFieldPhotoUrl(url)) return { status: 'SUSPECT', source: 'DETECTOR', score: null, suspectReason: 'NOT_DETECTED' };
+    return undefined;
   }
 
+  /** Chỉ true khi chắc chắn có dấu cũ (dò ≥ ngưỡng hoặc người xác nhận). Nghi ngờ KHÔNG được coi là có dấu. */
   public static has(url?: string): boolean {
-    if (!url) return false;
-    if (this.legacyUrls.has(url)) return true;
-    if (this.checkedUrls.has(url)) return false;
-    const ms = uploadMsFromFilename(url);
-    return ms !== undefined && ms < LEGACY_WATERMARK_CUTOVER_MS;
+    return this.statusOf(url)?.status === 'LEGACY';
   }
 
   /**
-   * Nạp trạng thái watermark cũ cho danh sách URL của một lượt render (chỉ xử lý URL chưa kiểm tra).
-   * Luồng report gọi với { detect: true } sau khi ảnh đã nạp vào cache của ReportImageResolver.
+   * Trạng thái dấu cũ đã chốt (LEGACY / CLEAN) của các URL, để đóng băng vào snapshot Rev.
+   * Ảnh nghi ngờ không được ghi: lượt render Rev sẽ chặn phát hành nếu còn ảnh nghi ngờ.
+   */
+  public static async decisionsForSnapshot(
+    urls: string[],
+    client: PoolClient
+  ): Promise<Record<string, boolean>> {
+    const pending = [...new Set(urls.filter((u) => u && isFieldPhotoUrl(u)))];
+    if (pending.length === 0) return {};
+    const res = await client.query<{ photo_url: string; has_legacy_watermark: boolean; score: string | null; source: string | null }>(
+      `SELECT photo_url, has_legacy_watermark, score, source FROM photo_watermark_status WHERE photo_url = ANY($1::text[]);`,
+      [pending]
+    );
+    const out: Record<string, boolean> = {};
+    for (const row of res.rows) {
+      const info = infoFromRow(row);
+      if (info.status === 'LEGACY') out[row.photo_url] = true;
+      else if (info.status === 'CLEAN') out[row.photo_url] = false;
+    }
+    return out;
+  }
+
+  /** Cập nhật ngay sau khi người xác nhận (API xác nhận), để lượt render kế tiếp trong tiến trình thấy luôn. */
+  public static rememberManual(url: string, hasLegacyWatermark: boolean): void {
+    this.failedUrls.delete(url);
+    this.infoByUrl.set(url, { status: hasLegacyWatermark ? 'LEGACY' : 'CLEAN', source: 'MANUAL', score: null, suspectReason: null });
+  }
+
+  /**
+   * Nạp trạng thái dấu cũ cho danh sách URL. Luồng report gọi với { detect: true } sau khi ảnh đã nạp
+   * vào kho của lượt render. Bộ dò chạy lại không ghi đè dòng MANUAL.
    */
   public static async load(urls: string[], options: LegacyWatermarkLoadOptions = {}): Promise<void> {
-    // Lượt có dò (report, lưu crop) xét lại cả URL trước đó chỉ được kiểm bằng luật ngày dự phòng.
-    const pending = [
-      ...new Set(urls.filter((u) => u && (!this.checkedUrls.has(u) || (options.detect && !this.pixelResolvedUrls.has(u) && isFieldPhotoUrl(u))))),
-    ];
+    const pending = [...new Set(urls.filter((u) => u && isFieldPhotoUrl(u)))];
     if (pending.length === 0) return;
 
-    const stats = { detector: 0, detectorClean: 0, detectedNow: 0, unsure: 0, registry: 0, filename: 0, detectFailed: 0 };
+    const stats = { legacy: 0, clean: 0, suspect: 0, manual: 0, detectedNow: 0, detectFailed: 0 };
     const resolved = new Set<string>();
 
-    // 1. Kết quả dò logo đã lưu (đúng phiên bản bộ dò).
     try {
-      const saved = await Database.query<{ photo_url: string; has_legacy_watermark: boolean; verdict: string }>(
-        `SELECT photo_url, has_legacy_watermark, verdict
+      const saved = await Database.query<{ photo_url: string; has_legacy_watermark: boolean; score: string | null; source: string | null }>(
+        `SELECT photo_url, has_legacy_watermark, score, source
            FROM photo_watermark_status
-          WHERE photo_url = ANY($1::text[]) AND detector_version = $2;`,
-        [pending, WATERMARK_DETECTOR_VERSION]
+          WHERE photo_url = ANY($1::text[]);`,
+        [pending]
       );
       for (const row of saved.rows) {
+        const info = infoFromRow(row);
+        // Dòng DETECTOR không có điểm là dữ liệu hỏng: để lượt dò dưới đây thử lại.
+        if (info.source === 'DETECTOR' && info.suspectReason === 'DETECT_FAILED') continue;
         resolved.add(row.photo_url);
-        this.setPixelResult(row.photo_url, row.has_legacy_watermark);
-        if (row.has_legacy_watermark) {
-          stats.detector += 1;
-          if (row.verdict === 'UNSURE') stats.unsure += 1;
-        } else {
-          stats.detectorClean += 1;
-        }
+        this.failedUrls.delete(row.photo_url);
+        this.infoByUrl.set(row.photo_url, info);
       }
     } catch (err) {
-      console.error('[LegacyWatermark:load] Không đọc được photo_watermark_status, dùng luật dự phòng', err);
+      console.error('[LegacyWatermark:load] Không đọc được photo_watermark_status, các ảnh sẽ bị coi là nghi ngờ', err);
     }
 
-    // 2. Dò ngay các ảnh hiện trường chưa có kết quả (chỉ khi được phép).
     if (options.detect) {
-      const toDetect = pending.filter((u) => !resolved.has(u) && isFieldPhotoUrl(u));
+      const toDetect = pending.filter((u) => !resolved.has(u));
       let cursor = 0;
       const worker = async (): Promise<void> => {
         while (cursor < toDetect.length) {
@@ -135,71 +155,38 @@ export class LegacyWatermarkIndex {
           try {
             const result = await WatermarkDetectorService.detectLegacyLogo(await ReportImageResolver.getImageBuffer(url));
             await Database.query(
-              `INSERT INTO photo_watermark_status (photo_url, has_legacy_watermark, verdict, score, detector_version, detected_at)
-               VALUES ($1, $2, $3, $4, $5, NOW())
+              `INSERT INTO photo_watermark_status (photo_url, has_legacy_watermark, verdict, score, detector_version, detected_at, source)
+               VALUES ($1, $2, $3, $4, $5, NOW(), 'DETECTOR')
                ON CONFLICT (photo_url) DO UPDATE
                  SET has_legacy_watermark = EXCLUDED.has_legacy_watermark, verdict = EXCLUDED.verdict,
-                     score = EXCLUDED.score, detector_version = EXCLUDED.detector_version, detected_at = NOW();`,
+                     score = EXCLUDED.score, detector_version = EXCLUDED.detector_version, detected_at = NOW()
+               WHERE photo_watermark_status.source <> 'MANUAL';`,
               [url, result.hasLegacyWatermark, result.verdict, result.score, WATERMARK_DETECTOR_VERSION]
             );
-            resolved.add(url);
             stats.detectedNow += 1;
-            this.setPixelResult(url, result.hasLegacyWatermark);
-            if (result.hasLegacyWatermark) {
-              stats.detector += 1;
-              if (result.verdict === 'UNSURE') {
-                stats.unsure += 1;
-                console.warn(`[LegacyWatermark:detect] Ảnh lưng chừng (score ${result.score}), coi như đã có dấu: ${url}`);
-              }
-            } else {
-              stats.detectorClean += 1;
-            }
+            this.failedUrls.delete(url);
+            this.infoByUrl.set(url, infoFromRow({ has_legacy_watermark: result.hasLegacyWatermark, score: result.score, source: 'DETECTOR' }));
           } catch (err) {
             stats.detectFailed += 1;
-            console.error(`[LegacyWatermark:detect] Không dò được logo, dùng luật dự phòng: ${url}`, err);
+            this.failedUrls.add(url);
+            this.infoByUrl.delete(url);
+            console.error(`[LegacyWatermark:detect] Không dò được logo, ảnh bị coi là NGHI NGỜ tới khi người xác nhận: ${url}`, err);
           }
         }
       };
       await Promise.all(Array.from({ length: Math.min(DETECT_CONCURRENCY, toDetect.length) }, worker));
     }
 
-    // 3. Dự phòng cho URL chưa có kết quả dò: registry trước cutover hoặc mốc ms trong tên file.
-    const fallback = pending.filter((u) => !resolved.has(u));
-    let fallbackOk = true;
-    if (fallback.length > 0) {
-      try {
-        const result = await Database.query<{ photo_url: string }>(
-          `SELECT DISTINCT photo_url
-             FROM survey_photo_registry
-            WHERE photo_url = ANY($1::text[])
-              AND created_at < $2;`,
-          [fallback, new Date(LEGACY_WATERMARK_CUTOVER_MS).toISOString()]
-        );
-        for (const row of result.rows) {
-          this.legacyUrls.add(row.photo_url);
-          stats.registry += 1;
-        }
-      } catch (err) {
-        fallbackOk = false;
-        console.error('[LegacyWatermark:load] Không truy vấn được survey_photo_registry', err);
-      }
-      for (const u of fallback) {
-        if (this.legacyUrls.has(u)) continue;
-        const ms = uploadMsFromFilename(u);
-        if (ms !== undefined && ms < LEGACY_WATERMARK_CUTOVER_MS) {
-          this.legacyUrls.add(u);
-          stats.filename += 1;
-        }
-      }
-    }
-
-    // URL dùng luật dự phòng chỉ đánh dấu đã kiểm khi truy vấn registry thành công, để lượt sau thử lại.
     for (const u of pending) {
-      if (resolved.has(u) || fallbackOk) this.checkedUrls.add(u);
+      const info = this.statusOf(u);
+      if (!info) continue;
+      if (info.source === 'MANUAL') stats.manual += 1;
+      if (info.status === 'LEGACY') stats.legacy += 1;
+      else if (info.status === 'CLEAN') stats.clean += 1;
+      else stats.suspect += 1;
     }
-
-    if (stats.detector + stats.registry + stats.filename + stats.detectFailed > 0 || stats.detectedNow > 0) {
-      console.info('[LegacyWatermark:load] Ảnh đã có watermark cũ → không dập thêm ở BE', { total: pending.length, ...stats });
+    if (stats.suspect > 0 || stats.detectedNow > 0 || stats.detectFailed > 0) {
+      console.info('[LegacyWatermark:load] Trạng thái dấu cũ', { total: pending.length, ...stats });
     }
   }
 }
