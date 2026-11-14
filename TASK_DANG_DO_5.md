@@ -1,6 +1,6 @@
 # Task dang dở 5: Sửa phân hệ Chung cư (tầng, mã U/M, CAD Studio)
 
-Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A commit `4b13676`, GĐ B commit kế tiếp (chưa push). GĐ C: plan `~/.claude/plans/condo-gd-c-cad-e-floor-resources.md`, đã code C1–C6 (mục 6 plan là các mặc định cần người dùng xác nhận).
+Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A commit `4b13676`, GĐ B commit kế tiếp (chưa push). GĐ C: plan `~/.claude/plans/condo-gd-c-cad-e-floor-resources.md`, đã code C1–C6 (5 chốt ở mục 6 plan đã được người dùng xác nhận 15/11).
 
 - Plan rà soát + quyết định: `~/.claude/plans/ph-n-h-chung-c-luminous-stardust.md` (plan gốc Antigravity `e36e865f`).
 - Chia giai đoạn: **GĐ A (xong code)** → GĐ B (setup tầng) → GĐ C (CAD_E / Kho tài nguyên tầng, plan riêng). Report chung cư không làm đợt này (xem `TASK_DANG_DO_3.md`).
@@ -56,6 +56,6 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
 
 ## Việc còn lại
 1. `useCondoMasterSurveyStore.ts` còn mặc định `foundationType`/`structureSystem` = phần tử đầu danh sách (ảnh hưởng ECS/VI) — chưa hỏi người dùng.
-2. GĐ C: người dùng xác nhận 5 mặc định ở mục 6 plan GĐ C.
+2. Người dùng tự thử CAD Studio (tab Z/E/Kho, Quick Setup, dải tầng) trên trình duyệt và báo lỗi nếu có.
 3. Dữ liệu local còn dải chồng (Tầng 1 → {1,3,4} trong khi 3, 4 có mặt bằng riêng): tự gỡ khi Admin lưu lại Tầng 1; không sửa dữ liệu bằng script.
 4. Migration 20261118 + 20261119 ĐÃ chạy trên DB local (15/11, `npm run db:migrate`, dữ liệu cũ giữ nguyên); CHƯA chạy trên prod. Chưa thử trên trình duyệt (lệnh đăng nhập tài khoản dev bị chặn quyền — cần người dùng tự thử hoặc cho phép). Logic repository đã kiểm bằng `cd backend && npm run test:condo-floors` (10 ca, chạy trong transaction ROLLBACK).
