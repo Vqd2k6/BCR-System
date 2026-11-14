@@ -6,6 +6,8 @@
  *    chống tràn ranh giới ô/thửa tuyệt đối.
  */
 
+import { floorCodeToUnitPrefix, resolveBaseFloorCode } from './floorCodeRules';
+
 /**
  * Rút gọn mã căn hộ / vị trí master để hiển thị lọt lòng trong ô CAD trên màn hình Surveyor.
  * Mã lưu trữ ngầm trong CSDL vẫn là "08.01", "MEZZ.01" hoặc "TB01.01".
@@ -42,7 +44,8 @@ export function formatShortUnitDisplay(
     const suffix = parts.slice(1).join('.');
 
     // Chỉ coi là Master nếu unitType là MASTER hoặc tiền tố rõ ràng là Master (TB01, T08, TROOF...) và KHÔNG PHẢI là UNIT
-    const isMasterPrefix = /^T(B\d+|\d+|MEZZ|KT|TECH|ROOF|REF|UM)/i.test(prefix);
+    // Mã Master cũ dạng T + mã tầng (T08, TB01, TMEZZ...). Không nhầm tầng TUM/TECH/TERRACE là Master.
+    const isMasterPrefix = /^T(\d+|B\d+|MEZZ\d*|KT|TECH\d*|ROOF|REF\d*|TUM)$/i.test(prefix);
     if (unitType === 'MASTER' || (unitType !== 'UNIT' && isMasterPrefix)) {
       const cleanSuffix = suffix.replace(/^M/i, '');
       return `M${cleanSuffix}`;
@@ -129,104 +132,133 @@ export function formatShortParcelDisplay(parcelCode?: string | null): string {
   return trimmed;
 }
 
+type PartitionCodeItem = {
+  unitCode?: string;
+  unit_code?: string;
+  partitionType?: string;
+  unit_type?: string;
+};
+
 /**
- * Định dạng số phòng mặc định (display_code) từ mã tầng và STT theo Phương án B
+ * Tiền tố mã căn từ mã tầng hoặc số tầng: 'F05'/5/'5' => '05', 0.5 => 'MEZZ', 1.5 => 'MEZZ2',
+ * -0.5 => 'SB', 'TECH2' => 'TECH2'. Mã tầng chứa ký tự lạ (tên tầng cũ) thì suy theo tên + số tầng.
+ */
+export function resolveUnitCodePrefix(floorCode: string | number, floorNumber?: number): string {
+  if (typeof floorCode === 'number') {
+    return floorCodeToUnitPrefix(resolveBaseFloorCode(floorCode));
+  }
+  const str = String(floorCode).trim();
+  if (/^-?\d+(\.\d+)?$/.test(str)) {
+    return floorCodeToUnitPrefix(resolveBaseFloorCode(Number(str)));
+  }
+  const prefix = floorCodeToUnitPrefix(str);
+  if (prefix) return prefix;
+  if (floorNumber !== undefined && Number.isFinite(floorNumber)) {
+    return floorCodeToUnitPrefix(resolveBaseFloorCode(floorNumber, str));
+  }
+  console.error('[codeFormattingUtils:resolveUnitCodePrefix] Không suy được tiền tố mã căn từ mã tầng:', floorCode);
+  return 'XX';
+}
+
+/** STT trong mã căn: '02.03' => 3, '01.M02' => 2, 'T02.01' => 1. Mã không có dấu chấm (U-001) => null. */
+export function extractUnitStt(code?: string | null): number | null {
+  const raw = (code || '').trim();
+  if (!raw.includes('.')) return null;
+  const last = raw.split('.').pop() || '';
+  const m = last.match(/^M?(\d+)$/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** Phân vùng là Khu vực chung: theo loại đã lưu; thiếu loại thì suy từ mã (01.M01, M-001, T02.01 cũ). */
+function isMasterPartition(item: PartitionCodeItem): boolean {
+  const t = (item.partitionType || item.unit_type || '').toUpperCase();
+  if (t === 'MASTER') return true;
+  if (t === 'UNIT') return false;
+  const code = (item.unitCode || item.unit_code || '').trim();
+  return /\.M\d+$/i.test(code) || /^M[-_]\d+$/i.test(code) || /^T(\d+|B\d+)\./i.test(code);
+}
+
+/**
+ * Định dạng số phòng mặc định (display_code) — chỉ là gợi ý, Admin/KSV sửa theo biển thực tế.
+ * Nhận STT hoặc nguyên mã căn: '02.03' chỉ lấy phần sau dấu chấm (=> '203', không phải '403').
  * @example
- * formatDefaultDisplayCode('MEZZ', 1) => 'L.01'
- * formatDefaultDisplayCode('G', 2)    => 'G.02'
- * formatDefaultDisplayCode('B01', 1)  => 'B1-01'
- * formatDefaultDisplayCode('F02', 3)  => '203'
- * formatDefaultDisplayCode('02', 3)   => '203'
- * formatDefaultDisplayCode('12', 4)   => '1204'
+ * formatDefaultDisplayCode('MEZZ', 1)     => 'L.01'
+ * formatDefaultDisplayCode('MEZZ2', 1)    => 'L2.01'
+ * formatDefaultDisplayCode('G', 2)        => 'G.02'
+ * formatDefaultDisplayCode('B01', 1)      => 'B1-01'
+ * formatDefaultDisplayCode('F02', 3)      => '203'
+ * formatDefaultDisplayCode('02', '02.03') => '203'
+ * formatDefaultDisplayCode('TECH2', 1)    => 'TECH2-01'
  */
 export function formatDefaultDisplayCode(
   floorCode: string | number,
   stt: number | string,
   type: 'UNIT' | 'MASTER' = 'UNIT'
 ): string {
-  const sttNum = typeof stt === 'number' ? stt : parseInt(stt.replace(/\D/g, '') || '1', 10);
+  let sttNum: number;
+  if (typeof stt === 'number') {
+    sttNum = stt;
+  } else {
+    const fromCode = extractUnitStt(stt);
+    const digits = parseInt(stt.replace(/\D/g, ''), 10);
+    sttNum = fromCode ?? (Number.isNaN(digits) ? 1 : digits);
+  }
   const sttPadded = String(sttNum).padStart(2, '0');
 
   if (type === 'MASTER') {
     return `Khu vực chung M${sttPadded}`;
   }
 
-  const str = String(floorCode).trim().toUpperCase();
-  if (str === '0.5' || str === 'MEZZ' || str.includes('LỬNG')) {
-    return `L.${sttPadded}`;
-  }
-  if (str === '0' || str === 'G' || str === 'F00' || str.includes('TRỆT')) {
-    return `G.${sttPadded}`;
-  }
-  if (str === '-0.5' || str === 'SB' || str.includes('BÁN HẦM')) {
-    return `SB-${sttPadded}`;
-  }
-  const bMatch = str.match(/B(\d+)/i) || (typeof floorCode === 'number' && floorCode < 0 ? [null, Math.abs(Math.round(floorCode)).toString()] : null);
-  if (bMatch) {
-    return `B${bMatch[1]}-${sttPadded}`;
-  }
-
-  // Tầng nổi
-  const fMatch = str.match(/F?(\d+)/i);
-  if (fMatch) {
-    const fNum = parseInt(fMatch[1], 10);
-    return `${fNum * 100 + sttNum}`;
-  }
-
-  return sttPadded;
+  const prefix = resolveUnitCodePrefix(floorCode);
+  if (prefix === 'MEZZ') return `L.${sttPadded}`;
+  const mezz = prefix.match(/^MEZZ(\d+)$/);
+  if (mezz) return `L${mezz[1]}.${sttPadded}`;
+  if (prefix === 'G') return `G.${sttPadded}`;
+  if (/^SB\d*$/.test(prefix)) return `${prefix}-${sttPadded}`;
+  const basement = prefix.match(/^B(\d+)$/);
+  if (basement) return `B${parseInt(basement[1], 10)}-${sttPadded}`;
+  if (/^\d+$/.test(prefix)) return `${parseInt(prefix, 10) * 100 + sttNum}`;
+  return `${prefix}-${sttPadded}`;
 }
 
 /**
- * Sinh mã phân vùng chuẩn Phương án B: [MÃ_TẦNG].[STT] cho unitCode và gợi ý displayCode
+ * Sinh mã phân vùng chuẩn: Căn hộ `[TIỀN_TỐ].[STT]`, Khu vực chung `[TIỀN_TỐ].M[STT]`.
+ * - STT đếm RIÊNG cho UNIT và MASTER, chỉ trong `sameFloorUnits` (các ô của đúng tầng này,
+ *   không suy tầng từ tiền tố vì căn có thể đã được chuyển tầng ở thẩm định mà giữ mã cũ).
+ * - Mã sinh ra không trùng bất kỳ mã nào trong `sameFloorUnits` lẫn `buildingCodes` (toàn tòa).
+ * @example
+ * generateOptionBPartitionCode('F01', [{ unitCode: '01.01', partitionType: 'UNIT' }], 'MASTER') => { unitCode: '01.M01', ... }
  */
 export function generateOptionBPartitionCode(
   floorCode: string | number,
-  existingUnits: Array<{ unitCode?: string; unit_code?: string; partitionType?: string; unit_type?: string }>,
-  type: 'UNIT' | 'MASTER' = 'UNIT'
+  sameFloorUnits: ReadonlyArray<PartitionCodeItem>,
+  type: 'UNIT' | 'MASTER' = 'UNIT',
+  options: { floorNumber?: number; buildingCodes?: Iterable<string> } = {}
 ): { unitCode: string; displayCode: string } {
-  // Xác định tiền tố tầng cho unit_code
-  let floorPrefix = '01';
-  const str = String(floorCode).trim().toUpperCase();
-  if (str === '0.5' || str === 'MEZZ' || str.includes('LỬNG')) {
-    floorPrefix = 'MEZZ';
-  } else if (str === '0' || str === 'G' || str === 'F00' || str.includes('TRỆT')) {
-    floorPrefix = 'G';
-  } else if (str === '-0.5' || str === 'SB') {
-    floorPrefix = 'SB';
-  } else if (/^B\d+$/i.test(str)) {
-    floorPrefix = str;
-  } else if (typeof floorCode === 'number' && floorCode < 0) {
-    floorPrefix = `B${String(Math.abs(Math.round(floorCode))).padStart(2, '0')}`;
-  } else {
-    const numMatch = str.match(/\d+/);
-    if (numMatch) {
-      floorPrefix = numMatch[0].padStart(2, '0');
-    }
-  }
+  const floorPrefix = resolveUnitCodePrefix(floorCode, options.floorNumber);
+  const wantMaster = type === 'MASTER';
 
-  // Tìm STT cao nhất hiện tại trên tầng này
+  const taken = new Set<string>();
   let maxStt = 0;
-  for (const item of existingUnits) {
+  for (const item of sameFloorUnits) {
     const raw = (item.unitCode || item.unit_code || '').trim();
     if (!raw) continue;
-    const parts = raw.split('.');
-    if (parts.length > 1) {
-      const pPrefix = parts[0].toUpperCase();
-      if (pPrefix === floorPrefix) {
-        const rawSuffix = parts.slice(1).join('.');
-        const numPart = parseInt(rawSuffix.replace(/\D/g, ''), 10);
-        if (!isNaN(numPart) && numPart > maxStt) {
-          maxStt = numPart;
-        }
-      }
-    }
+    taken.add(raw.toUpperCase());
+    if (isMasterPartition(item) !== wantMaster) continue;
+    const stt = extractUnitStt(raw);
+    if (stt !== null && stt > maxStt) maxStt = stt;
+  }
+  for (const code of options.buildingCodes || []) {
+    if (code) taken.add(String(code).trim().toUpperCase());
   }
 
-  const nextStt = maxStt + 1;
-  const sttStr = String(nextStt).padStart(2, '0');
-  const unitCode = type === 'MASTER' ? `${floorPrefix}.M${sttStr}` : `${floorPrefix}.${sttStr}`;
-  const displayCode = formatDefaultDisplayCode(floorPrefix, nextStt, type);
+  const build = (n: number): string => {
+    const sttStr = String(n).padStart(2, '0');
+    return wantMaster ? `${floorPrefix}.M${sttStr}` : `${floorPrefix}.${sttStr}`;
+  };
+  let nextStt = maxStt + 1;
+  while (taken.has(build(nextStt).toUpperCase())) nextStt++;
 
-  return { unitCode, displayCode };
+  return { unitCode: build(nextStt), displayCode: formatDefaultDisplayCode(floorPrefix, nextStt, type) };
 }
 

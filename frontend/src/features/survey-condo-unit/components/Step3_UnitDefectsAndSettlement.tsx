@@ -71,6 +71,7 @@ import {
 } from 'lucide-react';
 
 import { validateCondoUnitStep3, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
+import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
 
 export type ZedValidationIssue = CondoUnitValidationIssue;
 
@@ -143,14 +144,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
 
   const bCode = formData.parentInfo?.projectParcelCode || 'GENERAL';
-  const fNum = Number(formData.floorNumber);
-  const floorCode = isNaN(fNum)
-    ? String(formData.floorNumber || 'F01')
-    : fNum < 0
-      ? `B${String(Math.abs(fNum)).padStart(2, '0')}`
-      : fNum === 0
-        ? 'G'
-        : `F${String(fNum).padStart(2, '0')}`;
+  const floorCode = resolveSurveyFloorCode(formData.floorNumber);
 
   const zones = formData.zones || [];
   const structuralElements = formData.structuralElements || [];

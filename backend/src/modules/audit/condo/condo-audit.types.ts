@@ -190,6 +190,8 @@ export interface CondoWarningFlag {
 export interface CondoFloorMatrixRow {
   floorNumber: number;
   floorName: string;
+  /** Mã tầng đã lưu (MEZZ, TECH2, F05...); null khi tầng chưa có bản vẽ riêng */
+  floorCode?: string | null;
   floorPlanId?: string | null;
   cadPhotoUrl: string | null;
   totalMasterAreas?: number;

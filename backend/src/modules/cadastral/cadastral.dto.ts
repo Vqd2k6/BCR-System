@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import { FLOOR_NUMBER_MAX, FLOOR_NUMBER_MIN, isValidFloorNumber } from './utils/floor-code.rules';
+
+/** Số tầng -5..100, bước 0.5 (Bán hầm -0.5, Lửng 0.5, MEZZ2 1.5); khớp NUMERIC(4,1). */
+const FloorNumberSchema = z
+  .number()
+  .refine(isValidFloorNumber, `Số tầng phải từ ${FLOOR_NUMBER_MIN} đến ${FLOOR_NUMBER_MAX}, bước 0.5`);
 
 export const StartSurveyDto = z.object({
   phase: z.enum(['PHASE_1', 'PHASE_2']).default('PHASE_1'),
@@ -91,7 +97,7 @@ export const CadPolygonPointDto = z.object({
 
 export const CreateBuildingUnitDto = z.object({
   unitCode: z.string().trim().min(1, 'Mã số căn hộ bắt buộc').max(32, 'Mã số căn hộ tối đa 32 ký tự'),
-  floorNumber: z.number().int().min(-5).max(100).default(1),
+  floorNumber: FloorNumberSchema.default(1),
   ownerName: z.string().trim().max(128).optional().nullable(),
   ownerPhone: z.string().trim().max(32).optional().nullable(),
   ownerIdCard: z.string().trim().max(32).optional().nullable(),
@@ -99,10 +105,10 @@ export const CreateBuildingUnitDto = z.object({
 });
 
 export const UpsertFloorPlanDto = z.object({
-  floorNumber: z.number().min(-5, 'Tầng tối thiểu -5').max(100, 'Tầng tối đa 100'),
+  floorNumber: FloorNumberSchema,
   floorName: z.string().trim().min(1, 'Tên tầng bắt buộc').max(64, 'Tên tầng tối đa 64 ký tự'),
   floorCode: z.string().trim().max(32).optional(),
-  applicableFloors: z.array(z.number().min(-5).max(100)).optional(),
+  applicableFloors: z.array(FloorNumberSchema).optional(),
   cadPhotoUrl: z.string().max(10_000_000, 'Bản vẽ CAD không được vượt quá 10MB').default(''),
   cadPhotoCode: z.string().trim().max(32).optional().nullable(),
   imageWidth: z.number().int().positive().optional().nullable(),
@@ -114,7 +120,7 @@ export const UpsertFloorPlanDto = z.object({
 export const PartitionItemDto = z.object({
   unitCode: z.string().trim().min(1, 'Mã vị trí bắt buộc').max(32, 'Mã vị trí tối đa 32 ký tự'),
   displayCode: z.string().trim().max(32).optional().nullable(),
-  floorNumber: z.number().min(-5).max(100).optional(),
+  floorNumber: FloorNumberSchema.optional(),
   bbox: CadBBoxDto.optional().nullable(),
   polygon: z.array(CadPolygonPointDto).optional().nullable(),
   unitCadUrl: z.string().max(10_000_000, 'Ảnh CAD trích xuất không được vượt quá 10MB').optional().nullable(),
@@ -122,13 +128,13 @@ export const PartitionItemDto = z.object({
 });
 
 export const SaveFloorPartitionsDto = z.object({
-  floorNumber: z.number().min(-5).max(100),
+  floorNumber: FloorNumberSchema,
   floorPlanId: z.string().uuid().optional().nullable(),
   partitions: z.array(PartitionItemDto).max(500, 'Tối đa 500 phân vùng mỗi lần lưu'),
 });
 
 export const AtomicSyncFloorPlanAndPartitionsDto = z.object({
-  floorNumber: z.number().min(-5).max(100),
+  floorNumber: FloorNumberSchema,
   floorPlan: UpsertFloorPlanDto,
   partitions: z.array(PartitionItemDto).max(500, 'Tối đa 500 phân vùng mỗi lần lưu'),
 });

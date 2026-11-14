@@ -58,10 +58,11 @@ const getDefaultCondoMasterFormData = (parcelId: string): CondoMasterFormData =>
     usageFunction: CONDO_USAGE_FUNCTIONS[0], // Cố định Chung cư/ Toà nhiều căn hộ
     foundationType: CONDO_FOUNDATION_TYPES[0],
     structureSystem: CONDO_STRUCTURAL_SYSTEMS[0],
-    unitsPerFloor: 8,
-    totalUnitsCount: 32,
-    aboveFloors: base.aboveFloors || 5,
-    undergroundFloors: base.undergroundFloors || 1,
+    // Quy mô tòa là số liệu pháp lý: để trống bắt KSV nhập (hoặc nạp từ thửa / thông số đã lưu), không điền số giả
+    unitsPerFloor: '',
+    totalUnitsCount: '',
+    aboveFloors: '',
+    undergroundFloors: '',
   };
 };
 
@@ -204,8 +205,8 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
     // Auto recalculate total units if floors or unitsPerFloor changed
     if ('unitsPerFloor' in updates || 'aboveFloors' in updates) {
       const uPerFloor = typeof next.unitsPerFloor === 'number' ? next.unitsPerFloor : 0;
-      const floors = typeof next.aboveFloors === 'number' ? next.aboveFloors : 1;
-      next.totalUnitsCount = uPerFloor * floors;
+      const floors = typeof next.aboveFloors === 'number' ? next.aboveFloors : 0;
+      next.totalUnitsCount = uPerFloor > 0 && floors > 0 ? uPerFloor * floors : '';
     }
 
     // Recalculate scores

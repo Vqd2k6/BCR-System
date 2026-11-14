@@ -195,7 +195,7 @@ export const CadPartitionListSidebar: React.FC<CadPartitionListSidebarProps> = (
 
                 {/* Phân loại & Trạng thái CAD */}
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
-                  {!readOnly ? (
+                  {!readOnly && !isSurveyed ? (
                     <button
                       type="button"
                       onClick={(e) => onTogglePartitionType(box.id, e)}

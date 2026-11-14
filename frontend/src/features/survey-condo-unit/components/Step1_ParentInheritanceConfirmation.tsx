@@ -13,6 +13,7 @@ import {
   Layers,
   MapPin,
 } from 'lucide-react';
+import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
 
 export const Step1_ParentInheritanceConfirmation: React.FC = () => {
   const { formData, updateFormData, nextStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
@@ -39,14 +40,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
     Boolean(formData.photoP04?.url || formData.photoP04?.notApplicable);
 
   const bCode = parent.projectParcelCode || 'GENERAL';
-  const fNum = Number(formData.floorNumber);
-  const floorCode = isNaN(fNum)
-    ? String(formData.floorNumber || 'F01')
-    : fNum < 0
-      ? `B${String(Math.abs(fNum)).padStart(2, '0')}`
-      : fNum === 0
-        ? 'G'
-        : `F${String(fNum).padStart(2, '0')}`;
+  const floorCode = resolveSurveyFloorCode(formData.floorNumber);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">

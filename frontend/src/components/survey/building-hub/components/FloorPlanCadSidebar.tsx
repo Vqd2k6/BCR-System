@@ -82,7 +82,8 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
           <div className="flex items-center gap-1.5">
             <input
               type="number"
-              placeholder="Số tầng (VD: 9, 0, -1)"
+              placeholder="Số tầng (VD: 9, 0, 0.5, -0.5)"
+              step="0.5"
               value={newFloorInput}
               onChange={(e) => {
                 const val = e.target.value;
@@ -90,7 +91,9 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
                 if (val.trim() !== '') {
                   const parsed = parseFloat(val);
                   if (!isNaN(parsed)) {
-                    setNewFloorCodeInput(getDefaultFloorCode(parsed));
+                    setNewFloorCodeInput(
+                      getDefaultFloorCode(parsed, undefined, buildingFloors.filter((b) => b.floorNumber !== parsed).map((b) => b.floorCode))
+                    );
                   }
                 }
               }}
@@ -149,7 +152,8 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
                   setNewFloorInput('-2');
                   setNewFloorCodeInput('B02');
                 } else if (sel === 'SB') {
-                  setNewFloorInput('-1');
+                  // Bán hầm là -0.5; -1 là Hầm B01
+                  setNewFloorInput('-0.5');
                   setNewFloorCodeInput('SB');
                 } else if (sel === 'ROOF' || sel === 'TERRACE' || sel === 'TUM') {
                   const maxFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) : 1;

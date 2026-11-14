@@ -1,0 +1,45 @@
+# Task dang dở 5: Sửa phân hệ Chung cư (tầng, mã U/M, CAD Studio)
+
+Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A đã commit (chưa push).
+
+- Plan rà soát + quyết định: `~/.claude/plans/ph-n-h-chung-c-luminous-stardust.md` (plan gốc Antigravity `e36e865f`).
+- Chia giai đoạn: **GĐ A (xong code)** → GĐ B (setup tầng) → GĐ C (CAD_E / Kho tài nguyên tầng, plan riêng). Report chung cư không làm đợt này (xem `TASK_DANG_DO_3.md`).
+
+## Quyết định đã chốt
+| # | Quyết định |
+|---|---|
+| Q1 | Chỉ Admin chuyển thửa sang Chung cư. `Step1CaseSelector.tsx` đã chỉ hiện nút cho Admin → không cần sửa. |
+| Q2 | Tầng đặc biệt lặp lại đánh số `TECH`, `TECH2`...; 0.5 = `MEZZ`, 1.5 = `MEZZ2`; -0.5 = `SB`. Không dùng `M01` làm mã tầng. `floor_code` đã lưu không viết lại. |
+| Q3 | Chia GĐ A → B → C. |
+| Q4 | Không cần SELECT prod: DB local kéo từ prod về nên số liệu local là đủ (bên dưới). |
+| Q5 | Căn đã khảo sát: ảnh CAD là bản độc lập của hồ sơ (như CAD nhà dân), chỉ nạp 1 lần lúc vào ca. `deleteFloorPlan` chỉ gỡ `floor_plan_id`, không xóa `unit_cad_url`/bbox/polygon. |
+| Q6 | Bỏ mặc định giả ở store Tòa mẹ (8 căn/tầng, 32 căn, 5 tầng nổi, 1 hầm) → để trống; Bước 2 bắt nhập cả số tầng hầm (0 hợp lệ). |
+
+## GĐ A — đã làm
+- Migration `backend/database/migrations/20261118_condo_floor_numeric_integrity.sql`: `parcels.deleted_floors` INT[] → NUMERIC(4,1)[] (DO-block idempotent). Đã chạy thử 2 lần trong transaction ROLLBACK trên local. `database/init_schema.sql` đã cập nhật kiểu.
+- Bảng quy tắc mã tầng dùng chung: `frontend/src/core/utils/floorCodeRules.ts` = `backend/src/modules/cadastral/utils/floor-code.rules.ts` (giống hệt từng byte; `npm run test:floor-codes` kiểm).
+- `cadastral.repository.ts`: `::int` → `::numeric(4,1)`; `upsertFloorPlan` dùng `resolveFloorCode`; điều kiện khóa dùng chung `unitSurveyLockedSql` (status / phase1_report_id / EXISTS base_survey_reports) cho ON CONFLICT, soft-delete khi lưu phân vùng, xóa tầng, đếm căn đã khảo sát; `assertPartitionCodesNotClaimedElsewhere` → 409 khi mã đang ở tầng khác ngoài dải lưu, căn đã khảo sát ở tầng khác, hoặc trùng trong payload.
+- `cadastral.dto.ts`: `FloorNumberSchema` chung (-5..100, bước 0.5), bỏ `.int()`.
+- `condo-queue.service.ts` `getCondoProgressSummary`: lấy `floor_code`, `applicable_floors`; tầng kế thừa có CAD + `floorPlanId`; nhãn tầng qua `formatDefaultFloorLabel`; căn thiếu số tầng log lỗi thay vì ép Tầng 1.
+- FE `codeFormattingUtils.ts`: `generateOptionBPartitionCode` (tiền tố đúng cho TECH/ROOF/MEZZ2/SB, STT U/M đếm riêng, tránh trùng mã toàn tòa, tính cả Master cũ `Tnn.xx`); `formatDefaultDisplayCode` tách STT sau dấu chấm (`02.03` → `203`); `formatShortUnitDisplay` không nhầm tầng TUM/TECH là Master.
+- `FloorPlanCadPartitionCanvas.tsx`: ref danh sách ô mới nhất (vẽ nhanh liên tiếp không mất ô), truyền mã toàn tòa, so tầng bằng `Number()`, chặn đổi U↔M ô đã khảo sát. `CadPartitionListSidebar.tsx`: ẩn nút đổi loại khi đã khảo sát.
+- `FloorPlanCadManagementModal.tsx`: `fetchAllFloorData(preserveFloor)` — lưu/xóa CAD giữ tầng đang thao tác; chuyển tầng reset CAD/dải tầng/ô, giữ `displayCode`; thêm tầng nhận 0.5/-0.5, chặn trùng số tầng/mã tầng, reset dải tầng điển hình; gợi ý số phòng dòng 587/694.
+- `FloorPlanCadSidebar.tsx`: preset SB = -0.5.
+- `useBuildingHubState.ts`, `Step2_UnitSpecificInformation.tsx`: Trệt (0) không còn bị ép thành 1.
+- `Step1_ParentInheritanceConfirmation`, `Step3_UnitDefectsAndSettlement`, `Step4_UnitSignatures`, `useMasterAreaSurveyState`: mã tầng watermark qua `resolveSurveyFloorCode` (chỉ đổi tầng lẻ: `F0.5`→`MEZZ`, `B0.5`→`SB`; tầng nguyên giữ mã cũ để không lệch mã ảnh đã chụp).
+- `Step2_CondoMasterScaleAndCat.tsx`: xóa ô số tầng/số căn thì tổng về trống.
+
+Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`, `check:theme`, `test:floor-codes`, `test:condo-adapters`, `test:condo-absence-parity` đạt. **Chưa chạy migration thật, chưa test API end-to-end, chưa thử trên trình duyệt.**
+
+## Dữ liệu local (đọc 15/11)
+- 152 vị trí / 2 tòa: 140 mã `U-xxx`/`M-xxx` (đều đã khảo sát), 10 `nn.nn` (2 trong đó là MASTER), 2 `nn.Mnn`. Không có `Tnn.xx`.
+- Dữ liệu tầng lệch: `floor_code` F06 ở cả tầng 6 và 7, MEZZ ở tầng 2, "Sân thượng" TERRACE ở tầng 1; dải `applicable_floors` chồng lên tầng có bản vẽ riêng (Tầng 1 → {1,3,4}). Đây là lỗi #15 (GĐ B), không sửa dữ liệu.
+
+- Q5: `cadastral.repository.ts` `deleteFloorPlan` bước 2 chỉ gỡ `floor_plan_id`. Phiếu căn hộ đã giữ bản riêng `survey_data_json.unitCadUrl` (ảnh base64 tải R2 thành file riêng); thẩm định `resolveUnitCadUrl` lấy `building_units.unit_cad_url` khi JSON cũ thiếu → nay không còn bị xóa.
+- Q6: `useCondoMasterSurveyStore.ts` mặc định để trống, tự tính tổng chỉ khi cả hai số > 0; `validateCondoMasterStep` (stepValidator.ts) chặn thiếu số tầng hầm.
+
+## Việc còn lại
+1. `useCondoMasterSurveyStore.ts` còn mặc định `foundationType`/`structureSystem` = phần tử đầu danh sách (ảnh hưởng ECS/VI) — chưa hỏi người dùng.
+2. GĐ B: #8 (bỏ sinh `T..` khi copy/tầng điển hình), #15 (khóa dải tầng kế thừa; local có dải chồng lên tầng có bản vẽ riêng), #16, Quick Floor Setup, #17 (`SurveyorCadReadOnlyModal` lặp 1..floorCount).
+3. GĐ C: plan riêng (CAD_E / Kho tài nguyên tầng) — áp quy tắc Q5 cho ảnh CAD_E.
+4. Chưa chạy migration thật, chưa test API end-to-end / trình duyệt.

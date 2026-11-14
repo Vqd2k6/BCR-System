@@ -37,6 +37,7 @@ import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import type { MasterAreaAbsentPayload } from '../components/master-area/MasterAreaAbsentModal';
+import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
 
 /**
  * Đếm số lượng bằng chứng thực tế (ảnh, ghim CAD, vùng Z, cấu kiện E)
@@ -215,14 +216,12 @@ export function useMasterAreaSurveyState({
   const effectiveFloorCode = useMemo(() => {
     if (floorPlanData?.plan?.floor_code) return floorPlanData.plan.floor_code;
     if (floorPlans && floorPlans.length > 0) {
-      const match = floorPlans.find((p) => p.floor_number === floorNumber);
+      const match = floorPlans.find((p) => Number(p.floor_number) === Number(floorNumber));
       if (match?.floor_code) return match.floor_code;
     }
     if (unit.floor_code) return unit.floor_code;
     // Quy chuẩn fallback theo TCVN / QCVN nếu tầng chưa thiết lập CAD
-    if (floorNumber === 0) return 'G';
-    if (floorNumber < 0) return `B${String(Math.abs(floorNumber)).padStart(2, '0')}`;
-    return `F${String(floorNumber).padStart(2, '0')}`;
+    return resolveSurveyFloorCode(floorNumber);
   }, [floorPlanData?.plan?.floor_code, floorPlans, floorNumber, unit.floor_code]);
 
   // Cấu hình Watermark & Metadata pháp lý chuẩn Phase 1 kèm GPS & GIS
@@ -283,7 +282,7 @@ export function useMasterAreaSurveyState({
         }
 
         if (floorPlans && floorPlans.length > 0) {
-          const matchedFromProp = floorPlans.find((p) => p.floor_number === floorNumber);
+          const matchedFromProp = floorPlans.find((p) => Number(p.floor_number) === Number(floorNumber));
           if (matchedFromProp?.cad_photo_url) {
             setFloorPlanData((prev) => ({
               plan: {
@@ -337,7 +336,7 @@ export function useMasterAreaSurveyState({
 
         if (plansList.length > 0) {
           setAvailableFloorPlans((prev) => (prev.length > 0 ? prev : plansList));
-          const matchedPlan = plansList.find((p) => p.floor_number === floorNumber);
+          const matchedPlan = plansList.find((p) => Number(p.floor_number) === Number(floorNumber));
           if (matchedPlan?.cad_photo_url) {
             setFloorPlanData((prev) => ({
               plan: {

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { validateCondoUnitFull } from '../utils/condoUnitValidator';
+import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
 
 interface Props {
   onSubmitFinal: () => void;
@@ -35,14 +36,7 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
   const validation = validateCondoUnitFull(formData);
 
   const bCode = formData.parentInfo?.projectParcelCode || 'GENERAL';
-  const fNum = Number(formData.floorNumber);
-  const floorCode = isNaN(fNum)
-    ? String(formData.floorNumber || 'F01')
-    : fNum < 0
-      ? `B${String(Math.abs(fNum)).padStart(2, '0')}`
-      : fNum === 0
-        ? 'G'
-        : `F${String(fNum).padStart(2, '0')}`;
+  const floorCode = resolveSurveyFloorCode(formData.floorNumber);
 
   const unitLabel = formData.displayCode || formData.unitCode || '---';
 

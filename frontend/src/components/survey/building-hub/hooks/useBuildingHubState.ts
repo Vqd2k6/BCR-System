@@ -4,6 +4,7 @@ import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit, MasterReportData } from '../types';
 import { deriveBuildingFloorNumbers, getDefaultFloorCode } from '../../../../core/utils/floorUtils';
+import { FLOOR_NUMBER_MAX, FLOOR_NUMBER_MIN, isValidFloorNumber } from '../../../../core/utils/floorCodeRules';
 
 export interface FloorPlanData {
   id: string;
@@ -283,7 +284,12 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUnitCode.trim()) return;
-    const parsedFloor = Number(newFloorNumber) || 1;
+    // Tầng Trệt là 0: không dùng `|| 1` vì sẽ ép Trệt thành Tầng 1
+    const parsedFloor = newFloorNumber === '' ? Number.NaN : Number(newFloorNumber);
+    if (!isValidFloorNumber(parsedFloor)) {
+      alert(`Số tầng không hợp lệ. Nhập từ ${FLOOR_NUMBER_MIN} đến ${FLOOR_NUMBER_MAX}, bước 0.5 (Trệt 0, Lửng 0.5, Bán hầm -0.5).`);
+      return;
+    }
     try {
       setIsSubmittingUnit(true);
       const res = await api.post(`/parcels/${parcel.id}/units`, {

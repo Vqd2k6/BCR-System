@@ -65,7 +65,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
     const total = numAbove > 0 && numUnits > 0 ? numAbove * numUnits : undefined;
     updateFormData({
       aboveFloors: above,
-      totalUnitsCount: total ?? formData.totalUnitsCount,
+      totalUnitsCount: total ?? '', // tổng chỉ là giá trị tính; xóa ô thì tổng về trống, không giữ số cũ
     });
   };
 
@@ -77,7 +77,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
     const total = numAbove > 0 && numUnits > 0 ? numAbove * numUnits : undefined;
     updateFormData({
       unitsPerFloor: units,
-      totalUnitsCount: total ?? formData.totalUnitsCount,
+      totalUnitsCount: total ?? '', // tổng chỉ là giá trị tính; xóa ô thì tổng về trống, không giữ số cũ
     });
   };
 

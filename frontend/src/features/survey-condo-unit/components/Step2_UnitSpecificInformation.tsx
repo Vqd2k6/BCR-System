@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import { isResidentStatus } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
@@ -28,12 +28,20 @@ import {
 } from 'lucide-react';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import { isCadastralOwnerPlaceholder } from '../../survey-phase1/utils/stepValidator';
+import { isValidFloorNumber } from '../../../core/utils/floorCodeRules';
 
 export const Step2_UnitSpecificInformation: React.FC = () => {
   const { formData, updateFormData, setAbsenteeMode, nextStep, prevStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
   const contextReadOnly = useSurveyReadOnly();
   const isReadOnly = contextReadOnly ?? storeReadOnly;
   const hi = formData.historyInterview;
+
+  // Chuỗi đang gõ của ô số tầng: chỉ ghi vào store khi hợp lệ, để Trệt (0) không bị ép thành 1 khi xóa ô
+  const [floorInput, setFloorInput] = useState<string>(String(formData.floorNumber ?? ''));
+  useEffect(() => {
+    setFloorInput((prev) => (Number(prev) === formData.floorNumber && prev.trim() !== '' ? prev : String(formData.floorNumber ?? '')));
+  }, [formData.floorNumber]);
+  const isFloorInputValid = floorInput.trim() !== '' && isValidFloorNumber(Number(floorInput));
 
   // Real-time E5 calculation
   const qScores = [
@@ -109,9 +117,16 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
               step="any"
               min={-4}
               max={99}
-              value={formData.floorNumber}
-              onChange={(e) => updateFormData({ floorNumber: parseFloat(e.target.value) || 1 })}
-              hint="Trệt: 0, Lửng: 0.5, Lầu: 1, 2..."
+              value={floorInput}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setFloorInput(raw);
+                const parsed = Number(raw);
+                if (raw.trim() !== '' && isValidFloorNumber(parsed)) {
+                  updateFormData({ floorNumber: parsed });
+                }
+              }}
+              hint={isFloorInputValid ? 'Trệt: 0, Lửng: 0.5, Lầu: 1, 2...' : 'Số tầng chưa hợp lệ (bước 0.5) — giá trị cũ vẫn được giữ'}
             />
           </div>
 

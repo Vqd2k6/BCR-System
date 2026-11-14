@@ -9,6 +9,7 @@ import {
   readCondoZonesFromJson,
 } from '../strategies/condo-entity-strategy.interface';
 import { CondoCrudEngineService } from './condo-crud-engine.service';
+import { formatDefaultFloorLabel } from '../../../cadastral/utils/floor-code.rules';
 
 const WATER_DEFECT_TYPES = ['Thấm nước', 'Dột nước', 'Rò rỉ nước tràn'];
 const DOOR_SCREENING_CATEGORY = 'Kẹt cửa / Cong vênh phụ kiện';
@@ -436,28 +437,38 @@ export class CondoQueueService {
     const masterReport = masterReportRes.rows[0] || null;
     const parentMasterSummary = await fetchParentMasterSummary(parcelId);
 
-    // Truy vấn Mặt bằng CAD các tầng
+    // Truy vấn Mặt bằng CAD các tầng (kèm mã tầng và dải tầng điển hình để tầng kế thừa có CAD + nhãn đúng)
     const fpRes = await Database.query<{
       id: string;
-      floor_number: number;
+      floor_number: number | string;
       floor_name: string | null;
+      floor_code: string | null;
+      applicable_floors: Array<number | string> | null;
       cad_photo_url: string | null;
     }>(
-      `SELECT id, floor_number, floor_name, cad_photo_url
+      `SELECT id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url
        FROM building_floor_plans
        WHERE parcel_id = $1 AND deleted_at IS NULL
        ORDER BY floor_number ASC;`,
       [parcelId]
     );
-    const floorPlans = fpRes.rows;
+    const floorPlans = fpRes.rows.map((fp) => ({
+      ...fp,
+      floorNumber: Number(fp.floor_number),
+      applicable: Array.isArray(fp.applicable_floors) ? fp.applicable_floors.map(Number) : [],
+    }));
 
-    // Xây dựng Ma trận Tầng × Căn hộ / Khu vực chung (Floor Matrix)
-    const floorMap = new Map<number, CondoFloorMatrixRow>();
-    for (const fp of floorPlans) {
-      floorMap.set(fp.floor_number, {
-        floorNumber: fp.floor_number,
-        floorName: fp.floor_name || (fp.floor_number < 0 ? `Hầm B${Math.abs(fp.floor_number)}` : `Tầng ${fp.floor_number}`),
-        cadPhotoUrl: fp.cad_photo_url,
+    const emptyRow = (floorNumber: number): CondoFloorMatrixRow => {
+      const direct = floorPlans.find((fp) => fp.floorNumber === floorNumber);
+      const shared = direct
+        ? undefined
+        : floorPlans.find((fp) => fp.floorNumber !== floorNumber && fp.applicable.includes(floorNumber));
+      return {
+        floorNumber,
+        floorName: direct?.floor_name?.trim() || formatDefaultFloorLabel(floorNumber),
+        floorCode: direct?.floor_code || null,
+        floorPlanId: (direct || shared)?.id || null,
+        cadPhotoUrl: (direct || shared)?.cad_photo_url || null,
         totalUnits: 0,
         approvedUnits: 0,
         pendingUnits: 0,
@@ -465,24 +476,23 @@ export class CondoQueueService {
         criticalUnits: 0,
         masterAreasCount: 0,
         units: [],
-      });
+      };
+    };
+
+    // Xây dựng Ma trận Tầng × Căn hộ / Khu vực chung (Floor Matrix)
+    const floorMap = new Map<number, CondoFloorMatrixRow>();
+    for (const fp of floorPlans) {
+      floorMap.set(fp.floorNumber, emptyRow(fp.floorNumber));
     }
 
     for (const u of allUnits) {
-      const flNum = Number.isFinite(Number(u.floor_number)) ? Number(u.floor_number) : 1;
+      const flNum = Number(u.floor_number);
+      if (!Number.isFinite(flNum)) {
+        console.error('[CondoQueue:progressSummary] Căn thiếu số tầng hợp lệ, bỏ khỏi ma trận tầng:', u.id, u.floor_number);
+        continue;
+      }
       if (!floorMap.has(flNum)) {
-        floorMap.set(flNum, {
-          floorNumber: flNum,
-          floorName: flNum < 0 ? `Hầm B${Math.abs(flNum)}` : `Tầng ${flNum}`,
-          cadPhotoUrl: null,
-          totalUnits: 0,
-          approvedUnits: 0,
-          pendingUnits: 0,
-          absentUnits: 0,
-          criticalUnits: 0,
-          masterAreasCount: 0,
-          units: [],
-        });
+        floorMap.set(flNum, emptyRow(flNum));
       }
       const row = floorMap.get(flNum)!;
       const isArea = isMasterAreaUnit(u);

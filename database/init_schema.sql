@@ -414,7 +414,7 @@ CREATE TABLE parcels (
     locked_by_id UUID REFERENCES users(id),
     seal_hash VARCHAR(128),
     seal_notes TEXT,
-    deleted_floors INT[] DEFAULT '{}',
+    deleted_floors NUMERIC(4,1)[] DEFAULT '{}',
     code_slug VARCHAR(32),
     exclusion_type VARCHAR(32),                    -- ROAD_TRAFFIC | VACANT_LAND | CLICK_MISTAKE | TRAINING_DEMO | DUPLICATE
     exclusion_reason TEXT,
@@ -461,9 +461,9 @@ CREATE INDEX idx_absence_logs_surveyor ON parcel_absence_logs(surveyor_id);
 CREATE TABLE IF NOT EXISTS building_floor_plans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
-    floor_number INT NOT NULL,
+    floor_number NUMERIC(4,1) NOT NULL,
     floor_name VARCHAR(64) NOT NULL,
-    applicable_floors INT[] DEFAULT '{}',
+    applicable_floors NUMERIC(4,1)[] DEFAULT '{}',
     cad_photo_url TEXT NOT NULL,
     cad_photo_code VARCHAR(32),
     image_width INT,
@@ -482,7 +482,7 @@ CREATE TABLE building_units (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
     unit_code VARCHAR(32) NOT NULL,                  -- VD: 'P.402', 'A-12.05', '03.01'
-    floor_number INT NOT NULL DEFAULT 1,              -- Lầu 3
+    floor_number NUMERIC(4,1) NOT NULL DEFAULT 1,              -- Lầu 3
     floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
     owner_name VARCHAR(128),
     owner_phone VARCHAR(32),

@@ -215,7 +215,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     const set = new Set<string>();
     (allBuildingUnits || []).forEach((u) => {
       const uFl = u.floor_number ?? u.floorNumber ?? 1;
-      if (uFl === floorNumber) {
+      if (Number(uFl) === Number(floorNumber)) {
         const isSurveyed = u.status && u.status !== 'NOT_SURVEYED';
         const hasReport = Boolean(u.phase1_report_id);
         if (isSurveyed || hasReport) {
@@ -241,7 +241,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     const otherFloorsCodeMap = new Map<string, number>();
     (allBuildingUnits || []).forEach((u) => {
       const uFl = u.floor_number ?? u.floorNumber ?? 1;
-      if (uFl !== floorNumber) {
+      if (Number(uFl) !== Number(floorNumber)) {
         const c = (u.unit_code || u.unitCode || '').trim().toLowerCase();
         if (c) {
           otherFloorsCodeMap.set(c, uFl);
@@ -289,8 +289,8 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   // Tổng hợp danh sách căn hộ / master toàn tòa nhà (các tầng khác + canvas hiện tại)
   const combinedBuildingUnits = useMemo(() => {
     const otherUnits = (allBuildingUnits || []).filter((u) => {
-      const uFl = u.floor_number ?? u.floorNumber ?? 1;
-      return uFl !== floorNumber;
+      const uFl = u.floor_number ?? u.floorNumber;
+      return uFl === undefined || uFl === null || Number(uFl) !== Number(floorNumber);
     });
 
     return [
@@ -305,15 +305,33 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     ];
   }, [allBuildingUnits, floorNumber, partitions]);
 
-  // Sinh mã tiếp theo theo Phương án B cho Căn hộ con và Khu vực Dùng chung
-  const getNextUnitCode = useCallback((): string => {
-    return generateOptionBPartitionCode(floorCode || floorNumber, partitions, 'UNIT').unitCode;
-  }, [floorCode, floorNumber, partitions]);
+  // Mã toàn tòa (tầng khác + tầng này) để mã mới không trùng căn đã chuyển tầng hoặc tầng điển hình khác
+  const buildingCodes = useMemo(() => combinedBuildingUnits.map((u) => u.unitCode).filter(Boolean), [combinedBuildingUnits]);
 
-  // Sinh mã tiếp theo cho Khu vực Dùng chung
-  const getNextMasterCode = useCallback((): string => {
-    return generateOptionBPartitionCode(floorCode || floorNumber, partitions, 'MASTER').unitCode;
-  }, [floorCode, floorNumber, partitions]);
+  // Danh sách ô mới nhất: thao tác bất đồng bộ (crop ảnh) đọc từ đây để không ghi đè ô vừa vẽ trước đó
+  const partitionsRef = useRef<UnitPartitionBox[]>(partitions);
+  useEffect(() => {
+    partitionsRef.current = partitions;
+  }, [partitions]);
+
+  const commitPartitions = useCallback(
+    (next: UnitPartitionBox[]) => {
+      partitionsRef.current = next;
+      setPartitions(next);
+      if (onChangePartitions) onChangePartitions(next);
+    },
+    [onChangePartitions]
+  );
+
+  const generateCode = useCallback(
+    (sameFloor: UnitPartitionBox[], type: 'UNIT' | 'MASTER') =>
+      generateOptionBPartitionCode(floorCode || floorNumber, sameFloor, type, { floorNumber, buildingCodes }),
+    [floorCode, floorNumber, buildingCodes]
+  );
+
+  // Sinh mã tiếp theo cho Căn hộ con và Khu vực Dùng chung (STT U và M đếm riêng)
+  const getNextUnitCode = useCallback((): string => generateCode(partitions, 'UNIT').unitCode, [generateCode, partitions]);
+  const getNextMasterCode = useCallback((): string => generateCode(partitions, 'MASTER').unitCode, [generateCode, partitions]);
 
   // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -366,7 +384,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
       // Chỉ chấp nhận nếu kích thước ô kéo vẽ lớn hơn 1.5% chiều rộng/chiều cao
       if (width >= 1.5 && height >= 1.5) {
         const isMaster = activeTool === 'DRAW_MASTER';
-        const generated = generateOptionBPartitionCode(floorCode || floorNumber, partitions, isMaster ? 'MASTER' : 'UNIT');
+        const generated = generateCode(partitionsRef.current, isMaster ? 'MASTER' : 'UNIT');
         const newBox: UnitPartitionBox = {
           id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           unitCode: generated.unitCode,
@@ -378,18 +396,19 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
           height: Math.round(height * 10) / 10,
         };
 
+        // Thêm ô ngay (giữ chỗ mã) rồi mới crop, để lần vẽ kế tiếp thấy ô này
+        commitPartitions([...partitionsRef.current, newBox]);
+        setSelectedBoxId(newBox.id);
+
         // Tự động tạo ảnh crop ngầm cho vùng này
         try {
           const cropped = await cropImageBoundingBox(safeCadUrl || cadPhotoUrl, newBox);
-          newBox.unitCadUrl = cropped;
+          if (partitionsRef.current.some((p) => p.id === newBox.id)) {
+            commitPartitions(partitionsRef.current.map((p) => (p.id === newBox.id ? { ...p, unitCadUrl: cropped } : p)));
+          }
         } catch (cropErr: unknown) {
           console.warn('[FloorPlanCad:cropBoundingBox] Không thể crop ảnh vùng mới vẽ:', cropErr);
         }
-
-        const updated = [...partitions, newBox];
-        setPartitions(updated);
-        setSelectedBoxId(newBox.id);
-        if (onChangePartitions) onChangePartitions(updated);
       }
 
       setDragStart(null);
@@ -413,10 +432,15 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
 
   const handleTogglePartitionType = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const target = partitions.find((p) => p.id === id);
+    if (target && (surveyedUnitIds.has(target.id) || surveyedUnitIds.has(target.unitCode.trim().toLowerCase()))) {
+      console.warn('[FloorPlanCadPartitionCanvas:togglePartitionType] Chặn đổi loại U/M của vị trí đã khảo sát:', target.unitCode);
+      return;
+    }
     const updated = partitions.map((p) => {
       if (p.id === id) {
         const nextType: 'UNIT' | 'MASTER' = (p.partitionType || 'UNIT') === 'UNIT' ? 'MASTER' : 'UNIT';
-        const generated = generateOptionBPartitionCode(floorCode || floorNumber, partitions.filter((x) => x.id !== id), nextType);
+        const generated = generateCode(partitions.filter((x) => x.id !== id), nextType);
         return { ...p, partitionType: nextType, unitCode: generated.unitCode, displayCode: generated.displayCode };
       }
       return p;

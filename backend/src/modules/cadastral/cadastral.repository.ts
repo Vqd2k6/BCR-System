@@ -2,6 +2,71 @@ import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../common/errors/problem-details';
 import { EXCLUDED_LIFECYCLE_STATUSES } from './utils/parcel-exclusion';
+import { resolveFloorCode } from './utils/floor-code.rules';
+
+/**
+ * Căn/khu vực đã vào quy trình khảo sát (có trạng thái khác NOT_SURVEYED, đã gắn hồ sơ Phase 1,
+ * hoặc có bất kỳ hồ sơ khảo sát nào chưa xóa): không được xóa mềm, đổi tầng hay ghi đè CAD tự động.
+ * Dùng chung cho mọi câu ghi vào building_units để không lệch điều kiện giữa các luồng.
+ * `alias` là hằng trong code, không nhận dữ liệu người dùng.
+ */
+const unitSurveyLockedSql = (alias: string): string =>
+  `(COALESCE(${alias}.status, 'NOT_SURVEYED') <> 'NOT_SURVEYED'
+    OR ${alias}.phase1_report_id IS NOT NULL
+    OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = ${alias}.id AND r.deleted_at IS NULL))`;
+
+/** Điều kiện khóa trong nhánh ON CONFLICT của building_units (bản ghi hiện có mang tên bảng). */
+const UNIT_LOCKED_ON_CONFLICT = unitSurveyLockedSql('building_units');
+
+/**
+ * Chặn lưu phân vùng "cướp" bản ghi của tầng khác qua ON CONFLICT (parcel_id, unit_code).
+ * Mã đang thuộc tầng ngoài dải đang lưu, hoặc thuộc căn đã khảo sát ở tầng khác → 409 nêu rõ tầng.
+ * Mã trùng nhau ngay trong payload cũng bị chặn. Căn chưa khảo sát chuyển giữa các tầng trong cùng dải vẫn được phép.
+ */
+async function assertPartitionCodesNotClaimedElsewhere(
+  client: PoolClient,
+  parcelId: string,
+  defaultFloor: number,
+  partitions: ReadonlyArray<{ unitCode: string; floorNumber?: number }>
+): Promise<void> {
+  const floorOfCode = new Map<string, number>();
+  for (const p of partitions) {
+    const code = p.unitCode.trim();
+    if (!code) continue;
+    const fl = Number(p.floorNumber !== undefined ? p.floorNumber : defaultFloor);
+    const prev = floorOfCode.get(code);
+    if (prev !== undefined) {
+      throw new ConflictError(
+        `Mã ${code} bị trùng trong lần lưu này (Tầng ${prev} và Tầng ${fl}). Vui lòng đổi mã một trong hai vị trí.`
+      );
+    }
+    floorOfCode.set(code, fl);
+  }
+  if (floorOfCode.size === 0) return;
+
+  const targetFloors = Array.from(new Set(floorOfCode.values()));
+  const existingRes = await client.query<{ unit_code: string; floor_number: number; is_locked: boolean }>(
+    `SELECT bu.unit_code, bu.floor_number, ${unitSurveyLockedSql('bu')} AS is_locked
+     FROM building_units bu
+     WHERE bu.parcel_id = $1 AND bu.deleted_at IS NULL AND bu.unit_code = ANY($2::varchar[]);`,
+    [parcelId, Array.from(floorOfCode.keys())]
+  );
+
+  const clashes: string[] = [];
+  for (const row of existingRes.rows) {
+    const wantedFloor = floorOfCode.get(row.unit_code);
+    const currentFloor = Number(row.floor_number);
+    if (wantedFloor === undefined || currentFloor === wantedFloor) continue;
+    if (!targetFloors.includes(currentFloor) || row.is_locked) {
+      clashes.push(`${row.unit_code} (đang ở Tầng ${currentFloor}${row.is_locked ? ', đã khảo sát' : ''})`);
+    }
+  }
+  if (clashes.length > 0) {
+    throw new ConflictError(
+      `Mã vị trí đã được dùng ở tầng khác trong tòa nhà: ${clashes.slice(0, 5).join(', ')}${clashes.length > 5 ? ` và ${clashes.length - 5} mã khác` : ''}. Vui lòng đổi mã trước khi lưu.`
+    );
+  }
+}
 
 export interface ParcelEntity {
   id: string;
@@ -970,29 +1035,17 @@ export class CadastralRepository {
       ? data.applicableFloors 
       : [data.floorNumber];
 
-    // Xác định floorCode chuẩn nếu client chưa truyền
+    // Client chưa truyền floorCode: suy theo bảng quy tắc chung FE/BE (SB/MEZZ xét trước nhánh số âm),
+    // tầng đặc biệt trùng với tầng khác trong tòa thì đánh số TECH2, MEZZ3...
     let floorCode = (data.floorCode || '').trim();
     if (!floorCode) {
-      if (data.floorNumber < 0) {
-        floorCode = `B${String(Math.abs(data.floorNumber)).padStart(2, '0')}`;
-      } else if (data.floorNumber === 0) {
-        floorCode = 'G';
-      } else {
-        const lower = data.floorName.toLowerCase();
-        if (lower.includes('lửng') || lower.includes('mezzanine')) floorCode = 'MEZZ';
-        else if (lower.includes('bán hầm') || lower.includes('semi-basement')) floorCode = 'SB';
-        else if (data.floorNumber < 0 || lower.includes('hầm') || lower.includes('basement')) {
-          const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
-          const bNum = match ? parseInt(match[1], 10) : (data.floorNumber < 0 ? Math.abs(data.floorNumber) : 1);
-          floorCode = `B${String(bNum).padStart(2, '0')}`;
-        }
-        else if (lower.includes('kỹ thuật')) floorCode = 'TECH';
-        else if (lower.includes('lánh nạn')) floorCode = 'REF';
-        else if (lower.includes('tum')) floorCode = 'TUM';
-        else if (lower.includes('mái') || lower.includes('roof')) floorCode = 'ROOF';
-        else if (lower.includes('sân thượng')) floorCode = 'TERRACE';
-        else floorCode = `F${String(data.floorNumber).padStart(2, '0')}`;
-      }
+      const otherCodesSql = `SELECT floor_code FROM building_floor_plans
+         WHERE parcel_id = $1 AND floor_number <> $2 AND deleted_at IS NULL AND floor_code IS NOT NULL;`;
+      const otherParams = [data.parcelId, data.floorNumber];
+      const otherRes = client
+        ? await client.query<{ floor_code: string }>(otherCodesSql, otherParams)
+        : await Database.query<{ floor_code: string }>(otherCodesSql, otherParams);
+      floorCode = resolveFloorCode(data.floorNumber, data.floorName, otherRes.rows.map((r) => r.floor_code));
     }
 
     // Tự động nhận diện thông minh scope & areaType nếu chưa truyền
@@ -1054,7 +1107,7 @@ export class CadastralRepository {
 
     // Tự động gỡ bỏ tầng khỏi deleted_floors của parcel khi đã có bản vẽ hợp lệ
     const updateParcelSql = `UPDATE parcels 
-       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::numeric(4,1)),
            updated_at = NOW()
        WHERE id = $1;`;
     if (client) {
@@ -1094,6 +1147,8 @@ export class CadastralRepository {
       );
       const allFloorPlans = floorPlansRes.rows;
 
+      await assertPartitionCodesNotClaimedElsewhere(txClient, parcelId, floorNumber, partitions);
+
       for (const part of partitions) {
         const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
         const uType = part.unitType || 'UNIT';
@@ -1121,27 +1176,27 @@ export class CadastralRepository {
           ON CONFLICT (parcel_id, unit_code) WHERE deleted_at IS NULL DO UPDATE SET
             display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
             floor_number = CASE
-              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
               THEN COALESCE(building_units.floor_number, EXCLUDED.floor_number)
               ELSE EXCLUDED.floor_number
             END,
             floor_plan_id = CASE
-              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
               THEN COALESCE(building_units.floor_plan_id, EXCLUDED.floor_plan_id)
               ELSE COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id)
             END,
             cad_bbox = CASE
-              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
               THEN COALESCE(building_units.cad_bbox, EXCLUDED.cad_bbox)
               ELSE COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox)
             END,
             cad_polygon = CASE
-              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
               THEN COALESCE(building_units.cad_polygon, EXCLUDED.cad_polygon)
               ELSE COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon)
             END,
             unit_cad_url = CASE
-              WHEN (building_units.status IS DISTINCT FROM 'NOT_SURVEYED' OR building_units.phase1_report_id IS NOT NULL OR EXISTS (SELECT 1 FROM base_survey_reports r WHERE r.unit_id = building_units.id AND r.deleted_at IS NULL))
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
               THEN COALESCE(building_units.unit_cad_url, EXCLUDED.unit_cad_url)
               ELSE COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url)
             END,
@@ -1169,42 +1224,28 @@ export class CadastralRepository {
       // SAFE PRUNING (SOFT DELETE MANDATE):
       // TUYỆT ĐỐI CHỈ SOFT DELETE (deleted_at = NOW()) các unit CHƯA KHẢO SÁT
       const targetFloors = Array.from(
-        new Set(partitions.map((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber)))
+        new Set(partitions.map((p) => Number(p.floorNumber !== undefined ? p.floorNumber : floorNumber)))
       );
       if (targetFloors.length === 0) {
-        targetFloors.push(floorNumber);
+        targetFloors.push(Number(floorNumber));
       }
 
       for (const fl of targetFloors) {
         const activeCodesOnFloor = partitions
-          .filter((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber) === fl)
+          .filter((p) => Number(p.floorNumber !== undefined ? p.floorNumber : floorNumber) === fl)
           .map((p) => p.unitCode.trim())
           .filter(Boolean);
 
-        if (activeCodesOnFloor.length > 0) {
-          await txClient.query(
-            `UPDATE building_units 
-             SET deleted_at = NOW(), updated_at = NOW()
-             WHERE parcel_id = $1 
-               AND floor_number = $2 
-               AND NOT (unit_code = ANY($3::varchar[]))
-               AND phase1_report_id IS NULL 
-               AND (status = 'NOT_SURVEYED' OR status IS NULL)
-               AND deleted_at IS NULL;`,
-            [parcelId, fl, activeCodesOnFloor]
-          );
-        } else {
-          await txClient.query(
-            `UPDATE building_units 
-             SET deleted_at = NOW(), updated_at = NOW()
-             WHERE parcel_id = $1 
-               AND floor_number = $2 
-               AND phase1_report_id IS NULL 
-               AND (status = 'NOT_SURVEYED' OR status IS NULL)
-               AND deleted_at IS NULL;`,
-            [parcelId, fl]
-          );
-        }
+        await txClient.query(
+          `UPDATE building_units bu
+           SET deleted_at = NOW(), updated_at = NOW()
+           WHERE bu.parcel_id = $1
+             AND bu.floor_number = $2
+             AND NOT (bu.unit_code = ANY($3::varchar[]))
+             AND NOT ${unitSurveyLockedSql('bu')}
+             AND bu.deleted_at IS NULL;`,
+          [parcelId, fl, activeCodesOnFloor]
+        );
       }
 
       // Cập nhật scope của floor plan nếu có floorPlanId
@@ -1223,7 +1264,7 @@ export class CadastralRepository {
         `UPDATE parcels 
          SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
              building_type = 'CONDOMINIUM',
-             deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+             deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::numeric(4,1)),
              updated_at = NOW()
          WHERE id = $1;`,
         [parcelId, floorNumber]
@@ -1309,9 +1350,9 @@ export class CadastralRepository {
   ): Promise<{ unit_code: string; status: string }[]> {
     const res = await Database.query<{ unit_code: string; status: string }>(
       `SELECT unit_code, status 
-       FROM building_units 
-       WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL
-         AND (phase1_report_id IS NOT NULL OR status NOT IN ('NOT_SURVEYED'));`,
+       FROM building_units bu
+       WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND bu.deleted_at IS NULL
+         AND ${unitSurveyLockedSql('bu')};`,
       [parcelId, floorNumber]
     );
     return res.rows;
@@ -1320,7 +1361,7 @@ export class CadastralRepository {
   static async restoreFloor(parcelId: string, floorNumber: number): Promise<boolean> {
     await Database.query(
       `UPDATE parcels 
-       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::numeric(4,1)),
            updated_at = NOW()
        WHERE id = $1;`,
       [parcelId, floorNumber]
@@ -1337,17 +1378,19 @@ export class CadastralRepository {
     return Database.transaction(async (client) => {
       // 1. Soft-delete các unit nháp của tầng này chưa khảo sát
       await client.query(
-        `UPDATE building_units 
+        `UPDATE building_units bu
          SET deleted_at = NOW(), updated_at = NOW()
-         WHERE parcel_id = $1 AND floor_number = $2 AND phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL) AND deleted_at IS NULL;`,
+         WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND NOT ${unitSurveyLockedSql('bu')} AND bu.deleted_at IS NULL;`,
         [parcelId, floorNumber]
       );
 
-      // 2. Gỡ liên kết CAD đối với các unit đã có báo cáo khảo sát
+      // 2. Căn đã khảo sát (còn lại sau bước 1): chỉ gỡ liên kết bản vẽ tầng.
+      //    Ảnh CAD đã cắt và khung vị trí là bản độc lập của hồ sơ (chốt 15/11/2026, giống CAD nhà dân):
+      //    không xóa, vì màn thẩm định còn đọc unit_cad_url khi hồ sơ cũ thiếu ảnh trong survey_data_json.
       await client.query(
-        `UPDATE building_units 
-         SET floor_plan_id = NULL, cad_bbox = NULL, cad_polygon = NULL, unit_cad_url = NULL, updated_at = NOW()
-         WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL;`,
+        `UPDATE building_units bu
+         SET floor_plan_id = NULL, updated_at = NOW()
+         WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND bu.deleted_at IS NULL;`,
         [parcelId, floorNumber]
       );
 
@@ -1362,9 +1405,9 @@ export class CadastralRepository {
       // 4. Gỡ số tầng khỏi danh sách áp dụng (applicable_floors) của bất kỳ bản vẽ tầng nào khác
       await client.query(
         `UPDATE building_floor_plans 
-         SET applicable_floors = array_remove(applicable_floors, $2::int),
+         SET applicable_floors = array_remove(applicable_floors, $2::numeric(4,1)),
              updated_at = NOW()
-         WHERE parcel_id = $1 AND $2::int = ANY(applicable_floors) AND deleted_at IS NULL;`,
+         WHERE parcel_id = $1 AND $2::numeric(4,1) = ANY(applicable_floors) AND deleted_at IS NULL;`,
         [parcelId, floorNumber]
       );
 
@@ -1372,10 +1415,10 @@ export class CadastralRepository {
       if (mode === 'DELETE_FLOOR') {
         await client.query(
           `UPDATE parcels 
-           SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::int),
+           SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::numeric(4,1)),
                total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
                updated_at = NOW()
-           WHERE id = $1 AND NOT ($2::int = ANY(COALESCE(deleted_floors, '{}')));`,
+           WHERE id = $1 AND NOT ($2::numeric(4,1) = ANY(COALESCE(deleted_floors, '{}')));`,
           [parcelId, floorNumber]
         );
       } else {

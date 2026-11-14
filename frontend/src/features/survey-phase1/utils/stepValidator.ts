@@ -494,6 +494,21 @@ export const validateCondoMasterStep = (step: number, formData: Phase1SurveyForm
       });
     }
 
+    if (
+      formData.undergroundFloors === undefined ||
+      formData.undergroundFloors === null ||
+      formData.undergroundFloors === '' ||
+      Number(formData.undergroundFloors) < 0
+    ) {
+      missing.push({
+        fieldId: 'input-undergroundFloors',
+        label: '2.1. Số tầng hầm *',
+        step: 2,
+        description: 'Vui lòng nhập số tầng hầm của tòa nhà (không có hầm thì nhập 0).',
+        isBlocking: true,
+      });
+    }
+
     if (!formData.unitsPerFloor || Number(formData.unitsPerFloor) <= 0) {
       missing.push({
         fieldId: 'input-unitsPerFloor',

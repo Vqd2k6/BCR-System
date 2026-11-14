@@ -4,6 +4,8 @@
  * và giữ tính bất biến cho các tầng đã có dữ liệu thực tế.
  */
 
+import { resolveBaseFloorCode, resolveFloorCode } from './floorCodeRules';
+
 export interface FloorDerivationOptions {
   floorPlans?: Array<{ floor_number: number; applicable_floors?: number[] }>;
   units?: Array<{ floor_number?: number; floorNumber?: number }>;
@@ -110,21 +112,27 @@ export const detectDefaultFloorScope = (
   return { scope: 'UNIT', areaType: 'TYPICAL_UNIT' };
 };
 
-export const getDefaultFloorCode = (floorNum: number, floorName?: string): string => {
-  const lower = (floorName || '').toLowerCase();
-  if (floorNum === 0.5 || lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
-  if (floorNum === -0.5 || lower.includes('bán hầm') || lower.includes('semi-basement')) return 'SB';
-  if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
-    const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
-    const bNum = match ? parseInt(match[1], 10) : (floorNum < 0 ? Math.abs(Math.round(floorNum)) : 1);
-    return `B${String(bNum).padStart(2, '0')}`;
-  }
-  if (lower.includes('kỹ thuật')) return 'TECH';
-  if (lower.includes('lánh nạn')) return 'REF';
-  if (lower.includes('tum')) return 'TUM';
-  if (lower.includes('sân thượng')) return 'TERRACE';
-  if (lower.includes('mái') || lower.includes('roof')) return 'ROOF';
-  if (floorNum === 0 || lower.includes('trệt')) return 'G';
-  return `F${String(Math.floor(floorNum)).padStart(2, '0')}`;
-};
+/**
+ * Mã tầng mặc định (bảng quy tắc chung FE/BE `floorCodeRules.ts`).
+ * Truyền `otherFloorCodes` (mã của các tầng khác trong tòa) khi TẠO tầng mới để tầng đặc biệt
+ * lặp lại được đánh số TECH2, MEZZ2...; không truyền khi chỉ hiển thị.
+ */
+export const getDefaultFloorCode = (
+  floorNum: number,
+  floorName?: string,
+  otherFloorCodes: Iterable<string> = []
+): string => resolveFloorCode(floorNum, floorName, otherFloorCodes);
 
+
+/**
+ * Mã tầng dùng trong watermark / mã ảnh của phiếu khảo sát căn hộ / khu vực.
+ * Chỉ suy theo SỐ tầng (không theo tên) để tầng số nguyên giữ đúng mã cũ F05/B01/G của các ảnh đã chụp;
+ * tầng lẻ ra MEZZ / MEZZ2 / SB thay cho 'F0.5' / 'B0.5' (dấu chấm làm vỡ phép tách mã ảnh).
+ */
+export const resolveSurveyFloorCode = (rawFloor: unknown): string => {
+  const n = Number(rawFloor);
+  if (rawFloor === '' || rawFloor === null || rawFloor === undefined || !Number.isFinite(n)) {
+    return String(rawFloor || 'F01');
+  }
+  return resolveBaseFloorCode(n);
+};
