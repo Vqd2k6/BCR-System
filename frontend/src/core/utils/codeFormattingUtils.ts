@@ -262,3 +262,35 @@ export function generateOptionBPartitionCode(
   return { unitCode: build(nextStt), displayCode: formatDefaultDisplayCode(floorPrefix, nextStt, type) };
 }
 
+
+/**
+ * Mã cho ô nhân bản sang tầng khác (copy tầng / dải tầng điển hình): ưu tiên GIỮ CÙNG STT với ô nguồn
+ * (05.03 → 06.03, 05.M01 → 06.M01) để các tầng điển hình thẳng hàng; STT đó đã có người dùng thì cấp STT kế tiếp.
+ * Không còn sinh dạng cũ `T06.01` cho Khu vực chung.
+ */
+export function generateMirroredPartitionCode(
+  targetFloorCode: string | number,
+  sourceCode: string,
+  type: 'UNIT' | 'MASTER',
+  sameFloorUnits: ReadonlyArray<PartitionCodeItem>,
+  options: { floorNumber?: number; buildingCodes?: Iterable<string> } = {}
+): { unitCode: string; displayCode: string } {
+  const prefix = resolveUnitCodePrefix(targetFloorCode, options.floorNumber);
+  const stt = extractUnitStt(sourceCode);
+  if (stt !== null) {
+    const sttStr = String(stt).padStart(2, '0');
+    const candidate = type === 'MASTER' ? `${prefix}.M${sttStr}` : `${prefix}.${sttStr}`;
+    const taken = new Set<string>();
+    for (const item of sameFloorUnits) {
+      const raw = (item.unitCode || item.unit_code || '').trim();
+      if (raw) taken.add(raw.toUpperCase());
+    }
+    for (const code of options.buildingCodes || []) {
+      if (code) taken.add(String(code).trim().toUpperCase());
+    }
+    if (!taken.has(candidate.toUpperCase())) {
+      return { unitCode: candidate, displayCode: formatDefaultDisplayCode(prefix, stt, type) };
+    }
+  }
+  return generateOptionBPartitionCode(targetFloorCode, sameFloorUnits, type, options);
+}

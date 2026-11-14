@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { X, Layers, Check, CheckSquare, Square, AlertTriangle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, Layers, Check, AlertTriangle, Lock, Plus } from 'lucide-react';
+import { FLOOR_NUMBER_MAX, FLOOR_NUMBER_MIN, isValidFloorNumber } from '../../../../core/utils/floorCodeRules';
 
 interface TypicalFloorsSelectorModalProps {
   isOpen: boolean;
   baseFloorNumber: number;
   baseFloorName: string;
-  allBuildingFloors: { floorNumber: number; floorName: string; hasOwnCad?: boolean }[];
+  /** hasOwnPlan: tầng đã có mặt bằng riêng (không được gộp vào dải); inheritedFromFloor: đang theo bản vẽ tầng khác */
+  allBuildingFloors: { floorNumber: number; floorName: string; hasOwnPlan?: boolean; inheritedFromFloor?: number }[];
   currentApplicableFloors: number[];
   onConfirm: (selectedFloors: number[]) => void;
   onClose: () => void;
@@ -25,13 +27,60 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
     const list = currentApplicableFloors.includes(baseFloorNumber)
       ? [...currentApplicableFloors]
       : [baseFloorNumber, ...currentApplicableFloors];
-    return Array.from(new Set(list)).sort((a, b) => a - b);
+    // Dữ liệu cũ có thể còn chồng dải lên tầng đã có mặt bằng riêng: bỏ ra khỏi lựa chọn
+    const ownPlan = new Set(allBuildingFloors.filter((f) => f.hasOwnPlan).map((f) => f.floorNumber));
+    return Array.from(new Set(list))
+      .filter((f) => f === baseFloorNumber || !ownPlan.has(f))
+      .sort((a, b) => a - b);
   });
+
+  const [rangeFrom, setRangeFrom] = useState<string>('');
+  const [rangeTo, setRangeTo] = useState<string>('');
+  const [rangeError, setRangeError] = useState<string>('');
+
+  const ownPlanFloors = useMemo(
+    () => new Set(allBuildingFloors.filter((f) => f.hasOwnPlan).map((f) => f.floorNumber)),
+    [allBuildingFloors]
+  );
+
+  // Tầng hiển thị = tầng của tòa + tầng mới chọn theo dải (chưa có trong danh sách)
+  const displayFloors = useMemo(() => {
+    const known = new Map(allBuildingFloors.map((f) => [f.floorNumber, f]));
+    for (const f of selectedFloors) {
+      if (!known.has(f)) known.set(f, { floorNumber: f, floorName: `Tầng ${f} (mới)` });
+    }
+    return Array.from(known.values()).sort((a, b) => a.floorNumber - b.floorNumber);
+  }, [allBuildingFloors, selectedFloors]);
 
   if (!isOpen) return null;
 
+  const handleAddRange = () => {
+    const from = Number(rangeFrom.trim());
+    const to = Number(rangeTo.trim());
+    if (rangeFrom.trim() === '' || rangeTo.trim() === '' || !Number.isInteger(from) || !Number.isInteger(to)) {
+      setRangeError('Nhập số tầng nguyên cho cả "Từ" và "Đến".');
+      return;
+    }
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    if (!isValidFloorNumber(lo) || !isValidFloorNumber(hi)) {
+      setRangeError(`Số tầng phải từ ${FLOOR_NUMBER_MIN} đến ${FLOOR_NUMBER_MAX}.`);
+      return;
+    }
+    const added: number[] = [];
+    const skipped: number[] = [];
+    for (let f = lo; f <= hi; f++) {
+      if (f === baseFloorNumber) continue;
+      if (ownPlanFloors.has(f)) skipped.push(f);
+      else added.push(f);
+    }
+    setSelectedFloors((prev) => Array.from(new Set([...prev, ...added])).sort((a, b) => a - b));
+    setRangeError(skipped.length > 0 ? `Đã bỏ qua tầng có mặt bằng riêng: ${skipped.join(', ')}` : '');
+  };
+
   const toggleFloor = (floorNum: number) => {
     if (floorNum === baseFloorNumber) return; // Không thể bỏ chọn tầng gốc
+    if (ownPlanFloors.has(floorNum)) return; // Tầng có mặt bằng riêng không gộp vào dải
     setSelectedFloors((prev) =>
       prev.includes(floorNum) ? prev.filter((f) => f !== floorNum) : [...prev, floorNum].sort((a, b) => a - b)
     );
@@ -39,6 +88,7 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
 
   const handleSelectAllAbove = () => {
     const aboveFloors = allBuildingFloors
+      .filter((f) => !f.hasOwnPlan)
       .map((f) => f.floorNumber)
       .filter((f) => f >= baseFloorNumber);
     setSelectedFloors(Array.from(new Set([...selectedFloors, ...aboveFloors])).sort((a, b) => a - b));
@@ -105,12 +155,45 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
           </div>
         </div>
 
+        {/* Chọn nhanh theo dải số tầng (kể cả tầng chưa tạo trong danh sách) */}
+        <div className="px-5 py-2.5 border-b border-slate-200 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-600 font-medium shrink-0">Dải tầng:</span>
+            <input
+              type="number"
+              step="1"
+              placeholder="Từ"
+              value={rangeFrom}
+              onChange={(e) => setRangeFrom(e.target.value)}
+              className="w-16 px-2 py-1 rounded-lg bg-white border border-slate-300 font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+            />
+            <span className="text-slate-400">→</span>
+            <input
+              type="number"
+              step="1"
+              placeholder="Đến"
+              value={rangeTo}
+              onChange={(e) => setRangeTo(e.target.value)}
+              className="w-16 px-2 py-1 rounded-lg bg-white border border-slate-300 font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddRange}
+              className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="w-3 h-3" /> Thêm dải
+            </button>
+          </div>
+          {rangeError && <span className="text-[11px] text-amber-700 font-medium">{rangeError}</span>}
+        </div>
+
         {/* Floor Chips Grid */}
         <div className="p-5 max-h-[55vh] overflow-y-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {allBuildingFloors.map((fl) => {
+            {displayFloors.map((fl) => {
               const isBase = fl.floorNumber === baseFloorNumber;
               const isChecked = selectedFloors.includes(fl.floorNumber);
+              const isOwnPlan = !isBase && Boolean(fl.hasOwnPlan);
 
               return (
                 <div
@@ -119,6 +202,8 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
                   className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all select-none ${
                     isBase
                       ? 'border-teal-500 bg-teal-50 text-teal-900 cursor-default shadow-xs'
+                      : isOwnPlan
+                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
                       : isChecked
                       ? 'border-teal-500 bg-teal-50/70 text-teal-950 cursor-pointer hover:border-teal-600'
                       : 'border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 hover:bg-slate-50'
@@ -133,9 +218,15 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
                         </span>
                       )}
                     </span>
-                    {!isBase && fl.hasOwnCad && isChecked && (
+                    {isOwnPlan && (
+                      <span className="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 mt-0.5">
+                        <Lock className="w-2.5 h-2.5" /> Có mặt bằng riêng
+                      </span>
+                    )}
+                    {!isBase && !isOwnPlan && fl.inheritedFromFloor !== undefined && (
                       <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5 mt-0.5">
-                        <AlertTriangle className="w-2.5 h-2.5" /> Ghi đè CAD
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        {isChecked ? `Chuyển từ Tầng ${fl.inheritedFromFloor} sang tầng này` : `Đang theo Tầng ${fl.inheritedFromFloor}`}
                       </span>
                     )}
                   </div>

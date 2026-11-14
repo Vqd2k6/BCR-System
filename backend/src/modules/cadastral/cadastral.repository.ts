@@ -1302,13 +1302,65 @@ export class CadastralRepository {
       unitCadUrl?: string | null;
       unitType?: 'UNIT' | 'MASTER';
     }[]
-  ): Promise<{ plan: BuildingFloorPlanEntity; units: BuildingUnitEntity[] }> {
+  ): Promise<{
+    plan: BuildingFloorPlanEntity;
+    units: BuildingUnitEntity[];
+    detachedFloors: number[];
+    releasedFromOtherPlans: number[];
+    prunedUnitCodes: string[];
+  }> {
     return Database.transaction(async (client) => {
+      const thisFloor = Number(floorNumber);
+      const requested = (floorPlanData.applicableFloors && floorPlanData.applicableFloors.length > 0
+        ? floorPlanData.applicableFloors
+        : [thisFloor]
+      ).map(Number);
+      const newSet = Array.from(new Set([...requested, thisFloor])).sort((a, b) => a - b);
+
+      const plansRes = await client.query<{ id: string; floor_number: number; applicable_floors: number[] | null }>(
+        `SELECT id, floor_number, applicable_floors FROM building_floor_plans
+         WHERE parcel_id = $1 AND deleted_at IS NULL FOR UPDATE;`,
+        [parcelId]
+      );
+      const plans = plansRes.rows.map((p) => ({
+        id: p.id,
+        floor: Number(p.floor_number),
+        applicable: (p.applicable_floors || []).map(Number),
+      }));
+      const ownPlan = plans.find((p) => p.floor === thisFloor);
+
+      // 1. Dải tầng điển hình không được gộp tầng đã có mặt bằng riêng (tránh 2 bản vẽ cùng nhận 1 tầng)
+      const ownedElsewhere = newSet.filter((f) => f !== thisFloor && plans.some((p) => p.floor === f));
+      if (ownedElsewhere.length > 0) {
+        throw new ConflictError(
+          `Không thể áp dụng mặt bằng Tầng ${thisFloor} cho ${ownedElsewhere.map((f) => `Tầng ${f}`).join(', ')}: các tầng này đã có mặt bằng riêng. Bỏ chọn các tầng đó hoặc xóa CAD riêng của chúng trước.`
+        );
+      }
+
+      // 2. Tầng vừa gộp vào dải này thôi kế thừa từ bản vẽ khác (hết chồng dải)
+      const releasedFromOtherPlans: number[] = [];
+      for (const other of plans) {
+        if (other.floor === thisFloor) continue;
+        const overlap = other.applicable.filter((f) => f !== other.floor && newSet.includes(f));
+        if (overlap.length === 0) continue;
+        releasedFromOtherPlans.push(...overlap);
+        await client.query(
+          `UPDATE building_floor_plans
+           SET applicable_floors = ARRAY(
+                 SELECT f FROM unnest(applicable_floors) AS f WHERE NOT (f = ANY($2::numeric(4,1)[]))
+               ),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [other.id, overlap]
+        );
+      }
+
       const plan = await CadastralRepository.upsertFloorPlan(
         {
           parcelId,
           floorNumber,
           ...floorPlanData,
+          applicableFloors: newSet,
         },
         client
       );
@@ -1321,7 +1373,40 @@ export class CadastralRepository {
         client
       );
 
-      return { plan, units };
+      // 3. Tầng bị gỡ khỏi dải: không còn mặt bằng nào → xóa mềm ô CHƯA khảo sát thuộc bản vẽ này.
+      //    Căn đã khảo sát giữ nguyên (chỉ gỡ liên kết bản vẽ), bảo toàn hồ sơ pháp lý.
+      const detachedFloors = (ownPlan?.applicable || []).filter((f) => f !== thisFloor && !newSet.includes(f));
+      const prunedUnitCodes: string[] = [];
+      if (detachedFloors.length > 0) {
+        const pruneRes = await client.query<{ unit_code: string }>(
+          `UPDATE building_units bu
+           SET deleted_at = NOW(), updated_at = NOW()
+           WHERE bu.parcel_id = $1
+             AND bu.floor_number = ANY($2::numeric(4,1)[])
+             AND bu.floor_plan_id = $3
+             AND NOT ${unitSurveyLockedSql('bu')}
+             AND bu.deleted_at IS NULL
+           RETURNING bu.unit_code;`,
+          [parcelId, detachedFloors, plan.id]
+        );
+        prunedUnitCodes.push(...pruneRes.rows.map((r) => r.unit_code));
+        await client.query(
+          `UPDATE building_units bu
+           SET floor_plan_id = NULL, updated_at = NOW()
+           WHERE bu.parcel_id = $1 AND bu.floor_number = ANY($2::numeric(4,1)[])
+             AND bu.floor_plan_id = $3 AND bu.deleted_at IS NULL;`,
+          [parcelId, detachedFloors, plan.id]
+        );
+        await client.query(
+          `UPDATE parcels
+           SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [parcelId]
+        );
+      }
+
+      return { plan, units, detachedFloors, releasedFromOtherPlans, prunedUnitCodes };
     });
   }
 

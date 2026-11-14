@@ -3,6 +3,8 @@ import { X, Layers, Building2, CheckCircle2, Eye } from 'lucide-react';
 import type { GisParcel } from '../../../gis/shared/types';
 import { api } from '../../../../services/api';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
+import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
+import { formatDefaultFloorLabel } from '../../../../core/utils/floorCodeRules';
 
 interface SurveyorCadReadOnlyModalProps {
   parcel: GisParcel;
@@ -78,35 +80,17 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 
   // Sắp xếp danh sách tầng theo thứ tự TỪ CAO XUỐNG THẤP (Top to Bottom)
   const floorList = useMemo(() => {
-    const floorSet = new Set<number>();
-
-    // 1. Từ số tầng thiết kế của thửa đất
-    const maxFloors = Number(parcel.floorCount) || 1;
-    for (let i = 1; i <= maxFloors; i++) {
-      floorSet.add(i);
-    }
-
-    // 2. Từ floor plans đã có
-    plans.forEach((p) => {
-      floorSet.add(p.floor_number);
-      if (p.applicable_floors) {
-        p.applicable_floors.forEach((f) => floorSet.add(f));
-      }
+    // Cùng nguồn tầng với Hub và CAD Studio: chỉ tầng có bản vẽ / dải điển hình / căn thật, không sinh tầng ảo 1..floorCount
+    const activeFloors = deriveBuildingFloorNumbers({
+      floorPlans: plans.map((p) => ({
+        floor_number: Number(p.floor_number),
+        applicable_floors: (p.applicable_floors || []).map(Number),
+      })),
+      units: units.map((u) => ({ floor_number: u.floor_number === undefined || u.floor_number === null ? undefined : Number(u.floor_number) })),
+      deletedFloors: deletedFloors.map(Number),
     });
 
-    // 3. Từ danh sách căn hộ
-    units.forEach((u) => {
-      const fn = Number(u.floor_number);
-      if (!isNaN(fn)) {
-        floorSet.add(fn);
-      }
-    });
-
-    // Loại trừ các tầng đã bị xóa và sắp xếp Top to Bottom
-    const activeFloors = Array.from(floorSet).filter((f) => !deletedFloors.includes(f));
-    if (activeFloors.length === 0) activeFloors.push(1);
-
-    const sorted = activeFloors.sort((a, b) => b - a);
+    const sorted = [...activeFloors].sort((a, b) => b - a);
 
     return sorted.map((floorNum) => {
       // Tìm plan tương ứng (ưu tiên plan trực tiếp, sau đó plan dùng chung)
@@ -117,13 +101,9 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 
       const effectivePlan = directPlan || sharedPlan;
       const isInherited = !directPlan && Boolean(sharedPlan);
-      const floorUnits = units.filter((u) => Number(u.floor_number ?? 1) === Number(floorNum));
+      const floorUnits = units.filter((u) => u.floor_number !== undefined && u.floor_number !== null && Number(u.floor_number) === Number(floorNum));
 
-      let defaultLabel = `Tầng ${floorNum}`;
-      if (floorNum === 0) defaultLabel = 'Tầng Trệt / G';
-      if (floorNum < 0) defaultLabel = `Tầng Hầm B${Math.abs(floorNum)}`;
-
-      const floorDisplayName = directPlan?.floor_name || defaultLabel;
+      const floorDisplayName = directPlan?.floor_name || formatDefaultFloorLabel(floorNum);
 
       return {
         floorNumber: floorNum,
@@ -135,7 +115,7 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
         units: floorUnits,
       };
     });
-  }, [parcel.floorCount, plans, units, deletedFloors]);
+  }, [plans, units, deletedFloors]);
 
   // Các tầng được hiển thị theo bộ lọc
   const displayedFloors = useMemo(() => {
@@ -226,7 +206,7 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
             <Layers className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-sm font-bold text-slate-800">Chưa có dữ liệu bản vẽ CAD</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Quản trị viên Zone Admin chưa tải lên bản vẽ CAD cho các tầng của tòa nhà này.
+              Quản trị viên Zone Admin chưa tải lên bản vẽ CAD cho các tầng của tòa nhà này. Vui lòng liên hệ Zone Admin phụ trách để được thiết lập mặt bằng.
             </p>
           </div>
         ) : (

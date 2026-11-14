@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   X,
   Layers,
@@ -20,11 +20,13 @@ import {
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import { CadBlueprintUploader } from './CadBlueprintUploader';
 import { TypicalFloorsSelectorModal } from './TypicalFloorsSelectorModal';
+import { QuickFloorSetupModal } from './QuickFloorSetupModal';
+import type { QuickFloorItem } from '../../../../core/utils/floorUtils';
 import {
   FloorPlanCadPartitionCanvas,
   type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
-import { generateNextPartitionCode, formatDefaultDisplayCode } from '../../../../core/utils/codeFormattingUtils';
+import { formatDefaultDisplayCode, generateMirroredPartitionCode } from '../../../../core/utils/codeFormattingUtils';
 import {
   deriveBuildingFloorNumbers,
   detectDefaultFloorScope,
@@ -106,13 +108,45 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 }) => {
   const parcelId = parcel.id;
   const projectCode = parcel.projectParcelCode || parcel.project_parcel_code || 'B-XXXXX';
-  const initialFloorCount = parcel.floorCount || parcel.floor_count || 5;
 
   // Thu phóng sidebar danh sách tầng để tối ưu diện tích vẽ CAD
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
   // Danh sách tầng tùy chỉnh bổ sung bởi người dùng
   const [customFloors, setCustomFloors] = useState<number[]>([]);
+
+  // Bản nháp cấu trúc tầng từ "Khởi tạo nhanh": giữ trên máy theo thửa cho tới khi từng tầng có CAD
+  const quickDraftKey = `metro2_quick_floor_draft_${parcelId}`;
+  const [quickFloorDraft, setQuickFloorDraft] = useState<QuickFloorItem[]>(() => {
+    try {
+      const raw = localStorage.getItem(`metro2_quick_floor_draft_${parcel.id}`);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (x): x is QuickFloorItem =>
+              typeof x === 'object' && x !== null && typeof (x as QuickFloorItem).floorNumber === 'number' &&
+              typeof (x as QuickFloorItem).floorName === 'string' && typeof (x as QuickFloorItem).floorCode === 'string'
+          )
+        : [];
+    } catch (err) {
+      console.error('[FloorPlanCadModal:quickDraft] Không đọc được bản nháp cấu trúc tầng:', err);
+      return [];
+    }
+  });
+  const quickDraftRef = useRef<QuickFloorItem[]>(quickFloorDraft);
+  useEffect(() => {
+    quickDraftRef.current = quickFloorDraft;
+    try {
+      if (quickFloorDraft.length > 0) localStorage.setItem(quickDraftKey, JSON.stringify(quickFloorDraft));
+      else localStorage.removeItem(quickDraftKey);
+    } catch (err) {
+      console.error('[FloorPlanCadModal:quickDraft] Không lưu được bản nháp cấu trúc tầng:', err);
+    }
+  }, [quickFloorDraft, quickDraftKey]);
+  const draftOf = (floorNum: number): QuickFloorItem | undefined =>
+    quickDraftRef.current.find((d) => d.floorNumber === floorNum);
+  const [isQuickSetupOpen, setIsQuickSetupOpen] = useState<boolean>(false);
+  const hasAutoOpenedQuickSetupRef = useRef<boolean>(false);
   const [newFloorInput, setNewFloorInput] = useState<string>('');
   const [newFloorCodeInput, setNewFloorCodeInput] = useState<string>('');
   const [showAddFloorInput, setShowAddFloorInput] = useState<boolean>(false);
@@ -158,6 +192,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
   const [isPartitionsValid, setIsPartitionsValid] = useState<boolean>(true);
   const [isTypicalModalOpen, setIsTypicalModalOpen] = useState<boolean>(false);
+  // Tầng kế thừa mặt bằng mà Admin đã chọn "Tách riêng" (lưu sẽ tạo mặt bằng riêng chỉ cho tầng này)
+  const [detachedInheritedFloor, setDetachedInheritedFloor] = useState<number | null>(null);
 
   // Quản lý trạng thái chưa lưu (Unsaved Changes Guard)
   const [isFloorDirty, setIsFloorDirty] = useState<boolean>(false);
@@ -220,10 +256,11 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         setFloorScope(targetPlan.scope || detected.scope);
       } else {
         setActiveFloor(targetFloorNum);
-        const defName = defaultFloorName(targetFloorNum);
+        const draft = draftOf(targetFloorNum);
+        const defName = draft?.floorName || defaultFloorName(targetFloorNum);
         setCadUrl('');
         setFloorName(defName);
-        setFloorCode(getDefaultFloorCode(targetFloorNum, defName));
+        setFloorCode(draft?.floorCode || getDefaultFloorCode(targetFloorNum, defName));
         setApplicableFloors([targetFloorNum]);
         const detected = detectDefaultFloorScope(targetFloorNum, defName);
         setFloorScope(detected.scope);
@@ -266,7 +303,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     const sortedFloors = deriveBuildingFloorNumbers({
       floorPlans: existingFloorPlans,
       units: allUnits, // Đã bổ sung allUnits: Khắc phục triệt để lỗi thiếu tầng so với Hub!
-      customFloors,
+      customFloors: [...customFloors, ...quickFloorDraft.map((d) => d.floorNumber)],
       deletedFloors: deletedFloorNumbers,
     });
 
@@ -292,8 +329,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       if (flNum < 0 && flNum !== -0.5) defaultName = `Hầm B${Math.abs(Math.round(flNum))}`;
 
       // QUAN TRỌNG: Tên hiển thị của tầng phải là tên riêng hoặc tên mặc định của chính tầng này, KHÔNG lấy chuỗi của tầng nguồn
-      const floorDisplayName = directPlan?.floor_name || defaultName;
-      const effectiveFloorCode = directPlan?.floor_code || getDefaultFloorCode(flNum, floorDisplayName);
+      const draft = quickFloorDraft.find((d) => d.floorNumber === Number(flNum));
+      const floorDisplayName = directPlan?.floor_name || draft?.floorName || defaultName;
+      const effectiveFloorCode = directPlan?.floor_code || draft?.floorCode || getDefaultFloorCode(flNum, floorDisplayName);
 
       // Tính scope tự động: Nếu tầng này đang active thì ưu tiên scope từ các partitions hiện tại
       let effectiveScope: FloorScope = 'UNIT';
@@ -322,7 +360,27 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         scope: effectiveScope,
       };
     });
-  }, [existingFloorPlans, customFloors, allUnits, activeFloor, partitions, floorScope, deletedFloorNumbers]);
+  }, [existingFloorPlans, customFloors, quickFloorDraft, allUnits, activeFloor, partitions, floorScope, deletedFloorNumbers]);
+
+  // Tòa chưa có tầng nào (vừa chuyển sang chung cư): tự mở Khởi tạo nhanh cấu trúc tầng một lần
+  useEffect(() => {
+    if (readOnly || isLoading || hasAutoOpenedQuickSetupRef.current) return;
+    hasAutoOpenedQuickSetupRef.current = true;
+    if (buildingFloors.length === 0) setIsQuickSetupOpen(true);
+  }, [readOnly, isLoading, buildingFloors.length]);
+
+  const handleQuickSetupConfirm = (floors: QuickFloorItem[]) => {
+    if (floors.length === 0) return;
+    const numbers = floors.map((f) => f.floorNumber);
+    setDeletedFloorNumbers((prev) => prev.filter((f) => !numbers.includes(f)));
+    setQuickFloorDraft((prev) => {
+      const merged = new Map(prev.map((d) => [d.floorNumber, d]));
+      for (const f of floors) merged.set(f.floorNumber, f);
+      return Array.from(merged.values()).sort((a, b) => a.floorNumber - b.floorNumber);
+    });
+    quickDraftRef.current = [...quickDraftRef.current.filter((d) => !numbers.includes(d.floorNumber)), ...floors];
+    triggerSuccessFeedback(`Đã tạo ${floors.length} tầng dự kiến. Chọn từng tầng để nạp bản vẽ CAD và lưu.`);
+  };
 
   // Mã tầng của các tầng khác, để tầng đặc biệt mới được đánh số TECH2, MEZZ2... không trùng
   const otherFloorCodes = (floorNum: number): string[] =>
@@ -359,10 +417,11 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setFloorScope(sharedPlan.scope || detected.scope);
             } else {
               setCadUrl('');
-              const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
+              const draft = draftOf(floorNum);
+              const defName = draft?.floorName || defaultFloorName(floorNum);
               setFloorName(defName);
               const existingFloorInfo = buildingFloors.find((b) => b.floorNumber === floorNum);
-              const assignedCode = existingFloorInfo?.floorCode || getDefaultFloorCode(floorNum, defName);
+              const assignedCode = draft?.floorCode || existingFloorInfo?.floorCode || getDefaultFloorCode(floorNum, defName);
               setFloorCode(assignedCode);
               setApplicableFloors([floorNum]);
               const detected = detectDefaultFloorScope(floorNum, defName);
@@ -425,6 +484,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     setActiveFloor(floorNum);
     setIsFloorDirty(false);
     setSaveSuccessMsg('');
+    setDetachedInheritedFloor(null);
 
     // Pre-cache thông tin tầng từ buildingFloors để giao diện không bị giật
     // Không để sót CAD / dải tầng điển hình / ô của tầng trước nếu API chi tiết tầng lỗi
@@ -541,36 +601,26 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     // Lấy partitions của tầng nguồn nếu có
     const sourceUnits = allUnits.filter((u) => Number(u.floor_number ?? 1) === Number(sourceFloor.floorNumber));
     if (sourceUnits.length > 0) {
-      const currentPool = [
-        ...allUnits.map((u) => ({
-          unitCode: u.unit_code,
-          partitionType: (u.unit_type || 'UNIT') as 'UNIT' | 'MASTER',
-        })),
-      ];
+      // Mã toàn tòa ngoài tầng đích (ô cũ của tầng đích sẽ được thay bằng bản sao)
+      const buildingCodes = allUnits
+        .filter((u) => u.floor_number === undefined || u.floor_number === null || Number(u.floor_number) !== Number(activeFloor))
+        .map((u) => u.unit_code);
+      const copiedSoFar: Array<{ unitCode: string; partitionType: 'UNIT' | 'MASTER' }> = [];
+      const targetCode = floorCode.trim() || activeFloor;
 
       const copiedBoxes: UnitPartitionBox[] = sourceUnits
         .filter((u) => Boolean(u.cad_bbox))
         .map((u) => {
           const uType: 'UNIT' | 'MASTER' = u.unit_type || 'UNIT';
-          let newCode = '';
-          let nn = '';
-          if (/^[UM][-_]\d+$/i.test(u.unit_code.trim())) {
-            newCode = generateNextPartitionCode(currentPool, uType);
-            nn = newCode;
-          } else {
-            const mm = floorCode.trim() || getDefaultFloorCode(activeFloor);
-            const parts = u.unit_code.split('.');
-            nn = parts.length > 1 ? parts[1] : u.unit_code;
-            const prefix = uType === 'MASTER' ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
-            newCode = `${prefix}.${nn}`;
-          }
-          currentPool.push({ unitCode: newCode, partitionType: uType });
-
-          const defaultDisplay = formatDefaultDisplayCode(floorCode.trim() || activeFloor, nn, uType);
+          const generated = generateMirroredPartitionCode(targetCode, u.unit_code, uType, copiedSoFar, {
+            floorNumber: activeFloor,
+            buildingCodes,
+          });
+          copiedSoFar.push({ unitCode: generated.unitCode, partitionType: uType });
           return {
             id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            unitCode: newCode,
-            displayCode: defaultDisplay,
+            unitCode: generated.unitCode,
+            displayCode: generated.displayCode,
             partitionType: uType,
             x: u.cad_bbox?.x ?? 0,
             y: u.cad_bbox?.y ?? 0,
@@ -597,14 +647,52 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       return false;
     }
 
+    const activeFloorItem = buildingFloors.find((f) => f.floorNumber === activeFloor);
+    if (activeFloorItem?.isInherited && detachedInheritedFloor !== activeFloor) {
+      alert(
+        `Tầng ${activeFloor} đang dùng chung mặt bằng của Tầng ${activeFloorItem.inheritedFromFloor}.\n\n` +
+          `• Muốn sửa chung cho cả dải: bấm "Mở Tầng ${activeFloorItem.inheritedFromFloor} để sửa chung".\n` +
+          `• Muốn tầng này có mặt bằng riêng: bấm "Tách riêng mặt bằng cho tầng này" rồi lưu lại.`
+      );
+      return false;
+    }
+
+    // Tầng đã có mặt bằng riêng không được gộp vào dải của tầng này (máy chủ cũng chặn 409)
+    const floorsWithOwnPlan = new Set(existingFloorPlans.map((fp) => Number(fp.floor_number)));
+    const requestedFloors = Array.from(new Set([...applicableFloors.map(Number), activeFloor])).sort((a, b) => a - b);
+    const skippedOwnPlanFloors = requestedFloors.filter((f) => f !== activeFloor && floorsWithOwnPlan.has(f));
+    const targetApplicableFloors = requestedFloors.filter((f) => !skippedOwnPlanFloors.includes(f));
+
+    // Thu hẹp dải: các ô chưa khảo sát trên tầng bị gỡ sẽ bị xóa mềm ở máy chủ → hỏi lại
+    const previousPlan = existingFloorPlans.find((fp) => Number(fp.floor_number) === activeFloor);
+    const removedFloors = (previousPlan?.applicable_floors || [])
+      .map(Number)
+      .filter((f) => f !== activeFloor && !targetApplicableFloors.includes(f));
+    const unitsOnRemoved = allUnits.filter(
+      (u) => u.floor_number !== undefined && u.floor_number !== null && removedFloors.includes(Number(u.floor_number))
+    );
+    const isUnitLocked = (u: CadUnitItem) => Boolean(u.phase1_report_id) || (Boolean(u.status) && u.status !== 'NOT_SURVEYED');
+    const confirmLines: string[] = [];
+    if (skippedOwnPlanFloors.length > 0) {
+      confirmLines.push(`• Bỏ khỏi dải: ${skippedOwnPlanFloors.map((f) => `Tầng ${f}`).join(', ')} (đã có mặt bằng riêng).`);
+    }
+    if (removedFloors.length > 0) {
+      const draftCount = unitsOnRemoved.filter((u) => !isUnitLocked(u)).length;
+      const lockedCount = unitsOnRemoved.length - draftCount;
+      confirmLines.push(
+        `• Gỡ khỏi dải: ${removedFloors.map((f) => `Tầng ${f}`).join(', ')}. ` +
+          `${draftCount} ô chưa khảo sát sẽ bị xóa mềm${lockedCount > 0 ? `, ${lockedCount} căn đã khảo sát được giữ nguyên` : ''}.`
+      );
+    }
+    if (confirmLines.length > 0 && !window.confirm(`Xác nhận thay đổi dải tầng điển hình của Tầng ${activeFloor}:\n\n${confirmLines.join('\n')}\n\nTiếp tục lưu?`)) {
+      return false;
+    }
+
     const targetPartitions = newPartitions || partitions;
     setIsSaving(true);
     setSaveSuccessMsg('');
 
     try {
-      const targetApplicableFloors = applicableFloors.includes(activeFloor)
-        ? applicableFloors
-        : [...applicableFloors, activeFloor].sort((a, b) => a - b);
 
       // Tự động tính toán scope chính xác từ danh sách partition
       const hasUnit = targetPartitions.some((p) => (p.partitionType || 'UNIT') === 'UNIT');
@@ -667,8 +755,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
       const otherFloors = targetApplicableFloors.filter((fl) => fl !== activeFloor).sort((a, b) => a - b);
       for (const fl of otherFloors) {
-        const existingOnFl = allUnits.filter((u) => Number(u.floor_number ?? 1) === Number(fl));
+        const existingOnFl = allUnits.filter((u) => u.floor_number !== undefined && u.floor_number !== null && Number(u.floor_number) === Number(fl));
         const usedExistingIds = new Set<string>();
+        const allocatedOnFloor: Array<{ unitCode: string; partitionType: 'UNIT' | 'MASTER' }> = [];
 
         const targetFloorItem = buildingFloors.find((b) => b.floorNumber === fl);
         const mm = targetFloorItem?.floorCode || getDefaultFloorCode(fl);
@@ -723,20 +812,16 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           let assignedCode = '';
 
           if (matchedExisting && (isMatchedSurveyed || matchedExisting.unit_code)) {
+            // Giữ nguyên mã ô đã có trên tầng đích (kể cả mã cũ U-xxx / Tnn.xx), không đổi mã đã gắn ảnh
             assignedCode = matchedExisting.unit_code;
-          } else if (/^[UM][-_]\d+$/i.test(p.unitCode.trim())) {
-            // Tịnh tiến mã tiếp theo theo chuẩn U-XXX hoặc M-XXX toàn tòa
-            assignedCode = generateNextPartitionCode(allocatedUnitsPool, uType);
           } else {
-            // Trường hợp mã cũ có tiền tố tầng dạng mm.nn
-            const parts = p.unitCode.split('.');
-            let nn = parts.length > 1 ? parts[1] : p.unitCode;
-            if (uType === 'MASTER' && /^M\d+$/i.test(nn)) {
-              nn = nn.replace(/^M/i, '');
-            }
-            const prefix = uType === 'MASTER' ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
-            assignedCode = `${prefix}.${nn}`;
+            // Ô mới trên tầng đích: chuẩn [TIỀN_TỐ].[STT] / [TIỀN_TỐ].M[STT], giữ STT của ô gốc nếu còn trống
+            assignedCode = generateMirroredPartitionCode(mm, p.unitCode, uType, allocatedOnFloor, {
+              floorNumber: fl,
+              buildingCodes: allocatedUnitsPool.map((x) => x.unitCode),
+            }).unitCode;
           }
+          allocatedOnFloor.push({ unitCode: assignedCode, partitionType: uType });
 
           const otherFloorDisplayCode =
             isMatchedSurveyed && matchedExisting?.display_code
@@ -775,7 +860,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       }
 
       // 2. Lưu đồng bộ nguyên tử (Atomic Sync) bản vẽ Floor Plan và tất cả partitions trong 1 Transaction duy nhất
-      await api.post(`/parcels/${parcelId}/floor-plans/atomic-sync`, {
+      const syncRes = await api.post(`/parcels/${parcelId}/floor-plans/atomic-sync`, {
         floorNumber: activeFloor,
         floorPlan: {
           floorNumber: activeFloor,
@@ -794,8 +879,12 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           )}]!`
         : `Đã lưu thành công bản vẽ CAD ${floorName || `Tầng ${activeFloor}`}! Bạn có thể sử dụng công cụ để kéo vẽ ô phân chia căn hộ hoặc khu vực bất kỳ lúc nào.`;
 
-      triggerSuccessFeedback(successMessage);
+      const pruned: string[] = Array.isArray(syncRes.data?.data?.prunedUnitCodes) ? syncRes.data.data.prunedUnitCodes : [];
+      triggerSuccessFeedback(
+        pruned.length > 0 ? `${successMessage} Đã xóa mềm ${pruned.length} ô chưa khảo sát trên tầng gỡ khỏi dải.` : successMessage
+      );
       setIsFloorDirty(false);
+      setDetachedInheritedFloor(null);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
@@ -884,6 +973,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setIsFloorDirty(false);
       setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
       setDeletedFloorNumbers((prev) => [...prev, floorToDelete]);
+      setQuickFloorDraft((prev) => prev.filter((d) => d.floorNumber !== floorToDelete));
       triggerSuccessFeedback(res.data?.data?.message || `Đã xóa thành công Tầng ${floorToDelete} khỏi tòa nhà!`);
 
       if (onUnitsUpdated) {
@@ -1050,6 +1140,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             setNewFloorCodeInput={setNewFloorCodeInput}
             onSelectFloor={handleSelectFloor}
             onAddCustomFloor={handleAddCustomFloor}
+            onOpenQuickSetup={() => setIsQuickSetupOpen(true)}
           />
         )}
 
@@ -1235,13 +1326,36 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 Tầng {activeFloor} đang dùng chung mặt bằng và phân chia từ{' '}
                 <strong className="text-teal-950 font-bold">Tầng {currentFloorItem.inheritedFromFloor}</strong>.
               </span>
-              <button
-                type="button"
-                onClick={() => handleSelectFloor(currentFloorItem.inheritedFromFloor!)}
-                className="text-xs text-teal-700 hover:text-teal-900 underline font-bold cursor-pointer"
-              >
-                Chuyển sang Tầng {currentFloorItem.inheritedFromFloor} để sửa gốc
-              </button>
+              {detachedInheritedFloor === activeFloor ? (
+                <span className="text-xs font-bold text-amber-700">
+                  Đã chọn tách riêng — bấm Lưu để tạo mặt bằng riêng cho Tầng {activeFloor}
+                </span>
+              ) : (
+                <span className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectFloor(currentFloorItem.inheritedFromFloor!)}
+                    className="text-xs text-teal-700 hover:text-teal-900 underline font-bold cursor-pointer"
+                  >
+                    Mở Tầng {currentFloorItem.inheritedFromFloor} để sửa chung
+                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetachedInheritedFloor(activeFloor);
+                        setApplicableFloors([activeFloor]);
+                        setFloorName(defaultFloorName(activeFloor));
+                        setFloorCode(getDefaultFloorCode(activeFloor, defaultFloorName(activeFloor), otherFloorCodes(activeFloor)));
+                        setIsFloorDirty(true);
+                      }}
+                      className="text-xs text-amber-700 hover:text-amber-900 underline font-bold cursor-pointer"
+                    >
+                      Tách riêng mặt bằng cho tầng này
+                    </button>
+                  )}
+                </span>
+              )}
             </div>
           )}
 
@@ -1358,6 +1472,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       )}
 
       {/* Modal Chọn dải tầng điển hình */}
+      {isQuickSetupOpen && !readOnly && (
+        <QuickFloorSetupModal
+          isOpen={isQuickSetupOpen}
+          suggestedAboveFloors={Number(parcel.floorCount || parcel.floor_count) > 0 ? Number(parcel.floorCount || parcel.floor_count) : null}
+          existingFloorCodes={buildingFloors.map((f) => f.floorCode)}
+          existingFloorNumbers={buildingFloors.map((f) => f.floorNumber)}
+          onConfirm={handleQuickSetupConfirm}
+          onClose={() => setIsQuickSetupOpen(false)}
+        />
+      )}
+
       {isTypicalModalOpen && (
         <TypicalFloorsSelectorModal
           isOpen={isTypicalModalOpen}
@@ -1366,10 +1491,20 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           allBuildingFloors={buildingFloors.map((f) => ({
             floorNumber: f.floorNumber,
             floorName: f.floorName,
-            hasOwnCad: f.hasCad && !f.isInherited,
+            hasOwnPlan: f.floorNumber !== activeFloor && existingFloorPlans.some((fp) => Number(fp.floor_number) === f.floorNumber),
+            inheritedFromFloor:
+              f.isInherited && f.inheritedFromFloor !== undefined && Number(f.inheritedFromFloor) !== activeFloor
+                ? Number(f.inheritedFromFloor)
+                : undefined,
           }))}
           currentApplicableFloors={applicableFloors}
           onConfirm={(selected) => {
+            const known = new Set(buildingFloors.map((f) => f.floorNumber));
+            const newFloors = selected.filter((f) => !known.has(f));
+            if (newFloors.length > 0) {
+              setDeletedFloorNumbers((prev) => prev.filter((f) => !newFloors.includes(f)));
+              setCustomFloors((prev) => Array.from(new Set([...prev, ...newFloors])));
+            }
             setApplicableFloors(selected);
             setIsFloorDirty(true);
           }}

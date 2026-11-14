@@ -130,6 +130,29 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onStartMasterSurvey={onStartMasterSurvey}
         />
 
+        {/* Tòa chung cư chưa có cấu trúc tầng (vừa chuyển đổi): dẫn Admin vào Khởi tạo nhanh trong CAD Studio */}
+        {!loading && availableFloors.length === 0 && (
+          <div className="p-4 rounded-2xl border border-teal-200 bg-teal-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-xs text-teal-900">
+              <p className="font-bold text-sm">Chưa cấu hình tầng cho tòa nhà</p>
+              <p className="mt-0.5 text-teal-800">
+                {isAdmin
+                  ? 'Khởi tạo nhanh danh sách tầng (hầm, trệt, lửng, tầng nổi, kỹ thuật, mái) rồi nạp bản vẽ CAD và chia căn hộ / khu vực chung.'
+                  : 'Zone Admin chưa thiết lập tầng và bản vẽ CAD. Vui lòng liên hệ Zone Admin phụ trách trước khi khảo sát căn hộ.'}
+              </p>
+            </div>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => handleOpenCad()}
+                className="shrink-0 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm cursor-pointer"
+              >
+                Khởi tạo nhanh cấu trúc tầng
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Executive Dashboard (4 KPI cards) */}
         <BuildingExecutiveDashboard
           completedCount={kpi.completedCount}

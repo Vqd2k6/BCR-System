@@ -116,3 +116,32 @@ assert.equal(formatShortUnitDisplay('01.M02', 'MASTER'), 'M02');
 assert.equal(formatShortUnitDisplay('U-001'), 'U-001');
 
 console.log('✅ floor-code-rules: tất cả kiểm tra đạt');
+
+// 9. Nhân bản sang tầng khác giữ STT, không sinh T06.01
+import { generateMirroredPartitionCode } from '../src/core/utils/codeFormattingUtils';
+assert.equal(generateMirroredPartitionCode('F06', '05.03', 'UNIT', []).unitCode, '06.03');
+assert.equal(generateMirroredPartitionCode('F06', '05.M01', 'MASTER', []).unitCode, '06.M01');
+assert.equal(generateMirroredPartitionCode('F06', 'T05.01', 'MASTER', []).unitCode, '06.M01');
+assert.equal(generateMirroredPartitionCode('F06', '05.03', 'UNIT', [], { buildingCodes: ['06.03'] }).unitCode, '06.01');
+assert.equal(generateMirroredPartitionCode('F06', 'U-007', 'UNIT', [{ unitCode: '06.01', partitionType: 'UNIT' }]).unitCode, '06.02');
+console.log('✅ mirrored partition codes đạt');
+
+// 10. Khởi tạo nhanh cấu trúc tầng
+import { buildQuickFloorStructure } from '../src/core/utils/floorUtils';
+const quick = buildQuickFloorStructure({
+  basementCount: 2, hasSemiBasement: true, hasGround: true, hasGroundMezzanine: true,
+  aboveFloors: 20, technicalFloors: [10, 20], refugeFloors: [15], hasRoof: true,
+});
+const codeOf = (n: number) => quick.find((q) => q.floorNumber === n)?.floorCode;
+assert.equal(quick.length, 2 + 1 + 1 + 1 + 20 + 1);
+assert.equal(codeOf(-2), 'B02');
+assert.equal(codeOf(-0.5), 'SB');
+assert.equal(codeOf(0), 'G');
+assert.equal(codeOf(0.5), 'MEZZ');
+assert.equal(codeOf(5), 'F05');
+assert.equal(codeOf(10), 'TECH');
+assert.equal(codeOf(20), 'TECH2');
+assert.equal(codeOf(15), 'REF');
+assert.equal(codeOf(21), 'ROOF');
+assert.equal(buildQuickFloorStructure({ basementCount: 0, hasSemiBasement: false, hasGround: false, hasGroundMezzanine: false, aboveFloors: 0, technicalFloors: [], refugeFloors: [], hasRoof: true }, ['ROOF'])[0].floorCode, 'ROOF2');
+console.log('✅ quick floor setup đạt');

@@ -800,6 +800,10 @@ export class CadastralService {
         parcelId,
         floorNumber: data.floorNumber,
         partitionCount: data.partitions.length,
+        applicableFloors: result.plan.applicable_floors,
+        detachedFloors: result.detachedFloors,
+        releasedFromOtherPlans: result.releasedFromOtherPlans,
+        prunedUnitCodes: result.prunedUnitCodes,
       }, clientIp);
     }
 
@@ -807,6 +811,9 @@ export class CadastralService {
       message: `Đã đồng bộ nguyên tử bản vẽ CAD và ${result.units.length} phân vùng cho Tầng ${data.floorNumber}`,
       plan: result.plan,
       units: result.units,
+      detachedFloors: result.detachedFloors,
+      releasedFromOtherPlans: result.releasedFromOtherPlans,
+      prunedUnitCodes: result.prunedUnitCodes,
     };
   }
 

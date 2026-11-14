@@ -1,6 +1,6 @@
 # Task dang dở 5: Sửa phân hệ Chung cư (tầng, mã U/M, CAD Studio)
 
-Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A đã commit (chưa push).
+Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A commit `4b13676`, GĐ B commit kế tiếp (chưa push). GĐ C: plan riêng `~/.claude/plans/condo-gd-c-cad-e-floor-resources.md`, chưa code.
 
 - Plan rà soát + quyết định: `~/.claude/plans/ph-n-h-chung-c-luminous-stardust.md` (plan gốc Antigravity `e36e865f`).
 - Chia giai đoạn: **GĐ A (xong code)** → GĐ B (setup tầng) → GĐ C (CAD_E / Kho tài nguyên tầng, plan riêng). Report chung cư không làm đợt này (xem `TASK_DANG_DO_3.md`).
@@ -38,8 +38,16 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
 - Q5: `cadastral.repository.ts` `deleteFloorPlan` bước 2 chỉ gỡ `floor_plan_id`. Phiếu căn hộ đã giữ bản riêng `survey_data_json.unitCadUrl` (ảnh base64 tải R2 thành file riêng); thẩm định `resolveUnitCadUrl` lấy `building_units.unit_cad_url` khi JSON cũ thiếu → nay không còn bị xóa.
 - Q6: `useCondoMasterSurveyStore.ts` mặc định để trống, tự tính tổng chỉ khi cả hai số > 0; `validateCondoMasterStep` (stepValidator.ts) chặn thiếu số tầng hầm.
 
+## GĐ B — đã làm
+- #8: copy tầng và dải tầng điển hình sinh mã qua `generateMirroredPartitionCode` (giữ STT ô gốc nếu còn trống, không còn `T06.01`); ô đã có trên tầng đích giữ nguyên mã.
+- #15 BE (`atomicSyncFloorPlanAndPartitions`): 409 nếu dải gộp tầng đã có mặt bằng riêng; tầng gộp vào dải mới được gỡ khỏi dải của bản vẽ khác (hết chồng dải); tầng bị gỡ khỏi dải → xóa mềm ô CHƯA khảo sát thuộc bản vẽ này, căn đã khảo sát chỉ gỡ `floor_plan_id`; audit log ghi `detachedFloors`, `releasedFromOtherPlans`, `prunedUnitCodes`.
+- #15 FE: tầng kế thừa phải chọn "Mở Tầng X để sửa chung" hoặc "Tách riêng mặt bằng cho tầng này" mới lưu được; khi lưu tự bỏ tầng có mặt bằng riêng khỏi dải và hỏi xác nhận khi thu hẹp dải (đếm ô sẽ xóa mềm / căn giữ lại).
+- #16: `TypicalFloorsSelectorModal` khóa tầng có mặt bằng riêng, nhãn tầng đang theo bản vẽ khác, ô "Dải tầng Từ → Đến" thêm cả tầng chưa tạo.
+- Quick Floor Setup: `QuickFloorSetupModal.tsx` + `buildQuickFloorStructure` (floorUtils, có test). Tầng dự kiến lưu nháp `localStorage['metro2_quick_floor_draft_{parcelId}']`, chỉ thành bản ghi khi nạp CAD. Tự mở khi CAD Studio của tòa chưa có tầng; nút "Nhanh" ở sidebar; Hub có banner CTA (KSV thấy hướng dẫn liên hệ Zone Admin). Cả lưới thửa (mở thẳng CAD Studio) và bottom sheet (mở Hub) đều dẫn tới đây (#12).
+- #17: `SurveyorCadReadOnlyModal` dùng `deriveBuildingFloorNumbers`, không sinh tầng ảo; empty state chỉ dẫn liên hệ Zone Admin.
+
 ## Việc còn lại
 1. `useCondoMasterSurveyStore.ts` còn mặc định `foundationType`/`structureSystem` = phần tử đầu danh sách (ảnh hưởng ECS/VI) — chưa hỏi người dùng.
-2. GĐ B: #8 (bỏ sinh `T..` khi copy/tầng điển hình), #15 (khóa dải tầng kế thừa; local có dải chồng lên tầng có bản vẽ riêng), #16, Quick Floor Setup, #17 (`SurveyorCadReadOnlyModal` lặp 1..floorCount).
-3. GĐ C: plan riêng (CAD_E / Kho tài nguyên tầng) — áp quy tắc Q5 cho ảnh CAD_E.
+2. GĐ C: vấn đáp 5 câu ở mục 5 của plan GĐ C rồi mới code.
+3. Dữ liệu local còn dải chồng (Tầng 1 → {1,3,4} trong khi 3, 4 có mặt bằng riêng): tự gỡ khi Admin lưu lại Tầng 1; không sửa dữ liệu bằng script.
 4. Chưa chạy migration thật, chưa test API end-to-end / trình duyệt.

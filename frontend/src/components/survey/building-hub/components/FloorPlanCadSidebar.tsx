@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Layers,
-  Plus,
+  Plus, Wand2,
   Link as LinkIcon,
   Loader2,
   ChevronRight,
@@ -39,6 +39,8 @@ interface FloorPlanCadSidebarProps {
   setNewFloorCodeInput: (val: string) => void;
   onSelectFloor: (floorNum: number) => void;
   onAddCustomFloor: () => void;
+  /** Mở bộ Khởi tạo nhanh cấu trúc tầng */
+  onOpenQuickSetup?: () => void;
 }
 
 export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
@@ -54,6 +56,7 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
   setNewFloorCodeInput,
   onSelectFloor,
   onAddCustomFloor,
+  onOpenQuickSetup,
 }) => {
   return (
     <aside className="w-64 sm:w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden z-20">
@@ -64,6 +67,18 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
           Danh Sách Tầng ({buildingFloors.length})
         </span>
         {!readOnly && (
+          <span className="flex items-center gap-1">
+          {onOpenQuickSetup && (
+            <button
+              type="button"
+              onClick={onOpenQuickSetup}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white hover:bg-teal-50 text-teal-700 border border-teal-200 text-[11px] font-bold transition-colors cursor-pointer"
+              title="Khởi tạo nhanh cấu trúc tầng (hầm, trệt, lửng, tầng nổi, kỹ thuật, mái)"
+            >
+              <Wand2 className="w-3 h-3" />
+              <span>Nhanh</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowAddFloorInput(!showAddFloorInput)}
@@ -73,6 +88,7 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
             <Plus className="w-3 h-3" />
             <span>Thêm</span>
           </button>
+          </span>
         )}
       </div>
 

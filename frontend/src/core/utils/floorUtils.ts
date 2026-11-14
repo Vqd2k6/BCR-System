@@ -136,3 +136,52 @@ export const resolveSurveyFloorCode = (rawFloor: unknown): string => {
   }
   return resolveBaseFloorCode(n);
 };
+
+export interface QuickFloorSetupOptions {
+  basementCount: number;
+  hasSemiBasement: boolean;
+  hasGround: boolean;
+  hasGroundMezzanine: boolean;
+  aboveFloors: number;
+  technicalFloors: number[];
+  refugeFloors: number[];
+  hasRoof: boolean;
+}
+
+export interface QuickFloorItem {
+  floorNumber: number;
+  floorName: string;
+  floorCode: string;
+}
+
+/**
+ * Bộ khởi tạo nhanh cấu trúc tầng chung cư (chưa ghi CSDL: tầng chỉ thành bản ghi khi Admin nạp CAD).
+ * Mã tầng cấp tuần tự qua bảng quy tắc chung nên tầng kỹ thuật lặp lại thành TECH, TECH2...
+ * Danh sách trả về sắp từ thấp lên cao.
+ */
+export function buildQuickFloorStructure(
+  opts: QuickFloorSetupOptions,
+  existingFloorCodes: Iterable<string> = []
+): QuickFloorItem[] {
+  const drafts: Array<{ floorNumber: number; floorName: string }> = [];
+  const basements = Math.max(0, Math.min(5, Math.floor(opts.basementCount)));
+  for (let b = basements; b >= 1; b--) drafts.push({ floorNumber: -b, floorName: `Hầm B${b}` });
+  if (opts.hasSemiBasement) drafts.push({ floorNumber: -0.5, floorName: 'Tầng bán hầm' });
+  if (opts.hasGround) drafts.push({ floorNumber: 0, floorName: 'Tầng trệt' });
+  if (opts.hasGroundMezzanine) drafts.push({ floorNumber: 0.5, floorName: 'Tầng lửng trệt' });
+  const above = Math.max(0, Math.min(99, Math.floor(opts.aboveFloors)));
+  const tech = new Set(opts.technicalFloors.map(Number));
+  const refuge = new Set(opts.refugeFloors.map(Number));
+  for (let n = 1; n <= above; n++) {
+    const name = tech.has(n) ? `Tầng ${n} (kỹ thuật)` : refuge.has(n) ? `Tầng ${n} (lánh nạn)` : `Tầng ${n}`;
+    drafts.push({ floorNumber: n, floorName: name });
+  }
+  if (opts.hasRoof && above + 1 <= 100) drafts.push({ floorNumber: above + 1, floorName: 'Tầng mái' });
+
+  const taken: string[] = Array.from(existingFloorCodes);
+  return drafts.map((d) => {
+    const floorCode = resolveFloorCode(d.floorNumber, d.floorName, taken);
+    taken.push(floorCode);
+    return { ...d, floorCode };
+  });
+}
