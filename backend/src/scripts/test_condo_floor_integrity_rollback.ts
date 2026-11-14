@@ -135,6 +135,42 @@ async function expectConflict(client: { query: (q: string) => Promise<unknown> }
     assert.deepEqual(u12.rows[0].cad_structural_bbox, bboxE);
     console.log('✅ CAD_E của U/M đã vào khảo sát không bị Admin ghi đè');
 
+    // Dữ liệu cũ kiểu B-0129: dải Tầng 31 = {31,33,34,36} chồng lên Tầng 33, 34 đã có bản vẽ riêng
+    const p31 = await CadastralRepository.upsertFloorPlan({ parcelId, floorNumber: 31, floorName: 'Tầng 31', cadPhotoUrl: 'z31', applicableFloors: [31, 33, 34, 36] }, client);
+    const p33 = await CadastralRepository.upsertFloorPlan({ parcelId, floorNumber: 33, floorName: 'Tầng 33', cadPhotoUrl: 'z33' }, client);
+    await CadastralRepository.upsertFloorPlan({ parcelId, floorNumber: 34, floorName: 'Tầng 34', cadPhotoUrl: 'z34' }, client);
+    await client.query(
+      `INSERT INTO building_units (parcel_id, unit_code, floor_number, floor_plan_id, status, unit_cad_url, cad_bbox)
+       VALUES ($1,'L33',33,$2,'SUBMITTED','cad-L33','{"x":1,"y":1,"width":5,"height":5}'),
+              ($1,'D33',33,$2,'NOT_SURVEYED',NULL,NULL),
+              ($1,'L36',36,$2,'IN_PROGRESS','cad-L36',NULL),
+              ($1,'D36',36,$2,'NOT_SURVEYED',NULL,NULL);`,
+      [parcelId, p31.id]
+    );
+    const rLegacy = await CadastralRepository.atomicSyncFloorPlanAndPartitions(parcelId, 31, { floorName: 'Tầng 31', cadPhotoUrl: 'z31', applicableFloors: [31] }, []);
+    const legacy = await client.query(
+      `SELECT unit_code, floor_plan_id, deleted_at IS NOT NULL AS deleted, unit_cad_url, cad_bbox FROM building_units
+       WHERE parcel_id = $1 AND unit_code IN ('L33','D33','L36','D36') ORDER BY unit_code`,
+      [parcelId]
+    );
+    const byCode = Object.fromEntries(legacy.rows.map((r: { unit_code: string }) => [r.unit_code, r]));
+    assert.equal(byCode.L33.floor_plan_id, p31.id, 'căn đã khảo sát L33 phải giữ nguyên liên kết bản vẽ');
+    assert.equal(byCode.L33.unit_cad_url, 'cad-L33');
+    assert.equal(byCode.L36.floor_plan_id, p31.id, 'căn đã khảo sát L36 phải giữ nguyên liên kết bản vẽ');
+    assert.equal(byCode.D33.floor_plan_id, p33.id, 'ô chưa khảo sát trên tầng có bản vẽ riêng chuyển sang bản vẽ đó');
+    assert.equal(byCode.D33.deleted, false);
+    assert.equal(byCode.D36.deleted, true, 'ô chưa khảo sát trên tầng không còn bản vẽ bị xóa mềm');
+    assert.deepEqual(rLegacy.relinkedUnitCodes, ['D33']);
+    assert.deepEqual(rLegacy.prunedUnitCodes, ['D36']);
+    console.log('✅ Dữ liệu chồng dải kiểu B-0129: căn đã khảo sát không đổi, ô nháp chuyển/xóa mềm đúng');
+
+    await CadastralRepository.deleteFloorPlan(parcelId, 33, 'CLEAR_CAD', 1);
+    const afterClear = await client.query(`SELECT floor_plan_id, unit_cad_url, cad_bbox FROM building_units WHERE parcel_id = $1 AND unit_code = 'L33'`, [parcelId]);
+    assert.equal(afterClear.rows[0].floor_plan_id, p31.id);
+    assert.equal(afterClear.rows[0].unit_cad_url, 'cad-L33');
+    assert.deepEqual(afterClear.rows[0].cad_bbox, { x: 1, y: 1, width: 5, height: 5 });
+    console.log('✅ Xóa CAD tầng: căn đã khảo sát giữ nguyên ảnh CAD, khung và liên kết');
+
     // deleted_floors nhận tầng lẻ
     const df = await client.query(
       `UPDATE parcels SET deleted_floors = array_append(COALESCE(deleted_floors,'{}'), $2::numeric(4,1)) WHERE id = $1 RETURNING deleted_floors`,

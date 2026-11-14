@@ -1369,6 +1369,7 @@ export class CadastralRepository {
     detachedFloors: number[];
     releasedFromOtherPlans: number[];
     prunedUnitCodes: string[];
+    relinkedUnitCodes: string[];
   }> {
     return Database.transaction(async (client) => {
       const thisFloor = Number(floorNumber);
@@ -1434,40 +1435,60 @@ export class CadastralRepository {
         client
       );
 
-      // 3. Tầng bị gỡ khỏi dải: không còn mặt bằng nào → xóa mềm ô CHƯA khảo sát thuộc bản vẽ này.
-      //    Căn đã khảo sát giữ nguyên (chỉ gỡ liên kết bản vẽ), bảo toàn hồ sơ pháp lý.
+      // 3. Tầng bị gỡ khỏi dải.
+      //    NGUYÊN TẮC PHÁP LÝ (15/11/2026): căn đã/đang khảo sát KHÔNG bị đụng tới (kể cả floor_plan_id) —
+      //    CAD gắn với hồ sơ không được thay đổi. Chỉ xử lý ô CHƯA khảo sát thuộc bản vẽ này:
+      //    - tầng đã có bản vẽ riêng → chuyển liên kết sang bản vẽ riêng đó (không xóa);
+      //    - tầng không còn bản vẽ nào (riêng hoặc dải khác) → xóa mềm.
       const detachedFloors = (ownPlan?.applicable || []).filter((f) => f !== thisFloor && !newSet.includes(f));
       const prunedUnitCodes: string[] = [];
+      const relinkedUnitCodes: string[] = [];
       if (detachedFloors.length > 0) {
-        const pruneRes = await client.query<{ unit_code: string }>(
-          `UPDATE building_units bu
-           SET deleted_at = NOW(), updated_at = NOW()
-           WHERE bu.parcel_id = $1
-             AND bu.floor_number = ANY($2::numeric(4,1)[])
-             AND bu.floor_plan_id = $3
-             AND NOT ${unitSurveyLockedSql('bu')}
-             AND bu.deleted_at IS NULL
-           RETURNING bu.unit_code;`,
-          [parcelId, detachedFloors, plan.id]
+        const remainingPlansRes = await client.query<{ id: string; floor_number: number; applicable_floors: number[] | null }>(
+          `SELECT id, floor_number, applicable_floors FROM building_floor_plans
+           WHERE parcel_id = $1 AND deleted_at IS NULL AND id <> $2;`,
+          [parcelId, plan.id]
         );
-        prunedUnitCodes.push(...pruneRes.rows.map((r) => r.unit_code));
-        await client.query(
-          `UPDATE building_units bu
-           SET floor_plan_id = NULL, updated_at = NOW()
-           WHERE bu.parcel_id = $1 AND bu.floor_number = ANY($2::numeric(4,1)[])
-             AND bu.floor_plan_id = $3 AND bu.deleted_at IS NULL;`,
-          [parcelId, detachedFloors, plan.id]
-        );
-        await client.query(
-          `UPDATE parcels
-           SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
-               updated_at = NOW()
-           WHERE id = $1;`,
-          [parcelId]
-        );
+        for (const fl of detachedFloors) {
+          const own = remainingPlansRes.rows.find((r) => Number(r.floor_number) === fl);
+          const shared = remainingPlansRes.rows.find((r) => (r.applicable_floors || []).map(Number).includes(fl));
+          const target = own || shared;
+          if (target) {
+            const relinkRes = await client.query<{ unit_code: string }>(
+              `UPDATE building_units bu
+               SET floor_plan_id = $4, updated_at = NOW()
+               WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND bu.floor_plan_id = $3
+                 AND NOT ${unitSurveyLockedSql('bu')}
+                 AND bu.deleted_at IS NULL
+               RETURNING bu.unit_code;`,
+              [parcelId, fl, plan.id, target.id]
+            );
+            relinkedUnitCodes.push(...relinkRes.rows.map((r) => r.unit_code));
+          } else {
+            const pruneRes = await client.query<{ unit_code: string }>(
+              `UPDATE building_units bu
+               SET deleted_at = NOW(), updated_at = NOW()
+               WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND bu.floor_plan_id = $3
+                 AND NOT ${unitSurveyLockedSql('bu')}
+                 AND bu.deleted_at IS NULL
+               RETURNING bu.unit_code;`,
+              [parcelId, fl, plan.id]
+            );
+            prunedUnitCodes.push(...pruneRes.rows.map((r) => r.unit_code));
+          }
+        }
+        if (prunedUnitCodes.length > 0) {
+          await client.query(
+            `UPDATE parcels
+             SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+                 updated_at = NOW()
+             WHERE id = $1;`,
+            [parcelId]
+          );
+        }
       }
 
-      return { plan, units, detachedFloors, releasedFromOtherPlans, prunedUnitCodes };
+      return { plan, units, detachedFloors, releasedFromOtherPlans, prunedUnitCodes, relinkedUnitCodes };
     });
   }
 
@@ -1530,15 +1551,9 @@ export class CadastralRepository {
         [parcelId, floorNumber]
       );
 
-      // 2. Căn đã khảo sát (còn lại sau bước 1): chỉ gỡ liên kết bản vẽ tầng.
-      //    Ảnh CAD đã cắt và khung vị trí là bản độc lập của hồ sơ (chốt 15/11/2026, giống CAD nhà dân):
-      //    không xóa, vì màn thẩm định còn đọc unit_cad_url khi hồ sơ cũ thiếu ảnh trong survey_data_json.
-      await client.query(
-        `UPDATE building_units bu
-         SET floor_plan_id = NULL, updated_at = NOW()
-         WHERE bu.parcel_id = $1 AND bu.floor_number = $2 AND bu.deleted_at IS NULL;`,
-        [parcelId, floorNumber]
-      );
+      // 2. Căn đã/đang khảo sát (còn lại sau bước 1): KHÔNG đụng tới (chốt 15/11/2026 — CAD gắn hồ sơ pháp lý
+      //    không được thay đổi). Giữ nguyên ảnh CAD, khung và cả floor_plan_id: bản vẽ tầng chỉ bị xóa mềm ở bước 3
+      //    nên liên kết vẫn truy vết được căn đã khảo sát trên tờ CAD nào.
 
       // 3. Soft-delete bản ghi bản vẽ tầng trong building_floor_plans nếu có
       await client.query(

@@ -812,6 +812,7 @@ export class CadastralService {
         detachedFloors: result.detachedFloors,
         releasedFromOtherPlans: result.releasedFromOtherPlans,
         prunedUnitCodes: result.prunedUnitCodes,
+        relinkedUnitCodes: result.relinkedUnitCodes,
       }, clientIp);
     }
 
@@ -822,6 +823,7 @@ export class CadastralService {
       detachedFloors: result.detachedFloors,
       releasedFromOtherPlans: result.releasedFromOtherPlans,
       prunedUnitCodes: result.prunedUnitCodes,
+      relinkedUnitCodes: result.relinkedUnitCodes,
     };
   }
 
