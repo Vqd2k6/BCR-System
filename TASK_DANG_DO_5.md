@@ -67,3 +67,4 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
   - 10 module mới/sửa (CAD Studio modal, Quick Setup, panel CAD_E, Kho, bộ chọn dải tầng, modal KSV, crop modal, Step3 U, modal M, cadSources) nạp và chạy trong trình duyệt không lỗi console/trang.
   - Dựng thật và bấm thử: Quick Setup ra G, F01..F09, TECH (tầng 10), …, TECH2 (tầng 20); bộ chọn dải tầng trả [2,3,4,6,7,8] (khóa tầng 1, 5 có mặt bằng riêng; dải 6→8 thêm tầng mới); "Áp nhanh Z → E" bỏ qua ô đã khảo sát, cắt E + khung cho ô còn lại; Kho "Xóa" chỉ xóa mềm, "Đặt làm CAD_E chính" trả URL tờ.
   - Luồng có đăng nhập (mở CAD Studio thật của một tòa, lưu) do người dùng tự thử.
+- 15/11/2026: theo yêu cầu người dùng, đã fast-forward `main` lên `3692afe` (= dev) và push `origin main`. Khi deploy, 4 migration 20261116–20261119 tự chạy lúc server khởi động; nên pg_dump DB prod trước và theo dõi log `[MIGRATION RUNNER]`.
