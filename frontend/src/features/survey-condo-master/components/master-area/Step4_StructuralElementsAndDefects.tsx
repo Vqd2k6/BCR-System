@@ -34,6 +34,9 @@ interface Step4StructuralElementsAndDefectsProps {
   cadSketchPhotoUrl: string;
   cadStructuralSketchPhotoUrl: string;
   onCadStructuralSketchPhotoUrlChange: (url: string) => void;
+  /** Tầng có CAD_E nhưng khu vực đang dùng chung CAD_Z: gợi ý cắt CAD_E */
+  shouldSuggestStructuralCrop?: boolean;
+  onOpenStructuralCrop?: () => void;
   cadElementPins: CadZonePin[];
   setCadElementPins: React.Dispatch<React.SetStateAction<CadZonePin[]>>;
   structuralElements: StructuralElementData[];
@@ -69,6 +72,8 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
   cadSketchPhotoUrl,
   cadStructuralSketchPhotoUrl,
   onCadStructuralSketchPhotoUrlChange,
+  shouldSuggestStructuralCrop = false,
+  onOpenStructuralCrop,
   cadElementPins,
   setCadElementPins,
   structuralElements,
@@ -152,6 +157,23 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
         </div>
       ) : (
         <>
+          {shouldSuggestStructuralCrop && !isReadOnly && !isCadLocked && (
+            <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 flex items-center justify-between gap-2 flex-wrap">
+              <span>
+                Tầng có <strong>bản vẽ kết cấu CAD_E</strong>. Nên ghim cấu kiện E trên CAD_E thay vì sơ đồ kiến trúc.
+              </span>
+              {onOpenStructuralCrop && (
+                <button
+                  type="button"
+                  onClick={onOpenStructuralCrop}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shrink-0"
+                >
+                  Chọn / Cắt CAD_E
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Bản vẽ CAD Element Pinning (Light Theme, không bọc max-h cưỡng bức) */}
           <div className="bg-slate-100 rounded-2xl border border-slate-300 p-2 sm:p-3 flex flex-col gap-2 shadow-xs">
             <div className="flex items-center justify-between px-1">

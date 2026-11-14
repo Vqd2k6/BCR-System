@@ -30,6 +30,10 @@ interface Step2OverviewAndCadSetupProps {
   onCadStructuralSketchPhotoUrlChange: (url: string) => void;
   useSeparateStructuralCad: boolean;
   onToggleSeparateStructuralCad: (enabled: boolean) => void;
+  /** Tầng đã có CAD_E kết cấu (Admin nạp ở CAD Studio) */
+  floorHasStructuralCad?: boolean;
+  /** Mở modal cắt CAD kết cấu (tờ CAD_E / Kho tài nguyên / CAD_Z) */
+  onOpenStructuralCrop?: () => void;
   isCroppingCad: boolean;
   onOpenCadCropModal: () => void;
   onAutoCropFromFloorCad?: () => void;
@@ -52,10 +56,12 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
   onRemoveOverviewPhoto,
   cadSketchPhotoUrl,
   onCadSketchPhotoUrlChange,
-  cadStructuralSketchPhotoUrl: _cadStructuralSketchPhotoUrl,
+  cadStructuralSketchPhotoUrl,
   onCadStructuralSketchPhotoUrlChange: _onCadStructuralSketchPhotoUrlChange,
-  useSeparateStructuralCad: _useSeparateStructuralCad,
-  onToggleSeparateStructuralCad: _onToggleSeparateStructuralCad,
+  useSeparateStructuralCad,
+  onToggleSeparateStructuralCad,
+  floorHasStructuralCad = false,
+  onOpenStructuralCrop,
   isCroppingCad,
   onOpenCadCropModal,
   onAutoCropFromFloorCad,
@@ -313,6 +319,68 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
             <p className="text-xs text-slate-500">
               Bấm nút <span className="font-bold text-emerald-700">"Lấy lại từ CAD tầng"</span> để tự động trích xuất theo phân vùng, hoặc kéo thả ô cắt / tải lên bản vẽ riêng.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* 2.3: CAD KẾT CẤU E CỦA KHU VỰC (dùng cho định vị cấu kiện ở Bước 4) */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-sm sm:text-base font-bold text-slate-800">2.3. Bản vẽ kết cấu (CAD_E)</h3>
+          <span
+            className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+              useSeparateStructuralCad && cadStructuralSketchPhotoUrl
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-600 border-slate-200'
+            }`}
+          >
+            {useSeparateStructuralCad && cadStructuralSketchPhotoUrl ? 'CAD_E riêng' : 'Dùng chung sơ đồ CAD_Z'}
+          </span>
+        </div>
+
+        {floorHasStructuralCad && !(useSeparateStructuralCad && cadStructuralSketchPhotoUrl) && (
+          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900">
+            Tầng đã có <strong>bản vẽ kết cấu CAD_E</strong> nhưng Zone Admin chưa cắt sẵn khung cho khu vực này. Hãy tự khoanh đúng
+            vùng trên tờ CAD_E (không dùng toạ độ của CAD_Z).
+          </div>
+        )}
+
+        {useSeparateStructuralCad && cadStructuralSketchPhotoUrl && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 flex flex-col items-center">
+            <img
+              src={cadStructuralSketchPhotoUrl}
+              alt="Bản vẽ kết cấu khu vực"
+              className="max-h-[40vh] w-auto object-contain rounded-lg cursor-pointer"
+              onClick={() => onPreviewImage(cadStructuralSketchPhotoUrl)}
+            />
+          </div>
+        )}
+
+        {!isReadOnly && !isCadLocked && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {onOpenStructuralCrop && (
+              <button
+                type="button"
+                onClick={onOpenStructuralCrop}
+                className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Layers size={14} />
+                <span>{useSeparateStructuralCad && cadStructuralSketchPhotoUrl ? 'Cắt lại CAD_E' : 'Chọn / Cắt CAD kết cấu'}</span>
+              </button>
+            )}
+            {useSeparateStructuralCad && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Dùng chung sơ đồ CAD_Z cho phần kết cấu? Ảnh CAD_E riêng hiện tại sẽ không được dùng cho Bước 4.')) {
+                    onToggleSeparateStructuralCad(false);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer"
+              >
+                Dùng chung CAD_Z
+              </button>
+            )}
           </div>
         )}
       </div>

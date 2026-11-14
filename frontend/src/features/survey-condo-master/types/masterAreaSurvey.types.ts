@@ -104,6 +104,8 @@ export interface FloorPartition {
   cad_bbox?: [number, number, number, number] | { x: number; y: number; width: number; height: number } | null;
   unit_cad_url?: string;
   unit_type?: 'UNIT' | 'MASTER';
+  unit_structural_cad_url?: string | null;
+  cad_structural_bbox?: { x: number; y: number; width: number; height: number } | null;
 }
 
 export interface FloorPlanResponse {
@@ -114,6 +116,8 @@ export interface FloorPlanResponse {
     floor_number: number;
     floor_code?: string;
     floorCode?: string;
+    cad_structural_url?: string | null;
+    cad_resources_json?: unknown;
   };
   units?: FloorPartition[];
 }

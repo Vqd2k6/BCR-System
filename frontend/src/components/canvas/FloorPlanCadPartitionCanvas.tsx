@@ -40,6 +40,10 @@ export interface UnitPartitionBox {
   height: number; // 0..100%
   polygon?: { x: number; y: number }[];
   unitCadUrl?: string; // Data URL hoặc photo URL sau khi crop
+  /** CAD_E đã cắt cho ô này (từ CAD_E tầng hoặc tờ trong Kho) */
+  unitStructuralCadUrl?: string;
+  /** Khung cắt trên CAD_E tầng (% ảnh E), khác x/y/width/height trên CAD_Z */
+  structuralBbox?: { x: number; y: number; width: number; height: number } | null;
 }
 
 interface Props {

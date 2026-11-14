@@ -3,6 +3,13 @@ import { PoolClient } from 'pg';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../common/errors/problem-details';
 import { EXCLUDED_LIFECYCLE_STATUSES } from './utils/parcel-exclusion';
 import { resolveFloorCode } from './utils/floor-code.rules';
+import {
+  countActiveFloorCadResources,
+  MAX_FLOOR_CAD_RESOURCES,
+  mergeFloorCadResources,
+  parseFloorCadResources,
+  type FloorCadResource,
+} from './utils/floor-cad-resources';
 
 /**
  * Căn/khu vực đã vào quy trình khảo sát (có trạng thái khác NOT_SURVEYED, đã gắn hồ sơ Phase 1,
@@ -147,6 +154,8 @@ export interface BuildingUnitEntity {
   cad_bbox?: CadBBox | null;
   cad_polygon?: CadPolygonPoint[] | null;
   unit_cad_url?: string | null;
+  unit_structural_cad_url?: string | null;
+  cad_structural_bbox?: CadBBox | null;
   resident_status?: string | null;
   unit_type?: 'UNIT' | 'MASTER' | null;
   created_at: Date;
@@ -162,6 +171,8 @@ export interface BuildingFloorPlanEntity {
   floor_code?: string | null;
   applicable_floors: number[];
   cad_photo_url: string;
+  cad_structural_url?: string | null;
+  cad_resources_json?: FloorCadResource[];
   cad_photo_code: string | null;
   image_width: number | null;
   image_height: number | null;
@@ -1028,9 +1039,34 @@ export class CadastralRepository {
       imageHeight?: number | null;
       scope?: 'MASTER' | 'UNIT' | 'BOTH';
       areaType?: string | null;
+      /** undefined = giữ nguyên CAD_E hiện có; null = gỡ (bản cũ vào kho dạng xóa mềm) */
+      cadStructuralUrl?: string | null;
+      /** undefined = giữ nguyên kho; có giá trị = gộp theo id, phần tử bị bỏ chỉ xóa mềm */
+      cadResources?: FloorCadResource[];
+      userId?: string | null;
     },
     client?: PoolClient
   ): Promise<BuildingFloorPlanEntity> {
+    const run = <T extends import('pg').QueryResultRow>(sql: string, params: unknown[]) =>
+      client ? client.query<T>(sql, params) : Database.query<T>(sql, params);
+
+    // CAD_E + Kho tài nguyên: gộp với bản đang lưu, không làm mất bản vẽ cũ
+    const currentRes = await run<{ cad_structural_url: string | null; cad_resources_json: unknown }>(
+      `SELECT cad_structural_url, cad_resources_json FROM building_floor_plans
+       WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL LIMIT 1;`,
+      [data.parcelId, data.floorNumber]
+    );
+    const currentStructural = currentRes.rows[0]?.cad_structural_url || null;
+    const nextStructural = data.cadStructuralUrl === undefined ? currentStructural : data.cadStructuralUrl || null;
+    const mergedResources = mergeFloorCadResources(parseFloorCadResources(currentRes.rows[0]?.cad_resources_json), data.cadResources, {
+      nowIso: new Date().toISOString(),
+      replacedStructuralUrl: currentStructural && currentStructural !== nextStructural ? currentStructural : null,
+      userId: data.userId ?? null,
+    });
+    if (countActiveFloorCadResources(mergedResources) > MAX_FLOOR_CAD_RESOURCES) {
+      throw new BadRequestError(`Kho tài nguyên CAD mỗi tầng tối đa ${MAX_FLOOR_CAD_RESOURCES} tờ đang dùng. Hãy xóa bớt tờ không cần trước.`);
+    }
+
     const applicable = data.applicableFloors && data.applicableFloors.length > 0 
       ? data.applicableFloors 
       : [data.floorNumber];
@@ -1072,8 +1108,9 @@ export class CadastralRepository {
     }
 
     const insertSql = `INSERT INTO building_floor_plans (
-        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, deleted_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, NOW())
+        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type,
+        cad_structural_url, cad_resources_json, deleted_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, NULL, NOW())
       ON CONFLICT (parcel_id, floor_number) WHERE deleted_at IS NULL DO UPDATE SET
         floor_name = EXCLUDED.floor_name,
         floor_code = COALESCE(EXCLUDED.floor_code, building_floor_plans.floor_code),
@@ -1084,6 +1121,8 @@ export class CadastralRepository {
         image_height = EXCLUDED.image_height,
         scope = COALESCE(EXCLUDED.scope, building_floor_plans.scope),
         area_type = COALESCE(EXCLUDED.area_type, building_floor_plans.area_type),
+        cad_structural_url = EXCLUDED.cad_structural_url,
+        cad_resources_json = EXCLUDED.cad_resources_json,
         deleted_at = NULL,
         updated_at = NOW()
       RETURNING *;`;
@@ -1099,6 +1138,8 @@ export class CadastralRepository {
       data.imageHeight || null,
       scope,
       areaType || null,
+      nextStructural,
+      JSON.stringify(mergedResources),
     ];
 
     const res = client
@@ -1131,6 +1172,8 @@ export class CadastralRepository {
       polygon?: CadPolygonPoint[] | null; 
       unitCadUrl?: string | null; 
       unitType?: 'UNIT' | 'MASTER';
+      unitStructuralCadUrl?: string | null;
+      structuralBbox?: CadBBox | null;
     }[],
     client?: PoolClient
   ): Promise<BuildingUnitEntity[]> {
@@ -1171,8 +1214,9 @@ export class CadastralRepository {
 
         const res = await txClient.query<BuildingUnitEntity>(
           `INSERT INTO building_units (
-            parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, deleted_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, NOW())
+            parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type,
+            unit_structural_cad_url, cad_structural_bbox, deleted_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NULL, NOW())
           ON CONFLICT (parcel_id, unit_code) WHERE deleted_at IS NULL DO UPDATE SET
             display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
             floor_number = CASE
@@ -1200,6 +1244,16 @@ export class CadastralRepository {
               THEN COALESCE(building_units.unit_cad_url, EXCLUDED.unit_cad_url)
               ELSE COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url)
             END,
+            unit_structural_cad_url = CASE
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
+              THEN COALESCE(building_units.unit_structural_cad_url, EXCLUDED.unit_structural_cad_url)
+              ELSE COALESCE(EXCLUDED.unit_structural_cad_url, building_units.unit_structural_cad_url)
+            END,
+            cad_structural_bbox = CASE
+              WHEN ${UNIT_LOCKED_ON_CONFLICT}
+              THEN COALESCE(building_units.cad_structural_bbox, EXCLUDED.cad_structural_bbox)
+              ELSE COALESCE(EXCLUDED.cad_structural_bbox, building_units.cad_structural_bbox)
+            END,
             unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
             deleted_at = NULL,
             updated_at = NOW()
@@ -1214,6 +1268,8 @@ export class CadastralRepository {
             part.polygon ? JSON.stringify(part.polygon) : null,
             part.unitCadUrl || null,
             uType,
+            part.unitStructuralCadUrl || null,
+            part.structuralBbox ? JSON.stringify(part.structuralBbox) : null,
           ]
         );
         if (res.rows[0]) {
@@ -1287,6 +1343,9 @@ export class CadastralRepository {
       floorCode?: string;
       applicableFloors?: number[];
       cadPhotoUrl: string;
+      cadStructuralUrl?: string | null;
+      cadResources?: FloorCadResource[];
+      userId?: string | null;
       cadPhotoCode?: string | null;
       imageWidth?: number | null;
       imageHeight?: number | null;
@@ -1301,6 +1360,8 @@ export class CadastralRepository {
       polygon?: CadPolygonPoint[] | null;
       unitCadUrl?: string | null;
       unitType?: 'UNIT' | 'MASTER';
+      unitStructuralCadUrl?: string | null;
+      structuralBbox?: CadBBox | null;
     }[]
   ): Promise<{
     plan: BuildingFloorPlanEntity;

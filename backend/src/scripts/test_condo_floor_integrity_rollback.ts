@@ -27,7 +27,9 @@ async function expectConflict(client: { query: (q: string) => Promise<unknown> }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(fs.readFileSync(path.join(BE, 'database/migrations/20261118_condo_floor_numeric_integrity.sql'), 'utf8'));
+    for (const m of ['20261118_condo_floor_numeric_integrity.sql', '20261119_condo_floor_cad_structural.sql']) {
+      await client.query(fs.readFileSync(path.join(BE, 'database/migrations', m), 'utf8'));
+    }
     const zone = await client.query(`SELECT zone_id FROM parcels WHERE zone_id IS NOT NULL LIMIT 1`);
     const p = await client.query(
       `INSERT INTO parcels (project_parcel_code, zone_id, building_type, floor_count, location_geom)
@@ -94,6 +96,44 @@ async function expectConflict(client: { query: (q: string) => Promise<unknown> }
     assert.deepEqual(r5.detachedFloors, [7]);
     assert.deepEqual(r5.prunedUnitCodes, ['07.01']);
     console.log('✅ Thu hẹp dải: gỡ Tầng 7, xóa mềm ô chưa khảo sát 07.01');
+
+    // GĐ C1: CAD_E tầng + Kho tài nguyên (xóa mềm) + CAD_E từng U/M có khóa
+    const res1 = { id: 'r1', title: 'Kết cấu sàn', category: 'CAD_E' as const, url: 'https://r2/e-sheet.jpg', createdAt: '' };
+    const res2 = { id: 'r2', title: 'Điện nước', category: 'OTHER' as const, url: 'https://r2/mep.jpg', createdAt: '' };
+    let fp12 = await CadastralRepository.upsertFloorPlan(
+      { parcelId, floorNumber: 12, floorName: 'Tầng 12', cadPhotoUrl: 'z12', cadStructuralUrl: 'https://r2/e12-v1.jpg', cadResources: [res1, res2] },
+      client
+    );
+    assert.equal(fp12.cad_structural_url, 'https://r2/e12-v1.jpg');
+    assert.equal((fp12.cad_resources_json || []).length, 2);
+    // Không gửi cadStructuralUrl / cadResources → giữ nguyên
+    fp12 = await CadastralRepository.upsertFloorPlan({ parcelId, floorNumber: 12, floorName: 'Tầng 12', cadPhotoUrl: 'z12' }, client);
+    assert.equal(fp12.cad_structural_url, 'https://r2/e12-v1.jpg');
+    assert.equal((fp12.cad_resources_json || []).length, 2);
+    // Thay CAD_E + bỏ r2 khỏi danh sách → r2 xóa mềm, bản E cũ vào kho dạng xóa mềm
+    fp12 = await CadastralRepository.upsertFloorPlan(
+      { parcelId, floorNumber: 12, floorName: 'Tầng 12', cadPhotoUrl: 'z12', cadStructuralUrl: 'https://r2/e12-v2.jpg', cadResources: [res1] },
+      client
+    );
+    const kho = fp12.cad_resources_json || [];
+    assert.equal(kho.length, 3);
+    assert.ok(kho.find((r) => r.id === 'r2')?.deletedAt);
+    assert.ok(kho.find((r) => r.url === 'https://r2/e12-v1.jpg')?.deletedAt);
+    assert.ok(!kho.find((r) => r.id === 'r1')?.deletedAt);
+    console.log('✅ CAD_E tầng + Kho: giữ khi không gửi, xóa mềm tờ bị bỏ, lưu vết CAD_E cũ');
+
+    const bboxE = { x: 10, y: 10, width: 20, height: 20 };
+    await CadastralRepository.saveUnitPartitions(parcelId, 12, fp12.id, [
+      { unitCode: '12.01', unitType: 'UNIT', unitStructuralCadUrl: 'data:e-v1', structuralBbox: bboxE },
+    ], client);
+    await client.query(`UPDATE building_units SET status = 'IN_PROGRESS' WHERE parcel_id = $1 AND unit_code = '12.01'`, [parcelId]);
+    await CadastralRepository.saveUnitPartitions(parcelId, 12, fp12.id, [
+      { unitCode: '12.01', unitType: 'UNIT', unitStructuralCadUrl: 'data:e-v2', structuralBbox: { x: 1, y: 1, width: 5, height: 5 } },
+    ], client);
+    const u12 = await client.query(`SELECT unit_structural_cad_url, cad_structural_bbox FROM building_units WHERE parcel_id = $1 AND unit_code = '12.01' AND deleted_at IS NULL`, [parcelId]);
+    assert.equal(u12.rows[0].unit_structural_cad_url, 'data:e-v1');
+    assert.deepEqual(u12.rows[0].cad_structural_bbox, bboxE);
+    console.log('✅ CAD_E của U/M đã vào khảo sát không bị Admin ghi đè');
 
     // deleted_floors nhận tầng lẻ
     const df = await client.query(

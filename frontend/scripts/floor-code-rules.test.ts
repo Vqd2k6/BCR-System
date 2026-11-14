@@ -145,3 +145,28 @@ assert.equal(codeOf(15), 'REF');
 assert.equal(codeOf(21), 'ROOF');
 assert.equal(buildQuickFloorStructure({ basementCount: 0, hasSemiBasement: false, hasGround: false, hasGroundMezzanine: false, aboveFloors: 0, technicalFloors: [], refugeFloors: [], hasRoof: true }, ['ROOF'])[0].floorCode, 'ROOF2');
 console.log('✅ quick floor setup đạt');
+
+// 11. GĐ C: nguồn CAD_E theo quy tắc 3A
+import { aspectRatioDiff, buildCadSheetSources, MAIN_E_SOURCE_ID, MAIN_Z_SOURCE_ID, resolveStructuralCadAutoLoad } from '../src/core/utils/cadSources';
+const zb = { x: 1, y: 2, width: 3, height: 4 };
+const eb = { x: 5, y: 6, width: 7, height: 8 };
+assert.equal(resolveStructuralCadAutoLoad({ unitStructuralCadUrl: 'u-e', floorStructuralUrl: 'f-e' }).kind, 'USE_UNIT_E');
+assert.equal(resolveStructuralCadAutoLoad({ structuralBbox: eb, floorStructuralUrl: 'f-e' }).kind, 'CROP_FLOOR_E');
+assert.equal(resolveStructuralCadAutoLoad({ floorStructuralUrl: 'f-e' }).kind, 'SUGGEST_FLOOR_E');
+assert.equal(resolveStructuralCadAutoLoad({ structuralBbox: eb }).kind, 'NONE');
+const srcs = buildCadSheetSources({
+  zUrl: 'z', eUrl: 'e', zBbox: zb, eBbox: eb,
+  resources: [
+    { id: 'k1', title: 'Điện', category: 'OTHER', url: 'k1', createdAt: '' },
+    { id: 'k2', title: 'Sàn', category: 'CAD_E', url: 'k2', createdAt: '' },
+    { id: 'k3', title: 'Cũ', category: 'CAD_E', url: 'k3', createdAt: '', deletedAt: '2026-11-15' },
+    { id: 'k4', title: 'Trùng E', category: 'CAD_E', url: 'e', createdAt: '' },
+  ],
+});
+assert.deepEqual(srcs.map((x) => x.id), [MAIN_E_SOURCE_ID, 'k2', 'k1', MAIN_Z_SOURCE_ID]);
+assert.deepEqual(srcs[0].bbox, eb); // khung E chỉ gắn vào tờ E
+assert.deepEqual(srcs[3].bbox, zb); // khung Z chỉ gắn vào tờ Z
+assert.equal(srcs[1].bbox, null);
+assert.ok(aspectRatioDiff({ width: 2000, height: 1000 }, { width: 2020, height: 1000 }) < 0.02);
+assert.ok(aspectRatioDiff({ width: 2000, height: 1000 }, { width: 2000, height: 1300 }) > 0.02);
+console.log('✅ cadSources 3A đạt');

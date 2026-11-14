@@ -38,6 +38,14 @@ import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLo
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import type { MasterAreaAbsentPayload } from '../components/master-area/MasterAreaAbsentModal';
 import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
+import {
+  buildCadSheetSources,
+  MAIN_E_SOURCE_ID,
+  MAIN_Z_SOURCE_ID,
+  parseFloorCadResources,
+  resolveStructuralCadAutoLoad,
+  type CadSheetSource,
+} from '../../../core/utils/cadSources';
 
 /**
  * Đếm số lượng bằng chứng thực tế (ảnh, ghim CAD, vùng Z, cấu kiện E)
@@ -987,6 +995,65 @@ export function useMasterAreaSurveyState({
   const floorName = floorPlanData?.plan?.floor_name || `Tầng ${floorNumber}`;
 
   // =========================================================================
+  // CAD KẾT CẤU E (GĐ C — quy tắc 3A, parity với căn hộ U)
+  // =========================================================================
+  const matchedFloorUnit = useMemo<FloorPartition | undefined>(
+    () => floorPlanData?.units?.find((u) => u.id === unitId || u.unit_code === unitCode),
+    [floorPlanData, unitId, unitCode]
+  );
+  const floorStructuralUrl = floorPlanData?.plan?.cad_structural_url || '';
+  const structuralBboxOnE = normalizeBbox(matchedFloorUnit?.cad_structural_bbox ?? null);
+  const structuralDecision = resolveStructuralCadAutoLoad({
+    unitStructuralCadUrl: matchedFloorUnit?.unit_structural_cad_url,
+    structuralBbox: structuralBboxOnE,
+    floorStructuralUrl,
+  });
+  const structuralCropSources = useMemo<CadSheetSource[]>(
+    () =>
+      buildCadSheetSources({
+        zUrl: floorPlanData?.plan?.cad_photo_url || floorCadUrl,
+        eUrl: floorStructuralUrl,
+        resources: parseFloorCadResources(floorPlanData?.plan?.cad_resources_json),
+        zBbox: activeBbox,
+        eBbox: structuralBboxOnE,
+      }),
+    [floorPlanData, floorCadUrl, floorStructuralUrl, activeBbox, matchedFloorUnit]
+  );
+  const structuralCropInitialSourceId = floorStructuralUrl ? MAIN_E_SOURCE_ID : MAIN_Z_SOURCE_ID;
+  const [isStructuralCropOpen, setIsStructuralCropOpen] = useState<boolean>(false);
+
+  // Nạp CAD_E 1 lần khi Admin đã cắt sẵn cho khu vực (không ghi đè E khảo sát viên đã có, không chạy khi khóa)
+  const hasAutoLoadedStructuralRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (!hasHydrated || hasAutoLoadedStructuralRef.current || isCadLockedRef.current) return;
+    if (useSeparateStructuralCad && cadStructuralSketchPhotoUrl) {
+      hasAutoLoadedStructuralRef.current = true;
+      return;
+    }
+    if (structuralDecision.kind === 'NONE' || structuralDecision.kind === 'SUGGEST_FLOOR_E') return;
+    hasAutoLoadedStructuralRef.current = true;
+    const apply = (url: string) => {
+      if (isCadLockedRef.current) return;
+      setUseSeparateStructuralCad(true);
+      setCadStructuralSketchPhotoUrl(url);
+    };
+    if (structuralDecision.kind === 'USE_UNIT_E') {
+      apply(structuralDecision.url);
+    } else {
+      cropImageBoundingBox(structuralDecision.floorEUrl, structuralDecision.bbox, 0.05)
+        .then(apply)
+        .catch((err) => console.error('[useMasterAreaSurveyState:autoLoadStructural] Không cắt được CAD_E tầng:', err));
+    }
+  }, [hasHydrated, structuralDecision, useSeparateStructuralCad, cadStructuralSketchPhotoUrl]);
+
+  const handleConfirmStructuralCrop = (croppedDataUrl: string) => {
+    if (isCadLockedRef.current) return;
+    setUseSeparateStructuralCad(true);
+    setCadStructuralSketchPhotoUrl(croppedDataUrl);
+    hasAutoLoadedStructuralRef.current = true;
+  };
+
+  // =========================================================================
   // TỰ ĐỘNG CROP CAD NGẦM NẾU CHƯA CÓ VÀ ĐÃ CÓ BBOX (CHỈ CHẠY 1 LẦN KHI KHỞI TẠO MỚI)
   // =========================================================================
   useEffect(() => {
@@ -1018,7 +1085,7 @@ export function useMasterAreaSurveyState({
             if (prev || isCadOverriddenByUserRef.current || isCadLockedRef.current) return prev;
             return cropped;
           });
-          if (!cadStructuralSketchPhotoUrl) {
+          if (!cadStructuralSketchPhotoUrl && !floorPlanData?.plan?.cad_structural_url) {
             setCadStructuralSketchPhotoUrl((prev) => {
               if (prev || isCadOverriddenByUserRef.current || isCadLockedRef.current) return prev;
               return cropped;
@@ -2181,6 +2248,13 @@ export function useMasterAreaSurveyState({
   }, [draftKey, legacyDraftKey]);
 
   return {
+    floorStructuralUrl,
+    structuralDecisionKind: structuralDecision.kind,
+    structuralCropSources,
+    structuralCropInitialSourceId,
+    isStructuralCropOpen,
+    setIsStructuralCropOpen,
+    handleConfirmStructuralCrop,
     currentStep,
     setCurrentStep,
     goToStep,

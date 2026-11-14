@@ -1,4 +1,5 @@
 import { CadastralRepository, ParcelEntity, CadBBox, CadPolygonPoint } from './cadastral.repository';
+import type { FloorCadResource } from './utils/floor-cad-resources';
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
 import { CadastralMutationService } from './services/cadastral-mutation.service';
@@ -692,6 +693,8 @@ export class CadastralService {
       imageHeight?: number | null;
       scope?: 'MASTER' | 'UNIT' | 'BOTH';
       areaType?: string | null;
+      cadStructuralUrl?: string | null;
+      cadResources?: FloorCadResource[];
     },
     user?: { userId: string; role: string; assignedZoneId?: string | null },
     clientIp?: string
@@ -700,6 +703,7 @@ export class CadastralService {
     const plan = await CadastralRepository.upsertFloorPlan({
       parcelId,
       ...data,
+      userId: user?.userId ?? null,
     });
 
     if (user) {
@@ -773,6 +777,8 @@ export class CadastralService {
         imageHeight?: number | null;
         scope?: 'MASTER' | 'UNIT' | 'BOTH';
         areaType?: string | null;
+        cadStructuralUrl?: string | null;
+        cadResources?: FloorCadResource[];
       };
       partitions: {
         unitCode: string;
@@ -782,6 +788,8 @@ export class CadastralService {
         polygon?: CadPolygonPoint[] | null;
         unitCadUrl?: string | null;
         unitType?: 'UNIT' | 'MASTER';
+        unitStructuralCadUrl?: string | null;
+        structuralBbox?: CadBBox | null;
       }[];
     },
     user?: { userId: string; role: string; assignedZoneId?: string | null },
@@ -791,7 +799,7 @@ export class CadastralService {
     const result = await CadastralRepository.atomicSyncFloorPlanAndPartitions(
       parcelId,
       data.floorNumber,
-      data.floorPlan,
+      { ...data.floorPlan, userId: user?.userId ?? null },
       data.partitions
     );
 

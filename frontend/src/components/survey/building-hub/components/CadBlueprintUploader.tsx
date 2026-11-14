@@ -37,6 +37,8 @@ interface CadBlueprintUploaderProps {
   onCopyFromOtherFloor?: (sourceFloor: FloorOption) => void;
   otherFloorsWithCad?: FloorOption[];
   readOnly?: boolean;
+  /** Loại tờ đang tải: CAD_Z (mặc định, mặt bằng kiến trúc), CAD_E (kết cấu), OTHER (tờ bổ sung của kho) */
+  cadCategory?: 'CAD_Z' | 'CAD_E' | 'OTHER';
 }
 
 export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
@@ -49,6 +51,7 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
   onCopyFromOtherFloor,
   otherFloorsWithCad = [],
   readOnly = false,
+  cadCategory = 'CAD_Z',
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -76,8 +79,10 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
         : `F${String(floorNumber).padStart(2, '0')}`)
     ).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
 
-    const targetFolder = `projects/METRO2_HCM/buildings/${bCode}/cad-blueprints/floors/${fCode}/original`;
-    const targetFilename = `M2__${bCode}__${fCode}__CAD_BLUEPRINT__${Date.now()}.jpg`;
+    const sheetFolder = cadCategory === 'CAD_E' ? 'structural' : cadCategory === 'OTHER' ? 'resources' : 'original';
+    const sheetTag = cadCategory === 'CAD_E' ? 'CAD_STRUCTURAL' : cadCategory === 'OTHER' ? 'CAD_RESOURCE' : 'CAD_BLUEPRINT';
+    const targetFolder = `projects/METRO2_HCM/buildings/${bCode}/cad-blueprints/floors/${fCode}/${sheetFolder}`;
+    const targetFilename = `M2__${bCode}__${fCode}__${sheetTag}__${Date.now()}.jpg`;
 
     const formData = new FormData();
     formData.append('file', blob, targetFilename);
@@ -88,7 +93,7 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
         'building-code': bCode,
         'floor-code': fCode,
         'area-type': 'CAD_BLUEPRINT',
-        'photo-type': 'CAD_FLOOR',
+        'photo-type': cadCategory === 'CAD_E' ? 'CAD_FLOOR_STRUCTURAL' : cadCategory === 'OTHER' ? 'CAD_FLOOR_RESOURCE' : 'CAD_FLOOR',
         project: 'METRO2_HCM',
         'uploaded-at': new Date().toISOString(),
       })

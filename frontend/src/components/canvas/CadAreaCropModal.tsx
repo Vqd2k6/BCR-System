@@ -64,6 +64,22 @@ export interface CadCropFloorPlanItem {
   floor_code?: string;
 }
 
+/** Một tờ bản vẽ có thể cắt: CAD_Z (kiến trúc), CAD_E (kết cấu), hoặc tờ khác trong Kho tài nguyên tầng */
+export interface CadCropSource {
+  id: string;
+  category: 'CAD_Z' | 'CAD_E' | 'OTHER';
+  title: string;
+  url: string;
+  /** Khung đã có trên tờ này (vd cad_structural_bbox trên CAD_E); null = vẽ mới */
+  bbox?: NormalizedBbox | null;
+}
+
+const SOURCE_BADGE: Record<CadCropSource['category'], string> = {
+  CAD_Z: 'Z',
+  CAD_E: 'E',
+  OTHER: 'Khác',
+};
+
 export interface CadAreaCropModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -76,6 +92,12 @@ export interface CadAreaCropModalProps {
   onUseFullFloorCad?: (fullFloorCadUrl: string) => void;
   floorPlans?: CadCropFloorPlanItem[];
   onSelectFloorPlan?: (plan: CadCropFloorPlanItem) => void | Promise<void>;
+  /** Danh sách tờ của tầng (Z / E / Kho). Có thì hiện thanh chọn tờ thay cho thanh chọn tầng */
+  sources?: CadCropSource[];
+  /** Tờ mở sẵn (vd mở từ mục Kết cấu E thì chọn CAD_E) */
+  initialSourceId?: string;
+  /** Báo tờ đang cắt khi xác nhận (để biết ảnh thuộc Z hay E) */
+  onConfirmCropFromSource?: (croppedDataUrl: string, newBbox: NormalizedBbox, source: CadCropSource) => void;
 }
 
 export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
@@ -90,7 +112,12 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
   onUseFullFloorCad,
   floorPlans = [],
   onSelectFloorPlan,
+  sources = [],
+  initialSourceId,
+  onConfirmCropFromSource,
 }) => {
+  const initialSource = sources.find((x) => x.id === initialSourceId) || null;
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(initialSource?.id ?? null);
   const [activeTool, setActiveTool] = useState<'PAN' | 'CROP'>('CROP');
   const [currentBox, setCurrentBox] = useState<NormalizedBbox | null>(initialBbox);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -129,13 +156,22 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
   } = useInteractiveCanvasZoom({ minZoom: 0.6, maxZoom: 4.0, initialZoom: 1.0 });
 
   useEffect(() => {
+    if (isOpen && initialSource) {
+      setActiveSourceId(initialSource.id);
+      setActiveCadUrl(initialSource.url);
+      setCurrentBox(initialSource.bbox ?? null);
+      setDragCurrent(null);
+      isDraggingRef.current = false;
+      dragStartRef.current = null;
+      return;
+    }
     if (isOpen) {
       setCurrentBox(initialBbox);
       setDragCurrent(null);
       isDraggingRef.current = false;
       dragStartRef.current = null;
     }
-  }, [isOpen, initialBbox]);
+  }, [isOpen, initialBbox, initialSourceId]);
 
   // Pointer events trên CAD
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -213,6 +249,9 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
     };
   }, [dragCurrent]);
 
+  // Toạ độ ô phân vùng (cad_bbox) thuộc CAD_Z; tờ E / kho có toạ độ khác nên không vẽ đè
+  const isOnZSheet = !activeSourceId || sources.find((x) => x.id === activeSourceId)?.category === 'CAD_Z';
+
   const handleConfirm = async () => {
     if (!currentBox) {
       alert('Vui lòng kéo chuột hoặc ngón tay để vẽ khung chữ nhật bao quanh khu vực cần cắt, hoặc chọn một ô phân vùng có sẵn!');
@@ -222,7 +261,12 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
     try {
       setIsProcessing(true);
       const croppedUrl = await cropImageBoundingBox(activeCadUrl || cadPhotoUrl, currentBox, 0.05);
-      onConfirmCrop(croppedUrl, currentBox);
+      const activeSource = sources.find((x) => x.id === activeSourceId);
+      if (activeSource && onConfirmCropFromSource) {
+        onConfirmCropFromSource(croppedUrl, currentBox, activeSource);
+      } else {
+        onConfirmCrop(croppedUrl, currentBox);
+      }
       onClose();
     } catch (err) {
       console.error('[CadAreaCropModal] Lỗi crop ảnh:', err);
@@ -282,8 +326,43 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
           </button>
         </div>
 
+        {/* Chọn tờ bản vẽ của tầng: CAD_Z / CAD_E / Kho tài nguyên */}
+        {sources.length > 0 && (
+          <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Layers size={13} className="text-indigo-600" /> Tờ bản vẽ:
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {sources.map((src) => {
+                const isSelected = activeSourceId === src.id;
+                return (
+                  <button
+                    key={src.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveSourceId(src.id);
+                      setActiveCadUrl(src.url);
+                      setCurrentBox(src.bbox ?? null);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span className={`px-1 rounded text-[10px] font-mono ${isSelected ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>
+                      {SOURCE_BADGE[src.category]}
+                    </span>
+                    {src.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Bộ chuyển đổi Tầng (nếu tòa nhà có nhiều tầng có CAD) */}
-        {floorPlans && floorPlans.length > 1 && (
+        {sources.length === 0 && floorPlans && floorPlans.length > 1 && (
           <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
               <Layers size={13} className="text-indigo-600" /> Bản vẽ tòa:
@@ -329,7 +408,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
             <span>Dùng toàn bộ CAD tầng</span>
           </button>
 
-          {otherPartitions.map((part) => {
+          {(isOnZSheet ? otherPartitions : []).map((part) => {
             const pBox = normalizeBbox(part.cad_bbox);
             if (!pBox) return null;
             const isTarget = part.unit_code === unitCode;
@@ -445,7 +524,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
               />
 
               {/* Các phân vùng trên tầng (BẤM ĐƯỢC để chọn trực quan) */}
-              {otherPartitions.map((part) => {
+              {(isOnZSheet ? otherPartitions : []).map((part) => {
                 const pBox = normalizeBbox(part.cad_bbox);
                 if (!pBox) return null;
                 const isTarget = part.unit_code === unitCode;

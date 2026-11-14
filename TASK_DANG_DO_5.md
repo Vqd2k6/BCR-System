@@ -1,6 +1,6 @@
 # Task dang dở 5: Sửa phân hệ Chung cư (tầng, mã U/M, CAD Studio)
 
-Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A commit `4b13676`, GĐ B commit kế tiếp (chưa push). GĐ C: plan riêng `~/.claude/plans/condo-gd-c-cad-e-floor-resources.md`, chưa code.
+Cập nhật: 15/11/2026. Nhánh `dev`. GĐ A commit `4b13676`, GĐ B commit kế tiếp (chưa push). GĐ C: plan `~/.claude/plans/condo-gd-c-cad-e-floor-resources.md`, đã code C1–C6 (mục 6 plan là các mặc định cần người dùng xác nhận).
 
 - Plan rà soát + quyết định: `~/.claude/plans/ph-n-h-chung-c-luminous-stardust.md` (plan gốc Antigravity `e36e865f`).
 - Chia giai đoạn: **GĐ A (xong code)** → GĐ B (setup tầng) → GĐ C (CAD_E / Kho tài nguyên tầng, plan riêng). Report chung cư không làm đợt này (xem `TASK_DANG_DO_3.md`).
@@ -46,8 +46,16 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
 - Quick Floor Setup: `QuickFloorSetupModal.tsx` + `buildQuickFloorStructure` (floorUtils, có test). Tầng dự kiến lưu nháp `localStorage['metro2_quick_floor_draft_{parcelId}']`, chỉ thành bản ghi khi nạp CAD. Tự mở khi CAD Studio của tòa chưa có tầng; nút "Nhanh" ở sidebar; Hub có banner CTA (KSV thấy hướng dẫn liên hệ Zone Admin). Cả lưới thửa (mở thẳng CAD Studio) và bottom sheet (mở Hub) đều dẫn tới đây (#12).
 - #17: `SurveyorCadReadOnlyModal` dùng `deriveBuildingFloorNumbers`, không sinh tầng ảo; empty state chỉ dẫn liên hệ Zone Admin.
 
+## GĐ C — đã làm (CAD_E + Kho tài nguyên tầng)
+- C1: migration `20261119_condo_floor_cad_structural.sql` (`cad_structural_url`, `cad_resources_json`, `unit_structural_cad_url`, `cad_structural_bbox`); DTO `FloorCadResourceDto`; `upsertFloorPlan` gộp kho qua `floor-cad-resources.ts` (chỉ xóa mềm, CAD_E cũ bị thay vào kho dạng đã xóa, tối đa 20 tờ dùng); `saveUnitPartitions` ghi E từng ô với nhánh khóa căn đã khảo sát.
+- C2–C3: CAD Studio có tab `[CAD_Z | CAD_E | Kho tài nguyên]` (`FloorStructuralCadPanel`, `FloorCadResourcePanel`): tải/đổi/gỡ CAD_E, áp nhanh khung Z → E (chặn lệch tỷ lệ > 2%), chỉnh khung E từng ô, kho thêm/đổi nhãn/đặt làm CAD_E chính/xóa mềm + xem tờ đã xóa; huy hiệu Z/E trên từng ô.
+- C4: `CadAreaCropModal` nhận `sources` (tờ E / kho / Z, khung gắn đúng tờ); phiếu U `Step3` áp 3A (`resolveStructuralCadAutoLoad` trong `core/utils/cadSources.ts`): nạp E 1 lần khi Admin đã cắt/đặt khung E, chỉ có E chung thì banner + mở sẵn tờ E, không cắt bằng khung Z.
+- C5: khu vực M parity: hook có nguồn E + tự nạp 3A; Step2 mục 2.3 CAD_E; Step4 banner gợi ý; không chép Z sang E khi tầng có CAD_E.
+- C6: thẩm định đã đọc E từ JSON phiếu (không đổi); `SurveyorCadReadOnlyModal` xem Z / E / Kho (chỉ đọc).
+- Test: `npm run test:floor-codes` (cadSources 3A), `cd backend && npm run test:condo-floors` (12 ca ROLLBACK).
+
 ## Việc còn lại
 1. `useCondoMasterSurveyStore.ts` còn mặc định `foundationType`/`structureSystem` = phần tử đầu danh sách (ảnh hưởng ECS/VI) — chưa hỏi người dùng.
-2. GĐ C: vấn đáp 5 câu ở mục 5 của plan GĐ C rồi mới code.
+2. GĐ C: người dùng xác nhận 5 mặc định ở mục 6 plan GĐ C.
 3. Dữ liệu local còn dải chồng (Tầng 1 → {1,3,4} trong khi 3, 4 có mặt bằng riêng): tự gỡ khi Admin lưu lại Tầng 1; không sửa dữ liệu bằng script.
 4. Chưa chạy migration thật, chưa thử trên trình duyệt. Logic repository đã kiểm bằng `cd backend && npm run test:condo-floors` (10 ca, chạy trong transaction ROLLBACK).

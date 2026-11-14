@@ -179,11 +179,20 @@ export const CadPartitionListSidebar: React.FC<CadPartitionListSidebarProps> = (
                       </span>
                     );
                   })()}
-                  {box.unitCadUrl && (
-                    <span className={`text-[9px] font-bold px-1 rounded text-white shrink-0 ml-1 ${isMaster ? 'bg-indigo-700' : 'bg-teal-700'}`}>
-                      CAD ✓
+                  <span className="flex items-center gap-0.5 shrink-0 ml-1">
+                    <span
+                      title={box.unitCadUrl ? 'Đã có CAD_Z (kiến trúc) cho vị trí này' : 'Chưa có CAD_Z'}
+                      className={`text-[9px] font-bold px-1 rounded border ${box.unitCadUrl ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-400 border-slate-300'}`}
+                    >
+                      Z
                     </span>
-                  )}
+                    <span
+                      title={box.unitStructuralCadUrl ? 'Đã có CAD_E (kết cấu) cho vị trí này' : 'Chưa có CAD_E — cắt ở tab CAD_E'}
+                      className={`text-[9px] font-bold px-1 rounded border ${box.unitStructuralCadUrl ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-slate-400 border-slate-300'}`}
+                    >
+                      E
+                    </span>
+                  </span>
                 </div>
 
                 {isDuplicate && (

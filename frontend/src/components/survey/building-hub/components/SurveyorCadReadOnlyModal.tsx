@@ -5,6 +5,7 @@ import { api } from '../../../../services/api';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
 import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
 import { formatDefaultFloorLabel } from '../../../../core/utils/floorCodeRules';
+import { activeFloorCadResources, CAD_CATEGORY_LABEL, parseFloorCadResources } from '../../../../core/utils/cadSources';
 
 interface SurveyorCadReadOnlyModalProps {
   parcel: GisParcel;
@@ -18,6 +19,7 @@ interface UnitItem {
   floor_number: number;
   cad_bbox?: { x: number; y: number; width: number; height: number } | null;
   cadBbox?: { x: number; y: number; width: number; height: number } | null;
+  cad_structural_bbox?: { x: number; y: number; width: number; height: number } | null;
   unit_type?: 'UNIT' | 'MASTER';
   unitType?: 'UNIT' | 'MASTER';
   status?: string;
@@ -28,6 +30,8 @@ interface FloorPlanItem {
   floor_number: number;
   floor_name: string;
   cad_photo_url: string;
+  cad_structural_url?: string | null;
+  cad_resources_json?: unknown;
   applicable_floors?: number[];
 }
 
@@ -42,6 +46,8 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
     parcel.deletedFloors || parcel.deleted_floors || []
   );
   const [loading, setLoading] = useState<boolean>(true);
+  // Tờ đang xem của từng tầng: 'Z' (mặc định), 'E', hoặc id tờ trong Kho tài nguyên (chỉ xem)
+  const [sheetByFloor, setSheetByFloor] = useState<Record<string, string>>({});
   const [filterFloor, setFilterFloor] = useState<number | 'ALL'>(
     initialFloor !== undefined ? initialFloor : 'ALL'
   );
@@ -110,6 +116,8 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
         floorLabel: floorDisplayName,
         floorName: floorDisplayName,
         cadUrl: effectivePlan?.cad_photo_url || '',
+        structuralUrl: effectivePlan?.cad_structural_url || '',
+        resources: activeFloorCadResources(parseFloorCadResources(effectivePlan?.cad_resources_json)),
         isInherited,
         inheritedFromFloor: sharedPlan?.floor_number,
         units: floorUnits,
@@ -244,9 +252,65 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                 )}
               </div>
 
+              {/* Chọn tờ bản vẽ (chỉ xem): CAD_Z / CAD_E / Kho tài nguyên */}
+              {(floor.structuralUrl || floor.resources.length > 0) && (
+                <div className="px-3 sm:px-4 pt-3 flex items-center gap-1.5 flex-wrap text-[11px]">
+                  {[
+                    { id: 'Z', label: 'CAD_Z Kiến trúc', show: Boolean(floor.cadUrl) },
+                    { id: 'E', label: 'CAD_E Kết cấu', show: Boolean(floor.structuralUrl) },
+                    ...floor.resources.map((r) => ({ id: r.id, label: `${r.title || CAD_CATEGORY_LABEL[r.category]}`, show: true })),
+                  ]
+                    .filter((t) => t.show)
+                    .map((t) => {
+                      const selected = (sheetByFloor[String(floor.floorNumber)] || 'Z') === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setSheetByFloor((prev) => ({ ...prev, [String(floor.floorNumber)]: t.id }))}
+                          className={`px-2.5 py-1 rounded-lg font-bold border cursor-pointer ${
+                            selected ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+
               {/* Floor CAD Canvas Viewport (Cấm chọn, chỉ xem) */}
               <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100">
-                {floor.cadUrl ? (
+                {(() => {
+                  const sheetId = sheetByFloor[String(floor.floorNumber)] || 'Z';
+                  if (sheetId === 'Z') return null;
+                  const url = sheetId === 'E' ? floor.structuralUrl : floor.resources.find((r) => r.id === sheetId)?.url || '';
+                  return url ? (
+                    <div className="relative w-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-inner flex items-center justify-center min-h-[260px] max-h-[65vh] force-light">
+                      <img src={url} alt={`Tờ CAD ${floor.floorLabel}`} className="w-full h-auto max-h-[65vh] object-contain select-none pointer-events-none" />
+                      {sheetId === 'E' && (
+                        <div className="absolute inset-0 pointer-events-none">
+                          {floor.units.map((unit) =>
+                            unit.cad_structural_bbox ? (
+                              <div
+                                key={unit.id}
+                                style={{
+                                  position: 'absolute',
+                                  left: `${unit.cad_structural_bbox.x}%`,
+                                  top: `${unit.cad_structural_bbox.y}%`,
+                                  width: `${unit.cad_structural_bbox.width}%`,
+                                  height: `${unit.cad_structural_bbox.height}%`,
+                                }}
+                                className="border-2 border-indigo-600 bg-indigo-500/15 rounded"
+                              />
+                            ) : null
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+                {(sheetByFloor[String(floor.floorNumber)] || 'Z') !== 'Z' ? null : floor.cadUrl ? (
                   <div className="relative w-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-inner flex items-center justify-center min-h-[260px] max-h-[65vh]">
                     {/* CAD Blueprint Image */}
                     <img

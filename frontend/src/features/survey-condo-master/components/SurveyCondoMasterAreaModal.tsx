@@ -292,6 +292,8 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               onCadStructuralSketchPhotoUrlChange={state.setCadStructuralSketchPhotoUrl}
               useSeparateStructuralCad={state.useSeparateStructuralCad}
               onToggleSeparateStructuralCad={state.setUseSeparateStructuralCad}
+              floorHasStructuralCad={Boolean(state.floorStructuralUrl)}
+              onOpenStructuralCrop={() => state.setIsStructuralCropOpen(true)}
               isCroppingCad={state.isCroppingCad}
               onOpenCadCropModal={() => state.setIsCadCropModalOpen(true)}
               onAutoCropFromFloorCad={state.handleAutoCropFromFloorCad}
@@ -351,6 +353,8 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               cadSketchPhotoUrl={state.cadSketchPhotoUrl}
               cadStructuralSketchPhotoUrl={state.cadStructuralSketchPhotoUrl}
               onCadStructuralSketchPhotoUrlChange={state.setCadStructuralSketchPhotoUrl}
+              shouldSuggestStructuralCrop={Boolean(state.floorStructuralUrl) && !(state.useSeparateStructuralCad && state.cadStructuralSketchPhotoUrl)}
+              onOpenStructuralCrop={() => state.setIsStructuralCropOpen(true)}
               cadElementPins={state.cadElementPins}
               setCadElementPins={state.setCadElementPins}
               structuralElements={state.structuralElements}
@@ -416,6 +420,23 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
           onUseFullFloorCad={state.handleUseFullFloorCad}
           floorPlans={state.availableFloorPlans}
           onSelectFloorPlan={state.handleSelectFloorPlanForCrop}
+        />
+      )}
+
+      {/* Modal cắt CAD kết cấu E (tờ CAD_E tầng / Kho tài nguyên / CAD_Z) */}
+      {state.isStructuralCropOpen && (
+        <CadAreaCropModal
+          isOpen={state.isStructuralCropOpen}
+          onClose={() => state.setIsStructuralCropOpen(false)}
+          cadPhotoUrl={state.floorStructuralUrl || state.floorPlanData?.plan?.cad_photo_url || floorCadUrl || ''}
+          floorName={state.floorName}
+          unitCode={state.unitCode}
+          initialBbox={null}
+          otherPartitions={state.floorPlanData?.units}
+          sources={state.structuralCropSources}
+          initialSourceId={state.structuralCropInitialSourceId}
+          onConfirmCrop={(cropped) => state.handleConfirmStructuralCrop(cropped)}
+          onUseFullFloorCad={(url) => state.handleConfirmStructuralCrop(url)}
         />
       )}
 

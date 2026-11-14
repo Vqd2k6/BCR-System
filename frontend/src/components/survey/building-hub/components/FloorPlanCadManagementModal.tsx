@@ -21,6 +21,9 @@ import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import { CadBlueprintUploader } from './CadBlueprintUploader';
 import { TypicalFloorsSelectorModal } from './TypicalFloorsSelectorModal';
 import { QuickFloorSetupModal } from './QuickFloorSetupModal';
+import { FloorStructuralCadPanel } from './FloorStructuralCadPanel';
+import { FloorCadResourcePanel } from './FloorCadResourcePanel';
+import { activeFloorCadResources, parseFloorCadResources, type FloorCadResource } from '../../../../core/utils/cadSources';
 import type { QuickFloorItem } from '../../../../core/utils/floorUtils';
 import {
   FloorPlanCadPartitionCanvas,
@@ -64,6 +67,8 @@ interface FloorPlanItem {
   floor_name: string;
   floor_code?: string;
   cad_photo_url: string;
+  cad_structural_url?: string | null;
+  cad_resources_json?: unknown;
   applicable_floors?: number[];
   scope?: FloorScope;
   area_type?: string;
@@ -78,6 +83,8 @@ interface CadUnitItem {
   cad_bbox?: { x: number; y: number; width: number; height: number };
   cad_polygon?: { x: number; y: number }[];
   unit_cad_url?: string;
+  unit_structural_cad_url?: string | null;
+  cad_structural_bbox?: { x: number; y: number; width: number; height: number } | null;
   unit_type?: 'UNIT' | 'MASTER';
   status?: string;
   phase1_report_id?: string | null;
@@ -187,6 +194,16 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [floorName, setFloorName] = useState<string>('Tầng 1');
   const [floorCode, setFloorCode] = useState<string>('F01');
   const [cadUrl, setCadUrl] = useState<string>('');
+  // CAD_E (kết cấu) chính + Kho tài nguyên của tầng đang chọn (GĐ C, phương án 1A)
+  const [cadStructuralUrl, setCadStructuralUrl] = useState<string>('');
+  const [cadResources, setCadResources] = useState<FloorCadResource[]>([]);
+  const [layerTab, setLayerTab] = useState<'CAD_Z' | 'CAD_E' | 'RESOURCES'>('CAD_Z');
+  // Nạp đủ 3 lớp bản vẽ từ một bản ghi mặt bằng (riêng hoặc kế thừa); null = tầng trống
+  const applyPlanSheets = (plan: FloorPlanItem | null | undefined) => {
+    setCadUrl(plan?.cad_photo_url || '');
+    setCadStructuralUrl(plan?.cad_structural_url || '');
+    setCadResources(parseFloorCadResources(plan?.cad_resources_json));
+  };
   const [applicableFloors, setApplicableFloors] = useState<number[]>([1]);
   const [floorScope, setFloorScope] = useState<FloorScope>('UNIT');
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
@@ -246,7 +263,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         const effectiveFloorNum = directPlan ? Number(directPlan.floor_number) : targetFloorNum;
         targetFloorNum = effectiveFloorNum;
         setActiveFloor(effectiveFloorNum);
-        setCadUrl(targetPlan.cad_photo_url || '');
+        applyPlanSheets(targetPlan);
         const effName = directPlan?.floor_name || defaultFloorName(effectiveFloorNum);
         setFloorName(effName);
         const assignedCode = directPlan?.floor_code || getDefaultFloorCode(effectiveFloorNum, effName);
@@ -258,7 +275,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         setActiveFloor(targetFloorNum);
         const draft = draftOf(targetFloorNum);
         const defName = draft?.floorName || defaultFloorName(targetFloorNum);
-        setCadUrl('');
+        applyPlanSheets(null);
         setFloorName(defName);
         setFloorCode(draft?.floorCode || getDefaultFloorCode(targetFloorNum, defName));
         setApplicableFloors([targetFloorNum]);
@@ -282,6 +299,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             height: u.cad_bbox?.height ?? 0,
             polygon: u.cad_polygon || undefined,
             unitCadUrl: u.unit_cad_url || undefined,
+            unitStructuralCadUrl: u.unit_structural_cad_url || undefined,
+            structuralBbox: u.cad_structural_bbox ?? null,
           }));
         setPartitions(boxes);
       } else {
@@ -382,6 +401,12 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     triggerSuccessFeedback(`Đã tạo ${floors.length} tầng dự kiến. Chọn từng tầng để nạp bản vẽ CAD và lưu.`);
   };
 
+  // Ô đã/đang khảo sát: không cho Admin ghi đè CAD (máy chủ cũng khóa bằng điều kiện chung)
+  const isPartitionLocked = (box: UnitPartitionBox): boolean => {
+    const unit = allUnits.find((u) => u.id === box.id || u.unit_code.trim().toLowerCase() === box.unitCode.trim().toLowerCase());
+    return Boolean(unit && (unit.phase1_report_id || (unit.status && unit.status !== 'NOT_SURVEYED')));
+  };
+
   // Mã tầng của các tầng khác, để tầng đặc biệt mới được đánh số TECH2, MEZZ2... không trùng
   const otherFloorCodes = (floorNum: number): string[] =>
     buildingFloors.filter((f) => f.floorNumber !== floorNum).map((f) => f.floorCode);
@@ -394,7 +419,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         if (res.data?.success) {
           const { plan, units } = res.data.data;
           if (plan) {
-            setCadUrl(plan.cad_photo_url || '');
+            applyPlanSheets(plan);
             setFloorName(plan.floor_name || `Tầng ${floorNum}`);
             const assignedCode = plan.floor_code || getDefaultFloorCode(floorNum, plan.floor_name || `Tầng ${floorNum}`);
             setFloorCode(assignedCode);
@@ -407,7 +432,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               (p) => p.applicable_floors && p.applicable_floors.includes(floorNum)
             );
             if (sharedPlan) {
-              setCadUrl(sharedPlan.cad_photo_url || '');
+              applyPlanSheets(sharedPlan);
               const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
               setFloorName(defName);
               const assignedCode = sharedPlan.floor_code || getDefaultFloorCode(floorNum, defName);
@@ -416,7 +441,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               const detected = detectDefaultFloorScope(floorNum, defName);
               setFloorScope(sharedPlan.scope || detected.scope);
             } else {
-              setCadUrl('');
+              applyPlanSheets(null);
               const draft = draftOf(floorNum);
               const defName = draft?.floorName || defaultFloorName(floorNum);
               setFloorName(defName);
@@ -443,6 +468,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 height: u.cad_bbox?.height ?? 0,
                 polygon: u.cad_polygon || undefined,
                 unitCadUrl: u.unit_cad_url || undefined,
+            unitStructuralCadUrl: u.unit_structural_cad_url || undefined,
+            structuralBbox: u.cad_structural_bbox ?? null,
               }));
             setPartitions(boxes);
           } else {
@@ -459,6 +486,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 height: u.cad_bbox?.height ?? 0,
                 polygon: u.cad_polygon || undefined,
                 unitCadUrl: u.unit_cad_url || undefined,
+            unitStructuralCadUrl: u.unit_structural_cad_url || undefined,
+            structuralBbox: u.cad_structural_bbox ?? null,
               })));
             } else {
               setPartitions([]);
@@ -492,14 +521,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     if (floorInfo) {
       setFloorName(floorInfo.floorName);
       setFloorCode(floorInfo.floorCode);
-      setCadUrl(floorInfo.cadPhotoUrl || '');
+      const directOrShared =
+        existingFloorPlans.find((fp) => Number(fp.floor_number) === Number(floorNum)) ||
+        existingFloorPlans.find((fp) => (fp.applicable_floors || []).map(Number).includes(Number(floorNum)));
+      applyPlanSheets(directOrShared);
       setFloorScope(floorInfo.scope);
       setApplicableFloors(floorInfo.applicableFloors?.length ? floorInfo.applicableFloors.map(Number) : [floorNum]);
     } else {
       const defName = defaultFloorName(floorNum);
       setFloorName(defName);
       setFloorCode(getDefaultFloorCode(floorNum, defName, otherFloorCodes(floorNum)));
-      setCadUrl('');
+      applyPlanSheets(null);
       setFloorScope(detectDefaultFloorScope(floorNum, defName).scope);
       setApplicableFloors([floorNum]);
     }
@@ -516,6 +548,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         height: u.cad_bbox?.height ?? 0,
         polygon: u.cad_polygon || undefined,
         unitCadUrl: u.unit_cad_url || undefined,
+            unitStructuralCadUrl: u.unit_structural_cad_url || undefined,
+            structuralBbox: u.cad_structural_bbox ?? null,
       }));
     setPartitions(cachedBoxes);
 
@@ -584,7 +618,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     const defName = defaultFloorName(parsed);
     setFloorName(defName);
     setFloorCode(typedCode || getDefaultFloorCode(parsed, defName, otherFloorCodes(parsed)));
-    setCadUrl('');
+    applyPlanSheets(null);
     setPartitions([]);
     setApplicableFloors([parsed]);
     setFloorScope(detectDefaultFloorScope(parsed, defName).scope);
@@ -597,6 +631,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   // Kế thừa CAD từ tầng khác
   const handleCopyCadFromFloor = (sourceFloor: { floorNumber: number; floorName: string; cadPhotoUrl: string }) => {
     setCadUrl(sourceFloor.cadPhotoUrl);
+    const sourcePlan = existingFloorPlans.find((fp) => Number(fp.floor_number) === Number(sourceFloor.floorNumber));
+    setCadStructuralUrl(sourcePlan?.cad_structural_url || '');
+    setCadResources(parseFloorCadResources(sourcePlan?.cad_resources_json));
     setFloorName(`Tầng ${activeFloor} (Theo ${sourceFloor.floorName})`);
     // Lấy partitions của tầng nguồn nếu có
     const sourceUnits = allUnits.filter((u) => Number(u.floor_number ?? 1) === Number(sourceFloor.floorNumber));
@@ -628,6 +665,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             height: u.cad_bbox?.height ?? 0,
             polygon: u.cad_polygon || undefined,
             unitCadUrl: u.unit_cad_url || undefined,
+            unitStructuralCadUrl: u.unit_structural_cad_url || undefined,
+            structuralBbox: u.cad_structural_bbox ?? null,
           };
         });
       setPartitions(copiedBoxes);
@@ -707,6 +746,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         bbox: { x: number; y: number; width: number; height: number };
         unitCadUrl?: string;
         unitType: 'UNIT' | 'MASTER';
+        unitStructuralCadUrl?: string;
+        structuralBbox?: { x: number; y: number; width: number; height: number } | null;
       }[] = [];
 
       // Pool theo dõi các mã đã sử dụng trong toàn bộ tòa nhà
@@ -735,6 +776,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           },
           unitCadUrl: p.unitCadUrl,
           unitType: uType,
+          unitStructuralCadUrl: p.unitStructuralCadUrl,
+          structuralBbox: p.structuralBbox ?? null,
         });
         allocatedUnitsPool.push({
           unitCode: p.unitCode.trim(),
@@ -850,6 +893,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             bbox: preservedBbox,
             unitCadUrl: isMatchedSurveyed ? matchedExisting?.unit_cad_url || p.unitCadUrl : p.unitCadUrl,
             unitType: uType,
+            unitStructuralCadUrl: isMatchedSurveyed
+              ? matchedExisting?.unit_structural_cad_url || p.unitStructuralCadUrl
+              : p.unitStructuralCadUrl,
+            structuralBbox: isMatchedSurveyed ? matchedExisting?.cad_structural_bbox ?? p.structuralBbox ?? null : p.structuralBbox ?? null,
           });
 
           allocatedUnitsPool.push({
@@ -868,6 +915,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           floorCode: floorCode.trim() || getDefaultFloorCode(activeFloor, floorName),
           applicableFloors: targetApplicableFloors,
           cadPhotoUrl: cadUrl,
+          cadStructuralUrl: cadStructuralUrl || null,
+          cadResources,
           scope: calculatedScope,
         },
         partitions: allFloorPartitions,
@@ -926,7 +975,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setIsSaving(true);
       const floorTarget = activeFloor;
       const res = await api.delete(`/parcels/${parcelId}/floor-plans/${floorTarget}?mode=CLEAR_CAD`);
-      setCadUrl('');
+      applyPlanSheets(null);
       setPartitions([]);
       setIsFloorDirty(false);
       triggerSuccessFeedback(res.data?.data?.message || `Đã xóa bản vẽ CAD của Tầng ${floorTarget}!`);
@@ -968,7 +1017,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setIsSaving(true);
       const floorToDelete = activeFloor;
       const res = await api.delete(`/parcels/${parcelId}/floor-plans/${floorToDelete}?mode=DELETE_FLOOR`);
-      setCadUrl('');
+      applyPlanSheets(null);
       setPartitions([]);
       setIsFloorDirty(false);
       setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
@@ -1377,8 +1426,75 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             </div>
           )}
 
+          {/* Lớp bản vẽ của tầng: CAD_Z Kiến trúc | CAD_E Kết cấu | Kho tài nguyên */}
+          <div className="px-4 pt-2 bg-white border-b border-slate-200 flex items-center gap-1 shrink-0">
+            {([
+              ['CAD_Z', 'CAD_Z Kiến trúc', cadUrl ? '✓' : ''],
+              ['CAD_E', 'CAD_E Kết cấu', cadStructuralUrl ? '✓' : ''],
+              ['RESOURCES', 'Kho tài nguyên tầng', String(activeFloorCadResources(cadResources).length)],
+            ] as const).map(([key, label, hint]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setLayerTab(key)}
+                className={`px-3 py-1.5 rounded-t-lg text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                  layerTab === key ? 'border-teal-600 text-teal-800 bg-teal-50' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {label}
+                {hint && <span className="ml-1 text-[10px] font-mono text-slate-500">{hint}</span>}
+              </button>
+            ))}
+          </div>
+
+          {layerTab === 'CAD_E' && (
+            <FloorStructuralCadPanel
+              floorNumber={activeFloor}
+              floorName={floorName}
+              floorCode={floorCode}
+              projectCode={projectCode}
+              zCadUrl={cadUrl}
+              structuralUrl={cadStructuralUrl}
+              inheritedFromFloor={currentFloorItem?.isInherited ? Number(currentFloorItem.inheritedFromFloor) : undefined}
+              resources={cadResources}
+              partitions={partitions}
+              isLockedBox={isPartitionLocked}
+              readOnly={readOnly}
+              onChangeStructuralUrl={(url) => {
+                setCadStructuralUrl(url || '');
+                setIsFloorDirty(true);
+              }}
+              onChangePartitions={(next) => {
+                setPartitions(next);
+                setIsFloorDirty(true);
+              }}
+            />
+          )}
+
+          {layerTab === 'RESOURCES' && (
+            <FloorCadResourcePanel
+              floorNumber={activeFloor}
+              floorName={floorName}
+              floorCode={floorCode}
+              projectCode={projectCode}
+              resources={cadResources}
+              structuralUrl={cadStructuralUrl}
+              inheritedFromFloor={currentFloorItem?.isInherited ? Number(currentFloorItem.inheritedFromFloor) : undefined}
+              readOnly={readOnly}
+              onChangeResources={(next) => {
+                setCadResources(next);
+                setIsFloorDirty(true);
+              }}
+              onSetMainStructural={(url) => {
+                setCadStructuralUrl(url);
+                setIsFloorDirty(true);
+                setLayerTab('CAD_E');
+              }}
+            />
+          )}
+
           {/* Không gian hiển thị Canvas hoặc Uploader */}
-          <div className="flex-1 flex flex-col overflow-hidden relative">
+          <div className={`flex-1 flex flex-col overflow-hidden relative ${layerTab === 'CAD_Z' ? '' : 'hidden'}`}>
             {!cadUrl ? (
               /* CHƯA CÓ CAD: Hiển thị bộ tải bản vẽ chuyên dụng */
               <CadBlueprintUploader

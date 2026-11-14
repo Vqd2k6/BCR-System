@@ -465,6 +465,8 @@ CREATE TABLE IF NOT EXISTS building_floor_plans (
     floor_name VARCHAR(64) NOT NULL,
     applicable_floors NUMERIC(4,1)[] DEFAULT '{}',
     cad_photo_url TEXT NOT NULL,
+    cad_structural_url TEXT,                          -- CAD kết cấu (E) chính của tầng
+    cad_resources_json JSONB NOT NULL DEFAULT '[]'::jsonb, -- Kho tờ CAD bổ sung (xóa mềm)
     cad_photo_code VARCHAR(32),
     image_width INT,
     image_height INT,
@@ -491,6 +493,8 @@ CREATE TABLE building_units (
     cad_bbox JSONB,
     cad_polygon JSONB,
     unit_cad_url TEXT,
+    unit_structural_cad_url TEXT,                     -- CAD_E đã cắt cho U/M
+    cad_structural_bbox JSONB,                        -- Khung cắt trên CAD_E tầng
     status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
     phase1_report_id UUID,
     phase2_report_id UUID,

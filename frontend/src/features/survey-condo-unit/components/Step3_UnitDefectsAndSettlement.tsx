@@ -72,6 +72,13 @@ import {
 
 import { validateCondoUnitStep3, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
 import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
+import {
+  buildCadSheetSources,
+  MAIN_E_SOURCE_ID,
+  MAIN_Z_SOURCE_ID,
+  parseFloorCadResources,
+  resolveStructuralCadAutoLoad,
+} from '../../../core/utils/cadSources';
 
 export type ZedValidationIssue = CondoUnitValidationIssue;
 
@@ -82,12 +89,16 @@ interface FloorPlanUnitItem {
   unit_cad_url?: string;
   cad_bbox?: CadBbox | null;
   cad_polygon?: CadPolygon | null;
+  unit_structural_cad_url?: string | null;
+  cad_structural_bbox?: CadBbox | null;
 }
 
 interface FloorPlanData {
   plan?: {
     id?: string;
     cad_photo_url?: string;
+    cad_structural_url?: string | null;
+    cad_resources_json?: unknown;
     floor_name?: string;
     floor_number?: number;
     floor_code?: string;
@@ -303,6 +314,40 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       hasAttemptedAutoImportCadRef.current = true;
     }
   }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl, formData.isCadOverriddenByUser, formData.isCadLocked]);
+
+  const hasAttemptedAutoImportStructuralRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (hasAttemptedAutoImportStructuralRef.current) return;
+    if (isCadHardLocked || formData.unitStructuralCadUrl || !formData.parcelId) return;
+    if (formData.floorNumber === undefined || formData.floorNumber === null) return;
+    hasAttemptedAutoImportStructuralRef.current = true;
+    void (async () => {
+      try {
+        const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+        const data: FloorPlanData | null = res.data?.success ? res.data.data : null;
+        const matched = data?.units?.find(
+          (u: FloorPlanUnitItem) =>
+            u.unit_code === formData.unitCode ||
+            (Boolean(formData.displayCode?.trim()) && (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
+        );
+        const decision = resolveStructuralCadAutoLoad({
+          unitStructuralCadUrl: matched?.unit_structural_cad_url,
+          structuralBbox: normalizeBbox(matched?.cad_structural_bbox),
+          floorStructuralUrl: data?.plan?.cad_structural_url,
+        });
+        if (useCondoUnitSurveyStore.getState().formData.unitStructuralCadUrl) return;
+        if (decision.kind === 'USE_UNIT_E') {
+          await importCadWithStorageAndQueue(decision.url, null, 'STRUCTURAL');
+        } else if (decision.kind === 'CROP_FLOOR_E') {
+          await importCadWithStorageAndQueue(await cropImageBoundingBox(decision.floorEUrl, decision.bbox), null, 'STRUCTURAL');
+        } else if (data) {
+          setFloorPlanData((prev) => prev || data);
+        }
+      } catch (err) {
+        console.error('[Step3_UnitDefectsAndSettlement:autoImportStructural] Không nạp được CAD_E tầng:', err);
+      }
+    })();
+  }, [formData.parcelId, formData.floorNumber, formData.unitStructuralCadUrl, isCadHardLocked]);
 
   const loadFloorPlanAuto = async () => {
     if (formData.isCadOverriddenByUser || formData.isCadLocked) return;
@@ -550,6 +595,27 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           (Boolean(formData.displayCode?.trim()) &&
             (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
       );
+
+      if (mode === 'STRUCTURAL') {
+        const decision = resolveStructuralCadAutoLoad({
+          unitStructuralCadUrl: matched?.unit_structural_cad_url,
+          structuralBbox: normalizeBbox(matched?.cad_structural_bbox),
+          floorStructuralUrl: plan?.cad_structural_url,
+        });
+        if (decision.kind === 'USE_UNIT_E') {
+          await importCadWithStorageAndQueue(decision.url, null, 'STRUCTURAL');
+          return;
+        }
+        if (decision.kind === 'CROP_FLOOR_E') {
+          await importCadWithStorageAndQueue(await cropImageBoundingBox(decision.floorEUrl, decision.bbox), null, 'STRUCTURAL');
+          return;
+        }
+        if (decision.kind === 'SUGGEST_FLOOR_E') {
+          // Tầng có CAD_E chung nhưng Admin chưa cắt khung E cho căn: không cắt bằng toạ độ CAD_Z, để KSV tự chọn vùng
+          setCadCropModalMode('STRUCTURAL');
+          return;
+        }
+      }
 
       if (matched?.unit_cad_url) {
         await importCadWithStorageAndQueue(
@@ -1578,6 +1644,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   )}
                 </div>
 
+                {!isReadOnly && !formData.unitStructuralCadUrl && !isCadHardLocked && floorPlanData?.plan?.cad_structural_url && (
+                  <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900">
+                    Tầng đã có <strong>bản vẽ kết cấu CAD_E</strong> nhưng Zone Admin chưa cắt sẵn khung cho căn này. Bấm
+                    <strong> "Chọn / Cắt CAD kết cấu"</strong> để tự khoanh đúng vùng căn hộ trên tờ CAD_E (hoặc tờ khác trong Kho tài nguyên tầng).
+                  </div>
+                )}
+
                 {/* When structural CAD does NOT exist: choice buttons to set separate structural CAD */}
                 {!isReadOnly && !formData.unitStructuralCadUrl && !isCadHardLocked && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 animate-in fade-in">
@@ -2246,6 +2319,29 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               : null
           }
           otherPartitions={floorPlanData?.units}
+          sources={(() => {
+            const plan = floorPlanData?.plan;
+            if (!plan?.cad_structural_url && parseFloorCadResources(plan?.cad_resources_json).length === 0) return [];
+            const matched = floorPlanData?.units?.find((u) => u.unit_code === formData.unitCode);
+            return buildCadSheetSources({
+              zUrl: plan?.cad_photo_url,
+              eUrl: plan?.cad_structural_url,
+              resources: parseFloorCadResources(plan?.cad_resources_json),
+              zBbox: normalizeBbox(formData.cadBbox),
+              eBbox: normalizeBbox(matched?.cad_structural_bbox),
+            });
+          })()}
+          initialSourceId={
+            cadCropModalMode === 'STRUCTURAL' && floorPlanData?.plan?.cad_structural_url ? MAIN_E_SOURCE_ID : MAIN_Z_SOURCE_ID
+          }
+          onConfirmCropFromSource={(croppedUrl, bbox, source) => {
+            // Khung Z (cadBbox) chỉ lưu khi cắt trên CAD_Z tầng
+            void importCadWithStorageAndQueue(
+              croppedUrl,
+              source.id === MAIN_Z_SOURCE_ID ? bbox : null,
+              cadCropModalMode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+            );
+          }}
           onConfirmCrop={(croppedUrl, bbox) => {
             void importCadWithStorageAndQueue(
               croppedUrl,

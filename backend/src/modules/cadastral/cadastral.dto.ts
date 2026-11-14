@@ -104,12 +104,26 @@ export const CreateBuildingUnitDto = z.object({
   unitType: z.enum(['UNIT', 'MASTER']).default('UNIT'),
 });
 
+/** Tờ trong Kho tài nguyên CAD tầng (chỉ xóa mềm bằng deletedAt) */
+export const FloorCadResourceDto = z.object({
+  id: z.string().trim().min(1).max(64),
+  title: z.string().trim().max(128).default(''),
+  category: z.enum(['CAD_Z', 'CAD_E', 'OTHER']),
+  url: z.string().min(1).max(10_000_000, 'Tờ CAD không được vượt quá 10MB'),
+  createdAt: z.string().max(40).default(''),
+  createdBy: z.string().max(64).optional().nullable(),
+  deletedAt: z.string().max(40).optional().nullable(),
+});
+
 export const UpsertFloorPlanDto = z.object({
   floorNumber: FloorNumberSchema,
   floorName: z.string().trim().min(1, 'Tên tầng bắt buộc').max(64, 'Tên tầng tối đa 64 ký tự'),
   floorCode: z.string().trim().max(32).optional(),
   applicableFloors: z.array(FloorNumberSchema).optional(),
   cadPhotoUrl: z.string().max(10_000_000, 'Bản vẽ CAD không được vượt quá 10MB').default(''),
+  /** CAD kết cấu (E) chính của tầng; bỏ trống = giữ nguyên, null = gỡ (bản cũ vào kho dạng đã xóa mềm) */
+  cadStructuralUrl: z.string().max(10_000_000, 'Bản vẽ CAD_E không được vượt quá 10MB').optional().nullable(),
+  cadResources: z.array(FloorCadResourceDto).max(60, 'Kho tài nguyên tối đa 60 tờ (kể cả tờ đã xóa)').optional(),
   cadPhotoCode: z.string().trim().max(32).optional().nullable(),
   imageWidth: z.number().int().positive().optional().nullable(),
   imageHeight: z.number().int().positive().optional().nullable(),
@@ -124,6 +138,8 @@ export const PartitionItemDto = z.object({
   bbox: CadBBoxDto.optional().nullable(),
   polygon: z.array(CadPolygonPointDto).optional().nullable(),
   unitCadUrl: z.string().max(10_000_000, 'Ảnh CAD trích xuất không được vượt quá 10MB').optional().nullable(),
+  unitStructuralCadUrl: z.string().max(10_000_000, 'Ảnh CAD_E trích xuất không được vượt quá 10MB').optional().nullable(),
+  structuralBbox: CadBBoxDto.optional().nullable(),
   unitType: z.enum(['UNIT', 'MASTER']).default('UNIT'),
 });
 
