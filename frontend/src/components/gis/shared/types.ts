@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { GisParcel as DomainGisParcel } from '../../../core/types/domain.types';
 
 export type GisParcel = DomainGisParcel;
@@ -133,6 +134,33 @@ export interface ImportPreviewState {
   endCode: string;
 }
 
+/** Kiểu tô 1 thửa ở layout chuyên đề (màu dữ liệu, không phải màu nền UI). */
+export interface ThematicParcelStyle {
+  fillHex: string;
+  strokeHex: string;
+  fillOpacity: number;
+  weight: number;
+  dashArray?: string;
+}
+
+export interface ThematicLegendRow {
+  key: string;
+  hex: string;
+  label: string;
+}
+
+/**
+ * Ràng buộc bản đồ chuyên đề do features/gis-visualization cấp.
+ * Không truyền (null) ⇒ bản đồ tác nghiệp WORKFLOW y như trước.
+ */
+export interface ThematicMapBinding {
+  layoutLabel: string;
+  resolveStyle: (parcel: GisParcel) => ThematicParcelStyle;
+  /** Các dòng hiển thị khi rê chuột lên thửa; mảng rỗng ⇒ không hiện tooltip. */
+  tooltipLines: (parcel: GisParcel) => string[];
+  legendRows: ThematicLegendRow[];
+}
+
 export interface LeafletSweepMapProps {
   parcels: GisParcel[];
   selectedZone: string;
@@ -146,7 +174,10 @@ export interface LeafletSweepMapProps {
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
-  thematicMode?: 'WORKFLOW' | 'BRA_RISK';
+  /** Bản đồ chuyên đề đang bật (null/undefined ⇒ WORKFLOW). */
+  thematic?: ThematicMapBinding | null;
+  /** Bộ chọn layout + chú giải nổi trên bản đồ (góc trên trái, dưới thanh tiêu đề). */
+  thematicOverlay?: ReactNode;
   hideBottomSheet?: boolean;
   onSwapSuccess?: () => void;
   previewImportState?: ImportPreviewState | null;

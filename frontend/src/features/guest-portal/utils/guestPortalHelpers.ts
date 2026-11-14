@@ -25,9 +25,9 @@ export interface GuestBraStats {
 }
 
 /**
- * Suy luận cấp độ rủi ro BRA của thửa đất:
- * Sử dụng trường braRiskLevel nếu có, hoặc ước lượng theo cự ly tim hầm Metro
- * và trạng thái khảo sát hiện trạng.
+ * Cấp độ rủi ro BRA của thửa đất: chỉ đọc cấp đã đánh giá (braRiskLevel do GuestDashboardPage gắn từ
+ * GET /gis-visualization/thematic — ma trận V×I Bước 7, khớp PDF Mục VIII).
+ * Chưa có cấp ⇒ 'UNASSESSED'. Không ước lượng theo cự ly: số liệu pháp lý không được suy đoán.
  */
 export function getParcelBraRiskLevel(parcel: GisParcel): BraRiskLevel {
   const explicit = parcel.braRiskLevel || parcel.bra_risk_level || parcel.braStatus || parcel.bra_status;
@@ -39,15 +39,7 @@ export function getParcelBraRiskLevel(parcel: GisParcel): BraRiskLevel {
     if (upper.includes('LOW') || upper.includes('THẤP') || upper === 'I') return 'LOW';
   }
 
-  // Fallback dựa trên cự ly tim hầm và trạng thái
-  const effStatus = getEffectiveParcelStatus(parcel);
-  if (effStatus === 'NOT_SURVEYED') return 'UNASSESSED';
-
-  const dist = parcel.distanceMeters ?? 15;
-  if (dist <= 4.0) return 'VERY_HIGH';
-  if (dist <= 8.0) return 'HIGH';
-  if (dist <= 15.0) return 'MEDIUM';
-  return 'LOW';
+  return 'UNASSESSED';
 }
 
 /**

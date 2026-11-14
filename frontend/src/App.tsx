@@ -30,6 +30,7 @@ import { BuildingHubModal, type BuildingUnit } from './components/survey/Buildin
 import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
+import { useThematicMap } from './features/gis-visualization';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import type { ImportPreviewState } from './components/gis/shared/types';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
@@ -137,6 +138,14 @@ export const App: React.FC = () => {
   };
 
   const [parcels, setParcels] = useState<GisParcel[]>([]);
+
+  // Bản đồ chuyên đề 8 layout trên tab Bản đồ dùng chung: chỉ Super Admin. Khảo sát viên dùng cùng instance
+  // LeafletSweepMap nhưng giữ bản đồ tác nghiệp (không gọi API /gis-visualization). Tắt khi đang xem trước nạp Zone.
+  const { binding: adminThematic, overlay: adminThematicOverlay } = useThematicMap({
+    zoneId: selectedZone,
+    parcels,
+    enabled: user?.role === 'SUPER_ADMIN' && !previewImportState,
+  });
 
   // Khôi phục đồng bộ parcel khảo sát từ sessionStorage nếu vừa reload
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(() => {
@@ -970,6 +979,7 @@ export const App: React.FC = () => {
         {user?.role === 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
           <ZoneManagerDashboardPage
             parcels={parcels}
+            parcelsZoneId={selectedZone}
             initialSelectedParcel={selectedParcelForSurvey}
             onSelectParcelForSurvey={(p) => updateSelectedParcel(p)}
             onStartPhase1={handleStartPhase1}
@@ -1036,6 +1046,8 @@ export const App: React.FC = () => {
               onSwapSuccess={() => loadParcels()}
               onParcelLifecycleChanged={() => loadParcels()}
               userGps={liveUserGps}
+              thematic={adminThematic}
+              thematicOverlay={adminThematicOverlay}
               previewImportState={previewImportState}
               onConfirmImportPreview={async () => {
                 if (!previewImportState) return;

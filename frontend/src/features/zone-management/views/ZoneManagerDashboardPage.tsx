@@ -16,11 +16,14 @@ import type { GisParcel } from '../../../components/gis/shared/types';
 import { ShieldAlert } from 'lucide-react';
 import { AdminAttendanceManagementView, useAttendancePendingBadge } from '../../attendance';
 import { PhotoQcWorkspace } from '../../photo-qc';
+import { useThematicMap } from '../../gis-visualization';
 import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
 import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from '../../../utils/zoneScope';
 
 interface Props {
   parcels?: GisParcel[];
+  /** Zone mà App đã tải `parcels` — bản đồ chuyên đề phải nạp đúng Zone này để khớp từng thửa. */
+  parcelsZoneId?: string;
   initialSelectedParcel?: GisParcel | null;
   onSelectParcelForSurvey?: (parcel: GisParcel) => void;
   onStartPhase1?: (parcel: GisParcel, isReadOnly?: boolean) => void;
@@ -36,6 +39,7 @@ interface Props {
 
 export const ZoneManagerDashboardPage: React.FC<Props> = ({
   parcels = [],
+  parcelsZoneId,
   initialSelectedParcel,
   onSelectParcelForSurvey,
   onStartPhase1,
@@ -113,6 +117,13 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       // ignore
     }
     return resolveInitialZone(user, null, fallback);
+  });
+
+  // Bản đồ chuyên đề 8 layout (chỉ nạp dữ liệu khi chọn layout khác "Hiện trạng khảo sát")
+  const { binding: thematicBinding, overlay: thematicOverlay } = useThematicMap({
+    zoneId: parcelsZoneId ?? selectedZone,
+    parcels,
+    enabled: !isUnassigned,
   });
 
   // Badge sidebar: số ca chấm công chờ hậu kiểm trong phạm vi Zone đang xem
@@ -432,6 +443,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
               fetchLiveIntelligence(selectedZone);
             }}
             enableBatchTools
+            thematic={thematicBinding}
+            thematicOverlay={thematicOverlay}
           />
         </div>
       )}

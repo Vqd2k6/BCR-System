@@ -41,7 +41,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onRecordAbsence,
   onProposeSplit,
   userGps,
-  thematicMode,
+  thematic = null,
+  thematicOverlay,
   hideBottomSheet = false,
   onSwapSuccess,
   previewImportState,
@@ -216,7 +217,15 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         isNonBuildingParcel={isNonBuildingParcel}
         canViewExcluded={canViewExcluded}
         excludedCount={excludedParcels.length}
+        thematicLegend={thematic ? { title: thematic.layoutLabel, rows: thematic.legendRows } : null}
       />
+
+      {/* 2b. Bộ chọn layout chuyên đề + chú giải (features/gis-visualization), nổi dưới thanh tiêu đề */}
+      {thematicOverlay && (
+        <div className="absolute left-2 top-[56px] z-[1000] max-w-[calc(100%-1rem)] pointer-events-none">
+          <div className="pointer-events-auto">{thematicOverlay}</div>
+        </div>
+      )}
 
       {/* 3. Leaflet Map Container with Deep Zoom (up to level 23) */}
       <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -276,7 +285,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             activeParcel={activeParcel}
             setActiveParcel={setActiveParcel}
             onSelectParcel={onSelectParcel}
-            thematicMode={thematicMode}
+            thematic={thematic}
             isBatchMode={isBatchMode}
             selectedParcelIds={selectedParcelIds}
             onToggleSelect={toggleIdIn(setSelectedParcelIds)}

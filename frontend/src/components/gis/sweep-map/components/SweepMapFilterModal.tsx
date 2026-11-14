@@ -1,6 +1,6 @@
 import React from 'react';
 import { Filter, X, Layers, Eye, EyeOff, Check } from 'lucide-react';
-import type { GisParcel } from '../../shared/types';
+import type { GisParcel, ThematicLegendRow } from '../../shared/types';
 import type { AppliedFiltersState } from '../hooks/useSweepMapState';
 
 interface SweepMapFilterModalProps {
@@ -16,6 +16,8 @@ interface SweepMapFilterModalProps {
   isNonBuildingParcel: (parcel: GisParcel) => boolean;
   canViewExcluded?: boolean;
   excludedCount?: number;
+  /** Đang xem layout chuyên đề: chú giải theo layout thay cho màu trạng thái khảo sát. */
+  thematicLegend?: { title: string; rows: ThematicLegendRow[] } | null;
 }
 
 export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
@@ -31,6 +33,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
   isNonBuildingParcel,
   canViewExcluded = false,
   excludedCount = 0,
+  thematicLegend = null,
 }) => {
   if (!showFilterModal) return null;
 
@@ -382,8 +385,17 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '2px' }}>
             <Layers size={14} color="#0284c7" />
-            <span>Chú thích màu sắc hiển thị trên bản đồ:</span>
+            <span>{thematicLegend ? `Chú thích layout: ${thematicLegend.title}` : 'Chú thích màu sắc hiển thị trên bản đồ:'}</span>
           </div>
+          {thematicLegend ? (
+            thematicLegend.rows.map((row) => (
+              <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: row.hex, flexShrink: 0 }} />
+                <span>{row.label}</span>
+              </div>
+            ))
+          ) : (
+          <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
             <span>
@@ -420,6 +432,20 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               <strong style={{ color: 'rgb(var(--text-slate-600))' }}>Xám tro:</strong> Chưa khảo sát Phase 1
             </span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+            <span>
+              <strong style={{ color: 'rgb(var(--text-red-700))' }}>Đỏ:</strong> Hồ sơ bị từ chối (Cần khảo sát lại)
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #7c3aed', flexShrink: 0 }} />
+            <span>
+              <strong style={{ color: 'rgb(var(--text-purple-700))' }}>Viền tím:</strong> Thửa chung cư (nét đứt khi chưa khảo sát)
+            </span>
+          </div>
+          </>
+          )}
         </div>
       </div>
     </div>

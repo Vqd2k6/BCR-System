@@ -27,6 +27,7 @@ import { ImageLabController } from './modules/image-lab/image-lab.controller';
 import { createProgressReportRouter } from './modules/progress-report';
 import { createPhotoQcRouter } from './modules/photo-qc';
 import { createPhotoResurveyRouter } from './modules/photo-resurvey';
+import { createGisVisualizationRouter } from './modules/gis-visualization';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -340,6 +341,7 @@ export function createApp(): express.Application {
   api.use('/progress-report', createProgressReportRouter());
   api.use('/photo-qc', createPhotoQcRouter());
   api.use('/photo-resurvey', createPhotoResurveyRouter());
+  api.use('/gis-visualization', createGisVisualizationRouter());
 
   // Mount API prefix
   app.use(config.apiPrefix, api);

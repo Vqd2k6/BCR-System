@@ -12,7 +12,7 @@ import { GuestKpiSummaryCard } from '../components/GuestKpiSummaryCard';
 import { GuestBraDonutChart } from '../components/GuestBraDonutChart';
 import { GuestParcelListTable } from '../components/GuestParcelListTable';
 import { GuestFocusedParcelCard } from '../components/GuestFocusedParcelCard';
-import { GuestMapThematicToggle } from '../components/GuestMapThematicToggle';
+import { useThematicMap } from '../../gis-visualization';
 import {
   ShieldCheck,
   LogOut,
@@ -50,7 +50,6 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [braFilter, setBraFilter] = useState<BraRiskLevel | 'ALL'>('ALL');
   const [activeParcel, setActiveParcel] = useState<GisParcel | null>(null);
-  const [thematicMode, setThematicMode] = useState<'WORKFLOW' | 'BRA_RISK'>('WORKFLOW');
 
   // Lọc zone hợp lệ dựa trên phân công của user
   const isAssignedSpecificZone = Boolean(
@@ -70,9 +69,22 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
   }, [isAssignedSpecificZone, user?.assignedZoneId, selectedZone, onSelectZone]);
 
   // Client-side PII Masking: Bảo vệ 2 lớp ngăn rò rỉ dữ liệu nhạy cảm
-  const maskedParcels: GisParcel[] = useMemo(() => {
+  const piiMaskedParcels: GisParcel[] = useMemo(() => {
     return parcels.map(maskParcelClientPii);
   }, [parcels]);
+
+  // Bản đồ chuyên đề 8 layout + cấp BRA thật (ma trận V×I Bước 7, khớp PDF Mục VIII) cho thẻ / bảng / biểu đồ.
+  // Nạp ngay cả ở layout tác nghiệp vì thống kê BRA bên trái luôn hiển thị.
+  const { binding: thematicBinding, overlay: thematicOverlay, metricsById } = useThematicMap({
+    zoneId: selectedZone,
+    parcels: piiMaskedParcels,
+    enabled: true,
+    prefetch: true,
+  });
+
+  const maskedParcels: GisParcel[] = useMemo(() => {
+    return piiMaskedParcels.map((p) => ({ ...p, braRiskLevel: metricsById.get(p.id)?.braLevel ?? undefined }));
+  }, [piiMaskedParcels, metricsById]);
 
   // Thống kê KPIs tiến độ khảo sát
   const kpiStats = useMemo(() => {
@@ -258,14 +270,6 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
 
         {/* ─── RIGHT PANEL (58% Width): Interactive GIS Map ─── */}
         <section className="flex-1 h-full relative overflow-hidden bg-slate-200">
-          {/* Floating Map Thematic Switcher */}
-          <div className="absolute top-4 left-4 z-[1000]">
-            <GuestMapThematicToggle
-              thematicMode={thematicMode}
-              onChangeMode={setThematicMode}
-            />
-          </div>
-
           {/* Leaflet GIS Map: Ẩn hoàn toàn BottomSheet của surveyor qua hideBottomSheet={true} */}
           <LeafletSweepMap
             parcels={maskedParcels}
@@ -273,7 +277,8 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             onSelectZone={onSelectZone}
             onSelectParcel={handleSelectParcel}
             onStartSurvey={handleOpenReportPreview}
-            thematicMode={thematicMode}
+            thematic={thematicBinding}
+            thematicOverlay={thematicOverlay}
             hideBottomSheet={true}
           />
         </section>
