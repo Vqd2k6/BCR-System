@@ -1,0 +1,90 @@
+{{!-- Mục VIII theo phương pháp v2 (risk-v2.calculator): ECS 4 mức, ma trận Burland×ECS, BRA A–E, cấp tổng thể. --}}
+<section data-section="sec-8">
+  <h2 class="chapter-header">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH – BUILDING CONDITION ASSESSMENT</h2>
+
+  <div data-section="sec-8-1">
+    <h3 class="chapter-header sub-header">1. Phân loại tình trạng công trình theo ECS – ECS Building Condition Rating</h3>
+    <table class="v2-table">
+      <thead><tr><th style="width: 20%;">Phân loại<span class="en">Rating</span></th><th>Định nghĩa và nguyên tắc nhận định<span class="en">Definition and assessment principle</span></th></tr></thead>
+      <tbody>
+        {{#each v2.ecs.rows}}
+          <tr class="{{#if this.isCurrent}}is-current{{/if}}">
+            <td class="center"><b>{{this.label.vi}}</b><span class="en-block">{{this.label.en}}</span></td>
+            <td>{{this.definition.vi}}<span class="en-block">{{this.definition.en}}</span></td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <p class="v2-text">{{v2.ecs.narrative.vi}}</p>
+    <p class="v2-text en">{{v2.ecs.narrative.en}}</p>
+  </div>
+
+  <div data-section="sec-8-2">
+    <h3 class="chapter-header sub-header">2. Đánh giá theo ma trận rủi ro – Risk Matrix Assessment</h3>
+    <table class="v2-table">
+      <thead>
+        <tr>
+          <th style="width: 24%;">Burland \ ECS</th>
+          {{#each v2.matrix.columns}}<th>{{this.vi}}<span class="en">{{this.en}}</span></th>{{/each}}
+        </tr>
+      </thead>
+      <tbody>
+        {{#each v2.matrix.rows}}
+          <tr>
+            <td><b>{{this.label.vi}}</b><span class="en-block">{{this.label.en}}</span></td>
+            {{#each this.cells}}
+              <td class="center {{#if this.isCurrent}}is-current{{/if}}">{{this.level}} – {{this.label.vi}}<span class="en-block">{{this.label.en}}</span></td>
+            {{/each}}
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{#if v2.matrix.resultNote}}<p class="v2-note">{{v2.matrix.resultNote.vi}} <i>{{v2.matrix.resultNote.en}}</i></p>{{/if}}
+    <p class="v2-text">{{v2.matrix.narrative.vi}}</p>
+    <p class="v2-text en">{{v2.matrix.narrative.en}}</p>
+  </div>
+
+  <div data-section="sec-8-3">
+    <h3 class="chapter-header sub-header">3. Chấm điểm đánh giá rủi ro công trình (BRA) – Building Risk Assessment (BRA) Scoring</h3>
+    <table class="v2-table">
+      <thead>
+        <tr>
+          <th colspan="2">Chỉ số đánh giá<span class="en">Indicator</span></th>
+          <th>Phương pháp tính điểm<span class="en">Scoring method</span></th>
+          <th style="width: 9%;">Điểm tối đa<span class="en">Max.</span></th>
+          <th style="width: 9%;">Điểm<span class="en">Score</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each v2.bra.rows}}
+          <tr>
+            <td class="center" style="width: 5%;"><b>{{this.code}}</b></td>
+            <td style="width: 22%;"><b>{{this.title.vi}}</b><span class="en-block">{{this.title.en}}</span></td>
+            <td>{{this.method.vi}}<span class="en-block">{{this.method.en}}</span></td>
+            <td class="num">{{this.max}}</td>
+            <td class="num"><b>{{this.score}}</b></td>
+          </tr>
+        {{/each}}
+        <tr class="total"><td colspan="3">Tổng điểm BRA<span class="en-block">BRA score</span></td><td class="num">100</td><td class="num">{{v2.bra.totalDisplay}}</td></tr>
+      </tbody>
+    </table>
+    {{#if v2.bra.basis.length}}
+      <p class="v2-text"><b>Căn cứ chấm điểm</b> – <i>Basis of scoring</i></p>
+      <ul class="v2-ol" style="list-style: disc;">
+        {{#each v2.bra.basis}}<li>{{this.vi}}<span class="en-block">{{this.en}}</span></li>{{/each}}
+      </ul>
+    {{/if}}
+    <p class="v2-text v2-result"><b>{{v2.bra.conclusion.vi}}</b></p>
+    <p class="v2-text en">{{v2.bra.conclusion.en}}</p>
+  </div>
+
+  <div data-section="sec-8-4">
+    <h3 class="chapter-header sub-header">4. Cấp độ rủi ro tổng thể – Overall Risk Grade</h3>
+    <p class="v2-text">{{v2.overall.narrative.vi}}</p>
+    <p class="v2-text en">{{v2.overall.narrative.en}}</p>
+    <table class="v2-table v2-grade-box">
+      <tr><td><b>CẤP ĐỘ RỦI RO TỔNG THỂ</b><span class="en-block">OVERALL RISK GRADE</span></td></tr>
+      <tr><td class="is-current">{{#if v2.overall.level}}<b>{{v2.overall.levelNumber}} – {{v2.overall.level.vi}}</b><span class="en-block">{{v2.overall.level.en}}</span>{{else}}---{{/if}}</td></tr>
+    </table>
+  </div>
+</section>

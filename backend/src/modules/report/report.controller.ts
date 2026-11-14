@@ -26,6 +26,12 @@ import { canAccessZone } from './utils/zone-access.utils';
 import { sha256Hex } from './snapshot/report-snapshot.service';
 import { z } from 'zod';
 import { WatermarkConfirmationService } from './services/watermark-confirmation.service';
+import {
+  REPORT_TEMPLATE_KEYS,
+  defaultResidentialTemplateKey,
+  isReportTemplateKey,
+  type ReportTemplateKey,
+} from './services/report-template-kind';
 
 const ConfirmWatermarkSchema = z.object({
   photoUrl: z.string().trim().min(1).max(2048),
@@ -40,6 +46,26 @@ function parseRevision(value: unknown): number | undefined {
     throw new BadRequestError('Tham số rev phải là số nguyên không âm');
   }
   return n;
+}
+
+const TEMPLATE_LABELS: Record<ReportTemplateKey, string> = {
+  residential_v1: 'Mẫu hiện hành (v1)',
+  residential_v2: 'Mẫu mới (v2)',
+};
+
+/**
+ * Tham số `template` (query hoặc body). Chỉ Zone Admin / Super Admin được chọn (chốt 14/11/2026); vai trò khác
+ * và chế độ Guest luôn dùng template mặc định nên tham số bị bỏ qua. Giá trị lạ là lỗi của người gọi.
+ */
+function parseTemplateParam(req: Request, isGuest: boolean): ReportTemplateKey | undefined {
+  const raw: unknown = req.query.template ?? req.body?.template;
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (!isReportTemplateKey(raw)) {
+    throw new BadRequestError(`Tham số template không hợp lệ, chỉ nhận: ${REPORT_TEMPLATE_KEYS.join(', ')}`);
+  }
+  const role = req.user?.role;
+  if (isGuest || (role !== 'ZONE_ADMIN' && role !== 'SUPER_ADMIN')) return undefined;
+  return raw;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,7 +106,8 @@ export class ReportController {
 
       // "Tải PDF" luôn render bản hiện tại: không đọc và không tự phát hành Rev.
       // File Rev đã lưu chỉ tải qua GET /reports/:id/releases/:rev/pdf (downloadReleasePdf).
-      const { pdfBuffer, reportNo } = await ReportService.renderDraftPdf(resolved, overrides, enableWatermark, rev);
+      const template = parseTemplateParam(req, false);
+      const { pdfBuffer, reportNo, templateKey } = await ReportService.renderDraftPdf(resolved, overrides, enableWatermark, rev, template);
       const isApproved = resolved.status === 'APPROVED';
       const suffix = isApproved
         ? (enableWatermark ? '_APPROVED' : '_APPROVED_NO_WM')
@@ -90,6 +117,7 @@ export class ReportController {
       res.setHeader('X-Report-Status', isApproved ? 'FINAL' : 'DRAFT');
       res.setHeader('X-Report-Revision', String(rev ?? resolved.exportRevision));
       res.setHeader('X-Watermark-Enabled', String(enableWatermark));
+      res.setHeader('X-Report-Template', templateKey);
       res.status(200).send(pdfBuffer);
     } catch (err) {
       next(err);
@@ -142,7 +170,8 @@ export class ReportController {
           req.body?.enableWatermark !== false &&
           req.body?.watermark !== false);
 
-      const { html, viewModel } = await ReportService.renderDraftHtml(resolved, overrides, isGuest, enableWatermark, rev);
+      const template = parseTemplateParam(req, isGuest);
+      const { html, viewModel, templateKey } = await ReportService.renderDraftHtml(resolved, overrides, isGuest, enableWatermark, rev, template);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader(
         'Content-Security-Policy',
@@ -151,7 +180,27 @@ export class ReportController {
       res.setHeader('X-Report-No', encodeURIComponent(viewModel.metadata.reportNo));
       res.setHeader('X-Report-Status', resolved.status === 'APPROVED' ? 'FINAL' : 'DRAFT');
       res.setHeader('X-Report-Revision', String(viewModel.metadata.revision ?? rev ?? resolved.exportRevision));
+      res.setHeader('X-Report-Template', templateKey);
       res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Template report nhà dân có thể chọn (ô chọn ở Xuất Phase 1 và hộp phát hành Rev). */
+  public static async listTemplates(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({
+        success: true,
+        data: {
+          defaultKey: defaultResidentialTemplateKey(),
+          templates: REPORT_TEMPLATE_KEYS.map((key) => ({
+            key,
+            label: TEMPLATE_LABELS[key],
+            available: ReportService.isTemplateAvailable(key),
+          })),
+        },
+      });
     } catch (err) {
       next(err);
     }
@@ -177,7 +226,8 @@ export class ReportController {
     try {
       if (!req.user) throw new UnauthorizedError();
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      const release = await ReportReleaseService.issueNewRevision(req.params.id, req.user, reason);
+      const template = parseTemplateParam(req, false);
+      const release = await ReportReleaseService.issueNewRevision(req.params.id, req.user, reason, template);
       res.status(201).json({ success: true, data: release });
     } catch (err) {
       next(err);

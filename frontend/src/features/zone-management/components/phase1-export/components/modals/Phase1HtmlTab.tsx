@@ -14,8 +14,9 @@ import {
   ShieldCheck,
   FileArchive,
   FileCheck,
+  LayoutTemplate,
 } from 'lucide-react';
-import type { ExportParcelItem, EditFormData } from '../../types';
+import type { ExportParcelItem, EditFormData, ReportTemplateControl } from '../../types';
 import type { ServerReportData } from '../../utils/reportDataTransformers';
 
 interface Phase1HtmlTabProps {
@@ -46,6 +47,8 @@ interface Phase1HtmlTabProps {
   isCurrentPdfLoading?: boolean;
   handleViewCurrentPdf?: () => void | Promise<void>;
   handleCloseCurrentPdf?: () => void;
+  /** Chọn template v1/v2 cho bản hiện hành (chỉ Admin, hồ sơ nhà dân, máy chủ có ≥ 2 template). */
+  templateControl?: ReportTemplateControl;
 }
 
 export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
@@ -71,6 +74,7 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   isCurrentPdfLoading = false,
   handleViewCurrentPdf,
   handleCloseCurrentPdf,
+  templateControl,
 }) => {
   const isStoredRevisionView = selectedRevision !== undefined;
   const isCurrentPdfView = !isStoredRevisionView && Boolean(currentPdfBlobUrl);
@@ -236,6 +240,41 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
                 : "Đã TẮT: Giữ ảnh gốc sạch (dành cho ảnh đã có sẵn timestamp hiện trường)."}
             </p>
           </div>
+          )}
+
+          {/* Chọn template trình bày (v1 / v2) — chỉ bản hiện hành của hồ sơ nhà dân; Rev đã phát hành khóa template */}
+          {!isStoredRevisionView && templateControl?.canSelect && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                <LayoutTemplate size={14} className="text-indigo-600" />
+                <span>Mẫu Trình Bày</span>
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {templateControl.options.map((t) => {
+                  const current = templateControl.choice ?? templateControl.activeKey ?? templateControl.defaultKey;
+                  const isActive = current === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => void templateControl.onChange(t.key)}
+                      className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-indigo-50'
+                      }`}
+                      title={`Render bản hiện hành theo ${t.label}`}
+                    >
+                      {t.label}
+                      {templateControl.defaultKey === t.key ? ' · mặc định' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                Chỉ đổi cách trình bày, dữ liệu giữ nguyên. Áp cho xem trước, xem PDF, In và Tải PDF của hồ sơ này.
+              </p>
+            </div>
           )}
 
           {/* Nhóm Thu Phóng Khung Nhìn A4 (Zoom Controls) — trình xem PDF có thu phóng riêng */}

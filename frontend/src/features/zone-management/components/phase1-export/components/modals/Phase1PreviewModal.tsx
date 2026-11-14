@@ -14,7 +14,7 @@ import {
   FileType,
   Sparkles,
 } from 'lucide-react';
-import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage } from '../../types';
+import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage, ReportTemplateControl } from '../../types';
 import type { ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
 import { ReleaseRevisionPanel } from './ReleaseRevisionPanel';
@@ -61,6 +61,8 @@ interface Phase1PreviewModalProps {
   isCurrentPdfLoading?: boolean;
   handleViewCurrentPdf?: () => void | Promise<void>;
   handleCloseCurrentPdf?: () => void;
+  /** Chọn template v1/v2 (chỉ Admin, hồ sơ nhà dân); không truyền = không có ô chọn. */
+  templateControl?: ReportTemplateControl;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -104,6 +106,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   isCurrentPdfLoading,
   handleViewCurrentPdf,
   handleCloseCurrentPdf,
+  templateControl,
 }) => {
   if (!previewParcel) return null;
 
@@ -285,6 +288,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               handleViewCurrentPdf={handleViewCurrentPdf}
               handleCloseCurrentPdf={handleCloseCurrentPdf}
               handleExportRevisionPdf={handleExportRevisionPdf}
+              templateControl={templateControl}
             />
           ) : (
             <Phase1JsonTab
@@ -316,6 +320,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               onSelectRevision={handleSelectRevision}
               onDownloadRevisionPdf={handleExportRevisionPdf}
               onFeedback={(type, text) => setModalFeedback({ type, text, timestamp: new Date().toLocaleTimeString('vi-VN') })}
+              templateControl={templateControl}
             />
 
             <button

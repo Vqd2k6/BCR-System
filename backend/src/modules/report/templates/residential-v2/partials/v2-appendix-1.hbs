@@ -1,0 +1,16 @@
+{{!-- Phụ lục 1: ảnh mặt đứng (ảnh đã dập watermark ở máy chủ). --}}
+<div class="a4-page-sheet" data-section="pl-1">
+  <h2 class="chapter-header">PHỤ LỤC 1: ẢNH MẶT ĐỨNG CÔNG TRÌNH – APPENDIX 1: BUILDING ELEVATION PHOTOS</h2>
+  {{#if v2.elevationPhotos.length}}
+    <div class="v2-photo-grid v2-elevation-grid">
+      {{#each v2.elevationPhotos}}
+        <figure class="v2-figure">
+          <img src="{{this.src}}" alt="{{this.caption.vi}}">
+          <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
+        </figure>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="v2-text">---</p>
+  {{/if}}
+</div>

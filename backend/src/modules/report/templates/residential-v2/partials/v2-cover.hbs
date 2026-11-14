@@ -1,0 +1,63 @@
+{{!-- Bìa (trang 1). Đầu/chân trang do Chrome in. --}}
+<div class="a4-page-sheet v2-cover">
+  <table class="v2-table">
+    <tr>
+      <td class="label" style="width: 24%;"><span class="vi">DỰ ÁN</span><span class="en">PROJECT</span></td>
+      <td>
+        <b>{{section1.projectTitleVi}}</b>
+        <span class="en-block">{{section1.projectTitleEn}} – EPC Contract</span>
+      </td>
+    </tr>
+  </table>
+
+  <div class="v2-cover-title">
+    <h1>BÁO CÁO KHẢO SÁT VÀ ĐÁNH GIÁ HIỆN TRẠNG TÒA NHÀ</h1>
+    <h2>BUILDING CONDITION SURVEY AND ASSESSMENT REPORT</h2>
+    <div class="phase">Báo cáo Giai đoạn 1 – <i>Phase 1 Report</i></div>
+    <div class="building">{{metadata.buildingId}} &nbsp;|&nbsp; {{section1.buildingName.vi}}{{#if section1.buildingName.en}} – <i>{{section1.buildingName.en}}</i>{{/if}}</div>
+  </div>
+
+  <div class="v2-cover-photo">
+    {{#if metadata.coverPhotoBase64}}
+      <img src="{{metadata.coverPhotoBase64}}" alt="Ảnh mặt tiền chính công trình">
+    {{else if metadata.coverPhotoUrl}}
+      <img src="{{metadata.coverPhotoUrl}}" alt="Ảnh mặt tiền chính công trình">
+    {{/if}}
+  </div>
+
+  <table class="v2-table">
+    <tr>
+      <td class="label" style="width: 24%;"><span class="vi">ĐỊA CHỈ</span><span class="en">ADDRESS</span></td>
+      <td>{{section1.address.vi}}<span class="en-block">{{section1.address.en}}</span></td>
+    </tr>
+    <tr>
+      <td class="label"><span class="vi">NGÀY KHẢO SÁT</span><span class="en">SURVEY DATE</span></td>
+      <td>{{#if section1.surveyDate}}{{section1.surveyDate}}{{else}}---{{/if}}</td>
+    </tr>
+  </table>
+
+  <table class="v2-table v2-sign-table" style="margin-top: 16px;">
+    <thead>
+      <tr>
+        <th style="width: 20%;"></th>
+        {{#each signatures3Party}}<th>{{this.roleVi}}<span class="en">{{this.roleEn}}</span></th>{{/each}}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label"><span class="vi">HỌ TÊN</span><span class="en">FULL NAME</span></td>
+        {{#each signatures3Party}}<td class="center">{{#if this.fullName}}{{this.fullName}}{{/if}}</td>{{/each}}
+      </tr>
+      <tr>
+        <td class="label"><span class="vi">CHỮ KÝ</span><span class="en">SIGNATURE</span></td>
+        {{#each signatures3Party}}
+          <td class="sig">{{#if this.signatureBase64}}<img src="{{this.signatureBase64}}" alt="Chữ ký">{{else if this.signatureUrl}}<img src="{{this.signatureUrl}}" alt="Chữ ký">{{/if}}</td>
+        {{/each}}
+      </tr>
+      <tr>
+        <td class="label"><span class="vi">NGÀY</span><span class="en">DATE</span></td>
+        {{#each signatures3Party}}<td class="center">{{#if this.date}}{{this.date}}{{/if}}</td>{{/each}}
+      </tr>
+    </tbody>
+  </table>
+</div>

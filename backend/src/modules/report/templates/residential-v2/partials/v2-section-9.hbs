@@ -1,0 +1,16 @@
+{{!-- Mục IX tự sinh từ dữ liệu đã thẩm định (quyết định D3). --}}
+<section data-section="sec-9">
+  <h2 class="chapter-header">IX. KẾT LUẬN VÀ KIẾN NGHỊ – CONCLUSION AND RECOMMENDATIONS</h2>
+  <div data-section="sec-9-1">
+    <h3 class="chapter-header sub-header">1. Kết luận – Conclusion</h3>
+    <ol class="v2-ol">
+      {{#each v2.conclusions}}<li>{{this.vi}}<span class="en-block">{{this.en}}</span></li>{{/each}}
+    </ol>
+  </div>
+  <div data-section="sec-9-2">
+    <h3 class="chapter-header sub-header">2. Kiến nghị – Recommendations</h3>
+    <ol class="v2-ol">
+      {{#each v2.recommendations}}<li>{{this.vi}}<span class="en-block">{{this.en}}</span></li>{{/each}}
+    </ol>
+  </div>
+</section>

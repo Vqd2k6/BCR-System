@@ -43,7 +43,7 @@ export function createApp(): express.Application {
     cors({
       origin: config.cors.origin,
       // Cho frontend đọc mã băm và số Rev của file PDF tải về
-      exposedHeaders: ['X-Content-SHA256', 'X-Report-Revision', 'X-Report-Status', 'X-Watermark-Enabled', 'Content-Disposition'],
+      exposedHeaders: ['X-Content-SHA256', 'X-Report-Revision', 'X-Report-Status', 'X-Watermark-Enabled', 'X-Report-Template', 'Content-Disposition'],
     })
   );
   app.use(express.json({ limit: '150mb' }));
@@ -304,6 +304,7 @@ export function createApp(): express.Application {
   // ==========================================
   // 5. TECHNICAL BCS REPORT (RESIDENTIAL ONLY — SNAPSHOT + REV + SHA-256)
   // ==========================================
+  api.get('/report-templates',              authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listTemplates);
   api.get('/reports/:id',                   authenticateJwt, ReportController.getReportDetail);
   api.get('/reports/:id/export/pdf',        authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);
   api.post('/reports/:id/export/pdf',       authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportPdf);

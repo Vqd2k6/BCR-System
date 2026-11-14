@@ -1,0 +1,68 @@
+{{!-- Phụ lục 2: theo từng tầng — sơ đồ có ghim D, bảng tổng hợp, ảnh cận cảnh. Giữ mã khuyết tật v1 (D-01). --}}
+<div class="a4-page-sheet" data-section="pl-2">
+  <h2 class="chapter-header">PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT THEO TẦNG – APPENDIX 2: DEFECT STATISTICS BY FLOOR</h2>
+  <p class="v2-text">Phụ lục này trình bày theo từng tầng: sơ đồ vị trí khuyết tật, bảng tổng hợp khuyết tật và ảnh cận cảnh. Số đo ghi kèm đơn vị như khi khảo sát.</p>
+  <p class="v2-text en">This appendix is presented floor by floor: defect location plan, defect summary table and close-up photos. Measurements are shown with their surveyed units.</p>
+
+  {{#each v2.floors}}
+    <div class="v2-floor" data-section="pl-2-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
+      <h3 class="chapter-header sub-header">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</h3>
+
+      {{#if this.mapSrc}}
+        <figure class="v2-figure force-light">
+          <div class="v2-cad">
+            <img src="{{this.mapSrc}}" alt="Sơ đồ vị trí khuyết tật {{this.floorName.vi}}">
+            {{#each this.pins}}<div class="pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
+          </div>
+          <figcaption><span class="vi">Hình {{this.code}} – Sơ đồ vị trí khuyết tật – {{this.floorName.vi}}</span><i>Figure {{this.code}} – Defect location plan – {{this.floorName.en}}</i></figcaption>
+        </figure>
+      {{/if}}
+
+      <div class="v2-figure" style="margin-bottom: 4px;"><figcaption><span class="vi">Bảng {{this.code}} – Tổng hợp khuyết tật – {{this.floorName.vi}}</span><i>Table {{this.code}} – Defect summary – {{this.floorName.en}}</i></figcaption></div>
+      {{#if this.rows.length}}
+        <table class="v2-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;">STT<span class="en">No.</span></th>
+              <th style="width: 8%;">Mã<span class="en">ID</span></th>
+              <th>Vị trí<span class="en">Location</span></th>
+              <th>Loại khuyết tật<span class="en">Defect type</span></th>
+              <th style="width: 9%;">Rộng<span class="en">Width</span></th>
+              <th style="width: 10%;">Dài / KT<span class="en">Length / Size</span></th>
+              <th style="width: 8%;">Burland<span class="en">Category</span></th>
+              <th style="width: 12%;">Mô tả<span class="en">Description</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each this.rows}}
+              <tr>
+                <td class="num">{{this.no}}</td>
+                <td class="num"><b>{{this.defectId}}</b></td>
+                <td>{{this.location.vi}}<span class="en-block">{{this.location.en}}</span></td>
+                <td>{{this.typeLabel.vi}}<span class="en-block">{{this.typeLabel.en}}</span></td>
+                <td class="num">{{orDash this.widthMm}}</td>
+                <td class="num">{{orDash this.lengthMm}}</td>
+                <td class="num">{{this.burlandGrade}}</td>
+                <td class="center">{{this.burlandLabel.vi}}<span class="en-block">{{this.burlandLabel.en}}</span></td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <p class="v2-text">Không ghi nhận khuyết tật. <i>No defects recorded.</i></p>
+      {{/if}}
+
+      {{#if this.closeUps.length}}
+        <div class="v2-figure" style="margin: 10px 0 4px;"><figcaption><span class="vi">Ảnh cận cảnh khuyết tật – {{this.floorName.vi}}</span><i>Close-up photos of defects – {{this.floorName.en}}</i></figcaption></div>
+        <div class="v2-photo-grid">
+          {{#each this.closeUps}}
+            <figure class="v2-figure">
+              <img src="{{this.src}}" alt="{{this.caption.vi}}">
+              <figcaption><span class="vi">{{this.caption.vi}}</span><i>{{this.caption.en}}</i></figcaption>
+            </figure>
+          {{/each}}
+        </div>
+      {{/if}}
+    </div>
+  {{/each}}
+</div>

@@ -14,6 +14,8 @@ import {
 import { api } from '../../../../../../services/api';
 import { useAuth } from '../../../../../../context/AuthContext';
 import { getErrorMessage } from '@/utils/errorUtils';
+import type { ReportTemplateControl, ReportTemplateKey } from '../../types';
+import { isReportTemplateKey } from '../../types';
 
 export interface ReleaseRecordItem {
   id?: string;
@@ -25,6 +27,8 @@ export interface ReleaseRecordItem {
   releasedByName?: string | null;
   releasedByRole?: string | null;
   releasedAt: string;
+  /** Template đã dùng khi phát hành (khóa vĩnh viễn theo Rev). */
+  templateKey?: ReportTemplateKey;
 }
 
 interface ReleaseRevisionPanelProps {
@@ -34,6 +38,8 @@ interface ReleaseRevisionPanelProps {
   onSelectRevision?: (rev?: number) => void;
   onDownloadRevisionPdf?: (rev: number) => void;
   onFeedback: (type: 'success' | 'error' | 'info', text: string) => void;
+  /** Có ô chọn template khi hồ sơ là nhà dân và máy chủ có ≥ 2 template (chốt 14/11/2026). */
+  templateControl?: ReportTemplateControl;
 }
 
 interface ReleaseSummaryResponse {
@@ -63,8 +69,11 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
   onSelectRevision,
   onDownloadRevisionPdf,
   onFeedback,
+  templateControl,
 }) => {
   const { user } = useAuth();
+  // Template của Rev sắp phát hành: null = theo template đang xem / mặc định máy chủ.
+  const [releaseTemplate, setReleaseTemplate] = useState<ReportTemplateKey | null>(null);
   const [openIssueForm, setOpenIssueForm] = useState<boolean>(false);
   const [openHistoryModal, setOpenHistoryModal] = useState<boolean>(false);
   const [reason, setReason] = useState<string>('');
@@ -100,8 +109,10 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
   const submitNewRelease = async (): Promise<void> => {
     setBusy(true);
     try {
+      const template = templateControl?.canSelect ? releaseTemplate ?? templateControl.choice : null;
       const res = await api.post<{ data: ReleaseRecordItem }>(`/reports/${encodeURIComponent(reportId)}/releases`, {
         reason: reason.trim(),
+        ...(template ? { template } : {}),
       });
       const rel = res.data.data;
       onFeedback(
@@ -201,6 +212,20 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
             placeholder="Lý do phát hành Rev mới (≥ 10 ký tự)"
             className="px-3 py-2 border border-slate-300 rounded-xl text-xs w-72"
           />
+          {templateControl?.canSelect && (
+            <select
+              value={releaseTemplate ?? templateControl.choice ?? templateControl.defaultKey ?? ''}
+              onChange={(e) => setReleaseTemplate(isReportTemplateKey(e.target.value) ? e.target.value : null)}
+              className="px-2.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white cursor-pointer"
+              title="Template của Rev này. Sau khi phát hành, Rev luôn được xem và tải lại đúng template đã chọn."
+            >
+              {templateControl.options.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={submitNewRelease}
@@ -290,6 +315,11 @@ export const ReleaseRevisionPanel: React.FC<ReleaseRevisionPanelProps> = ({
                         <span className="text-[11px] text-slate-500">
                           ({formatFileSize(item.fileSizeBytes)})
                         </span>
+                        {item.templateKey && templateControl?.canSelect && (
+                          <span className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                            {templateControl.options.find((t) => t.key === item.templateKey)?.label ?? item.templateKey}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-700">
                         <span className="font-semibold text-slate-500">Lý do: </span>

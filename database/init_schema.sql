@@ -1094,6 +1094,8 @@ CREATE TABLE IF NOT EXISTS report_releases (
   storage_provider TEXT NOT NULL DEFAULT 'local' CHECK (storage_provider IN ('local', 'r2', 's3')),
   storage_key TEXT,
   storage_bucket TEXT,
+  -- Template đã dùng khi phát hành Rev (đồng bộ với migration 20261117_report_releases_template_key.sql)
+  template_key TEXT NOT NULL DEFAULT 'residential_v1' CHECK (template_key IN ('residential_v1', 'residential_v2')),
   UNIQUE (report_id, revision)
 );
 

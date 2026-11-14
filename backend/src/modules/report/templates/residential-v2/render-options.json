@@ -1,0 +1,6 @@
+{
+  "headerFooter": false,
+  "chromeHeaderFooter": true,
+  "tocTwoPass": true,
+  "waitForReportReady": true
+}

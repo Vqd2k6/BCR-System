@@ -1,0 +1,29 @@
+{{!-- Mục lục (trang 2). Số trang điền bởi report-scripts (preview) và engine dò trang thật (PDF). --}}
+<div class="a4-page-sheet v2-toc-sheet">
+  <div style="text-align: center; margin: 4px 0 12px;">
+    <div style="font-size: 13pt; font-weight: bold;">MỤC LỤC</div>
+    <div style="font-size: 11pt; font-weight: bold;">TABLE OF CONTENTS</div>
+  </div>
+  <ul class="v2-toc">
+    <li class="lvl-1"><span class="t">I. THÔNG TIN CHUNG – GENERAL INFORMATION</span><span class="dots"></span><span class="p" data-toc-target="sec-1"></span></li>
+    <li class="lvl-1"><span class="t">II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ – BASIC BUILDING INFORMATION</span><span class="dots"></span><span class="p" data-toc-target="sec-2"></span></li>
+    <li class="lvl-1"><span class="t">III. LỊCH SỬ VÀ TÌNH TRẠNG SỬ DỤNG – BUILDING HISTORY AND OCCUPANCY</span><span class="dots"></span><span class="p" data-toc-target="sec-3"></span></li>
+    <li class="lvl-1"><span class="t">IV. ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG – STRUCTURAL AND FOUNDATION CHARACTERISTICS</span><span class="dots"></span><span class="p" data-toc-target="sec-4"></span></li>
+    <li class="lvl-1"><span class="t">V. GHI NHẬN SƠ BỘ VỀ ĐỘ NGHIÊNG / LÚN – PRELIMINARY TILT / SETTLEMENT INDICATORS</span><span class="dots"></span><span class="p" data-toc-target="sec-5"></span></li>
+    <li class="lvl-1"><span class="t">VI. TÓM TẮT KẾT QUẢ KHẢO SÁT KHUYẾT TẬT – SUMMARY OF DEFECT INVESTIGATION</span><span class="dots"></span><span class="p" data-toc-target="sec-6"></span></li>
+    <li class="lvl-1"><span class="t">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND – BURLAND DAMAGE CLASSIFICATION</span><span class="dots"></span><span class="p" data-toc-target="sec-7"></span></li>
+    <li class="lvl-1"><span class="t">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH – BUILDING CONDITION ASSESSMENT</span><span class="dots"></span><span class="p" data-toc-target="sec-8"></span></li>
+    <li class="lvl-2"><span class="t">1. Phân loại tình trạng công trình theo ECS – ECS Building Condition Rating</span><span class="dots"></span><span class="p" data-toc-target="sec-8-1"></span></li>
+    <li class="lvl-2"><span class="t">2. Đánh giá theo ma trận rủi ro – Risk Matrix Assessment</span><span class="dots"></span><span class="p" data-toc-target="sec-8-2"></span></li>
+    <li class="lvl-2"><span class="t">3. Chấm điểm đánh giá rủi ro công trình (BRA) – Building Risk Assessment (BRA) Scoring</span><span class="dots"></span><span class="p" data-toc-target="sec-8-3"></span></li>
+    <li class="lvl-2"><span class="t">4. Cấp độ rủi ro tổng thể – Overall Risk Grade</span><span class="dots"></span><span class="p" data-toc-target="sec-8-4"></span></li>
+    <li class="lvl-1"><span class="t">IX. KẾT LUẬN VÀ KIẾN NGHỊ – CONCLUSION AND RECOMMENDATIONS</span><span class="dots"></span><span class="p" data-toc-target="sec-9"></span></li>
+    <li class="lvl-2"><span class="t">1. Kết luận – Conclusion</span><span class="dots"></span><span class="p" data-toc-target="sec-9-1"></span></li>
+    <li class="lvl-2"><span class="t">2. Kiến nghị – Recommendations</span><span class="dots"></span><span class="p" data-toc-target="sec-9-2"></span></li>
+    <li class="lvl-1"><span class="t">PHỤ LỤC 1: ẢNH MẶT ĐỨNG CÔNG TRÌNH – APPENDIX 1: BUILDING ELEVATION PHOTOS</span><span class="dots"></span><span class="p" data-toc-target="pl-1"></span></li>
+    <li class="lvl-1"><span class="t">PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT THEO TẦNG – APPENDIX 2: DEFECT STATISTICS BY FLOOR</span><span class="dots"></span><span class="p" data-toc-target="pl-2"></span></li>
+    {{#each v2.floors}}
+      <li class="lvl-2"><span class="t">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</span><span class="dots"></span><span class="p" data-toc-target="pl-2-{{@index}}"></span></li>
+    {{/each}}
+  </ul>
+</div>

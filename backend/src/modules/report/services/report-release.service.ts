@@ -15,6 +15,18 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import type { JwtPayload } from '../../../common/guards/auth.guard';
 import { ReportSnapshotService, sha256Hex } from '../snapshot/report-snapshot.service';
 import { ReportService, type ResolvedReport } from './report.service';
+import { isReportTemplateKey, LEGACY_TEMPLATE_KEY, type ReportTemplateKey } from './report-template-kind';
+import type { RiskV2Result } from '../mappers/v2/risk-v2.calculator';
+
+/** Kết quả rủi ro v2 trong dữ liệu presenter (`presented.v2.risk`). */
+function readRiskV2(presented: Record<string, unknown>): RiskV2Result | null {
+  const v2 = presented.v2;
+  if (!v2 || typeof v2 !== 'object') return null;
+  const risk = (v2 as { risk?: unknown }).risk;
+  if (!risk || typeof risk !== 'object') return null;
+  const r = risk as Partial<RiskV2Result>;
+  return r.ecs && r.bra && r.matrix && r.overall ? (risk as RiskV2Result) : null;
+}
 import { ReportConfigService } from '../../report_config/report-config.service';
 import { canAccessZone } from '../utils/zone-access.utils';
 import { StorageService } from '../../../common/services/storage.service';
@@ -47,6 +59,8 @@ export interface ReportReleaseRecord {
   storageProvider: ReleaseStorageProvider;
   storageKey: string | null;
   storageBucket: string | null;
+  /** Template đã dùng khi phát hành; render lại Rev luôn theo khóa này. */
+  templateKey: ReportTemplateKey;
 }
 
 interface ReleaseRow {
@@ -68,6 +82,7 @@ interface ReleaseRow {
   storage_provider?: string | null;
   storage_key?: string | null;
   storage_bucket?: string | null;
+  template_key?: string | null;
 }
 
 function toProvider(value: string | null | undefined): ReleaseStorageProvider {
@@ -94,6 +109,7 @@ function toRecord(row: ReleaseRow): ReportReleaseRecord {
     storageProvider: toProvider(row.storage_provider),
     storageKey: row.storage_key ?? null,
     storageBucket: row.storage_bucket ?? null,
+    templateKey: isReportTemplateKey(row.template_key) ? row.template_key : LEGACY_TEMPLATE_KEY,
   };
 }
 
@@ -109,7 +125,7 @@ const SELECT_RELEASE_COLS = `rr.id, rr.report_id, rr.revision, rr.reason, rr.is_
   rr.file_size_bytes, rr.sha256, rr.snapshot_version_id,
   rr.released_by_user_id, u.full_name AS released_by_name, u.role::text AS released_by_role,
   rr.released_at, rr.standard_text_version_id, rr.equipment_snapshot_json,
-  rr.storage_provider, rr.storage_key, rr.storage_bucket`;
+  rr.storage_provider, rr.storage_key, rr.storage_bucket, rr.template_key`;
 
 export class ReportReleaseService {
   public static async list(reportId: string): Promise<ReportReleaseRecord[]> {
@@ -218,7 +234,8 @@ export class ReportReleaseService {
   public static async issueNewRevision(
     reportIdentifier: string,
     user: JwtPayload,
-    reason: string
+    reason: string,
+    requestedTemplate?: ReportTemplateKey | null
   ): Promise<ReportReleaseRecord> {
     const trimmed = (reason || '').trim();
     if (trimmed.length < MIN_RELEASE_REASON_LENGTH) {
@@ -226,7 +243,14 @@ export class ReportReleaseService {
     }
     const resolved = await ReportService.resolve(reportIdentifier);
     this.assertCanRelease(resolved, user);
-    return this.issue(resolved.id, user, trimmed);
+    // Rev mới chưa có template đóng băng: Admin chọn trong hộp phát hành, không chọn thì theo mặc định máy chủ.
+    // Chung cư luôn v1 (nền của template theo loại); chọn v2 cho chung cư bị từ chối tại đây, trước khi khóa hàng.
+    const templateKey = ReportService.resolveTemplateKey(resolved.raw, requestedTemplate, null);
+    if (!ReportService.isTemplateAvailable(templateKey)) {
+      console.error(`[ReportRelease:template] Template ${templateKey} chưa sẵn sàng, từ chối phát hành Rev cho ${resolved.id}`);
+      throw new ConflictError(`Template báo cáo ${templateKey} chưa sẵn sàng trên máy chủ, chưa phát hành được Rev theo template này`);
+    }
+    return this.issue(resolved.id, user, trimmed, templateKey);
   }
 
   public static assertCanRelease(resolved: ResolvedReport, user: JwtPayload): void {
@@ -237,7 +261,8 @@ export class ReportReleaseService {
   private static async issue(
     reportId: string,
     user: JwtPayload,
-    reason: string
+    reason: string,
+    templateKey: ReportTemplateKey
   ): Promise<ReportReleaseRecord> {
     let writtenFile: string | null = null;
     const cleanup: { uploadedObject: { key: string; bucket: string } | null } = { uploadedObject: null };
@@ -300,9 +325,41 @@ export class ReportReleaseService {
           );
         }
 
+        // Đóng băng template của Rev vào snapshot (ngoài phần băm contentSha256) và cột report_releases.template_key.
+        const frozenSnapshot = {
+          ...snap.snapshot,
+          frozenReportData: { ...(snap.snapshot.frozenReportData ?? {}), template_key: templateKey },
+        };
+        await client.query(`UPDATE survey_report_versions SET snapshot_data = $1 WHERE id = $2;`, [
+          JSON.stringify(frozenSnapshot),
+          snap.versionId,
+        ]);
+        snap = { ...snap, snapshot: frozenSnapshot };
+
         const activeConfig = await ReportConfigService.getActiveConfig();
         const resolved = await ReportService.resolve(reportId);
-        const { pdfBuffer, watermark } = await ReportService.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig);
+        const { pdfBuffer, watermark, presented } = await ReportService.renderFinalPdf(resolved, snap.snapshot, nextRev, activeConfig, templateKey);
+        if (templateKey === 'residential_v2') {
+          // Rev v2 là chứng cứ: phải đủ 5 chỉ số BRA (không giả định) và đóng băng kết quả tính vào snapshot.
+          const risk = readRiskV2(presented);
+          if (!risk) {
+            throw new ConflictError('Không dựng được Mục VIII theo mẫu v2, chưa phát hành được Rev');
+          }
+          if (risk.bra.total === null) {
+            throw new ConflictError(
+              `Chưa phát hành được Rev theo mẫu v2: thiếu dữ liệu chấm BRA (chỉ số ${risk.bra.missing.join(', ')}). Bổ sung ở Thẩm định rồi phát hành lại.`
+            );
+          }
+          const withRisk = {
+            ...snap.snapshot,
+            frozenReportData: { ...(snap.snapshot.frozenReportData ?? {}), risk_v2: risk },
+          };
+          await client.query(`UPDATE survey_report_versions SET snapshot_data = $1 WHERE id = $2;`, [
+            JSON.stringify(withRisk),
+            snap.versionId,
+          ]);
+          snap = { ...snap, snapshot: withRisk };
+        }
 
         const sha = sha256Hex(pdfBuffer);
         const provider: ReleaseStorageProvider = StorageService.getEffectiveStorageType();
@@ -339,12 +396,12 @@ export class ReportReleaseService {
           `INSERT INTO report_releases (
              report_id, revision, reason, is_final, file_path, file_size_bytes, sha256,
              snapshot_version_id, released_by_user_id, standard_text_version_id, equipment_snapshot_json,
-             storage_provider, storage_key, storage_bucket
-           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;`,
+             storage_provider, storage_key, storage_bucket, template_key
+           ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;`,
           [
             reportId, nextRev, reason, filePath, pdfBuffer.length, sha, snap.versionId, user.userId,
             activeConfig.standardTextVersionId, JSON.stringify(activeConfig.equipment),
-            provider, storageKey, storageBucket,
+            provider, storageKey, storageBucket, templateKey,
           ]
         );
 
@@ -380,6 +437,7 @@ export class ReportReleaseService {
                 ? { total: watermark.total, stamped: watermark.stamped, legacy: watermark.legacy, failed: watermark.failed }
                 : null,
               snapshotVersionId: snap.versionId,
+              templateKey,
               standardTextVersionNumber: activeConfig.standardTextVersionNumber,
               equipmentCount: activeConfig.equipment.length,
               timestamp: new Date().toISOString(),

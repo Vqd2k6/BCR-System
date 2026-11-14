@@ -50,6 +50,12 @@ export interface PdfRenderOptions {
   headerFooter?: boolean;
   /** Đối chiếu số trang trong Mục lục với trang thật của tiêu đề, lệch thì sửa rồi in lại (không nạp lại HTML). */
   tocTwoPass?: boolean;
+  /**
+   * Đầu/chân trang HTML gốc của Chrome (displayHeaderFooter), in trên MỌI trang kể cả bìa (template v2).
+   * Chèn số trang bằng <span class="pageNumber"></span> / <span class="totalPages"></span>; ảnh phải là data URI.
+   * Lề trang lấy từ `@page { margin }` của template. Không dùng chung với `headerFooter`.
+   */
+  chromeHeaderFooter?: { headerTemplate: string; footerTemplate: string };
 }
 
 const RENDER_TMP_DIR = path.join(os.tmpdir(), 'metro2-report-render');
@@ -243,7 +249,10 @@ export class PdfRenderEngine {
         format: 'A4',
         printBackground: true,
         preferCSSPageSize: true,
-        displayHeaderFooter: false,
+        displayHeaderFooter: Boolean(options.chromeHeaderFooter),
+        ...(options.chromeHeaderFooter
+          ? { headerTemplate: options.chromeHeaderFooter.headerTemplate, footerTemplate: options.chromeHeaderFooter.footerTemplate }
+          : {}),
         margin: {
           top: '0mm',
           right: '0mm',

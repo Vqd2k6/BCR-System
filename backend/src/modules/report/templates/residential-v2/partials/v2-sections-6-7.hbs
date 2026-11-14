@@ -1,0 +1,26 @@
+{{!-- Mục VI (9 nhóm khuyết tật của mẫu) và Mục VII (số khuyết tật theo cấp Burland). --}}
+<section data-section="sec-6">
+  <h2 class="chapter-header">VI. TÓM TẮT KẾT QUẢ KHẢO SÁT KHUYẾT TẬT – SUMMARY OF DEFECT INVESTIGATION</h2>
+  <table class="v2-table" style="width: 75%;">
+    <thead><tr><th>Loại khuyết tật<span class="en">Defect type</span></th><th style="width: 30%;">Số lượng<span class="en">Number of defects</span></th></tr></thead>
+    <tbody>
+      {{#each v2.defectTypes.rows}}
+        <tr><td><b>{{this.label.vi}}</b><span class="en-block">{{this.label.en}}</span></td><td class="num">{{this.count}}</td></tr>
+      {{/each}}
+      <tr class="total"><td>Tổng cộng<span class="en-block">Total</span></td><td class="num">{{v2.defectTypes.total}}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section data-section="sec-7">
+  <h2 class="chapter-header">VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND – BURLAND DAMAGE CLASSIFICATION</h2>
+  <table class="v2-table" style="width: 75%;">
+    <thead><tr><th style="width: 22%;">Cấp Burland<span class="en">Burland category</span></th><th>Mô tả<span class="en">Description</span></th><th style="width: 28%;">Số lượng<span class="en">Number of defects</span></th></tr></thead>
+    <tbody>
+      {{#each v2.burland.rows}}
+        <tr><td class="num">{{this.grade}}</td><td><b>{{this.label.vi}}</b><span class="en-block">{{this.label.en}}</span></td><td class="num">{{this.count}}</td></tr>
+      {{/each}}
+      <tr class="total"><td colspan="2">Tổng cộng<span class="en-block">Total</span></td><td class="num">{{v2.burland.total}}</td></tr>
+    </tbody>
+  </table>
+</section>

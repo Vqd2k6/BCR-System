@@ -1,15 +1,29 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { useState, useEffect } from 'react';
 import { api } from '../../../../../services/api';
-import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage, ActionFeedbackMessage } from '../types';
+import type {
+  ExportParcelItem,
+  EditFormData,
+  EditFormDefectItem,
+  ModalFeedbackMessage,
+  ActionFeedbackMessage,
+  ReportTemplateKey,
+  ReportTemplateOption,
+  ReportTemplateControl,
+} from '../types';
+import { isReportTemplateKey, isResidentialParcel } from '../types';
+import { fetchReportTemplates } from '../api/reportTemplates.api';
 import { initializeEditFormData, buildReportPayload, type ServerReportData } from '../utils/reportDataTransformers';
 
 interface UsePhase1ReportPreviewProps {
   setActionMessage: (msg: ActionFeedbackMessage | null) => void;
+  /** Zone Admin / Super Admin: được chọn template v1/v2 cho hồ sơ nhà dân (chốt 14/11/2026). */
+  canChooseTemplate?: boolean;
 }
 
 export const usePhase1ReportPreview = ({
   setActionMessage,
+  canChooseTemplate = false,
 }: UsePhase1ReportPreviewProps) => {
   const [previewParcel, setPreviewParcel] = useState<ExportParcelItem | null>(null);
   const [previewHtmlContent, setPreviewHtmlContent] = useState<string | null>(null);
@@ -29,6 +43,28 @@ export const usePhase1ReportPreview = ({
   // File PDF Rev đã lưu đang xem (blob URL) và mã băm máy chủ trả về: xem Rev = đúng bytes tải về.
   const [storedPdfBlobUrl, setStoredPdfBlobUrl] = useState<string | null>(null);
   const [storedPdfSha256, setStoredPdfSha256] = useState<string | null>(null);
+  // Template report nhà dân: null = theo mặc định máy chủ. activeTemplateKey = template máy chủ báo đã dùng.
+  const [templateOptions, setTemplateOptions] = useState<ReportTemplateOption[]>([]);
+  const [defaultTemplateKey, setDefaultTemplateKey] = useState<ReportTemplateKey | null>(null);
+  const [templateChoice, setTemplateChoice] = useState<ReportTemplateKey | null>(null);
+  const [activeTemplateKey, setActiveTemplateKey] = useState<ReportTemplateKey | null>(null);
+
+  useEffect(() => {
+    if (!canChooseTemplate) return;
+    let cancelled = false;
+    fetchReportTemplates()
+      .then((catalog) => {
+        if (cancelled) return;
+        setTemplateOptions(catalog.templates);
+        setDefaultTemplateKey(catalog.defaultKey);
+      })
+      .catch((err: unknown) => {
+        console.error('[usePhase1ReportPreview:fetchReportTemplates] Không tải được danh mục template:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canChooseTemplate]);
 
   useEffect(() => {
     if (!storedPdfBlobUrl) return;
@@ -74,6 +110,27 @@ export const usePhase1ReportPreview = ({
     if (!headers || typeof headers !== 'object') return null;
     const value = (headers as Record<string, unknown>)[name.toLowerCase()];
     return typeof value === 'string' && value ? value : null;
+  };
+
+  /** Ô chọn template chỉ hiện cho hồ sơ nhà dân khi máy chủ có từ 2 template sẵn sàng. */
+  const availableTemplates = templateOptions.filter((t) => t.available);
+  const isTemplateSelectable = (parcel: ExportParcelItem | null): boolean =>
+    canChooseTemplate && parcel !== null && isResidentialParcel(parcel) && availableTemplates.length > 1;
+
+  /** Tham số render: watermark + template đang chọn (chỉ gửi cho hồ sơ nhà dân, chung cư luôn theo template của loại). */
+  const renderParams = (
+    parcel: ExportParcelItem | null,
+    watermark: boolean = enableWatermark,
+    template: ReportTemplateKey | null = templateChoice
+  ): Record<string, string> => {
+    const params: Record<string, string> = { watermark: String(watermark) };
+    if (template && isTemplateSelectable(parcel)) params.template = template;
+    return params;
+  };
+
+  const rememberTemplateHeader = (headers: unknown): void => {
+    const key = readHeader(headers, 'x-report-template');
+    setActiveTemplateKey(isReportTemplateKey(key) ? key : null);
   };
 
   const triggerBlobDownload = (blob: Blob, filename: string) => {
@@ -138,13 +195,14 @@ export const usePhase1ReportPreview = ({
       }
       const [htmlResResult, dataResResult] = await Promise.allSettled([
         api.get(previewEndpoint, {
-          params: { watermark: String(enableWatermark) },
+          params: renderParams(parcel),
           responseType: 'text',
         }),
         api.get(`/reports/${encodeURIComponent(reportId)}`),
       ]);
 
       if (htmlResResult.status === 'fulfilled') {
+        rememberTemplateHeader(htmlResResult.value.headers);
         const html = htmlResResult.value.data;
         setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
         setPreviewRenderKey((k) => k + 1);
@@ -195,11 +253,12 @@ export const usePhase1ReportPreview = ({
       setCurrentPdfBlobUrl(null);
       const [htmlRes, dataRes] = await Promise.all([
         api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
-          params: { watermark: String(enableWatermark) },
+          params: renderParams(previewParcel),
           responseType: 'text',
         }),
         api.get(`/reports/${encodeURIComponent(reportId)}`),
       ]);
+      rememberTemplateHeader(htmlRes.headers);
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
       setPreviewRenderKey((k) => k + 1);
@@ -345,7 +404,7 @@ export const usePhase1ReportPreview = ({
         blob = (await fetchStoredReleasePdf(rawId, selectedRevision)).blob;
       } else {
         const response = await api.get(`/reports/${reportId}/export/pdf`, {
-          params: { watermark: String(enableWatermark) },
+          params: renderParams(previewParcel),
           responseType: 'blob',
         });
         blob = new Blob([response.data], { type: 'application/pdf' });
@@ -408,9 +467,10 @@ export const usePhase1ReportPreview = ({
     try {
       const endpoint = `/reports/${encodeURIComponent(reportId)}/preview/html`;
       const htmlRes = await api.get(endpoint, {
-        params: { watermark: String(enabled) },
+        params: renderParams(previewParcel, enabled),
         responseType: 'text',
       });
+      rememberTemplateHeader(htmlRes.headers);
 
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
@@ -440,9 +500,10 @@ export const usePhase1ReportPreview = ({
     setIsPreviewLoading(true);
     try {
       const htmlRes = await api.get(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/preview/html`, {
-        params: { watermark: String(enableWatermark) },
+        params: renderParams(previewParcel),
         responseType: 'text',
       });
+      rememberTemplateHeader(htmlRes.headers);
       const html = htmlRes.data;
       setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
       setPreviewRenderKey((k) => k + 1);
@@ -541,8 +602,9 @@ export const usePhase1ReportPreview = ({
     });
 
     try {
+      const isOpenInModal = previewParcel !== null && reportIdOf(previewParcel) === reportIdOf(parcel);
       const response = await api.get(`/reports/${reportId}/export/pdf`, {
-        params: { watermark: String(enableWatermark) },
+        params: renderParams(parcel, enableWatermark, isOpenInModal ? templateChoice : null),
         responseType: 'blob',
       });
       const status = readHeader(response.headers, 'x-report-status') === 'FINAL' ? 'HienHanh' : 'Draft';
@@ -588,7 +650,7 @@ export const usePhase1ReportPreview = ({
     setIsCurrentPdfLoading(true);
     try {
       const response = await api.get(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/export/pdf`, {
-        params: { watermark: String(enableWatermark) },
+        params: renderParams(previewParcel),
         responseType: 'blob',
       });
       setCurrentPdfBlobUrl(URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' })));
@@ -610,6 +672,35 @@ export const usePhase1ReportPreview = ({
   };
 
   const handleCloseCurrentPdf = () => setCurrentPdfBlobUrl(null);
+
+  /** Đổi template v1/v2 cho bản hiện hành của hồ sơ nhà dân đang xem rồi render lại HTML. */
+  const handleChangeTemplate = async (key: ReportTemplateKey): Promise<void> => {
+    if (!previewParcel || selectedRevision !== undefined || !isTemplateSelectable(previewParcel)) return;
+    setTemplateChoice(key);
+    setCurrentPdfBlobUrl(null);
+    setIsPreviewLoading(true);
+    try {
+      const htmlRes = await api.get(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/preview/html`, {
+        params: renderParams(previewParcel, enableWatermark, key),
+        responseType: 'text',
+      });
+      rememberTemplateHeader(htmlRes.headers);
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      const label = templateOptions.find((t) => t.key === key)?.label ?? key;
+      setModalFeedback({ type: 'info', text: `Đang xem bản hiện hành theo ${label}.`, timestamp: new Date().toLocaleTimeString('vi-VN') });
+    } catch (err: unknown) {
+      console.error('[usePhase1ReportPreview:handleChangeTemplate] Không render được theo template mới:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không render được theo template đã chọn: ${getErrorMessage(err, 'Lỗi server')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   return {
     previewParcel,
@@ -640,6 +731,14 @@ export const usePhase1ReportPreview = ({
     isCurrentPdfLoading,
     handleViewCurrentPdf,
     handleCloseCurrentPdf,
+    templateControl: {
+      options: availableTemplates,
+      defaultKey: defaultTemplateKey,
+      choice: templateChoice,
+      activeKey: activeTemplateKey,
+      canSelect: isTemplateSelectable(previewParcel),
+      onChange: handleChangeTemplate,
+    } satisfies ReportTemplateControl,
     handleSelectRevision,
     handleExportRevisionPdf,
     handleToggleWatermark,

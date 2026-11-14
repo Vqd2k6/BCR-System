@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>{{metadata.reportNo}} – {{metadata.buildingId}}</title>
+  <style>
+    {{{styles}}}
+  </style>
+</head>
+{{!--
+  Template nhà dân v2 (mẫu ST01-B-0056-CC, plan R3 14/11/2026). Bố cục: Bìa → Mục lục → Mục I–IX chảy liên tục
+  → PL1 ảnh mặt đứng → PL2 khuyết tật theo tầng. Đầu/chân trang do Chrome in trên mọi trang (chrome-header/footer.hbs).
+  Hợp đồng với PdfRenderEngine: [data-section] chứa .chapter-header, [data-toc-target], window.__reportReady (report-scripts).
+--}}
+<body class="v2 {{#unless enableWatermark}}no-watermark{{/unless}}{{#if isGuestWatermark}} guest-watermark-mode{{else if isPiiMasked}} guest-watermark-mode{{/if}}">
+  {{> watermark-issues}}
+
+  {{> v2-cover}}
+  {{> v2-toc}}
+
+  <div class="a4-page-sheet v2-flow">
+    {{> v2-sections-1-5}}
+    {{> v2-sections-6-7}}
+    {{> v2-section-8}}
+    {{> v2-section-9}}
+  </div>
+
+  {{> v2-appendix-1}}
+  {{> v2-appendix-2}}
+
+  {{> report-scripts}}
+</body>
+</html>

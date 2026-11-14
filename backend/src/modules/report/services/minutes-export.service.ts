@@ -26,7 +26,8 @@ import { MetadataMapper } from '../mappers/sections/metadata-and-cover.mapper';
 import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
 import { ReportSnapshotService } from '../snapshot/report-snapshot.service';
 import { ReportImageResolver } from './report-image-resolver.service';
-import { REPORT_PDF_HEADER_TITLE, ReportService, type ResolvedReport } from './report.service';
+import { ReportFontsService } from './report-fonts.service';
+import { REPORT_PDF_HEADER_TITLE, type ResolvedReport } from './report.service';
 
 export const MINUTES_EXPORTABLE_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'];
 
@@ -129,6 +130,18 @@ export class MinutesExportService {
       this.compiledTemplate = Handlebars.compile(fs.readFileSync(templatePath, 'utf8'));
     }
     return this.compiledTemplate;
+  }
+
+  /**
+   * CSS riêng của biên bản: `templates/minutes/styles.css` (khởi tạo bằng bản sao nguyên văn của CSS report nhà dân v1
+   * ngày 14/11/2026 để PDF biên bản không đổi). Biên bản không còn phụ thuộc CSS của bất kỳ template report nào.
+   */
+  public static getStyles(): string {
+    const stylesPath = path.join(__dirname, '../templates/minutes/styles.css');
+    if (!fs.existsSync(stylesPath)) {
+      throw new Error(`Không tìm thấy CSS biên bản tại: ${stylesPath}`);
+    }
+    return `${ReportFontsService.getFontCss()}\n${fs.readFileSync(stylesPath, 'utf8')}`;
   }
 
   /** Mỗi thửa/căn đúng 1 dòng: ưu tiên con trỏ hồ sơ active, sai con trỏ thì lấy bản nộp mới nhất và cảnh báo. */
@@ -420,7 +433,7 @@ export class MinutesExportService {
     const label = resolveLabel(resolved.status);
 
     const html = this.getTemplate()({
-      styles: ReportService.getCompiledTemplate().styles,
+      styles: this.getStyles(),
       metadata,
       appendix3,
       parcelCode,

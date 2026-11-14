@@ -12,10 +12,11 @@ import Handlebars from 'handlebars';
 import { Database } from '../../../database/db';
 import { SurveyRepository } from '../../survey/survey.repository';
 import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
-import { ConflictError, NotFoundError, WatermarkIncompleteError } from '../../../common/errors/problem-details';
+import { BadRequestError, ConflictError, NotFoundError, WatermarkIncompleteError } from '../../../common/errors/problem-details';
 import { maskReportPii } from '../../../common/utils/pii.utils';
 import { ReportViewModel } from '../report.types';
 import { ReportViewModelMapper } from '../mappers/report-viewmodel.mapper';
+import { presentResidentialV2 } from '../mappers/v2/residential-v2.presenter';
 import { PdfRenderEngine } from '../engine/pdf-render.engine';
 import { RenderQueue } from '../engine/render-queue';
 import { applyOverridesToReport } from '../utils/report-override.utils';
@@ -35,7 +36,14 @@ import { ReportConfigService } from '../../report_config/report-config.service';
 import type { ReportContentConfig } from '../../report_config/report-config.types';
 import { applyPhotoQcToViewModel, resolvePhotoQcStateForRender } from '../../photo-qc/photo-qc.render';
 import { applyResurveyToViewModel, resolveResurveyStateForRender } from '../../photo-resurvey/photo-resurvey.render';
-import { resolveReportTemplateKind, type ReportTemplateKind } from './report-template-kind';
+import {
+  resolveReportTemplateKind,
+  isReportTemplateKey,
+  defaultResidentialTemplateKey,
+  LEGACY_TEMPLATE_KEY,
+  type ReportTemplateKind,
+  type ReportTemplateKey,
+} from './report-template-kind';
 
 export const REPORT_PDF_HEADER_TITLE = 'LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG';
 
@@ -55,18 +63,133 @@ export function watermarkIssueHint(issue: WatermarkIssue): string {
   }
 }
 
-interface CompiledReportTemplate {
-  template: Handlebars.TemplateDelegate;
-  styles: string;
+/** Cách PdfRenderEngine in một bộ template (mặc định như report Phase 1 hiện hành). */
+export interface TemplateRenderOptions {
+  /** Đầu/chân trang "Trang i / N" do engine chèn bằng hộp lề `@page`, ẩn ở trang đầu (bìa). */
+  headerFooter: boolean;
+  /** Đối chiếu Mục lục với trang thật bằng pdfjs (cần `window.__sectionHeadings` + `[data-toc-target]`). */
+  tocTwoPass: boolean;
+  /** Chờ `window.__reportReady === true` trước khi in. */
+  waitForReportReady: boolean;
+  /**
+   * Đầu/chân trang HTML gốc của Chrome trên mọi trang kể cả bìa, dựng từ `chrome-header.hbs` / `chrome-footer.hbs`
+   * của template (v2). Không dùng chung với `headerFooter`.
+   */
+  chromeHeaderFooter: boolean;
+}
+
+const DEFAULT_RENDER_OPTIONS: TemplateRenderOptions = {
+  headerFooter: true,
+  tocTwoPass: true,
+  waitForReportReady: true,
+  chromeHeaderFooter: false,
+};
+/** Tệp tùy chọn trong thư mục template để ghi đè `TemplateRenderOptions` (VD v2 tự vẽ đầu/chân trang). */
+const RENDER_OPTIONS_FILE = 'render-options.json';
+
+interface CompiledReportTemplate extends CompiledTemplateResult {
   mtime: number;
 }
 
+export interface CompiledTemplateResult {
+  template: Handlebars.TemplateDelegate;
+  styles: string;
+  render: TemplateRenderOptions;
+  /** Có khi `render.chromeHeaderFooter`: dựng chuỗi HTML đầu/chân trang cho Chrome. */
+  chromeHeader?: Handlebars.TemplateDelegate;
+  chromeFooter?: Handlebars.TemplateDelegate;
+}
+
+/**
+ * Lớp trình bày riêng của template: nhận ViewModel chuẩn (dùng chung mọi template) + hồ sơ gốc, trả thêm dữ liệu
+ * mà template đó cần (VD Mục VIII theo phương pháp v2). Không sửa ViewModel gốc.
+ */
+type TemplatePresenter = (viewModel: ReportViewModel, rawReport: Record<string, unknown>) => Record<string, unknown>;
+
+const TEMPLATE_PRESENTERS: Partial<Record<string, TemplatePresenter>> = {
+  'residential-v2': (vm, raw) => ({ v2: presentResidentialV2(vm, raw) }),
+};
+
+/** Nền kế thừa của mọi template chung cư luôn là thư mục v1, không theo template nhà dân mặc định. */
+const RESIDENTIAL_V1_DIR = 'residential';
+
 const TEMPLATE_DIR_BY_KIND: Record<ReportTemplateKind, string> = {
-  STANDALONE: 'residential',
+  STANDALONE: RESIDENTIAL_V1_DIR,
   BUILDING_MASTER: 'condo-master',
   MASTER_AREA: 'condo-area',
   CONDO_UNIT: 'condo-unit',
 };
+
+const TEMPLATE_DIR_BY_KEY: Record<ReportTemplateKey, string> = {
+  residential_v1: RESIDENTIAL_V1_DIR,
+  residential_v2: 'residential-v2',
+};
+
+/**
+ * Partial của v1 mà v2 nạp lại (v2 có partial cùng tên thì bản của v2 thắng): khối báo ảnh chưa dập watermark +
+ * script xác nhận dấu cũ trong preview, và script dựng Mục lục / `__sectionHeadings` / `__reportReady` cho engine.
+ */
+const V1_PARTIALS_SHARED_WITH_V2 = ['watermark-issues', 'report-scripts'];
+
+/**
+ * Cách dựng môi trường Handlebars:
+ * - `global`: v1 nhà dân, dùng Handlebars toàn cục như trước (các script kiểm thử phụ thuộc).
+ * - `condo`: môi trường riêng, nạp toàn bộ partial v1 rồi partial của loại chung cư, CSS v1 + CSS riêng.
+ * - `isolated`: v2 nhà dân, môi trường riêng, chỉ nạp `V1_PARTIALS_SHARED_WITH_V2` + partial/CSS của chính nó.
+ */
+type TemplateBuildMode = 'global' | 'condo' | 'isolated';
+
+interface TemplateSelection {
+  dir: string;
+  mode: TemplateBuildMode;
+}
+
+function readRenderOptions(dir: string): TemplateRenderOptions {
+  const file = path.join(dir, RENDER_OPTIONS_FILE);
+  if (!fs.existsSync(file)) return DEFAULT_RENDER_OPTIONS;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    console.error(`[ReportService:renderOptions] ${file} không phải JSON hợp lệ`, err);
+    throw new Error(`Tệp ${RENDER_OPTIONS_FILE} của template ${path.basename(dir)} không phải JSON hợp lệ`);
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error(`Tệp ${RENDER_OPTIONS_FILE} của template ${path.basename(dir)} phải là object`);
+  }
+  const rec = parsed as Record<string, unknown>;
+  const pick = (key: keyof TemplateRenderOptions): boolean => {
+    const value = rec[key];
+    if (value === undefined) return DEFAULT_RENDER_OPTIONS[key];
+    if (typeof value !== 'boolean') {
+      throw new Error(`Tệp ${RENDER_OPTIONS_FILE} của template ${path.basename(dir)}: "${key}" phải là true/false`);
+    }
+    return value;
+  };
+  const options: TemplateRenderOptions = {
+    headerFooter: pick('headerFooter'),
+    tocTwoPass: pick('tocTwoPass'),
+    waitForReportReady: pick('waitForReportReady'),
+    chromeHeaderFooter: pick('chromeHeaderFooter'),
+  };
+  if (options.headerFooter && options.chromeHeaderFooter) {
+    throw new Error(`Tệp ${RENDER_OPTIONS_FILE} của template ${path.basename(dir)}: không bật đồng thời headerFooter và chromeHeaderFooter`);
+  }
+  return options;
+}
+
+export interface RenderedReportHtml {
+  html: string;
+  viewModel: ReportViewModel;
+  watermark: WatermarkVerifyReport;
+  /** Template thật sự đã dùng (chung cư luôn là v1 — nền của template theo loại). */
+  templateKey: ReportTemplateKey;
+  render: TemplateRenderOptions;
+  /** Đầu/chân trang HTML cho Chrome khi template bật `chromeHeaderFooter`. */
+  chromeHeaderFooter?: { headerTemplate: string; footerTemplate: string };
+  /** Dữ liệu riêng của template do presenter dựng (VD `v2` của template nhà dân v2). */
+  presented: Record<string, unknown>;
+}
 
 export interface ResolvedReport {
   id: string;
@@ -78,31 +201,53 @@ export interface ResolvedReport {
 }
 
 export class ReportService {
-  /** Bộ template đã biên dịch theo loại hồ sơ (nhà dân / Tòa mẹ / khu vực chung / căn hộ). */
-  private static templateCache = new Map<ReportTemplateKind, CompiledReportTemplate>();
+  /** Bộ template đã biên dịch, khóa theo tên thư mục template (residential, residential-v2, condo-unit...). */
+  private static templateCache = new Map<string, CompiledReportTemplate>();
+
+  private static templateDirPath(dirName: string): string {
+    return path.join(__dirname, '../templates', dirName);
+  }
 
   private static getTemplatesDir(kind: ReportTemplateKind = 'STANDALONE'): string {
-    return path.join(__dirname, '../templates', TEMPLATE_DIR_BY_KIND[kind]);
+    return this.templateDirPath(TEMPLATE_DIR_BY_KIND[kind]);
+  }
+
+  private static hasIndex(dirName: string): boolean {
+    return fs.existsSync(path.join(this.templateDirPath(dirName), 'index.hbs'));
+  }
+
+  /** Template nhà dân có sẵn để chọn (thư mục đã có `index.hbs`). */
+  public static isTemplateAvailable(key: ReportTemplateKey): boolean {
+    return this.hasIndex(TEMPLATE_DIR_BY_KEY[key]);
   }
 
   /**
-   * Thư mục template thật sự dùng cho loại hồ sơ. Template chung cư được triển khai theo giai đoạn (GĐ1 căn U,
-   * GĐ2 khu vực M, GĐ3 Tòa mẹ): loại nào chưa có thư mục thì vẫn in bằng template nhà dân như trước.
+   * Thư mục template thật sự dùng. Chung cư: template của loại nếu đã có (GĐ1 căn U, GĐ2 khu vực M, GĐ3 Tòa mẹ),
+   * chưa có thì in bằng v1 nhà dân như trước, bỏ qua `templateKey`. Nhà dân: theo `templateKey`.
    */
-  private static resolveTemplateKind(kind: ReportTemplateKind): ReportTemplateKind {
-    if (kind === 'STANDALONE') return kind;
-    return fs.existsSync(path.join(this.getTemplatesDir(kind), 'index.hbs')) ? kind : 'STANDALONE';
+  private static selectTemplate(kind: ReportTemplateKind, templateKey: ReportTemplateKey): TemplateSelection {
+    if (kind !== 'STANDALONE') {
+      const dir = TEMPLATE_DIR_BY_KIND[kind];
+      return this.hasIndex(dir) ? { dir, mode: 'condo' } : { dir: RESIDENTIAL_V1_DIR, mode: 'global' };
+    }
+    if (templateKey === LEGACY_TEMPLATE_KEY) return { dir: RESIDENTIAL_V1_DIR, mode: 'global' };
+    const dir = TEMPLATE_DIR_BY_KEY[templateKey];
+    if (!this.hasIndex(dir)) {
+      console.error(`[ReportService:selectTemplate] Template ${templateKey} chưa có ${dir}/index.hbs`);
+      throw new ConflictError(`Template báo cáo ${templateKey} chưa sẵn sàng trên máy chủ`);
+    }
+    return { dir, mode: 'isolated' };
   }
 
-  private static latestTemplateMtime(kind: ReportTemplateKind): number {
-    const dirs = kind === 'STANDALONE' ? [this.getTemplatesDir()] : [this.getTemplatesDir(), this.getTemplatesDir(kind)];
+  private static latestTemplateMtime(dirNames: string[]): number {
     let latest = 0;
-    for (const dir of dirs) {
+    for (const dirName of dirNames) {
+      const dir = this.templateDirPath(dirName);
       for (const sub of ['', 'partials']) {
         const d = path.join(dir, sub);
         if (!fs.existsSync(d)) continue;
         for (const f of fs.readdirSync(d)) {
-          if (!/\.(hbs|css)$/.test(f)) continue;
+          if (!/\.(hbs|css|json)$/.test(f)) continue;
           latest = Math.max(latest, fs.statSync(path.join(d, f)).mtimeMs);
         }
       }
@@ -125,66 +270,94 @@ export class ReportService {
       args.pop();
       return args.every(Boolean);
     });
+    // Số liệu pháp lý thiếu thì in '---' (không bịa giá trị); số 0 vẫn là dữ liệu thật nên được in.
+    hbs.registerHelper('orDash', (value: unknown) =>
+      value === undefined || value === null || (typeof value === 'string' && (value.trim() === '' || value.trim() === '--')) ? '---' : value
+    );
   }
 
-  private static registerPartialsFrom(hbs: typeof Handlebars, partialsDir: string): void {
+  private static registerPartialsFrom(hbs: typeof Handlebars, partialsDir: string, only?: readonly string[]): void {
     if (!fs.existsSync(partialsDir)) return;
     for (const file of fs.readdirSync(partialsDir).filter((f) => f.endsWith('.hbs'))) {
-      hbs.registerPartial(file.replace(/\.hbs$/, ''), fs.readFileSync(path.join(partialsDir, file), 'utf8'));
+      const name = file.replace(/\.hbs$/, '');
+      if (only && !only.includes(name)) continue;
+      hbs.registerPartial(name, fs.readFileSync(path.join(partialsDir, file), 'utf8'));
     }
   }
 
-  /** Đăng ký helper + partial nhà dân vào môi trường Handlebars toàn cục (các script kiểm thử dùng). */
+  /** Đăng ký helper + partial nhà dân v1 vào môi trường Handlebars toàn cục (các script kiểm thử dùng). */
   public static registerHelpersAndPartials(baseDir?: string): void {
     this.registerHelpers(Handlebars);
     this.registerPartialsFrom(Handlebars, baseDir || path.join(this.getTemplatesDir(), 'partials'));
   }
 
   /**
-   * Biên dịch template theo loại hồ sơ. Nhà dân dùng môi trường Handlebars toàn cục như trước.
-   * Loại chung cư có môi trường riêng: nạp partial nhà dân trước rồi partial của loại đó (cùng tên thì ghi đè),
-   * để partial chung cư không bao giờ đè lên report nhà dân. CSS dùng chung `residential/styles.css`.
+   * Biên dịch template theo loại hồ sơ và (với nhà dân) theo `templateKey`. Gọi không tham số = v1 nhà dân,
+   * giữ nguyên hành vi cũ cho các script kiểm thử. Xem `TemplateBuildMode` về cách cô lập partial giữa các bộ.
    */
-  public static getCompiledTemplate(requestedKind: ReportTemplateKind = 'STANDALONE'): {
-    template: Handlebars.TemplateDelegate;
-    styles: string;
-  } {
-    const kind = this.resolveTemplateKind(requestedKind);
-    const cached = this.templateCache.get(kind);
-    if (cached && (process.env.NODE_ENV === 'production' || this.latestTemplateMtime(kind) <= cached.mtime)) {
-      return { template: cached.template, styles: cached.styles };
+  public static getCompiledTemplate(
+    requestedKind: ReportTemplateKind = 'STANDALONE',
+    templateKey: ReportTemplateKey = LEGACY_TEMPLATE_KEY
+  ): CompiledTemplateResult {
+    const { dir, mode } = this.selectTemplate(requestedKind, templateKey);
+    const watchedDirs = mode === 'global' ? [dir] : [RESIDENTIAL_V1_DIR, dir];
+    const cached = this.templateCache.get(dir);
+    if (cached && (process.env.NODE_ENV === 'production' || this.latestTemplateMtime(watchedDirs) <= cached.mtime)) {
+      const { mtime: _mtime, ...result } = cached;
+      return result;
     }
 
-    const mtime = this.latestTemplateMtime(kind);
-    const baseDir = this.getTemplatesDir();
-    const kindDir = this.getTemplatesDir(kind);
-    const templatePath = path.join(kindDir, 'index.hbs');
-    const stylesPath = path.join(baseDir, 'styles.css');
+    const mtime = this.latestTemplateMtime(watchedDirs);
+    const baseDir = this.templateDirPath(RESIDENTIAL_V1_DIR);
+    const ownDir = this.templateDirPath(dir);
+    const templatePath = path.join(ownDir, 'index.hbs');
+    const baseStylesPath = path.join(baseDir, 'styles.css');
+    const ownStylesPath = path.join(ownDir, 'styles.css');
 
     if (!fs.existsSync(templatePath)) {
       throw new Error(`Không tìm thấy file template Handlebars tại: ${templatePath}`);
     }
-    if (!fs.existsSync(stylesPath)) {
-      throw new Error(`Không tìm thấy file CSS Paged Media tại: ${stylesPath}`);
-    }
 
     let hbs: typeof Handlebars;
-    if (kind === 'STANDALONE') {
+    let cssParts: string[];
+    if (mode === 'global') {
       this.registerHelpersAndPartials();
       hbs = Handlebars;
-    } else {
+      cssParts = [baseStylesPath];
+    } else if (mode === 'condo') {
       hbs = Handlebars.create();
       this.registerHelpers(hbs);
       this.registerPartialsFrom(hbs, path.join(baseDir, 'partials'));
-      this.registerPartialsFrom(hbs, path.join(kindDir, 'partials'));
+      this.registerPartialsFrom(hbs, path.join(ownDir, 'partials'));
+      cssParts = fs.existsSync(ownStylesPath) ? [baseStylesPath, ownStylesPath] : [baseStylesPath];
+    } else {
+      hbs = Handlebars.create();
+      this.registerHelpers(hbs);
+      this.registerPartialsFrom(hbs, path.join(baseDir, 'partials'), V1_PARTIALS_SHARED_WITH_V2);
+      this.registerPartialsFrom(hbs, path.join(ownDir, 'partials'));
+      cssParts = [ownStylesPath];
     }
 
-    const kindStylesPath = path.join(kindDir, 'styles.css');
-    const kindStyles = kind !== 'STANDALONE' && fs.existsSync(kindStylesPath) ? `\n${fs.readFileSync(kindStylesPath, 'utf8')}` : '';
-    const styles = `${ReportFontsService.getFontCss()}\n${fs.readFileSync(stylesPath, 'utf8')}${kindStyles}`;
+    for (const cssPath of cssParts) {
+      if (!fs.existsSync(cssPath)) {
+        throw new Error(`Không tìm thấy file CSS Paged Media tại: ${cssPath}`);
+      }
+    }
+    const styles = [ReportFontsService.getFontCss(), ...cssParts.map((p) => fs.readFileSync(p, 'utf8'))].join('\n');
     const template = hbs.compile(fs.readFileSync(templatePath, 'utf8'));
-    this.templateCache.set(kind, { template, styles, mtime });
-    return { template, styles };
+    const render = readRenderOptions(ownDir);
+    const result: CompiledTemplateResult = { template, styles, render };
+    if (render.chromeHeaderFooter) {
+      for (const [key, file] of [['chromeHeader', 'chrome-header.hbs'], ['chromeFooter', 'chrome-footer.hbs']] as const) {
+        const filePath = path.join(ownDir, file);
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Template ${dir} bật chromeHeaderFooter nhưng thiếu ${file}`);
+        }
+        result[key] = hbs.compile(fs.readFileSync(filePath, 'utf8'));
+      }
+    }
+    this.templateCache.set(dir, { ...result, mtime });
+    return result;
   }
 
 
@@ -249,9 +422,55 @@ export class ReportService {
     rawReport: any,
     overrides?: any,
     maskPii: boolean = false,
-    enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
-    return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark);
+    enableWatermark: boolean = true,
+    templateKey: ReportTemplateKey = LEGACY_TEMPLATE_KEY
+  ): Promise<RenderedReportHtml> {
+    return this.generateResidentialHtmlFromReport(rawReport, overrides, maskPii, enableWatermark, templateKey);
+  }
+
+  /**
+   * Chọn template cho một lượt render: template đã đóng băng của Rev → template người gọi chọn → mặc định
+   * (`DEFAULT_RESIDENTIAL_TEMPLATE`). Chung cư luôn theo template của loại (nền v1); chọn v2 cho chung cư là lỗi.
+   */
+  public static resolveTemplateKey(
+    rawReport: Record<string, unknown>,
+    requested?: ReportTemplateKey | null,
+    frozen?: ReportTemplateKey | null
+  ): ReportTemplateKey {
+    if (resolveReportTemplateKind(rawReport) !== 'STANDALONE') {
+      if (requested && requested !== LEGACY_TEMPLATE_KEY) {
+        throw new BadRequestError(`Template ${requested} chỉ dành cho hồ sơ nhà dân, hồ sơ chung cư dùng template riêng của loại`);
+      }
+      return LEGACY_TEMPLATE_KEY;
+    }
+    if (frozen) return frozen;
+    return requested ?? defaultResidentialTemplateKey();
+  }
+
+  /**
+   * Template đã dùng khi phát hành Rev gắn với snapshot này. Rev phát hành trước khi có đa template không ghi khóa
+   * trong snapshot nên tra `report_releases.template_key` (cột mặc định v1). Null = snapshot chưa từng phát hành.
+   */
+  public static async getFrozenTemplateKey(
+    snapshotVersionId: string | null | undefined,
+    snapshot: ReportSnapshot
+  ): Promise<ReportTemplateKey | null> {
+    const fromSnapshot = snapshot.frozenReportData?.template_key;
+    if (isReportTemplateKey(fromSnapshot)) return fromSnapshot;
+    if (!snapshotVersionId) return null;
+    const res = await Database.query<{ template_key: string | null }>(
+      `SELECT template_key FROM report_releases
+       WHERE snapshot_version_id = $1 AND deleted_at IS NULL
+       ORDER BY revision DESC LIMIT 1;`,
+      [snapshotVersionId]
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    if (isReportTemplateKey(row.template_key)) return row.template_key;
+    console.error(
+      `[ReportService:getFrozenTemplateKey] Rev của snapshot ${snapshotVersionId} có template_key lạ "${row.template_key}", in bằng ${LEGACY_TEMPLATE_KEY}`
+    );
+    return LEGACY_TEMPLATE_KEY;
   }
 
   /** Mã căn hộ con / khu vực chung như trên Hub chung cư (U-060, M-005) để ghép vào mã ảnh. */
@@ -276,8 +495,12 @@ export class ReportService {
     rawReport: any,
     overrides?: any,
     maskPii: boolean = false,
-    enableWatermark: boolean = true
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
+    enableWatermark: boolean = true,
+    templateKey: ReportTemplateKey = LEGACY_TEMPLATE_KEY
+  ): Promise<RenderedReportHtml> {
+    // Báo lỗi template chưa sẵn sàng ngay, trước khi nạp ảnh. Chung cư bỏ qua templateKey (nền v1).
+    const effectiveKey = resolveReportTemplateKind(rawReport) === 'STANDALONE' ? templateKey : LEGACY_TEMPLATE_KEY;
+    this.selectTemplate(resolveReportTemplateKind(rawReport), effectiveKey);
     // Mỗi lượt render một kho ảnh riêng: hồ sơ nhiều ảnh hoặc nhiều lượt chạy song song không đẩy ảnh của nhau ra.
     return runWithRenderImageScope(async (scope) => {
       let activeReport = await applyCondoReportContext(applyOverridesToReport(rawReport, overrides));
@@ -355,9 +578,14 @@ export class ReportService {
       // Luôn kiểm 100% ảnh: bật watermark thì dập + xét dấu cũ, tắt thì chỉ kiểm ảnh có nạp được không.
       const watermark = await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel, { stamp: effectiveWatermark });
 
-      const { template, styles } = this.getCompiledTemplate(resolveReportTemplateKind(activeReport));
+      const compiled = this.getCompiledTemplate(resolveReportTemplateKind(activeReport), effectiveKey);
+      const { template, styles, render } = compiled;
+      const { dir } = this.selectTemplate(resolveReportTemplateKind(activeReport), effectiveKey);
+      const presenter = TEMPLATE_PRESENTERS[dir];
+      const extra = presenter ? presenter(viewModel, activeReport as Record<string, unknown>) : {};
       const html = template({
         ...viewModel,
+        ...extra,
         styles,
         isPiiMasked: maskPii,
         isGuestWatermark: maskPii,
@@ -372,7 +600,12 @@ export class ReportService {
         ).replace(/</g, '\\u003c'),
       });
 
-      return { html, viewModel, watermark };
+      const headerFooterContext = { ...viewModel, ...extra };
+      const chromeHeaderFooter =
+        render.chromeHeaderFooter && compiled.chromeHeader && compiled.chromeFooter
+          ? { headerTemplate: compiled.chromeHeader(headerFooterContext), footerTemplate: compiled.chromeFooter(headerFooterContext) }
+          : undefined;
+      return { html, viewModel, watermark, templateKey: effectiveKey, render, chromeHeaderFooter, presented: extra };
     });
   }
 
@@ -406,19 +639,45 @@ export class ReportService {
     await PhotoQcService.assertCropsReviewed(reportId);
   }
 
+  /** Tùy chọn in của template → tùy chọn của PdfRenderEngine. */
+  private static engineOptions(rendered: RenderedReportHtml): {
+    headerFooter: boolean;
+    tocTwoPass: boolean;
+    waitForReportReady: boolean;
+    chromeHeaderFooter?: { headerTemplate: string; footerTemplate: string };
+  } {
+    return {
+      headerFooter: rendered.render.headerFooter,
+      tocTwoPass: rendered.render.tocTwoPass,
+      waitForReportReady: rendered.render.waitForReportReady,
+      chromeHeaderFooter: rendered.chromeHeaderFooter,
+    };
+  }
+
   public static async renderFinalPdf(
     resolved: ResolvedReport,
     snapshot: ReportSnapshot,
     revision: number,
-    pinnedConfig?: ReportContentConfig
-  ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string; watermark?: WatermarkVerifyReport }> {
+    pinnedConfig?: ReportContentConfig,
+    templateKey?: ReportTemplateKey
+  ): Promise<{
+    pdfBuffer: Buffer;
+    reportNo: string;
+    buildingId: string;
+    watermark?: WatermarkVerifyReport;
+    templateKey: ReportTemplateKey;
+    presented: Record<string, unknown>;
+  }> {
     // Chốt chặn crop chưa duyệt chạy ở ReportReleaseService.issue (trước transaction khoá hàng).
     const finalReport = this.buildFinalReport(resolved, snapshot, revision);
     if (pinnedConfig) {
       finalReport.reportContentConfig = pinnedConfig;
     }
     return RenderQueue.run(async () => {
-      const { html, viewModel, watermark } = await this.generateResidentialHtmlFromReport(finalReport, undefined, false, true);
+      const frozenKey = snapshot.frozenReportData?.template_key;
+      const key = templateKey ?? (isReportTemplateKey(frozenKey) ? frozenKey : LEGACY_TEMPLATE_KEY);
+      const rendered = await this.generateResidentialHtmlFromReport(finalReport, undefined, false, true, key);
+      const { html, viewModel, watermark } = rendered;
       // Bản Rev pháp lý: 100% ảnh phải được dập thật (không còn cờ môi trường nào cho lách).
       this.assertWatermarkComplete(watermark, 'Rev');
       const reportNo = viewModel.metadata.reportNo;
@@ -429,11 +688,9 @@ export class ReportService {
         headerTitle: REPORT_PDF_HEADER_TITLE,
         // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
         selfContainedHtml: true,
-        waitForReportReady: true,
-        headerFooter: true,
-        tocTwoPass: true,
+        ...this.engineOptions(rendered),
       });
-      return { pdfBuffer, reportNo, buildingId, watermark };
+      return { pdfBuffer, reportNo, buildingId, watermark, templateKey: rendered.templateKey, presented: rendered.presented };
     });
   }
 
@@ -442,13 +699,16 @@ export class ReportService {
     overrides: unknown,
     maskPii: boolean,
     enableWatermark: boolean,
-    revision?: number
-  ): Promise<{ html: string; viewModel: ReportViewModel; watermark: WatermarkVerifyReport }> {
+    revision?: number,
+    requestedTemplate?: ReportTemplateKey | null
+  ): Promise<RenderedReportHtml> {
     const effectiveOverrides = resolved.status === 'APPROVED' ? undefined : overrides;
     let reportData = resolved.raw;
+    let frozenTemplate: ReportTemplateKey | null = null;
     if (resolved.status === 'APPROVED') {
+      let approved: Awaited<ReturnType<typeof ReportSnapshotService.getSnapshotForRevision>> = null;
       try {
-        const approved = await ReportSnapshotService.getSnapshotForRevision(resolved.id, revision);
+        approved = await ReportSnapshotService.getSnapshotForRevision(resolved.id, revision);
         if (approved?.snapshot) {
           reportData = ReportSnapshotService.applySnapshotToReport(resolved.raw, approved.snapshot);
           reportData.status = 'APPROVED';
@@ -456,20 +716,27 @@ export class ReportService {
       } catch (err) {
         console.warn(`[ReportService] Không thể tải snapshot phê duyệt cho report ${resolved.id}:`, err);
       }
+      // Ngoài try: không tra được template của Rev thì phải báo lỗi, không lặng lẽ in Rev bằng template khác.
+      if (approved?.snapshot) {
+        frozenTemplate = await this.getFrozenTemplateKey(approved.versionId, approved.snapshot);
+      }
     }
-    return this.generateResidentialHtmlFromReport(reportData, effectiveOverrides, maskPii, enableWatermark);
+    const templateKey = this.resolveTemplateKey(resolved.raw, requestedTemplate, frozenTemplate);
+    return this.generateResidentialHtmlFromReport(reportData, effectiveOverrides, maskPii, enableWatermark, templateKey);
   }
 
   public static async renderDraftPdf(
     resolved: ResolvedReport,
     overrides: unknown,
     enableWatermark: boolean,
-    revision?: number
-  ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string }> {
+    revision?: number,
+    requestedTemplate?: ReportTemplateKey | null
+  ): Promise<{ pdfBuffer: Buffer; reportNo: string; buildingId: string; templateKey: ReportTemplateKey }> {
     // Hồ sơ APPROVED render theo snapshot đã đóng băng nên không cần gate; bản nháp phải duyệt xong crop.
     if (resolved.status !== 'APPROVED') await this.assertPhotoQcCropsReviewed(resolved.id);
     return RenderQueue.run(async () => {
-      const { html, viewModel, watermark } = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision);
+      const rendered = await this.renderDraftHtml(resolved, overrides, false, enableWatermark, revision, requestedTemplate);
+      const { html, viewModel, watermark } = rendered;
       // PDF nháp cũng chặn cứng như Rev (chốt 13/11/2026): bản nháp hay được gửi đi, không để ảnh lỗi lọt ra file.
       this.assertWatermarkComplete(watermark, 'nháp');
       const reportNo = viewModel.metadata.reportNo;
@@ -480,11 +747,9 @@ export class ReportService {
         headerTitle: REPORT_PDF_HEADER_TITLE,
         // Ảnh, font, bản đồ đã nhúng data URI: networkidle2 không ổn định với HTML lớn, chỉ chờ sự kiện load.
         selfContainedHtml: true,
-        waitForReportReady: true,
-        headerFooter: true,
-        tocTwoPass: true,
+        ...this.engineOptions(rendered),
       });
-      return { pdfBuffer, reportNo, buildingId };
+      return { pdfBuffer, reportNo, buildingId, templateKey: rendered.templateKey };
     });
   }
 }

@@ -108,8 +108,10 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     isCurrentPdfLoading,
     handleViewCurrentPdf,
     handleCloseCurrentPdf,
+    templateControl,
   } = usePhase1ReportPreview({
     setActionMessage,
+    canChooseTemplate: user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN',
   });
 
   const [auditStudioReportId, setAuditStudioReportId] = useState<string | null>(null);
@@ -271,6 +273,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         isCurrentPdfLoading={isCurrentPdfLoading}
         handleViewCurrentPdf={handleViewCurrentPdf}
         handleCloseCurrentPdf={handleCloseCurrentPdf}
+        templateControl={templateControl}
       />
 
       {showSvgExportModal && (

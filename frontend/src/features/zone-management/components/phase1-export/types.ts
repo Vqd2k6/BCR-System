@@ -223,3 +223,39 @@ export interface Phase1ExportModuleBoxProps {
   className?: string;
   hideZoneSelect?: boolean;
 }
+
+/** Template trình bày report nhà dân (chốt 14/11/2026). Chung cư luôn theo template của loại, không chọn. */
+export type ReportTemplateKey = 'residential_v1' | 'residential_v2';
+
+export interface ReportTemplateOption {
+  key: ReportTemplateKey;
+  label: string;
+  /** Máy chủ đã có thư mục template này (v2 chỉ bật sau khi dựng xong). */
+  available: boolean;
+}
+
+export interface ReportTemplateCatalog {
+  defaultKey: ReportTemplateKey;
+  templates: ReportTemplateOption[];
+}
+
+export const isReportTemplateKey = (value: unknown): value is ReportTemplateKey =>
+  value === 'residential_v1' || value === 'residential_v2';
+
+/** Hồ sơ nhà dân (không phải chung cư) mới được chọn template. */
+export const isResidentialParcel = (parcel: Pick<ExportParcelItem, 'buildingType'>): boolean =>
+  !['CONDOMINIUM', 'CONDO'].includes(String(parcel.buildingType || '').toUpperCase());
+
+/** Gói điều khiển chọn template truyền xuống modal xem trước và hộp phát hành Rev. */
+export interface ReportTemplateControl {
+  /** Template máy chủ đã sẵn sàng. */
+  options: ReportTemplateOption[];
+  defaultKey: ReportTemplateKey | null;
+  /** null = theo mặc định máy chủ. */
+  choice: ReportTemplateKey | null;
+  /** Template máy chủ báo đã dùng cho bản xem gần nhất (header X-Report-Template). */
+  activeKey: ReportTemplateKey | null;
+  /** Hồ sơ đang xem là nhà dân, người dùng là Admin và máy chủ có ≥ 2 template. */
+  canSelect: boolean;
+  onChange: (key: ReportTemplateKey) => void | Promise<void>;
+}

@@ -42,3 +42,26 @@ export function resolveReportTemplateKind(rawReport: Record<string, unknown>): R
 export function isCondoChildKind(kind: ReportTemplateKind): kind is 'MASTER_AREA' | 'CONDO_UNIT' {
   return kind === 'MASTER_AREA' || kind === 'CONDO_UNIT';
 }
+
+/**
+ * Bộ template trình bày của hồ sơ nhà dân (plan đa template, chốt 14/11/2026). Chỉ áp cho `STANDALONE`:
+ * - `residential_v1`: thư mục `residential/`, ĐÓNG BĂNG — đồng thời là nền kế thừa của mọi template chung cư.
+ * - `residential_v2`: thư mục `residential-v2/`, môi trường Handlebars riêng, không đụng v1.
+ * Rev đã phát hành luôn render lại bằng đúng template đã dùng lúc phát hành (`report_releases.template_key`).
+ */
+export const REPORT_TEMPLATE_KEYS = ['residential_v1', 'residential_v2'] as const;
+export type ReportTemplateKey = (typeof REPORT_TEMPLATE_KEYS)[number];
+export const LEGACY_TEMPLATE_KEY: ReportTemplateKey = 'residential_v1';
+
+export function isReportTemplateKey(value: unknown): value is ReportTemplateKey {
+  return typeof value === 'string' && (REPORT_TEMPLATE_KEYS as readonly string[]).includes(value);
+}
+
+/** Template mặc định cho bản nháp nhà dân, đọc `DEFAULT_RESIDENTIAL_TEMPLATE`; giá trị lạ thì log và dùng v1. */
+export function defaultResidentialTemplateKey(): ReportTemplateKey {
+  const raw = process.env.DEFAULT_RESIDENTIAL_TEMPLATE?.trim();
+  if (!raw) return LEGACY_TEMPLATE_KEY;
+  if (isReportTemplateKey(raw)) return raw;
+  console.error(`[ReportTemplateKind:default] DEFAULT_RESIDENTIAL_TEMPLATE="${raw}" không hợp lệ, dùng ${LEGACY_TEMPLATE_KEY}`);
+  return LEGACY_TEMPLATE_KEY;
+}
