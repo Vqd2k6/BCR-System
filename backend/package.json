@@ -7,6 +7,7 @@
     "build": "tsc && mkdir -p dist/modules/report && rm -rf dist/modules/report/templates && cp -r src/modules/report/templates src/modules/report/assets dist/modules/report/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "test:condo-floors": "ts-node --transpile-only src/scripts/test_condo_floor_integrity_rollback.ts",
     "db:migrate": "ts-node src/database/migration-runner.ts",
     "test": "ts-node scripts/test-apis.ts",
     "test:api": "ts-node scripts/test-apis.ts",

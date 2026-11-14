@@ -50,4 +50,4 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
 1. `useCondoMasterSurveyStore.ts` còn mặc định `foundationType`/`structureSystem` = phần tử đầu danh sách (ảnh hưởng ECS/VI) — chưa hỏi người dùng.
 2. GĐ C: vấn đáp 5 câu ở mục 5 của plan GĐ C rồi mới code.
 3. Dữ liệu local còn dải chồng (Tầng 1 → {1,3,4} trong khi 3, 4 có mặt bằng riêng): tự gỡ khi Admin lưu lại Tầng 1; không sửa dữ liệu bằng script.
-4. Chưa chạy migration thật, chưa test API end-to-end / trình duyệt.
+4. Chưa chạy migration thật, chưa thử trên trình duyệt. Logic repository đã kiểm bằng `cd backend && npm run test:condo-floors` (10 ca, chạy trong transaction ROLLBACK).
