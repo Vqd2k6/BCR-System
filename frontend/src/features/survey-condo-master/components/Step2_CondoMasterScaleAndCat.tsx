@@ -286,7 +286,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                   updateFormData({ structureSystem: e.target.value });
                 }
               }}
-              options={STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))}
+              options={[{ value: '', label: '--- Chọn hệ kết cấu chịu lực ---' }, ...STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))]}
             />
             {isCustomStructure && (
               <Input
@@ -307,7 +307,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
               disabled={isReadOnly}
               value={formData.foundationType || ''}
               onChange={(e) => updateFormData({ foundationType: e.target.value })}
-              options={FOUNDATION_TYPES.map((f) => ({ value: f, label: f }))}
+              options={[{ value: '', label: '--- Chọn loại móng công trình ---' }, ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f }))]}
             />
           </div>
 

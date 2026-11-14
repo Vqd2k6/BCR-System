@@ -6,8 +6,6 @@ import { calculateViScore } from '../../survey-phase1/engine/viCalculator';
 import {
   type CondoMasterFormData,
   CONDO_USAGE_FUNCTIONS,
-  CONDO_FOUNDATION_TYPES,
-  CONDO_STRUCTURAL_SYSTEMS,
 } from '../types/condo-master.types';
 import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
@@ -56,8 +54,9 @@ const getDefaultCondoMasterFormData = (parcelId: string): CondoMasterFormData =>
     ...base,
     objectGroup: 'IMPORTANT',
     usageFunction: CONDO_USAGE_FUNCTIONS[0], // Cố định Chung cư/ Toà nhiều căn hộ
-    foundationType: CONDO_FOUNDATION_TYPES[0],
-    structureSystem: CONDO_STRUCTURAL_SYSTEMS[0],
+    // Hệ móng / hệ kết cấu là số liệu pháp lý (ảnh hưởng ECS/VI): để trống bắt KSV chọn, Bước 2 chặn nếu thiếu
+    foundationType: '',
+    structureSystem: '',
     // Quy mô tòa là số liệu pháp lý: để trống bắt KSV nhập (hoặc nạp từ thửa / thông số đã lưu), không điền số giả
     unitsPerFloor: '',
     totalUnitsCount: '',
