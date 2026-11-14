@@ -41,18 +41,21 @@ Script từ chối ghi ngoài `metro2_audit_test` nếu thiếu `--confirm-real-
 ### 3. Hoàn tất bảo toàn ảnh
 
 Mức cao:
+
 - [ ] Đối chiếu 53 hồ sơ có v0 là `ADMIN_DIFF_SAVE` với `cloud_snapshot_20261016_053945.json`. Chưa xác minh v0 chụp trước hay sau khi sửa.
 - [ ] Nhánh Admin sửa tại chỗ (`survey.controller.ts`, `allowLockedReport`) chưa tự tạo version trước khi ghi đè.
 - [ ] Test rollback theo từng loại ảnh: P-01 đến P-04, CAD, overview, CTX, CU, biên bản, hoàn công, vắng chủ, `SAG`, lún nghiêng.
 - [ ] Đo độ lệch tọa độ ranh thửa sau rollback. Rollback ghi lại `cadastral_polygon_geom`, `location_geom` với sai khác ở các chữ số cuối, chưa biết bao nhiêu mét.
 
 Mức vừa:
+
 - [ ] Chặn xóa ảnh CU cuối có thông báo rõ: `D-xx phải còn ít nhất 1 ảnh cận cảnh`. Hiện bị chặn do lỗi `NOT NULL` ở `audit-modification.service.ts`, Admin gặp lỗi DB thô.
 - [ ] Sửa TC13, TC14 để kiểm tra đúng việc bị chặn. Viết lại TC19 tự tạo hồ sơ, vì P-01 của hồ sơ `43d992fa` đang `ACTIVE`, test đã cũ.
 - [ ] Ghi registry khi đổi ảnh tổng quan qua form.
 - [ ] Bổ sung registry cho 1.104 CTX và 421 CU cũ. Ghi DB nên cần duyệt riêng.
 
 Mức thấp:
+
 - [ ] `floor_surveys`, `survey_identification_photos` vẫn xóa hàng rồi ghi lại vì chưa có cột xóa mềm. Muốn bỏ cần migration; URL cũ đã được giữ trong registry.
 
 ### 4. PDF chung cư (để sau)
@@ -88,3 +91,92 @@ DB_NAME=metro2_audit_test npx ts-node src/scripts/test_survey_resave_preservatio
 DB_NAME=metro2_audit_test npx ts-node src/scripts/test_zone_ctx_overlay.ts
 npx ts-node src/scripts/audit_orphan_blob_photos.ts   # Chỉ đọc, cần token R2
 ```
+
+# Kế hoạch: PDF tải về bị ngắt đoạn, trống nhiều (preview thì mượt)
+
+## Goal Description
+
+Trong ảnh bạn gửi, PDF có Mục III, IV, V mỗi mục chiếm **một trang riêng nhưng chỉ đầy ~40–45%**, phần còn lại trống. Preview HTML thì liền mạch. Mục tiêu: PDF chảy liên tục như preview, không còn khoảng trống do ngắt trang cưỡng bức.
+
+## Nguyên nhân gốc (đã đối chiếu code)
+
+Preview và PDF dùng **hai chế độ CSS khác nhau** của cùng một template ([styles.css](file:///Users/vqd2k6/.gemini/antigravity/worktrees/KSat_QHoach/fix_report_watermark_ocr/backend/src/modules/report/templates/residential/styles.css)):
+
+|                      | Preview (`@media screen`)                                 | PDF (`@media print`, Puppeteer)                                              |
+| -------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `.a4-page-sheet`     | Khối cao tự do, `min-height: 297mm`, có bóng, **tự giãn** | `break-after: page !important` → **mỗi sheet bắt đầu trang mới**             |
+| `.page-break` (L165) | Không có tác dụng trên màn hình                           | `break-before: page` → **ép sang trang mới**                                 |
+| `tr`, `.avoid-break` | Vô nghĩa                                                  | `break-inside: avoid` → đẩy nguyên khối xuống trang sau, để lại khoảng trống |
+
+Ba chỗ ép ngắt trang khớp đúng ảnh của bạn:
+
+1. [page-04-sections-3-4.hbs:52](file:///Users/vqd2k6/.gemini/antigravity/worktrees/KSat_QHoach/fix_report_watermark_ocr/backend/src/modules/report/templates/residential/partials/page-04-sections-3-4.hbs#L52): `<h2 class="chapter-header page-break">` Mục **IV** → III và IV tách trang.
+2. Hết sheet III+IV → `break-after: page` → Mục **V** (sheet mới, [page-05](file:///Users/vqd2k6/.gemini/antigravity/worktrees/KSat_QHoach/fix_report_watermark_ocr/backend/src/modules/report/templates/residential/partials/page-05-sections-5-6-summary.hbs)) sang trang mới.
+3. [page-05-sections-5-6-summary.hbs:83](file:///Users/vqd2k6/.gemini/antigravity/worktrees/KSat_QHoach/fix_report_watermark_ocr/backend/src/modules/report/templates/residential/partials/page-05-sections-5-6-summary.hbs#L83): `page-break` Mục **VI**.
+
+Toàn báo cáo có ~27 `a4-page-sheet`, mỗi cái ép một trang mới nên mọi mục ngắn đều để trống cuối trang. Preview không bị vì trên màn hình sheet chỉ là khung giấy giả, không ngắt thật.
+
+> [!NOTE]
+> Dòng "DRAFT – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ" trong ảnh là bản xuất trước khi tôi gỡ banner (commit `e959edc`), không liên quan lỗi này.
+
+## Open Questions
+
+> [!IMPORTANT]
+> Bạn muốn mức gom trang nào? Tôi đề xuất **Phương án A**.
+>
+> - **A (đề xuất, ít rủi ro):** chỉ bỏ ép ngắt ở các mục ngắn I–VI (bỏ `page-break` ở IV, VI và cho III→IV→V→VI chảy liên tục). Các phần lớn (bìa, chữ ký, phụ lục ảnh, CAD, biên bản) giữ nguyên mỗi phần một trang mới.
+> - **B (gom mạnh):** cho toàn bộ thân báo cáo (Mục I → IX) chảy liên tục, chỉ ngắt trước phụ lục.
+> - **C:** giữ mỗi Mục một trang nhưng giảm khoảng trống bằng cách thu nhỏ lề/cỡ chữ (không khuyến nghị, đổi định dạng pháp lý).
+>
+> Ngoài ra: có bắt buộc Mục I, II, VII, VIII, IX phải bắt đầu trang mới (theo mẫu 0410 của chủ đầu tư) không?
+
+## Proposed Changes (theo Phương án A)
+
+### Template
+
+#### [MODIFY] page-04-sections-3-4.hbs
+
+Bỏ class `page-break` ở `<h2 ... sec-4>` (giữ `chapter-header`; CSS đã có `break-after: avoid` để tiêu đề không mồ côi).
+
+#### [MODIFY] page-05-sections-5-6-summary.hbs
+
+Bỏ `page-break` ở `<h2 ... sec-6>`.
+
+#### [MODIFY] styles.css (`@media print`)
+
+Thêm lớp mới để các sheet liền kề nhau không bị cắt trang:
+
+```css
+@media print {
+  /* Sheet chảy liền: không ép trang mới sau nó */
+  .a4-page-sheet.flow-continue {
+    break-after: auto !important;
+    page-break-after: auto !important;
+    break-inside: auto !important;
+  }
+  .a4-page-sheet.flow-continue + .a4-page-sheet {
+    padding-top: 0 !important;
+  }
+}
+```
+
+và gắn `flow-continue` cho sheet III–IV (page-04) để nối với sheet V–VI (page-05). Sửa `page-break-inside: avoid !important` của `.a4-page-sheet` thành `auto` cho các sheet này (hiện chỉ "avoid" nên khi sheet dài hơn trang dễ nhảy trang sớm).
+
+#### Giảm khoảng trống phụ
+
+Kiểm tra `.avoid-break` trên khối lớn (`break-inside: avoid` ở L427, L770, L1170–1178): chỉ giữ cho khối nhỏ (ảnh+chú thích), bỏ cho khối bảng dài.
+
+## Verification Plan
+
+### Automated
+
+- Render PDF một hồ sơ mẫu bằng script có sẵn và đếm trang/độ trống bằng `pdfjs-dist` (đã là dependency): so số trang và % vùng trắng cuối mỗi trang trước/sau.
+- `cd backend && npx tsc --noEmit`; chạy lại `test_report_v3_business_cases.ts` để chắc template không vỡ.
+
+### Manual
+
+- Xuất lại căn trong ảnh (Mục III–V): kỳ vọng III+IV chung một trang, V+VI nối tiếp, không còn nửa trang trống.
+- Kiểm tra mục lục (số trang `tocPageNumbers`) vẫn khớp sau khi gom trang; nếu lệch tôi sẽ chỉnh bộ tính số trang.
+
+> [!WARNING]
+> Gom trang làm **số trang mục lục thay đổi** so với các bản đã phát hành trước. Rev đã lưu trên R2 không bị đổi, chỉ PDF tạo mới.

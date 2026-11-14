@@ -1,0 +1,53 @@
+{{!--
+  Script riêng của v2 (không dùng report-scripts của v1: script đó dò class của bố cục v1).
+  Hợp đồng với PdfRenderEngine:
+  - window.__sectionHeadings: tiêu đề [data-section] .chapter-header theo thứ tự, để engine dò trang thật (tocTwoPass).
+  - [data-toc-target]: để "--" cho tới khi engine điền số trang thật ở lượt 2. Bản xem trước HTML không chia trang
+    nên không tự đoán số trang (số trang chỉ đúng trong PDF).
+  - window.__reportReady: bật sau khi mọi ảnh đã tải (hoặc quá 3 giây).
+  Ảnh v2 đã dập watermark ở máy chủ nên không cần dựng lớp phủ .photo-stage như v1.
+--}}
+<script>
+  (function() {
+    function whenLoaded(img) {
+      return new Promise(function(resolve) {
+        if (img.complete && img.naturalWidth > 0) return resolve();
+        var timer = setTimeout(resolve, 3000);
+        img.addEventListener('load', function() { clearTimeout(timer); resolve(); }, { once: true });
+        img.addEventListener('error', function() { clearTimeout(timer); resolve(); }, { once: true });
+      });
+    }
+
+    function collectHeadings() {
+      var headings = [];
+      var seen = {};
+      document.querySelectorAll('[data-section]').forEach(function(secEl) {
+        var key = secEl.getAttribute('data-section');
+        if (!key || seen[key]) return;
+        var h = secEl.matches('.chapter-header') ? secEl : secEl.querySelector('.chapter-header');
+        if (!h) return;
+        seen[key] = true;
+        headings.push({ key: key, text: (h.textContent || '').replace(/\s+/g, ' ').trim() });
+      });
+      window.__sectionHeadings = headings;
+    }
+
+    function run() {
+      document.querySelectorAll('[data-toc-target]').forEach(function(el) {
+        if (!el.textContent.trim()) el.textContent = '--';
+      });
+      collectHeadings();
+      var jobs = Array.prototype.map.call(document.querySelectorAll('img'), whenLoaded);
+      Promise.all(jobs).then(function() {
+        window.__reportReady = true;
+        document.body.setAttribute('data-report-ready', '1');
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', run);
+    } else {
+      run();
+    }
+  })();
+</script>

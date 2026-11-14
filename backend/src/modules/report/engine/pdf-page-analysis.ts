@@ -130,23 +130,37 @@ export async function locateSectionPages(pdf: Buffer, headings: SectionHeading[]
   }
 }
 
+/** Lề trên/dưới (pt) dùng để tách thân trang khỏi đầu/chân trang. Mặc định = lề v1 (18 mm). */
+export interface PageMarginsPt {
+  top: number;
+  bottom: number;
+}
+
+const MM_TO_PT = 72 / 25.4;
+/** Lề của template nhà dân v2 (`residential-v2/styles.css`: @page margin 30mm 20mm 18mm 20mm). */
+export const V2_PAGE_MARGINS_PT: PageMarginsPt = { top: 30 * MM_TO_PT, bottom: 18 * MM_TO_PT };
+
 /** Đo từng trang PDF: mức lấp đầy thân trang, chữ ở lề trên/dưới, số ảnh. */
-export async function analyzePdfPages(pdf: Buffer): Promise<PdfPageStats[]> {
+export async function analyzePdfPages(
+  pdf: Buffer,
+  margins: PageMarginsPt = { top: PAGE_MARGIN_PT, bottom: PAGE_MARGIN_PT }
+): Promise<PdfPageStats[]> {
   const doc = await openPdf(pdf);
   try {
     const stats: PdfPageStats[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const { height, lines } = await readPageLines(page);
-      const bodyBottom = height - PAGE_MARGIN_PT;
-      const body = lines.filter((l) => l.top >= PAGE_MARGIN_PT - 4 && l.top <= bodyBottom + 4);
+      const bodyTop = margins.top;
+      const bodyBottom = height - margins.bottom;
+      const body = lines.filter((l) => l.top >= bodyTop - 4 && l.top <= bodyBottom + 4);
       const maxTop = body.length ? Math.max(...body.map((l) => l.top)) : 0;
-      const fillPct = body.length ? Math.round(((maxTop - PAGE_MARGIN_PT) / (bodyBottom - PAGE_MARGIN_PT)) * 100) : 0;
+      const fillPct = body.length ? Math.round(((maxTop - bodyTop) / (bodyBottom - bodyTop)) * 100) : 0;
       stats.push({
         page: n,
         fillPct: Math.max(0, Math.min(100, fillPct)),
         firstLine: body[0]?.text.slice(0, 80) ?? '',
-        headerText: lines.filter((l) => l.top < PAGE_MARGIN_PT - 4).map((l) => l.text).join(' | '),
+        headerText: lines.filter((l) => l.top < bodyTop - 4).map((l) => l.text).join(' | '),
         footerText: lines.filter((l) => l.top > bodyBottom + 4).map((l) => l.text).join(' | '),
       });
       page.cleanup();

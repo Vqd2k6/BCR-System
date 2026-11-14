@@ -5,7 +5,7 @@
     <div class="v2-photo-grid v2-elevation-grid">
       {{#each v2.elevationPhotos}}
         <figure class="v2-figure">
-          <img src="{{this.src}}" alt="{{this.caption.vi}}">
+          <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
           <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
         </figure>
       {{/each}}

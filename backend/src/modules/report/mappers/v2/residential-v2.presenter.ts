@@ -232,9 +232,13 @@ export interface ResidentialV2View {
   floors: Array<{
     code: string;
     floorName: BilingualText;
+    /** Sơ đồ kiến trúc + ghim Z (và E khi không có sơ đồ kết cấu riêng). */
     mapSrc: string | null;
     pins: CadPinOverlayItem[];
-    rows: Array<FloorDefectSummaryRow & { typeLabel: BilingualText; burlandLabel: BilingualText }>;
+    /** Sơ đồ kết cấu + ghim E, khi tầng có sơ đồ kết cấu riêng (in dưới sơ đồ kiến trúc, cùng khổ rộng). */
+    structuralMapSrc: string | null;
+    structuralPins: CadPinOverlayItem[];
+    rows: Array<FloorDefectSummaryRow & { typeLabel: BilingualText; burlandLabel: BilingualText; widthMmDisplay: string | null }>;
     closeUps: Array<{ src: string; caption: BilingualText }>;
   }>;
   risk: RiskV2Result;
@@ -530,10 +534,15 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
       return {
         code: `A2.${i + 1}`,
         floorName: f.floorName,
+        // Mã D đánh theo vùng/cấu kiện (D4) nên sơ đồ ghim Z/E như v1; góc xoay sơ đồ đã áp ở mapper (không tự xoay).
         mapSrc: f.damageMapBase64 || f.damageMapUrl || null,
-        pins: (f.cadPins ?? []).filter((p) => p.type === 'DEFECT'),
+        pins: f.cadPins ?? [],
+        structuralMapSrc: f.hasStructuralCadMap ? f.structuralMapBase64 || f.structuralMapUrl || null : null,
+        structuralPins: f.hasStructuralCadMap ? f.cadStructuralPins ?? [] : [],
         rows: f.defectSummaryRows.map((r) => ({
           ...r,
+          // Cột "Rộng (mm)": cùng số ECS dùng; không đọc được thì in ---.
+          widthMmDisplay: (() => { const w = parseWidthMm(r.widthMm); return w === null ? null : fmtMmEn(w); })(),
           typeLabel: r.defectType,
           burlandLabel: BURLAND_GRADE_LABELS[r.burlandGrade] ?? { vi: EM_DASH, en: EM_DASH },
         })),

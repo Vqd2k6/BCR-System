@@ -126,10 +126,11 @@ const TEMPLATE_DIR_BY_KEY: Record<ReportTemplateKey, string> = {
 };
 
 /**
- * Partial của v1 mà v2 nạp lại (v2 có partial cùng tên thì bản của v2 thắng): khối báo ảnh chưa dập watermark +
- * script xác nhận dấu cũ trong preview, và script dựng Mục lục / `__sectionHeadings` / `__reportReady` cho engine.
+ * Partial của v1 mà v2 nạp lại: khối báo ảnh chưa dập watermark + script xác nhận dấu cũ trong preview.
+ * Script Mục lục / `__sectionHeadings` / `__reportReady` của v2 nằm ở `residential-v2/partials/v2-scripts.hbs`
+ * (script v1 dò class của bố cục v1 nên không chạy đúng trên DOM v2).
  */
-const V1_PARTIALS_SHARED_WITH_V2 = ['watermark-issues', 'report-scripts'];
+const V1_PARTIALS_SHARED_WITH_V2 = ['watermark-issues'];
 
 /**
  * Cách dựng môi trường Handlebars:
@@ -320,6 +321,7 @@ export class ReportService {
 
     let hbs: typeof Handlebars;
     let cssParts: string[];
+    let fontCss = ReportFontsService.getFontCss();
     if (mode === 'global') {
       this.registerHelpersAndPartials();
       hbs = Handlebars;
@@ -336,6 +338,8 @@ export class ReportService {
       this.registerPartialsFrom(hbs, path.join(baseDir, 'partials'), V1_PARTIALS_SHARED_WITH_V2);
       this.registerPartialsFrom(hbs, path.join(ownDir, 'partials'));
       cssParts = [ownStylesPath];
+      // v2: font sans nhúng (Liberation Sans) để PDF giống nhau trên macOS và máy chủ Linux.
+      fontCss = ReportFontsService.getSansFontCss();
     }
 
     for (const cssPath of cssParts) {
@@ -343,7 +347,7 @@ export class ReportService {
         throw new Error(`Không tìm thấy file CSS Paged Media tại: ${cssPath}`);
       }
     }
-    const styles = [ReportFontsService.getFontCss(), ...cssParts.map((p) => fs.readFileSync(p, 'utf8'))].join('\n');
+    const styles = [fontCss, ...cssParts.map((p) => fs.readFileSync(p, 'utf8'))].join('\n');
     const template = hbs.compile(fs.readFileSync(templatePath, 'utf8'));
     const render = readRenderOptions(ownDir);
     const result: CompiledTemplateResult = { template, styles, render };

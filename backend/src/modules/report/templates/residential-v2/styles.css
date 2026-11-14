@@ -3,10 +3,10 @@
    Lề trên/dưới chừa chỗ cho đầu/chân trang Chrome (chrome-header.hbs / chrome-footer.hbs).
    Mục I–IX chảy liên tục; Bìa, Mục lục, từng Phụ lục bắt đầu trang mới.
    ============================================================================ */
-@page { size: A4; margin: 30mm 15mm 18mm 15mm; }
+@page { size: A4; margin: 30mm 20mm 18mm 20mm; }
 
 :root {
-  --v2-font: Arial, 'Liberation Sans', Helvetica, sans-serif;
+  --v2-font: 'V2 Liberation Sans', 'Liberation Sans', Arial, Helvetica, sans-serif;
   --v2-border: 1px solid #000000;
 }
 
@@ -25,7 +25,7 @@ body.v2 {
 /* Xem trước trên màn hình: khung giấy A4 tách nhau. Khi in, khung không có viền / đổ bóng. */
 @media screen {
   body.v2 { background: #d9dde3; padding: 12px 0; }
-  .a4-page-sheet { width: 210mm; min-height: 297mm; margin: 0 auto 12px; padding: 30mm 15mm 18mm; background: #ffffff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+  .a4-page-sheet { width: 210mm; min-height: 297mm; margin: 0 auto 12px; padding: 30mm 20mm 18mm; background: #ffffff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
 }
 @media print {
   .a4-page-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
@@ -38,19 +38,19 @@ body.v2 {
 
 /* Tiêu đề chương */
 .chapter-header {
-  font-size: 12.5pt;
+  font-size: 12pt;
   font-weight: bold;
   border-bottom: 1.5px solid #000000;
   padding-bottom: 3px;
   margin: 14px 0 10px;
   break-after: avoid;
 }
-.sub-header { font-size: 11pt; font-weight: bold; margin: 12px 0 6px; break-after: avoid; }
+.sub-header { font-size: 10.5pt; font-weight: bold; margin: 12px 0 6px; break-after: avoid; }
 .sub-header .en { font-weight: bold; font-style: normal; }
 
 /* Bảng kỹ thuật viền đen */
 table.v2-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; break-inside: auto; }
-table.v2-table th, table.v2-table td { border: var(--v2-border); padding: 4px 7px; vertical-align: middle; text-align: left; font-size: 9.5pt; }
+table.v2-table th, table.v2-table td { border: var(--v2-border); padding: 3px 6px; vertical-align: middle; text-align: left; font-size: 9pt; }
 table.v2-table th { font-weight: bold; text-align: center; }
 table.v2-table th .en, table.v2-table td.label .en { display: block; }
 table.v2-table td.label { font-weight: bold; width: 30%; }
@@ -64,17 +64,17 @@ table.v2-table.grid-4 td.value { width: 25%; }
 table.v2-table tr.total td { font-weight: bold; }
 table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px solid #000000; outline-offset: -2px; font-weight: bold; }
 
-.v2-text { margin: 6px 0; text-align: justify; }
-.v2-text.en { display: block; }
+.v2-text { margin: 6px 0; text-align: justify; hyphens: none; }
+.v2-text.en { display: block; text-align: left; }
 .v2-note { font-size: 8.5pt; margin: 2px 0 8px; }
 .v2-result { margin: 8px 0; }
 
 /* Bìa */
 .v2-cover-title { text-align: center; margin: 14px 0 6px; }
-.v2-cover-title h1 { font-size: 17pt; margin: 0; font-weight: bold; }
-.v2-cover-title h2 { font-size: 12.5pt; margin: 2px 0; font-weight: bold; }
-.v2-cover-title .phase { font-size: 10.5pt; margin: 2px 0; }
-.v2-cover-title .building { font-size: 12pt; font-weight: bold; margin: 4px 0 8px; }
+.v2-cover-title h1 { font-size: 15pt; margin: 0; font-weight: bold; }
+.v2-cover-title h2 { font-size: 12pt; margin: 2px 0; font-weight: bold; }
+.v2-cover-title .phase { font-size: 10pt; margin: 2px 0; }
+.v2-cover-title .building { font-size: 11pt; font-weight: bold; margin: 4px 0 8px; }
 .v2-cover-photo { text-align: center; margin: 6px 0 10px; }
 .v2-cover-photo img { max-width: 70%; max-height: 95mm; object-fit: contain; }
 .v2-sign-table td { height: 12mm; }
@@ -85,7 +85,7 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-toc { list-style: none; padding: 0; margin: 0; }
 .v2-toc li { display: flex; align-items: baseline; margin: 5px 0; font-size: 9.5pt; }
 .v2-toc li .t { flex: 0 1 auto; }
-.v2-toc li .dots { flex: 1 1 auto; border-bottom: 1px dotted #000000; margin: 0 4px; }
+.v2-toc li .dots { flex: 1 1 auto; align-self: flex-end; height: 1em; margin: 0 4px 0.22em; background-image: radial-gradient(circle, #000000 0.6px, transparent 0.8px); background-size: 4px 2px; background-repeat: repeat-x; background-position: left bottom; }
 .v2-toc li .p { flex: 0 0 auto; min-width: 16px; text-align: right; }
 .v2-toc li.lvl-1 { font-weight: bold; }
 .v2-toc li.lvl-2 { padding-left: 16px; }
@@ -96,7 +96,9 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-figure figcaption { margin-top: 4px; font-size: 9pt; }
 .v2-figure figcaption .vi { display: block; }
 .v2-photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-.v2-photo-grid .v2-figure img { max-height: 70mm; }
+/* Khung ảnh cao cố định: ảnh đứng và ảnh ngang cùng hàng có chú thích thẳng hàng. */
+.v2-photo-grid .v2-figure .v2-media { height: 70mm; display: flex; align-items: center; justify-content: center; }
+.v2-photo-grid .v2-figure .v2-media img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 /* Sơ đồ CAD + ghim khuyết tật (vùng giấy kỹ thuật luôn sáng) */
 .v2-cad { position: relative; display: inline-block; max-width: 100%; }
@@ -114,5 +116,15 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 @media print { #wm-issues-box { display: none !important; } }
 
 /* Tiêu đề mục con có trong Mục lục (engine dò trang thật cần .chapter-header) */
-.chapter-header.sub-header { font-size: 11pt; text-transform: none; border-bottom: none; padding-bottom: 0; margin: 12px 0 6px; }
-.v2-elevation-grid .v2-figure img { max-height: 85mm; }
+.chapter-header.sub-header { font-size: 10.5pt; text-transform: none; border-bottom: none; padding-bottom: 0; margin: 12px 0 6px; }
+.v2-elevation-grid .v2-figure .v2-media { height: 75mm; }
+
+/* Bảng chấm điểm BRA và bảng khuyết tật PL2: chữ nhỏ hơn bảng thường như mẫu, giữ trọn khối. */
+table.v2-table.v2-bra-table th, table.v2-table.v2-bra-table td,
+table.v2-table.v2-defect-table th, table.v2-table.v2-defect-table td { font-size: 8pt; padding: 2px 4px; }
+.v2-keep { break-inside: avoid; }
+.v2-cad.is-dual img { max-height: 95mm; }
+.v2-cad .pin.pin-zone i { background: #2563eb; }
+.v2-cad .pin.pin-zone span { color: #1d4ed8; }
+.v2-cad .pin.pin-element i { background: #dc2626; }
+.v2-cad-title { font-size: 8.5pt; font-weight: bold; margin: 6px 0 2px; }

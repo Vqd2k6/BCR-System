@@ -45,8 +45,9 @@
   </div>
 
   <div data-section="sec-8-3">
+    <div class="v2-keep">
     <h3 class="chapter-header sub-header">3. Chấm điểm đánh giá rủi ro công trình (BRA) – Building Risk Assessment (BRA) Scoring</h3>
-    <table class="v2-table">
+    <table class="v2-table v2-bra-table">
       <thead>
         <tr>
           <th colspan="2">Chỉ số đánh giá<span class="en">Indicator</span></th>
@@ -68,6 +69,7 @@
         <tr class="total"><td colspan="3">Tổng điểm BRA<span class="en-block">BRA score</span></td><td class="num">100</td><td class="num">{{v2.bra.totalDisplay}}</td></tr>
       </tbody>
     </table>
+    </div>
     {{#if v2.bra.basis.length}}
       <p class="v2-text"><b>Căn cứ chấm điểm</b> – <i>Basis of scoring</i></p>
       <ul class="v2-ol" style="list-style: disc;">

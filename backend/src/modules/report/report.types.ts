@@ -96,6 +96,10 @@ export interface Section2BasicBuildingInfo {
   totalFloorAreaM2: number | string;
   floorAreaDisplay: BilingualText;
   mainDimensions: BilingualText;
+  /** Chiều rộng / chiều dài (m, 1 số lẻ) hoặc '--'; nguồn SURVEY = số đo khảo sát, GIS = cạnh thửa GIS. */
+  widthM?: string;
+  lengthM?: string;
+  dimensionsSource?: 'SURVEY' | 'GIS' | null;
   dimensionsDisplay?: BilingualText;
   maxHeightM: number | string;
   typicalStoreyHeightM: number | string;

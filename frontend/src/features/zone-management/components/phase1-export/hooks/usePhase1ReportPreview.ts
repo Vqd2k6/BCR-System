@@ -644,8 +644,12 @@ export const usePhase1ReportPreview = ({
     }
   };
 
-  /** Xem bản PDF hiện hành ngay trong modal: cùng endpoint và tham số với nút "Tải PDF". */
-  const handleViewCurrentPdf = async () => {
+  /**
+   * Xem bản PDF hiện hành ngay trong modal: cùng endpoint và tham số với nút "Tải PDF".
+   * mode "auto": tự mở cho template v2 (bản HTML không chia trang như PDF). Máy chủ chặn dựng PDF (409 ảnh nghi dấu cũ,
+   * 422 crop chưa duyệt) thì ở lại bản HTML để xử lý, kèm hướng dẫn.
+   */
+  const handleViewCurrentPdf = async (mode: 'manual' | 'auto' = 'manual') => {
     if (!previewParcel || selectedRevision !== undefined) return;
     setIsCurrentPdfLoading(true);
     try {
@@ -660,6 +664,19 @@ export const usePhase1ReportPreview = ({
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } catch (err: unknown) {
+      if (mode === 'auto') {
+        console.error('[usePhase1ReportPreview:autoPdf] Không tự dựng được bản PDF v2, ở lại bản HTML:', err);
+        const status = getErrorStatus(err);
+        const blocked = status === 409 || status === 422;
+        setModalFeedback({
+          type: blocked ? 'info' : 'error',
+          text: blocked
+            ? 'Chưa dựng được bản PDF: còn ảnh cần xác nhận dấu cũ hoặc ảnh cắt chưa duyệt. Xử lý trong bản HTML này, xong bấm "Xem bản PDF (đúng file tải)".'
+            : `Không tự dựng được bản PDF, đang hiện bản HTML (số trang trong Mục lục chỉ đúng trên PDF): ${getErrorMessage(err, 'Lỗi không xác định')}`,
+          timestamp: new Date().toLocaleTimeString('vi-VN'),
+        });
+        return;
+      }
       console.error('[usePhase1ReportPreview:handleViewCurrentPdf] Lỗi khi tạo bản PDF để xem:', err);
       setModalFeedback({
         type: 'error',
@@ -672,6 +689,15 @@ export const usePhase1ReportPreview = ({
   };
 
   const handleCloseCurrentPdf = () => setCurrentPdfBlobUrl(null);
+
+  // Template v2: bản HTML không chia trang như khi in (đầu/chân trang, số trang Mục lục chỉ có trong PDF),
+  // nên mỗi lần nạp xong bản HTML hiện hành thì tự dựng và hiện bản PDF thật. "Quay lại xem HTML" không kích hoạt lại.
+  useEffect(() => {
+    if (previewRenderKey === 0 || selectedRevision !== undefined || !previewParcel) return;
+    if (activeTemplateKey !== 'residential_v2') return;
+    void handleViewCurrentPdf('auto');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewRenderKey]);
 
   /** Đổi template v1/v2 cho bản hiện hành của hồ sơ nhà dân đang xem rồi render lại HTML. */
   const handleChangeTemplate = async (key: ReportTemplateKey): Promise<void> => {

@@ -346,10 +346,19 @@ export class Section1And2Mapper {
     const widthDisplay = hasWidth ? `${Number(rawWidth).toFixed(1)} m` : '-- m';
     const depthDisplay = hasDepth ? `${Number(rawDepth).toFixed(1)} m` : '-- m';
 
+    // Rộng / dài tách riêng (template v2 in 2 dòng như mẫu ST01). Ưu tiên số đo khảo sát; không có thì theo cạnh thửa GIS.
+    let widthM = hasWidth ? Number(rawWidth).toFixed(1) : '--';
+    let lengthM = hasDepth ? Number(rawDepth).toFixed(1) : '--';
+    let dimensionsSource: 'SURVEY' | 'GIS' | null = hasWidth || hasDepth ? 'SURVEY' : null;
     let mainDimensions: BilingualText;
     if (!hasWidth && !hasDepth) {
       const rawSide1 = Number(rawReport.parcel_side_a_m);
       const rawSide2 = Number(rawReport.parcel_side_b_m);
+      if (rawSide1 > 0 && rawSide2 > 0) {
+        widthM = rawSide1.toFixed(1);
+        lengthM = rawSide2.toFixed(1);
+        dimensionsSource = 'GIS';
+      }
       mainDimensions = (rawSide1 > 0 && rawSide2 > 0)
         ? {
             vi: `Kích thước cạnh thửa GIS: ${rawSide1.toFixed(1)} m × ${rawSide2.toFixed(1)} m`,
@@ -512,6 +521,9 @@ export class Section1And2Mapper {
       floorAreaDisplay,
       mainDimensions,
       dimensionsDisplay: mainDimensions,
+      widthM,
+      lengthM,
+      dimensionsSource,
       maxHeightM,
       typicalStoreyHeightM: typicalStoreyM === '--' ? '--' : `${typicalStoreyM} m`,
       yearConstructed: isVacantLand ? 'N/A' : (json.constructionYear || specs?.constructionYear || specs?.year_of_construction || '--'),

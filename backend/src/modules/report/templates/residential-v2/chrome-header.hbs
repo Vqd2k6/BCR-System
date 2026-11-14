@@ -1,20 +1,21 @@
-{{!-- Đầu trang Chrome (mọi trang kể cả bìa). Chỉ dùng style nội tuyến; ảnh phải là data URI. --}}
-<div style="width:100%; padding:0 15mm; font-family: Arial, 'Liberation Sans', Helvetica, sans-serif; -webkit-print-color-adjust: exact;">
-  <table style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:8.5px; color:#000;">
+{{!-- Đầu trang Chrome (mọi trang kể cả bìa). Chỉ dùng style nội tuyến; ảnh phải là data URI.
+      Dùng đơn vị pt (px trong header Chrome = 0,75pt → chữ bị nhỏ hơn mẫu). Font lấy từ hệ thống (font-liberation trong image). --}}
+<div style="width:100%; padding:0 20mm; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact;">
+  <table style="width:100%; border-collapse:collapse; border:0.75pt solid #000; font-size:8.5pt; color:#000; line-height:1.25;">
     <tr>
-      <td style="width:22%; border-right:1px solid #000; padding:4px 8px; vertical-align:middle;">
-        {{#if metadata.headerLogoBase64}}<img src="{{metadata.headerLogoBase64}}" style="max-height:30px; max-width:100%;">{{/if}}
+      <td style="width:22%; border-right:0.75pt solid #000; padding:3pt 6pt; vertical-align:middle; text-align:center;">
+        {{#if metadata.headerLogoBase64}}<img src="{{metadata.headerLogoBase64}}" style="max-height:26pt; max-width:100%;">{{/if}}
       </td>
-      <td style="width:56%; border-right:1px solid #000; padding:4px 8px; text-align:center; vertical-align:middle; line-height:1.35;">
-        <div style="font-weight:bold;">HO CHI MINH CITY MASS RAPID TRANSIT LINE 2</div>
+      <td style="width:56%; border-right:0.75pt solid #000; padding:3pt 6pt; text-align:center; vertical-align:middle;">
+        <div style="font-weight:bold; font-size:9pt;">HO CHI MINH CITY MASS RAPID TRANSIT LINE 2</div>
         <div>Ben Thanh – Tham Luong Route</div>
         <div style="font-weight:bold;">Building Condition Survey and Assessment</div>
       </td>
-      <td style="width:22%; padding:4px 8px; vertical-align:middle; line-height:1.35; font-size:7.5px;">
+      <td style="width:22%; padding:3pt 6pt; vertical-align:middle; font-size:7.5pt;">
         <div><b>Doc. No.:</b> {{v2.docNo}}</div>
         <div><b>Rev.:</b> {{v2.revision}}</div>
         <div><b>Date:</b> {{v2.docDate}}</div>
-        <div><b>Page:</b> <span class="pageNumber" style="font-size:9px;"></span> of <span class="totalPages" style="font-size:9px;"></span></div>
+        <div><b>Page:</b> <span class="pageNumber" style="font-size:10pt;"></span> of <span class="totalPages" style="font-size:10pt;"></span></div>
       </td>
     </tr>
   </table>

@@ -10,24 +10,34 @@
 
       {{#if this.mapSrc}}
         <figure class="v2-figure force-light">
-          <div class="v2-cad">
+          {{#if this.structuralMapSrc}}<div class="v2-cad-title">Mặt bằng kiến trúc &amp; vùng Z – <i>Architectural plan &amp; zones Z</i></div>{{/if}}
+          <div class="v2-cad {{#if this.structuralMapSrc}}is-dual{{/if}}">
             <img src="{{this.mapSrc}}" alt="Sơ đồ vị trí khuyết tật {{this.floorName.vi}}">
-            {{#each this.pins}}<div class="pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
+            {{#each this.pins}}<div class="pin pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
           </div>
+          {{#if this.structuralMapSrc}}
+            <div class="v2-cad-title">Mặt bằng kết cấu &amp; cấu kiện E – <i>Structural plan &amp; members E</i></div>
+            <div class="v2-cad is-dual">
+              <img src="{{this.structuralMapSrc}}" alt="Sơ đồ kết cấu {{this.floorName.vi}}">
+              {{#each this.structuralPins}}<div class="pin pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
+            </div>
+          {{/if}}
           <figcaption><span class="vi">Hình {{this.code}} – Sơ đồ vị trí khuyết tật – {{this.floorName.vi}}</span><i>Figure {{this.code}} – Defect location plan – {{this.floorName.en}}</i></figcaption>
         </figure>
       {{/if}}
 
+      {{!-- Tiêu đề bảng đi cùng bảng: không để tiêu đề nằm cuối trang còn bảng sang trang sau. --}}
+      <div class="v2-keep">
       <div class="v2-figure" style="margin-bottom: 4px;"><figcaption><span class="vi">Bảng {{this.code}} – Tổng hợp khuyết tật – {{this.floorName.vi}}</span><i>Table {{this.code}} – Defect summary – {{this.floorName.en}}</i></figcaption></div>
       {{#if this.rows.length}}
-        <table class="v2-table">
+        <table class="v2-table v2-defect-table">
           <thead>
             <tr>
               <th style="width: 5%;">STT<span class="en">No.</span></th>
               <th style="width: 8%;">Mã<span class="en">ID</span></th>
               <th>Vị trí<span class="en">Location</span></th>
               <th>Loại khuyết tật<span class="en">Defect type</span></th>
-              <th style="width: 9%;">Rộng<span class="en">Width</span></th>
+              <th style="width: 9%;">Rộng (mm)<span class="en">Width (mm)</span></th>
               <th style="width: 10%;">Dài / KT<span class="en">Length / Size</span></th>
               <th style="width: 8%;">Burland<span class="en">Category</span></th>
               <th style="width: 12%;">Mô tả<span class="en">Description</span></th>
@@ -40,7 +50,7 @@
                 <td class="num"><b>{{this.defectId}}</b></td>
                 <td>{{this.location.vi}}<span class="en-block">{{this.location.en}}</span></td>
                 <td>{{this.typeLabel.vi}}<span class="en-block">{{this.typeLabel.en}}</span></td>
-                <td class="num">{{orDash this.widthMm}}</td>
+                <td class="num">{{orDash this.widthMmDisplay}}</td>
                 <td class="num">{{orDash this.lengthMm}}</td>
                 <td class="num">{{this.burlandGrade}}</td>
                 <td class="center">{{this.burlandLabel.vi}}<span class="en-block">{{this.burlandLabel.en}}</span></td>
@@ -51,13 +61,14 @@
       {{else}}
         <p class="v2-text">Không ghi nhận khuyết tật. <i>No defects recorded.</i></p>
       {{/if}}
+      </div>
 
       {{#if this.closeUps.length}}
         <div class="v2-figure" style="margin: 10px 0 4px;"><figcaption><span class="vi">Ảnh cận cảnh khuyết tật – {{this.floorName.vi}}</span><i>Close-up photos of defects – {{this.floorName.en}}</i></figcaption></div>
         <div class="v2-photo-grid">
           {{#each this.closeUps}}
             <figure class="v2-figure">
-              <img src="{{this.src}}" alt="{{this.caption.vi}}">
+              <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
               <figcaption><span class="vi">{{this.caption.vi}}</span><i>{{this.caption.en}}</i></figcaption>
             </figure>
           {{/each}}

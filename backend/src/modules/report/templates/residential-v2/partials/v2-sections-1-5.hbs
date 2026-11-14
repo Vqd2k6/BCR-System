@@ -28,14 +28,19 @@
       <td class="label">Diện tích xây dựng (m²)<span class="en">Footprint (m²)</span></td><td class="value">{{orDash section2.footprintM2}}</td>
     </tr>
     <tr>
-      <td class="label">Kích thước chính<span class="en">Main dimensions</span></td><td class="value">{{orDash section2.mainDimensions.vi}}<span class="en-block">{{section2.mainDimensions.en}}</span></td>
-      <td class="label">Chiều cao lớn nhất (m)<span class="en">Max height (m)</span></td><td class="value">{{orDash section2.maxHeightM}}</td>
+      <td class="label">Chiều rộng (m)<span class="en">Width (m)</span></td><td class="value">{{orDash section2.widthM}}</td>
+      <td class="label">Chiều dài (m)<span class="en">Length (m)</span></td><td class="value">{{orDash section2.lengthM}}</td>
     </tr>
     <tr>
+      <td class="label">Chiều cao lớn nhất (m)<span class="en">Max height (m)</span></td><td class="value">{{orDash section2.maxHeightM}}</td>
       <td class="label">Chiều cao tầng điển hình (m)<span class="en">Typical storey height (m)</span></td><td class="value">{{orDash section2.typicalStoreyHeightM}}</td>
-      <td class="label">Khoảng cách đến công trình metro<span class="en">Distance to the metro works</span></td><td class="value">{{orDash section2.distanceToMetroDisplay.vi}}<span class="en-block">{{section2.distanceToMetroDisplay.en}}</span></td>
+    </tr>
+    <tr>
+      <td class="label">Khoảng cách đến tim tuyến metro (m)<span class="en">Distance to metro alignment (m)</span></td><td class="value">{{orDash section2.distanceToMetroAlignmentM}}</td>
+      <td class="label">Khoảng cách đến biên kết cấu (m)<span class="en">Distance to structure edge (m)</span></td><td class="value">{{orDash section2.distanceToMetroEdgeM}}</td>
     </tr>
   </table>
+  {{#if (eq section2.dimensionsSource "GIS")}}<p class="v2-note">Chiều rộng / chiều dài lấy theo cạnh thửa GIS (chưa có số đo khảo sát). <i>Width / length taken from the GIS cadastral parcel sides (no surveyed measurement).</i></p>{{/if}}
 </section>
 
 <section data-section="sec-3">
