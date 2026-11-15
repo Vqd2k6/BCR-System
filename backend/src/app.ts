@@ -52,7 +52,7 @@ export function createApp(): express.Application {
   // Ảnh/PDF tự bỏ qua theo Content-Type (compressible); upload nhị phân local cũng bỏ qua.
   app.use(
     compression({
-      filter: (req, res) => {
+      filter: (req: express.Request, res: express.Response) => {
         if (req.path.includes('/storage/local-put')) return false;
         return compression.filter(req, res);
       },
