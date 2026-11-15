@@ -1,15 +1,20 @@
-{{!-- Phụ lục 1: ảnh mặt đứng (ảnh đã dập watermark ở máy chủ). --}}
+{{!-- Phụ lục 1: ảnh ngoài nhà và ảnh kiểm tra nghiêng/lún/biến dạng (ảnh đã dập watermark ở máy chủ). --}}
 <div class="a4-page-sheet" data-section="pl-1">
   <h2 class="chapter-header">PHỤ LỤC 1: ẢNH MẶT ĐỨNG CÔNG TRÌNH – APPENDIX 1: BUILDING ELEVATION PHOTOS</h2>
-  {{#if v2.elevationPhotos.length}}
-    <div class="v2-photo-grid v2-elevation-grid">
-      {{#each v2.elevationPhotos}}
-        <figure class="v2-figure">
-          <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
-          <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
-        </figure>
-      {{/each}}
-    </div>
+  {{#if v2.elevationGroups.length}}
+    {{#each v2.elevationGroups}}
+      <div class="v2-photo-group">
+        <h4 class="v2-group-title">{{this.title.vi}} – <i>{{this.title.en}}</i></h4>
+        <div class="v2-photo-grid v2-elevation-grid">
+          {{#each this.photos}}
+            <figure class="v2-figure">
+              <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
+              <figcaption><span class="vi">Hình {{this.figNo}} [{{this.photoCode}}] – {{this.caption.vi}}</span><i>Figure {{this.figNo}} [{{this.photoCode}}] – {{this.caption.en}}</i></figcaption>
+            </figure>
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
   {{else}}
     <p class="v2-text">---</p>
   {{/if}}

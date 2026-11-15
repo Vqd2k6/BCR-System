@@ -527,6 +527,23 @@ export interface DefectPairPhotoItem {
   pinY?: number;
   pinColor?: string;
   hasPin?: boolean;
+  /**
+   * Ảnh cận cảnh thứ 3 trở đi (`cuPhotos[2..]`). Mapper chỉ ghi URL / góc xoay / mã ảnh, KHÔNG nạp ảnh,
+   * để v1 (chỉ in 2 ảnh, đã đóng băng) không tải hay dò dấu cũ các ảnh này.
+   */
+  additionalCloseUpCandidates?: AdditionalCloseUpItem[];
+  /** Chỉ template v2 điền (đã nạp ảnh): walker dập watermark / crop / chặn dấu cũ đúng các ảnh này. */
+  additionalCloseUps?: AdditionalCloseUpItem[];
+}
+
+export interface AdditionalCloseUpItem {
+  url: string;
+  base64?: string;
+  rotation: number;
+  photoCode: string;
+  watermarkCode?: string;
+  dateTime?: string;
+  alreadyWatermarked?: boolean;
 }
 
 export interface RoomOverviewPhotoItem {

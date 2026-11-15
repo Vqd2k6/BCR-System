@@ -16,6 +16,7 @@ import { Section7BurlandMapper } from '../../sections/section-7-burland.mapper';
 import { isPhotoAlreadyWatermarked } from './cad-pin.mapper';
 import { AddUniqueOverviewPhotoFn } from './floor-overview-pagination.mapper';
 import { mapFloorStructuralElements } from './element-defect.mapper';
+import { collectAdditionalCloseUps } from './additional-close-up.mapper';
 
 const SHORT_GRADE_VI: Record<number, string> = {
   0: 'Không đáng kể',
@@ -210,6 +211,9 @@ export function mapFloorZonesAndElements(
           pinY,
           pinColor: d.pinColor || d.pin_color || '#ef4444',
           hasPin,
+          additionalCloseUpCandidates: collectAdditionalCloseUps(
+            d, dCode, [`defect_f${fIdx}_z${zCode}_${d.id}`, `defect_f${fIdx}_z${zCode}_d${dCode}`], rotMap, [cuUrl, extraCuUrl]
+          ),
         });
       }
 

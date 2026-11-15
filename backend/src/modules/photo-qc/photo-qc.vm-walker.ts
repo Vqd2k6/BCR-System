@@ -199,6 +199,22 @@ export function walkViewModelPhotos(vm: ReportViewModel, options: WalkViewModelO
           markWatermarked: () => { pair.extraCloseUpAlreadyWatermarked = true; },
         });
       }
+      // Ảnh cận cảnh 3+: chỉ có khi template in chúng (v2 điền additionalCloseUps); v1 không có ô nào ở đây.
+      for (const extra of pair.additionalCloseUps || []) {
+        refs.push({
+          section: 'DEFECT',
+          photoKey: urlPhotoKey(extra.url),
+          url: extra.url,
+          label: `${floorLabel} • ${pair.defectId} • Ảnh cận cảnh bổ sung`,
+          rotation: Number(extra.rotation) || 0,
+          dateTimeText: extra.dateTime || defaultDate,
+          photoCodeText: extra.watermarkCode || code(extra.photoCode),
+          getBase64: () => extra.base64,
+          setBase64: (v) => { extra.base64 = v; },
+          isWatermarked: () => Boolean(extra.alreadyWatermarked),
+          markWatermarked: () => { extra.alreadyWatermarked = true; },
+        });
+      }
     }
 
     for (const page of [...(fl.overviewPages || []), ...(fl.elementOverviewPages || [])]) {

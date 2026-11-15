@@ -15,6 +15,7 @@ import { Section7BurlandMapper } from '../../sections/section-7-burland.mapper';
 import { extractPhotoDateTime } from '../../formatters.mapper';
 import { isPhotoAlreadyWatermarked } from './cad-pin.mapper';
 import { AddUniqueOverviewPhotoFn } from './floor-overview-pagination.mapper';
+import { collectAdditionalCloseUps } from './additional-close-up.mapper';
 
 export function mapFloorStructuralElements(
   fl: any,
@@ -186,6 +187,9 @@ export function mapFloorStructuralElements(
           pinY: (d.pinY ?? d.pin_y) !== undefined && (d.pinY ?? d.pin_y) !== null ? Number(d.pinY ?? d.pin_y) : undefined,
           pinColor: d.pinColor || d.pin_color || '#ef4444',
           hasPin: (d.pinX ?? d.pin_x) !== undefined && (d.pinX ?? d.pin_x) !== null && (d.pinY ?? d.pin_y) !== undefined && (d.pinY ?? d.pin_y) !== null,
+          additionalCloseUpCandidates: collectAdditionalCloseUps(
+            d, dCode, [`defect_f${fIdx}_e${eCode}_${d.id}`, `defect_f${fIdx}_e${eCode}_d${dCode}`], rotMap, [cuUrl, extraCuUrl]
+          ),
         });
       }
 

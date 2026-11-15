@@ -228,10 +228,17 @@ export interface ResidentialV2View {
   overall: { levelNumber: number | null; level: BilingualText | null; narrative: BilingualText };
   conclusions: BilingualText[];
   recommendations: BilingualText[];
-  elevationPhotos: Array<{ figNo: string; caption: BilingualText; src: string }>;
+  /** PL1 chia 2 tiểu mục: ngoài nhà (P-01..P-04, P-VL, P-UC) / nghiêng–lún–võng (P-05..P-07, P-06B). */
+  elevationGroups: Array<{
+    title: BilingualText;
+    photos: Array<{ figNo: string; photoCode: string; caption: BilingualText; src: string }>;
+  }>;
   floors: Array<{
     code: string;
     floorName: BilingualText;
+    hasAnyMap: boolean;
+    /** Lời nhắn tầng không có khuyết tật — tầng miễn Z ghi "hạn chế tiếp cận", không kết luận "không có". */
+    notice: BilingualText | null;
     /** Sơ đồ kiến trúc + ghim Z (và E khi không có sơ đồ kết cấu riêng). */
     mapSrc: string | null;
     pins: CadPinOverlayItem[];
@@ -239,9 +246,63 @@ export interface ResidentialV2View {
     structuralMapSrc: string | null;
     structuralPins: CadPinOverlayItem[];
     rows: Array<FloorDefectSummaryRow & { typeLabel: BilingualText; burlandLabel: BilingualText; widthMmDisplay: string | null }>;
-    closeUps: Array<{ src: string; caption: BilingualText }>;
+    /** Ảnh theo từng D: bối cảnh (có ghim của chính D) rồi cận cảnh 1..n; chỉ lọc trùng trong cùng D. */
+    defectGroups: V2DefectPhotoGroup[];
+  }>;
+  /** PL3: ảnh đối chứng Z / E còn lại sau khi bỏ ảnh đã in ở PL2 cùng tầng. */
+  archivalFloors: Array<{
+    code: string;
+    floorName: BilingualText;
+    zonePhotos: V2Photo[];
+    elementPhotos: V2Photo[];
   }>;
   risk: RiskV2Result;
+}
+
+export interface V2Photo {
+  figNo: string;
+  src: string;
+  caption: BilingualText;
+  /** Ghim vị trí khuyết tật trên ảnh bối cảnh (%), chỉ khi D có tọa độ. */
+  pin: { x: number; y: number; code: string } | null;
+}
+
+export interface V2DefectPhotoGroup {
+  defectId: string;
+  /** "Z-02 / D-01": mã D lặp lại giữa các vùng nên luôn kèm mã vùng / cấu kiện. */
+  ref: string;
+  /** Vị trí (phòng, tường / cấu kiện) bỏ tiền tố tên tầng; null khi không ghép được hàng bảng. */
+  location: BilingualText | null;
+  typeLabel: BilingualText;
+  wmaxText: string | null;
+  photos: V2Photo[];
+  /** Hàng ảnh đầu đi cùng tiêu đề nhóm (không để tiêu đề mồ côi cuối trang). */
+  firstRow: V2Photo[];
+  restPhotos: V2Photo[];
+}
+
+const PL1_DEFORMATION_CODE = /^P-0[567]/i;
+
+function stripFloorPrefix(loc: BilingualText, floor: BilingualText): BilingualText {
+  const cut = (s: string, prefix: string) => (prefix && s.startsWith(`${prefix} - `) ? s.slice(prefix.length + 3) : s);
+  return { vi: cut(loc.vi, floor.vi), en: cut(loc.en, floor.en) };
+}
+
+/** Ảnh của 1 D: bối cảnh → cận cảnh 1 → cận cảnh 2 → cận cảnh 3+; bỏ URL trùng trong D. */
+function defectPhotosOf(pair: DefectPairPhotoItem): Array<{ url: string; src: string; kind: 'CTX' | 'CU'; n: number }> {
+  const out: Array<{ url: string; src: string; kind: 'CTX' | 'CU'; n: number }> = [];
+  const seen = new Set<string>();
+  const add = (url: string | undefined, src: string | undefined, kind: 'CTX' | 'CU') => {
+    const key = (url || src || '').trim();
+    if (!key || seen.has(key) || !src) return;
+    seen.add(key);
+    out.push({ url: key, src, kind, n: kind === 'CU' ? out.filter((o) => o.kind === 'CU').length + 1 : 0 });
+  };
+  add(pair.contextPhotoUrl, pair.contextPhotoBase64 || pair.contextPhotoUrl, 'CTX');
+  add(pair.closeUpPhotoUrl, pair.closeUpPhotoBase64 || pair.closeUpPhotoUrl, 'CU');
+  if (pair.hasExtraCloseUp) add(pair.extraCloseUpPhotoUrl, pair.extraCloseUpPhotoBase64 || pair.extraCloseUpPhotoUrl, 'CU');
+  for (const extra of pair.additionalCloseUps || []) add(extra.url, extra.base64 || extra.url, 'CU');
+  return out;
 }
 
 function buildRiskInput(vm: ReportViewModel, raw: Record<string, unknown>, rows: FloorDefectSummaryRow[]): {
@@ -514,43 +575,116 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
     en: 'Settlement and tilt monitoring points should be installed at the building corners.',
   });
 
-  // PL1, PL2
-  const elevationPhotos = vm.appendix1
-    .filter((p) => Boolean(p.base64 || p.url))
-    .map((p, i) => ({ figNo: `A1.${i + 1}`, caption: p.name, src: p.base64 || p.url }));
+  // PL1: 2 tiểu mục, số hình liên tục, chú thích kèm mã ảnh.
+  const pl1Photos = vm.appendix1.filter((p) => Boolean(p.base64 || p.url));
+  const pl1Exterior = pl1Photos.filter((p) => !PL1_DEFORMATION_CODE.test(p.photoCode || ''));
+  const pl1Deformation = pl1Photos.filter((p) => PL1_DEFORMATION_CODE.test(p.photoCode || ''));
+  let pl1Fig = 0;
+  const toPl1 = (p: (typeof pl1Photos)[number]) => ({
+    figNo: `A1.${++pl1Fig}`,
+    photoCode: p.photoCode || '',
+    caption: p.name,
+    src: p.base64 || p.url,
+  });
+  const elevationGroups: ResidentialV2View['elevationGroups'] = [
+    {
+      title: { vi: '1. Ảnh mặt đứng & bối cảnh ngoài nhà', en: 'Exterior elevations & context photos' },
+      photos: pl1Exterior.map(toPl1),
+    },
+    {
+      title: { vi: '2. Ảnh kiểm tra độ nghiêng, lún & biến dạng', en: 'Inclination, settlement & deformation checks' },
+      photos: pl1Deformation.map(toPl1),
+    },
+  ].filter((g) => g.photos.length > 0);
 
-  const floors = vm.appendix2
-    .filter((f) => f.defectSummaryRows.length > 0 || f.hasCadMap)
-    .map((f, i) => {
-      const closeUps: Array<{ src: string; caption: BilingualText }> = [];
-      const pushPhoto = (src: string | undefined, pair: DefectPairPhotoItem) => {
-        if (!src) return;
-        closeUps.push({ src, caption: { vi: `${pair.defectId} – ${pair.defectType.vi}`, en: pair.defectType.en } });
-      };
-      for (const pair of f.defectPairPhotos) {
-        pushPhoto(pair.closeUpPhotoBase64 || pair.closeUpPhotoUrl, pair);
-        if (pair.hasExtraCloseUp) pushPhoto(pair.extraCloseUpPhotoBase64 || pair.extraCloseUpPhotoUrl, pair);
-      }
+  // PL2: mọi tầng đã khảo sát (A2.x liên tục). Ảnh của từng D in riêng, kể cả bối cảnh dùng chung giữa các D (mỗi ảnh 1 ghim).
+  const printedUrlsByFloor = new Map<number, Set<string>>();
+  const floors: ResidentialV2View['floors'] = vm.appendix2.map((f, i) => {
+    const code = `A2.${i + 1}`;
+    const printed = new Set<string>();
+    let fig = 0;
+    const defectGroups: V2DefectPhotoGroup[] = f.defectPairPhotos.map((pair, idx) => {
+      const w = parseWidthMm(pair.wmaxMm);
+      // Mã D đánh lại theo từng vùng/cấu kiện (D4) nên phải kèm mã Z/E để phân biệt. Hàng bảng và cặp ảnh
+      // sinh cùng lượt cho mỗi D (defect-pair / element-defect mapper) nên ghép theo thứ tự, kiểm lại mã D.
+      const row = f.defectSummaryRows[idx]?.defectId === pair.defectId ? f.defectSummaryRows[idx] : undefined;
+      const location = row ? stripFloorPrefix(row.location, f.floorName) : null;
+      const memberCode = row ? (row.location.vi.match(/\b([ZE]-\d+)\b/)?.[1] ?? null) : null;
+      const ref = memberCode ? `${memberCode} / ${pair.defectId}` : pair.defectId;
+      const photos: V2Photo[] = defectPhotosOf(pair).map((p) => {
+        printed.add(p.url);
+        return {
+          figNo: `${code}-${++fig}`,
+          src: p.src,
+          caption: p.kind === 'CTX'
+            ? { vi: `${ref} – Ảnh bối cảnh`, en: `${ref} – Context photo` }
+            : { vi: `${ref} – Ảnh cận cảnh ${p.n}`, en: `${ref} – Close-up ${p.n}` },
+          pin: p.kind === 'CTX' && pair.hasPin && pair.pinX !== undefined && pair.pinY !== undefined
+            ? { x: pair.pinX, y: pair.pinY, code: pair.defectId }
+            : null,
+        };
+      });
       return {
-        code: `A2.${i + 1}`,
-        floorName: f.floorName,
-        // Mã D đánh theo vùng/cấu kiện (D4) nên sơ đồ ghim Z/E như v1; góc xoay sơ đồ đã áp ở mapper (không tự xoay).
-        mapSrc: f.damageMapBase64 || f.damageMapUrl || null,
-        pins: f.cadPins ?? [],
-        structuralMapSrc: f.hasStructuralCadMap ? f.structuralMapBase64 || f.structuralMapUrl || null : null,
-        structuralPins: f.hasStructuralCadMap ? f.cadStructuralPins ?? [] : [],
-        rows: f.defectSummaryRows.map((r) => ({
-          ...r,
-          // Cột "Rộng (mm)": cùng số ECS dùng; không đọc được thì in ---.
-          widthMmDisplay: (() => { const w = parseWidthMm(r.widthMm); return w === null ? null : fmtMmEn(w); })(),
-          typeLabel: r.defectType,
-          burlandLabel: BURLAND_GRADE_LABELS[r.burlandGrade] ?? { vi: EM_DASH, en: EM_DASH },
-        })),
-        closeUps,
+        defectId: pair.defectId,
+        ref,
+        location,
+        typeLabel: pair.defectType,
+        wmaxText: w !== null && w > 0 ? `wmax = ${fmtMm(w)} mm` : null,
+        photos,
+        firstRow: photos.slice(0, 2),
+        restPhotos: photos.slice(2),
       };
-    });
+    }).filter((g) => g.photos.length > 0);
 
-  const docDate = vm.metadata.surveyDateFormatted || vm.section1.surveyDate || '';
+    printedUrlsByFloor.set(i, printed);
+
+    const mapSrc = f.damageMapBase64 || f.damageMapUrl || null;
+    const structuralMapSrc = f.hasStructuralCadMap ? f.structuralMapBase64 || f.structuralMapUrl || null : null;
+    return {
+      code,
+      floorName: f.floorName,
+      hasAnyMap: Boolean(mapSrc || structuralMapSrc),
+      notice: f.defectSummaryRows.length === 0 ? f.zeroDefectsNotice ?? null : null,
+      // Mã D đánh theo vùng/cấu kiện (D4) nên sơ đồ ghim Z/E như v1; góc xoay sơ đồ đã áp ở mapper (không tự xoay).
+      mapSrc,
+      pins: f.cadPins ?? [],
+      structuralMapSrc,
+      structuralPins: structuralMapSrc ? f.cadStructuralPins ?? [] : [],
+      rows: f.defectSummaryRows.map((r) => ({
+        ...r,
+        // Cột "Rộng (mm)": cùng số ECS dùng; không đọc được thì in ---.
+        widthMmDisplay: (() => { const wv = parseWidthMm(r.widthMm); return wv === null ? null : fmtMmEn(wv); })(),
+        typeLabel: r.defectType,
+        burlandLabel: BURLAND_GRADE_LABELS[r.burlandGrade] ?? { vi: EM_DASH, en: EM_DASH },
+      })),
+      defectGroups,
+    };
+  });
+
+  // PL3: ảnh đối chứng Z / E (mapper đã bỏ ảnh bối cảnh khuyết tật); bỏ thêm URL đã in ở PL2 cùng tầng.
+  const archivalFloors: ResidentialV2View['archivalFloors'] = [];
+  vm.appendix2.forEach((f, i) => {
+    const printed = printedUrlsByFloor.get(i) ?? new Set<string>();
+    const code = `A3.${archivalFloors.length + 1}`;
+    let fig = 0;
+    const take = (pages: typeof f.overviewPages): V2Photo[] =>
+      (pages ?? []).flatMap((p) => p.photos)
+        .filter((ph) => {
+          const key = (ph.url || '').trim();
+          if (!key || printed.has(key) || !(ph.base64 || ph.url)) return false;
+          printed.add(key);
+          return true;
+        })
+        .map((ph) => ({ figNo: '', src: ph.base64 || ph.url, caption: ph.caption, pin: null }));
+    const zonePhotos = take(f.overviewPages);
+    const elementPhotos = take(f.elementOverviewPages);
+    if (zonePhotos.length + elementPhotos.length === 0) return;
+    for (const ph of [...zonePhotos, ...elementPhotos]) ph.figNo = `${code}-${++fig}`;
+    archivalFloors.push({ code, floorName: f.floorName, zonePhotos, elementPhotos });
+  });
+
+  const docDate
+ = vm.metadata.surveyDateFormatted || vm.section1.surveyDate || '';
   return {
     docNo: vm.metadata.reportNo,
     revision: vm.metadata.revision,
@@ -564,8 +698,9 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
     overall: { levelNumber: risk.overall.level, level: overallLevel, narrative: overallNarrative },
     conclusions,
     recommendations,
-    elevationPhotos,
+    elevationGroups,
     floors,
+    archivalFloors,
     risk,
   };
 }

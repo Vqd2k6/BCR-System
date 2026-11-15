@@ -176,6 +176,9 @@ export class FloorDefectMapper {
             `${pair.defectId}_CU_02`
           );
         }
+        for (const extra of pair.additionalCloseUpCandidates || []) {
+          extra.watermarkCode = pairCode(extra.photoCode, extra.url, extra.photoCode);
+        }
       }
 
       // 5. Phân trang

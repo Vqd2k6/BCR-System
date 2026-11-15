@@ -25,5 +25,11 @@
     {{#each v2.floors}}
       <li class="lvl-2"><span class="t">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</span><span class="dots"></span><span class="p" data-toc-target="pl-2-{{@index}}"></span></li>
     {{/each}}
+    {{#if v2.archivalFloors.length}}
+      <li class="lvl-1"><span class="t">PHỤ LỤC 3: HỒ SƠ ẢNH KHÔNG GIAN &amp; CẤU KIỆN ĐỐI CHỨNG – APPENDIX 3: ARCHIVAL SPACE &amp; STRUCTURAL MEMBER PHOTOS</span><span class="dots"></span><span class="p" data-toc-target="pl-3"></span></li>
+      {{#each v2.archivalFloors}}
+        <li class="lvl-2"><span class="t">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</span><span class="dots"></span><span class="p" data-toc-target="pl-3-{{@index}}"></span></li>
+      {{/each}}
+    {{/if}}
   </ul>
 </div>

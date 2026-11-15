@@ -12,11 +12,12 @@ import Handlebars from 'handlebars';
 import { Database } from '../../../database/db';
 import { SurveyRepository } from '../../survey/survey.repository';
 import { applyCondoReportContext } from '../snapshot/condo-absent-projection';
-import { BadRequestError, ConflictError, NotFoundError, WatermarkIncompleteError } from '../../../common/errors/problem-details';
+import { BadRequestError, ConflictError, NotFoundError, UnprocessableEntityError, WatermarkIncompleteError } from '../../../common/errors/problem-details';
 import { maskReportPii } from '../../../common/utils/pii.utils';
 import { ReportViewModel } from '../report.types';
 import { ReportViewModelMapper } from '../mappers/report-viewmodel.mapper';
 import { presentResidentialV2 } from '../mappers/v2/residential-v2.presenter';
+import { isPhotoAlreadyWatermarked } from '../mappers/appendices/appendix-2/cad-pin.mapper';
 import { PdfRenderEngine } from '../engine/pdf-render.engine';
 import { RenderQueue } from '../engine/render-queue';
 import { applyOverridesToReport } from '../utils/report-override.utils';
@@ -109,6 +110,51 @@ type TemplatePresenter = (viewModel: ReportViewModel, rawReport: Record<string, 
 const TEMPLATE_PRESENTERS: Partial<Record<string, TemplatePresenter>> = {
   'residential-v2': (vm, raw) => ({ v2: presentResidentialV2(vm, raw) }),
 };
+
+/**
+ * Ảnh nhúng nguyên bản (không thu nhỏ, chốt 15/11/2026): hồ sơ quá nhiều ảnh có thể làm HTML vượt giới hạn chuỗi
+ * của V8. Khi đó báo lỗi rõ (số ảnh, tổng dung lượng), không bỏ bớt ảnh để report vẫn "xuất được".
+ */
+function renderTemplateOrExplain(templateDir: string, viewModel: ReportViewModel, run: () => string): string {
+  try {
+    return run();
+  } catch (err) {
+    if (!(err instanceof RangeError)) throw err;
+    const refs = walkViewModelPhotos(viewModel);
+    const totalMb = refs.reduce((sum, r) => sum + (r.getBase64()?.length ?? 0), 0) / (1024 * 1024);
+    console.error(
+      `[ReportService:renderTemplate] HTML vượt giới hạn chuỗi (${templateDir}): ${refs.length} ảnh, ~${totalMb.toFixed(0)} MB Base64`,
+      err
+    );
+    throw new UnprocessableEntityError(
+      `Hồ sơ có ${refs.length} ảnh (~${totalMb.toFixed(0)} MB) vượt giới hạn dựng báo cáo của máy chủ. Liên hệ quản trị để xuất bằng công cụ riêng.`
+    );
+  }
+}
+
+/** Template in đủ ảnh cận cảnh (kể cả ảnh 3+). v1 đóng băng chỉ in 2 ảnh nên không có mặt ở đây. */
+const TEMPLATES_PRINTING_ALL_CLOSE_UPS = new Set<string>(['residential-v2']);
+
+/**
+ * Nạp ảnh cận cảnh 3+ (mapper chỉ ghi danh sách) rồi đưa vào `additionalCloseUps`, TRƯỚC Photo QC / dập dấu,
+ * để walker dập watermark, áp crop và chặn dấu cũ đúng như các ảnh khác. Ảnh tải lỗi giữ URL thô: lượt
+ * kiểm watermark báo lỗi và chặn xuất, không bỏ ảnh âm thầm.
+ */
+async function promoteAdditionalCloseUps(viewModel: ReportViewModel, notFrozen: (url: string) => boolean): Promise<void> {
+  const pairs = (viewModel.appendix2 || []).flatMap((f) => f.defectPairPhotos || []);
+  const candidates = pairs.flatMap((p) => p.additionalCloseUpCandidates || []);
+  if (candidates.length === 0) return;
+  await ReportImageResolver.preloadAndResolveAll(candidates.map((c) => ({ url: c.url, rotation: c.rotation })));
+  await LegacyWatermarkIndex.load([...new Set(candidates.map((c) => c.url))].filter(notFrozen), { detect: true });
+  for (const pair of pairs) {
+    if (!pair.additionalCloseUpCandidates?.length) continue;
+    pair.additionalCloseUps = pair.additionalCloseUpCandidates.map((c) => ({
+      ...c,
+      base64: ReportImageResolver.resolveToBase64(c.url, c.rotation),
+      alreadyWatermarked: isPhotoAlreadyWatermarked(c.url),
+    }));
+  }
+}
 
 /** Nền kế thừa của mọi template chung cư luôn là thư mục v1, không theo template nhà dân mặc định. */
 const RESIDENTIAL_V1_DIR = 'residential';
@@ -561,6 +607,10 @@ export class ReportService {
       if (maskPii) {
         viewModel.isPiiMasked = true;
       }
+      const { dir: templateDir } = this.selectTemplate(resolveReportTemplateKind(activeReport), effectiveKey);
+      if (TEMPLATES_PRINTING_ALL_CLOSE_UPS.has(templateDir)) {
+        await promoteAdditionalCloseUps(viewModel, notFrozen);
+      }
 
       const effectiveWatermark = maskPii ? true : enableWatermark;
       // Khảo sát bổ sung (ảnh ngoài nhà chụp lại đã duyệt): chạy TRƯỚC Photo QC để bìa P04 / crop thấy ảnh mới.
@@ -584,10 +634,9 @@ export class ReportService {
 
       const compiled = this.getCompiledTemplate(resolveReportTemplateKind(activeReport), effectiveKey);
       const { template, styles, render } = compiled;
-      const { dir } = this.selectTemplate(resolveReportTemplateKind(activeReport), effectiveKey);
-      const presenter = TEMPLATE_PRESENTERS[dir];
+      const presenter = TEMPLATE_PRESENTERS[templateDir];
       const extra = presenter ? presenter(viewModel, activeReport as Record<string, unknown>) : {};
-      const html = template({
+      const html = renderTemplateOrExplain(templateDir, viewModel, () => template({
         ...viewModel,
         ...extra,
         styles,
@@ -602,7 +651,7 @@ export class ReportService {
         watermarkIssuesJson: JSON.stringify(
           watermark.issues.map((i) => ({ url: i.url, photoCode: i.photoCode, reason: i.reason, needsLegacyConfirmation: i.needsLegacyConfirmation, fileMissing: i.fileMissing }))
         ).replace(/</g, '\\u003c'),
-      });
+      }));
 
       const headerFooterContext = { ...viewModel, ...extra };
       const chromeHeaderFooter =

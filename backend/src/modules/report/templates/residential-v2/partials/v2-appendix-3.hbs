@@ -1,0 +1,40 @@
+{{!-- Phụ lục 3: ảnh đối chứng không gian Z và cấu kiện E (không trùng ảnh đã in ở PL2), minh chứng hiện trạng trước thi công. --}}
+{{#if v2.archivalFloors.length}}
+<div class="a4-page-sheet" data-section="pl-3">
+  <h2 class="chapter-header">PHỤ LỤC 3: HỒ SƠ ẢNH KHÔNG GIAN &amp; CẤU KIỆN ĐỐI CHỨNG – APPENDIX 3: ARCHIVAL SPACE &amp; STRUCTURAL MEMBER PHOTOS</h2>
+  <p class="v2-text">Ảnh hiện trạng các không gian (vùng Z) và cấu kiện kết cấu (E) theo từng tầng, dùng làm căn cứ đối chiếu hiện trạng trước khi thi công. Ảnh đã in ở Phụ lục 2 không lặp lại.</p>
+  <p class="v2-text en">Condition photos of spaces (zones Z) and structural members (E) on each floor, kept as the pre-construction reference. Photos already shown in Appendix 2 are not repeated.</p>
+
+  {{#each v2.archivalFloors}}
+    <div class="v2-floor" data-section="pl-3-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
+      <h3 class="chapter-header sub-header">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</h3>
+      {{#if this.zonePhotos.length}}
+        <div class="v2-photo-group">
+          <h4 class="v2-group-title">Không gian (Z) – <i>Spaces (Z)</i></h4>
+          <div class="v2-photo-grid is-compact">
+            {{#each this.zonePhotos}}
+              <figure class="v2-figure">
+                <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
+                <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
+              </figure>
+            {{/each}}
+          </div>
+        </div>
+      {{/if}}
+      {{#if this.elementPhotos.length}}
+        <div class="v2-photo-group">
+          <h4 class="v2-group-title">Cấu kiện kết cấu (E) – <i>Structural members (E)</i></h4>
+          <div class="v2-photo-grid is-compact">
+            {{#each this.elementPhotos}}
+              <figure class="v2-figure">
+                <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
+                <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
+              </figure>
+            {{/each}}
+          </div>
+        </div>
+      {{/if}}
+    </div>
+  {{/each}}
+</div>
+{{/if}}

@@ -1,0 +1,11 @@
+{{!-- Một ảnh hiện trường PL2: ảnh bối cảnh có ghim D (khung ôm sát ảnh để tọa độ % trùng ảnh). --}}
+<figure class="v2-figure">
+  <div class="v2-media">
+    {{#if this.pin}}
+      <div class="v2-pin-stage"><img src="{{this.src}}" alt="{{this.caption.vi}}"><div class="v2-photo-pin" style="left: {{this.pin.x}}%; top: {{this.pin.y}}%;"><i></i><span>{{this.pin.code}}</span></div></div>
+    {{else}}
+      <img src="{{this.src}}" alt="{{this.caption.vi}}">
+    {{/if}}
+  </div>
+  <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
+</figure>
