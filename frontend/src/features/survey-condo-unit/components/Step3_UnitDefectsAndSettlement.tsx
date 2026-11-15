@@ -675,7 +675,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     const newZone: DamageZoneData = {
       id: `zone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       zoneCode: pin.zoneCode,
-      floorName: `Tầng ${latestState.floorNumber || 1}`,
+      floorName: Number.isFinite(latestState.floorNumber) ? `Tầng ${latestState.floorNumber}` : '',
       roomName: prevZone?.roomName || 'Phòng khách',
       customRoomName: prevZone?.customRoomName || '',
       componentType: prevZone?.componentType || 'Tường gạch vữa xi măng (Tường bao / ngăn)',
@@ -748,7 +748,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     const newElement: StructuralElementData = {
       id: `element_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       elementCode: pin.zoneCode,
-      floorName: `Tầng ${latestState.floorNumber || 1}`,
+      floorName: Number.isFinite(latestState.floorNumber) ? `Tầng ${latestState.floorNumber}` : '',
       roomName: prevEl?.roomName || 'Phòng khách',
       customRoomName: prevEl?.customRoomName || '',
       elementType: prevEl?.elementType || 'Cột BTCT (Cột chịu lực chính)',

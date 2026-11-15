@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { readLockoutRecord, type LockoutRecord } from '../../services/authSession';
 import { Lock, User, ShieldCheck, ArrowRight, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -13,18 +14,12 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lockoutNotice, setLockoutNotice] = useState<string | null>(null);
+  const [lockoutNotice, setLockoutNotice] = useState<LockoutRecord | null>(null);
 
   useEffect(() => {
-    try {
-      const reason = sessionStorage.getItem('metro2_auth_lockout_reason');
-      if (reason) {
-        setLockoutNotice(reason);
-        sessionStorage.removeItem('metro2_auth_lockout_reason');
-      }
-    } catch (_err: unknown) {
-      console.warn('[LoginView:useEffect] Không thể đọc metro2_auth_lockout_reason:', _err);
-    }
+    // Giữ bản ghi trong sessionStorage tới khi đăng nhập lại để request trễ không ghi đè lý do gốc
+    const record = readLockoutRecord();
+    if (record) setLockoutNotice(record);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,7 +94,14 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
               <AlertTriangle size={15} className="shrink-0 text-amber-600" />
               <span>Phiên làm việc đã bị ngắt kết nối</span>
             </div>
-            <p className="m-0 font-semibold leading-relaxed">{lockoutNotice}</p>
+            <p className="m-0 font-semibold leading-relaxed">{lockoutNotice.reason}</p>
+            {(lockoutNotice.url || lockoutNotice.at) && (
+              <p className="m-0 text-[10px] font-mono text-amber-700 break-all">
+                {lockoutNotice.url ? `Request: ${lockoutNotice.url}` : ''}
+                {lockoutNotice.url && lockoutNotice.at ? ' · ' : ''}
+                {lockoutNotice.at ? new Date(lockoutNotice.at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : ''}
+              </p>
+            )}
             <p className="m-0 text-[11px] text-amber-700">
               💡 <strong>An toàn dữ liệu:</strong> Toàn bộ bản nháp khảo sát đang nhập dở trên thiết bị của bạn vẫn được bảo toàn nguyên vẹn.
             </p>

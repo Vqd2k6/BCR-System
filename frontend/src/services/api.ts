@@ -1,5 +1,14 @@
 import axios, { AxiosError } from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
 import { sendDevError } from './devErrorReporter';
+import { AUTH_UNAUTHORIZED_EVENT, getAccessToken, refreshAccessToken } from './authSession';
+
+interface RetriableRequestConfig extends InternalAxiosRequestConfig {
+  _authRetried?: boolean;
+}
+
+const isAuthEndpoint = (url?: string): boolean =>
+  Boolean(url && (url.includes('/auth/login') || url.includes('/auth/refresh-token') || url.includes('/auth/logout')));
 
 const resolveBaseUrl = (): string => {
   let envUrl = (import.meta.env?.VITE_API_BASE_URL || '').trim();
@@ -13,8 +22,10 @@ const resolveBaseUrl = (): string => {
   return envUrl || '/api/v1';
 };
 
+export const API_BASE_URL = resolveBaseUrl();
+
 export const api = axios.create({
-  baseURL: resolveBaseUrl(),
+  baseURL: API_BASE_URL,
   timeout: 300000, // 300s timeout (5 phút) chịu tải nạp bản đồ lớn và Render Cold-start
   adapter: typeof fetch !== 'undefined' ? 'fetch' : undefined,
   headers: {
@@ -24,7 +35,7 @@ export const api = axios.create({
 
 // Request Interceptor: Tự động đính kèm JWT Bearer Token & Xóa Content-Type cho FormData
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('metro2_access_token');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -93,13 +104,37 @@ api.interceptors.response.use(
         'color: #f59e0b; font-weight: bold;',
         'color: inherit;'
       );
-      // Request gửi bằng token cũ về sau khi token đã được thay (vừa đổi mật khẩu) thì không khóa phiên mới
       const sentAuth = error.config?.headers?.Authorization;
-      const currentToken = localStorage.getItem('metro2_access_token');
+      const currentToken = getAccessToken();
+      const originalConfig = error.config as RetriableRequestConfig | undefined;
+
+      // Request đi kèm token còn hiệu lực trên máy: thử làm mới access token một lần rồi gửi lại
+      if (sentAuth && currentToken && sentAuth === `Bearer ${currentToken}` && originalConfig && !originalConfig._authRetried && !isAuthEndpoint(url)) {
+        originalConfig._authRetried = true;
+        const newToken = await refreshAccessToken(API_BASE_URL);
+        if (newToken) {
+          console.warn(`[Api:authRefresh] Đã làm mới token, gửi lại ${method} ${url}`);
+          originalConfig.headers.Authorization = `Bearer ${newToken}`;
+          return api.request(originalConfig);
+        }
+      }
+
+      // Request gửi bằng token cũ trong lúc request khác vừa làm mới token: gửi lại bằng token mới
+      if (sentAuth && currentToken && sentAuth !== `Bearer ${currentToken}` && originalConfig && !originalConfig._authRetried && !isAuthEndpoint(url)) {
+        originalConfig._authRetried = true;
+        originalConfig.headers.Authorization = `Bearer ${currentToken}`;
+        return api.request(originalConfig);
+      }
+
+      // Không khóa phiên lần nữa khi:
+      // - request đi ra không kèm token (phiên đã bị khóa trước đó / khách chưa đăng nhập): giữ nguyên lý do gốc;
+      // - request gửi bằng token cũ trong khi token đã được thay (vừa đổi mật khẩu / vừa làm mới).
+      const sentWithoutToken = !sentAuth;
+      const tokenAlreadyCleared = !currentToken;
       const isStaleToken = Boolean(sentAuth && currentToken && sentAuth !== `Bearer ${currentToken}`);
-      if (typeof window !== 'undefined' && !url?.includes('/auth/login') && !isStaleToken) {
+      if (typeof window !== 'undefined' && !isAuthEndpoint(url) && !sentWithoutToken && !tokenAlreadyCleared && !isStaleToken) {
         window.dispatchEvent(
-          new CustomEvent('metro2:auth-unauthorized', {
+          new CustomEvent(AUTH_UNAUTHORIZED_EVENT, {
             detail: {
               message: msgStr,
               url: url || '',

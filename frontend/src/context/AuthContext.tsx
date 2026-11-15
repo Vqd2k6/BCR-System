@@ -2,6 +2,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import api from '../services/api';
 import type { UserRole } from '../core/types/domain.types';
 import { getErrorMessage, getErrorStatus } from '@/utils/errorUtils';
+import {
+  ACCESS_TOKEN_KEY,
+  AUTH_TOKEN_REFRESHED_EVENT,
+  AUTH_UNAUTHORIZED_EVENT,
+  clearLockoutRecord,
+  clearTokens,
+  getRefreshToken,
+  recordLockoutOnce,
+  storeTokens,
+} from '../services/authSession';
 
 export interface UserProfile {
   id: string;
@@ -35,16 +45,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem('metro2_access_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const forceLockoutWithoutClearingDrafts = useCallback((reason: string) => {
+  const forceLockoutWithoutClearingDrafts = useCallback((reason: string, url: string = '') => {
+    // Ghi lý do TRƯỚC khi xóa token: chỉ lý do đầu tiên của lượt khóa được giữ lại
+    recordLockoutOnce(reason, url);
     setUser(null);
     setToken(null);
-    localStorage.removeItem('metro2_access_token');
-    localStorage.removeItem('metro2_user_profile');
-    try {
-      sessionStorage.setItem('metro2_auth_lockout_reason', reason);
-    } catch (_err: unknown) {
-      console.warn('[AuthContext:forceLockoutWithoutClearingDrafts] Không thể lưu lý do khóa vào sessionStorage:', _err);
-    }
+    clearTokens();
   }, []);
 
   const syncUserProfileFromApi = useCallback(async () => {
@@ -82,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'Phiên đăng nhập đã hết hạn hoặc tài khoản đã bị thu hồi quyền truy cập.'
         );
         console.warn('[AuthContext:syncUserProfileFromApi] Thu hồi phiên do 401:', reason);
-        forceLockoutWithoutClearingDrafts(reason);
+        forceLockoutWithoutClearingDrafts(reason, '/auth/me');
         return;
       }
       // Offline fallback: chỉ giữ cached profile khi mất mạng hoặc lỗi máy chủ tạm thời
@@ -96,12 +102,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const reason =
         customEvent.detail?.message ||
         'Tài khoản của bạn đã bị khóa hoặc phiên làm việc đã hết hạn.';
-      forceLockoutWithoutClearingDrafts(reason);
+      forceLockoutWithoutClearingDrafts(reason, customEvent.detail?.url || '');
     };
 
-    window.addEventListener('metro2:auth-unauthorized', handleUnauthorizedEvent);
+    const handleTokenRefreshed = (event: Event) => {
+      const customEvent = event as CustomEvent<{ accessToken?: string }>;
+      if (customEvent.detail?.accessToken) setToken(customEvent.detail.accessToken);
+    };
+
+    // Đồng bộ phiên giữa các tab: tab khác xóa token (đăng xuất / bị khóa) thì tab này cũng dừng,
+    // tránh tiếp tục gửi request không kèm token
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== ACCESS_TOKEN_KEY && event.key !== null) return;
+      const nextToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (nextToken) {
+        setToken(nextToken);
+        return;
+      }
+      setUser((prev) => {
+        if (prev) {
+          recordLockoutOnce('Phiên đăng nhập đã kết thúc ở một tab hoặc cửa sổ khác của trình duyệt.', '');
+        }
+        return null;
+      });
+      setToken(null);
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorizedEvent);
+    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
+    window.addEventListener('storage', handleStorage);
     return () => {
-      window.removeEventListener('metro2:auth-unauthorized', handleUnauthorizedEvent);
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorizedEvent);
+      window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [forceLockoutWithoutClearingDrafts]);
 
@@ -130,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string) => {
     const res = await api.post('/auth/login', { username, password });
     if (res.data?.success) {
-      const { accessToken, user: rawUser } = res.data.data;
+      const { accessToken, refreshToken, user: rawUser } = res.data.data;
       const normalized: UserProfile = {
         id: rawUser.id,
         username: rawUser.username,
@@ -145,13 +178,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setToken(accessToken);
       setUser(normalized);
-      localStorage.setItem('metro2_access_token', accessToken);
+      storeTokens(accessToken, typeof refreshToken === 'string' ? refreshToken : null);
       localStorage.setItem('metro2_user_profile', JSON.stringify(normalized));
-      try {
-        sessionStorage.removeItem('metro2_auth_lockout_reason');
-      } catch (_err: unknown) {
-        console.warn('[AuthContext:login] Không thể xóa metro2_auth_lockout_reason:', _err);
-      }
+      clearLockoutRecord();
     }
   };
 
@@ -187,13 +216,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    api.post('/auth/logout').catch((_err: unknown) => {
+    // Gửi refresh token để máy chủ thu hồi phiên
+    // Interceptor chạy bất đồng bộ, token bị xóa ngay bên dưới: gắn header trực tiếp
+    const currentAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    api
+      .post(
+        '/auth/logout',
+        { refreshToken: getRefreshToken() || undefined },
+        currentAccessToken ? { headers: { Authorization: `Bearer ${currentAccessToken}` } } : undefined
+      )
+      .catch((_err: unknown) => {
       console.warn('[AuthContext:logout] Không thể gọi API logout (có thể đang offline):', _err);
     });
     setUser(null);
     setToken(null);
-    localStorage.removeItem('metro2_access_token');
-    localStorage.removeItem('metro2_user_profile');
+    clearTokens();
     localStorage.removeItem('metro2_absence_log');
     // Dọn dẹp trạng thái điều hướng và parcel đã chọn trong sessionStorage
     sessionStorage.removeItem('metro2_nav_state');
@@ -201,7 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem('metro2_last_active_unit');
     sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
     sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
-    sessionStorage.removeItem('metro2_auth_lockout_reason');
+    clearLockoutRecord();
     // Clear all today check-in keys
     Object.keys(localStorage).forEach((k) => {
       if (
