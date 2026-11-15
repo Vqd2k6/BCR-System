@@ -57,11 +57,20 @@ export function isReportTemplateKey(value: unknown): value is ReportTemplateKey 
   return typeof value === 'string' && (REPORT_TEMPLATE_KEYS as readonly string[]).includes(value);
 }
 
-/** Template mặc định cho bản nháp nhà dân, đọc `DEFAULT_RESIDENTIAL_TEMPLATE`; giá trị lạ thì log và dùng v1. */
+/**
+ * Template mặc định cho bản nháp / Rev mới của nhà dân (chốt 15/11/2026: v2).
+ * `LEGACY_TEMPLATE_KEY` (v1) vẫn là template của Rev cũ không ghi template_key và nền của chung cư.
+ */
+export const DEFAULT_TEMPLATE_KEY: ReportTemplateKey = 'residential_v2';
+
+/**
+ * Template mặc định nhà dân: v2. Biến `DEFAULT_RESIDENTIAL_TEMPLATE` chỉ để chuyển về v1 khi cần
+ * (`residential_v1`); giá trị lạ thì log và dùng mặc định.
+ */
 export function defaultResidentialTemplateKey(): ReportTemplateKey {
   const raw = process.env.DEFAULT_RESIDENTIAL_TEMPLATE?.trim();
-  if (!raw) return LEGACY_TEMPLATE_KEY;
+  if (!raw) return DEFAULT_TEMPLATE_KEY;
   if (isReportTemplateKey(raw)) return raw;
-  console.error(`[ReportTemplateKind:default] DEFAULT_RESIDENTIAL_TEMPLATE="${raw}" không hợp lệ, dùng ${LEGACY_TEMPLATE_KEY}`);
-  return LEGACY_TEMPLATE_KEY;
+  console.error(`[ReportTemplateKind:default] DEFAULT_RESIDENTIAL_TEMPLATE="${raw}" không hợp lệ, dùng ${DEFAULT_TEMPLATE_KEY}`);
+  return DEFAULT_TEMPLATE_KEY;
 }

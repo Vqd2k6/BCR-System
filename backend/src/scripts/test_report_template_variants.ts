@@ -68,9 +68,12 @@ async function main(): Promise<void> {
   console.log('\n2. Chọn template');
   const envBackup = process.env.DEFAULT_RESIDENTIAL_TEMPLATE;
   delete process.env.DEFAULT_RESIDENTIAL_TEMPLATE;
-  check(defaultResidentialTemplateKey() === 'residential_v1', 'không đặt env → mặc định v1');
+  check(defaultResidentialTemplateKey() === 'residential_v2', 'không đặt env → mặc định v2 (chốt 15/11/2026)');
+  check(ReportService.resolveTemplateKey(STANDALONE_RAW) === 'residential_v2', 'nhà dân không chọn, không env → v2');
   process.env.DEFAULT_RESIDENTIAL_TEMPLATE = 'residential_v9';
-  check(defaultResidentialTemplateKey() === 'residential_v1', 'env lạ → log lỗi và dùng v1');
+  check(defaultResidentialTemplateKey() === 'residential_v2', 'env lạ → log lỗi và dùng mặc định v2');
+  process.env.DEFAULT_RESIDENTIAL_TEMPLATE = 'residential_v1';
+  check(ReportService.resolveTemplateKey(STANDALONE_RAW) === 'residential_v1', 'env residential_v1 → chuyển về v1 (công tắc tắt)');
   process.env.DEFAULT_RESIDENTIAL_TEMPLATE = 'residential_v2';
   check(ReportService.resolveTemplateKey(STANDALONE_RAW) === 'residential_v2', 'nhà dân theo env mặc định v2');
   check(ReportService.resolveTemplateKey(STANDALONE_RAW, 'residential_v1') === 'residential_v1', 'Admin chọn v1 thắng mặc định');

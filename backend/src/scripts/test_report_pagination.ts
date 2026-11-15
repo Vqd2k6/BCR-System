@@ -9,6 +9,8 @@
  *       và "Trang i / N" đúng; (d) bìa in "Page: 1 of N" đúng tổng số trang; (e) hồ sơ nặng vẫn xuất được.
  */
 import 'dotenv/config';
+// Script kiểm template v1 (mặc định đã chuyển sang v2 ngày 15/11/2026): ghim v1 cho các lượt dựng không chọn template.
+process.env.DEFAULT_RESIDENTIAL_TEMPLATE = 'residential_v1';
 import { Database } from '../database/db';
 import { ReportService } from '../modules/report/services/report.service';
 import { PdfRenderEngine } from '../modules/report/engine/pdf-render.engine';
