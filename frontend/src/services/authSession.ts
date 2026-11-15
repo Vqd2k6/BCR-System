@@ -85,16 +85,20 @@ interface RefreshResponse {
   data?: { accessToken?: string };
 }
 
-let refreshInFlight: Promise<string | null> | null = null;
+/** Kết quả làm mới: token mới | máy chủ từ chối (phải đăng nhập lại) | tạm thời không làm được (giữ phiên) */
+export type RefreshResult = { kind: 'OK'; accessToken: string } | { kind: 'REJECTED' } | { kind: 'UNAVAILABLE' };
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
 
 /**
  * Xin access token mới bằng refresh token. Nhiều request 401 cùng lúc dùng chung một lượt gọi.
- * Trả về token mới, hoặc null nếu không có refresh token / máy chủ từ chối (khóa, thu hồi, hết hạn).
+ * REJECTED: không có refresh token hoặc máy chủ trả 4xx (khóa, thu hồi, hết hạn).
+ * UNAVAILABLE: lỗi mạng / 5xx (CSDL quá tải): KHÔNG được khóa phiên vì lý do này.
  */
-export function refreshAccessToken(baseURL: string): Promise<string | null> {
+export function refreshAccessToken(baseURL: string): Promise<RefreshResult> {
   if (refreshInFlight) return refreshInFlight;
   const refreshToken = getRefreshToken();
-  if (!refreshToken) return Promise.resolve(null);
+  if (!refreshToken) return Promise.resolve({ kind: 'REJECTED' });
 
   refreshInFlight = (async () => {
     try {
@@ -105,21 +109,21 @@ export function refreshAccessToken(baseURL: string): Promise<string | null> {
         body: JSON.stringify({ refreshToken }),
       });
       if (!res.ok) {
-        console.warn(`[authSession:refreshAccessToken] Máy chủ từ chối làm mới token (HTTP ${res.status})`);
-        return null;
+        console.warn(`[authSession:refreshAccessToken] Không làm mới được token (HTTP ${res.status})`);
+        return res.status >= 500 ? { kind: 'UNAVAILABLE' } : { kind: 'REJECTED' };
       }
       const body = (await res.json()) as RefreshResponse;
       const accessToken = body?.data?.accessToken;
       if (!accessToken) {
         console.error('[authSession:refreshAccessToken] Phản hồi làm mới token thiếu accessToken:', body);
-        return null;
+        return { kind: 'UNAVAILABLE' };
       }
       localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
       window.dispatchEvent(new CustomEvent(AUTH_TOKEN_REFRESHED_EVENT, { detail: { accessToken } }));
-      return accessToken;
+      return { kind: 'OK', accessToken };
     } catch (err: unknown) {
       console.error('[authSession:refreshAccessToken] Lỗi mạng khi làm mới token:', err);
-      return null;
+      return { kind: 'UNAVAILABLE' };
     } finally {
       refreshInFlight = null;
     }

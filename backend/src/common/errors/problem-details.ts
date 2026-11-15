@@ -78,6 +78,16 @@ export class WatermarkIncompleteError extends AppError {
   }
 }
 
+/**
+ * Máy chủ tạm thời không xử lý được (vd CSDL quá tải khi kiểm tra phiên). Không phải lỗi xác thực:
+ * frontend KHÔNG được khóa phiên khi gặp mã này.
+ */
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string = 'Máy chủ tạm thời quá tải, vui lòng thử lại sau ít phút') {
+    super(message, 503, 'SERVICE_UNAVAILABLE');
+  }
+}
+
 export class UnprocessableEntityError extends AppError {
   constructor(message: string = 'Dữ liệu không đáp ứng quy tắc nghiệp vụ', invalidParams?: Array<{ field: string; message: string }>) {
     super(message, 422, 'UNPROCESSABLE_ENTITY', invalidParams);
@@ -163,6 +173,7 @@ function getTitleForStatus(status: number): string {
     case 404: return 'Không tìm thấy dữ liệu (Not Found)';
     case 409: return 'Xung đột dữ liệu (Conflict)';
     case 422: return 'Lỗi nghiệp vụ dữ liệu (Unprocessable Entity)';
+    case 503: return 'Máy chủ tạm thời không sẵn sàng (Service Unavailable)';
     default: return 'Lỗi máy chủ nội bộ (Internal Server Error)';
   }
 }

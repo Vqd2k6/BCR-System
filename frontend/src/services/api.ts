@@ -111,11 +111,16 @@ api.interceptors.response.use(
       // Request đi kèm token còn hiệu lực trên máy: thử làm mới access token một lần rồi gửi lại
       if (sentAuth && currentToken && sentAuth === `Bearer ${currentToken}` && originalConfig && !originalConfig._authRetried && !isAuthEndpoint(url)) {
         originalConfig._authRetried = true;
-        const newToken = await refreshAccessToken(API_BASE_URL);
-        if (newToken) {
+        const refreshed = await refreshAccessToken(API_BASE_URL);
+        if (refreshed.kind === 'OK') {
           console.warn(`[Api:authRefresh] Đã làm mới token, gửi lại ${method} ${url}`);
-          originalConfig.headers.Authorization = `Bearer ${newToken}`;
+          originalConfig.headers.Authorization = `Bearer ${refreshed.accessToken}`;
           return api.request(originalConfig);
+        }
+        if (refreshed.kind === 'UNAVAILABLE') {
+          // Máy chủ tạm lỗi khi làm mới: giữ phiên + nháp, request này thất bại, lượt lưu sau sẽ thử lại
+          console.error(`[Api:authRefresh] Máy chủ tạm thời không làm mới được token, giữ phiên. ${method} ${url}`);
+          return Promise.reject(error);
         }
       }
 
