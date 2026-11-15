@@ -214,7 +214,7 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
             )}
           </div>
         ) : activeZone ? (
-          <div className="flex flex-col gap-4 pt-1">
+          <div key={activeZone.id} className="flex flex-col gap-4 pt-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-mono font-bold">

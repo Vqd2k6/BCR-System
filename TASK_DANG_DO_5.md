@@ -68,3 +68,15 @@ Kiểm chứng: FE/BE build đạt; `check:zero-any`, `check:ui`, `check:catch`,
   - Dựng thật và bấm thử: Quick Setup ra G, F01..F09, TECH (tầng 10), …, TECH2 (tầng 20); bộ chọn dải tầng trả [2,3,4,6,7,8] (khóa tầng 1, 5 có mặt bằng riêng; dải 6→8 thêm tầng mới); "Áp nhanh Z → E" bỏ qua ô đã khảo sát, cắt E + khung cho ô còn lại; Kho "Xóa" chỉ xóa mềm, "Đặt làm CAD_E chính" trả URL tờ.
   - Luồng có đăng nhập (mở CAD Studio thật của một tòa, lưu) do người dùng tự thử.
 - 15/11/2026: theo yêu cầu người dùng, đã fast-forward `main` lên `3692afe` (= dev) và push `origin main`. Khi deploy, 4 migration 20261116–20261119 tự chạy lúc server khởi động; nên pg_dump DB prod trước và theo dõi log `[MIGRATION RUNNER]`.
+
+## Sự cố KSV 15/11 — C&C-04-B-0236 (ZONE_07, ST04, Android): mất ảnh cũ + 59 ảnh / 6 GB / 1 giờ
+Nguyên nhân đã xác nhận trong code và DB local (chỉ đọc):
+- GPS `watchPosition` ở `App.tsx` render lại toàn App ~1 lần/giây → `BuildingHubModal` tạo mảng `floorPlans` mới → effect nạp bản vẽ tầng của khu vực chung gọi lại `GET /floor-plans/:floor` (~1 MB/lượt vì CAD base64) → ~3,6 GB/giờ.
+- Handler ảnh Vùng Z / Cấu kiện E khu vực chung có nhánh `prevTemp`: chụp ảnh mới khi ảnh trước chưa upload xong thì THAY ảnh trước.
+
+Đã sửa (chưa commit): lọc GPS (`core/utils/gpsThrottle.ts`), memo prop Hub, effect bản vẽ tầng tải 1 lần, `masterPhotoListMutator.ts` (không thay ảnh tạm, thăng cấp đúng vùng), bỏ khớp theo photoCode ở ảnh toàn cảnh, chặn URL Cloud muộn ghi đè ô đã đổi ảnh, gắn key panel vùng, gzip backend, `?inlineCadFor=` cho `floor-plans/:floor`, hàng đợi upload giãn cách/không gửi đôi/không tải lại hàng loạt, bộ đếm "Dung lượng đã dùng" trong menu KSV.
+
+Còn lại (cần quyết định / quyền riêng):
+1. CAD base64 cũ trong `building_units.unit_cad_url` / `unit_structural_cad_url` (146/154 căn local): chuyển lên R2 cần ghi DB + R2 prod. `/parcels/:id/units` vẫn trả đủ base64 (4,7 MB với B-0129) vì store căn hộ và màn hoán đổi Admin còn đọc trường này.
+2. Nháp khu vực chung lưu CAD base64 lặp 6 lần (`floors[0]`, `floorSurvey`, trường gốc; B01.M01 = 3 MB): cần rà adapter báo cáo trước khi khử trùng.
+3. Ảnh đã mất ở B-0236: file còn trên R2 và IndexedDB máy KSV → Admin cứu bằng luồng ảnh mồ côi (`recoverOrphanPhotos`). Dặn KSV không xóa dữ liệu trình duyệt.

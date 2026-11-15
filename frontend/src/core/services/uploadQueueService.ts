@@ -19,6 +19,7 @@ import {
   getDeviceId,
 } from '../storage/offlinePhotoStorage';
 import { replaceLocalUriInIdbDrafts } from '../utils/idbDraftStorage';
+import { recordDataUsage } from './dataMeter';
 import { surveyDraftService } from '../../features/survey-phase1/services/surveyDraftService';
 import { resolveOfflineTargetFolderFromMetadata } from '../../components/common/photo-capture/domain/photoIdentityPolicy';
 
@@ -34,6 +35,8 @@ export interface UploadTask {
   status: UploadStatus;
   progress: number;
   retryCount: number;
+  /** Không thử lại trước thời điểm này (giãn cách thử lại, tiết kiệm dữ liệu di động) */
+  notBefore?: number;
   publicUrl?: string;
   key?: string;
   error?: string;
@@ -55,12 +58,27 @@ class UploadQueueService {
   private maxConcurrent: number = 2; // Giới hạn tối đa 2 luồng tải song song để bảo vệ băng thông 4G
   private maxRetries: number = 3;
   private listeners: Set<QueueListener> = new Set();
+  /** Giãn cách thử lại sau mỗi lần lỗi: 5s → 30s → 120s (không thử lại dồn dập khi 4G chập chờn) */
+  private retryDelaysMs: number[] = [5_000, 30_000, 120_000];
+  private wakeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Lượt quét ảnh offline đang chạy (chống chạy chồng khi sự kiện online bắn liên tục) */
+  private resumeInFlight: Promise<number> | null = null;
+  private lastOnlineResumeAt = 0;
+  private hasRestoredMappingsThisSession = false;
+  /** PUT trực tiếp lên R2 bị chặn (CORS) trong phiên này: các ảnh sau đi thẳng đường backend, không PUT thử trước */
+  private directPutBlocked = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
+        // Ảnh đang chờ có mạng trong hàng đợi: chạy tiếp ngay
+        this.processQueue();
+        // Android bắn sự kiện online liên tục khi sóng chập chờn: quét lại IndexedDB tối đa 1 lần / 30s
+        const now = Date.now();
+        if (now - this.lastOnlineResumeAt < 30_000) return;
+        this.lastOnlineResumeAt = now;
         console.log('[UploadQueue] Phát hiện có mạng kết nối trở lại, tự động quét ảnh offline...');
-        this.resumePendingOfflineUploads();
+        void this.resumePendingOfflineUploads();
       });
       // Tự động quét khi khởi động ứng dụng
       void requestPersistentStorage();
@@ -73,19 +91,29 @@ class UploadQueueService {
   /**
    * Tự động quét IndexedDB và tiếp tục tải các ảnh offline chưa hoàn tất
    */
-  public async resumePendingOfflineUploads(): Promise<number> {
-    await this.restoreLostCloudMappings();
+  public resumePendingOfflineUploads(): Promise<number> {
+    if (this.resumeInFlight) return this.resumeInFlight;
+    this.resumeInFlight = this.doResumePendingOfflineUploads().finally(() => {
+      this.resumeInFlight = null;
+    });
+    return this.resumeInFlight;
+  }
+
+  private async doResumePendingOfflineUploads(): Promise<number> {
+    if (!this.hasRestoredMappingsThisSession) {
+      this.hasRestoredMappingsThisSession = true;
+      await this.restoreLostCloudMappings();
+    }
 
     try {
       const pending = await getAllPendingPhotos();
       if (!pending || pending.length === 0) return 0;
       let count = 0;
       for (const item of pending) {
-        // Tránh upload trùng: ảnh này đang nằm trong hàng đợi và chưa xong
-        const inFlight = this.queue.find(
-          (t) => t.id === item.id && (t.status === 'QUEUED' || t.status === 'UPLOADING')
-        );
-        if (inFlight) continue;
+        // Tránh upload trùng: ảnh này đã có trong hàng đợi (đang chờ / đang tải / vừa xong / đang giãn cách sau lỗi)
+        // Riêng task đã hết lượt (ERROR) thì được xếp lại một vòng mới (lượt quét này đã được giãn ≥ 30s)
+        const known = this.queue.find((t) => t.id === item.id);
+        if (known && known.status !== 'ERROR') continue;
         const targetFolder = resolveOfflineTargetFolderFromMetadata(item.metadata);
         this.enqueue(item.blob, item.filename, {
           id: item.id,
@@ -300,17 +328,27 @@ class UploadQueueService {
   ): string {
     const taskId = options?.id || `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     
-    // Nếu task cùng ID đang tồn tại và chưa thành công, cập nhật blob
+    // Task cùng ID đã có: chỉ cập nhật callback, KHÔNG tải lại ảnh đang chờ / đang tải / đã xong.
+    // Task đã hết lượt (ERROR) mới được xếp lại, vẫn giữ giãn cách.
     const existingIndex = this.queue.findIndex((t) => t.id === taskId);
-    if (existingIndex >= 0 && this.queue[existingIndex].status !== 'SUCCESS') {
-      this.queue[existingIndex].blob = blob;
-      this.queue[existingIndex].filename = filename;
-      this.queue[existingIndex].metadata = options?.metadata;
-      this.queue[existingIndex].status = 'QUEUED';
-      this.queue[existingIndex].retryCount = 0;
-      this.queue[existingIndex].onSuccess = options?.onSuccess;
-      this.queue[existingIndex].onError = options?.onError;
-      this.processQueue();
+    if (existingIndex >= 0) {
+      const existing = this.queue[existingIndex];
+      existing.onSuccess = options?.onSuccess ?? existing.onSuccess;
+      existing.onError = options?.onError ?? existing.onError;
+      if (existing.status === 'ERROR') {
+        existing.blob = blob;
+        existing.filename = filename;
+        existing.metadata = options?.metadata ?? existing.metadata;
+        existing.status = 'QUEUED';
+        existing.retryCount = 0;
+        existing.notBefore = undefined;
+        this.notify();
+        this.processQueue();
+      } else if (existing.status === 'QUEUED' && existing.notBefore) {
+        // KSV bấm thử lại: bỏ thời gian chờ
+        existing.notBefore = undefined;
+        this.processQueue();
+      }
       return taskId;
     }
 
@@ -342,6 +380,7 @@ class UploadQueueService {
     if (task && task.status === 'ERROR') {
       task.status = 'QUEUED';
       task.retryCount = 0;
+      task.notBefore = undefined;
       task.error = undefined;
       this.notify();
       this.processQueue();
@@ -362,11 +401,34 @@ class UploadQueueService {
   /**
    * Vòng lặp điều phối hàng đợi đa luồng
    */
+  private isOnline(): boolean {
+    return typeof navigator === 'undefined' || navigator.onLine !== false;
+  }
+
+  /** Hẹn đánh thức hàng đợi đúng lúc task sớm nhất hết giãn cách */
+  private scheduleWake() {
+    if (this.wakeTimer) clearTimeout(this.wakeTimer);
+    const waits = this.queue
+      .filter((t) => t.status === 'QUEUED' && t.notBefore && t.notBefore > Date.now())
+      .map((t) => (t.notBefore as number) - Date.now());
+    if (waits.length === 0) return;
+    this.wakeTimer = setTimeout(() => {
+      this.wakeTimer = null;
+      this.processQueue();
+    }, Math.max(50, Math.min(...waits)));
+  }
+
   private processQueue() {
     if (this.activeUploads >= this.maxConcurrent) return;
+    // Mất mạng: chờ sự kiện online, không đốt lượt thử
+    if (!this.isOnline()) return;
 
-    const nextTask = this.queue.find((t) => t.status === 'QUEUED');
-    if (!nextTask) return;
+    const now = Date.now();
+    const nextTask = this.queue.find((t) => t.status === 'QUEUED' && (!t.notBefore || t.notBefore <= now));
+    if (!nextTask) {
+      this.scheduleWake();
+      return;
+    }
 
     this.activeUploads++;
     nextTask.status = 'UPLOADING';
@@ -389,9 +451,13 @@ class UploadQueueService {
       })
       .catch((err) => {
         console.warn(`[UploadQueue] Upload failed for task ${nextTask.id}:`, err);
-        if (nextTask.retryCount < this.maxRetries) {
+        if (!this.isOnline()) {
+          // Lỗi do mất mạng: chờ có mạng lại, không tính lượt
+          nextTask.status = 'QUEUED';
+        } else if (nextTask.retryCount < this.maxRetries) {
           nextTask.retryCount++;
           nextTask.status = 'QUEUED';
+          nextTask.notBefore = Date.now() + this.retryDelaysMs[Math.min(nextTask.retryCount - 1, this.retryDelaysMs.length - 1)];
           console.log(`[UploadQueue] Retrying task ${nextTask.id} (lần ${nextTask.retryCount}/${this.maxRetries})...`);
         } else {
           nextTask.status = 'ERROR';
@@ -425,6 +491,7 @@ class UploadQueueService {
       formData.append('metadata', JSON.stringify(task.metadata));
     }
 
+    recordDataUsage('UPLOAD ảnh (qua backend)', task.blob.size);
     const res = await api.post('/storage/upload', formData);
 
     const data = res.data?.data;
@@ -443,6 +510,9 @@ class UploadQueueService {
    * Tự động Fallback sang Backend Storage API nếu Direct PUT bị chặn CORS hoặc lỗi mạng
    */
   private async executeUpload(task: UploadTask): Promise<{ publicUrl: string; key: string }> {
+    if (this.directPutBlocked) {
+      return this.executeBackendFallback(task);
+    }
     try {
       // 1. Xin Presigned PUT URL từ Backend kèm Metadata định danh
       const presignRes = await api.post('/storage/presign', {
@@ -478,6 +548,7 @@ class UploadQueueService {
         ...(presignHeaders || {}),
       };
 
+      recordDataUsage('UPLOAD ảnh (R2 trực tiếp)', task.blob.size);
       const uploadRes = await fetch(targetPutUrl, {
         method: 'PUT',
         headers: putHeaders,
@@ -491,8 +562,14 @@ class UploadQueueService {
 
       return { publicUrl, key };
     } catch (directError: unknown) {
-      console.warn(`[UploadQueue] Direct PUT lên R2 thất bại (${getErrorMessage(directError)}), tự động chuyển hướng qua Backend fallback...`);
-      return this.executeBackendFallback(task);
+      // Chỉ chuyển sang gửi qua backend khi PUT bị trình duyệt chặn (CORS -> TypeError) lúc đang có mạng.
+      // Lỗi HTTP của R2 / mất mạng giữa chừng: để vòng thử lại (có giãn cách) PUT lại, không gửi thêm bản thứ 2.
+      const blockedByBrowser = directError instanceof TypeError && this.isOnline();
+      if (!blockedByBrowser) throw directError;
+      console.warn(`[UploadQueue] Direct PUT lên R2 bị chặn (${getErrorMessage(directError)}), chuyển sang Backend fallback...`);
+      const result = await this.executeBackendFallback(task);
+      this.directPutBlocked = true;
+      return result;
     }
   }
 }

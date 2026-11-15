@@ -286,7 +286,7 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                 )}
               </div>
             ) : activeElement ? (
-              <div className="flex flex-col gap-4 pt-1">
+              <div key={activeElement.id} className="flex flex-col gap-4 pt-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-mono font-bold">

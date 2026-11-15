@@ -33,6 +33,10 @@ export function upsertPhotoUrlList(
 
   if (replacesUri && baseList.includes(replacesUri)) {
     nextList = baseList.map((u) => (u === replacesUri ? cleanIncoming : u));
+  } else if (replacesUri && !baseList.includes(cleanIncoming)) {
+    // Thăng cấp ảnh tạm không còn trong danh sách này (đã xóa / thuộc vùng khác): không nối thêm
+    console.warn('[photoCollectionMutator:upsertPhotoUrlList] Bỏ qua thăng cấp, không còn ảnh tạm:', replacesUri);
+    return baseList;
   } else if (baseList.includes(cleanIncoming)) {
     nextList = [...baseList];
   } else {
@@ -66,6 +70,12 @@ export function upsertPhotoObjectList<T extends { url: string; photoCode?: strin
 
   const replacesUri = meta?.replacesUri?.trim();
   let rawUpdated: T[];
+
+  if (replacesUri && !baseList.some((item) => item.url === replacesUri) && !baseList.some((item) => item.url === cleanIncomingUrl)) {
+    // Thăng cấp ảnh tạm không còn trong danh sách này (đã xóa / thuộc vùng khác): không nối thêm
+    console.warn('[photoCollectionMutator:upsertPhotoObjectList] Bỏ qua thăng cấp, không còn ảnh tạm:', replacesUri);
+    return baseList;
+  }
 
   if (replacesUri && baseList.some((item) => item.url === replacesUri)) {
     rawUpdated = baseList.map((item) =>

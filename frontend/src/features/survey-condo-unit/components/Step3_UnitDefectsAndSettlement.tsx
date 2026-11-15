@@ -323,7 +323,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     hasAttemptedAutoImportStructuralRef.current = true;
     void (async () => {
       try {
-        const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+        const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`, { params: { inlineCadFor: formData.unitId } });
         const data: FloorPlanData | null = res.data?.success ? res.data.data : null;
         const matched = data?.units?.find(
           (u: FloorPlanUnitItem) =>
@@ -358,7 +358,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       // 1. Thử lấy trực tiếp theo formData.floorNumber
       if (formData.floorNumber !== undefined && formData.floorNumber !== null) {
         try {
-          const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+          const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`, { params: { inlineCadFor: formData.unitId } });
           if (res.data?.success && res.data.data?.plan) {
             data = res.data.data;
           }
@@ -535,7 +535,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         // 1. Thử lấy theo formData.floorNumber
         if (formData.floorNumber !== undefined && formData.floorNumber !== null) {
           try {
-            const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+            const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`, { params: { inlineCadFor: formData.unitId } });
             if (res.data?.success && res.data.data?.plan?.cad_photo_url) {
               data = res.data.data;
               setFloorPlanData(data);
@@ -1212,7 +1212,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             </div>
 
           {activeZone ? (
-            <div className="space-y-4">
+            <div key={activeZone.id} className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-sm px-2.5 py-1 rounded-lg bg-teal-100 text-teal-900 border border-teal-300">
@@ -1326,6 +1326,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         if (url) {
                           const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
                           const curPhotos: string[] = curZone?.overviewPhotos || [];
+                          // Ảnh tạm không còn trong vùng này (đã xóa / thuộc vùng khác): không nối thêm, không gán bối cảnh
+                          if (meta?.replacesUri && !curPhotos.includes(meta.replacesUri)) return;
                           const updated = upsertPhotoUrlList(curPhotos, url, meta);
                           const curCtx = curZone?.ctxPhotoUrl;
                           const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
@@ -1800,7 +1802,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 </div>
 
                 {activeElement ? (
-                <div className="space-y-4">
+                <div key={activeElement.id} className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-sm px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
@@ -1919,7 +1921,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             if (url) {
                               const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
                               const curPhotos: string[] = curElem?.overviewPhotos || [];
-                              const updated = upsertPhotoUrlList(curPhotos, url, meta);
+                              // Ảnh tạm không còn trong vùng này (đã xóa / thuộc vùng khác): không nối thêm, không gán bối cảnh
+                          if (meta?.replacesUri && !curPhotos.includes(meta.replacesUri)) return;
+                          const updated = upsertPhotoUrlList(curPhotos, url, meta);
                               const curCtx = curElem?.ctxPhotoUrl;
                               const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
                               updateElement(activeElementIndex, {

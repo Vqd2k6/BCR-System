@@ -63,10 +63,25 @@ export function usePhotoUpload({
   // Luôn gọi onChange của lần render MỚI NHẤT (tránh ghi đè bằng state cũ khi upload xong muộn)
   const onChangeRef = useRef(onChange);
   const mountedRef = useRef(true);
+  // Giá trị ô ảnh mới nhất: chặn URL Cloud của ảnh cũ (upload xong muộn) ghi đè ảnh vừa chụp lại / ảnh của vùng khác
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  /**
+   * Chỉ gửi URL Cloud về ô khi ô vẫn đang hiện đúng ảnh tạm đó (ô một ảnh),
+   * hoặc ô là ô thêm vào danh sách (value rỗng: handler danh sách tự thay đúng phần tử theo replacesUri).
+   * Trường hợp khác (đã chụp ảnh khác / đã chuyển vùng): bỏ qua, store tự thay đúng chỗ qua promoteUrlInStores.
+   */
+  const canDeliverPromotion = (replacesUri: string): boolean => {
+    const current = valueRef.current || '';
+    if (current === '' || current === replacesUri) return true;
+    console.warn('[usePhotoUpload:promote] Bỏ qua URL Cloud của ảnh cũ, ô đang hiện ảnh khác:', replacesUri);
+    return false;
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -97,10 +112,10 @@ export function usePhotoUpload({
         return;
       }
       promotedLocalIdsRef.current.add(detail.localId);
+      const replacesUri = `blob:local://${detail.localId}`;
+      if (!canDeliverPromotion(replacesUri)) return;
       const originalCode = localIdToCodeMapRef.current.get(detail.localId) || displayPhotoCode;
-      onChangeRef.current(detail.publicUrl, originalCode, {
-        replacesUri: `blob:local://${detail.localId}`,
-      });
+      onChangeRef.current(detail.publicUrl, originalCode, { replacesUri });
     };
 
     window.addEventListener('metro2:photo-promoted', handlePhotoPromoted);
@@ -213,14 +228,14 @@ export function usePhotoUpload({
               promotedLocalIdsRef.current.add(localId);
             }
             const resolvedCode = (localId && localIdToCodeMapRef.current.get(localId)) || code;
-            onChangeRef.current(
-              publicUrl,
-              resolvedCode,
-              {
+            // Ô đã đổi sang ảnh khác thì không ghi đè (IndexedDB vẫn được đánh dấu bên dưới)
+            const deliver = !localId || canDeliverPromotion(`blob:local://${localId}`);
+            if (deliver) {
+              onChangeRef.current(publicUrl, resolvedCode, {
                 ...(localId ? { replacesUri: `blob:local://${localId}` } : {}),
                 capturedAt: metadata['captured-at'],
-              }
-            );
+              });
+            }
           }
         }
         // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy)

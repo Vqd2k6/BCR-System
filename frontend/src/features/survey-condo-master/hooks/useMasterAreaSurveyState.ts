@@ -11,7 +11,6 @@ import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
 import type { PhotoChangeMeta } from '../../../components/common/photo-capture/types';
 import {
-  isLocalBlobUri,
   healLocalPhotoUris,
   findUnsyncedPhotoPaths,
   replaceLocalUriInObject,
@@ -38,6 +37,7 @@ import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLo
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import type { MasterAreaAbsentPayload } from '../components/master-area/MasterAreaAbsentModal';
 import { resolveSurveyFloorCode } from '../../../core/utils/floorUtils';
+import { applyOverviewPhotoChange, nextOverviewPhotoIndex } from '../utils/masterPhotoListMutator';
 import {
   buildCadSheetSources,
   MAIN_E_SOURCE_ID,
@@ -153,11 +153,20 @@ export function useMasterAreaSurveyState({
 
   // Danh sách các bản vẽ CAD tầng có sẵn trong tòa nhà
   const [availableFloorPlans, setAvailableFloorPlans] = useState<FloorPlanItem[]>(floorPlans || []);
+  // Khóa nội dung ổn định của prop floorPlans: cha có thể tạo mảng mới mỗi lần render,
+  // phụ thuộc thẳng vào mảng làm effect gọi API lặp lại liên tục (tải lặp hàng GB/giờ)
+  const floorPlansKey = useMemo(
+    () => (floorPlans || []).map((p) => `${p.floor_number}:${p.cad_photo_url || ''}`).join('|'),
+    [floorPlans]
+  );
+  const floorPlansRef = useRef<FloorPlanItem[] | undefined>(floorPlans);
+  floorPlansRef.current = floorPlans;
   useEffect(() => {
-    if (floorPlans && floorPlans.length > 0) {
-      setAvailableFloorPlans(floorPlans);
+    const latest = floorPlansRef.current;
+    if (latest && latest.length > 0) {
+      setAvailableFloorPlans(latest);
     }
-  }, [floorPlans]);
+  }, [floorPlansKey]);
 
   // Step 3 State: Damage Zones (Z) & Defects (D of Z)
   const [cadZonePins, setCadZonePins] = useState<CadZonePin[]>([]);
@@ -195,10 +204,6 @@ export function useMasterAreaSurveyState({
   const legacyDraftKey = `master_area_draft_${parcelId}_${floorNumber}_${unitCode}`;
   const lastLoadedEvidenceCountRef = useRef<number>(0);
   const hasAutoCroppedRef = useRef<boolean>(false);
-
-  // Refs theo dõi ảnh tạm blob:local:// để thay thế bằng Cloud URL chính thức khi upload xong
-  const lastTempZoneUriRef = useRef<string | null>(null);
-  const lastTempElementUriRef = useRef<string | null>(null);
 
   // Tọa độ GPS thực địa từ thiết bị của Khảo sát viên
   const [deviceGps, setDeviceGps] = useState<{ lat?: number; lng?: number; accuracy?: number }>({});
@@ -269,11 +274,17 @@ export function useMasterAreaSurveyState({
     };
   }, [parcel, effectiveFloorCode, unitCode, deviceGps]);
 
-  // Nạp dữ liệu bản vẽ tầng mẹ
+  // Nạp dữ liệu bản vẽ tầng mẹ: chỉ gọi API 1 lần cho mỗi (thửa, tầng, khu vực)
+  const loadedFloorPlanKeyRef = useRef<string | null>(null);
   useEffect(() => {
     let isSubscribed = true;
+    const floorPlans = floorPlansRef.current;
+    const loadKey = `${parcelId}|${floorNumber}|${unitId}`;
+    let completed = false;
     const fetchFloorPlan = async () => {
       try {
+        if (loadedFloorPlanKeyRef.current === loadKey) return;
+        loadedFloorPlanKeyRef.current = loadKey;
         setIsLoadingCad(true);
 
         // 1. Kiểm tra props truyền sẵn từ BuildingHubModal
@@ -306,7 +317,7 @@ export function useMasterAreaSurveyState({
 
         // 2. Thử gọi API tầng cụ thể
         try {
-          const specificRes = await api.get(`/parcels/${parcelId}/floor-plans/${floorNumber}`);
+          const specificRes = await api.get(`/parcels/${parcelId}/floor-plans/${floorNumber}`, { params: { inlineCadFor: unitId } });
           if (!isSubscribed) return;
           if (specificRes.data?.success && specificRes.data.data) {
             const data = specificRes.data.data;
@@ -360,15 +371,20 @@ export function useMasterAreaSurveyState({
       } catch (err) {
         console.warn('[useMasterAreaSurveyState] Không thể nạp bản vẽ tầng:', err);
       } finally {
-        if (isSubscribed) setIsLoadingCad(false);
+        if (isSubscribed) {
+          completed = true;
+          setIsLoadingCad(false);
+        }
       }
     };
 
     fetchFloorPlan();
     return () => {
       isSubscribed = false;
+      // Lượt nạp bị hủy giữa chừng (unmount / Strict Mode) thì cho phép nạp lại
+      if (!completed && loadedFloorPlanKeyRef.current === loadKey) loadedFloorPlanKeyRef.current = null;
     };
-  }, [parcelId, floorNumber, floorCadUrl, floorPlans, unitCode, unitId]);
+  }, [parcelId, floorNumber, floorCadUrl, floorPlansKey, unitCode, unitId]);
 
   // Khôi phục dữ liệu nháp vào State (hỗ trợ cả cấu trúc phẳng root và cấu trúc lồng floorSurvey / floors)
   const applyDraftDataToState = useCallback((rawDraft: Record<string, unknown>): number => {
@@ -1194,7 +1210,7 @@ export function useMasterAreaSurveyState({
   const handleSelectFloorPlanForCrop = async (selectedPlan: FloorPlanItem) => {
     try {
       setIsLoadingCad(true);
-      const res = await api.get(`/parcels/${parcelId}/floor-plans/${selectedPlan.floor_number}`);
+      const res = await api.get(`/parcels/${parcelId}/floor-plans/${selectedPlan.floor_number}`, { params: { inlineCadFor: unitId } });
       if (res.data?.success && res.data.data) {
         setFloorPlanData({
           plan: res.data.data.plan || selectedPlan,
@@ -1227,7 +1243,8 @@ export function useMasterAreaSurveyState({
           return prev;
         }
 
-        // 2. Nếu có replacesUri (thăng cấp từ blob:local:// sang Cloudflare R2)
+        // 2. Thăng cấp blob:local:// -> Cloud: chỉ thay đúng ảnh tạm đó.
+        // Không còn ảnh tạm (đã bị xóa) thì bỏ qua, KHÔNG nối thêm.
         if (meta?.replacesUri) {
           const replaces = meta.replacesUri;
           const foundIdx = prev.findIndex((p) => p.url === replaces);
@@ -1236,20 +1253,12 @@ export function useMasterAreaSurveyState({
             next[foundIdx] = { ...next[foundIdx], url };
             return next;
           }
+          console.warn('[useMasterAreaSurveyState:overviewPhoto] Bỏ qua thăng cấp: không còn ảnh tạm', replaces);
+          return prev;
         }
 
-        // 3. Nếu có photoCode truyền vào, kiểm tra xem đã có photo nào mang photoCode này chưa
-        if (photoCode) {
-          const foundIdx = prev.findIndex((p) => p.photoCode === photoCode);
-          if (foundIdx >= 0) {
-            const next = [...prev];
-            next[foundIdx] = { ...next[foundIdx], url };
-            return next;
-          }
-        }
-
-        // 4. Thêm mới nếu thực sự chưa tồn tại
-        const nextIdx = prev.length + 1;
+        // 3. Chụp mới: luôn nối thêm. Không khớp theo photoCode (mã có thể trùng sau khi xóa ảnh -> đè mất ảnh cũ)
+        const nextIdx = nextOverviewPhotoIndex(prev);
         const code = photoCode || `P01_${unitCode}_${nextIdx}`;
         return [
           ...prev,
@@ -1395,50 +1404,7 @@ export function useMasterAreaSurveyState({
   const handleUpdateOrAddZoneOverviewPhoto = useCallback(
     (zoneIndex: number, url: string, _photoCode?: string, meta?: PhotoChangeMeta) => {
       if (!url) return;
-      setZones((prev) => {
-        const next = [...prev];
-        const targetZone = next[zoneIndex];
-        if (!targetZone) return prev;
-        let existing = [...(targetZone.overviewPhotos || [])];
-        const prevTemp = lastTempZoneUriRef.current;
-        const replacesUri = meta?.replacesUri;
-
-        // 1. Thăng cấp qua replacesUri
-        if (replacesUri && existing.includes(replacesUri)) {
-          existing = existing.map((p) => (p === replacesUri ? url : p));
-          lastTempZoneUriRef.current = null;
-        }
-        // 2. Fallback qua prevTemp
-        else if (prevTemp && existing.includes(prevTemp)) {
-          existing = existing.map((p) => (p === prevTemp ? url : p));
-          if (!isLocalBlobUri(url)) {
-            lastTempZoneUriRef.current = null;
-          }
-        }
-        // 3. Thêm mới nếu chưa có trong mảng
-        else {
-          if (existing.includes(url)) return prev;
-          existing.push(url);
-          if (isLocalBlobUri(url)) {
-            lastTempZoneUriRef.current = url;
-          }
-        }
-
-        existing = Array.from(new Set(existing.filter(Boolean)));
-
-        // Đồng bộ ảnh bối cảnh chính ctxPhotoUrl
-        let newCtx = targetZone.ctxPhotoUrl;
-        if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
-          newCtx = url;
-        }
-
-        next[zoneIndex] = {
-          ...targetZone,
-          overviewPhotos: existing,
-          ctxPhotoUrl: newCtx,
-        };
-        return next;
-      });
+      setZones((prev) => applyOverviewPhotoChange(prev, zoneIndex, url, meta?.replacesUri));
     },
     []
   );
@@ -1581,50 +1547,7 @@ export function useMasterAreaSurveyState({
   const handleUpdateOrAddElementOverviewPhoto = useCallback(
     (elemIndex: number, url: string, _photoCode?: string, meta?: PhotoChangeMeta) => {
       if (!url) return;
-      setStructuralElements((prev) => {
-        const next = [...prev];
-        const targetElem = next[elemIndex];
-        if (!targetElem) return prev;
-        let existing = [...(targetElem.overviewPhotos || [])];
-        const prevTemp = lastTempElementUriRef.current;
-        const replacesUri = meta?.replacesUri;
-
-        // 1. Thăng cấp qua replacesUri
-        if (replacesUri && existing.includes(replacesUri)) {
-          existing = existing.map((p) => (p === replacesUri ? url : p));
-          lastTempElementUriRef.current = null;
-        }
-        // 2. Fallback qua prevTemp
-        else if (prevTemp && existing.includes(prevTemp)) {
-          existing = existing.map((p) => (p === prevTemp ? url : p));
-          if (!isLocalBlobUri(url)) {
-            lastTempElementUriRef.current = null;
-          }
-        }
-        // 3. Thêm mới nếu chưa có trong mảng
-        else {
-          if (existing.includes(url)) return prev;
-          existing.push(url);
-          if (isLocalBlobUri(url)) {
-            lastTempElementUriRef.current = url;
-          }
-        }
-
-        existing = Array.from(new Set(existing.filter(Boolean)));
-
-        // Đồng bộ ảnh bối cảnh chính ctxPhotoUrl
-        let newCtx = targetElem.ctxPhotoUrl;
-        if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
-          newCtx = url;
-        }
-
-        next[elemIndex] = {
-          ...targetElem,
-          overviewPhotos: existing,
-          ctxPhotoUrl: newCtx,
-        };
-        return next;
-      });
+      setStructuralElements((prev) => applyOverviewPhotoChange(prev, elemIndex, url, meta?.replacesUri));
     },
     []
   );

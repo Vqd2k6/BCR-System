@@ -1,4 +1,5 @@
 import { CadastralRepository, ParcelEntity, CadBBox, CadPolygonPoint } from './cadastral.repository';
+import { omitInlineCadExcept } from './utils/inline-cad';
 import type { FloorCadResource } from './utils/floor-cad-resources';
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
@@ -669,14 +670,19 @@ export class CadastralService {
     };
   }
 
-  static async getFloorPlanByFloor(parcelId: string, floorNumber: number) {
+  /**
+   * @param inlineCadFor id hoặc unit_code của căn đang khảo sát: chỉ giữ CAD base64 cũ của căn này,
+   *   các căn khác trả null + cờ has_inline_* (màn khảo sát không cần, tiết kiệm dữ liệu di động).
+   *   Không truyền thì trả đủ như cũ (Studio Admin).
+   */
+  static async getFloorPlanByFloor(parcelId: string, floorNumber: number, inlineCadFor?: string) {
     const plan = await CadastralRepository.findFloorPlanByFloor(parcelId, floorNumber);
     const units = await CadastralRepository.findUnitsByParcelId(parcelId);
     const floorUnits = units.filter((u) => u.floor_number === floorNumber);
     return {
       plan,
       floorNumber,
-      units: floorUnits,
+      units: inlineCadFor ? omitInlineCadExcept(floorUnits, inlineCadFor) : floorUnits,
     };
   }
 

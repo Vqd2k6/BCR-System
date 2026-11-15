@@ -323,7 +323,8 @@ export class CadastralController {
     try {
       const { id, floor } = ParcelFloorParamDto.parse(req.params);
       const floorNum = parseFloat(floor);
-      const result = await CadastralService.getFloorPlanByFloor(id, floorNum);
+      const inlineCadFor = typeof req.query.inlineCadFor === 'string' ? req.query.inlineCadFor.slice(0, 100) : undefined;
+      const result = await CadastralService.getFloorPlanByFloor(id, floorNum, inlineCadFor);
       res.status(200).json({
         success: true,
         data: result,

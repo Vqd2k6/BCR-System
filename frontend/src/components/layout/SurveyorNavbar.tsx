@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature, KeyRound } from 'lucide-react';
+import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature, KeyRound, Activity } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
 import { ChangePasswordModal } from '../profile/ChangePasswordModal';
 import { ThemeSwitcher } from '../common/ThemeSwitcher';
+import { DataUsageModal } from './DataUsageModal';
 import { METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
 import { useTodayAttendance, useTodayCompanionCount } from '@/features/attendance';
 
@@ -34,6 +35,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
+  const [showDataUsage, setShowDataUsage] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [lastScrollY, setLastScrollY] = useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -500,6 +502,18 @@ export const SurveyorNavbar: React.FC<Props> = ({
               type="button"
               onClick={() => {
                 setShowProfileMenu(false);
+                setShowDataUsage(true);
+              }}
+              className="w-full px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Activity size={12} />
+              <span>Dung lượng đã dùng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowProfileMenu(false);
                 logout();
               }}
               className="btn btn-sm cursor-pointer"
@@ -531,6 +545,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
       />
 
       {/* Modal Đổi mật khẩu bảo mật cho KSV */}
+      {showDataUsage && <DataUsageModal onClose={() => setShowDataUsage(false)} />}
       <ChangePasswordModal
         isOpen={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}

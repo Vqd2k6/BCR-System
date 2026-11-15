@@ -17,6 +17,7 @@ import type { PhotoChangeMeta } from '../../../../components/common/photo-captur
 import type { EvidencePhotoItem } from '../../../survey-phase1/types/phase1.types';
 import type { NormalizedBbox } from '../../types/masterAreaSurvey.types';
 import type { MetroWatermarkOptions } from '../../../../utils/watermarkEngine';
+import { nextOverviewPhotoIndex } from '../../utils/masterPhotoListMutator';
 
 interface Step2OverviewAndCadSetupProps {
   unitCode: string;
@@ -155,7 +156,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
               value=""
               onChange={(newUrl, photoCode, meta) => onAddOverviewPhoto(newUrl, photoCode, meta)}
               watermarkOptions={watermarkOptions}
-              photoCode={`P01_${unitCode}_${overviewPhotos.length + 1}`}
+              photoCode={`P01_${unitCode}_${nextOverviewPhotoIndex(overviewPhotos)}`}
               height="150px"
             />
           </div>

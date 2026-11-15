@@ -438,7 +438,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const base64 = canvas.toDataURL('image/jpeg', 1.0); // 100% chất lượng gốc không suy hao theo đúng yêu cầu bảo toàn dữ liệu khảo sát
+    const base64 = canvas.toDataURL('image/jpeg', 0.95); // Cùng chất lượng 0.95 với ảnh gốc (1.0 nặng gấp ~2 mà không thêm chi tiết vết nứt)
     onSave(base64);
     onClose();
   };

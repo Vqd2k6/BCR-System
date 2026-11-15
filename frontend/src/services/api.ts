@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { sendDevError } from './devErrorReporter';
 import { AUTH_UNAUTHORIZED_EVENT, getAccessToken, refreshAccessToken } from './authSession';
+import { normalizeMeterKey, recordDataUsage } from '../core/services/dataMeter';
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _authRetried?: boolean;
@@ -54,8 +55,26 @@ interface ApiErrorData {
 }
 
 // Response Interceptor: Ghi log lỗi có cấu trúc (RFC 7807) & Giữ nguyên Promise.reject để UI xử lý
+/** Ước lượng dung lượng 1 lượt gọi API (body gửi đi + body nhận về) cho bộ đếm dữ liệu */
+const meterApiCall = (method: string | undefined, url: string | undefined, sentData: unknown, headers: unknown, data: unknown) => {
+  try {
+    const sent = typeof sentData === 'string' ? sentData.length : 0;
+    const lenHeader = headers && typeof headers === 'object' ? (headers as Record<string, unknown>)['content-length'] : undefined;
+    let received = Number(lenHeader);
+    if (!Number.isFinite(received) || received <= 0) {
+      received = typeof data === 'string' ? data.length : data instanceof Blob ? data.size : data ? JSON.stringify(data).length : 0;
+    }
+    recordDataUsage(normalizeMeterKey(method || 'GET', url || ''), sent + received);
+  } catch (err: unknown) {
+    console.error('[Api:meterApiCall] Không đếm được dung lượng:', err);
+  }
+};
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    meterApiCall(response.config?.method, response.config?.url, response.config?.data, response.headers, response.data);
+    return response;
+  },
   async (error: AxiosError<ApiErrorData>) => {
     // Request responseType 'blob' (tải PDF) nhận lỗi problem+json dưới dạng Blob: đọc lại để UI và log thấy `detail` thật.
     const rawData: unknown = error.response?.data;
@@ -70,6 +89,7 @@ api.interceptors.response.use(
       }
     }
 
+    meterApiCall(error.config?.method, error.config?.url, error.config?.data, error.response?.headers, error.response?.data);
     const status = error.response?.status;
     const url = error.config?.url;
     const method = error.config?.method?.toUpperCase();

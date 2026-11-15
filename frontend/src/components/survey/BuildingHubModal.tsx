@@ -73,6 +73,32 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
   const [cadModalInitialFloor, setCadModalInitialFloor] = React.useState<number | undefined>(undefined);
   const [selectedMasterAreaUnit, setSelectedMasterAreaUnit] = React.useState<BuildingUnit | null>(null);
 
+  // Prop ổn định cho modal khu vực chung: tạo mảng mới mỗi lần render làm effect nạp bản vẽ tầng
+  // bên trong gọi lại API liên tục (đã gây tải lặp hàng GB/giờ khi GPS cập nhật)
+  const masterAreaFloorNumber = selectedMasterAreaUnit
+    ? Number(selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
+    : null;
+  const masterAreaFloorCadUrl = React.useMemo(
+    () =>
+      masterAreaFloorNumber === null
+        ? undefined
+        : allFloorsData.find((f) => Number(f.floorNumber) === masterAreaFloorNumber)?.cadUrl,
+    [allFloorsData, masterAreaFloorNumber]
+  );
+  const masterAreaFloorPlans = React.useMemo(
+    () =>
+      allFloorsData
+        .filter((f) => Boolean(f.cadUrl))
+        .map((f) => ({
+          id: `floor-${f.floorNumber}`,
+          floor_number: Number(f.floorNumber),
+          floor_name: f.floorName || `Tầng ${f.floorNumber}`,
+          floor_code: f.floorCode,
+          cad_photo_url: f.cadUrl,
+        })),
+    [allFloorsData]
+  );
+
   const handleOpenCad = (floorNum?: number) => {
     const targetFloor = floorNum !== undefined
       ? floorNum
@@ -263,20 +289,8 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         <SurveyCondoMasterAreaModal
           parcel={parcel}
           unit={selectedMasterAreaUnit}
-          floorCadUrl={
-            allFloorsData.find(
-              (f) => Number(f.floorNumber) === Number(selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
-            )?.cadUrl
-          }
-          floorPlans={allFloorsData
-            .filter((f) => Boolean(f.cadUrl))
-            .map((f) => ({
-              id: `floor-${f.floorNumber}`,
-              floor_number: Number(f.floorNumber),
-              floor_name: f.floorName || `Tầng ${f.floorNumber}`,
-              floor_code: f.floorCode,
-              cad_photo_url: f.cadUrl,
-            }))}
+          floorCadUrl={masterAreaFloorCadUrl}
+          floorPlans={masterAreaFloorPlans}
           onClose={() => {
             setSelectedMasterAreaUnit(null);
             refetchUnits();

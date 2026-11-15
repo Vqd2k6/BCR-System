@@ -1,5 +1,6 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { shouldPublishGps, type GpsFix } from './core/utils/gpsThrottle';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
 import { getLockedZone, isUnassignedZoneAdmin, resolveInitialZone } from './utils/zoneScope';
@@ -281,6 +282,9 @@ export const App: React.FC = () => {
 
   // Tọa độ GPS thực tế của thiết bị (Physical Live GPS)
   const [liveUserGps, setLiveUserGps] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+  // Tọa độ đã đẩy vào state gần nhất + thời điểm: lọc watchPosition để không render lại toàn App mỗi giây
+  const lastPublishedGpsRef = useRef<GpsFix | null>(null);
+  const lastPublishedGpsAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
@@ -288,11 +292,14 @@ export const App: React.FC = () => {
     // Lấy tọa độ GPS ban đầu với độ chính xác cao
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLiveUserGps({
+        const first: GpsFix = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
-        });
+        };
+        lastPublishedGpsRef.current = first;
+        lastPublishedGpsAtRef.current = Date.now();
+        setLiveUserGps(first);
       },
       (err) => {
         console.warn('[GPS] Initial physical geolocation failed:', err);
@@ -303,11 +310,16 @@ export const App: React.FC = () => {
     // Lắng nghe thay đổi vị trí thực tế liên tục
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        setLiveUserGps({
+        const next: GpsFix = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
-        });
+        };
+        const now = Date.now();
+        if (!shouldPublishGps(lastPublishedGpsRef.current, next, lastPublishedGpsAtRef.current, now)) return;
+        lastPublishedGpsRef.current = next;
+        lastPublishedGpsAtRef.current = now;
+        setLiveUserGps(next);
       },
       (err) => {
         console.warn('[GPS] Geolocation watch error:', err);

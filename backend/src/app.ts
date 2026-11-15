@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import fs from 'fs';
@@ -45,6 +46,16 @@ export function createApp(): express.Application {
       origin: config.cors.origin,
       // Cho frontend đọc mã băm và số Rev của file PDF tải về
       exposedHeaders: ['X-Content-SHA256', 'X-Report-Revision', 'X-Report-Status', 'X-Watermark-Enabled', 'X-Report-Template', 'Content-Disposition'],
+    })
+  );
+  // Nén gzip JSON trả về (zone-map, danh sách căn, bản vẽ tầng...): tiết kiệm dữ liệu di động của KSV.
+  // Ảnh/PDF tự bỏ qua theo Content-Type (compressible); upload nhị phân local cũng bỏ qua.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.path.includes('/storage/local-put')) return false;
+        return compression.filter(req, res);
+      },
     })
   );
   app.use(express.json({ limit: '150mb' }));
