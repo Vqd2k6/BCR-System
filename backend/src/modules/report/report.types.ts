@@ -141,6 +141,10 @@ export interface Section3HistoryOccupancy {
 
 export interface Section4StructuralFoundation {
   structuralType: BilingualText;
+  /** v2: ô "Hệ kết cấu chính" (vật liệu) tách từ cùng giá trị form; null = in ---. */
+  structuralMaterial?: BilingualText | null;
+  /** v2: ô "Dạng chịu lực"; null khi nhãn form không nói rõ (Khác / chữ tự do / trống). */
+  structuralForm?: BilingualText | null;
   foundationType: BilingualText;
   pileSize: BilingualText;
   footingDensitySpacing: BilingualText;
@@ -194,6 +198,8 @@ export interface Section5TiltSettlement {
   tiltY?: string;
   /** Chỉ các nguồn KSV/Admin đã tick (dataSource), không kèm phân cấp độ tin cậy. */
   basisOfDetermination: BilingualText;
+  /** v2: Độ tin cậy dữ liệu đã lưu (Thẩm định B5 settlementTilt.reliability / cột measurement_reliability); null = in ---. */
+  reliability?: BilingualText | null;
   /** Chỉ ghi chú bất thường ngoại quan + kiến nghị quan trắc đã nhập; rỗng thì template ẩn dòng. */
   remarks: BilingualText;
   tiltPhoto?: {

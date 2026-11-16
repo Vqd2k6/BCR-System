@@ -1,4 +1,4 @@
-{{!-- Một ảnh hiện trường PL2: ảnh bối cảnh có ghim D (khung ôm sát ảnh để tọa độ % trùng ảnh). --}}
+{{!-- Một ảnh hiện trường PL1–PL3. Ảnh bối cảnh PL2 có ghim D (khung ôm sát ảnh để tọa độ % trùng ảnh). --}}
 <figure class="v2-figure">
   <div class="v2-media">
     {{#if this.pin}}
@@ -7,5 +7,5 @@
       <img src="{{this.src}}" alt="{{this.caption.vi}}">
     {{/if}}
   </div>
-  <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
+  <figcaption><span class="vi">Hình {{this.figNo}}{{#if this.photoCode}} [{{this.photoCode}}]{{/if}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}}{{#if this.photoCode}} [{{this.photoCode}}]{{/if}} – {{this.caption.en}}</i></figcaption>
 </figure>

@@ -4,7 +4,7 @@
  * Nhận ViewModel chuẩn (dùng chung với v1, đã dập watermark) + hồ sơ gốc, trả phần dữ liệu riêng của v2:
  * Mục VI theo 9 nhóm khuyết tật, Mục VII theo cấp Burland, Mục VIII theo phương pháp v2 (risk-v2.calculator),
  * Mục IX tự sinh, PL1 ảnh mặt đứng, PL2 theo tầng (chỉ ghim khuyết tật D). Không sửa ViewModel gốc.
- * Giữ mã khuyết tật của v1 (D-01...). Thiếu dữ liệu thì in '--' / '---', không giả định.
+ * Giữ mã khuyết tật của v1 (D-01...) ở bảng / ảnh; Mục VIII–IX trích số No.001 liên tục của bảng PL2. Thiếu dữ liệu thì in '--' / '---', không giả định.
  * ============================================================================
  */
 
@@ -27,6 +27,7 @@ import {
   type RiskV2Result,
 } from './risk-v2.calculator';
 import { FOUNDATION_CAT_LABELS } from '../sections/foundation-cat-labels';
+import { isPortraitImage } from '../../utils/image-sniff.utils';
 
 const EM_DASH = '–';
 
@@ -228,10 +229,22 @@ export interface ResidentialV2View {
   overall: { levelNumber: number | null; level: BilingualText | null; narrative: BilingualText };
   conclusions: BilingualText[];
   recommendations: BilingualText[];
+  /** Mục IV: 2 ô tách từ giá trị form "Hệ kết cấu" (null = in ---). */
+  section4: { structuralMaterial: BilingualText | null; structuralForm: BilingualText | null };
+  /** Mục V: "Không" chỉ in "Không"; vị trí / số đo không có in '--' (in thẳng, không qua orDash). */
+  section5: {
+    differentialSettlement: V2Section5Row;
+    componentDeterioration: V2Section5Row;
+    evidenceOfRepairs: V2Section5Row;
+    buildingInclination: V2Section5Row;
+    floorSlabInclination: V2Section5Row;
+    reliability: BilingualText | null;
+  };
   /** PL1 chia 2 tiểu mục: ngoài nhà (P-01..P-04, P-VL, P-UC) / nghiêng–lún–võng (P-05..P-07, P-06B). */
   elevationGroups: Array<{
     title: BilingualText;
-    photos: Array<{ figNo: string; photoCode: string; caption: BilingualText; src: string }>;
+    photos: V2Photo[];
+    blocks: V2PhotoBlock[];
   }>;
   floors: Array<{
     code: string;
@@ -245,7 +258,10 @@ export interface ResidentialV2View {
     /** Sơ đồ kết cấu + ghim E, khi tầng có sơ đồ kết cấu riêng (in dưới sơ đồ kiến trúc, cùng khổ rộng). */
     structuralMapSrc: string | null;
     structuralPins: CadPinOverlayItem[];
-    rows: Array<FloorDefectSummaryRow & { typeLabel: BilingualText; burlandLabel: BilingualText; widthMmDisplay: string | null }>;
+    /** 2 sơ đồ (kiến trúc + kết cấu) đều là ảnh dọc → đặt cạnh nhau, mỗi ảnh rộng hết 1 cột; còn lại xếp chồng. */
+    cadSideBySide: boolean;
+    /** noDisplay: STT liên tục giữa các tầng ('001'), cùng số với No.001 trong Mục VIII–IX. */
+    rows: Array<FloorDefectSummaryRow & { noDisplay: string; typeLabel: BilingualText; burlandLabel: BilingualText; widthMmDisplay: string | null }>;
     /** Ảnh theo từng D: bối cảnh (có ghim của chính D) rồi cận cảnh 1..n; chỉ lọc trùng trong cùng D. */
     defectGroups: V2DefectPhotoGroup[];
   }>;
@@ -255,8 +271,16 @@ export interface ResidentialV2View {
     floorName: BilingualText;
     zonePhotos: V2Photo[];
     elementPhotos: V2Photo[];
+    zoneBlocks: V2PhotoBlock[];
+    elementBlocks: V2PhotoBlock[];
   }>;
   risk: RiskV2Result;
+}
+
+export interface V2Section5Row {
+  status: BilingualText;
+  /** Ô bên phải (Vị trí / Số đo); không có thì { vi: '--', en: '' }. */
+  detail: BilingualText;
 }
 
 export interface V2Photo {
@@ -265,20 +289,65 @@ export interface V2Photo {
   caption: BilingualText;
   /** Ghim vị trí khuyết tật trên ảnh bối cảnh (%), chỉ khi D có tọa độ. */
   pin: { x: number; y: number; code: string } | null;
+  /** Ảnh dọc (đọc kích thước ảnh đã dập dấu); không đọc được thì coi là ảnh ngang. */
+  isPortrait: boolean;
+  /** Mã ảnh PL1 (P-01…) in kèm số hình; null ở PL2/PL3. */
+  photoCode: string | null;
+}
+
+/**
+ * Khối ảnh nguyên vẹn (không tách qua trang), giữ đúng thứ tự số hình:
+ * - pair: 1–2 ảnh cùng hàng; có ảnh dọc thì khung cao ảnh dọc, toàn ảnh ngang thì khung thấp (6 ảnh/trang).
+ * - trio: 1 ảnh dọc + 2 ảnh ngang xếp chồng ở cột còn lại (mainSide = cột của ảnh dọc).
+ */
+export type V2PhotoBlock =
+  | { kind: 'pair'; photos: V2Photo[]; hasPortrait: boolean }
+  | { kind: 'trio'; main: V2Photo; side: V2Photo[]; mainLeft: boolean };
+
+/** [Dọc, Ngang, Ngang] → trio dọc trái; [Ngang, Ngang, Dọc] → trio dọc phải; còn lại ghép từng cặp. */
+export function packPhotoBlocks(photos: V2Photo[]): V2PhotoBlock[] {
+  const blocks: V2PhotoBlock[] = [];
+  let i = 0;
+  while (i < photos.length) {
+    const [a, b, c] = [photos[i], photos[i + 1], photos[i + 2]];
+    if (a && b && c && a.isPortrait && !b.isPortrait && !c.isPortrait) {
+      blocks.push({ kind: 'trio', main: a, side: [b, c], mainLeft: true });
+      i += 3;
+    } else if (a && b && c && !a.isPortrait && !b.isPortrait && c.isPortrait) {
+      blocks.push({ kind: 'trio', main: c, side: [a, b], mainLeft: false });
+      i += 3;
+    } else {
+      const pair = photos.slice(i, i + 2);
+      blocks.push({ kind: 'pair', photos: pair, hasPortrait: pair.some((p) => p.isPortrait) });
+      i += pair.length;
+    }
+  }
+  return blocks;
+}
+
+function portraitOf(src: string): boolean {
+  try {
+    return isPortraitImage(src);
+  } catch (err) {
+    console.error('[ReportV2:photoOrientation] Không đọc được hướng ảnh, coi như ảnh ngang', err);
+    return false;
+  }
 }
 
 export interface V2DefectPhotoGroup {
   defectId: string;
   /** "Z-02 / D-01": mã D lặp lại giữa các vùng nên luôn kèm mã vùng / cấu kiện. */
   ref: string;
+  /** "No.001": số liên tục của hàng bảng PL2 (null khi không ghép được hàng bảng). */
+  noRef: string | null;
   /** Vị trí (phòng, tường / cấu kiện) bỏ tiền tố tên tầng; null khi không ghép được hàng bảng. */
   location: BilingualText | null;
   typeLabel: BilingualText;
   wmaxText: string | null;
   photos: V2Photo[];
-  /** Hàng ảnh đầu đi cùng tiêu đề nhóm (không để tiêu đề mồ côi cuối trang). */
-  firstRow: V2Photo[];
-  restPhotos: V2Photo[];
+  /** Khối ảnh đầu đi cùng tiêu đề nhóm (không để tiêu đề mồ côi cuối trang). */
+  firstBlock: V2PhotoBlock | null;
+  restBlocks: V2PhotoBlock[];
 }
 
 const PL1_DEFORMATION_CODE = /^P-0[567]/i;
@@ -305,7 +374,12 @@ function defectPhotosOf(pair: DefectPairPhotoItem): Array<{ url: string; src: st
   return out;
 }
 
-function buildRiskInput(vm: ReportViewModel, raw: Record<string, unknown>, rows: FloorDefectSummaryRow[]): {
+function buildRiskInput(
+  vm: ReportViewModel,
+  raw: Record<string, unknown>,
+  rows: FloorDefectSummaryRow[],
+  codeOf: (row: FloorDefectSummaryRow) => string
+): {
   input: Parameters<typeof calculateRiskV2>[0];
   usage: string | null;
   objectGroup: string | null;
@@ -317,7 +391,7 @@ function buildRiskInput(vm: ReportViewModel, raw: Record<string, unknown>, rows:
   const objectGroup = typeof groupRaw === 'string' && groupRaw.trim() ? groupRaw.trim() : null;
 
   const defects: RiskV2DefectInput[] = rows.map((r) => ({
-    code: r.defectId,
+    code: codeOf(r),
     widthMm: parseWidthMm(r.widthMm),
     isStructural: r.source === 'ELEMENT',
     isRebarExposure: classifyDefectV2(r) === 'REBAR',
@@ -388,11 +462,16 @@ function readFrozenRisk(raw: Record<string, unknown>): RiskV2Result | null {
 
 export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, unknown>): ResidentialV2View {
   const rows = vm.appendix2.flatMap((f) => f.defectSummaryRows);
-  const { input, usage, objectGroup } = buildRiskInput(vm, raw, rows);
+  // STT liên tục giữa các tầng theo đúng thứ tự PL2; Mục VIII–IX trích "No.001" thay cho mã D (mã D lặp giữa
+  // các vùng / cấu kiện). Ghép theo chính object hàng, không theo mã D.
+  const noOf = new Map<FloorDefectSummaryRow, string>();
+  rows.forEach((r, i) => noOf.set(r, String(i + 1).padStart(3, '0')));
+  const noRefOf = (r: FloorDefectSummaryRow): string => `No.${noOf.get(r) ?? '---'}`;
+  const { input, usage, objectGroup } = buildRiskInput(vm, raw, rows, noRefOf);
   const risk = readFrozenRisk(raw) ?? calculateRiskV2(input);
 
   const classified = rows.map((r) => ({ row: r, type: classifyDefectV2(r) }));
-  const codesOf = (type: DefectTypeV2) => classified.filter((c) => c.type === type).map((c) => c.row.defectId);
+  const codesOf = (type: DefectTypeV2) => classified.filter((c) => c.type === type).map((c) => noRefOf(c.row));
 
   // Mục VI, VII
   const defectTypes = {
@@ -444,7 +523,7 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
   };
 
   // Mục VIII.3
-  const governingBurland = rows.filter((r) => r.burlandGrade === input.burlandMaxGrade).map((r) => r.defectId);
+  const governingBurland = rows.filter((r) => r.burlandGrade === input.burlandMaxGrade).map(noRefOf);
   const s = risk.bra.scores;
   const basis: BilingualText[] = [];
   if (s.A !== null) {
@@ -540,7 +619,7 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
     },
   ];
   const widest = classified
-    .map((c) => ({ code: c.row.defectId, w: parseWidthMm(c.row.widthMm) }))
+    .map((c) => ({ code: noRefOf(c.row), w: parseWidthMm(c.row.widthMm) }))
     .filter((c): c is { code: string; w: number } => c.w !== null && c.w > 0.3)
     .sort((a, b) => b.w - a.w)[0];
   if (widest) {
@@ -580,12 +659,17 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
   const pl1Exterior = pl1Photos.filter((p) => !PL1_DEFORMATION_CODE.test(p.photoCode || ''));
   const pl1Deformation = pl1Photos.filter((p) => PL1_DEFORMATION_CODE.test(p.photoCode || ''));
   let pl1Fig = 0;
-  const toPl1 = (p: (typeof pl1Photos)[number]) => ({
-    figNo: `A1.${++pl1Fig}`,
-    photoCode: p.photoCode || '',
-    caption: p.name,
-    src: p.base64 || p.url,
-  });
+  const toPl1 = (p: (typeof pl1Photos)[number]): V2Photo => {
+    const src = p.base64 || p.url;
+    return {
+      figNo: `A1.${++pl1Fig}`,
+      photoCode: p.photoCode || null,
+      caption: p.name,
+      src,
+      pin: null,
+      isPortrait: portraitOf(src),
+    };
+  };
   const elevationGroups: ResidentialV2View['elevationGroups'] = [
     {
       title: { vi: '1. Ảnh mặt đứng & bối cảnh ngoài nhà', en: 'Exterior elevations & context photos' },
@@ -595,7 +679,9 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
       title: { vi: '2. Ảnh kiểm tra độ nghiêng, lún & biến dạng', en: 'Inclination, settlement & deformation checks' },
       photos: pl1Deformation.map(toPl1),
     },
-  ].filter((g) => g.photos.length > 0);
+  ]
+    .filter((g) => g.photos.length > 0)
+    .map((g) => ({ ...g, blocks: packPhotoBlocks(g.photos) }));
 
   // PL2: mọi tầng đã khảo sát (A2.x liên tục). Ảnh của từng D in riêng, kể cả bối cảnh dùng chung giữa các D (mỗi ảnh 1 ghim).
   const printedUrlsByFloor = new Map<number, Set<string>>();
@@ -622,17 +708,21 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
           pin: p.kind === 'CTX' && pair.hasPin && pair.pinX !== undefined && pair.pinY !== undefined
             ? { x: pair.pinX, y: pair.pinY, code: pair.defectId }
             : null,
+          isPortrait: portraitOf(p.src),
+          photoCode: null,
         };
       });
+      const blocks = packPhotoBlocks(photos);
       return {
         defectId: pair.defectId,
         ref,
+        noRef: row ? noRefOf(row) : null,
         location,
         typeLabel: pair.defectType,
         wmaxText: w !== null && w > 0 ? `wmax = ${fmtMm(w)} mm` : null,
         photos,
-        firstRow: photos.slice(0, 2),
-        restPhotos: photos.slice(2),
+        firstBlock: blocks[0] ?? null,
+        restBlocks: blocks.slice(1),
       };
     }).filter((g) => g.photos.length > 0);
 
@@ -650,8 +740,11 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
       pins: f.cadPins ?? [],
       structuralMapSrc,
       structuralPins: structuralMapSrc ? f.cadStructuralPins ?? [] : [],
+      // Ảnh sơ đồ đã xoay sẵn khi nạp base64; nguồn là URL (không đọc được kích thước) thì xếp chồng như cũ.
+      cadSideBySide: Boolean(mapSrc && structuralMapSrc && portraitOf(mapSrc) && portraitOf(structuralMapSrc)),
       rows: f.defectSummaryRows.map((r) => ({
         ...r,
+        noDisplay: noOf.get(r) ?? '---',
         // Cột "Rộng (mm)": cùng số ECS dùng; không đọc được thì in ---.
         widthMmDisplay: (() => { const wv = parseWidthMm(r.widthMm); return wv === null ? null : fmtMmEn(wv); })(),
         typeLabel: r.defectType,
@@ -675,13 +768,53 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
           printed.add(key);
           return true;
         })
-        .map((ph) => ({ figNo: '', src: ph.base64 || ph.url, caption: ph.caption, pin: null }));
+        .map((ph) => {
+          const src = ph.base64 || ph.url;
+          return { figNo: '', src, caption: ph.caption, pin: null, isPortrait: portraitOf(src), photoCode: null };
+        });
     const zonePhotos = take(f.overviewPages);
     const elementPhotos = take(f.elementOverviewPages);
     if (zonePhotos.length + elementPhotos.length === 0) return;
     for (const ph of [...zonePhotos, ...elementPhotos]) ph.figNo = `${code}-${++fig}`;
-    archivalFloors.push({ code, floorName: f.floorName, zonePhotos, elementPhotos });
+    archivalFloors.push({
+      code,
+      floorName: f.floorName,
+      zonePhotos,
+      elementPhotos,
+      zoneBlocks: packPhotoBlocks(zonePhotos),
+      elementBlocks: packPhotoBlocks(elementPhotos),
+    });
   });
+
+  // Mục IV, V (chỉ v2)
+  const section4: ResidentialV2View['section4'] = {
+    structuralMaterial: vm.section4.structuralMaterial ?? null,
+    structuralForm: vm.section4.structuralForm ?? null,
+  };
+  const DASH: BilingualText = { vi: '--', en: '' };
+  const NONE: BilingualText = { vi: 'Không', en: 'None' };
+  const hasText = (t: BilingualText | undefined): t is BilingualText => Boolean(t && t.vi.trim() && t.vi.trim() !== '--');
+  const measuredOf = (m: string | undefined): BilingualText => {
+    const v = String(m ?? '').trim();
+    return v && v !== '/' && v !== '--' ? { vi: v, en: '' } : DASH;
+  };
+  const s5 = vm.section5;
+  const evidenceRow = (e: { observed: boolean; observedDisplay: BilingualText; location: BilingualText }): V2Section5Row =>
+    e.observed ? { status: e.observedDisplay, detail: hasText(e.location) ? e.location : DASH } : { status: NONE, detail: DASH };
+  const section5: ResidentialV2View['section5'] = {
+    differentialSettlement: evidenceRow(s5.differentialSettlement),
+    componentDeterioration: evidenceRow(s5.componentDeterioration),
+    evidenceOfRepairs: evidenceRow(s5.evidenceOfRepairs),
+    buildingInclination: {
+      status: s5.buildingInclination.observed ? s5.buildingInclination.observedDisplay : NONE,
+      detail: measuredOf(s5.buildingInclination.measured),
+    },
+    floorSlabInclination: {
+      status: s5.floorSlabInclination.observed ? { vi: 'CÓ', en: 'YES' } : NONE,
+      detail: measuredOf(s5.floorSlabInclination.measured),
+    },
+    reliability: s5.reliability ?? null,
+  };
 
   const docDate
  = vm.metadata.surveyDateFormatted || vm.section1.surveyDate || '';
@@ -698,6 +831,8 @@ export function presentResidentialV2(vm: ReportViewModel, raw: Record<string, un
     overall: { levelNumber: risk.overall.level, level: overallLevel, narrative: overallNarrative },
     conclusions,
     recommendations,
+    section4,
+    section5,
     elevationGroups,
     floors,
     archivalFloors,

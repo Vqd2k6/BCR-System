@@ -1,15 +1,35 @@
-{{!-- Phụ lục 2: theo từng tầng — mọi tầng đã khảo sát: sơ đồ ghim Z/E, bảng tổng hợp, ảnh bối cảnh + cận cảnh theo từng D. Giữ mã khuyết tật v1 (D-01). --}}
+{{!-- Phụ lục 2: theo từng tầng — mọi tầng đã khảo sát: sơ đồ ghim Z/E, bảng tổng hợp, ảnh bối cảnh + cận cảnh theo từng D. Giữ mã khuyết tật v1 (D-01); STT = số liên tục giữa các tầng, trùng số No.001 trích ở Mục VIII–IX. --}}
 <div class="a4-page-sheet" data-section="pl-2">
   <h2 class="chapter-header">PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT THEO TẦNG – APPENDIX 2: DEFECT STATISTICS BY FLOOR</h2>
   <p class="v2-text">Phụ lục này trình bày theo từng tầng: sơ đồ vị trí khuyết tật, bảng tổng hợp khuyết tật, ảnh bối cảnh và ảnh cận cảnh của từng khuyết tật. Số đo ghi kèm đơn vị như khi khảo sát.</p>
   <p class="v2-text en">This appendix is presented floor by floor: defect location plan, defect summary table, and the context and close-up photos of each defect. Measurements are shown with their surveyed units.</p>
 
   {{#each v2.floors}}
-    <div class="v2-floor" data-section="pl-2-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
+    {{!-- is-first-floor: tầng đầu chung trang với tiêu đề + giới thiệu PL2 nên sơ đồ thấp hơn các tầng sau (styles.css). --}}
+    <div class="v2-floor {{#if @first}}is-first-floor{{/if}}" data-section="pl-2-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
       <h3 class="chapter-header sub-header">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</h3>
 
       {{#if this.hasAnyMap}}
         <figure class="v2-figure force-light">
+          {{#if this.cadSideBySide}}
+          {{!-- 2 sơ đồ đều ảnh dọc: đặt cạnh nhau, mỗi ảnh rộng hết 1 cột. --}}
+          <div class="v2-cad-pair">
+            <div class="v2-cad-col">
+              <div class="v2-cad-title">Mặt bằng kiến trúc &amp; vùng Z<i class="en-block">Architectural plan &amp; zones Z</i></div>
+              <div class="v2-cad">
+                <img src="{{this.mapSrc}}" alt="Sơ đồ vị trí khuyết tật {{this.floorName.vi}}">
+                {{#each this.pins}}<div class="pin pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
+              </div>
+            </div>
+            <div class="v2-cad-col">
+              <div class="v2-cad-title">Mặt bằng kết cấu &amp; cấu kiện E<i class="en-block">Structural plan &amp; members E</i></div>
+              <div class="v2-cad">
+                <img src="{{this.structuralMapSrc}}" alt="Sơ đồ kết cấu {{this.floorName.vi}}">
+                {{#each this.structuralPins}}<div class="pin pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
+              </div>
+            </div>
+          </div>
+          {{else}}
           {{#if this.mapSrc}}
           {{#if this.structuralMapSrc}}<div class="v2-cad-title">Mặt bằng kiến trúc &amp; vùng Z – <i>Architectural plan &amp; zones Z</i></div>{{/if}}
           <div class="v2-cad {{#if this.structuralMapSrc}}is-dual{{/if}}">
@@ -23,6 +43,7 @@
               <img src="{{this.structuralMapSrc}}" alt="Sơ đồ kết cấu {{this.floorName.vi}}">
               {{#each this.structuralPins}}<div class="pin pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;"><i></i><span>{{this.code}}</span></div>{{/each}}
             </div>
+          {{/if}}
           {{/if}}
           <figcaption><span class="vi">Hình {{this.code}} – Sơ đồ vị trí khuyết tật – {{this.floorName.vi}}</span><i>Figure {{this.code}} – Defect location plan – {{this.floorName.en}}</i></figcaption>
         </figure>
@@ -50,7 +71,7 @@
           <tbody>
             {{#each this.rows}}
               <tr>
-                <td class="num">{{this.no}}</td>
+                <td class="num">{{this.noDisplay}}</td>
                 <td class="num"><b>{{this.defectId}}</b></td>
                 <td>{{this.location.vi}}<span class="en-block">{{this.location.en}}</span></td>
                 <td>{{this.typeLabel.vi}}<span class="en-block">{{this.typeLabel.en}}</span></td>
@@ -70,15 +91,13 @@
       {{#if this.defectGroups.length}}
         {{#each this.defectGroups}}
           <div class="v2-defect-group">
-            {{!-- Tiêu đề + hàng ảnh đầu không tách trang; các hàng sau chảy tự do. --}}
+            {{!-- Tiêu đề + khối ảnh đầu không tách trang; các khối sau chảy tự do. --}}
             <div class="v2-keep">
               {{#if @first}}<div class="v2-figure" style="margin: 10px 0 4px;"><figcaption><span class="vi">Ảnh khuyết tật – {{../floorName.vi}}</span><i>Defect photos – {{../floorName.en}}</i></figcaption></div>{{/if}}
-              <h4 class="v2-group-title"><b>{{this.ref}}</b>{{#if this.location}} – {{this.location.vi}}{{/if}} – {{this.typeLabel.vi}} <i>/ {{this.typeLabel.en}}</i>{{#if this.wmaxText}} – {{this.wmaxText}}{{/if}}</h4>
-              <div class="v2-photo-grid">{{#each this.firstRow}}{{> v2-photo-figure}}{{/each}}</div>
+              <h4 class="v2-group-title">{{#if this.noRef}}<b>{{this.noRef}}</b> – {{/if}}<b>{{this.ref}}</b>{{#if this.location}} – {{this.location.vi}}{{/if}} – {{this.typeLabel.vi}} <i>/ {{this.typeLabel.en}}</i>{{#if this.wmaxText}} – {{this.wmaxText}}{{/if}}</h4>
+              {{#if this.firstBlock}}{{#with this.firstBlock}}{{> v2-photo-block}}{{/with}}{{/if}}
             </div>
-            {{#if this.restPhotos.length}}
-              <div class="v2-photo-grid">{{#each this.restPhotos}}{{> v2-photo-figure}}{{/each}}</div>
-            {{/if}}
+            {{#each this.restBlocks}}{{> v2-photo-block}}{{/each}}
           </div>
         {{/each}}
       {{/if}}

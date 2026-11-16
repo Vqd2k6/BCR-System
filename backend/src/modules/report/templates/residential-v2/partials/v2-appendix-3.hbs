@@ -11,27 +11,13 @@
       {{#if this.zonePhotos.length}}
         <div class="v2-photo-group">
           <h4 class="v2-group-title">Không gian (Z) – <i>Spaces (Z)</i></h4>
-          <div class="v2-photo-grid is-compact">
-            {{#each this.zonePhotos}}
-              <figure class="v2-figure">
-                <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
-                <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
-              </figure>
-            {{/each}}
-          </div>
+          {{#each this.zoneBlocks}}{{> v2-photo-block}}{{/each}}
         </div>
       {{/if}}
       {{#if this.elementPhotos.length}}
         <div class="v2-photo-group">
           <h4 class="v2-group-title">Cấu kiện kết cấu (E) – <i>Structural members (E)</i></h4>
-          <div class="v2-photo-grid is-compact">
-            {{#each this.elementPhotos}}
-              <figure class="v2-figure">
-                <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
-                <figcaption><span class="vi">Hình {{this.figNo}} – {{this.caption.vi}}</span><i>Figure {{this.figNo}} – {{this.caption.en}}</i></figcaption>
-              </figure>
-            {{/each}}
-          </div>
+          {{#each this.elementBlocks}}{{> v2-photo-block}}{{/each}}
         </div>
       {{/if}}
     </div>

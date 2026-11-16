@@ -102,6 +102,29 @@ function mapStructureLabel(raw: string | undefined | null): { vi: string; en: st
   return { vi: text, en: text };
 }
 
+/**
+ * Template v2 (mẫu ST01): tách 1 giá trị form "Hệ kết cấu" thành 2 ô "Hệ kết cấu chính" (vật liệu) và
+ * "Dạng chịu lực". Chỉ tách những gì nhãn tùy chọn đã nói rõ (VD "RC - BTCT (Khung bê tông cốt thép toàn khối)"
+ * = BTCT + khung); "Khác: <mô tả>" in nguyên mô tả, dạng chịu lực để trống; trống thì cả 2 ô trống (in ---).
+ */
+export function splitStructureSystem(
+  raw: string | undefined | null,
+  isVacantLand: boolean
+): { material: { vi: string; en: string } | null; form: { vi: string; en: string } | null } {
+  if (isVacantLand) return { material: { vi: 'Khu đất trống – Không có công trình xây dựng', en: 'Vacant land – No building structure' }, form: null };
+  const text = String(raw ?? '').trim();
+  if (!text) return { material: null, form: null };
+  const label = mapStructureLabel(text);
+  if (label === STRUCT_RC) return { material: { vi: 'BTCT', en: 'RC' }, form: { vi: 'Khung chịu lực', en: 'Frame' } };
+  if (label === STRUCT_STEEL) return { material: { vi: 'Thép', en: 'Steel' }, form: { vi: 'Khung thép', en: 'Steel frame' } };
+  if (label === STRUCT_MASONRY) return { material: { vi: 'Gạch', en: 'Masonry' }, form: { vi: 'Tường chịu lực', en: 'Load-bearing wall' } };
+  if (label === STRUCT_MIXED) return { material: { vi: 'BTCT + gạch', en: 'RC + masonry' }, form: { vi: 'Khung + tường chịu lực', en: 'Frame + load-bearing wall' } };
+  if (label === STRUCT_TEMP) return { material: { vi: 'Gỗ, tôn', en: 'Timber, metal sheet' }, form: { vi: 'Kết cấu tạm', en: 'Temporary structure' } };
+  // "Khác: <mô tả>" / chữ tự do không nhận ra: in nguyên văn, không suy dạng chịu lực.
+  if (/^(Other\s*-|Khác\s*:)/i.test(text) && label.vi.startsWith('Khác (')) return { material: null, form: null };
+  return { material: label, form: null };
+}
+
 export class Section3And4Mapper {
   public static map(
     rawReport: any,
@@ -330,6 +353,10 @@ export class Section3And4Mapper {
       section3,
       section4: {
         structuralType: { vi: structTypeVi, en: structTypeEn },
+        ...(() => {
+          const split = splitStructureSystem(json.structureSystem || specs.structural_system || specs.structuralSystem || '', isVacantLand);
+          return { structuralMaterial: split.material, structuralForm: split.form };
+        })(),
         foundationType: { vi: foundTypeVi, en: foundTypeEn },
         pileSize: { vi: pileSizeVi, en: pileSizeEn },
         footingDensitySpacing: { vi: footingDensitySpacingVi, en: footingDensitySpacingEn },

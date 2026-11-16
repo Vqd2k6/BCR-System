@@ -20,11 +20,13 @@
   </div>
 
   <div data-section="sec-8-2">
+    {{!-- Tiêu đề + ma trận + ghi chú ô viền đậm đi liền 1 trang như mẫu ST01. --}}
+    <div class="v2-keep">
     <h3 class="chapter-header sub-header">2. Đánh giá theo ma trận rủi ro – Risk Matrix Assessment</h3>
-    <table class="v2-table">
+    <table class="v2-table v2-matrix-table">
       <thead>
         <tr>
-          <th style="width: 24%;">Burland \ ECS</th>
+          <th style="width: 26%;">Burland \ ECS</th>
           {{#each v2.matrix.columns}}<th>{{this.vi}}<span class="en">{{this.en}}</span></th>{{/each}}
         </tr>
       </thead>
@@ -40,6 +42,7 @@
       </tbody>
     </table>
     {{#if v2.matrix.resultNote}}<p class="v2-note">{{v2.matrix.resultNote.vi}} <i>{{v2.matrix.resultNote.en}}</i></p>{{/if}}
+    </div>
     <p class="v2-text">{{v2.matrix.narrative.vi}}</p>
     <p class="v2-text en">{{v2.matrix.narrative.en}}</p>
   </div>
@@ -71,7 +74,7 @@
     </table>
     </div>
     {{#if v2.bra.basis.length}}
-      <p class="v2-text"><b>Căn cứ chấm điểm</b> – <i>Basis of scoring</i></p>
+      <p class="v2-text v2-lead-in"><b>Căn cứ chấm điểm</b> – <i>Basis of scoring</i></p>
       <ul class="v2-ol" style="list-style: disc;">
         {{#each v2.bra.basis}}<li>{{this.vi}}<span class="en-block">{{this.en}}</span></li>{{/each}}
       </ul>
@@ -81,12 +84,17 @@
   </div>
 
   <div data-section="sec-8-4">
+    {{!-- Ô cấp rủi ro 2×1 như mẫu ST01: nhãn | kết quả, cả 2 ô viền đậm; giữ liền với tiêu đề và diễn giải. --}}
+    <div class="v2-keep">
     <h3 class="chapter-header sub-header">4. Cấp độ rủi ro tổng thể – Overall Risk Grade</h3>
     <p class="v2-text">{{v2.overall.narrative.vi}}</p>
     <p class="v2-text en">{{v2.overall.narrative.en}}</p>
     <table class="v2-table v2-grade-box">
-      <tr><td><b>CẤP ĐỘ RỦI RO TỔNG THỂ</b><span class="en-block">OVERALL RISK GRADE</span></td></tr>
-      <tr><td class="is-current">{{#if v2.overall.level}}<b>{{v2.overall.levelNumber}} – {{v2.overall.level.vi}}</b><span class="en-block">{{v2.overall.level.en}}</span>{{else}}---{{/if}}</td></tr>
+      <tr>
+        <td class="grade-label"><b>CẤP ĐỘ RỦI RO TỔNG THỂ</b><span class="en-block">OVERALL RISK GRADE</span></td>
+        <td class="grade-value">{{#if v2.overall.level}}<b>{{v2.overall.levelNumber}} – {{v2.overall.level.vi}}</b><span class="en-block"><b>{{v2.overall.level.en}}</b></span>{{else}}---{{/if}}</td>
+      </tr>
     </table>
+    </div>
   </div>
 </section>

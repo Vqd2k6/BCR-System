@@ -1,0 +1,18 @@
+{{!--
+  Một khối ảnh nguyên vẹn (không tách qua trang), thứ tự DOM = thứ tự số hình:
+  - trio: 1 ảnh dọc rộng hết cột + 2 ảnh ngang xếp chồng ở cột còn lại (dọc trái: [D,N,N]; dọc phải: [N,N,D]).
+  - pair: 1–2 ảnh cùng hàng; có ảnh dọc thì khung cao ảnh dọc, toàn ảnh ngang thì khung thấp (3 hàng = 6 ảnh/trang).
+--}}
+{{#if (eq this.kind "trio")}}
+  <div class="v2-photo-block v2-photo-trio">
+    {{#if this.mainLeft}}
+      <div class="trio-main">{{#with this.main}}{{> v2-photo-figure}}{{/with}}</div>
+      <div class="trio-side">{{#each this.side}}{{> v2-photo-figure}}{{/each}}</div>
+    {{else}}
+      <div class="trio-side">{{#each this.side}}{{> v2-photo-figure}}{{/each}}</div>
+      <div class="trio-main">{{#with this.main}}{{> v2-photo-figure}}{{/with}}</div>
+    {{/if}}
+  </div>
+{{else}}
+  <div class="v2-photo-block v2-photo-row {{#if this.hasPortrait}}is-portrait-row{{else}}is-landscape-row{{/if}}">{{#each this.photos}}{{> v2-photo-figure}}{{/each}}</div>
+{{/if}}

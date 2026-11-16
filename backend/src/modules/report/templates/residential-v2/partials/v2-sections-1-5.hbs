@@ -76,16 +76,19 @@
   <h2 class="chapter-header">IV. ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG – STRUCTURAL AND FOUNDATION CHARACTERISTICS</h2>
   <table class="v2-table grid-4">
     <tr>
-      <td class="label">Hệ kết cấu chính<span class="en">Structural type</span></td><td class="value">{{orDash section4.structuralType.vi}}<span class="en-block">{{section4.structuralType.en}}</span></td>
+      <td class="label">Hệ kết cấu chính<span class="en">Structural type</span></td><td class="value">{{orDash v2.section4.structuralMaterial.vi}}<span class="en-block">{{v2.section4.structuralMaterial.en}}</span></td>
+      <td class="label">Dạng chịu lực<span class="en">Structural form</span></td><td class="value">{{orDash v2.section4.structuralForm.vi}}<span class="en-block">{{v2.section4.structuralForm.en}}</span></td>
+    </tr>
+    <tr>
       <td class="label">Loại móng<span class="en">Foundation type</span></td><td class="value">{{orDash section4.foundationType.vi}}<span class="en-block">{{section4.foundationType.en}}</span></td>
-    </tr>
-    <tr>
       <td class="label">Chiều sâu móng<span class="en">Foundation depth</span></td><td class="value">{{orDash section4.foundationDepth.vi}}<span class="en-block">{{section4.foundationDepth.en}}</span></td>
-      <td class="label">Điều kiện nền xung quanh<span class="en">Surrounding ground</span></td><td class="value">{{orDash section4.surroundingGround.vi}}<span class="en-block">{{section4.surroundingGround.en}}</span></td>
     </tr>
     <tr>
+      <td class="label">Điều kiện nền xung quanh<span class="en">Surrounding ground</span></td><td class="value">{{orDash section4.surroundingGround.vi}}<span class="en-block">{{section4.surroundingGround.en}}</span></td>
       <td class="label">Công trình liền kề<span class="en">Adjacent buildings</span></td><td class="value">{{orDash section4.adjacentBuildings.vi}}<span class="en-block">{{section4.adjacentBuildings.en}}</span></td>
-      <td class="label">Cơ sở xác định móng<span class="en">Foundation evidence</span></td><td class="value">{{orDash section4.foundationEvidence.vi}}<span class="en-block">{{section4.foundationEvidence.en}}</span></td>
+    </tr>
+    <tr>
+      <td class="label">Cơ sở xác định móng<span class="en">Foundation evidence</span></td><td class="value" colspan="3">{{orDash section4.foundationEvidence.vi}}<span class="en-block">{{section4.foundationEvidence.en}}</span></td>
     </tr>
     <tr>
       <td class="label">Ghi chú<span class="en">Remarks</span></td><td class="value" colspan="3">{{orDash section4.remarks.vi}}<span class="en-block">{{section4.remarks.en}}</span></td>
@@ -95,29 +98,31 @@
 
 <section data-section="sec-5">
   <h2 class="chapter-header">V. GHI NHẬN SƠ BỘ VỀ ĐỘ NGHIÊNG / LÚN – PRELIMINARY TILT / SETTLEMENT INDICATORS</h2>
+  {{!-- "Không" chỉ in "Không"; vị trí / số đo không có in "--" (in thẳng, không qua orDash). --}}
   <table class="v2-table grid-4">
     <tr>
-      <td class="label">Bằng chứng lún lệch<span class="en">Evidence of differential settlement</span></td><td class="value">{{section5.differentialSettlement.observedDisplay.vi}}<span class="en-block">{{section5.differentialSettlement.observedDisplay.en}}</span></td>
-      <td class="label">Vị trí<span class="en">Location</span></td><td class="value">{{orDash section5.differentialSettlement.location.vi}}<span class="en-block">{{section5.differentialSettlement.location.en}}</span></td>
+      <td class="label">Bằng chứng lún lệch<span class="en">Evidence of differential settlement</span></td>{{> v2-s5-cell v2.section5.differentialSettlement.status}}
+      <td class="label">Vị trí<span class="en">Location</span></td>{{> v2-s5-cell v2.section5.differentialSettlement.detail}}
     </tr>
     <tr>
-      <td class="label">Sự xuống cấp của cấu kiện<span class="en">Component deterioration</span></td><td class="value">{{section5.componentDeterioration.observedDisplay.vi}}<span class="en-block">{{section5.componentDeterioration.observedDisplay.en}}</span></td>
-      <td class="label">Vị trí<span class="en">Location</span></td><td class="value">{{orDash section5.componentDeterioration.location.vi}}<span class="en-block">{{section5.componentDeterioration.location.en}}</span></td>
+      <td class="label">Sự xuống cấp của cấu kiện<span class="en">Component deterioration</span></td>{{> v2-s5-cell v2.section5.componentDeterioration.status}}
+      <td class="label">Vị trí<span class="en">Location</span></td>{{> v2-s5-cell v2.section5.componentDeterioration.detail}}
     </tr>
     <tr>
-      <td class="label">Bằng chứng sửa chữa<span class="en">Evidence of repairs</span></td><td class="value">{{section5.evidenceOfRepairs.observedDisplay.vi}}<span class="en-block">{{section5.evidenceOfRepairs.observedDisplay.en}}</span></td>
-      <td class="label">Vị trí<span class="en">Location</span></td><td class="value">{{orDash section5.evidenceOfRepairs.location.vi}}<span class="en-block">{{section5.evidenceOfRepairs.location.en}}</span></td>
+      <td class="label">Bằng chứng sửa chữa<span class="en">Evidence of repairs</span></td>{{> v2-s5-cell v2.section5.evidenceOfRepairs.status}}
+      <td class="label">Vị trí<span class="en">Location</span></td>{{> v2-s5-cell v2.section5.evidenceOfRepairs.detail}}
     </tr>
     <tr>
-      <td class="label">Độ nghiêng công trình<span class="en">Building inclination</span></td><td class="value">{{section5.buildingInclination.observedDisplay.vi}}<span class="en-block">{{section5.buildingInclination.observedDisplay.en}}</span></td>
-      <td class="label">Số đo<span class="en">If measured</span></td><td class="value">{{orDash section5.buildingInclination.measured}}</td>
+      <td class="label">Độ nghiêng công trình<span class="en">Building inclination</span></td>{{> v2-s5-cell v2.section5.buildingInclination.status}}
+      <td class="label">Số đo<span class="en">If measured</span></td>{{> v2-s5-cell v2.section5.buildingInclination.detail}}
     </tr>
     <tr>
-      <td class="label">Độ nghiêng bản sàn<span class="en">Floor-slab inclination</span></td><td class="value">{{#if section5.floorSlabInclination.observed}}Có<span class="en-block">Observed</span>{{else}}Không thấy<span class="en-block">Not observed</span>{{/if}}</td>
-      <td class="label">Số đo<span class="en">If measured</span></td><td class="value">{{orDash section5.floorSlabInclination.measured}}</td>
+      <td class="label">Độ nghiêng bản sàn<span class="en">Floor-slab inclination</span></td>{{> v2-s5-cell v2.section5.floorSlabInclination.status}}
+      <td class="label">Số đo<span class="en">If measured</span></td>{{> v2-s5-cell v2.section5.floorSlabInclination.detail}}
     </tr>
     <tr>
-      <td class="label">Cơ sở xác định<span class="en">Basis of determination</span></td><td class="value" colspan="3">{{orDash section5.basisOfDetermination.vi}}<span class="en-block">{{section5.basisOfDetermination.en}}</span></td>
+      <td class="label">Cơ sở xác định<span class="en">Basis of determination</span></td><td class="value">{{orDash section5.basisOfDetermination.vi}}<span class="en-block">{{section5.basisOfDetermination.en}}</span></td>
+      <td class="label">Độ tin cậy<span class="en">Reliability</span></td><td class="value">{{orDash v2.section5.reliability.vi}}<span class="en-block">{{v2.section5.reliability.en}}</span></td>
     </tr>
   </table>
 </section>

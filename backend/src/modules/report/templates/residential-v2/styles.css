@@ -68,6 +68,8 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-text.en { display: block; text-align: left; }
 .v2-note { font-size: 8.5pt; margin: 2px 0 8px; }
 .v2-result { margin: 8px 0; }
+/* Dòng dẫn ("Căn cứ chấm điểm") không nằm một mình cuối trang. */
+.v2-lead-in { break-after: avoid; page-break-after: avoid; }
 
 /* Bìa */
 .v2-cover-title { text-align: center; margin: 14px 0 6px; }
@@ -75,8 +77,13 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-cover-title h2 { font-size: 12pt; margin: 2px 0; font-weight: bold; }
 .v2-cover-title .phase { font-size: 10pt; margin: 2px 0; }
 .v2-cover-title .building { font-size: 11pt; font-weight: bold; margin: 4px 0 8px; }
-.v2-cover-photo { text-align: center; margin: 6px 0 10px; }
-.v2-cover-photo img { max-width: 70%; max-height: 95mm; object-fit: contain; }
+/* Bìa đúng 1 trang: ảnh lấp phần còn trống sau các bảng (địa chỉ dài thì ảnh nhỏ lại, không đẩy bảng ký sang trang 2). */
+.v2-cover { display: flex; flex-direction: column; }
+.v2-cover > * { flex-shrink: 0; }
+.v2-cover .v2-cover-photo { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; margin: 6px 0 10px; }
+.v2-cover-photo img { max-width: 86%; max-height: 100%; object-fit: contain; }
+@media screen { .v2-cover.a4-page-sheet { height: 297mm; } }
+@media print { .v2-cover.a4-page-sheet { height: 245mm; } }
 .v2-sign-table td { height: 12mm; }
 .v2-sign-table td.sig { height: 20mm; text-align: center; }
 .v2-sign-table td.sig img { max-height: 18mm; max-width: 90%; }
@@ -95,29 +102,39 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-figure img { max-width: 100%; max-height: 115mm; object-fit: contain; }
 .v2-figure figcaption { margin-top: 4px; font-size: 9pt; }
 .v2-figure figcaption .vi { display: block; }
-.v2-photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-/* Khung ảnh cao cố định: ảnh đứng và ảnh ngang cùng hàng có chú thích thẳng hàng. */
-.v2-photo-grid .v2-figure .v2-media { height: 70mm; display: flex; align-items: center; justify-content: center; }
-.v2-photo-grid .v2-figure .v2-media img { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* Khối ảnh PL1–PL3 (presenter packPhotoBlocks). Cột rộng ≈ 83,5 mm: khung ảnh ngang 62,5 mm (4:3 rộng hết cột,
+   3 hàng = 6 ảnh/trang), khung ảnh dọc 111 mm (3:4 rộng hết cột). Ảnh cùng hàng chung khung để chú thích thẳng hàng. */
+.v2-photo-block { --v2-frame-landscape: 62.5mm; --v2-frame-portrait: 111mm; display: grid; grid-template-columns: 1fr 1fr; column-gap: 3mm; margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
+.v2-photo-block .v2-figure { margin: 0; }
+.v2-photo-block .v2-media { --v2-frame: var(--v2-frame-landscape); height: var(--v2-frame); display: flex; align-items: center; justify-content: center; }
+.v2-photo-block .v2-media img { max-width: 100%; max-height: var(--v2-frame); object-fit: contain; }
+.v2-photo-row.is-portrait-row .v2-media, .v2-photo-trio .trio-main .v2-media { --v2-frame: var(--v2-frame-portrait); }
+/* Khối 1 dọc + 2 ngang: ảnh dọc một cột, 2 ảnh ngang xếp chồng ở cột còn lại, cùng khổ với hàng ảnh ngang. */
+.v2-photo-trio { align-items: start; }
+.v2-photo-trio .trio-side { display: flex; flex-direction: column; gap: 3mm; }
 
 /* Sơ đồ CAD + ghim khuyết tật (vùng giấy kỹ thuật luôn sáng) */
 .v2-cad { position: relative; display: inline-block; max-width: 100%; }
 .v2-cad img { display: block; max-width: 100%; max-height: 120mm; }
 .v2-cad .pin { position: absolute; transform: translate(-50%, -50%); }
 .v2-cad .pin i { display: block; width: 7px; height: 7px; border-radius: 50%; background: #dc2626; border: 1px solid #ffffff; }
-.v2-cad .pin span { position: absolute; left: 6px; top: -11px; font-size: 7.5pt; font-weight: bold; color: #dc2626; white-space: nowrap; background: rgba(255, 255, 255, 0.85); padding: 0 2px; }
+.v2-cad .pin span { position: absolute; left: 6px; top: -11px; font-size: 7pt; font-weight: bold; color: #dc2626; white-space: nowrap; background: rgba(255, 255, 255, 0.85); padding: 0 3px; border-radius: 3px; }
 
 .v2-ol { margin: 4px 0 8px; padding-left: 20px; }
 .v2-ol li { margin: 4px 0; text-align: justify; }
-.v2-grade-box { width: 60%; margin: 8px auto; text-align: center; }
-.v2-grade-box td { text-align: center !important; font-size: 11pt !important; }
+/* VIII.4: ô cấp rủi ro 2×1 như mẫu ST01 — nhãn | kết quả, cả 2 ô viền đậm, kết quả in hoa. */
+table.v2-table.v2-grade-box { width: 100%; margin: 8px 0 10px; table-layout: fixed; }
+table.v2-table.v2-grade-box td { width: 50%; border-width: 2.5px; padding: 6px 8px; text-align: center; font-size: 10pt; }
+table.v2-table.v2-grade-box td.grade-value { font-size: 11pt; text-transform: uppercase; }
+table.v2-table.v2-grade-box td.grade-value .en-block { font-style: italic; }
+/* VIII.2: ô ma trận đệm hẹp để "N – Rủi ro …" nằm trên 1 dòng như mẫu. */
+table.v2-table.v2-matrix-table th, table.v2-table.v2-matrix-table td { padding: 3px 4px; }
 
 /* Bản xem trước: ẩn khung lỗi watermark khi in */
 @media print { #wm-issues-box { display: none !important; } }
 
 /* Tiêu đề mục con có trong Mục lục (engine dò trang thật cần .chapter-header) */
 .chapter-header.sub-header { font-size: 10.5pt; text-transform: none; border-bottom: none; padding-bottom: 0; margin: 12px 0 6px; }
-.v2-elevation-grid .v2-figure .v2-media { height: 75mm; }
 
 /* Bảng chấm điểm BRA và bảng khuyết tật PL2: chữ nhỏ hơn bảng thường như mẫu, giữ trọn khối. */
 table.v2-table.v2-bra-table th, table.v2-table.v2-bra-table td,
@@ -128,17 +145,28 @@ table.v2-table.v2-defect-table th, table.v2-table.v2-defect-table td { font-size
 .v2-cad .pin.pin-zone span { color: #1d4ed8; }
 .v2-cad .pin.pin-element i { background: #dc2626; }
 .v2-cad-title { font-size: 8.5pt; font-weight: bold; margin: 6px 0 2px; }
+/* PL2 — cỡ sơ đồ theo chỗ trống của trang (vùng in 170×249 mm; phần chữ của 1 tầng ≈30 mm, tiêu đề + giới thiệu PL2 ≈40 mm).
+   Tầng đầu chung trang với giới thiệu PL2 nên thấp hơn; các tầng sau bắt đầu trang mới nên lấp gần hết trang.
+   Ảnh ngang luôn bị giới hạn bởi bề rộng 170 mm. */
+.v2-floor.is-first-floor > .v2-figure { margin: 4px 0 8px; }
+.v2-floor .v2-cad img { max-height: 205mm; }
+.v2-floor .v2-cad.is-dual img { max-height: 105mm; }
+.v2-floor.is-first-floor .v2-cad img { max-height: 170mm; }
+.v2-floor.is-first-floor .v2-cad.is-dual img { max-height: 85mm; }
+/* 2 sơ đồ dọc cạnh nhau: mỗi ảnh rộng hết 1 cột (≈83×111 mm với ảnh 3:4). */
+.v2-cad-pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 3mm; align-items: start; }
+.v2-cad-pair .v2-cad-col { min-width: 0; text-align: center; }
+.v2-cad-pair .v2-cad-title .en-block { font-weight: normal; }
+.v2-floor .v2-cad-pair .v2-cad img { max-height: 115mm; }
 
 /* ===== Đủ ảnh hiện trường (15/11/2026): PL1 tiểu mục, PL2 nhóm ảnh theo D, PL3 ảnh đối chứng ===== */
 .v2-group-title { font-size: 9.5pt; font-weight: normal; margin: 8px 0 4px; break-after: avoid; page-break-after: avoid; }
 .v2-group-title b { font-weight: bold; }
 .v2-photo-group, .v2-defect-group { margin-top: 6px; }
-.v2-photo-grid .v2-figure { break-inside: avoid; page-break-inside: avoid; }
 /* Ghim D trên ảnh bối cảnh: khung ôm sát ảnh để tọa độ % trùng ảnh (như .photo-defect-pin của v1). */
 .v2-pin-stage { position: relative; display: inline-block; max-width: 100%; max-height: 100%; line-height: 0; }
-.v2-pin-stage img { display: block; max-width: 100%; max-height: 70mm; object-fit: contain; }
+.v2-pin-stage img { display: block; max-width: 100%; max-height: var(--v2-frame); object-fit: contain; }
 .v2-photo-pin { position: absolute; transform: translate(-50%, -50%); line-height: normal; }
-.v2-photo-pin i { display: block; width: 12px; height: 12px; border-radius: 50%; background: rgba(220, 38, 38, 0.35); border: 2px solid #dc2626; box-shadow: 0 0 0 1px #ffffff; }
-.v2-photo-pin span { position: absolute; left: 10px; top: -14px; font-size: 7.5pt; font-weight: bold; color: #dc2626; white-space: nowrap; background: rgba(255, 255, 255, 0.9); padding: 0 2px; }
-/* PL3: ảnh đối chứng nhỏ hơn (≈ 6 ảnh/trang). */
-.v2-photo-grid.is-compact .v2-figure .v2-media { height: 55mm; }
+/* Ghim D trên ảnh: chấm và nhãn bo góc cùng cỡ ghim Z / E trên sơ đồ, che ảnh ít nhất. */
+.v2-photo-pin i { display: block; width: 7px; height: 7px; border-radius: 50%; background: #dc2626; border: 1px solid #ffffff; }
+.v2-photo-pin span { position: absolute; left: 6px; top: -11px; font-size: 7pt; font-weight: bold; color: #dc2626; white-space: nowrap; background: rgba(255, 255, 255, 0.85); padding: 0 3px; border-radius: 3px; }

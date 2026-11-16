@@ -147,6 +147,16 @@ export class Section5DeformationMapper {
       ? { vi: sources.join(', '), en: sources.map((s) => SOURCE_EN[s] ?? s).join(', ') }
       : { vi: '--', en: '--' };
 
+    // Độ tin cậy dữ liệu (Thẩm định B5): JSON settlementTilt.reliability đè cột measurement_reliability như deformObj.
+    // Không có giá trị nhận ra thì null (in ---), không gán mặc định.
+    const RELIABILITY_LABELS: Record<string, { vi: string; en: string }> = {
+      HIGH: { vi: 'Cao', en: 'High' },
+      MEDIUM: { vi: 'Trung bình', en: 'Medium' },
+      LOW: { vi: 'Thấp', en: 'Low' },
+    };
+    const rawReliability = String(deformObj.reliability ?? deformObj.measurement_reliability ?? '').trim().toUpperCase();
+    const reliability = RELIABILITY_LABELS[rawReliability] ?? null;
+
     // Nhận xét: chỉ phần KSV/Admin đã nhập (bất thường ngoại quan, kiến nghị quan trắc); không tự sinh câu tổng kết.
     const abnCase = deformObj.abnormalCase || {};
     const abnDesc = String(abnCase.description || abnCase.notes || '').trim();
@@ -222,6 +232,7 @@ export class Section5DeformationMapper {
       tiltX: formattedTiltX,
       tiltY: formattedTiltY,
       basisOfDetermination,
+      reliability,
       remarks: { vi: remarkVi.join(' '), en: remarkEn.join(' ') },
       tiltPhoto: p05Url ? {
         url: p05Url,

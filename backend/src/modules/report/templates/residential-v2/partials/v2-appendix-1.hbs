@@ -5,14 +5,7 @@
     {{#each v2.elevationGroups}}
       <div class="v2-photo-group">
         <h4 class="v2-group-title">{{this.title.vi}} – <i>{{this.title.en}}</i></h4>
-        <div class="v2-photo-grid v2-elevation-grid">
-          {{#each this.photos}}
-            <figure class="v2-figure">
-              <div class="v2-media"><img src="{{this.src}}" alt="{{this.caption.vi}}"></div>
-              <figcaption><span class="vi">Hình {{this.figNo}} [{{this.photoCode}}] – {{this.caption.vi}}</span><i>Figure {{this.figNo}} [{{this.photoCode}}] – {{this.caption.en}}</i></figcaption>
-            </figure>
-          {{/each}}
-        </div>
+        {{#each this.blocks}}{{> v2-photo-block}}{{/each}}
       </div>
     {{/each}}
   {{else}}
