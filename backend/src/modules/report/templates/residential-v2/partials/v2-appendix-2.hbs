@@ -5,8 +5,9 @@
   <p class="v2-text en">This appendix is presented floor by floor: defect location plan, defect summary table, and the context and close-up photos of each defect. Measurements are shown with their surveyed units.</p>
 
   {{#each v2.floors}}
-    {{!-- is-first-floor: tầng đầu chung trang với tiêu đề + giới thiệu PL2 nên sơ đồ thấp hơn các tầng sau (styles.css). --}}
-    <div class="v2-floor {{#if @first}}is-first-floor{{/if}}" data-section="pl-2-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
+    {{!-- is-first-floor: tầng đầu chung trang với tiêu đề + giới thiệu PL2 nên sơ đồ thấp hơn các tầng sau;
+         has-no-defects: chừa chỗ cho tiêu đề bảng + lời thông báo ngay dưới sơ đồ, không sinh trang gần trống (styles.css). --}}
+    <div class="v2-floor {{#if @first}}is-first-floor{{/if}} {{#unless this.rows.length}}has-no-defects{{/unless}}" data-section="pl-2-{{@index}}" {{#unless @first}}style="break-before: page;"{{/unless}}>
       <h3 class="chapter-header sub-header">{{this.code}} {{this.floorName.vi}} – {{this.floorName.en}}</h3>
 
       {{#if this.hasAnyMap}}
@@ -84,7 +85,7 @@
           </tbody>
         </table>
       {{else}}
-        {{#if this.notice}}<p class="v2-text">{{this.notice.vi}}</p><p class="v2-text en">{{this.notice.en}}</p>{{else}}<p class="v2-text">---</p>{{/if}}
+        {{#if this.notice}}<p class="v2-text"><b>{{this.notice.vi}}</b></p><p class="v2-text en"><b><i>{{this.notice.en}}</i></b></p>{{else}}<p class="v2-text">---</p>{{/if}}
       {{/if}}
       </div>
 

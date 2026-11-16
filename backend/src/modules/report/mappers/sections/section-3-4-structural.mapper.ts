@@ -118,7 +118,8 @@ export function splitStructureSystem(
   if (label === STRUCT_RC) return { material: { vi: 'BTCT', en: 'RC' }, form: { vi: 'Khung chịu lực', en: 'Frame' } };
   if (label === STRUCT_STEEL) return { material: { vi: 'Thép', en: 'Steel' }, form: { vi: 'Khung thép', en: 'Steel frame' } };
   if (label === STRUCT_MASONRY) return { material: { vi: 'Gạch', en: 'Masonry' }, form: { vi: 'Tường chịu lực', en: 'Load-bearing wall' } };
-  if (label === STRUCT_MIXED) return { material: { vi: 'BTCT + gạch', en: 'RC + masonry' }, form: { vi: 'Khung + tường chịu lực', en: 'Frame + load-bearing wall' } };
+  // Lựa chọn khảo sát "Mixed - Kết cấu hỗn hợp" không nêu vật liệu / dạng chịu lực cụ thể: in đúng "hỗn hợp", không suy "Khung + tường".
+  if (label === STRUCT_MIXED) return { material: { vi: 'Hỗn hợp', en: 'Mixed' }, form: { vi: 'Kết cấu hỗn hợp', en: 'Mixed structure' } };
   if (label === STRUCT_TEMP) return { material: { vi: 'Gỗ, tôn', en: 'Timber, metal sheet' }, form: { vi: 'Kết cấu tạm', en: 'Temporary structure' } };
   // "Khác: <mô tả>" / chữ tự do không nhận ra: in nguyên văn, không suy dạng chịu lực.
   if (/^(Other\s*-|Khác\s*:)/i.test(text) && label.vi.startsWith('Khác (')) return { material: null, form: null };

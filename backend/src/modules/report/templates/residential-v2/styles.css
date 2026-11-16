@@ -103,12 +103,14 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-figure figcaption { margin-top: 4px; font-size: 9pt; }
 .v2-figure figcaption .vi { display: block; }
 /* Khối ảnh PL1–PL3 (presenter packPhotoBlocks). Cột rộng ≈ 83,5 mm: khung ảnh ngang 62,5 mm (4:3 rộng hết cột,
-   3 hàng = 6 ảnh/trang), khung ảnh dọc 111 mm (3:4 rộng hết cột). Ảnh cùng hàng chung khung để chú thích thẳng hàng. */
-.v2-photo-block { --v2-frame-landscape: 62.5mm; --v2-frame-portrait: 111mm; display: grid; grid-template-columns: 1fr 1fr; column-gap: 3mm; margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
+   3 hàng = 6 ảnh/trang); hàng có ảnh dọc 95 mm (2 hàng = 4 ảnh dọc/trang); ảnh dọc của khối trio 111 mm (rộng hết cột,
+   cân với 2 ảnh ngang xếp chồng). Ảnh cùng hàng chung khung để chú thích thẳng hàng. */
+.v2-photo-block { --v2-frame-landscape: 62.5mm; --v2-frame-portrait: 95mm; --v2-frame-trio-main: 111mm; display: grid; grid-template-columns: 1fr 1fr; column-gap: 3mm; margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
 .v2-photo-block .v2-figure { margin: 0; }
 .v2-photo-block .v2-media { --v2-frame: var(--v2-frame-landscape); height: var(--v2-frame); display: flex; align-items: center; justify-content: center; }
 .v2-photo-block .v2-media img { max-width: 100%; max-height: var(--v2-frame); object-fit: contain; }
-.v2-photo-row.is-portrait-row .v2-media, .v2-photo-trio .trio-main .v2-media { --v2-frame: var(--v2-frame-portrait); }
+.v2-photo-row.is-portrait-row .v2-media { --v2-frame: var(--v2-frame-portrait); }
+.v2-photo-trio .trio-main .v2-media { --v2-frame: var(--v2-frame-trio-main); }
 /* Khối 1 dọc + 2 ngang: ảnh dọc một cột, 2 ảnh ngang xếp chồng ở cột còn lại, cùng khổ với hàng ảnh ngang. */
 .v2-photo-trio { align-items: start; }
 .v2-photo-trio .trio-side { display: flex; flex-direction: column; gap: 3mm; }
@@ -121,7 +123,7 @@ table.v2-table td.is-current, table.v2-table tr.is-current td { outline: 2.5px s
 .v2-cad .pin span { position: absolute; left: 6px; top: -11px; font-size: 7pt; font-weight: bold; color: #dc2626; white-space: nowrap; background: rgba(255, 255, 255, 0.85); padding: 0 3px; border-radius: 3px; }
 
 .v2-ol { margin: 4px 0 8px; padding-left: 20px; }
-.v2-ol li { margin: 4px 0; text-align: justify; }
+.v2-ol li { margin: 4px 0; text-align: justify; break-inside: avoid; page-break-inside: avoid; }
 /* VIII.4: ô cấp rủi ro 2×1 như mẫu ST01 — nhãn | kết quả, cả 2 ô viền đậm, kết quả in hoa. */
 table.v2-table.v2-grade-box { width: 100%; margin: 8px 0 10px; table-layout: fixed; }
 table.v2-table.v2-grade-box td { width: 50%; border-width: 2.5px; padding: 6px 8px; text-align: center; font-size: 10pt; }
@@ -153,7 +155,12 @@ table.v2-table.v2-defect-table th, table.v2-table.v2-defect-table td { font-size
 .v2-floor .v2-cad.is-dual img { max-height: 105mm; }
 .v2-floor.is-first-floor .v2-cad img { max-height: 170mm; }
 .v2-floor.is-first-floor .v2-cad.is-dual img { max-height: 85mm; }
-/* 2 sơ đồ dọc cạnh nhau: mỗi ảnh rộng hết 1 cột (≈83×111 mm với ảnh 3:4). */
+/* Tầng không có khuyết tật: chừa ≈26 mm cho tiêu đề bảng + lời thông báo ngay dưới sơ đồ, không sinh trang gần trống. */
+.v2-floor.has-no-defects .v2-cad img { max-height: 190mm; }
+.v2-floor.has-no-defects .v2-cad.is-dual img { max-height: 92mm; }
+.v2-floor.is-first-floor.has-no-defects .v2-cad img { max-height: 155mm; }
+.v2-floor.is-first-floor.has-no-defects .v2-cad.is-dual img { max-height: 74mm; }
+/* 2 sơ đồ dọc cạnh nhau (rule cuối, thắng các rule cùng độ ưu tiên ở trên): mỗi ảnh rộng hết 1 cột (≈83×111 mm với ảnh 3:4). */
 .v2-cad-pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 3mm; align-items: start; }
 .v2-cad-pair .v2-cad-col { min-width: 0; text-align: center; }
 .v2-cad-pair .v2-cad-title .en-block { font-weight: normal; }

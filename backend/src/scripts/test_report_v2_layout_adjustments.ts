@@ -44,7 +44,7 @@ function unitTests(): void {
   const rc = splitStructureSystem('RC - BTCT (Khung bê tông cốt thép toàn khối)', false);
   check('RC → BTCT + Khung chịu lực', rc.material?.vi === 'BTCT' && rc.form?.vi === 'Khung chịu lực', JSON.stringify(rc));
   const mixed = splitStructureSystem('Mixed - Kết cấu hỗn hợp', false);
-  check('Mixed → BTCT + gạch / Khung + tường chịu lực', mixed.material?.vi === 'BTCT + gạch' && mixed.form?.vi === 'Khung + tường chịu lực', JSON.stringify(mixed));
+  check('Mixed → Hỗn hợp / Kết cấu hỗn hợp (không suy Khung + tường)', mixed.material?.vi === 'Hỗn hợp' && mixed.form?.vi === 'Kết cấu hỗn hợp', JSON.stringify(mixed));
   const masonry = splitStructureSystem('Masonry - Tường gạch chịu lực', false);
   check('Masonry → Gạch / Tường chịu lực', masonry.material?.vi === 'Gạch' && masonry.form?.vi === 'Tường chịu lực', JSON.stringify(masonry));
   const other = splitStructureSystem('Khác: Khung thép mái tôn', false);
@@ -98,7 +98,10 @@ async function checkReport(id: string): Promise<void> {
   check('VIII.4: ô cấp rủi ro 1 hàng × 2 ô', (grade.match(/<tr>/g) || []).length === 1 && (grade.match(/<td /g) || []).length === 2, grade.slice(0, 200));
 
   const pl2 = sliceSection(html, 'pl-2');
-  check('PL2: tầng đầu gắn is-first-floor', /class="v2-floor is-first-floor" data-section="pl-2-0"/.test(pl2));
+  check('PL2: tầng đầu gắn is-first-floor', /class="v2-floor is-first-floor[^"]*" data-section="pl-2-0"/.test(pl2));
+  const noDefectFloors = viewModel.appendix2.filter((f) => f.defectSummaryRows.length === 0).length;
+  check(`PL2: ${noDefectFloors} tầng không khuyết tật gắn has-no-defects`, (pl2.match(/class="v2-floor[^"]*has-no-defects/g) || []).length === noDefectFloors);
+  check('PL2: lời thông báo tầng không khuyết tật in đậm', noDefectFloors === 0 || /<p class="v2-text"><b>[^<]+<\/b><\/p><p class="v2-text en"><b><i>/.test(pl2));
   const pairs = (pl2.match(/class="v2-cad-pair"/g) || []).length;
   const floors = (pl2.match(/class="v2-floor[ "]/g) || []).length;
   check("PL2: khối CAD cạnh nhau luôn đủ 2 sơ đồ", pairs === 0 || (pl2.match(/class="v2-cad-col"/g) || []).length === pairs * 2);
