@@ -24,7 +24,7 @@ export function assertLoopbackHost(target: LocalTargetConfig, tag: string): void
   if (!LOOPBACK_HOSTS.has(host)) {
     const message =
       `Từ chối chạy: DB đích ${target.host}:${target.port}/${target.database} không phải máy local. ` +
-      `Script này TRUNCATE dữ liệu nên chỉ được ghi vào Docker local (localhost). ` +
+      `Script này ghi/xoá dữ liệu nên chỉ được chạy trên Docker local (localhost). ` +
       `Kiểm tra DB_HOST trong backend/.env.`;
     console.error(`[${tag}:Guard] ${message}`);
     throw new Error(message);

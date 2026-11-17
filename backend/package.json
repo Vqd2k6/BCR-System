@@ -19,7 +19,8 @@
     "sync:from-cloud": "ts-node src/scripts/sync_from_cloud.ts",
     "sync:snapshot-only": "ts-node src/scripts/sync_from_cloud.ts --file-only",
     "restore:snapshot": "ts-node src/scripts/restore_from_snapshot.ts",
-    "db:repair-orphan-users": "ts-node src/scripts/repair_orphan_user_refs.ts"
+    "db:repair-orphan-users": "ts-node src/scripts/repair_orphan_user_refs.ts",
+    "db:set-local-passwords": "ts-node src/scripts/set_local_passwords.ts"
   },
   "keywords": [
     "metro2",
