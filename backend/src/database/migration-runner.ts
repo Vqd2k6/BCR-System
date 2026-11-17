@@ -95,13 +95,15 @@ export class MigrationRunner {
       const appliedSet = new Set(appliedRes.rows.map((row) => row.id));
 
       // 6. CHIẾN LƯỢC TỰ ĐỘNG ĐÓNG DẤU AN TOÀN CHO PRODUCTION HIỆN HỮU (BASELINE BACKFILL)
-      // Nếu schema_migrations rỗng NHƯNG CSDL đã có sẵn bảng nghiệp vụ (ví dụ: parcels):
-      // Đóng dấu an toàn các file migration cũ (trước ngày 20261011) mà KHÔNG chạy lại DDL.
+      // Nếu schema_migrations rỗng NHƯNG CSDL đã có DỮ LIỆU nghiệp vụ (parcels có bản ghi):
+      // Đóng dấu an toàn các file migration cũ mà KHÔNG chạy lại DDL.
+      // Lưu ý: DB mới khởi tạo từ init_schema.sql cũng có bảng parcels (rỗng) — trường hợp đó
+      // KHÔNG được baseline, phải chạy thật toàn bộ migration (nếu không enum/trigger/cột bị thiếu).
       if (appliedSet.size === 0) {
         const checkExistingDb = await Database.query<{ exists: boolean }>(`
-          SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = 'parcels'
+          SELECT (
+            to_regclass('public.parcels') IS NOT NULL
+            AND EXISTS (SELECT 1 FROM parcels LIMIT 1)
           ) AS exists;
         `);
 
