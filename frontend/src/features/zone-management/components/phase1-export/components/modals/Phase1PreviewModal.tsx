@@ -14,7 +14,15 @@ import {
   FileType,
   Sparkles,
 } from 'lucide-react';
-import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage, ReportTemplateControl } from '../../types';
+import type {
+  ExportParcelItem,
+  EditFormData,
+  EditFormDefectItem,
+  ModalFeedbackMessage,
+  ReportTemplateControl,
+  WatermarkStagingControl,
+} from '../../types';
+import { WatermarkStagingBar } from './WatermarkStagingBar';
 import type { ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
 import { ReleaseRevisionPanel } from './ReleaseRevisionPanel';
@@ -63,6 +71,8 @@ interface Phase1PreviewModalProps {
   handleCloseCurrentPdf?: () => void;
   /** Chọn template v1/v2 (chỉ Admin, hồ sơ nhà dân); không truyền = không có ô chọn. */
   templateControl?: ReportTemplateControl;
+  /** Chọn từng ảnh nghi ngờ dấu cũ trong bản xem trước, gửi một lần. */
+  watermarkStaging?: WatermarkStagingControl;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -107,6 +117,7 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   handleViewCurrentPdf,
   handleCloseCurrentPdf,
   templateControl,
+  watermarkStaging,
 }) => {
   if (!previewParcel) return null;
 
@@ -297,6 +308,11 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
             />
           )}
         </div>
+
+        {/* Ảnh nghi ngờ dấu cũ: chọn từng ảnh trong bản xem trước, gửi một lần ở đây */}
+        {watermarkStaging && previewTab === 'html' && selectedRevision === undefined && (
+          <WatermarkStagingBar staging={watermarkStaging} />
+        )}
 
         {/* Modal Footer */}
         <div className="px-5 py-3 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">

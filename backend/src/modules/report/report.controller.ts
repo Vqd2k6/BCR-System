@@ -39,6 +39,11 @@ const ConfirmWatermarkSchema = z.object({
   reason: z.string().trim().max(500).nullish(),
 });
 
+/** Gửi một lần các lựa chọn đã chọn TỪNG ẢNH trong bản xem trước. */
+const ConfirmWatermarkBatchSchema = z.object({
+  items: z.array(ConfirmWatermarkSchema).min(1).max(200),
+});
+
 function parseRevision(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const n = Number(value);
@@ -331,6 +336,18 @@ export class ReportController {
       if (!req.user) throw new UnauthorizedError();
       const body = ConfirmWatermarkSchema.parse(req.body);
       const data = await WatermarkConfirmationService.confirmLegacy(req.user, req.params.id, body, req.ip ?? null);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Gửi một lần nhiều xác nhận đã chọn từng ảnh trong bản xem trước (all-or-nothing, mỗi ảnh 1 dòng audit). */
+  public static async confirmWatermarkBatch(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const body = ConfirmWatermarkBatchSchema.parse(req.body);
+      const data = await WatermarkConfirmationService.confirmLegacyBatch(req.user, req.params.id, body.items, req.ip ?? null);
       res.status(200).json({ success: true, data });
     } catch (err) {
       next(err);

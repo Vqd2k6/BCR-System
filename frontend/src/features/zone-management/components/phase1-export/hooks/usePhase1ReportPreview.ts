@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../../../../services/api';
 import type {
   ExportParcelItem,
@@ -10,6 +10,8 @@ import type {
   ReportTemplateKey,
   ReportTemplateOption,
   ReportTemplateControl,
+  StagedWatermarkChoice,
+  WatermarkStagingControl,
 } from '../types';
 import { isReportTemplateKey, isResidentialParcel } from '../types';
 import { fetchReportTemplates } from '../api/reportTemplates.api';
@@ -521,8 +523,60 @@ export const usePhase1ReportPreview = ({
   };
 
   /**
+   * Lựa chọn tạm cho ảnh nghi ngờ dấu cũ: người dùng chọn TỪNG ảnh trong bản xem trước (không nạp lại),
+   * rồi gửi một lần. Không có "xác nhận tất cả" (luật 13/11/2026). Giữ ở trang cha để sống qua các lần nạp lại
+   * bản xem trước (đổi template, thử lại ảnh); xoá khi chuyển sang thửa khác.
+   */
+  const [stagedWatermark, setStagedWatermark] = useState<Record<string, StagedWatermarkChoice>>({});
+  const [watermarkNeedTotal, setWatermarkNeedTotal] = useState<number>(0);
+  const [isSubmittingWatermark, setIsSubmittingWatermark] = useState<boolean>(false);
+  const stagedWatermarkRef = useRef<Record<string, StagedWatermarkChoice>>({});
+  stagedWatermarkRef.current = stagedWatermark;
+  const previewParcelKey = previewParcel ? reportIdOf(previewParcel) : '';
+
+  useEffect(() => {
+    setStagedWatermark({});
+    setWatermarkNeedTotal(0);
+  }, [previewParcelKey]);
+
+  const clearStagedWatermark = (): void => setStagedWatermark({});
+
+  const submitStagedWatermark = async (): Promise<void> => {
+    const items = Object.values(stagedWatermark);
+    if (!previewParcel || items.length === 0 || isSubmittingWatermark) return;
+    const withLegacy = items.filter((it) => it.hasLegacyWatermark).length;
+    const withoutLegacy = items.length - withLegacy;
+    const ok = window.confirm(
+      `Gửi xác nhận cho ${items.length} ảnh đã chọn từng ảnh:\n` +
+        `• ${withLegacy} ảnh ĐÃ CÓ dấu cũ (máy chủ không dập thêm)\n` +
+        `• ${withoutLegacy} ảnh CHƯA CÓ dấu (máy chủ sẽ dập dấu)\n` +
+        'Kết quả áp cho mọi ô dùng các ảnh này và được ghi vào nhật ký từng ảnh.'
+    );
+    if (!ok) return;
+    setIsSubmittingWatermark(true);
+    try {
+      await api.post(`/reports/${encodeURIComponent(reportIdOf(previewParcel))}/watermark-confirmations/batch`, {
+        items: items.map((it) => ({ photoUrl: it.photoUrl, hasLegacyWatermark: it.hasLegacyWatermark })),
+      });
+      setStagedWatermark({});
+      await reloadCurrentPreviewHtml(`Đã xác nhận ${items.length} ảnh (${withLegacy} có dấu cũ, ${withoutLegacy} chưa có dấu).`);
+    } catch (err: unknown) {
+      // Giữ nguyên các lựa chọn để người dùng sửa rồi gửi lại.
+      console.error('[Phase1Preview:WatermarkBatch] Không lưu được xác nhận dấu cũ theo lô:', err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không lưu được ${items.length} xác nhận (chưa ghi ảnh nào): ${getErrorMessage(err, 'Lỗi server')}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } finally {
+      setIsSubmittingWatermark(false);
+    }
+  };
+
+  /**
    * Thao tác từ hộp "ảnh chưa dập được" trong iframe xem trước (watermark-issues.hbs):
-   *   - WATERMARK_CONFIRM_LEGACY: xác nhận TỪNG ảnh nghi ngờ dấu cũ (không có xác nhận hàng loạt).
+   *   - WATERMARK_STAGE: chọn / bỏ chọn kết quả cho TỪNG ảnh nghi ngờ dấu cũ (chỉ lưu tạm, không nạp lại).
+   *   - WATERMARK_ISSUES_READY: iframe sẵn sàng → gửi lại các lựa chọn đang giữ (WATERMARK_STAGED_SYNC).
    *   - WATERMARK_RETRY: render lại khi ảnh tải lỗi tạm thời.
    *   - WATERMARK_OPEN_STUDIO: ảnh mất file / quá nhỏ / hỏng → liệt kê gợi ý ảnh thay, Admin thay qua Studio thẩm định.
    * Chỉ nhận message từ iframe xem trước của chính trang này.
@@ -533,7 +587,7 @@ export const usePhase1ReportPreview = ({
       if (!fromPreview || !previewParcel) return;
       const data = evt.data;
       if (!data || typeof data !== 'object') return;
-      const msg = data as { type?: unknown; photoUrl?: unknown; photoCode?: unknown; hasLegacyWatermark?: unknown };
+      const msg = data as { type?: unknown; photoUrl?: unknown; photoCode?: unknown; hasLegacyWatermark?: unknown; total?: unknown };
       const photoUrl = typeof msg.photoUrl === 'string' ? msg.photoUrl : '';
       const photoCode = typeof msg.photoCode === 'string' ? msg.photoCode : photoUrl;
       const reportId = encodeURIComponent(reportIdOf(previewParcel));
@@ -542,19 +596,27 @@ export const usePhase1ReportPreview = ({
         await reloadCurrentPreviewHtml('Đã thử nạp lại toàn bộ ảnh của báo cáo.');
         return;
       }
-      if (msg.type === 'WATERMARK_CONFIRM_LEGACY' && photoUrl && typeof msg.hasLegacyWatermark === 'boolean') {
-        const verdict = msg.hasLegacyWatermark ? 'ĐÃ CÓ dấu cũ (máy chủ không dập thêm)' : 'CHƯA CÓ dấu (máy chủ sẽ dập dấu)';
-        if (!window.confirm(`Xác nhận ảnh ${photoCode} ${verdict}?\nKết quả áp cho mọi ô dùng ảnh này và được ghi vào nhật ký.`)) return;
-        try {
-          await api.post(`/reports/${reportId}/watermark-confirmations`, { photoUrl, hasLegacyWatermark: msg.hasLegacyWatermark });
-          await reloadCurrentPreviewHtml(`Đã xác nhận ảnh ${photoCode}: ${verdict}.`);
-        } catch (err: unknown) {
-          console.error('[usePhase1ReportPreview:confirmWatermark] Không lưu được xác nhận dấu cũ:', err);
-          setModalFeedback({
-            type: 'error',
-            text: `Không lưu được xác nhận cho ảnh ${photoCode}: ${getErrorMessage(err, 'Lỗi server')}`,
-            timestamp: new Date().toLocaleTimeString('vi-VN'),
-          });
+      if (msg.type === 'WATERMARK_STAGE' && photoUrl) {
+        const choice = msg.hasLegacyWatermark;
+        setStagedWatermark((prev) => {
+          const next = { ...prev };
+          if (typeof choice === 'boolean') next[photoUrl] = { photoUrl, photoCode, hasLegacyWatermark: choice };
+          else delete next[photoUrl];
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'WATERMARK_ISSUES_READY') {
+        setWatermarkNeedTotal(typeof msg.total === 'number' && Number.isFinite(msg.total) ? msg.total : 0);
+        const source = evt.source;
+        if (source && 'postMessage' in source) {
+          (source as Window).postMessage(
+            {
+              type: 'WATERMARK_STAGED_SYNC',
+              items: Object.values(stagedWatermarkRef.current).map((it) => ({ photoUrl: it.photoUrl, hasLegacyWatermark: it.hasLegacyWatermark })),
+            },
+            '*'
+          );
         }
         return;
       }
@@ -765,6 +827,13 @@ export const usePhase1ReportPreview = ({
       canSelect: isTemplateSelectable(previewParcel),
       onChange: handleChangeTemplate,
     } satisfies ReportTemplateControl,
+    watermarkStaging: {
+      items: Object.values(stagedWatermark),
+      total: watermarkNeedTotal,
+      isSubmitting: isSubmittingWatermark,
+      submit: submitStagedWatermark,
+      clear: clearStagedWatermark,
+    } satisfies WatermarkStagingControl,
     handleSelectRevision,
     handleExportRevisionPdf,
     handleToggleWatermark,

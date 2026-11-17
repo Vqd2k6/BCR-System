@@ -4,10 +4,14 @@
   (toàn cảnh + góc logo + góc chữ giờ/mã phóng to).
   Trong thân báo cáo, mỗi ảnh lỗi (data URI "data:image/svg+xml;wmissue=<n>;...") được gắn thanh nút ngay trên ảnh,
   cùng thao tác với hộp này. Các nút gửi postMessage lên màn Xuất:
-    - WATERMARK_CONFIRM_LEGACY { photoUrl, hasLegacyWatermark }: Zone Admin / Super Admin xác nhận TỪNG ảnh nghi ngờ.
+    - WATERMARK_STAGE { photoUrl, photoCode, hasLegacyWatermark: true | false | null }: Zone Admin / Super Admin CHỌN
+      kết quả cho TỪNG ảnh nghi ngờ (null = bỏ chọn). Chỉ lưu tạm, KHÔNG nạp lại; màn Xuất gửi một lần tất cả lựa chọn
+      (không có nút "xác nhận tất cả").
+    - WATERMARK_ISSUES_READY { total }: bản xem trước sẵn sàng, total = số ảnh cần xác nhận; màn Xuất trả lại
+      WATERMARK_STAGED_SYNC { items: [{ photoUrl, hasLegacyWatermark }] } để vẽ lại lựa chọn sau mỗi lần nạp lại.
     - WATERMARK_OPEN_STUDIO { photoUrl, photoCode }: mở ô ảnh trong Studio để thay ảnh.
     - WATERMARK_RETRY: render lại (ảnh tải lỗi tạm thời).
-  Trước khi gửi, lưu vị trí cuộn để bản xem trước nạp lại giữ đúng chỗ (làm tiếp ảnh kế bên).
+  Trước khi gửi thao tác làm nạp lại, lưu vị trí cuộn để bản xem trước nạp lại giữ đúng chỗ.
 --}}
 {{#if watermarkIssueCount}}
 <div class="screen-watermark-issues" id="wm-issues-box" role="alert">
@@ -30,6 +34,11 @@
     .wm-actions button, .wm-bar button { cursor: pointer; font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid #c81e1e; background: #ffffff; color: #c81e1e; }
     .wm-actions button.wm-primary, .wm-bar button.wm-primary { background: #c81e1e; color: #ffffff; }
     .wm-bar { position: absolute; z-index: 50; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: rgba(255, 245, 245, 0.95); border: 1px solid #c81e1e; border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); box-sizing: border-box; }
+    .wm-actions button.wm-picked, .wm-bar button.wm-picked { background: #047857; border-color: #047857; color: #ffffff; }
+    .wm-actions button.wm-picked::before, .wm-bar button.wm-picked::before { content: '✓ '; }
+    .screen-watermark-issues li.wm-staged { background: #ecfdf5; border-radius: 4px; outline: 2px solid #047857; outline-offset: 3px; }
+    .wm-bar.wm-staged { border-color: #047857; background: rgba(236, 253, 245, 0.97); }
+    .wm-staged-counter { margin: 0 0 8px; padding: 6px 8px; border-radius: 4px; background: #ffffff; border: 1px dashed #047857; color: #065f46; font-size: 12px; font-weight: 700; }
     .wm-flash { outline: 4px solid #f59e0b !important; outline-offset: 2px; transition: outline-color 0.3s; }
     .wm-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.85); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
     .wm-lightbox img { max-width: 94vw; max-height: 94vh; background: #ffffff; }
@@ -37,6 +46,7 @@
   </style>
   <h2>{{watermarkIssueCount}} ảnh chưa dập được watermark – không xuất được PDF nháp / Rev</h2>
   <p>Ảnh lỗi được đánh dấu viền đỏ ngay trong báo cáo bên dưới, có nút xử lý ngay trên ảnh. Xử lý hết các dòng dưới đây rồi xuất lại.</p>
+  <p class="wm-staged-counter" id="wm-staged-counter" hidden></p>
   <ol>
     {{#each watermarkIssues}}
       <li data-wm-index="{{@index}}" data-photo-url="{{this.url}}">
@@ -52,8 +62,8 @@
         {{/if}}
         <div class="wm-actions">
           {{#if this.needsLegacyConfirmation}}
-            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="true">Ảnh này: Có dấu cũ (không dập thêm)</button>
-            <button type="button" class="wm-primary" data-wm-action="WATERMARK_CONFIRM_LEGACY" data-wm-value="false">Ảnh này: Chưa có dấu (máy chủ dập)</button>
+            <button type="button" class="wm-primary" data-wm-action="WATERMARK_STAGE" data-wm-value="true">Ảnh này: Có dấu cũ (không dập thêm)</button>
+            <button type="button" class="wm-primary" data-wm-action="WATERMARK_STAGE" data-wm-value="false">Ảnh này: Chưa có dấu (máy chủ dập)</button>
           {{/if}}
           {{#if (or this.fileMissing (or (eq this.reason "TOO_SMALL") (eq this.reason "STAMP_ERROR")))}}
             <button type="button" data-wm-action="WATERMARK_OPEN_STUDIO">Mở ô ảnh trong Studio</button>
@@ -191,11 +201,60 @@
         goTo(function () { return next; }, btn);
       }
 
+      // ---- Lựa chọn tạm cho ảnh nghi ngờ dấu cũ: chọn TỪNG ảnh, không nạp lại; màn Xuất gửi một lần. ----
+      var staged = {}; // photoUrl -> true (Có dấu cũ) | false (Chưa có dấu)
+      var needConfirmTotal = issues.filter(function (it) { return it && it.needsLegacyConfirmation; }).length;
+      function urlOfButton(btn) {
+        var holder = btn.closest('[data-photo-url]');
+        return holder ? holder.getAttribute('data-photo-url') : null;
+      }
+      function renderStaged() {
+        var picked = 0;
+        Object.keys(staged).forEach(function () { picked += 1; });
+        Array.prototype.forEach.call(document.querySelectorAll('button[data-wm-action="WATERMARK_STAGE"]'), function (b) {
+          var url = urlOfButton(b);
+          var has = url && Object.prototype.hasOwnProperty.call(staged, url);
+          b.classList.toggle('wm-picked', !!has && String(staged[url]) === b.getAttribute('data-wm-value'));
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('li[data-photo-url], .wm-bar[data-photo-url]'), function (el) {
+          el.classList.toggle('wm-staged', Object.prototype.hasOwnProperty.call(staged, el.getAttribute('data-photo-url')));
+        });
+        var counter = document.getElementById('wm-staged-counter');
+        if (counter) {
+          counter.hidden = needConfirmTotal === 0;
+          counter.textContent = 'Đã chọn ' + picked + ' / ' + needConfirmTotal +
+            ' ảnh cần xác nhận dấu cũ. Chọn xong từng ảnh rồi bấm "Gửi xác nhận" ở thanh dưới khung xem trước.';
+        }
+      }
+      function stage(issue, value) {
+        if (!issue || !issue.url) return;
+        var next = value === 'true';
+        var current = Object.prototype.hasOwnProperty.call(staged, issue.url) ? staged[issue.url] : null;
+        var result = current === next ? null : next; // bấm lại đúng lựa chọn đang chọn = bỏ chọn
+        if (result === null) delete staged[issue.url]; else staged[issue.url] = result;
+        renderStaged();
+        try {
+          window.parent.postMessage({ type: 'WATERMARK_STAGE', photoUrl: issue.url, photoCode: issue.photoCode, hasLegacyWatermark: result }, '*');
+        } catch (err) {
+          console.error('[WatermarkIssues:stage] Không gửi được lựa chọn lên màn Xuất', err);
+        }
+      }
+      window.addEventListener('message', function (evt) {
+        if (evt.source !== window.parent || !evt.data || evt.data.type !== 'WATERMARK_STAGED_SYNC') return;
+        var next = {};
+        (Array.isArray(evt.data.items) ? evt.data.items : []).forEach(function (it) {
+          if (it && typeof it.photoUrl === 'string' && typeof it.hasLegacyWatermark === 'boolean') next[it.photoUrl] = it.hasLegacyWatermark;
+        });
+        staged = next;
+        renderStaged();
+      });
+
       function onAction(btn, index, img) {
         var action = btn.getAttribute('data-wm-action');
         if (action === 'WM_JUMP') return jumpToImage(index, btn);
         if (action === 'WM_LIST') return jumpToRow(index, btn);
         if (action === 'WM_NEXT') return jumpToNext(img, btn);
+        if (action === 'WATERMARK_STAGE') return stage(issues[index], btn.getAttribute('data-wm-value'));
         send(action, issues[index], btn.getAttribute('data-wm-value'));
       }
 
@@ -251,9 +310,10 @@
           if (!issue) return;
           var bar = document.createElement('div');
           bar.className = 'wm-bar';
+          bar.setAttribute('data-photo-url', issue.url);
           if (issue.needsLegacyConfirmation) {
-            bar.appendChild(button('Có dấu cũ', 'WATERMARK_CONFIRM_LEGACY', 'true', true));
-            bar.appendChild(button('Chưa có dấu', 'WATERMARK_CONFIRM_LEGACY', 'false', true));
+            bar.appendChild(button('Có dấu cũ', 'WATERMARK_STAGE', 'true', true));
+            bar.appendChild(button('Chưa có dấu', 'WATERMARK_STAGE', 'false', true));
           } else if (issue.fileMissing || issue.reason === 'TOO_SMALL' || issue.reason === 'STAMP_ERROR') {
             bar.appendChild(button('Mở Studio', 'WATERMARK_OPEN_STUDIO'));
           } else if (issue.reason === 'LOAD_FAILED') {
@@ -274,6 +334,13 @@
       // Script nằm trước trang bìa: ảnh thân báo cáo chỉ có trong DOM sau khi phân tích xong tài liệu.
       function onDomReady() {
         mountBars();
+        renderStaged();
+        // Báo màn Xuất: bản xem trước sẵn sàng để nhận lại các lựa chọn đã chọn trước lần nạp lại này.
+        try {
+          window.parent.postMessage({ type: 'WATERMARK_ISSUES_READY', total: needConfirmTotal }, '*');
+        } catch (err) {
+          console.error('[WatermarkIssues:ready] Không báo được màn Xuất', err);
+        }
         // buildStage / numberPages đổi layout sau khi ảnh nạp: đặt lại thanh nút khi báo cáo dựng xong và mỗi khi body đổi cỡ.
         whenReady(placeBars);
         if (window.ResizeObserver) new ResizeObserver(function () { placeBars(); }).observe(document.body);

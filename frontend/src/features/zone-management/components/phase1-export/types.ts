@@ -247,6 +247,23 @@ export const isResidentialParcel = (parcel: Pick<ExportParcelItem, 'buildingType
   !['CONDOMINIUM', 'CONDO'].includes(String(parcel.buildingType || '').toUpperCase());
 
 /** Gói điều khiển chọn template truyền xuống modal xem trước và hộp phát hành Rev. */
+/** Một lựa chọn tạm cho ảnh nghi ngờ dấu cũ (người dùng chọn TỪNG ảnh trong bản xem trước). */
+export interface StagedWatermarkChoice {
+  photoUrl: string;
+  photoCode: string;
+  hasLegacyWatermark: boolean;
+}
+
+/** Điều khiển "chọn từng ảnh, gửi một lần" cho ảnh nghi ngờ dấu cũ ở bản xem trước. */
+export interface WatermarkStagingControl {
+  items: StagedWatermarkChoice[];
+  /** Số ảnh cần xác nhận trong bản xem trước hiện tại (iframe báo lên). */
+  total: number;
+  isSubmitting: boolean;
+  submit: () => Promise<void>;
+  clear: () => void;
+}
+
 export interface ReportTemplateControl {
   /** Template máy chủ đã sẵn sàng. */
   options: ReportTemplateOption[];

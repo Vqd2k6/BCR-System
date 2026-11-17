@@ -109,6 +109,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     handleViewCurrentPdf,
     handleCloseCurrentPdf,
     templateControl,
+    watermarkStaging,
   } = usePhase1ReportPreview({
     setActionMessage,
     canChooseTemplate: user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN',
@@ -274,6 +275,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleViewCurrentPdf={handleViewCurrentPdf}
         handleCloseCurrentPdf={handleCloseCurrentPdf}
         templateControl={templateControl}
+        watermarkStaging={watermarkStaging}
       />
 
       {showSvgExportModal && (
