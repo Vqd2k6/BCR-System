@@ -26,6 +26,7 @@ import { canAccessZone } from './utils/zone-access.utils';
 import { sha256Hex } from './snapshot/report-snapshot.service';
 import { z } from 'zod';
 import { WatermarkConfirmationService } from './services/watermark-confirmation.service';
+import { Phase1ExportListService } from './services/phase1-export-list.service';
 import {
   REPORT_TEMPLATE_KEYS,
   defaultResidentialTemplateKey,
@@ -37,6 +38,14 @@ const ConfirmWatermarkSchema = z.object({
   photoUrl: z.string().trim().min(1).max(2048),
   hasLegacyWatermark: z.boolean(),
   reason: z.string().trim().max(500).nullish(),
+});
+
+const Phase1ExportListQuerySchema = z.object({
+  zoneId: z.string().trim().max(32).default('ALL'),
+  status: z.string().trim().max(32).default('ALL'),
+  q: z.string().trim().max(200).default(''),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 /** Gửi một lần các lựa chọn đã chọn TỪNG ẢNH trong bản xem trước. */
@@ -337,6 +346,23 @@ export class ReportController {
       const body = ConfirmWatermarkSchema.parse(req.body);
       const data = await WatermarkConfirmationService.confirmLegacy(req.user, req.params.id, body, req.ip ?? null);
       res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** Danh sách thửa ở màn Xuất report Phase 1, phân trang phía máy chủ, kèm số ảnh cần xử lý của từng hồ sơ. */
+  public static async listPhase1ExportParcels(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const query = Phase1ExportListQuerySchema.parse(req.query);
+      const result = await Phase1ExportListService.list(req.user, query);
+      res.status(200).json({
+        success: true,
+        data: result.items,
+        pagination: { total: result.total, page: result.page, pageSize: result.pageSize },
+        meta: { hiddenCondoCount: result.hiddenCondoCount, zoneTotal: result.zoneTotal },
+      });
     } catch (err) {
       next(err);
     }

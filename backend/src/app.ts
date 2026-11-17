@@ -330,6 +330,7 @@ export function createApp(): express.Application {
   api.post('/reports/:id/release',          authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.issueRelease);
   api.get('/reports/:id/releases/:rev/pdf', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.downloadReleasePdf);
   api.post('/reports/:id/watermark-confirmations', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.confirmWatermark);
+  api.get('/phase1-export/parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.listPhase1ExportParcels);
   api.post('/reports/:id/watermark-confirmations/batch', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.confirmWatermarkBatch);
   api.get('/reports/:id/watermark-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.watermarkReplacementCandidates);
   api.get('/reports/:id/watermark-suspects', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.watermarkSuspects);

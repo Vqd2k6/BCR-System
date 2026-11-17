@@ -158,6 +158,10 @@ export interface ExportParcelItem {
   viClass?: string;
   braClass?: string;
   updatedAt?: string;
+  /** Số crop Photo QC đang chờ duyệt (chấm đỏ ở nút Xem trước). */
+  pendingCrops?: number;
+  /** Số ảnh chụp lại chưa xử lý xong: phiên chờ duyệt + mục chờ "Đưa vào" (chấm vàng). */
+  resurveyPending?: number;
 }
 
 /** SITE_CASE: công trình đang thi công / đất trống, không lập biên bản */

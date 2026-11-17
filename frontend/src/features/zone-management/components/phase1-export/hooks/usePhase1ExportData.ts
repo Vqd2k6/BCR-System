@@ -1,5 +1,5 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../../../../../services/api';
 import {
   METRO_22_ZONES,
@@ -7,6 +7,9 @@ import {
   type MetroZoneConfig,
 } from '../../../../survey-phase1/constants/metroGisConstants';
 import type { ExportParcelItem, ActionFeedbackMessage } from '../types';
+
+/** Số thửa mỗi trang ở màn Xuất (chốt 18/11/2026). */
+export const PHASE1_EXPORT_PAGE_SIZE = 20;
 
 export interface UsePhase1ExportDataProps {
   initialZoneId?: string;
@@ -51,22 +54,49 @@ export const usePhase1ExportData = ({
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [actionMessage, setActionMessage] = useState<ActionFeedbackMessage | null>(null);
 
-  // Load real list of parcels & report statuses from backend API
+  // Phân trang phía máy chủ (18/11/2026): mỗi lần chỉ tải 1 trang, lọc / tìm kiếm chạy trên máy chủ cho toàn Zone.
+  const [page, setPage] = useState<number>(1);
+  const [total, setTotal] = useState<number>(0);
+  const [hiddenCondoCount, setHiddenCondoCount] = useState<number>(0);
+  const [zoneTotal, setZoneTotal] = useState<number>(0);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Đổi Zone / trạng thái / từ khoá ⇒ về trang 1 và bỏ chọn.
+  useEffect(() => {
+    setPage(1);
+    setSelectedParcelIds([]);
+  }, [selectedZone, statusFilter, debouncedSearch]);
+
+  const requestSeqRef = useRef<number>(0);
+
   const fetchExportableParcels = useCallback(async () => {
+    requestSeqRef.current += 1;
+    const seq = requestSeqRef.current;
     setIsLoading(true);
     setActionMessage(null);
     try {
-      const res = await api.get('/parcels/zone-map', {
-        params: { zoneId: selectedZone },
+      const res = await api.get('/phase1-export/parcels', {
+        params: { zoneId: selectedZone, status: statusFilter, q: debouncedSearch, page, pageSize: PHASE1_EXPORT_PAGE_SIZE },
       });
 
-      let rawList: Record<string, unknown>[] = [];
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        rawList = res.data.data as Record<string, unknown>[];
-      } else if (Array.isArray(res.data)) {
-        rawList = res.data as Record<string, unknown>[];
-      } else if (res.data?.data?.items && Array.isArray(res.data.data.items)) {
-        rawList = res.data.data.items as Record<string, unknown>[];
+      const rawList: Record<string, unknown>[] = Array.isArray(res.data?.data) ? (res.data.data as Record<string, unknown>[]) : [];
+      const pagination = (res.data?.pagination ?? {}) as { total?: unknown };
+      const meta = (res.data?.meta ?? {}) as { hiddenCondoCount?: unknown; zoneTotal?: unknown };
+      if (seq !== requestSeqRef.current) return; // đã có yêu cầu mới hơn
+      const totalCount = typeof pagination.total === 'number' ? pagination.total : 0;
+      setTotal(totalCount);
+      setHiddenCondoCount(typeof meta.hiddenCondoCount === 'number' ? meta.hiddenCondoCount : 0);
+      setZoneTotal(typeof meta.zoneTotal === 'number' ? meta.zoneTotal : 0);
+      // Trang hiện tại vượt quá số trang (VD vừa có thửa đổi trạng thái) ⇒ lùi về trang cuối.
+      const lastPage = Math.max(1, Math.ceil(totalCount / PHASE1_EXPORT_PAGE_SIZE));
+      if (rawList.length === 0 && page > lastPage) {
+        setPage(lastPage);
+        return;
       }
 
       const mapped: ExportParcelItem[] = rawList.map((item) => ({
@@ -84,43 +114,33 @@ export const usePhase1ExportData = ({
         viClass: String(item.vi_class || 'LOW'),
         braClass: String(item.bra_class || 'LOW'),
         updatedAt: item.updated_at ? String(item.updated_at) : (item.updatedAt ? String(item.updatedAt) : undefined),
+        pendingCrops: typeof item.pending_crops === 'number' ? item.pending_crops : 0,
+        resurveyPending: typeof item.resurvey_pending === 'number' ? item.resurvey_pending : 0,
       }));
 
+      if (seq !== requestSeqRef.current) return; // đã có yêu cầu mới hơn (đổi trang / lọc nhanh)
       setParcels(mapped);
     } catch (err: unknown) {
-      console.error('[Phase1ExportModule] API call failed:', getErrorMessage(err));
+      if (seq !== requestSeqRef.current) return;
+      console.error('[Phase1ExportModule:list] Không tải được danh sách thửa:', getErrorMessage(err));
       setParcels([]);
       setActionMessage({
         type: 'error',
         text: getErrorMessage(err, 'Không thể tải danh sách thửa đất thực tế từ máy chủ CSDL.'),
       });
     } finally {
-      setIsLoading(false);
+      if (seq === requestSeqRef.current) setIsLoading(false);
     }
-  }, [selectedZone]);
+  }, [selectedZone, statusFilter, debouncedSearch, page]);
 
   useEffect(() => {
     fetchExportableParcels();
   }, [fetchExportableParcels]);
 
-  // Filtering
-  const filteredParcels = useMemo(() => {
-    return parcels.filter((p) => {
-      const matchStatus = statusFilter === 'ALL' || p.surveyStatus === statusFilter;
-      const q = searchQuery.toLowerCase().trim();
-      const matchQuery =
-        !q ||
-        p.projectParcelCode.toLowerCase().includes(q) ||
-        (p.officialCadastralCode && p.officialCadastralCode.toLowerCase().includes(q)) ||
-        p.ownerName.toLowerCase().includes(q) ||
-        p.houseNumber.toLowerCase().includes(q) ||
-        p.street.toLowerCase().includes(q);
+  // Lọc / tìm kiếm đã chạy trên máy chủ: danh sách hiển thị chính là trang hiện tại.
+  const filteredParcels = parcels;
 
-      return matchStatus && matchQuery;
-    });
-  }, [parcels, statusFilter, searchQuery]);
-
-  // Selection handlers
+  // Selection handlers (áp cho trang hiện tại)
   const toggleSelectAll = () => {
     if (selectedParcelIds.length === filteredParcels.length) {
       setSelectedParcelIds([]);
@@ -151,5 +171,11 @@ export const usePhase1ExportData = ({
     fetchExportableParcels,
     toggleSelectAll,
     toggleSelectParcel,
+    page,
+    setPage,
+    pageSize: PHASE1_EXPORT_PAGE_SIZE,
+    total,
+    hiddenCondoCount,
+    zoneTotal,
   };
 };

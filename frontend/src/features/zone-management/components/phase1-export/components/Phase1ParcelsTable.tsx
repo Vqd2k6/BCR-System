@@ -10,10 +10,27 @@ import {
   FileType,
 } from 'lucide-react';
 import type { ExportParcelItem } from '../types';
+import { Pagination } from '../../../../../core/components/ui/Pagination';
+
+/** Mô tả các chấm trạng thái ảnh trên nút Xem trước (gợi ý, chốt chặn thật vẫn ở lúc xuất). */
+function photoStatusTitle(parcel: ExportParcelItem): string {
+  const parts: string[] = [];
+  if ((parcel.pendingCrops ?? 0) > 0) parts.push(`${parcel.pendingCrops} crop chờ duyệt`);
+  if ((parcel.resurveyPending ?? 0) > 0) parts.push(`${parcel.resurveyPending} ảnh chụp lại chưa xử lý`);
+  return parts.length > 0
+    ? `Xem trước Báo cáo · ${parts.join(' · ')}`
+    : 'Xem trước Báo cáo A4 Song Ngữ chuẩn 0410';
+}
 
 interface Phase1ParcelsTableProps {
+  /** Thửa của trang hiện tại (máy chủ đã lọc / tìm kiếm / phân trang). */
   filteredParcels: ExportParcelItem[];
   isLoading: boolean;
+  page: number;
+  pageSize: number;
+  /** Tổng số thửa khớp bộ lọc trên mọi trang. */
+  total: number;
+  onPageChange: (page: number) => void;
   selectedParcelIds: string[];
   onToggleSelectAll: () => void;
   onToggleSelectParcel: (id: string) => void;
@@ -24,6 +41,10 @@ interface Phase1ParcelsTableProps {
 export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
   filteredParcels,
   isLoading,
+  page,
+  pageSize,
+  total,
+  onPageChange,
   selectedParcelIds,
   onToggleSelectAll,
   onToggleSelectParcel,
@@ -36,13 +57,20 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
         <div className="flex items-center gap-2">
           <FileCheck size={18} className="text-sky-600" />
           <h3 className="text-sm font-bold text-slate-800">
-            Danh Sách Hồ Sơ Khảo Sát Phase 1 ({filteredParcels.length} thửa)
+            Danh Sách Hồ Sơ Khảo Sát Phase 1 ({total.toLocaleString('vi-VN')} thửa)
           </h3>
         </div>
 
-        <div className="text-xs text-slate-500 font-medium">
-          Đã chọn: <strong className="text-sky-600">{selectedParcelIds.length}</strong> /{' '}
-          {filteredParcels.length} lô
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500" /> Crop chờ duyệt
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-amber-500" /> Ảnh chụp lại chưa xử lý
+          </span>
+          <span>
+            Đã chọn: <strong className="text-sky-600">{selectedParcelIds.length}</strong> / {filteredParcels.length} lô trang này
+          </span>
         </div>
       </div>
 
@@ -186,11 +214,21 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onOpenPreview(parcel)}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Xem trước Báo cáo A4 Song Ngữ chuẩn 0410"
+                          className="relative px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          title={photoStatusTitle(parcel)}
                         >
                           <Eye size={13} />
                           <span>Xem Trước</span>
+                          {((parcel.pendingCrops ?? 0) > 0 || (parcel.resurveyPending ?? 0) > 0) && (
+                            <span className="absolute -top-1 -right-1 flex items-center gap-0.5">
+                              {(parcel.pendingCrops ?? 0) > 0 && (
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+                              )}
+                              {(parcel.resurveyPending ?? 0) > 0 && (
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white" />
+                              )}
+                            </span>
+                          )}
                         </button>
 
                         <button
@@ -214,6 +252,8 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
           </table>
         </div>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} unitLabel="thửa" disabled={isLoading} />
     </div>
   );
 };

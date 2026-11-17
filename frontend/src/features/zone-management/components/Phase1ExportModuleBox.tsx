@@ -28,10 +28,6 @@ export type {
 
 type ModuleTab = 'REPORTS' | 'CONDO' | 'MINUTES';
 
-/** Thửa chung cư (Tòa mẹ + khu vực chung + căn hộ) chỉ xem / xuất ở tab "Báo Cáo Chung Cư". */
-const isCondoParcel = (buildingType: string | undefined): boolean =>
-  ['CONDOMINIUM', 'CONDO'].includes(String(buildingType || '').toUpperCase());
-
 const MODULE_TABS: { value: ModuleTab; label: string }[] = [
   { value: 'REPORTS', label: 'Báo Cáo Kỹ Thuật (Phase 1)' },
   { value: 'CONDO', label: 'Báo Cáo Chung Cư' },
@@ -54,7 +50,6 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     searchQuery,
     setSearchQuery,
     isLoading,
-    parcels,
     filteredParcels,
     selectedParcelIds,
     actionMessage,
@@ -62,6 +57,12 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     fetchExportableParcels,
     toggleSelectAll,
     toggleSelectParcel,
+    page,
+    setPage,
+    pageSize,
+    total,
+    hiddenCondoCount,
+    zoneTotal,
   } = usePhase1ExportData({
     initialZoneId,
     assignedZoneId: user?.assignedZoneId,
@@ -120,10 +121,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
   const [activeTab, setActiveTab] = useState<ModuleTab>('REPORTS');
 
   const canExportSvg = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
-  const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, parcels.length);
-  // Có tab chung cư (Zone Admin / Super Admin) thì bảng nhà dân không lặp lại dòng Tòa mẹ chung cư.
-  const residentialParcels = canExportSvg ? filteredParcels.filter((p) => !isCondoParcel(p.buildingType)) : filteredParcels;
-  const hiddenCondoCount = filteredParcels.length - residentialParcels.length;
+  const svgExportDisabledReason = getSvgExportDisabledReason(selectedZone, zoneTotal);
+  // Có tab chung cư (Zone Admin / Super Admin): máy chủ đã loại Tòa mẹ chung cư khỏi bảng nhà dân và trả số bị ẩn.
 
   const handleOpenAuditStudio = (parcel: ExportParcelItem) => {
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
@@ -221,8 +220,12 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
 
       {/* 4. Bảng danh sách công trình & các nút thao tác xuất báo cáo */}
       <Phase1ParcelsTable
-        filteredParcels={residentialParcels}
+        filteredParcels={filteredParcels}
         isLoading={isLoading}
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
         selectedParcelIds={selectedParcelIds}
         onToggleSelectAll={toggleSelectAll}
         onToggleSelectParcel={toggleSelectParcel}
