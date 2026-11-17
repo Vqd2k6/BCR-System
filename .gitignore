@@ -53,3 +53,7 @@ backend/data/
 backend/storage/
 backend/test_output/
 
+
+# Dữ liệu xuất báo cáo & PDF mẫu (không đưa lên repo)
+/Xuất 11.11/
+/source_templete/
