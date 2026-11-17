@@ -35,7 +35,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_building_floor_plans_parcel_floor_active
   ON building_floor_plans(parcel_id, floor_number) 
   WHERE deleted_at IS NULL;
 
--- 3. CHECK constraints an toàn dữ liệu
+-- 3. CHECK constraints an toàn dữ liệu (bảo đảm các cột đích tồn tại trước khi gắn constraint)
+ALTER TABLE building_units
+  ADD COLUMN IF NOT EXISTS unit_type VARCHAR(32) DEFAULT 'UNIT';
+
+ALTER TABLE building_floor_plans
+  ADD COLUMN IF NOT EXISTS scope VARCHAR(32) DEFAULT 'UNIT',
+  ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT';
+
 DO $$
 BEGIN
   IF NOT EXISTS (

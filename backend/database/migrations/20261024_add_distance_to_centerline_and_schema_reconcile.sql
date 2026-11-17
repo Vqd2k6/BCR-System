@@ -52,31 +52,36 @@ FROM (
 WHERE p.id = sub.id
   AND p.distance_to_centerline_m IS NULL;
 
--- Fallback backfill từ metro_segments nếu metro_alignments trống
-UPDATE parcels p
-SET distance_to_centerline_m = sub.dist_m
-FROM (
-  SELECT p2.id,
-         ROUND(
-           ST_Distance(
-             COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom)::geography,
-             ms.centerline_geom::geography
-           )::numeric,
-           1
-         ) AS dist_m
-  FROM parcels p2
-  CROSS JOIN LATERAL (
-    SELECT centerline_geom
-    FROM metro_segments
-    WHERE centerline_geom IS NOT NULL
-    ORDER BY COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom) <-> centerline_geom
-    LIMIT 1
-  ) ms
-  WHERE p2.distance_to_centerline_m IS NULL
-    AND COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom) IS NOT NULL
-) sub
-WHERE p.id = sub.id
-  AND p.distance_to_centerline_m IS NULL;
+-- Fallback backfill từ metro_segments nếu bảng tồn tại và metro_alignments trống
+DO $$
+BEGIN
+  IF to_regclass('public.metro_segments') IS NOT NULL THEN
+    UPDATE parcels p
+    SET distance_to_centerline_m = sub.dist_m
+    FROM (
+      SELECT p2.id,
+             ROUND(
+               ST_Distance(
+                 COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom)::geography,
+                 ms.centerline_geom::geography
+               )::numeric,
+               1
+             ) AS dist_m
+      FROM parcels p2
+      CROSS JOIN LATERAL (
+        SELECT centerline_geom
+        FROM metro_segments
+        WHERE centerline_geom IS NOT NULL
+        ORDER BY COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom) <-> centerline_geom
+        LIMIT 1
+      ) ms
+      WHERE p2.distance_to_centerline_m IS NULL
+        AND COALESCE(p2.footprint_polygon_geom, p2.cadastral_polygon_geom, p2.location_geom) IS NOT NULL
+    ) sub
+    WHERE p.id = sub.id
+      AND p.distance_to_centerline_m IS NULL;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 2. ĐỐI SOÁT IDEMPOTENT CÁC BẢNG CỐT LÕI KHÁC (PHÒNG NGỪA BASELINE DRIFT)

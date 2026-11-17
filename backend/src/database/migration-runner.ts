@@ -155,6 +155,26 @@ export class MigrationRunner {
         }
       }
 
+      // 6.0 CƠ CHẾ SELF-HEALING CHO 20261009: Đảm bảo cột scope & area_type trên building_floor_plans tồn tại thực tế
+      if (appliedSet.has('20261009_add_floor_plan_scope_and_area_type.sql')) {
+        const checkFloorScope = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'building_floor_plans' AND column_name = 'scope'
+          ) AS exists;
+        `);
+
+        if (!checkFloorScope.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261009_add_floor_plan_scope_and_area_type.sql được đánh dấu nhưng schema thực tế chưa có building_floor_plans.scope. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261009_add_floor_plan_scope_and_area_type.sql';`
+          );
+          appliedSet.delete('20261009_add_floor_plan_scope_and_area_type.sql');
+        }
+      }
+
       // 6.1 CƠ CHẾ SELF-HEALING: Kiểm tra và phục hồi nếu 20261011 bị đánh dấu sớm nhưng cột deleted_at chưa tồn tại thực tế
       if (appliedSet.has('20261011_cad_condo_integrity_and_soft_delete.sql')) {
         const checkDeletedAt = await Database.query<{ exists: boolean }>(`
