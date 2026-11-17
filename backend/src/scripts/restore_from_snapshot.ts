@@ -15,6 +15,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { CloudUserRow } from './lib/ensure-user-refs';
 import { ensureUserRefs, mergeCloudUsers } from './lib/ensure-user-refs';
+import { assertLocalServer, assertLoopbackHost } from './lib/local-db-guard';
+
+const GUARD_TAG = 'RestoreSnapshot';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -82,6 +85,9 @@ async function restoreFromSnapshot() {
   console.log('🔄 KHÔI PHỤC DỮ LIỆU LOCAL TỪ SNAPSHOT JSON ĐÃ LƯU');
   console.log('================================================================');
 
+  // CHỐT AN TOÀN LỚP 1: chỉ cho phép ghi vào Docker local, chặn trước khi đọc snapshot/kết nối.
+  assertLoopbackHost(LOCAL_CONFIG, GUARD_TAG);
+
   const backupDir = path.resolve(__dirname, '../../../backend/backups/cloud_snapshots');
   if (!fs.existsSync(backupDir)) {
     console.error(`❌ Thư mục snapshot không tồn tại: ${backupDir}`);
@@ -127,6 +133,9 @@ async function restoreFromSnapshot() {
 
   try {
     localClient = await localPool.connect();
+
+    // CHỐT AN TOÀN LỚP 2: máy chủ không phải Supabase và đúng DB đích, trước mọi BEGIN/TRUNCATE.
+    await assertLocalServer(localClient, LOCAL_CONFIG, GUARD_TAG);
 
     // Xác định các cột JSON/JSONB trên Local
     const { rows: colTypeRows } = await localClient.query(`
