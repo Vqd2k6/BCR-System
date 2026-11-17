@@ -1,10 +1,17 @@
 import type { GisParcel, ThematicMapBinding, ThematicParcelStyle } from '../../../components/gis/shared/types';
 import { isNonBuildingParcel } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 import type { ParcelThematicMetrics } from '../types';
-import { NON_BUILDING_BUCKET, UNASSESSED_BUCKET } from './thematicLayouts.registry';
+import { bucketOf, DEFAULT_FILL_OPACITY, NON_BUILDING_BUCKET, UNASSESSED_BUCKET } from './thematicLayouts.registry';
 import type { ThematicBucket, ThematicScale } from './thematicLayouts.registry';
 
+/** Viền tách khỏi màu nền để thửa kề nhau cùng nhóm không dính thành 1 khối. */
+const PARCEL_STROKE = '#334155';
 const CONDO_STROKE = '#7c3aed';
+const UNASSESSED_STROKE = '#94a3b8';
+
+/** Kiểu thửa không khớp bộ lọc ở chế độ "Làm mờ nền". */
+export const DIMMED_FILL_OPACITY = 0.06;
+export const DIMMED_WEIGHT = 0.6;
 
 /**
  * Nhóm của 1 thửa trên thang đang xem.
@@ -26,21 +33,36 @@ export function allBuckets(scale: ThematicScale): ThematicBucket[] {
   return [...scale.buckets, UNASSESSED_BUCKET, NON_BUILDING_BUCKET];
 }
 
+export interface BucketCount {
+  /** Số thửa của nhóm trong toàn Zone đang hiển thị. */
+  total: number;
+  /** Số thửa của nhóm khớp bộ lọc chỉ định (= total khi không lọc). */
+  matched: number;
+}
+
+/**
+ * Đếm theo nhóm. `precisionMatched` chỉ là kết quả lọc chỉ định (không gồm lọc nhóm trên chú giải),
+ * để chú giải luôn cho thấy phân bố của tập đang phân tích ở mọi nhóm.
+ */
 export function computeBucketCounts(
   parcels: GisParcel[],
   metricsById: ReadonlyMap<string, ParcelThematicMetrics>,
-  scale: ThematicScale
-): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const b of allBuckets(scale)) counts[b.key] = 0;
+  scale: ThematicScale,
+  precisionMatched: ReadonlySet<string> | null
+): Record<string, BucketCount> {
+  const counts: Record<string, BucketCount> = {};
+  for (const b of allBuckets(scale)) counts[b.key] = { total: 0, matched: 0 };
   for (const p of parcels) {
     const key = classifyParcelBucket(p, metricsById.get(p.id), scale);
-    counts[key] = (counts[key] ?? 0) + 1;
+    const c = counts[key] ?? { total: 0, matched: 0 };
+    c.total += 1;
+    if (!precisionMatched || precisionMatched.has(p.id)) c.matched += 1;
+    counts[key] = c;
   }
   return counts;
 }
 
-const STATUS_LINE: Record<string, string> = {
+export const REPORT_STATUS_LINE: Record<string, string> = {
   APPROVED: 'Hồ sơ đã phê duyệt',
   UNDER_REVIEW: 'Hồ sơ đang thẩm định (chưa phê duyệt)',
   SUBMITTED: 'Hồ sơ đã nộp, chờ thẩm định',
@@ -54,28 +76,29 @@ interface BuildBindingArgs {
   layoutLabel: string;
   scale: ThematicScale;
   metricsById: ReadonlyMap<string, ParcelThematicMetrics>;
-  /** Nhóm đang được lọc trên chú giải; rỗng ⇒ không lọc. */
-  activeBuckets: ReadonlySet<string>;
+  /** Tập thửa khớp (lọc nhóm chú giải ∩ lọc chỉ định); null ⇒ không lọc. */
+  matchedIds: ReadonlySet<string> | null;
 }
 
-export function buildThematicBinding({ layoutLabel, scale, metricsById, activeBuckets }: BuildBindingArgs): ThematicMapBinding {
-  const hexByKey = new Map(allBuckets(scale).map((b) => [b.key, b.hex]));
-
+export function buildThematicBinding({ layoutLabel, scale, metricsById, matchedIds }: BuildBindingArgs): ThematicMapBinding {
   const resolveStyle = (parcel: GisParcel): ThematicParcelStyle => {
     const metrics = metricsById.get(parcel.id);
     const key = classifyParcelBucket(parcel, metrics, scale);
-    const hex = hexByKey.get(key) ?? UNASSESSED_BUCKET.hex;
-    const dimmed = activeBuckets.size > 0 && !activeBuckets.has(key);
+    const bucket = bucketOf(scale, key);
+    const dimmed = matchedIds !== null && !matchedIds.has(parcel.id);
     const isCondo = parcel.buildingType === 'CONDOMINIUM' || Boolean(metrics?.isCondoMaster);
+    const isUnassessed = key === UNASSESSED_BUCKET.key || key === NON_BUILDING_BUCKET.key;
     const pending = Boolean(metrics?.reportStatus && metrics.reportStatus !== 'APPROVED');
-    const baseOpacity = key === NON_BUILDING_BUCKET.key ? 0.15 : key === UNASSESSED_BUCKET.key ? 0.25 : 0.7;
+    if (dimmed) {
+      return { fillHex: bucket.hex, strokeHex: UNASSESSED_STROKE, fillOpacity: DIMMED_FILL_OPACITY, weight: DIMMED_WEIGHT };
+    }
     return {
-      fillHex: hex,
-      strokeHex: isCondo && !dimmed ? CONDO_STROKE : hex,
-      fillOpacity: dimmed ? 0.06 : baseOpacity,
-      weight: dimmed ? 0.6 : isCondo ? 2.5 : 1.2,
+      fillHex: bucket.hex,
+      strokeHex: isCondo ? CONDO_STROKE : isUnassessed ? UNASSESSED_STROKE : PARCEL_STROKE,
+      fillOpacity: bucket.fillOpacity ?? DEFAULT_FILL_OPACITY,
+      weight: isCondo ? 2.2 : 1,
       // Hồ sơ chưa phê duyệt: viền nét đứt để không lẫn với số liệu đã duyệt
-      dashArray: pending && !dimmed ? '5 4' : undefined,
+      dashArray: pending ? '5 4' : undefined,
     };
   };
 
@@ -86,7 +109,7 @@ export function buildThematicBinding({ layoutLabel, scale, metricsById, activeBu
     if (value) lines.push(value);
     else if (classifyParcelBucket(parcel, metrics, scale) === NON_BUILDING_BUCKET.key) lines.push(NON_BUILDING_BUCKET.label);
     else lines.push('Chưa có số liệu cho chỉ số này');
-    lines.push(metrics?.reportStatus ? STATUS_LINE[metrics.reportStatus] : 'Chưa có hồ sơ đã nộp');
+    lines.push(metrics?.reportStatus ? REPORT_STATUS_LINE[metrics.reportStatus] : 'Chưa có hồ sơ đã nộp');
     if (metrics?.isCondoMaster || parcel.buildingType === 'CONDOMINIUM') lines.push('Chung cư: số liệu theo Báo cáo Master');
     return lines;
   };

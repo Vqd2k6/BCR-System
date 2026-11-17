@@ -142,10 +142,17 @@ export const App: React.FC = () => {
 
   // Bản đồ chuyên đề 8 layout trên tab Bản đồ dùng chung: chỉ Super Admin. Khảo sát viên dùng cùng instance
   // LeafletSweepMap nhưng giữ bản đồ tác nghiệp (không gọi API /gis-visualization). Tắt khi đang xem trước nạp Zone.
-  const { binding: adminThematic, overlay: adminThematicOverlay } = useThematicMap({
+  // Nạp sẵn số liệu (Zone cụ thể) để bảng chi tiết khi click thửa hiện đủ chỉ số và bộ lọc chỉ định chạy ở mọi layout.
+  const {
+    binding: adminThematic,
+    overlay: adminThematicOverlay,
+    filterMatch: adminThematicFilterMatch,
+    renderParcelInsights: adminParcelInsights,
+  } = useThematicMap({
     zoneId: selectedZone,
     parcels,
     enabled: user?.role === 'SUPER_ADMIN' && !previewImportState,
+    prefetch: true,
   });
 
   // Khôi phục đồng bộ parcel khảo sát từ sessionStorage nếu vừa reload
@@ -1060,6 +1067,8 @@ export const App: React.FC = () => {
               userGps={liveUserGps}
               thematic={adminThematic}
               thematicOverlay={adminThematicOverlay}
+              thematicFilterMatch={adminThematicFilterMatch}
+              renderParcelInsights={adminParcelInsights}
               previewImportState={previewImportState}
               onConfirmImportPreview={async () => {
                 if (!previewImportState) return;

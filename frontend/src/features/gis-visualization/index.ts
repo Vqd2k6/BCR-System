@@ -11,3 +11,5 @@ export { useThematicMap } from './hooks/useThematicMap';
 export type { UseThematicMapResult } from './hooks/useThematicMap';
 export { THEMATIC_LAYOUTS } from './registry/thematicLayouts.registry';
 export type { GisThematicLayoutId, ParcelThematicMetrics, RiskLevelCode } from './types';
+export { ParcelThematicMetricsGrid } from './components/ParcelThematicMetricsGrid';
+export type { ThematicPrecisionFilter, ThematicFilterDisplayMode } from './types';

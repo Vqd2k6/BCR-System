@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   X,
   Building2,
@@ -45,6 +46,8 @@ interface ParcelDetailBottomSheetProps {
   /** Hồ sơ của thửa còn ảnh ngoài nhà cần chụp lại (null = không có). */
   resurveyTask?: ResurveyTask | null;
   onOpenResurvey?: (task: ResurveyTask) => void;
+  /** Khối chỉ số chuyên đề 7 layout của thửa (Admin); null ⇒ không hiện (Khảo sát viên). */
+  insights?: ReactNode;
 }
 
 export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = ({
@@ -62,6 +65,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   handleOpenGoogleMapsDirections,
   resurveyTask = null,
   onOpenResurvey,
+  insights = null,
 }) => {
   const { user } = useAuth();
   const [showExcludeModal, setShowExcludeModal] = useState(false);
@@ -154,6 +158,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         flexDirection: 'column',
         gap: '0.65rem',
         animation: 'slideUp 0.2s ease-out',
+        maxHeight: '75vh',
+        overflowY: 'auto',
       }}
     >
       {/* Header Row */}
@@ -217,6 +223,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           {activeParcel.ownerName || 'Chưa cập nhật'}
         </div>
       </div>
+
+      {/* Chỉ số chuyên đề 7 layout (Năm XD, Móng, Kết cấu, ECS, Burland, VI, BRA, Số tầng) */}
+      {insights}
 
       {/* Khảo sát bổ sung: hồ sơ có ảnh ngoài nhà cần chụp lại theo rà soát Photo QC */}
       {resurveyTask && (

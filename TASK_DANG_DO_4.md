@@ -89,3 +89,33 @@ Cập nhật: 14/11/2026. Nhánh `dev`.
 ## Lưu ý khi quay lại
 - Đọc file này + plan. Mọi chỉ số mới trên bản đồ phải đi qua `risk-resolvers.ts` hoặc `gis-visualization.rules.ts`, không tự đọc cột SQL.
 - Nếu sửa logic Mục VIII của PDF thì sửa trong `risk-resolvers.ts` để bản đồ đổi theo.
+
+---
+
+## 6. Đợt cải tiến 17/11/2026: thang màu, bộ lọc chỉ định, chỉ số khi click
+
+Plan: `~/.claude/plans/t-i-mu-n-b-sung-effervescent-music.md` (hiệu chỉnh từ plan Gemini). Chỉ sửa frontend, chưa commit.
+
+### Quyết định
+| # | Quyết định |
+|---|---|
+| Q10 | 4 hệ màu: sequential (Năm XD, Số tầng, CAT), risk_heatmap (ECS/Burland/VI/BRA: mức thấp xanh bạc hà nhạt opacity 0,35–0,42, cao dần vàng→cam→đỏ→đỏ thẫm opacity tới 0,9), qualitative Okabe-Ito (Móng, Kết cấu), binary (Tầng hầm). "Không rõ" móng/kết cấu giữ xám ấm #78716c để khác xám "Chưa đánh giá". |
+| Q11 | Viền tách khỏi nền: #334155 (thửa thường), #7c3aed (chung cư), #94a3b8 (chưa đánh giá / bị lọc ra). |
+| Q12 | Bộ lọc chỉ định độc lập layout, giữ khi đổi layout và đổi Zone (`sessionStorage['metro2_gis_precision_filter']`). Tiêu chí bật mà thửa thiếu giá trị ⇒ không khớp. AND giữa tiêu chí, OR trong tập chọn. Có hiệu lực cả ở WORKFLOW. |
+| Q13 | Làm mờ nền (DIM, mặc định) / Chỉ hiện thửa khớp (ISOLATE). ISOLATE: "Chọn tất cả" hàng loạt chỉ lấy thửa đang hiện; thửa đang chọn luôn được vẽ. |
+| Q14 | Prefetch số liệu ở Zone Admin, Super Admin (App.tsx), Guest khi Zone cụ thể. Click thửa: lưới 7 chỉ số chuyên đề + trạng thái hồ sơ (bảng chi tiết Admin, thẻ Guest thay ô BRA đơn). Khảo sát viên không có. |
+| Q15 | Màu biểu đồ BRA Guest (`getBraColor`) lấy từ `BRA_SCALE`. |
+
+### Đã làm
+- `registry/thematicLayouts.registry.ts`: `scaleType`, `group`, `fillOpacity`, bảng màu mới, export các thang; bộ chọn chia 3 nhóm.
+- `registry/thematicFilter.ts` (mới) + `frontend/scripts/thematic-filter.test.ts` (`npm run test:thematic-filter`).
+- `registry/thematicBinding.ts`: viền riêng, opacity theo nhóm, nhận `matchedIds`, đếm `{ total, matched }`.
+- `components/ThematicPrecisionFilterPanel.tsx`, `components/ParcelThematicMetricsGrid.tsx` (mới); `ThematicMapOverlay.tsx` viết lại (bộ chọn nhóm thu gọn, nút lọc + chip + số khớp + DIM/ISOLATE, gradient + thanh phân bố ở chú giải).
+- `hooks/useThematicMap.tsx`: trả thêm `layoutId`, `filterMatch`, `renderParcelInsights`.
+- Bản đồ dùng chung: `shared/types.ts` (`ThematicFilterMatch`, `thematicFilterMatch`, `renderParcelInsights`), `LeafletSweepMap.tsx` (`visibleParcels`), `ParcelsLayer.tsx` (mờ ở WORKFLOW), `ParcelDetailBottomSheet.tsx` (slot `insights`, giới hạn cao 75vh).
+- Lệch plan: thay prop `thematicMetricsById` bằng render-prop `renderParcelInsights` để `components/gis` không phụ thuộc kiểu của feature.
+
+### Kiểm tra
+- build, zero-any, theme, ui, catch: pass. Test lọc: pass.
+- Giả lập Deuteranopia: các cặp màu rủi ro ΔE ≥ 20, riêng Burland Cấp 0/Cấp 1 ΔE 11 (cùng xanh nhạt, khác độ đậm).
+- **CHƯA test trình duyệt** (mục 4 vẫn còn nguyên + kịch bản lọc ở plan).

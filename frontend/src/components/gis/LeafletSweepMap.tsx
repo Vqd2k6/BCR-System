@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 import { Filter, X, Sparkles } from 'lucide-react';
 import type { GisParcel, LeafletSweepMapProps } from './shared/types';
@@ -43,6 +43,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   userGps,
   thematic = null,
   thematicOverlay,
+  thematicFilterMatch = null,
+  renderParcelInsights,
   hideBottomSheet = false,
   onSwapSuccess,
   previewImportState,
@@ -149,6 +151,14 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     onRecordAbsence,
     userGps,
   });
+
+  // Lọc chỉ định chế độ "Chỉ hiện thửa khớp": không vẽ thửa ngoài tập (luôn giữ thửa đang chọn).
+  // "Chọn tất cả" của tác vụ hàng loạt cũng chỉ lấy tập này để không chọn nhầm thửa đang bị ẩn.
+  const visibleParcels = useMemo(() => {
+    if (!thematicFilterMatch || thematicFilterMatch.mode !== 'ISOLATE') return displayedParcels;
+    const { matchedIds } = thematicFilterMatch;
+    return displayedParcels.filter((p) => matchedIds.has(p.id) || p.id === activeParcel?.id);
+  }, [displayedParcels, thematicFilterMatch, activeParcel?.id]);
 
   const handleToggleBatchMode = () => {
     if (isBatchMode) {
@@ -281,11 +291,12 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
 
           {/* Render Only Filtered Polygons */}
           <ParcelsLayer
-            displayedParcels={displayedParcels}
+            displayedParcels={visibleParcels}
             activeParcel={activeParcel}
             setActiveParcel={setActiveParcel}
             onSelectParcel={onSelectParcel}
             thematic={thematic}
+            filterMatch={thematicFilterMatch}
             isBatchMode={isBatchMode}
             selectedParcelIds={selectedParcelIds}
             onToggleSelect={toggleIdIn(setSelectedParcelIds)}
@@ -349,10 +360,10 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           <FloatingBatchActionBar
             selectedCount={selectedParcelIds.size}
             selectedExcludedCount={selectedExcludedIds.size}
-            displayedCount={displayedParcels.length}
+            displayedCount={visibleParcels.length}
             maxParcels={BATCH_MAX_PARCELS}
             addressEnabled={ADDRESS_BATCH_ZONES.includes(selectedZone.toUpperCase())}
-            onSelectAllDisplayed={() => setSelectedParcelIds(new Set(displayedParcels.map((p) => p.id)))}
+            onSelectAllDisplayed={() => setSelectedParcelIds(new Set(visibleParcels.map((p) => p.id)))}
             onClearSelection={clearBatchSelection}
             onOpen={setBatchModalMode}
             onExit={exitBatchMode}
@@ -482,6 +493,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           onParcelExcluded={handleLifecycleChanged}
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
+          insights={activeParcel && renderParcelInsights ? renderParcelInsights(activeParcel) : null}
           resurveyTask={activeParcel ? resurveyByParcel.get(activeParcel.id) ?? null : null}
           onOpenResurvey={(task) => setResurveyReportId(task.reportId)}
         />

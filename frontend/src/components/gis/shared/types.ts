@@ -161,6 +161,15 @@ export interface ThematicMapBinding {
   legendRows: ThematicLegendRow[];
 }
 
+/**
+ * Tập thửa khớp bộ lọc chỉ định của bản đồ chuyên đề.
+ * DIM: thửa ngoài tập bị làm mờ; ISOLATE: thửa ngoài tập không vẽ.
+ */
+export interface ThematicFilterMatch {
+  matchedIds: ReadonlySet<string>;
+  mode: 'DIM' | 'ISOLATE';
+}
+
 export interface LeafletSweepMapProps {
   parcels: GisParcel[];
   selectedZone: string;
@@ -178,6 +187,10 @@ export interface LeafletSweepMapProps {
   thematic?: ThematicMapBinding | null;
   /** Bộ chọn layout + chú giải nổi trên bản đồ (góc trên trái, dưới thanh tiêu đề). */
   thematicOverlay?: ReactNode;
+  /** Kết quả bộ lọc chỉ định — áp dụng cả ở WORKFLOW lẫn layout chuyên đề. null ⇒ không lọc. */
+  thematicFilterMatch?: ThematicFilterMatch | null;
+  /** Khối chỉ số chuyên đề của thửa đang chọn, chèn vào bảng chi tiết; trả null ⇒ không hiện. */
+  renderParcelInsights?: (parcel: GisParcel) => ReactNode;
   hideBottomSheet?: boolean;
   onSwapSuccess?: () => void;
   previewImportState?: ImportPreviewState | null;

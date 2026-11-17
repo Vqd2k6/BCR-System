@@ -1,5 +1,6 @@
 import type { GisParcel } from '../../../components/gis/shared/types';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
+import { BRA_SCALE, UNASSESSED_BUCKET } from '../../gis-visualization/registry/thematicLayouts.registry';
 
 export type BraRiskLevel = 'VERY_HIGH' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNASSESSED';
 
@@ -43,22 +44,10 @@ export function getParcelBraRiskLevel(parcel: GisParcel): BraRiskLevel {
 }
 
 /**
- * Bảng màu chuẩn cho cấp độ rủi ro BRA
+ * Màu cấp rủi ro BRA — lấy từ thang BRA của bản đồ chuyên đề để biểu đồ khớp màu polygon.
  */
 export function getBraColor(level: BraRiskLevel): string {
-  switch (level) {
-    case 'VERY_HIGH':
-      return '#dc2626'; // Đỏ rực
-    case 'HIGH':
-      return '#ea580c'; // Cam đậm
-    case 'MEDIUM':
-      return '#eab308'; // Vàng
-    case 'LOW':
-      return '#16a34a'; // Xanh lá
-    case 'UNASSESSED':
-    default:
-      return '#cbd5e1'; // Xám nhạt
-  }
+  return BRA_SCALE.buckets.find((b) => b.key === level)?.hex ?? UNASSESSED_BUCKET.hex;
 }
 
 export function getBraBadgeStyle(level: BraRiskLevel): { bg: string; text: string; label: string; border: string } {

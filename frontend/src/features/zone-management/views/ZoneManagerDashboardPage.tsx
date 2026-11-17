@@ -119,11 +119,18 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     return resolveInitialZone(user, null, fallback);
   });
 
-  // Bản đồ chuyên đề 8 layout (chỉ nạp dữ liệu khi chọn layout khác "Hiện trạng khảo sát")
-  const { binding: thematicBinding, overlay: thematicOverlay } = useThematicMap({
+  // Bản đồ chuyên đề 8 layout + bộ lọc chỉ định. Nạp sẵn số liệu khi đã chọn 1 Zone (Zone = ALL hook tự tắt)
+  // để click thửa ở mọi layout đều hiện đủ chỉ số và bộ lọc chạy ngay cả ở "Hiện trạng khảo sát".
+  const {
+    binding: thematicBinding,
+    overlay: thematicOverlay,
+    filterMatch: thematicFilterMatch,
+    renderParcelInsights,
+  } = useThematicMap({
     zoneId: parcelsZoneId ?? selectedZone,
     parcels,
     enabled: !isUnassigned,
+    prefetch: true,
   });
 
   // Badge sidebar: số ca chấm công chờ hậu kiểm trong phạm vi Zone đang xem
@@ -445,6 +452,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             enableBatchTools
             thematic={thematicBinding}
             thematicOverlay={thematicOverlay}
+            thematicFilterMatch={thematicFilterMatch}
+            renderParcelInsights={renderParcelInsights}
           />
         </div>
       )}

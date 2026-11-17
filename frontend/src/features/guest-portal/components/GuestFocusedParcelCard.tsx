@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ReactNode } from 'react';
 import type { GisParcel } from '../../../components/gis/shared/types';
 import {
   getEffectiveParcelStatus,
@@ -27,6 +28,8 @@ interface Props {
   onClose: () => void;
   onViewReportPreview?: (parcel: GisParcel) => void;
   onOpenSurveyDetail?: (parcel: GisParcel) => void;
+  /** Lưới chỉ số 7 layout chuyên đề (thay ô BRA đơn); null ⇒ giữ ô BRA cũ. */
+  insights?: ReactNode;
 }
 
 export const GuestFocusedParcelCard: React.FC<Props> = ({
@@ -34,6 +37,7 @@ export const GuestFocusedParcelCard: React.FC<Props> = ({
   onClose,
   onViewReportPreview,
   onOpenSurveyDetail,
+  insights = null,
 }) => {
   const effStatus = getEffectiveParcelStatus(parcel);
   const statusColor = getStatusColor(effStatus);
@@ -102,7 +106,9 @@ export const GuestFocusedParcelCard: React.FC<Props> = ({
         </div>
 
         {/* Cự ly tim hầm Metro */}
-        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2">
+        <div
+          className={`p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2 ${insights ? 'col-span-2' : ''}`}
+        >
           <Ruler size={13} className="text-slate-400 shrink-0" />
           <div className="min-w-0">
             <span className="text-[10px] text-slate-400 block">Cự ly tim/mép hầm</span>
@@ -112,17 +118,21 @@ export const GuestFocusedParcelCard: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Cấp rủi ro BRA */}
-        <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2">
-          <ShieldAlert size={13} className="text-orange-500 shrink-0" />
-          <div className="min-w-0">
-            <span className="text-[10px] text-slate-400 block">Cấp rủi ro BRA</span>
-            <span className={`text-[11px] font-bold truncate block ${braStyle.text}`}>
-              {braStyle.label}
-            </span>
+        {/* Cấp rủi ro BRA (khi chưa có lưới chỉ số) */}
+        {!insights && (
+          <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center gap-2">
+            <ShieldAlert size={13} className="text-orange-500 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 block">Cấp rủi ro BRA</span>
+              <span className={`text-[11px] font-bold truncate block ${braStyle.text}`}>
+                {braStyle.label}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {insights}
 
       {/* Action Button: Mở Xem Trước Báo Cáo Kỹ Thuật (View-Only) */}
       <button

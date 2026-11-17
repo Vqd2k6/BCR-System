@@ -1,7 +1,7 @@
 import React from 'react';
 import { Polygon, Tooltip } from 'react-leaflet';
 import type { PathOptions } from 'leaflet';
-import type { GisParcel, ThematicMapBinding } from '../../../shared/types';
+import type { GisParcel, ThematicFilterMatch, ThematicMapBinding } from '../../../shared/types';
 import { getEffectiveParcelStatus, getStatusColor } from '../../utils/sweepMapHelpers';
 
 interface ParcelsLayerProps {
@@ -11,6 +11,8 @@ interface ParcelsLayerProps {
   onSelectParcel: (parcel: GisParcel) => void;
   /** Bản đồ chuyên đề (features/gis-visualization); null ⇒ tô theo trạng thái khảo sát (WORKFLOW). */
   thematic?: ThematicMapBinding | null;
+  /** Bộ lọc chỉ định: ở WORKFLOW làm mờ thửa không khớp (ở chuyên đề binding đã tự xử lý). */
+  filterMatch?: ThematicFilterMatch | null;
   /** Chế độ chọn nhiều thửa: click chỉ chọn/bỏ chọn, không mở bảng chi tiết */
   isBatchMode?: boolean;
   selectedParcelIds?: ReadonlySet<string>;
@@ -22,11 +24,20 @@ export const BATCH_SELECTED_STROKE = '#d946ef';
 const SELECTED_STROKE = '#0284c7';
 
 /** Kiểu tác nghiệp WORKFLOW — giữ nguyên từng giá trị như trước khi có bản đồ chuyên đề. */
-function workflowPathOptions(parcel: GisParcel, isSelected: boolean, isBatchSelected: boolean): PathOptions {
+function workflowPathOptions(
+  parcel: GisParcel,
+  isSelected: boolean,
+  isBatchSelected: boolean,
+  isFilteredOut = false
+): PathOptions {
   const isCondo = parcel.buildingType === 'CONDOMINIUM';
   const effectiveStatus = getEffectiveParcelStatus(parcel);
   const baseColor = getStatusColor(effectiveStatus);
   const color = isBatchSelected ? BATCH_SELECTED_STROKE : isSelected ? SELECTED_STROKE : isCondo ? '#7c3aed' : baseColor;
+  // Thửa ngoài bộ lọc chỉ định: giữ màu trạng thái nhưng gần như trong suốt, viền mảnh
+  if (isFilteredOut && !isSelected && !isBatchSelected) {
+    return { color: baseColor, fillColor: baseColor, fillOpacity: 0.06, weight: 0.6, opacity: 0.35 };
+  }
   return {
     color,
     fillColor: isCondo && effectiveStatus === 'NOT_SURVEYED' ? '#8b5cf6' : color,
@@ -59,6 +70,7 @@ export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
   setActiveParcel,
   onSelectParcel,
   thematic = null,
+  filterMatch = null,
   isBatchMode = false,
   selectedParcelIds,
   onToggleSelect,
@@ -70,7 +82,7 @@ export const ParcelsLayer: React.FC<ParcelsLayerProps> = ({
         const isSelected = !isBatchMode && activeParcel?.id === parcel.id;
         const pathOptions = thematic
           ? thematicPathOptions(parcel, thematic, isSelected, isBatchSelected)
-          : workflowPathOptions(parcel, isSelected, isBatchSelected);
+          : workflowPathOptions(parcel, isSelected, isBatchSelected, filterMatch ? !filterMatch.matchedIds.has(parcel.id) : false);
         const tooltipLines = thematic ? thematic.tooltipLines(parcel) : [];
 
         return (

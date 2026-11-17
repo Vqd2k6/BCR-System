@@ -75,7 +75,13 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
 
   // Bản đồ chuyên đề 8 layout + cấp BRA thật (ma trận V×I Bước 7, khớp PDF Mục VIII) cho thẻ / bảng / biểu đồ.
   // Nạp ngay cả ở layout tác nghiệp vì thống kê BRA bên trái luôn hiển thị.
-  const { binding: thematicBinding, overlay: thematicOverlay, metricsById } = useThematicMap({
+  const {
+    binding: thematicBinding,
+    overlay: thematicOverlay,
+    metricsById,
+    filterMatch: thematicFilterMatch,
+    renderParcelInsights,
+  } = useThematicMap({
     zoneId: selectedZone,
     parcels: piiMaskedParcels,
     enabled: true,
@@ -263,6 +269,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
                 parcel={activeParcel}
                 onClose={() => setActiveParcel(null)}
                 onViewReportPreview={handleOpenReportPreview}
+                insights={renderParcelInsights(activeParcel)}
               />
             </div>
           )}
@@ -279,6 +286,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             onStartSurvey={handleOpenReportPreview}
             thematic={thematicBinding}
             thematicOverlay={thematicOverlay}
+            thematicFilterMatch={thematicFilterMatch}
             hideBottomSheet={true}
           />
         </section>

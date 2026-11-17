@@ -45,7 +45,7 @@ export interface ParcelThematicMetrics {
   viClass: RiskLevelCode | null;
   avgViScore: number | null;
   braLevel: RiskLevelCode | null;
-  impactCode: 'I1' | 'I2' | 'I3' | 'I4' | null;
+  impactCode: ImpactCode | null;
   aboveFloors: number | null;
   basementFloors: number | null;
   floorTier: FloorTierBucket | null;
@@ -58,3 +58,43 @@ export interface ZoneThematicPayload {
   assessedParcels: number;
   parcels: ParcelThematicMetrics[];
 }
+
+// ─── Trình bày & bộ lọc chỉ định (frontend) ─────────────────────────────────
+
+/** Kiểu thang màu theo lý thuyết bản đồ chuyên đề. */
+export type ThematicScaleType = 'sequential' | 'risk_heatmap' | 'qualitative' | 'binary';
+
+/** Nhóm layout trên bộ chọn. */
+export type ThematicLayoutGroup = 'OPERATIONAL' | 'CHARACTERISTICS' | 'RISK';
+
+export type ImpactCode = 'I1' | 'I2' | 'I3' | 'I4';
+export type BasementFilterMode = 'ALL' | 'HAS_BASEMENT' | 'NO_BASEMENT';
+
+/**
+ * Bộ lọc chỉ định đa tiêu chí, độc lập với layout đang xem.
+ * Trường null/undefined/mảng rỗng ⇒ không ràng buộc. Các tiêu chí ghép AND; trong 1 tập chọn là OR.
+ */
+export interface ThematicPrecisionFilter {
+  yearMin?: number | null;
+  yearMax?: number | null;
+  excludeEstimatedYear?: boolean;
+  aboveFloorsMin?: number | null;
+  aboveFloorsMax?: number | null;
+  basementMode?: BasementFilterMode;
+  foundationBuckets?: FoundationBucket[];
+  structureClasses?: StructureClass[];
+  catMin?: number | null;
+  catMax?: number | null;
+  ecsMin?: number | null;
+  ecsMax?: number | null;
+  burlandMin?: number | null;
+  burlandMax?: number | null;
+  viMin?: number | null;
+  viMax?: number | null;
+  braLevels?: RiskLevelCode[];
+  impactCodes?: ImpactCode[];
+  reportStatuses?: ThematicReportStatus[];
+}
+
+/** DIM: làm mờ thửa không khớp; ISOLATE: ẩn hẳn thửa không khớp. */
+export type ThematicFilterDisplayMode = 'DIM' | 'ISOLATE';
