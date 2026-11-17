@@ -15,7 +15,6 @@ services:
     volumes:
       - pgdata_metro2:/var/lib/postgresql/data
       - ./database/init_schema.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
-      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U metro2_user -d metro2_gis_db"]
       interval: 5s

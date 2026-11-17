@@ -59,6 +59,6 @@ Dùng tài liệu này trong Bước 1 của `convert-idea` để nhảy thẳng
 ## 3. Cơ Sở Dữ Liệu (`database/` & `backend/src/database/`)
 
 * **Schema gốc**: `database/init_schema.sql`.
-* **Migrations**: `backend/src/database/migrations/` (hoặc `database/migrations/`).
+* **Migrations**: `backend/database/migrations/` (nguồn duy nhất; runner `backend/src/database/migration-runner.ts`).
 * **Các bảng cốt lõi**: `parcels` (Tòa mẹ / Thửa đất), `building_units` (Căn hộ con), `surveys` (Hồ sơ khảo sát & `survey_data_json`), `survey_photos`, `defect_pins`, `cadastral_mutations`, `attendance_records`, `audit_logs` / `system_audit_logs`.
 
