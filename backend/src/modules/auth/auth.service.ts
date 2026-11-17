@@ -71,15 +71,19 @@ export class AuthService {
   ) {
     let user = await AuthRepository.findByUsername(username);
 
-    // If user not in database, check demo accounts list and auto-seed
-    if (!user) {
+    // If user not in database, check demo accounts list and auto-seed.
+    // CHỈ cho môi trường local/dev: trên production (NODE_ENV=production) tuyệt đối không tự tạo
+    // tài khoản với mật khẩu mặc định. Có thể tắt ở local bằng ENABLE_DEMO_ACCOUNTS=false.
+    const demoAccountsEnabled =
+      config.env !== 'production' && process.env.ENABLE_DEMO_ACCOUNTS !== 'false';
+    if (!user && demoAccountsEnabled) {
       // Kiểm tra xem tài khoản có bị soft-delete không trước khi thử auto-seed
       const existingDeleted = await AuthRepository.findRawByUsername(username);
       if (existingDeleted && existingDeleted.deleted_at !== null) {
         throw new UnauthorizedError('Tài khoản đã bị vô hiệu hóa hoặc thu hồi quyền truy cập');
       }
 
-      const demoUsersMap: Record<string, { id: string; fullName: string; role: any; zoneId: string | null; defaultPass: string }> = {
+      const demoUsersMap: Record<string, { id: string; fullName: string; role: UserEntity['role']; zoneId: string | null; defaultPass: string }> = {
         surveyor_s9_01: {
           id: 'b0000000-0000-0000-0000-000000000003',
           fullName: 'Nguyễn Văn Khảo Sát',
@@ -135,7 +139,8 @@ export class AuthService {
             role: demo.role,
             assignedZoneId: demo.zoneId,
           });
-        } catch (_err) {
+        } catch (err) {
+          console.error(`[AuthService:DemoSeed] Không tạo được tài khoản demo "${username}":`, err);
           user = {
             id: demo.id,
             username,
