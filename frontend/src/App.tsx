@@ -148,6 +148,7 @@ export const App: React.FC = () => {
     overlay: adminThematicOverlay,
     filterMatch: adminThematicFilterMatch,
     renderParcelInsights: adminParcelInsights,
+    resolveParcel3DInfo: adminResolve3DInfo,
   } = useThematicMap({
     zoneId: selectedZone,
     parcels,
@@ -1069,6 +1070,8 @@ export const App: React.FC = () => {
               thematicOverlay={adminThematicOverlay}
               thematicFilterMatch={adminThematicFilterMatch}
               renderParcelInsights={adminParcelInsights}
+              enable3D={user?.role === 'SUPER_ADMIN'}
+              resolveParcel3DInfo={adminResolve3DInfo}
               previewImportState={previewImportState}
               onConfirmImportPreview={async () => {
                 if (!previewImportState) return;

@@ -81,6 +81,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
     metricsById,
     filterMatch: thematicFilterMatch,
     renderParcelInsights,
+    resolveParcel3DInfo,
   } = useThematicMap({
     zoneId: selectedZone,
     parcels: piiMaskedParcels,
@@ -287,6 +288,8 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             thematic={thematicBinding}
             thematicOverlay={thematicOverlay}
             thematicFilterMatch={thematicFilterMatch}
+            enable3D
+            resolveParcel3DInfo={resolveParcel3DInfo}
             hideBottomSheet={true}
           />
         </section>

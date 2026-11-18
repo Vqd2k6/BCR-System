@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode, CheckSquare } from 'lucide-react';
+import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode, CheckSquare, Box } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
@@ -41,6 +41,12 @@ interface SweepMapHeaderProps {
   canBatch?: boolean;
   isBatchMode?: boolean;
   onToggleBatchMode?: () => void;
+  /** Hiện nút 2D/3D (Super Admin, Zone Admin, Guest). */
+  can3D?: boolean;
+  is3D?: boolean;
+  /** Lý do khoá nút 3D (Zone = ALL, đang chọn nhiều...); null ⇒ bật được. */
+  zone3DBlockedReason?: string | null;
+  onToggleViewMode?: () => void;
 }
 
 export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
@@ -74,6 +80,10 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   canBatch = false,
   isBatchMode = false,
   onToggleBatchMode,
+  can3D = false,
+  is3D = false,
+  zone3DBlockedReason = null,
+  onToggleViewMode,
 }) => {
   const { user } = useAuth();
   const lockedZone = getLockedZone(user);
@@ -170,7 +180,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
         )}
 
         {/* Xuất bình đồ kỹ thuật SVG (chỉ Admin) */}
-        {canExportSvg && (
+        {canExportSvg && !is3D && (
           <button
             type="button"
             onClick={() => setShowSvgExportModal(true)}
@@ -197,7 +207,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
         )}
 
         {/* Tác vụ đồng loạt: chọn nhiều thửa trên bản đồ (chỉ Zone Admin / Super Admin) */}
-        {canBatch && onToggleBatchMode && (
+        {canBatch && onToggleBatchMode && !is3D && (
           <button
             type="button"
             onClick={onToggleBatchMode}
@@ -211,6 +221,25 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           >
             <CheckSquare size={14} />
             <span className="hidden sm:inline">{isBatchMode ? 'Đang chọn nhiều' : 'Tác vụ đồng loạt'}</span>
+          </button>
+        )}
+
+        {/* Chuyển 2D / 3D (cô lập theo Zone) */}
+        {can3D && onToggleViewMode && (
+          <button
+            type="button"
+            onClick={onToggleViewMode}
+            disabled={zone3DBlockedReason !== null && !is3D}
+            title={zone3DBlockedReason ?? (is3D ? 'Quay về bản đồ 2D' : 'Xem 3D theo Zone (khối nhà cao theo số tầng, chỉ minh hoạ)')}
+            aria-pressed={is3D}
+            className={`cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-[0.35rem] text-xs font-bold ${
+              is3D
+                ? 'border-sky-600 bg-sky-600 text-white'
+                : 'border-slate-300 bg-slate-100 text-sky-600 hover:bg-slate-200'
+            }`}
+          >
+            <Box size={14} />
+            <span>{is3D ? '3D' : '2D'}</span>
           </button>
         )}
 

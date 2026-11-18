@@ -126,6 +126,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     overlay: thematicOverlay,
     filterMatch: thematicFilterMatch,
     renderParcelInsights,
+    resolveParcel3DInfo,
   } = useThematicMap({
     zoneId: parcelsZoneId ?? selectedZone,
     parcels,
@@ -454,6 +455,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
             thematicOverlay={thematicOverlay}
             thematicFilterMatch={thematicFilterMatch}
             renderParcelInsights={renderParcelInsights}
+            enable3D
+            resolveParcel3DInfo={resolveParcel3DInfo}
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { GisParcel, ThematicFilterMatch, ThematicMapBinding } from '../../../components/gis/shared/types';
+import type { GisParcel, Parcel3DInfo, ThematicFilterMatch, ThematicMapBinding } from '../../../components/gis/shared/types';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { fetchZoneThematic } from '../api/gisVisualization.api';
 import { ParcelThematicMetricsGrid } from '../components/ParcelThematicMetricsGrid';
@@ -107,6 +107,8 @@ export interface UseThematicMapResult {
   filterMatch: ThematicFilterMatch | null;
   /** Truyền vào LeafletSweepMap.renderParcelInsights; trả null khi chưa có dữ liệu / bị tắt. */
   renderParcelInsights: (parcel: GisParcel) => ReactNode;
+  /** Truyền vào LeafletSweepMap.resolveParcel3DInfo; trả null khi thửa chưa có số liệu (kể cả chưa tải / bị tắt). */
+  resolveParcel3DInfo: (parcel: GisParcel) => Parcel3DInfo | null;
 }
 
 const EMPTY_METRICS: ReadonlyMap<string, ParcelThematicMetrics> = new Map();
@@ -264,6 +266,16 @@ export function useThematicMap({ zoneId, parcels, enabled, prefetch = false }: U
     [available, dataReady, currentMetrics, effectiveLayout]
   );
 
+  // Dữ liệu dựng khối 3D: chỉ từ hồ sơ khảo sát (aboveFloors từ JSON), không dùng floor_count mặc định của SQL
+  const resolveParcel3DInfo = useCallback(
+    (parcel: GisParcel): Parcel3DInfo | null => {
+      const m = currentMetrics.get(parcel.id);
+      if (!m) return null;
+      return { hasReport: m.reportStatus !== null, isVacantLand: m.isVacantLand, aboveFloors: m.aboveFloors };
+    },
+    [currentMetrics]
+  );
+
   const overlay = enabled ? (
     <ThematicMapOverlay
       layouts={THEMATIC_LAYOUTS}
@@ -310,5 +322,6 @@ export function useThematicMap({ zoneId, parcels, enabled, prefetch = false }: U
     layoutId: effectiveLayout,
     filterMatch,
     renderParcelInsights,
+    resolveParcel3DInfo,
   };
 }

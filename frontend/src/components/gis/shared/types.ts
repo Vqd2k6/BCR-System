@@ -170,6 +170,18 @@ export interface ThematicFilterMatch {
   mode: 'DIM' | 'ISOLATE';
 }
 
+/**
+ * Thông tin tối thiểu để dựng khối 3D minh hoạ của 1 thửa (kiểu trung lập, components/gis không phụ thuộc kiểu của feature).
+ * Chỉ lấy từ hồ sơ khảo sát (JSON), KHÔNG lấy từ floor_count mặc định của SQL.
+ */
+export interface Parcel3DInfo {
+  /** Thửa có hồ sơ đã nộp (SUBMITTED / UNDER_REVIEW / APPROVED). */
+  hasReport: boolean;
+  isVacantLand: boolean;
+  /** Số tầng nổi đã khảo sát; null = chưa có. */
+  aboveFloors: number | null;
+}
+
 export interface LeafletSweepMapProps {
   parcels: GisParcel[];
   selectedZone: string;
@@ -200,5 +212,9 @@ export interface LeafletSweepMapProps {
   onParcelLifecycleChanged?: () => void;
   /** Bật công cụ tác vụ hàng loạt (CQĐP, địa chỉ, ẩn/khôi phục). Chỉ màn Zone Admin truyền true; Guest/KSV không có. */
   enableBatchTools?: boolean;
+  /** Cho phép chế độ 3D cô lập theo Zone (Super Admin, Zone Admin, Guest). KSV không truyền. */
+  enable3D?: boolean;
+  /** Dữ liệu dựng khối 3D theo thửa; null ⇒ thửa chưa có số liệu (khối tượng trưng). */
+  resolveParcel3DInfo?: (parcel: GisParcel) => Parcel3DInfo | null;
 }
 

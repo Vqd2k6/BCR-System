@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
-import { Filter, X, Sparkles } from 'lucide-react';
+import { Filter, X, Sparkles, Loader2 } from 'lucide-react';
 import type { GisParcel, LeafletSweepMapProps } from './shared/types';
 import { ChangeView, FlyToController } from './shared/MapControllers';
+import { BASE_TILE_SOURCES } from './shared/baseTileSources';
 import { useSweepMapState } from './sweep-map/hooks/useSweepMapState';
 import { useExcludedParcels } from './sweep-map/hooks/useExcludedParcels';
 import { isNonBuildingParcel } from './sweep-map/utils/sweepMapHelpers';
+import { getZoneByCode } from '../../features/survey-phase1/constants/metroGisConstants';
 import { SweepMapHeader } from './sweep-map/components/SweepMapHeader';
 import { SweepMapFilterModal } from './sweep-map/components/SweepMapFilterModal';
 import { MetroGisOverlays } from './sweep-map/components/layers/MetroGisOverlays';
@@ -27,6 +29,9 @@ import { PhotoResurveyScreen, ResurveyMarkersLayer, useResurveyTasks } from '../
 // Re-export GisParcel for backward compatibility across the entire system
 export type { GisParcel } from './shared/types';
 export type Props = LeafletSweepMapProps;
+
+// Chế độ 3D (maplibre-gl ~200KB gzip) chỉ tải khi bấm nút 3D
+const Zone3DMapView = lazy(() => import('./zone-3d/Zone3DMapView'));
 
 export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   parcels,
@@ -52,6 +57,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onCancelImportPreview,
   onParcelLifecycleChanged,
   enableBatchTools = false,
+  enable3D = false,
+  resolveParcel3DInfo,
 }) => {
   const { excludedParcels, canViewExcluded, reloadExcluded } = useExcludedParcels(selectedZone);
 
@@ -74,6 +81,10 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   const [selectedParcelIds, setSelectedParcelIds] = useState<Set<string>>(() => new Set());
   const [selectedExcludedIds, setSelectedExcludedIds] = useState<Set<string>>(() => new Set());
   const [batchModalMode, setBatchModalMode] = useState<BatchOperationMode | null>(null);
+
+  // --- Chế độ 3D cô lập theo Zone ---
+  const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
+  const [notice3D, setNotice3D] = useState<string | null>(null);
 
   const clearBatchSelection = useCallback(() => {
     setSelectedParcelIds(new Set());
@@ -160,6 +171,36 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     return displayedParcels.filter((p) => matchedIds.has(p.id) || p.id === activeParcel?.id);
   }, [displayedParcels, thematicFilterMatch, activeParcel?.id]);
 
+  const isAllZones = selectedZone === 'ALL' || selectedZone === 'ALL_ZONES';
+  // Không dùng currentZoneConfig: nó rơi về Zone 1 khi mã không khớp ⇒ ranh 3D sai. Thiếu ranh thì 3D dùng hình chữ nhật bao thửa.
+  const zone3DPolygon = useMemo(() => getZoneByCode(selectedZone)?.polygon ?? null, [selectedZone]);
+  // 3D chỉ dùng cho 1 Zone cụ thể; nhường chỗ cho chế độ chọn nhiều và xem trước nạp dữ liệu (chỉ có ở 2D)
+  const can3D = enable3D && !isAllZones && !isBatchMode && !previewImportState;
+  const is3D = viewMode === '3D' && can3D;
+
+  useEffect(() => {
+    if (viewMode === '3D' && !can3D) setViewMode('2D');
+  }, [viewMode, can3D]);
+
+  const handleToggleViewMode = () => {
+    setNotice3D(null);
+    setViewMode((prev) => (prev === '3D' ? '2D' : '3D'));
+  };
+
+  const handleFatal3D = useCallback((err: unknown) => {
+    console.error('[Zone3D:fatal] Quay về bản đồ 2D', err);
+    setNotice3D('Không bật được chế độ 3D trên thiết bị này. Đã quay về bản đồ 2D.');
+    setViewMode('2D');
+  }, []);
+
+  const handlePick3D = useCallback(
+    (parcel: GisParcel) => {
+      setActiveParcel(parcel);
+      onSelectParcel(parcel);
+    },
+    [setActiveParcel, onSelectParcel]
+  );
+
   const handleToggleBatchMode = () => {
     if (isBatchMode) {
       exitBatchMode();
@@ -211,6 +252,12 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         canBatch={canBatch}
         isBatchMode={isBatchMode}
         onToggleBatchMode={handleToggleBatchMode}
+        can3D={enable3D}
+        is3D={is3D}
+        zone3DBlockedReason={
+          isAllZones ? 'Chọn 1 Zone cụ thể để bật chế độ 3D' : isBatchMode || previewImportState ? 'Thoát chế độ chọn nhiều / xem trước để bật 3D' : null
+        }
+        onToggleViewMode={handleToggleViewMode}
       />
 
       {/* 2. 3-Bar Filter & Legend Drawer/Modal */}
@@ -238,7 +285,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
       )}
 
       {/* 3. Leaflet Map Container with Deep Zoom (up to level 23) */}
-      <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+        {/* Leaflet giữ nguyên khi ở 3D (ẩn bằng visibility) để quay về 2D không mất khung nhìn */}
+        <div style={{ width: '100%', height: '100%', visibility: is3D ? 'hidden' : 'visible' }}>
         <MapContainer
           center={currentStation.center}
           zoom={16}
@@ -253,31 +302,16 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           <ZoomControl position="bottomright" />
 
           {/* Clean Map Tiles with Deep Zoom Scaling */}
-          {mapMode === 'satellite' ? (
-            <TileLayer
-              attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP"
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxNativeZoom={19}
-              maxZoom={23}
-            />
-          ) : mapMode === 'osm' ? (
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-              maxNativeZoom={19}
-              maxZoom={23}
-              className="tile-street"
-            />
-          ) : (
-            <TileLayer
-              attribution="Tiles &copy; Esri &mdash; Esri World Street Map"
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-              maxNativeZoom={19}
-              maxZoom={23}
-              className="tile-street"
-            />
-          )}
+          <TileLayer
+            key={mapMode}
+            attribution={BASE_TILE_SOURCES[mapMode].attribution}
+            url={BASE_TILE_SOURCES[mapMode].urlLeaflet}
+            // Không truyền subdomains={undefined}: Leaflet ghi đè mặc định 'abc' thành undefined ⇒ _getSubdomain lỗi .length
+            {...(BASE_TILE_SOURCES[mapMode].subdomains ? { subdomains: BASE_TILE_SOURCES[mapMode].subdomains } : {})}
+            maxNativeZoom={BASE_TILE_SOURCES[mapMode].maxNativeZoom}
+            maxZoom={23}
+            className={BASE_TILE_SOURCES[mapMode].className}
+          />
 
           {/* Metro 2 Corridor, Stations, TBM and GPS Overlays */}
           <MetroGisOverlays
@@ -337,6 +371,40 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             <PreviewParcelsLayer previewParcels={previewImportState.parcels} />
           )}
         </MapContainer>
+        </div>
+
+        {is3D && (
+          <Suspense
+            fallback={
+              <div className="absolute inset-0 z-[900] flex items-center justify-center bg-slate-100 text-sm font-bold text-slate-600">
+                <Loader2 size={18} className="mr-2 animate-spin" /> Đang tải bản đồ 3D…
+              </div>
+            }
+          >
+            <Zone3DMapView
+              key={selectedZone}
+              parcels={visibleParcels}
+              zoneParcels={parcels}
+              zonePolygon={zone3DPolygon}
+              thematic={thematic}
+              filterMatch={thematicFilterMatch}
+              resolveParcel3DInfo={resolveParcel3DInfo}
+              activeParcelId={activeParcel?.id ?? null}
+              onPickParcel={handlePick3D}
+              targetFlyCoords={targetFlyCoords}
+              onFatalError={handleFatal3D}
+            />
+          </Suspense>
+        )}
+
+        {notice3D && (
+          <div className="absolute left-1/2 top-[56px] z-[1000] flex -translate-x-1/2 items-center gap-2 rounded-lg border border-amber-700 bg-amber-950 px-3 py-1.5 text-xs font-bold text-amber-300 shadow-lg">
+            <span>{notice3D}</span>
+            <button type="button" onClick={() => setNotice3D(null)} className="cursor-pointer" aria-label="Đóng thông báo">
+              <X size={12} />
+            </button>
+          </div>
+        )}
 
         {selectedExcluded && !activeParcel && !isBatchMode && (
           <ExcludedParcelPanel
