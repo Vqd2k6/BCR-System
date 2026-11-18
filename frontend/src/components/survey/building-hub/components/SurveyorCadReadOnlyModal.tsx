@@ -315,6 +315,8 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                     {/* CAD Blueprint Image */}
                     <img
                       src={floor.cadUrl}
+                      loading="lazy"
+                      decoding="async"
                       alt={`Bản vẽ CAD ${floor.floorLabel}`}
                       className="w-full h-auto max-h-[65vh] object-contain select-none pointer-events-none"
                     />

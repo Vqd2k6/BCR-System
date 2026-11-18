@@ -1,9 +1,13 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../../../services/api';
+import { distanceMeters, type GpsFix } from '../../../../core/utils/gpsThrottle';
 import { useAuth } from '../../../../context/AuthContext';
 import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { getStatus } from '../utils/surveyorHomeHelpers';
+
+/** Đi xa hơn ngưỡng này kể từ lần tải trước thì mới tải lại danh sách thửa được giao (để sắp xếp theo khoảng cách) */
+const ASSIGNED_PARCELS_REFETCH_METERS = 200;
 
 interface UseSurveyorHomeStateProps {
   parcels: GisParcel[];
@@ -83,20 +87,32 @@ export const useSurveyorHomeState = ({
 
   // Danh sách thửa đất được Zone Admin phân công riêng cho Surveyor này
   const [assignedParcels, setAssignedParcels] = useState<GisParcel[]>([]);
+  // Vị trí lúc tải danh sách gần nhất: GPS đổi mỗi ~15 s / 5 m nên KHÔNG tải lại theo từng lần đổi
+  // (từng gây ~240 request/giờ khi KSV đứng chờ ở Home), chỉ tải lại khi đi xa quá ngưỡng.
+  const lastAssignedFetchRef = useRef<{ userId: string; gps: GpsFix | null } | null>(null);
 
   useEffect(() => {
-    if (user?.id) {
-      api.get<{ data: GisParcel[] }>('/surveys/my-assigned-parcels', {
-        params: userGps ? { lat: userGps.lat, lng: userGps.lng } : undefined,
-      })
-        .then((res) => {
-          const list = res?.data?.data || [];
-          setAssignedParcels(list);
-        })
-        .catch((err) => {
-          console.warn('[useSurveyorHomeState] Notice: could not load my-assigned-parcels:', err?.message);
-        });
+    if (!user?.id) return;
+    const gps: GpsFix | null = userGps ? { lat: userGps.lat, lng: userGps.lng } : null;
+    const last = lastAssignedFetchRef.current;
+    if (last && last.userId === user.id) {
+      if (!gps) return;
+      if (last.gps && distanceMeters(last.gps, gps) < ASSIGNED_PARCELS_REFETCH_METERS) return;
     }
+    lastAssignedFetchRef.current = { userId: user.id, gps };
+
+    api.get<{ data: GisParcel[] }>('/surveys/my-assigned-parcels', {
+      params: gps ? { lat: gps.lat, lng: gps.lng } : undefined,
+    })
+      .then((res) => {
+        const list = res?.data?.data || [];
+        setAssignedParcels(list);
+      })
+      .catch((err: unknown) => {
+        // Cho phép thử lại ở lần cập nhật GPS kế tiếp
+        lastAssignedFetchRef.current = null;
+        console.warn('[useSurveyorHomeState:FetchAssigned] Không tải được danh sách thửa được giao:', getErrorMessage(err));
+      });
   }, [user?.id, userGps?.lat, userGps?.lng]);
 
   // Daily & Weekly Targets

@@ -379,7 +379,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
         for (const fp of rawPlans) {
           try {
-            const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`);
+            const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`, { params: { inlineCadFor: formData.unitId } });
             const pUnits = pRes.data?.data?.units;
             if (Array.isArray(pUnits) && pUnits.length > 0) {
               const matched = pUnits.find(
@@ -441,7 +441,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     if (!formData.parcelId || targetFloor === undefined) return;
     try {
       setIsLoadingFloorPlan(true);
-      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${targetFloor}`);
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${targetFloor}`, { params: { inlineCadFor: formData.unitId } });
       if (res.data?.success && res.data.data) {
         setFloorPlanData(res.data.data);
       }
@@ -487,7 +487,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const handleSelectFloorPlanForCrop = async (plan: CadCropFloorPlanItem) => {
     try {
       setIsLoadingFloorPlan(true);
-      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${plan.floor_number}`);
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${plan.floor_number}`, { params: { inlineCadFor: formData.unitId } });
       if (res.data?.success && res.data.data) {
         setFloorPlanData(res.data.data);
       }
@@ -557,7 +557,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
           for (const fp of rawPlans) {
             try {
-              const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`);
+              const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`, { params: { inlineCadFor: formData.unitId } });
               if (pRes.data?.success && pRes.data.data?.plan?.cad_photo_url) {
                 const pUnits: FloorPlanUnitItem[] = pRes.data.data.units || [];
                 const matched = pUnits.find(

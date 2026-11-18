@@ -48,6 +48,14 @@ import {
 } from '../../../core/utils/cadSources';
 
 /**
+ * Khóa so trùng bản nháp gửi máy chủ: bỏ `updatedAt` (đổi mỗi lần đóng gói),
+ * để nháp không có thay đổi thật thì không POST lại (nháp còn CAD base64 nặng ~3 MB/lượt).
+ */
+function toDraftSyncKey(draft: Record<string, unknown>): string {
+  return JSON.stringify({ ...draft, updatedAt: undefined });
+}
+
+/**
  * Đếm số lượng bằng chứng thực tế (ảnh, ghim CAD, vùng Z, cấu kiện E)
  * Dùng để chống ghi đè dữ liệu rỗng lên bản nháp đã có dữ liệu.
  */
@@ -198,7 +206,12 @@ export function useMasterAreaSurveyState({
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState<boolean>(false);
   const [handoverInfo, setHandoverInfo] = useState<HandoverInfo | null>(null);
   const [isAbsentModalOpen, setIsAbsentModalOpen] = useState<boolean>(false);
-  const [serverSyncVersion, setServerSyncVersion] = useState<number>(1);
+  // syncVersion giữ trong ref, KHÔNG đưa vào deps của effect auto-save: server tăng +1 mỗi lần lưu,
+  // nếu là state thì lưu xong → version đổi → effect chạy lại → lưu tiếp, lặp vô hạn khi modal còn mở.
+  const serverSyncVersionRef = useRef<number>(1);
+  // Khóa nháp đã đồng bộ máy chủ gần nhất (xem toDraftSyncKey) và cờ lấy mốc ngay sau khi nạp nháp server
+  const lastCloudSyncKeyRef = useRef<string | null>(null);
+  const cloudBaselinePendingRef = useRef<boolean>(false);
 
   const draftKey = `master_area_draft_${parcelId}_${unitId}`;
   const legacyDraftKey = `master_area_draft_${parcelId}_${floorNumber}_${unitCode}`;
@@ -699,12 +712,14 @@ export function useMasterAreaSurveyState({
               setCurrentStep(serverRes.draft.currentStep as 1 | 2 | 3 | 4 | 5);
             }
             if (serverRes.draft.syncVersion) {
-              setServerSyncVersion(serverRes.draft.syncVersion);
+              serverSyncVersionRef.current = serverRes.draft.syncVersion;
             }
             setSyncStatus('SAVED_CLOUD');
             setLastSyncedAt(new Date(serverRes.draft.updatedAt || Date.now()).toLocaleTimeString('vi-VN'));
             setIsDirty(false);
             lastLoadedEvidenceCountRef.current = cloudEvidence;
+            // Nội dung vừa nạp đã có trên máy chủ: lấy làm mốc, không gửi lại ngay khi mở modal
+            cloudBaselinePendingRef.current = true;
 
             // Kiểm tra so sánh với LocalStorage: nếu local draft có updatedAt mới hơn server draft thì ưu tiên local
             try {
@@ -717,6 +732,8 @@ export function useMasterAreaSurveyState({
                   const localEv = applyDraftDataToState(localDraft);
                   if (localEv > 0) {
                     console.log('[useMasterAreaSurveyState] Phục hồi bản nháp cục bộ mới hơn máy chủ');
+                    // Nháp cục bộ mới hơn máy chủ → phải đẩy lên, không lấy làm mốc
+                    cloudBaselinePendingRef.current = false;
                     setSyncStatus('SAVED_LOCAL');
                     lastLoadedEvidenceCountRef.current = Math.max(cloudEvidence, localEv);
                   }
@@ -801,9 +818,15 @@ export function useMasterAreaSurveyState({
     draftKey,
   ]);
 
-  // 2. Tự động lưu Cloud Draft lên server (debounced 1500ms)
+  // 2. Tự động lưu Cloud Draft lên server (debounced 1500ms, chỉ khi nội dung nháp thật sự thay đổi)
   useEffect(() => {
     if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
+
+    if (cloudBaselinePendingRef.current) {
+      cloudBaselinePendingRef.current = false;
+      lastCloudSyncKeyRef.current = toDraftSyncKey(buildDraftPayload());
+      return;
+    }
 
     const timeout = setTimeout(async () => {
       try {
@@ -814,6 +837,9 @@ export function useMasterAreaSurveyState({
           return;
         }
 
+        const syncKey = toDraftSyncKey(draft);
+        if (syncKey === lastCloudSyncKeyRef.current) return;
+
         setIsDirty(true);
         const res = await surveyDraftService.saveDraft({
           parcelId,
@@ -821,12 +847,13 @@ export function useMasterAreaSurveyState({
           reportType: 'CONDO_UNIT',
           currentStep,
           surveyData: draft,
-          syncVersion: serverSyncVersion,
+          syncVersion: serverSyncVersionRef.current,
         });
 
         if (res?.syncVersion) {
-          setServerSyncVersion(res.syncVersion);
+          serverSyncVersionRef.current = res.syncVersion;
         }
+        lastCloudSyncKeyRef.current = syncKey;
         setSyncStatus('SAVED_CLOUD');
         setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
         setIsDirty(false);
@@ -846,7 +873,6 @@ export function useMasterAreaSurveyState({
     parcelId,
     unitId,
     currentStep,
-    serverSyncVersion,
   ]);
 
   // 3. Tự động lưu LocalStorage trước khi đóng tab hoặc tải lại trang
@@ -875,17 +901,21 @@ export function useMasterAreaSurveyState({
     try {
       const draft = buildDraftPayload();
       localStorage.setItem(draftKey, JSON.stringify(draft));
+      // Nháp không đổi so với lần đồng bộ gần nhất: không cần gửi lại khi đóng modal
+      const syncKey = toDraftSyncKey(draft);
+      if (syncKey === lastCloudSyncKeyRef.current) return;
       const res = await surveyDraftService.saveDraft({
         parcelId,
         unitId,
         reportType: 'CONDO_UNIT',
         currentStep,
         surveyData: draft,
-        syncVersion: serverSyncVersion,
+        syncVersion: serverSyncVersionRef.current,
       });
       if (res?.syncVersion) {
-        setServerSyncVersion(res.syncVersion);
+        serverSyncVersionRef.current = res.syncVersion;
       }
+      lastCloudSyncKeyRef.current = syncKey;
       setSyncStatus('SAVED_CLOUD');
       setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
       setIsDirty(false);
@@ -902,7 +932,6 @@ export function useMasterAreaSurveyState({
     parcelId,
     unitId,
     currentStep,
-    serverSyncVersion,
   ]);
 
   // Giải phóng khóa ca khảo sát
@@ -944,8 +973,10 @@ export function useMasterAreaSurveyState({
             setCurrentStep(res.draft.currentStep as 1 | 2 | 3 | 4 | 5);
           }
           if (res.draft.syncVersion) {
-            setServerSyncVersion(res.draft.syncVersion);
+            serverSyncVersionRef.current = res.draft.syncVersion;
           }
+          // Nháp vừa tiếp quản đã nằm trên máy chủ: lấy làm mốc so trùng
+          cloudBaselinePendingRef.current = true;
           setSyncStatus('SAVED_CLOUD');
           setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
           setIsDirty(false);

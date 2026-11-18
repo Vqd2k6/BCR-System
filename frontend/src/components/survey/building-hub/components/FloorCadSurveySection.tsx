@@ -248,8 +248,11 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
 
               {/* Ảnh CAD Mặt Bằng Toàn Tầng */}
               <div className="relative inline-block max-w-full max-h-[60vh]">
+                {/* lazy: Hub xếp dọc mọi tầng, chỉ tải CAD tầng KSV cuộn tới (tránh kéo hết CAD cả tòa qua 4G) */}
                 <img
                   src={floor.cadUrl}
+                  loading="lazy"
+                  decoding="async"
                   alt={`Mặt bằng ${floor.floorName || floor.floorLabel}`}
                   className="block max-w-full max-h-[60vh] object-contain rounded-xl bg-white shadow-md border border-slate-200 pointer-events-none select-none"
                 />

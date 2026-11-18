@@ -30,6 +30,12 @@ export interface PresignedUploadResult {
   expiresInSeconds: number;
 }
 
+/**
+ * Mọi key R2 đều bất biến (có hậu tố ngẫu nhiên, hoặc ghi một lần với IfNoneMatch) nên cho trình duyệt
+ * giữ cache dài hạn: không tải lại ảnh qua 4G mỗi lần mở lại bước/modal.
+ */
+const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 export class StorageService {
   private static s3Client: S3Client | null = null;
 
@@ -308,6 +314,7 @@ export class StorageService {
           Key: uniqueKey,
           Body: buffer,
           ContentType: mimeType,
+          CacheControl: IMMUTABLE_CACHE_CONTROL,
           Metadata: s3Metadata,
         })
       );
@@ -389,8 +396,11 @@ export class StorageService {
       ...sanitizedMeta,
     };
 
+    // Content-Type / Cache-Control KHÔNG nằm trong chữ ký presign (chỉ ký `host`): R2 lưu theo header client gửi kèm PUT,
+    // nên client phải gửi nguyên map này (uploadQueueService đang làm vậy) thì object mới có cache dài hạn.
     const headers: Record<string, string> = {
       'Content-Type': mimeType,
+      'Cache-Control': IMMUTABLE_CACHE_CONTROL,
     };
     for (const [k, v] of Object.entries(s3Metadata)) {
       headers[`x-amz-meta-${k}`] = v;
@@ -404,6 +414,7 @@ export class StorageService {
         Bucket: config.storage.s3.bucket,
         Key: uniqueKey,
         ContentType: mimeType,
+        CacheControl: IMMUTABLE_CACHE_CONTROL,
         Metadata: s3Metadata,
       });
 
@@ -577,6 +588,7 @@ export class StorageService {
           Key: key,
           Body: buffer,
           ContentType: mimeType,
+          CacheControl: IMMUTABLE_CACHE_CONTROL,
           Metadata: { project: 'METRO2_HCM', 'uploaded-at': new Date().toISOString(), ...metadata },
           IfNoneMatch: '*',
         })
