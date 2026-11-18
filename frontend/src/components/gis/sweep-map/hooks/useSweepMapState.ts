@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { GisParcel } from '../../shared/types';
+import type { MapBaseMode } from '../../shared/baseTileSources';
 import {
   METRO_22_ZONES,
   getZoneByCode,
@@ -47,7 +48,7 @@ interface UseSweepMapStateProps {
 
 interface SavedSweepMapSession {
   activeParcelId?: string | null;
-  mapMode?: 'standard' | 'satellite' | 'osm';
+  mapMode?: MapBaseMode;
   appliedFilters?: AppliedFiltersState;
   showCenterline?: boolean;
   showZonesZoi?: boolean;
@@ -125,10 +126,10 @@ export const useSweepMapState = ({
   const [targetFlyCoords, setTargetFlyCoords] = useState<[number, number] | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Map Mode Switcher (Standard Esri Streets / Satellite / OSM)
-  const [mapMode, setMapMode] = useState<'standard' | 'satellite' | 'osm'>(() => {
+  // Map Mode Switcher (White / Standard Esri Streets / Satellite / OSM)
+  const [mapMode, setMapMode] = useState<MapBaseMode>(() => {
     const saved = readSavedMapSession().mapMode;
-    return saved === 'satellite' || saved === 'osm' || saved === 'standard' ? saved : 'standard';
+    return saved === 'white' || saved === 'satellite' || saved === 'osm' || saved === 'standard' ? saved : 'standard';
   });
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
 

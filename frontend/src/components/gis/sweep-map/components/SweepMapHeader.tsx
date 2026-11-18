@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode, CheckSquare, Box } from 'lucide-react';
+import { Layers, Search, Menu, Map, Compass, X, MapPin, FileCode, CheckSquare, Box, Square } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
+import type { MapBaseMode } from '../../shared/baseTileSources';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
 import { isExcludedParcel } from '../../shared/parcelExclusion';
@@ -13,8 +14,8 @@ interface SweepMapHeaderProps {
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   setTargetFlyCoords: (coords: [number, number]) => void;
-  mapMode: 'standard' | 'satellite' | 'osm';
-  setMapMode: (mode: 'standard' | 'satellite' | 'osm') => void;
+  mapMode: MapBaseMode;
+  setMapMode: (mode: MapBaseMode) => void;
   showLayerMenu: boolean;
   setShowLayerMenu: (show: boolean | ((prev: boolean) => boolean)) => void;
   showCenterline: boolean;
@@ -245,24 +246,17 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
 
         {/* Map Layer Switcher Button */}
         <div style={{ position: 'relative' }}>
-          <button className="cursor-pointer"
+          <button
             type="button"
             onClick={() => setShowLayerMenu((prev) => !prev)}
             title="Lớp bản đồ & Tùy chọn GIS Metro 2"
-            style={{
-              background: mapMode === 'satellite' ? 'rgb(var(--bg-slate-900))' : 'rgb(var(--bg-slate-100))',
-              color: mapMode === 'satellite' ? '#ffffff' : 'rgb(var(--text-sky-600))',
-              border: '1px solid rgb(var(--border-slate-300))',
-              borderRadius: '0.5rem',
-              padding: '0.35rem 0.55rem',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            className={`cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-[0.35rem] text-xs font-bold transition-colors ${
+              mapMode === 'satellite'
+                ? 'border-slate-800 bg-slate-800 text-white hover:bg-slate-700'
+                : mapMode === 'white'
+                  ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  : 'border-slate-300 bg-slate-100 text-sky-600 hover:bg-slate-200'
+            }`}
           >
             <Layers size={14} />
             <span>Lớp GIS</span>
@@ -287,8 +281,33 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               }}
             >
               <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'rgb(var(--text-slate-500))', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
-                Nền bản đồ
+                {is3D ? 'Nền trong Zone (3D)' : 'Nền bản đồ'}
               </div>
+              <button className="cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setMapMode('white');
+                  setShowLayerMenu(false);
+                }}
+                style={{
+                  background: mapMode === 'white' ? 'rgb(var(--bg-sky-100))' : 'transparent',
+                  color: mapMode === 'white' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-900))',
+                  border: 'none',
+                  borderRadius: '0.4rem',
+                  padding: '0.35rem 0.5rem',
+                  fontSize: '0.775rem',
+                  fontWeight: 600,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <Square size={14} />
+                <span>Nền trắng</span>
+              </button>
+
               <button className="cursor-pointer"
                 type="button"
                 onClick={() => {

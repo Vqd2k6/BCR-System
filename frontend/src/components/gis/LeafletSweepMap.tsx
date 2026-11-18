@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 import { Filter, X, Sparkles, Loader2 } from 'lucide-react';
 import type { GisParcel, LeafletSweepMapProps } from './shared/types';
 import { ChangeView, FlyToController } from './shared/MapControllers';
-import { BASE_TILE_SOURCES } from './shared/baseTileSources';
+import { BASE_TILE_SOURCES, isRasterTileMode } from './shared/baseTileSources';
+import type { MapBaseMode } from './shared/baseTileSources';
 import { useSweepMapState } from './sweep-map/hooks/useSweepMapState';
 import { useExcludedParcels } from './sweep-map/hooks/useExcludedParcels';
 import { isNonBuildingParcel } from './sweep-map/utils/sweepMapHelpers';
@@ -84,6 +85,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
 
   // --- Chế độ 3D cô lập theo Zone ---
   const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
+  const [mapMode3D, setMapMode3D] = useState<MapBaseMode>('white');
   const [notice3D, setNotice3D] = useState<string | null>(null);
 
   const clearBatchSelection = useCallback(() => {
@@ -225,8 +227,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         selectedZone={selectedZone}
         onSelectZone={onSelectZone}
         setTargetFlyCoords={setTargetFlyCoords}
-        mapMode={mapMode}
-        setMapMode={setMapMode}
+        mapMode={is3D ? mapMode3D : mapMode}
+        setMapMode={is3D ? setMapMode3D : setMapMode}
         showLayerMenu={showLayerMenu}
         setShowLayerMenu={setShowLayerMenu}
         showCenterline={showCenterline}
@@ -294,24 +296,26 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           minZoom={12}
           maxZoom={23}
           zoomControl={false}
-          style={{ width: '100%', height: '100%' }}
+          style={{ width: '100%', height: '100%', backgroundColor: 'rgb(var(--bg-white))' }}
           scrollWheelZoom={true}
         >
           <ChangeView center={currentStation.center} zoom={16} zoneKey={currentStation.code} />
           <FlyToController targetCoords={targetFlyCoords} />
           <ZoomControl position="bottomright" />
 
-          {/* Clean Map Tiles with Deep Zoom Scaling */}
-          <TileLayer
-            key={mapMode}
-            attribution={BASE_TILE_SOURCES[mapMode].attribution}
-            url={BASE_TILE_SOURCES[mapMode].urlLeaflet}
-            // Không truyền subdomains={undefined}: Leaflet ghi đè mặc định 'abc' thành undefined ⇒ _getSubdomain lỗi .length
-            {...(BASE_TILE_SOURCES[mapMode].subdomains ? { subdomains: BASE_TILE_SOURCES[mapMode].subdomains } : {})}
-            maxNativeZoom={BASE_TILE_SOURCES[mapMode].maxNativeZoom}
-            maxZoom={23}
-            className={BASE_TILE_SOURCES[mapMode].className}
-          />
+          {/* Clean Map Tiles with Deep Zoom Scaling (ẩn tile khi chọn Nền trắng) */}
+          {isRasterTileMode(mapMode) && (
+            <TileLayer
+              key={mapMode}
+              attribution={BASE_TILE_SOURCES[mapMode].attribution}
+              url={BASE_TILE_SOURCES[mapMode].urlLeaflet}
+              // Không truyền subdomains={undefined}: Leaflet ghi đè mặc định 'abc' thành undefined ⇒ _getSubdomain lỗi .length
+              {...(BASE_TILE_SOURCES[mapMode].subdomains ? { subdomains: BASE_TILE_SOURCES[mapMode].subdomains } : {})}
+              maxNativeZoom={BASE_TILE_SOURCES[mapMode].maxNativeZoom}
+              maxZoom={23}
+              className={BASE_TILE_SOURCES[mapMode].className}
+            />
+          )}
 
           {/* Metro 2 Corridor, Stations, TBM and GPS Overlays */}
           <MetroGisOverlays
@@ -392,6 +396,10 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
               activeParcelId={activeParcel?.id ?? null}
               onPickParcel={handlePick3D}
               targetFlyCoords={targetFlyCoords}
+              baseMode={mapMode3D}
+              onBaseMode={setMapMode3D}
+              showCenterline={showCenterline}
+              showZonesZoi={showZonesZoi}
               onFatalError={handleFatal3D}
             />
           </Suspense>
@@ -501,8 +509,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           style={{
             position: 'absolute',
             top: '56px',
-            right: '8px',
-            zIndex: 900,
+            right: is3D ? '240px' : '8px',
+            zIndex: 960,
             backgroundColor: 'rgb(var(--bg-slate-900))',
             color: '#ffffff',
             fontSize: '0.725rem',
@@ -562,6 +570,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
           insights={activeParcel && renderParcelInsights ? renderParcelInsights(activeParcel) : null}
+          is3DMode={is3D}
           resurveyTask={activeParcel ? resurveyByParcel.get(activeParcel.id) ?? null : null}
           onOpenResurvey={(task) => setResurveyReportId(task.reportId)}
         />

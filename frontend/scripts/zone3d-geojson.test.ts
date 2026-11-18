@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import {
+  adjustHexLightness,
   buildMetroFeatures,
+  buildParcelFootprintsCollection,
   buildParcelsFeatureCollection,
   buildZoneIsolation,
+  convexHull,
   describeParcel3DHeight,
+  expandRingOutward,
   FLOOR_HEIGHT_M,
+  insetLngLatRing,
   lightenHex,
   resolveParcel3DShape,
   SYMBOLIC_HEIGHT_M,
@@ -138,7 +143,8 @@ const plain = mk({ id: 'p' });
   assert.equal(b.properties.tier, 'FLAT', 'ngoài bộ lọc DIM ⇒ nằm phẳng');
   assert.equal(b.properties.heightM, 0);
   assert.ok(b.properties.flatOpacity < 0.2);
-  assert.deepEqual(a.geometry.coordinates[0][0], [106, 10], 'GeoJSON dùng [lng, lat]');
+  assert.ok(a.geometry.coordinates[0][0][0] > 106 && a.geometry.coordinates[0][0][1] > 10, 'GeoJSON dùng [lng, lat] và thu lùi khe tách');
+  assert.ok(a.properties.shadedHex.startsWith('#'));
 
   const wf = buildParcelsFeatureCollection([mk({ id: 'a' })], {
     resolveInfo: () => null,
@@ -174,21 +180,66 @@ const plain = mk({ id: 'p' });
   assert.deepEqual(iso.outsideMask.geometry.coordinates[0][0], [-180, -85]);
   assert.ok(iso.maxBounds[0][0] < 106 && iso.maxBounds[1][0] > 106.01, 'maxBounds có đệm');
 
-  // Thửa nằm ngoài ranh Zone vẫn được bao trong bounds
+  // Thửa nằm ngoài ranh Zone vẫn được bao trong ground & bounds (không bị bay ra ngoài mask)
   const far = mk({
     id: 'far',
     coordinates: [
       [10.02, 106.02],
       [10.02, 106.021],
       [10.021, 106.021],
+      [10.021, 106.02],
     ],
   });
   const iso2 = buildZoneIsolation(zone, [far]);
   assert.ok(iso2 && iso2.maxBounds[1][0] > 106.021);
+  assert.ok(iso2 && iso2.focusBbox.maxLng >= 106.021 && iso2.focusBbox.minLng >= 106.019, 'focusBbox ôm sát thửa thực tế');
 
   const fb = buildZoneIsolation(null, [mk({ id: 'p' })]);
-  assert.ok(fb && fb.usedFallbackRing, 'thiếu polygon Zone ⇒ dùng hình chữ nhật bao thửa');
+  assert.ok(fb && fb.usedFallbackRing, 'thiếu polygon Zone ⇒ đánh dấu fallback');
   assert.equal(buildZoneIsolation(null, []), null, 'Zone trống ⇒ null');
+}
+
+// --- Bao lồi, mở rộng, thu lùi khe tách nhà, sắc độ & footprints ---
+{
+  const pts: [number, number][] = [
+    [106, 10],
+    [106.002, 10],
+    [106.001, 10.001], // điểm bên trong
+    [106.002, 10.002],
+    [106, 10.002],
+  ];
+  const hull = convexHull(pts);
+  assert.equal(hull.length, 5, 'bao lồi 4 đỉnh + điểm đóng vòng');
+  const expanded = expandRingOutward(hull, 25);
+  assert.ok(expanded[0][0] < 106 && expanded[0][1] < 10, 'đẩy đỉnh ra ngoài tâm');
+
+  // Lô đất ~20m × 20m: thu lùi 0.22m tạo khe tách phải giữ đủ đỉnh & nhỏ hơn gốc
+  const lot: [number, number][] = [
+    [106.0, 10.0],
+    [106.0002, 10.0],
+    [106.0002, 10.0002],
+    [106.0, 10.0002],
+    [106.0, 10.0],
+  ];
+  const inset = insetLngLatRing(lot, 0.22);
+  assert.equal(inset.length, 5);
+  assert.ok(inset[0][0] > lot[0][0] && inset[0][1] > lot[0][1], 'góc dưới trái lùi vào trong');
+  assert.ok(inset[2][0] < lot[2][0] && inset[2][1] < lot[2][1], 'góc trên phải lùi vào trong');
+
+  // Lô siêu nhỏ (< 6m²): an toàn trả về nguyên bản
+  const tiny: [number, number][] = [
+    [106.0, 10.0],
+    [106.00001, 10.0],
+    [106.00001, 10.00001],
+    [106.0, 10.00001],
+    [106.0, 10.0],
+  ];
+  assert.deepEqual(insetLngLatRing(tiny, 0.22), tiny, 'lô quá nhỏ giữ nguyên ring gốc');
+
+  assert.equal(adjustHexLightness('#808080', -0.5), '#404040');
+  const fp = buildParcelFootprintsCollection([mk({ id: 'p1' }), mk({ id: 'bad', coordinates: [[10, 106]] })]);
+  assert.equal(fp.features.length, 1);
+  assert.deepEqual(fp.features[0].geometry.coordinates[0][0], [106, 10]);
 }
 
 // --- Metro: lọc theo bbox ---

@@ -17,6 +17,8 @@ import {
   Move,
   Layers,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
@@ -48,6 +50,8 @@ interface ParcelDetailBottomSheetProps {
   onOpenResurvey?: (task: ResurveyTask) => void;
   /** Khối chỉ số chuyên đề 7 layout của thửa (Admin); null ⇒ không hiện (Khảo sát viên). */
   insights?: ReactNode;
+  /** Đang xem bản đồ 3D: thu gọn bớt chiều cao sheet và bật nút thu gọn nhanh để thoáng khung 3D. */
+  is3DMode?: boolean;
 }
 
 export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = ({
@@ -66,8 +70,10 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   resurveyTask = null,
   onOpenResurvey,
   insights = null,
+  is3DMode = false,
 }) => {
   const { user } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showExcludeModal, setShowExcludeModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
@@ -153,12 +159,12 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         borderRadius: '1rem',
         border: '1px solid rgb(var(--border-slate-300))',
         boxShadow: '0 12px 28px -5px rgba(0, 0, 0, 0.2)',
-        padding: '1rem',
+        padding: isCollapsed ? '0.65rem 1rem' : is3DMode ? '0.75rem 1rem' : '1rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.65rem',
+        gap: isCollapsed ? '0.35rem' : '0.65rem',
         animation: 'slideUp 0.2s ease-out',
-        maxHeight: '75vh',
+        maxHeight: is3DMode ? '44vh' : '75vh',
         overflowY: 'auto',
       }}
     >
@@ -196,21 +202,25 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           ) : null}
         </div>
 
-        <button className="cursor-pointer"
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#94a3b8',
-            cursor: 'pointer',
-            padding: '0.2rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <X size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed((v) => !v)}
+            className="flex cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+            title={isCollapsed ? 'Mở rộng chi tiết thửa đất' : 'Thu gọn để nhìn bản đồ rộng hơn'}
+          >
+            {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <span>{isCollapsed ? 'Chi tiết' : 'Thu gọn'}</span>
+          </button>
+          <button
+            type="button"
+            className="cursor-pointer rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            onClick={onClose}
+            aria-label="Đóng thông tin thửa đất"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Address & Cadastral info */}
@@ -224,6 +234,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         </div>
       </div>
 
+      {!isCollapsed && (
+        <>
       {/* Chỉ số chuyên đề 7 layout (Năm XD, Móng, Kết cấu, ECS, Burland, VI, BRA, Số tầng) */}
       {insights}
 
@@ -812,6 +824,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           Chỉ đường
         </button>
       </div>
+        </>
+      )}
 
       {/* Modal Ẩn / Loại trừ thửa đất (Admin Only) */}
       {showExcludeModal && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (

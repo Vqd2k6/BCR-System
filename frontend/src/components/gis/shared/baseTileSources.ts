@@ -1,5 +1,9 @@
 /** Nguồn nền raster dùng chung cho bản đồ 2D (Leaflet) và 3D (MapLibre). */
-export type BaseTileMode = 'standard' | 'satellite' | 'osm';
+export type RasterTileMode = 'standard' | 'satellite' | 'osm';
+export type BaseTileMode = RasterTileMode;
+export type MapBaseMode = 'white' | RasterTileMode;
+
+export const isRasterTileMode = (mode: MapBaseMode): mode is RasterTileMode => mode !== 'white';
 
 export interface BaseTileSource {
   /** Mẫu URL dạng {z}/{x}/{y} (Leaflet có thêm {s}/{r} cho OSM → dùng urlLeaflet). */
@@ -13,7 +17,7 @@ export interface BaseTileSource {
   className?: string;
 }
 
-export const BASE_TILE_SOURCES: Record<BaseTileMode, BaseTileSource> = {
+export const BASE_TILE_SOURCES: Record<RasterTileMode, BaseTileSource> = {
   satellite: {
     urlLeaflet: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     urlGl: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
