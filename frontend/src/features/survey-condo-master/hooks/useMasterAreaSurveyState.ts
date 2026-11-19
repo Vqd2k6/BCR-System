@@ -14,8 +14,10 @@ import {
   healLocalPhotoUris,
   findUnsyncedPhotoPaths,
   replaceLocalUriInObject,
+  getKnownCloudUrl,
 } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 import {
   type NormalizedBbox,
   type FloorPlanResponse,
@@ -53,6 +55,40 @@ import {
  */
 function toDraftSyncKey(draft: Record<string, unknown>): string {
   return JSON.stringify({ ...draft, updatedAt: undefined });
+}
+
+/** JSON với khóa object đã sắp xếp: jsonb của PostgreSQL trả khóa theo thứ tự khác lúc gửi. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, val: unknown) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.fromEntries(Object.keys(val as Record<string, unknown>).sort().map((k) => [k, (val as Record<string, unknown>)[k]]))
+      : val
+  );
+}
+
+/**
+ * Nháp cục bộ có cùng nội dung với nháp máy chủ không (bỏ `updatedAt`; chỉ so các khóa nháp cục bộ có,
+ * vì máy chủ tự thêm khóa riêng như `_photoMappings`).
+ */
+function isSameDraftContent(local: Record<string, unknown>, server: Record<string, unknown>): boolean {
+  const keys = Object.keys(local).filter((k) => k !== 'updatedAt');
+  const pick = (src: Record<string, unknown>) => Object.fromEntries(keys.map((k) => [k, src[k]]));
+  return canonicalJson(pick(local)) === canonicalJson(pick(server));
+}
+
+/** Thời gian tối đa hoãn lưu nháp máy chủ trong lúc tải CAD base64 lên kho (mất mạng thì thôi chờ, lưu như cũ). */
+const INLINE_CAD_UPLOAD_HOLD_MS = 60_000;
+
+/** Mã định danh ổn định theo nội dung ảnh: mở lại cùng nháp thì dùng lại URL đã tải, không tải lần 2. */
+async function inlineCadLocalId(blob: Blob): Promise<string> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    return `inlinecad_${hex.slice(0, 32)}`;
+  } catch (err: unknown) {
+    console.error('[useMasterAreaSurveyState:InlineCadLocalId] Không băm được CAD, dùng mã ngẫu nhiên:', err);
+    return `inlinecad_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
 }
 
 /**
@@ -141,6 +177,9 @@ export function useMasterAreaSurveyState({
     unit.unitCadUrl || unit.unit_cad_url || ''
   );
   const [cadStructuralSketchPhotoUrl, setCadStructuralSketchPhotoUrl] = useState<string>('');
+  // CAD base64 (nháp cũ / ảnh cắt) đang được tải lên kho: tạm hoãn lưu nháp máy chủ để không gửi ~3 MB
+  const [isInlineCadUploading, setIsInlineCadUploading] = useState<boolean>(false);
+  const inlineCadAttemptedRef = useRef<Set<string>>(new Set());
   const [useSeparateStructuralCad, setUseSeparateStructuralCad] = useState<boolean>(false);
   const [isCroppingCad, setIsCroppingCad] = useState<boolean>(false);
   const [customBbox, setCustomBbox] = useState<NormalizedBbox | null>(null);
@@ -728,7 +767,9 @@ export function useMasterAreaSurveyState({
                 const localDraft = JSON.parse(localRaw);
                 const localUpdated = localDraft?.updatedAt ? new Date(localDraft.updatedAt).getTime() : 0;
                 const serverUpdated = serverRes.draft.updatedAt ? new Date(serverRes.draft.updatedAt).getTime() : 0;
-                if (localUpdated > serverUpdated) {
+                // LocalStorage ghi lại (kèm updatedAt mới) sau mỗi thay đổi nên gần như luôn "mới hơn":
+                // chỉ coi là mới hơn khi nội dung khác thật, tránh gửi lại nguyên nháp mỗi lần mở trên cùng máy
+                if (localUpdated > serverUpdated && !isSameDraftContent(localDraft, draftData)) {
                   const localEv = applyDraftDataToState(localDraft);
                   if (localEv > 0) {
                     console.log('[useMasterAreaSurveyState] Phục hồi bản nháp cục bộ mới hơn máy chủ');
@@ -818,6 +859,88 @@ export function useMasterAreaSurveyState({
     draftKey,
   ]);
 
+  // 1b. CAD còn base64 (nháp cũ, ảnh cắt từ CAD tầng): tải 1 lần lên kho rồi thay bằng URL.
+  // Giữ nguyên base64 tới khi có URL (tải lỗi / mất mạng ⇒ CAD vẫn còn, lần mở sau thử lại).
+  // Không dùng sanitizeSurveyDataForSync ở đây: hàm đó xoá trắng data:image > 500 ký tự.
+  useEffect(() => {
+    if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
+    const sources = Array.from(new Set([cadSketchPhotoUrl, cadStructuralSketchPhotoUrl])).filter(
+      (v) => v.startsWith('data:image/') && !inlineCadAttemptedRef.current.has(v)
+    );
+    if (sources.length === 0) return;
+    sources.forEach((v) => inlineCadAttemptedRef.current.add(v));
+
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      setIsInlineCadUploading(false);
+    };
+    setIsInlineCadUploading(true);
+    const holdTimer = window.setTimeout(release, INLINE_CAD_UPLOAD_HOLD_MS);
+
+    const applyUrl = (dataUrl: string, publicUrl: string) => {
+      setCadSketchPhotoUrl((prev) => (prev === dataUrl ? publicUrl : prev));
+      setCadStructuralSketchPhotoUrl((prev) => (prev === dataUrl ? publicUrl : prev));
+    };
+    const parcelCode = watermarkOptions.parcelCode || 'GENERAL';
+
+    void Promise.all(
+      sources.map(async (dataUrl) => {
+        const blob = base64ToBlob(dataUrl);
+        const localId = await inlineCadLocalId(blob);
+        const known = getKnownCloudUrl(localId);
+        if (known) {
+          applyUrl(dataUrl, known);
+          return;
+        }
+        const photoCode = `${unitCode}_CAD`;
+        await new Promise<void>((resolve) => {
+          uploadQueue.enqueue(blob, `${photoCode}_${Date.now()}.${blob.type === 'image/png' ? 'png' : 'jpg'}`, {
+            id: localId,
+            folder: `projects/METRO2_HCM/buildings/${parcelCode}/units/${unitCode}/cad`,
+            mimeType: blob.type || 'image/jpeg',
+            metadata: {
+              'parcel-code': parcelCode,
+              'unit-code': unitCode,
+              'photo-code': photoCode,
+              'survey-parcel-id': parcelId || '',
+              'unit-id': unitId || '',
+              'area-type': 'CONDO_MASTER',
+              source: 'inline-cad-draft',
+            },
+            onSuccess: (publicUrl) => {
+              applyUrl(dataUrl, publicUrl);
+              resolve();
+            },
+            onError: (err) => {
+              console.error('[useMasterAreaSurveyState:MigrateInlineCad] Tải CAD base64 lên kho thất bại, giữ nguyên base64:', err);
+              resolve();
+            },
+          });
+        });
+      })
+    )
+      .catch((err: unknown) => {
+        console.error('[useMasterAreaSurveyState:MigrateInlineCad] Lỗi chuyển CAD base64, giữ nguyên base64:', err);
+      })
+      .finally(() => {
+        window.clearTimeout(holdTimer);
+        release();
+      });
+  }, [
+    isReadOnly,
+    isSubmittedOrApproved,
+    isLockedByOther,
+    hasHydrated,
+    cadSketchPhotoUrl,
+    cadStructuralSketchPhotoUrl,
+    watermarkOptions.parcelCode,
+    unitCode,
+    parcelId,
+    unitId,
+  ]);
+
   // 2. Tự động lưu Cloud Draft lên server (debounced 1500ms, chỉ khi nội dung nháp thật sự thay đổi)
   useEffect(() => {
     if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
@@ -827,6 +950,8 @@ export function useMasterAreaSurveyState({
       lastCloudSyncKeyRef.current = toDraftSyncKey(buildDraftPayload());
       return;
     }
+    // Đang thay CAD base64 bằng URL: chờ xong rồi lưu 1 lượt nhẹ (thay đổi trong lúc chờ vẫn có ở LocalStorage)
+    if (isInlineCadUploading) return;
 
     const timeout = setTimeout(async () => {
       try {
@@ -870,6 +995,7 @@ export function useMasterAreaSurveyState({
     isSubmittedOrApproved,
     isLockedByOther,
     hasHydrated,
+    isInlineCadUploading,
     parcelId,
     unitId,
     currentStep,

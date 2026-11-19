@@ -3,6 +3,7 @@ import { PoolClient } from 'pg';
 import { SurveyMutationRepository } from './survey-mutation.repository';
 import { overlayZoneCtxFromJson } from '../zone-ctx.utils';
 import { mergeServerManagedKeysInTx } from '../server-managed-survey-keys';
+import { InlineCadExternalizer, isInlineImageDataUrl } from '../../cadastral/utils/inline-cad-storage';
 
 export class SurveyBaseRepository {
   private static columnCache = new Map<string, boolean>();
@@ -241,7 +242,37 @@ export class SurveyBaseRepository {
     };
   }
 
+  /**
+   * CAD căn hộ trong nháp cũ còn base64 → đưa ra kho TRƯỚC transaction để cột building_units.unit_cad_url
+   * không bị ghi đè lại thành base64 (sau khi đã chuyển lên R2). Không đụng survey_data_json của hồ sơ.
+   */
+  private static async externalizeSubmittedUnitCad(reportId: string, candidate: unknown): Promise<string | null> {
+    if (!isInlineImageDataUrl(candidate)) return null;
+    try {
+      const res = await Database.query<{ parcel_id: string }>(
+        `SELECT parcel_id FROM base_survey_reports WHERE id = $1 AND unit_id IS NOT NULL;`,
+        [reportId]
+      );
+      const parcelId = res.rows[0]?.parcel_id;
+      if (!parcelId) return null;
+      const url = await new InlineCadExternalizer(parcelId, 'SurveyBaseRepository:submitReport', { 'report-id': reportId }).externalize(candidate);
+      return url === candidate ? null : url;
+    } catch (err: unknown) {
+      // Không chặn nộp hồ sơ: giữ hành vi cũ (ghi base64) và để script migration xử lý sau
+      console.error('[SurveyBaseRepository:submitReport] Không tra được thửa để đưa CAD base64 ra kho:', err);
+      return null;
+    }
+  }
+
   static async submitReport(reportId: string, submitData: any): Promise<void> {
+    const rawJsonForCad = typeof submitData.surveyDataJson === 'string'
+      ? (() => { try { return JSON.parse(submitData.surveyDataJson); } catch (err) { console.error('[SurveyBaseRepository:submitReport] surveyDataJson không parse được khi dò CAD base64:', err); return null; } })()
+      : submitData.surveyDataJson;
+    const externalUnitCadUrl = await this.externalizeSubmittedUnitCad(
+      reportId,
+      submitData.unitCadUrl || rawJsonForCad?.unitCadUrl || rawJsonForCad?.damageMapUrl || null
+    );
+
     await Database.transaction(async (client) => {
       const mergedSurveyJson = await mergeServerManagedKeysInTx(client, reportId, submitData.surveyDataJson);
       await client.query(
@@ -301,7 +332,7 @@ export class SurveyBaseRepository {
           ? (() => { try { return JSON.parse(submitData.surveyDataJson); } catch { return null; } })()
           : submitData.surveyDataJson;
         const displayCodeVal = submitData.displayCode || submitData.display_code || rawJson?.displayCode || rawJson?.display_code || null;
-        const unitCadUrlVal = submitData.unitCadUrl || rawJson?.unitCadUrl || rawJson?.damageMapUrl || null;
+        const unitCadUrlVal = externalUnitCadUrl || submitData.unitCadUrl || rawJson?.unitCadUrl || rawJson?.damageMapUrl || null;
         const cadBboxVal = submitData.cadBbox || rawJson?.cadBbox ? JSON.stringify(submitData.cadBbox || rawJson?.cadBbox) : null;
         const cleanUnitOwnerName =
           submitData.ownerName && !/^(chủ\s+hộ\s+thửa|chưa\s+cập\s+nhật|chủ\s+sở\s+hữu\s+thửa)/i.test(String(submitData.ownerName).trim())

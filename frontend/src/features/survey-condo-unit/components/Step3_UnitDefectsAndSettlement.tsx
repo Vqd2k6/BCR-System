@@ -31,7 +31,7 @@ import {
   type CadZonePin,
 } from '../types/condo-unit.types';
 import { api } from '../../../services/api';
-import { saveOfflinePhoto, createManagedBlobUrl, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../../core/storage/offlinePhotoStorage';
+import { saveOfflinePhoto, createManagedBlobUrl, markOfflinePhotoUploaded } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
@@ -279,7 +279,6 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         },
         onSuccess: async (publicUrl) => {
           await markOfflinePhotoUploaded(localId, publicUrl);
-          revokeManagedBlobUrl(localId);
           if (isTargetStructural) {
             updateFormData({ unitStructuralCadUrl: publicUrl, isCadOverriddenByUser: true });
           } else {

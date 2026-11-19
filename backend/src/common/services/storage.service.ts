@@ -602,6 +602,74 @@ export class StorageService {
     }
   }
 
+  /**
+   * Ghi object theo key cố định do người gọi dựng từ SHA-256 nội dung (ghi lại cùng byte → cùng key, không nhân bản).
+   * Tôn trọng chốt an toàn DEV (local → ghi đĩa backend/uploads). Key đã có thì không ghi đè, chỉ đối chiếu kích thước.
+   * Sau khi ghi luôn đọc lại kích thước (HeadObject / stat) và ném lỗi nếu lệch — người gọi chỉ đổi DB khi hàm trả về.
+   */
+  public static async putContentAddressedObject(
+    key: string,
+    buffer: Buffer,
+    mimeType: string,
+    metadata: Record<string, string>
+  ): Promise<{ url: string; key: string; checksumSha256: string; sizeBytes: number; created: boolean }> {
+    const checksumSha256 = this.calculateSha256(buffer);
+    const sizeBytes = buffer.length;
+    const storageType = this.getEffectiveStorageType();
+
+    if (storageType === 'r2' || storageType === 's3') {
+      const bucket = config.storage.s3.bucket;
+      let created = false;
+      if (!(await this.objectExists(key, bucket))) {
+        try {
+          await this.getS3Client().send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: buffer,
+              ContentType: mimeType,
+              CacheControl: IMMUTABLE_CACHE_CONTROL,
+              Metadata: {
+                project: 'METRO2_HCM',
+                'uploaded-at': new Date().toISOString(),
+                ...this.sanitizeMetadataForS3(metadata),
+                'sha256-checksum': checksumSha256,
+              },
+              IfNoneMatch: '*',
+            })
+          );
+          created = true;
+        } catch (err: unknown) {
+          if (!this.isPreconditionFailed(err)) {
+            console.error(`[StorageService:putContentAddressedObject] Không ghi được key "${key}":`, err);
+            throw err;
+          }
+        }
+      }
+      const head = await this.getS3Client().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      if (Number(head.ContentLength) !== sizeBytes) {
+        throw new Error(`Object "${key}" trên kho có ${head.ContentLength} byte, khác ${sizeBytes} byte cần ghi`);
+      }
+      const publicBaseUrl =
+        config.storage.s3.publicUrl?.replace(/\/$/, '') ||
+        `${config.storage.s3.endpoint?.replace(/\/$/, '')}/${bucket}`;
+      return { url: `${publicBaseUrl}/${key}`, key, checksumSha256, sizeBytes, created };
+    }
+
+    const targetPath = path.resolve(config.storage.localUploadDir, key);
+    let created = false;
+    if (!fs.existsSync(targetPath)) {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.writeFileSync(targetPath, buffer, { flag: 'wx' });
+      created = true;
+    }
+    const onDisk = fs.statSync(targetPath).size;
+    if (onDisk !== sizeBytes) {
+      throw new Error(`File "${key}" trên đĩa có ${onDisk} byte, khác ${sizeBytes} byte cần ghi`);
+    }
+    return { url: `/uploads/${key}`, key, checksumSha256, sizeBytes, created };
+  }
+
   /** Đọc toàn bộ object thành Buffer. Không có key → null. */
   public static async getObjectBuffer(key: string, bucket: string): Promise<Buffer | null> {
     try {

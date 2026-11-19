@@ -1,5 +1,6 @@
 import { CadastralRepository, ParcelEntity, CadBBox, CadPolygonPoint } from './cadastral.repository';
 import { omitInlineCadExcept } from './utils/inline-cad';
+import { InlineCadExternalizer } from './utils/inline-cad-storage';
 import type { FloorCadResource } from './utils/floor-cad-resources';
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
@@ -746,11 +747,15 @@ export class CadastralService {
     clientIp?: string
   ) {
     await this.assertUserCanModifyParcel(user, parcelId);
+    const externalizer = new InlineCadExternalizer(parcelId, 'CadastralService:saveFloorPartitions', { 'uploaded-by': user?.userId ?? '' });
+    const partitions = await Promise.all(
+      data.partitions.map(async (p) => ({ ...p, unitCadUrl: await externalizer.externalize(p.unitCadUrl) }))
+    );
     const units = await CadastralRepository.saveUnitPartitions(
       parcelId,
       data.floorNumber,
       data.floorPlanId || null,
-      data.partitions
+      partitions
     );
 
     if (user) {
@@ -802,11 +807,27 @@ export class CadastralService {
     clientIp?: string
   ) {
     await this.assertUserCanModifyParcel(user, parcelId);
+    // Ô cắt CAD gửi lên dạng base64 (chép sang mọi tầng điển hình) → đưa ra kho trước khi mở transaction
+    const externalizer = new InlineCadExternalizer(parcelId, 'CadastralService:atomicSyncFloorPlanAndPartitions', {
+      'uploaded-by': user?.userId ?? '',
+    });
+    const [cadPhotoUrl, cadStructuralUrl, cadResources, partitions] = await Promise.all([
+      externalizer.externalize(data.floorPlan.cadPhotoUrl),
+      externalizer.externalize(data.floorPlan.cadStructuralUrl),
+      externalizer.externalizeDeep(data.floorPlan.cadResources),
+      Promise.all(
+        data.partitions.map(async (p) => ({
+          ...p,
+          unitCadUrl: await externalizer.externalize(p.unitCadUrl),
+          unitStructuralCadUrl: await externalizer.externalize(p.unitStructuralCadUrl),
+        }))
+      ),
+    ]);
     const result = await CadastralRepository.atomicSyncFloorPlanAndPartitions(
       parcelId,
       data.floorNumber,
-      { ...data.floorPlan, userId: user?.userId ?? null },
-      data.partitions
+      { ...data.floorPlan, cadPhotoUrl, cadStructuralUrl, cadResources, userId: user?.userId ?? null },
+      partitions
     );
 
     if (user) {
