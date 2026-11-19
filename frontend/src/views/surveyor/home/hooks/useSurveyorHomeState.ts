@@ -8,6 +8,8 @@ import { getStatus } from '../utils/surveyorHomeHelpers';
 
 /** Đi xa hơn ngưỡng này kể từ lần tải trước thì mới tải lại danh sách thửa được giao (để sắp xếp theo khoảng cách) */
 const ASSIGNED_PARCELS_REFETCH_METERS = 200;
+/** Đứng yên vẫn tải lại sau khoảng này để thấy thửa Zone Admin vừa giao thêm (Home không bị huỷ khi mở form) */
+const ASSIGNED_PARCELS_REFRESH_MS = 10 * 60 * 1000;
 
 interface UseSurveyorHomeStateProps {
   parcels: GisParcel[];
@@ -89,7 +91,7 @@ export const useSurveyorHomeState = ({
   const [assignedParcels, setAssignedParcels] = useState<GisParcel[]>([]);
   // Vị trí lúc tải danh sách gần nhất: GPS đổi mỗi ~15 s / 5 m nên KHÔNG tải lại theo từng lần đổi
   // (từng gây ~240 request/giờ khi KSV đứng chờ ở Home), chỉ tải lại khi đi xa quá ngưỡng.
-  const lastAssignedFetchRef = useRef<{ userId: string; gps: GpsFix | null } | null>(null);
+  const lastAssignedFetchRef = useRef<{ userId: string; gps: GpsFix | null; at: number } | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -97,9 +99,10 @@ export const useSurveyorHomeState = ({
     const last = lastAssignedFetchRef.current;
     if (last && last.userId === user.id) {
       if (!gps) return;
-      if (last.gps && distanceMeters(last.gps, gps) < ASSIGNED_PARCELS_REFETCH_METERS) return;
+      const isStale = Date.now() - last.at >= ASSIGNED_PARCELS_REFRESH_MS;
+      if (!isStale && last.gps && distanceMeters(last.gps, gps) < ASSIGNED_PARCELS_REFETCH_METERS) return;
     }
-    lastAssignedFetchRef.current = { userId: user.id, gps };
+    lastAssignedFetchRef.current = { userId: user.id, gps, at: Date.now() };
 
     api.get<{ data: GisParcel[] }>('/surveys/my-assigned-parcels', {
       params: gps ? { lat: gps.lat, lng: gps.lng } : undefined,
