@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
-import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from './offlinePhotoStorage';
+import { getSafeDisplayUrl, hasLocalBlobCandidate, resolveOfflinePhotoUrl } from './offlinePhotoStorage';
 
 interface ResolvedPhotoState {
   src: string;
   displayUrl: string;
   isResolving: boolean;
+}
+
+/**
+ * URL gán ngay cho <img> trước khi phân giải xong. Ảnh Cloud do chính máy này chụp (còn bản gốc trong
+ * IndexedDB) thì để trống trong vài ms tra cứu, KHÔNG gán URL https (tránh tải ngược ~2 MB qua 4G).
+ */
+function initialDisplayUrl(src: string): string {
+  const safe = getSafeDisplayUrl(src);
+  return safe === src && hasLocalBlobCandidate(src) ? '' : safe;
 }
 
 /**
@@ -17,7 +26,7 @@ export function useResolvedPhotoUrl(rawSrc?: string | null): { displayUrl: strin
   const src = rawSrc || '';
   const [state, setState] = useState<ResolvedPhotoState>(() => ({
     src,
-    displayUrl: getSafeDisplayUrl(src),
+    displayUrl: initialDisplayUrl(src),
     isResolving: Boolean(src),
   }));
 
@@ -28,7 +37,7 @@ export function useResolvedPhotoUrl(rawSrc?: string | null): { displayUrl: strin
     }
 
     let isSubscribed = true;
-    const immediate = getSafeDisplayUrl(src);
+    const immediate = initialDisplayUrl(src);
     setState({ src, displayUrl: immediate, isResolving: true });
 
     resolveOfflinePhotoUrl(src)
@@ -40,7 +49,7 @@ export function useResolvedPhotoUrl(rawSrc?: string | null): { displayUrl: strin
       .catch((err: unknown) => {
         console.error('[useResolvedPhotoUrl:Resolve] Không thể phân giải ảnh:', err);
         if (isSubscribed) {
-          setState({ src, displayUrl: immediate, isResolving: false });
+          setState({ src, displayUrl: getSafeDisplayUrl(src), isResolving: false });
         }
       });
 
@@ -51,7 +60,7 @@ export function useResolvedPhotoUrl(rawSrc?: string | null): { displayUrl: strin
 
   // Ngay trong lần render `src` vừa đổi (trước khi effect chạy) cũng không được lộ ảnh cũ
   if (state.src !== src) {
-    return { displayUrl: getSafeDisplayUrl(src), isResolving: Boolean(src) };
+    return { displayUrl: initialDisplayUrl(src), isResolving: Boolean(src) };
   }
   return { displayUrl: state.displayUrl, isResolving: state.isResolving };
 }

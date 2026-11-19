@@ -13,6 +13,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import { ResolvedPhotoImg } from '../../../../components/common/ResolvedPhotoImg';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import type { EvidencePhotoItem } from '../../../survey-phase1/types/phase1.types';
 import type { NormalizedBbox } from '../../types/masterAreaSurvey.types';
@@ -104,7 +105,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                 key={photo.photoCode || pIdx}
                 className="relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-xs hover:border-slate-300 transition-all"
               >
-                <img
+                <ResolvedPhotoImg
                   src={photo.url}
                   alt={photo.notes || `Ảnh ${pIdx + 1}`}
                   className="w-full h-full object-cover"
@@ -254,7 +255,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
         {/* Khung hiển thị Bản vẽ CAD Khu vực */}
         {cadSketchPhotoUrl ? (
           <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-2 overflow-hidden flex flex-col items-center">
-            <img
+            <ResolvedPhotoImg
               src={cadSketchPhotoUrl}
               alt="Bản vẽ sơ đồ khu vực"
               className="max-h-[50vh] w-auto object-contain rounded-lg shadow-xs cursor-pointer hover:opacity-95 transition-opacity"
@@ -348,7 +349,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
 
         {useSeparateStructuralCad && cadStructuralSketchPhotoUrl && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 flex flex-col items-center">
-            <img
+            <ResolvedPhotoImg
               src={cadStructuralSketchPhotoUrl}
               alt="Bản vẽ kết cấu khu vực"
               className="max-h-[40vh] w-auto object-contain rounded-lg cursor-pointer"

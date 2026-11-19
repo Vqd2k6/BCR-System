@@ -12,6 +12,7 @@ import { DamageZonesSection } from '../../survey-phase1/components/step3/DamageZ
 import { StructuralElementsSection } from '../../survey-phase1/components/step3/StructuralElementsSection';
 import { SaggingMonitoringSection } from '../../survey-phase1/components/step3/SaggingMonitoringSection';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
+import { ResolvedPhotoImg } from '../../../components/common/ResolvedPhotoImg';
 
 import {
   Building2,
@@ -719,7 +720,7 @@ export const Step3_CondoMasterCommonAreasSurvey: React.FC = () => {
                       {/* CAD Blueprint Preview (if exists) */}
                       {floor.cadSketchPhotoUrl && (
                         <div className="mt-4 h-24 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden relative group/cad">
-                          <img
+                          <ResolvedPhotoImg
                             src={floor.cadSketchPhotoUrl}
                             alt="CAD Blueprint"
                             className="w-full h-full object-contain p-2 opacity-80 group-hover/cad:opacity-100 transition-opacity"

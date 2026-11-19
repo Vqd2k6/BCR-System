@@ -29,7 +29,6 @@ import {
   markOfflinePhotoUploaded,
   saveUploadedPhotoMapping,
   createManagedBlobUrl,
-  revokeManagedBlobUrl,
 } from '../../../core/storage/offlinePhotoStorage';
 import { useResolvedPhotoUrl } from '../../../core/storage/useResolvedPhotoUrl';
 import { useStorageInfo } from '../../../core/services/storageInfoService';
@@ -322,7 +321,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           onSuccess: async (publicUrl) => {
             await markOfflinePhotoUploaded(localPhotoId, publicUrl);
             saveUploadedPhotoMapping(localPhotoId, publicUrl);
-            revokeManagedBlobUrl(localPhotoId);
 
             // Thay thế localUri bằng publicUrl của R2 trong Store
             const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
@@ -468,7 +466,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
       onSuccess: async (publicUrl) => {
         await markOfflinePhotoUploaded(localPhotoId, publicUrl);
         saveUploadedPhotoMapping(localPhotoId, publicUrl);
-        revokeManagedBlobUrl(localPhotoId);
 
         const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
         const replacedList = latestList.map((i) => (i === localUri ? publicUrl : i));

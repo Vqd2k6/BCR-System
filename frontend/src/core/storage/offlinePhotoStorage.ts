@@ -307,14 +307,54 @@ export async function markPhotoMappingRestored(id: string): Promise<void> {
  * Quản lý vòng đời URL Blob trong RAM (ObjectURL Registry)
  * Đảm bảo mọi URL tạm thời được giải phóng triệt để khi không còn dùng
  */
-const activeObjectUrls = new Map<string, string>(); // photoId -> objectUrl
+const activeObjectUrls = new Map<string, string>(); // photoId -> objectUrl (thứ tự chèn = LRU, cũ nhất ở đầu)
+
+/**
+ * Số ObjectURL của ảnh ĐÃ lên Cloud được giữ trong RAM để hiển thị tức thì (không tải ngược từ R2).
+ * Ảnh chưa upload không bao giờ bị thu hồi ở đây (đang là bản duy nhất để hiển thị).
+ * Ảnh bị thu hồi vẫn nằm trong IndexedDB, lần hiển thị sau tự tạo lại qua resolveOfflinePhotoUrl.
+ */
+const MAX_RETAINED_UPLOADED_URLS = 24;
+
+function touchManagedBlobUrl(id: string): string | undefined {
+  const url = activeObjectUrls.get(id);
+  if (url !== undefined) {
+    activeObjectUrls.delete(id);
+    activeObjectUrls.set(id, url);
+  }
+  return url;
+}
+
+function evictUploadedBlobUrls(): void {
+  if (activeObjectUrls.size <= MAX_RETAINED_UPLOADED_URLS) return;
+  let forward: Record<string, string>;
+  try {
+    forward = readPhotoMapping()?.forward ?? {};
+  } catch (_e) {
+    console.error('[offlinePhotoStorage:evictUploadedBlobUrls] Không đọc được mapping, bỏ qua thu hồi:', _e);
+    return;
+  }
+  let uploaded = 0;
+  for (const id of activeObjectUrls.keys()) {
+    if (forward[id]) uploaded++;
+  }
+  for (const [id, url] of activeObjectUrls) {
+    if (uploaded <= MAX_RETAINED_UPLOADED_URLS) break;
+    if (!forward[id]) continue;
+    URL.revokeObjectURL(url);
+    activeObjectUrls.delete(id);
+    uploaded--;
+  }
+}
 
 export function createManagedBlobUrl(id: string, blob: Blob): string {
   if (activeObjectUrls.has(id)) {
     URL.revokeObjectURL(activeObjectUrls.get(id)!);
+    activeObjectUrls.delete(id);
   }
   const url = URL.createObjectURL(blob);
   activeObjectUrls.set(id, url);
+  evictUploadedBlobUrls();
   return url;
 }
 
@@ -385,19 +425,84 @@ export async function requestPersistentStorage(): Promise<void> {
 }
 
 /**
+ * Bộ đệm đọc của persistent mapping: chỉ parse lại khi chuỗi trong localStorage đổi
+ * (tab khác / test có thể ghi thẳng vào localStorage nên không giữ cache cứng).
+ */
+let mappingCache: { raw: string; forward: Record<string, string>; reverse: Map<string, string> } | null = null;
+
+function readPhotoMapping(): { forward: Record<string, string>; reverse: Map<string, string> } | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  const raw = localStorage.getItem(UPLOADED_PHOTO_MAP_KEY);
+  if (!raw) return null;
+  if (mappingCache && mappingCache.raw === raw) return mappingCache;
+  const forward: Record<string, string> = JSON.parse(raw);
+  const reverse = new Map<string, string>();
+  for (const [localId, cloudUrl] of Object.entries(forward)) {
+    if (cloudUrl) reverse.set(cloudUrl, localId);
+  }
+  mappingCache = { raw, forward, reverse };
+  return mappingCache;
+}
+
+/**
  * Tra cứu Cloud URL đã biết theo localId từ persistent mapping
  */
 export function getKnownCloudUrl(localId: string): string | null {
-  if (!localId || typeof window === 'undefined' || !window.localStorage) return null;
+  if (!localId) return null;
   try {
-    const raw = localStorage.getItem(UPLOADED_PHOTO_MAP_KEY);
-    if (!raw) return null;
-    const map: Record<string, string> = JSON.parse(raw);
-    return map[localId] || null;
+    return readPhotoMapping()?.forward[localId] || null;
   } catch (_e) {
     console.error('[offlinePhotoStorage:getKnownCloudUrl] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
     return null;
   }
+}
+
+/**
+ * Tra ngược: Cloud URL này có phải ảnh chụp trên chính thiết bị này không (localId tương ứng).
+ */
+function getLocalIdForCloudUrl(cloudUrl: string): string | null {
+  if (!cloudUrl) return null;
+  try {
+    return readPhotoMapping()?.reverse.get(cloudUrl) || null;
+  } catch (_e) {
+    console.error('[offlinePhotoStorage:getLocalIdForCloudUrl] Lỗi đã xử lý bằng nhánh dự phòng:', _e);
+    return null;
+  }
+}
+
+/** URL ảnh đã lưu trữ: R2/S3 (https) hoặc file server khi chạy STORAGE_TYPE=local (/uploads/...) */
+function isUploadedPhotoUrl(uri: string): boolean {
+  return uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('/uploads');
+}
+
+/**
+ * URL Cloud có thể có bản gốc trên thiết bị này (ảnh do máy này chụp & upload).
+ * Dùng để KHÔNG gán ngay URL https vào <img> (tránh tải ngược ảnh ~2 MB qua 4G) trong lúc tra IndexedDB.
+ */
+export function hasLocalBlobCandidate(uri?: string | null): boolean {
+  if (!uri || !isUploadedPhotoUrl(uri)) return false;
+  return Boolean(getLocalIdForCloudUrl(uri));
+}
+
+/**
+ * Lấy ObjectURL cục bộ cho một Cloud URL nếu thiết bị còn giữ đúng bản đã upload.
+ * Chỉ nhận bản ghi IndexedDB có `uploadStatus = UPLOADED` và `cloudUrl` trùng khớp tuyệt đối
+ * (bảo đảm hiển thị đúng từng byte đã đẩy lên R2 — chứng cứ pháp lý không được lệch).
+ */
+async function resolveLocalBlobForCloudUrl(cloudUrl: string): Promise<string> {
+  const localId = getLocalIdForCloudUrl(cloudUrl);
+  if (!localId) return '';
+  const inRam = touchManagedBlobUrl(localId);
+  if (inRam) return inRam;
+  try {
+    const record = await getOfflinePhoto(localId);
+    if (record && record.blob && record.uploadStatus === 'UPLOADED' && record.cloudUrl === cloudUrl) {
+      return createManagedBlobUrl(localId, record.blob);
+    }
+  } catch (err) {
+    console.error(`[offlinePhotoStorage:ResolveLocalForCloud] Không đọc được ảnh cục bộ ${localId}:`, err);
+  }
+  return '';
 }
 
 /**
@@ -422,25 +527,22 @@ export function getSafeDisplayUrl(uri?: string | null): string {
   if (!uri || typeof uri !== 'string' || uri.trim() === '') {
     return '';
   }
-  if (
-    uri.startsWith('http://') ||
-    uri.startsWith('https://') ||
-    uri.startsWith('/uploads') ||
-    uri.startsWith('data:') ||
-    uri.startsWith('blob:http')
-  ) {
+  if (isUploadedPhotoUrl(uri)) {
+    // Ảnh do chính máy này chụp & upload: dùng bản trong RAM nếu còn, không tải ngược từ R2
+    const localId = getLocalIdForCloudUrl(uri);
+    const inRam = localId ? touchManagedBlobUrl(localId) : undefined;
+    return inRam || uri;
+  }
+  if (uri.startsWith('data:') || uri.startsWith('blob:http')) {
     return uri;
   }
   if (uri.startsWith('blob:local://')) {
     const localId = extractLocalIdFromUri(uri);
-    const knownCloud = getKnownCloudUrl(localId);
-    if (knownCloud) {
-      return knownCloud;
+    const inRam = touchManagedBlobUrl(localId);
+    if (inRam) {
+      return inRam;
     }
-    if (activeObjectUrls.has(localId)) {
-      return activeObjectUrls.get(localId)!;
-    }
-    return '';
+    return getKnownCloudUrl(localId) || '';
   }
   return uri;
 }
@@ -455,32 +557,28 @@ export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<strin
     return '';
   }
 
-  // 1. Nếu là ảnh Cloud hoặc Base64, hiển thị trực tiếp
-  if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('/uploads') || uri.startsWith('data:')) {
+  // 1. Ảnh Cloud: nếu chính máy này chụp & còn bản đã upload trong RAM/IndexedDB thì hiển thị bản cục bộ
+  //    (0 byte tải ngược từ R2); ảnh từ máy khác / đã dọn sau 7 ngày thì tải HTTPS như cũ
+  if (isUploadedPhotoUrl(uri)) {
+    return (await resolveLocalBlobForCloudUrl(uri)) || uri;
+  }
+
+  // 2. Base64, Blob URL thông thường: hiển thị trực tiếp
+  if (uri.startsWith('data:') || uri.startsWith('blob:http')) {
     return uri;
   }
 
-  // 2. Nếu là Blob URL thông thường còn active
-  if (uri.startsWith('blob:http')) {
-    return uri;
-  }
-
-  // 3. Nếu là mã định danh bền vững blob:local://{id}
+  // 3. Nếu là mã định danh bền vững blob:local://{id}: RAM → IndexedDB → Cloud URL đã biết
   if (uri.startsWith('blob:local://')) {
     const localId = extractLocalIdFromUri(uri);
 
-    // 3.1. Kiểm tra ngay trong Persistent Cloud Mapping (Đã tải lên R2 thành công trước đó)
-    const knownCloud = getKnownCloudUrl(localId);
-    if (knownCloud) {
-      return knownCloud;
+    // 3.1. Kiểm tra trong RAM registry
+    const inRam = touchManagedBlobUrl(localId);
+    if (inRam) {
+      return inRam;
     }
 
-    // 3.2. Kiểm tra trong RAM registry
-    if (activeObjectUrls.has(localId)) {
-      return activeObjectUrls.get(localId)!;
-    }
-
-    // 3.3. Nếu chưa có trong RAM (ví dụ sau khi F5), khôi phục từ IndexedDB
+    // 3.2. Nếu chưa có trong RAM (ví dụ sau khi F5), khôi phục từ IndexedDB
     try {
       const record = await getOfflinePhoto(localId);
       if (record && record.blob) {
@@ -489,7 +587,9 @@ export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<strin
     } catch (err) {
       console.warn(`[OfflinePhotoStorage] Không thể khôi phục ảnh offline ${localId}:`, err);
     }
-    return '';
+
+    // 3.3. Thiết bị không còn bản nhị phân: dùng Cloud URL đã upload trước đó
+    return getKnownCloudUrl(localId) || '';
   }
 
   return uri;

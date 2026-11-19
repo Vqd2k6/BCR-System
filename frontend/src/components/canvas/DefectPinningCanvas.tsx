@@ -5,7 +5,7 @@ import { ImageZoomModal } from '../common/ImageZoomModal';
 import { ImageAnnotationModal } from '../common/ImageAnnotationModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
-import { saveOfflinePhoto, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
+import { saveOfflinePhoto, markOfflinePhotoUploaded } from '../../core/storage/offlinePhotoStorage';
 import { useResolvedPhotoUrl } from '../../core/storage/useResolvedPhotoUrl';
 import { resolvePhotoStorageTarget } from '../common/photo-capture/domain/photoIdentityPolicy';
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
@@ -691,8 +691,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         mimeType: 'image/jpeg',
         metadata: targetMetadata,
         onSuccess: async (publicUrl) => {
+          // Giữ ObjectURL để hiển thị bản cục bộ, registry tự thu hồi theo giới hạn
           await markOfflinePhotoUploaded(localId, publicUrl);
-          revokeManagedBlobUrl(localId);
         },
         onError: (err) => {
           console.warn('[DefectPinningCanvas] Upload ảnh vẽ thất bại, giữ an toàn trong offline store:', err);

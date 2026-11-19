@@ -112,15 +112,21 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       img.src = srcUrl;
     };
 
+    // Có sẵn bản cục bộ (blob/data) thì đo ngay; URL Cloud thì phân giải trước để ảnh do máy này chụp
+    // được đo từ IndexedDB, không tạo thêm 1 lượt tải ngược từ R2 chỉ để lấy kích thước
     const immediate = getSafeDisplayUrl(value);
-    if (immediate) {
+    if (immediate.startsWith('blob:') || immediate.startsWith('data:')) {
       measureImage(immediate);
     } else {
-      resolveOfflinePhotoUrl(value).then((resolved) => {
-        if (isSubscribed && resolved) {
-          measureImage(resolved);
-        }
-      });
+      resolveOfflinePhotoUrl(value)
+        .then((resolved) => {
+          if (isSubscribed && resolved) {
+            measureImage(resolved);
+          }
+        })
+        .catch((err: unknown) => {
+          console.error('[PhotoCaptureInput:MeasureImage] Không phân giải được ảnh để đo tỷ lệ:', err);
+        });
     }
 
     return () => {

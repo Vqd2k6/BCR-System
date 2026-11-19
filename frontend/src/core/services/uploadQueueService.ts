@@ -11,7 +11,6 @@ import {
   markOfflinePhotoUploaded,
   markPhotoMappingRestored,
   deleteOfflinePhoto,
-  revokeManagedBlobUrl,
   replaceLocalUriInObject,
   saveUploadedPhotoMapping,
   healLocalPhotoUris,
@@ -121,8 +120,8 @@ class UploadQueueService {
           mimeType: item.mimeType || 'image/jpeg',
           metadata: item.metadata,
           onSuccess: async (publicUrl) => {
+            // Giữ ObjectURL (nếu có) để hiển thị bản cục bộ, registry tự thu hồi theo giới hạn
             await markOfflinePhotoUploaded(item.id, publicUrl);
-            revokeManagedBlobUrl(item.id);
             void this.promoteUrlInStores(item.id, publicUrl, item.metadata);
           },
         });

@@ -238,11 +238,11 @@ export function usePhotoUpload({
             }
           }
         }
-        // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy)
-        // và giải phóng ObjectURL trong RAM. File nhị phân vẫn được lưu an toàn trong IndexedDB.
+        // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy).
+        // GIỮ ObjectURL trong RAM: ô ảnh tiếp tục hiển thị bản cục bộ thay vì tải ngược ảnh vừa upload từ R2
+        // (registry tự thu hồi ảnh đã upload cũ nhất khi vượt giới hạn, xem offlinePhotoStorage).
         if (localId) {
           await markOfflinePhotoUploaded(localId, publicUrl);
-          revokeManagedBlobUrl(localId);
         }
       },
       onError: (err) => {

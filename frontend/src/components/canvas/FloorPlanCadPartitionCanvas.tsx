@@ -60,6 +60,37 @@ interface Props {
 }
 
 /**
+ * Bộ đệm Blob tờ CAD trong phiên: mọi căn/khu vực trên cùng tầng cắt từ 1 tờ CAD,
+ * nên mỗi tờ chỉ tải qua mạng 1 lần (trước đây mỗi lượt cắt tải lại cả tờ ~1–3 MB).
+ */
+const CAD_SESSION_CACHE_MAX = 6;
+const cadBlobSessionCache = new Map<string, Promise<Blob>>();
+
+function fetchCadBlobOnce(imageSrc: string): Promise<Blob> {
+  const hit = cadBlobSessionCache.get(imageSrc);
+  if (hit) {
+    cadBlobSessionCache.delete(imageSrc);
+    cadBlobSessionCache.set(imageSrc, hit);
+    return hit;
+  }
+  // Giữ cache-buster cho lượt tải đầu: tách khỏi bản cache HTTP không có header CORS
+  // (bản đó làm canvas bị "tainted" — lỗi đã sửa ở 49449ee), lượt sau dùng Blob trong RAM.
+  const cacheBustedUrl = imageSrc.includes('?') ? `${imageSrc}&_t=${Date.now()}` : `${imageSrc}?_t=${Date.now()}`;
+  const pending = (async () => {
+    const response = await fetch(cacheBustedUrl, { mode: 'cors' });
+    if (!response.ok) throw new Error(`HTTP ${response.status} khi tải tờ CAD`);
+    return response.blob();
+  })();
+  cadBlobSessionCache.set(imageSrc, pending);
+  while (cadBlobSessionCache.size > CAD_SESSION_CACHE_MAX) {
+    const oldest = cadBlobSessionCache.keys().next().value;
+    if (oldest === undefined) break;
+    cadBlobSessionCache.delete(oldest);
+  }
+  return pending;
+}
+
+/**
  * Hàm crop một vùng chữ nhật từ ảnh gốc bằng HTML5 Canvas ngầm (Offscreen Canvas)
  */
 export async function cropImageBoundingBox(
@@ -73,18 +104,19 @@ export async function cropImageBoundingBox(
     // Nếu là HTTP URL, tải trực tiếp qua fetch CORS và chuyển sang Blob URL nội bộ
     // để ngăn ngừa triệt để lỗi tainted canvas do browser HTTP cache không có CORS header
     if (imageSrc.startsWith('http')) {
-      const cacheBustedUrl = imageSrc.includes('?') 
-        ? `${imageSrc}&_t=${Date.now()}` 
-        : `${imageSrc}?_t=${Date.now()}`;
-      try {
-        const response = await fetch(cacheBustedUrl, { mode: 'cors' });
-        if (response.ok) {
-          const blob = await response.blob();
+      // Tờ CAD do chính máy này upload: dùng bản trong IndexedDB (ObjectURL do registry quản lý, không thu hồi ở đây)
+      const local = await resolveOfflinePhotoUrl(imageSrc);
+      if (local.startsWith('blob:')) {
+        loadableSrc = local;
+      } else {
+        try {
+          const blob = await fetchCadBlobOnce(imageSrc);
           loadableSrc = URL.createObjectURL(blob);
           objectUrlToRevoke = loadableSrc;
+        } catch (fetchErr) {
+          cadBlobSessionCache.delete(imageSrc);
+          console.warn('[cropImageBoundingBox] Không thể fetch blob trực tiếp, thử load URL gốc:', fetchErr);
         }
-      } catch (fetchErr) {
-        console.warn('[cropImageBoundingBox] Không thể fetch blob trực tiếp, thử load URL gốc:', fetchErr);
       }
     }
 
