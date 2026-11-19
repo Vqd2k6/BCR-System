@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { sendDevError } from './devErrorReporter';
 import { AUTH_UNAUTHORIZED_EVENT, getAccessToken, refreshAccessToken } from './authSession';
-import { normalizeMeterKey, recordDataUsage } from '../core/services/dataMeter';
+import { estimateBodyBytes, normalizeMeterKey, recordDataUsage } from '../core/services/dataMeter';
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _authRetried?: boolean;
@@ -58,7 +58,7 @@ interface ApiErrorData {
 /** Ước lượng dung lượng 1 lượt gọi API (body gửi đi + body nhận về) cho bộ đếm dữ liệu */
 const meterApiCall = (method: string | undefined, url: string | undefined, sentData: unknown, headers: unknown, data: unknown) => {
   try {
-    const sent = typeof sentData === 'string' ? sentData.length : 0;
+    const sent = estimateBodyBytes(sentData);
     const lenHeader = headers && typeof headers === 'object' ? (headers as Record<string, unknown>)['content-length'] : undefined;
     let received = Number(lenHeader);
     if (!Number.isFinite(received) || received <= 0) {

@@ -490,7 +490,7 @@ class UploadQueueService {
       formData.append('metadata', JSON.stringify(task.metadata));
     }
 
-    recordDataUsage('UPLOAD ảnh (qua backend)', task.blob.size);
+    // Dung lượng do interceptor của api đếm (key POST /storage/upload, gồm cả lượt lỗi)
     const res = await api.post('/storage/upload', formData);
 
     const data = res.data?.data;

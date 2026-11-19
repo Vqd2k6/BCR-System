@@ -6,6 +6,7 @@ import './styles/index.css';
 import { initDevErrorReporter, sendDevError } from './services/devErrorReporter';
 import { initThemeSystemListener } from './core/theme/useThemeStore';
 import { applyLeafletDefensiveFix } from './components/gis/shared/leafletFix';
+import { startResourceMeter } from './core/services/dataMeter';
 
 // Kích hoạt bản vá phòng vệ cho Leaflet trước khi khởi tạo cây DOM
 applyLeafletDefensiveFix();
@@ -43,6 +44,8 @@ initDevErrorReporter();
 
 // Áp theme đã lưu (Sáng / Tối / Theo hệ thống) và lắng nghe thay đổi theme của hệ điều hành
 initThemeSystemListener();
+// Đếm ảnh, tile bản đồ, mã ứng dụng tải xuống vào bảng "Dung lượng đã dùng"
+startResourceMeter();
 
 interface ErrorBoundaryState {
   hasError: boolean;

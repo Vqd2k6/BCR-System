@@ -142,7 +142,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     hasLoadError,
     setHasLoadError,
     startDirectUpload,
-    uploadToServer,
+    saveAnnotatedPhoto,
+    uploadAnnotatedWithoutStorage,
     processAndStoreCleanPhoto,
     storePrecompressedPhoto,
     handleFileChange,
@@ -517,15 +518,29 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           title={annotationTitle || `Ghi chú & Vẽ trên ${label || 'ảnh'}`}
           initialTool={initialAnnotationTool || (label?.includes('P-04') ? 'ARROW' : 'PEN')}
           onSave={(annotated) => {
-            setLocalPreview(annotated);
             const originalCapturedAt = effectiveTimestamp
               ? (typeof effectiveTimestamp === 'string' ? effectiveTimestamp : new Date(effectiveTimestamp).toISOString())
               : (value ? extractTimestampFromPhotoUrl(value) : undefined);
-            onChange(annotated, displayPhotoCode, {
-              ...(originalCapturedAt ? { capturedAt: originalCapturedAt } : {}),
-            });
-            uploadToServer(annotated, displayPhotoCode, originalCapturedAt);
+            const changeMeta = originalCapturedAt ? { capturedAt: originalCapturedAt } : {};
             setIsAnnotating(false);
+            // Ảnh chú thích đi đường nhị phân như ảnh chụp (IndexedDB + hàng đợi), không gửi base64 trong JSON
+            void saveAnnotatedPhoto(annotated, displayPhotoCode, originalCapturedAt)
+              .then((saved) => {
+                if (saved) {
+                  setLocalPreview(saved.blobUrl);
+                  onChange(saved.localUri, displayPhotoCode, changeMeta);
+                  return;
+                }
+                setLocalPreview(annotated);
+                onChange(annotated, displayPhotoCode, changeMeta);
+                uploadAnnotatedWithoutStorage(annotated, displayPhotoCode, originalCapturedAt);
+              })
+              .catch((err: unknown) => {
+                console.error('[PhotoCaptureInput:SaveAnnotation] Lỗi lưu ảnh chú thích, giữ ảnh trong ô và tải qua hàng đợi:', err);
+                setLocalPreview(annotated);
+                onChange(annotated, displayPhotoCode, changeMeta);
+                uploadAnnotatedWithoutStorage(annotated, displayPhotoCode, originalCapturedAt);
+              });
           }}
           onClose={() => setIsAnnotating(false)}
         />

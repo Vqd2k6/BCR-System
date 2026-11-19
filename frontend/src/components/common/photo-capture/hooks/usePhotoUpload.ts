@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { api } from '../../../../services/api';
+import { base64ToBlob } from '../../../../features/survey-phase1/utils/photoSyncAudit';
 import { uploadQueue } from '../../../../core/services/uploadQueueService';
 import {
   generateMetroPhotoCode,
@@ -328,29 +328,44 @@ export function usePhotoUpload({
     };
   };
 
-  const uploadToServer = async (base64Str: string, code?: string, customCapturedAt?: string) => {
+  /**
+   * Lưu ảnh đã vẽ chú thích như một ảnh chụp mới: cất IndexedDB → `blob:local://` → hàng đợi PUT nhị phân.
+   * Thay cho POST base64 trong JSON (+33% dung lượng, không thử lại, ảnh 2 MB nằm trong state/nháp và có thể
+   * bị sanitizeSurveyDataForSync xoá trắng khi đồng bộ trước lúc tải xong).
+   * Giữ đúng byte JPEG 0.95 của modal (giải mã base64, không nén lại) và giờ chụp gốc của ảnh.
+   * Không đụng bản ghi của ảnh gốc (vẫn khôi phục được). Trả null khi không lưu được vào IndexedDB.
+   */
+  const saveAnnotatedPhoto = async (
+    dataUrl: string,
+    code?: string,
+    customCapturedAt?: string
+  ): Promise<{ blobUrl: string; localUri: string } | null> => {
     if (readOnly) {
-      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối tải ảnh lên server.');
-      return;
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối lưu ảnh chú thích.');
+      return null;
     }
-    if (!base64Str || !base64Str.startsWith('data:image/')) return;
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) return null;
+    const blob = base64ToBlob(dataUrl);
+    const photoCode = code || displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
+    const localId = `photo_ann_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     try {
-      const { targetFolder, metadata } = extractPhotoDetails(code, customCapturedAt);
-      const res = await api.post('/storage/upload-base64', {
-        base64: base64Str,
-        filenamePrefix: code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo',
-        folder: targetFolder,
-        metadata,
-      });
-      const uploadedUrl = res.data?.data?.url;
-      if (uploadedUrl) {
-        setUploadStatus('SUCCESS');
-        onChangeRef.current(uploadedUrl, code, { capturedAt: metadata['captured-at'] });
-      }
-    } catch (err) {
-      console.warn('[PhotoCaptureInput] Background upload to server failed:', err);
-      setUploadStatus('ERROR');
+      const { metadata } = extractPhotoDetails(photoCode, customCapturedAt);
+      await saveOfflinePhoto(localId, blob, photoCode, metadata);
+    } catch (err: unknown) {
+      console.error('[usePhotoUpload:SaveAnnotatedPhoto] Không lưu được ảnh chú thích vào IndexedDB:', err);
+      return null;
     }
+    currentLocalIdRef.current = localId;
+    localIdToCodeMapRef.current.set(localId, photoCode);
+    const blobUrl = createManagedBlobUrl(localId, blob);
+    startDirectUpload(blob, photoCode, localId, customCapturedAt);
+    return { blobUrl, localUri: `blob:local://${localId}` };
+  };
+
+  /** Dự phòng khi IndexedDB lỗi (đầy bộ nhớ): giữ ảnh base64 trong ô như cũ nhưng vẫn tải nhị phân qua hàng đợi. */
+  const uploadAnnotatedWithoutStorage = (dataUrl: string, code?: string, customCapturedAt?: string) => {
+    if (readOnly || !dataUrl.startsWith('data:image/')) return;
+    startDirectUpload(base64ToBlob(dataUrl), code, undefined, customCapturedAt);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -509,7 +524,8 @@ export function usePhotoUpload({
     hasLoadError,
     setHasLoadError,
     startDirectUpload,
-    uploadToServer,
+    saveAnnotatedPhoto,
+    uploadAnnotatedWithoutStorage,
     processAndStoreCleanPhoto,
     storePrecompressedPhoto,
     handleFileChange,

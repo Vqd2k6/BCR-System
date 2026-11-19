@@ -8,7 +8,7 @@ interface DataUsageModalProps {
 
 /** Bảng "Dung lượng đã dùng" hôm nay: KSV chụp màn hình gửi về khi máy tốn dữ liệu bất thường */
 export const DataUsageModal: React.FC<DataUsageModalProps> = ({ onClose }) => {
-  const usage = useMemo(() => getDataUsageTop(10), []);
+  const usage = useMemo(() => getDataUsageTop(15), []);
 
   return (
     <div
@@ -28,8 +28,8 @@ export const DataUsageModal: React.FC<DataUsageModalProps> = ({ onClose }) => {
         </div>
         <div className="p-4 space-y-2 text-xs">
           <p className="text-slate-700">
-            Tổng ghi nhận: <strong className="text-slate-900">{formatBytes(usage.totalBytes)}</strong> (API và tải ảnh lên; chưa gồm
-            ảnh hiển thị và bản đồ).
+            Tổng ghi nhận: <strong className="text-slate-900">{formatBytes(usage.totalBytes)}</strong> (API, tải ảnh lên, ảnh và bản đồ đo được). Ảnh lấy từ R2 không
+            đo được dung lượng, chỉ đếm lượt.
           </p>
           {usage.entries.length === 0 ? (
             <p className="text-slate-500">Chưa có số liệu.</p>

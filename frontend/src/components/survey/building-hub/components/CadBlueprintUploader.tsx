@@ -99,6 +99,8 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
       })
     );
 
+    // Không còn dự phòng nhét DataURL vào state khi lỗi: CAD tầng base64 (~MB) sẽ nằm trong DB và bị tải lại
+    // mỗi lần mở Hub/căn hộ qua 4G. Lỗi được ném ra để hiện thông báo; Admin chọn lại tệp / bấm xác nhận lại.
     try {
       const res = await api.post('/storage/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -110,13 +112,9 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
         return res.data.url;
       }
       throw new Error('Máy chủ không trả về URL ảnh');
-    } catch (err) {
-      console.warn('[CadBlueprintUploader] API upload thất bại, fallback sang DataURL:', err);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
+    } catch (err: unknown) {
+      console.error('[CadBlueprintUploader:UploadImageBlob] Tải bản vẽ lên kho thất bại:', err);
+      throw err;
     }
   };
 
@@ -129,7 +127,7 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
       onUploadSuccess(url);
     } catch (err: unknown) {
       console.error('[CadBlueprintUploader:handleProcessImageFile] Lỗi tải ảnh bản vẽ:', err);
-      setUploadError(`Không thể tải ảnh bản vẽ: ${getErrorMessage(err, 'Lỗi kết nối')}`);
+      setUploadError(`Không thể tải ảnh bản vẽ: ${getErrorMessage(err, 'Lỗi kết nối')}. Kiểm tra mạng rồi chọn lại tệp để thử lại.`);
     } finally {
       setIsUploading(false);
     }
@@ -179,7 +177,7 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
       onUploadSuccess(url);
     } catch (err: unknown) {
       console.error('[CadBlueprintUploader:handleConfirmPdfPage] Lỗi trích xuất trang PDF:', err);
-      setUploadError(`Lỗi trích xuất trang PDF: ${getErrorMessage(err, 'Vui lòng thử lại')}`);
+      setUploadError(`Không tải được trang PDF đã chọn: ${getErrorMessage(err, 'Lỗi kết nối')}. Bấm xác nhận lại để thử lại.`);
     } finally {
       setIsExtractingPage(false);
     }
@@ -350,6 +348,8 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
                 if (e.target.files && e.target.files.length > 0) {
                   handleFileSelected(e.target.files[0]);
                 }
+                // Cho phép chọn lại đúng tệp vừa tải lỗi để thử lại
+                e.target.value = '';
               }}
               className="hidden"
             />
