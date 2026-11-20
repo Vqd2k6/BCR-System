@@ -16,8 +16,9 @@ import {
 import { useZoneSvgExportData } from '../../hooks/useZoneSvgExportData';
 import { useZoneDrawingConfig } from '../../hooks/useZoneDrawingConfig';
 import type { TitleBlockFormValues } from '../../hooks/useZoneDrawingConfig';
-import { DEFAULT_TITLE_BLOCK, downloadSvgFile, generateZoneTechnicalSvg } from '../../utils/zoneSvgTechnicalExporter';
+import { DEFAULT_TITLE_BLOCK, downloadBlob, downloadSvgFile, generateZoneTechnicalSvg } from '../../utils/zoneSvgTechnicalExporter';
 import type { ParcelLabelMode, SvgStationInput, TitleBlockInput, TitleBlockLogoKey, ZoneSvgResult } from '../../utils/zoneSvgTechnicalExporter';
+import { buildDrawingParcelsXlsx, drawingFileStem, XLSX_MIME } from '../../utils/zoneDrawingParcelsExcel';
 
 interface ZoneSvgPreviewModalProps {
   zoneId: string;
@@ -72,12 +73,13 @@ const LABEL_MODE_OPTIONS: { mode: ParcelLabelMode; label: string; hint: string; 
   { mode: 'SURVEY_CODE', label: 'Mã Khảo Sát', hint: 'C&C-04-B-0146 · đối soát hiện trường', fileTag: 'KS' },
 ];
 
-const buildFileName = (drawingCode: string, labelMode: ParcelLabelMode, revision: string): string => {
-  const date = new Date();
-  const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-  const tag = LABEL_MODE_OPTIONS.find((option) => option.mode === labelMode)?.fileTag ?? 'KS';
-  return `BinhDo_${drawingCode}_${tag}_${revision}_${stamp}.svg`;
-};
+/** Tên 2 file luôn chung phần định danh (mã bản vẽ, BP/KS, Rev, ngày) */
+const buildFileName = (drawingCode: string, labelMode: ParcelLabelMode, revision: string, at: Date = new Date()): string =>
+  `BinhDo_${drawingFileStem(drawingCode, labelMode, revision, at)}.svg`;
+const buildExcelFileName = (drawingCode: string, labelMode: ParcelLabelMode, revision: string, at: Date = new Date()): string =>
+  `DanhSachLo_BinhDo_${drawingFileStem(drawingCode, labelMode, revision, at)}.xlsx`;
+
+type ExportChoice = 'BOTH' | 'SVG' | 'EXCEL';
 
 const printSvg = (svg: string) => {
   const iframe = document.createElement('iframe');
@@ -234,6 +236,46 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
   const svgContent = result?.svg ?? null;
   const errorMessage = loadError ?? generateError;
   const latestRevision = titleBlock.revisions[titleBlock.revisions.length - 1]?.revision ?? 'R00';
+
+  // Popup xác nhận xuất bình đồ (Kiểu A): SVG + Excel / chỉ SVG / chỉ Excel
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState<boolean>(false);
+  const [exportingChoice, setExportingChoice] = useState<ExportChoice | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportedFiles, setExportedFiles] = useState<{ svgName: string | null; excelName: string | null } | null>(null);
+  const lastExcelRef = useRef<{ blob: Blob; name: string } | null>(null);
+
+  const openExportDialog = () => {
+    setExportError(null);
+    setExportedFiles(null);
+    lastExcelRef.current = null;
+    setIsExportDialogOpen(true);
+  };
+
+  const runExport = async (choice: ExportChoice) => {
+    if (!svgContent || !result) return;
+    setExportingChoice(choice);
+    setExportError(null);
+    const at = new Date();
+    const svgName = buildFileName(result.identity.drawingCode, result.labelMode, latestRevision, at);
+    const excelName = buildExcelFileName(result.identity.drawingCode, result.labelMode, latestRevision, at);
+    try {
+      // Dựng Excel xong trước rồi mới tải: 2 lượt tải sát nhau trong cùng lần bấm (đỡ bị trình duyệt chặn lượt thứ hai)
+      let excelBlob: Blob | null = null;
+      if (choice !== 'SVG') {
+        const buffer = await buildDrawingParcelsXlsx({ result, titleBlock, latestRevision, zoneCode, exportedAt: at });
+        excelBlob = new Blob([buffer], { type: XLSX_MIME });
+        lastExcelRef.current = { blob: excelBlob, name: excelName };
+      }
+      if (choice !== 'EXCEL') downloadSvgFile(svgContent, svgName);
+      if (excelBlob) downloadBlob(excelBlob, excelName);
+      setExportedFiles({ svgName: choice !== 'EXCEL' ? svgName : null, excelName: excelBlob ? excelName : null });
+    } catch (err: unknown) {
+      console.error('[ZoneSvgExport:Excel] Không xuất được bình đồ / danh sách lô:', err);
+      setExportError(getErrorMessage(err, 'Không xuất được file.'));
+    } finally {
+      setExportingChoice(null);
+    }
+  };
 
   useEffect(() => {
     if (!svgContent) {
@@ -568,16 +610,121 @@ export const ZoneSvgPreviewModal: React.FC<ZoneSvgPreviewModalProps> = ({ zoneId
             </button>
             <button
               type="button"
-              onClick={() => svgContent && result && downloadSvgFile(svgContent, buildFileName(result.identity.drawingCode, result.labelMode, latestRevision))}
-              disabled={!svgContent}
+              onClick={openExportDialog}
+              disabled={!svgContent || !result}
               className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download size={14} />
-              Tải file .SVG
+              Xuất bình đồ
             </button>
           </div>
         </div>
       </div>
+
+      {isExportDialogOpen && result && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Xuất bình đồ</h3>
+                <p className="text-xs text-slate-500">{result.identity.titleVi}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportDialogOpen(false)}
+                disabled={exportingChoice !== null}
+                className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Đóng"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs">
+              <dt className="text-slate-500">Chế độ nhãn</dt>
+              <dd className="font-bold text-slate-800">
+                {LABEL_MODE_OPTIONS.find((o) => o.mode === result.labelMode)?.label} ({LABEL_MODE_OPTIONS.find((o) => o.mode === result.labelMode)?.fileTag})
+              </dd>
+              <dt className="text-slate-500">Mã bản vẽ</dt>
+              <dd className="font-mono font-bold text-slate-800">{result.identity.drawingCode} · {latestRevision}</dd>
+              <dt className="text-slate-500">Số lô trên bình đồ</dt>
+              <dd className="font-bold text-indigo-700">{result.parcelCount} lô</dd>
+            </dl>
+            {result.skippedParcels > 0 && (
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                {result.skippedParcels} thửa của Zone chưa vẽ do thiếu mã hoặc hình học, không có trong bình đồ và Excel.
+              </p>
+            )}
+            {exportError && (
+              <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">{exportError}</p>
+            )}
+
+            {exportedFiles ? (
+              <div className="space-y-2">
+                <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+                  Đã xuất {[exportedFiles.svgName, exportedFiles.excelName].filter(Boolean).join(' và ')}. Nếu trình duyệt chặn một file, bấm tải lại bên dưới.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {exportedFiles.svgName && (
+                    <button
+                      type="button"
+                      onClick={() => svgContent && exportedFiles.svgName && downloadSvgFile(svgContent, exportedFiles.svgName)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Tải lại SVG
+                    </button>
+                  )}
+                  {exportedFiles.excelName && (
+                    <button
+                      type="button"
+                      onClick={() => lastExcelRef.current && downloadBlob(lastExcelRef.current.blob, lastExcelRef.current.name)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Tải lại Excel
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsExportDialogOpen(false)}
+                    className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 cursor-pointer"
+                  >
+                    Xong
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {([
+                  { choice: 'BOTH' as const, label: 'Xuất .SVG + Excel (.xlsx)', primary: true },
+                  { choice: 'SVG' as const, label: 'Chỉ xuất .SVG', primary: false },
+                  { choice: 'EXCEL' as const, label: 'Chỉ tải Excel (.xlsx)', primary: false },
+                ]).map(({ choice, label, primary }) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    onClick={() => void runExport(choice)}
+                    disabled={exportingChoice !== null}
+                    className={`w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      primary ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {exportingChoice === choice && <Loader2 size={14} className="animate-spin" />}
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setIsExportDialogOpen(false)}
+                  disabled={exportingChoice !== null}
+                  className="w-full rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Huỷ
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

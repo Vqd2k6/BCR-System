@@ -18,12 +18,14 @@
     "test:restricted-area": "esbuild scripts/restricted-area.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/restricted-area.test.cjs --log-level=warning && node node_modules/.cache/restricted-area.test.cjs",
     "test:cad-lab": "esbuild scripts/cad-lab.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/cad-lab.test.cjs --log-level=warning && node node_modules/.cache/cad-lab.test.cjs",
     "test:thematic-filter": "esbuild scripts/thematic-filter.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/thematic-filter.test.cjs --log-level=warning && node node_modules/.cache/thematic-filter.test.cjs",
-    "test:zone3d": "esbuild scripts/zone3d-geojson.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/zone3d-geojson.test.cjs --log-level=warning && node node_modules/.cache/zone3d-geojson.test.cjs"
+    "test:zone3d": "esbuild scripts/zone3d-geojson.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/zone3d-geojson.test.cjs --log-level=warning && node node_modules/.cache/zone3d-geojson.test.cjs",
+    "test:drawing-excel": "esbuild scripts/drawing-excel.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/drawing-excel.test.cjs --log-level=warning && node node_modules/.cache/drawing-excel.test.cjs"
   },
   "dependencies": {
     "axios": "^1.6.8",
     "canvas-confetti": "^1.9.2",
     "clsx": "^2.1.0",
+    "exceljs": "^4.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.359.0",
     "maplibre-gl": "^6.19.0",

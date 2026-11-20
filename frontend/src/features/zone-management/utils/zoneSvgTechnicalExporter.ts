@@ -115,6 +115,13 @@ export interface ZoneDrawingIdentity {
   titleVi: string;
 }
 
+/** Một lô đã vẽ trên bình đồ (đúng tập validParcels, tòa chung cư tính 1 lô). */
+export interface DrawnParcel {
+  surveyCode: string;
+  methodCode: string | null;
+  isCondoMaster: boolean;
+}
+
 export interface ZoneSvgResult {
   svg: string;
   rotationDeg: number;
@@ -122,6 +129,8 @@ export interface ZoneSvgResult {
   residualMeters: number;
   parcelCount: number;
   skippedParcels: number;
+  /** Các lô đã vẽ (parcelCount === drawnParcels.length): nguồn duy nhất cho bảng Excel kèm bình đồ */
+  drawnParcels: DrawnParcel[];
   controlPoints: ControlPoint[];
   missingLogos: TitleBlockLogoKey[];
   identity: ZoneDrawingIdentity;
@@ -1522,6 +1531,11 @@ export function generateZoneTechnicalSvg(
     residualMeters,
     parcelCount: validParcels.length,
     skippedParcels,
+    drawnParcels: validParcels.map((parcel) => ({
+      surveyCode: parcel.code,
+      methodCode: parcel.methodCode,
+      isCondoMaster: Boolean(parcel.isCondoMaster),
+    })),
     controlPoints,
     missingLogos: [...missingLogos],
     identity,
@@ -1530,14 +1544,18 @@ export function generateZoneTechnicalSvg(
 }
 
 export function downloadSvgFile(svgContent: string, fileName: string): void {
-  const url = URL.createObjectURL(
-    new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" }),
-  );
+  downloadBlob(new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" }), fileName);
+}
+
+/** Tải một Blob về máy (SVG bình đồ, Excel danh sách lô). */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Thu hồi chậm một nhịp: Safari / lượt tải thứ hai liên tiếp có thể chưa kịp đọc blob nếu thu hồi ngay
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
