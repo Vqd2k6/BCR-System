@@ -120,6 +120,8 @@ export interface DrawnParcel {
   surveyCode: string;
   methodCode: string | null;
   isCondoMaster: boolean;
+  /** Vòng ngoài đã mở (không lặp điểm đầu), [lat, lng] WGS84 – đúng hình đã vẽ lên SVG */
+  ring: LatLng[];
 }
 
 export interface ZoneSvgResult {
@@ -1535,6 +1537,7 @@ export function generateZoneTechnicalSvg(
       surveyCode: parcel.code,
       methodCode: parcel.methodCode,
       isCondoMaster: Boolean(parcel.isCondoMaster),
+      ring: parcel.ring.map(([lat, lng]): LatLng => [lat, lng]),
     })),
     controlPoints,
     missingLogos: [...missingLogos],

@@ -1,9 +1,12 @@
 /**
- * Excel danh sách lô kèm bình đồ: số dòng phải bằng đúng số lô vẽ trên .SVG, chỉ STT + 2 mã.
+ * Excel danh sách lô kèm bình đồ: số dòng phải bằng đúng số lô vẽ trên .SVG,
+ * cột STT + 2 mã + toạ độ polygon VN2000 (AutoCAD) + WGS84.
  * Chạy: npm run test:drawing-excel
  */
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
+import boundaryData from '../src/features/survey-phase1/constants/metro_boundary_data.json';
+import { wgs84ToVn2000 } from '../src/features/zone-management/utils/vn2000';
 import {
   METRO_CORRIDOR_BOUNDARIES,
   METRO_LINE2_CENTERLINE,
@@ -13,7 +16,13 @@ import {
 } from '../src/features/survey-phase1/constants/metroGisConstants';
 import { DEFAULT_TITLE_BLOCK, generateZoneTechnicalSvg } from '../src/features/zone-management/utils/zoneSvgTechnicalExporter';
 import type { ParcelLabelMode, SvgParcelInput, ZoneSvgResult } from '../src/features/zone-management/utils/zoneSvgTechnicalExporter';
-import { buildDrawingParcelsXlsx, drawingFileStem, toDrawingParcelRows } from '../src/features/zone-management/utils/zoneDrawingParcelsExcel';
+import {
+  buildDrawingParcelsXlsx,
+  drawingFileStem,
+  toAutoCadPolyline,
+  toDrawingParcelRows,
+  toWgs84Polyline,
+} from '../src/features/zone-management/utils/zoneDrawingParcelsExcel';
 
 let passed = 0;
 async function tc(name: string, fn: () => void | Promise<void>): Promise<void> {
@@ -94,34 +103,39 @@ async function main(): Promise<void> {
       assert.equal(r.drawnParcels.filter((p) => p.isCondoMaster).length, 1);
     });
 
-    await tc(`${mode}: Excel đúng 3 cột theo thứ tự chế độ, 12 dòng, tổng có giá trị tính sẵn = 12`, async () => {
+    await tc(`${mode}: Excel đúng 5 cột (2 mã theo thứ tự chế độ + 2 cột toạ độ), 12 dòng, tổng có giá trị tính sẵn = 12`, async () => {
       const r = draw(mode);
       const ws = await readBack(r);
-      const header = (ws.getRow(7).values as unknown[]).slice(1);
-      assert.deepEqual(header, mode === 'METHOD_CODE' ? ['STT', 'Mã Biện Pháp', 'Mã Khảo Sát'] : ['STT', 'Mã Khảo Sát', 'Mã Biện Pháp']);
+      const header = (ws.getRow(8).values as unknown[]).slice(1);
+      assert.equal(header.length, 5, "đúng 5 cột");
+      assert.deepEqual(header.slice(0, 3), mode === "METHOD_CODE" ? ["STT", "Mã Biện Pháp", "Mã Khảo Sát"] : ["STT", "Mã Khảo Sát", "Mã Biện Pháp"]);
+      assert.match(String(header[3]), /VN2000 \(X=Đông, Y=Bắc/);
+      assert.match(String(header[4]), /WGS84 \(kinh độ, vĩ độ\)/);
       let dataRows = 0;
-      for (let rowNo = 8; rowNo <= ws.rowCount; rowNo++) {
+      for (let rowNo = 9; rowNo <= ws.rowCount; rowNo++) {
         const row = ws.getRow(rowNo);
         if (row.getCell(1).value === null || row.getCell(1).value === undefined) continue;
         dataRows++;
         assert.equal(row.getCell(1).value, dataRows, 'STT liên tục từ 1');
-        assert.equal(row.getCell(4).value ?? null, null, 'không có cột thứ 4');
+        assert.equal(row.getCell(6).value ?? null, null, "không có cột thứ 6");
+        assert.equal(typeof row.getCell(4).value, "string", "toạ độ VN2000 là chuỗi");
       }
       assert.equal(dataRows, 12);
       const total = ws.getCell(5, 3).value as { formula?: string; result?: number };
-      assert.equal(total.formula, 'SUBTOTAL(3,B8:B19)');
+      assert.equal(total.formula, "SUBTOTAL(3,B9:B20)");
       assert.equal(total.result, 12);
-      const firstPrimary = String(ws.getCell(8, 2).value);
+      const firstPrimary = String(ws.getCell(9, 2).value);
       assert.ok(mode === 'METHOD_CODE' ? firstPrimary.startsWith('ST04-L-') : firstPrimary.startsWith('C&C-04-B-'));
-      assert.match(String(ws.getCell(6, 1).value), /4 thửa/);
+      assert.match(String(ws.getCell(7, 1).value), /4 thửa/);
+      assert.match(String(ws.getCell(6, 1).value), /PLINE/);
     });
   }
 
   await tc('Sắp tăng dần theo mã của chế độ (so số tự nhiên)', () => {
     const rows = toDrawingParcelRows(
       [
-        { surveyCode: 'C&C-04-B-0100', methodCode: 'ST04-L-0010', isCondoMaster: false },
-        { surveyCode: 'C&C-04-B-0009', methodCode: 'ST04-L-0200', isCondoMaster: false },
+        { surveyCode: 'C&C-04-B-0100', methodCode: 'ST04-L-0010', isCondoMaster: false, ring: square(0, false) },
+        { surveyCode: 'C&C-04-B-0009', methodCode: 'ST04-L-0200', isCondoMaster: false, ring: square(1, false) },
       ],
       'SURVEY_CODE'
     );
@@ -133,7 +147,7 @@ async function main(): Promise<void> {
     const r = draw('SURVEY_CODE', list);
     const ws = await readBack(r);
     let blanks = 0;
-    for (let rowNo = 8; rowNo < 8 + r.parcelCount; rowNo++) {
+    for (let rowNo = 9; rowNo < 9 + r.parcelCount; rowNo++) {
       if (ws.getCell(rowNo, 3).value === null || ws.getCell(rowNo, 3).value === undefined) blanks++;
     }
     assert.equal(blanks, 1);
@@ -152,6 +166,48 @@ async function main(): Promise<void> {
       latestRevision: 'R00',
       zoneCode: zone!.code,
     }), /lệch số lô/);
+  });
+
+  await tc('Toạ độ mỗi lô: số đỉnh VN2000 = WGS84 = vòng đã vẽ, vòng khép không lặp đỉnh, đỉnh đầu khớp', async () => {
+    const r = draw('SURVEY_CODE');
+    const ws = await readBack(r);
+    const bySurvey = new Map(r.drawnParcels.map((p) => [p.surveyCode, p]));
+    for (let rowNo = 9; rowNo < 9 + r.parcelCount; rowNo++) {
+      const parcel = bySurvey.get(String(ws.getCell(rowNo, 2).value));
+      assert.ok(parcel, `dòng ${rowNo}: không tìm thấy lô`);
+      const vnPairs = String(ws.getCell(rowNo, 4).value).split(' ');
+      const wgsPairs = String(ws.getCell(rowNo, 5).value).split(' ');
+      assert.equal(vnPairs.length, parcel.ring.length);
+      assert.equal(wgsPairs.length, parcel.ring.length);
+      assert.equal(parcel.ring.length, 4, 'ô vuông khép 5 điểm phải còn 4 đỉnh');
+      const vn = wgs84ToVn2000(parcel.ring[0]);
+      assert.equal(vnPairs[0], `${vn.y.toFixed(3)},${vn.x.toFixed(3)}`, 'VN2000 ghi E,N');
+      assert.equal(wgsPairs[0], `${parcel.ring[0][1].toFixed(7)},${parcel.ring[0][0].toFixed(7)}`, 'WGS84 ghi lng,lat');
+    }
+  });
+
+  await tc('VN2000 cho AutoCAD khớp điểm khống chế ST01 trên PDF chính thức (≤ 0.10 m, ghi E,N)', () => {
+    const seg = (boundaryData as { allCorridorSegments: { coords: [number, number][] }[] }).allCorridorSegments[0].coords;
+    // Đỉnh 17 / 16 / 12 của SEG_01 ↔ điểm khống chế PDF (X = Bắc, Y = Đông)
+    const pdf = [
+      { vertex: 17, n: 1191215.042, e: 603674.034 },
+      { vertex: 16, n: 1191217.214, e: 603617.037 },
+      { vertex: 12, n: 1191187.987, e: 603545.269 },
+    ];
+    const pairs = toAutoCadPolyline(pdf.map((p) => seg[p.vertex])).split(' ').map((s) => s.split(',').map(Number));
+    pdf.forEach((p, i) => {
+      const [e, n] = pairs[i];
+      assert.ok(Math.hypot(e - p.e, n - p.n) <= 0.1, `đỉnh ${p.vertex}: ${e},${n} lệch PDF ${p.e},${p.n}`);
+    });
+    assert.equal(toWgs84Polyline([[10.7, 106.6]]), '106.6000000,10.7000000');
+  });
+
+  await tc('Lô vượt giới hạn 32.767 ký tự của ô Excel → báo lỗi kèm mã lô, không cắt toạ độ', () => {
+    const huge = Array.from({ length: 2000 }, (_, i): [number, number] => [lat0 + i * 1e-6, lng0 + (i % 2) * 1e-6]);
+    assert.throws(
+      () => toDrawingParcelRows([{ surveyCode: 'C&C-04-B-9999', methodCode: null, isCondoMaster: false, ring: huge }], 'SURVEY_CODE'),
+      /C&C-04-B-9999.*vượt giới hạn/
+    );
   });
 
   await tc('Tên file SVG và Excel chung phần định danh', () => {
