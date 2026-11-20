@@ -146,9 +146,17 @@ export class SurveyRepository {
     parcelId: string,
     unitId: string | null,
     newSurveyorId: string,
-    note?: string
-  ): Promise<any> {
-    return SurveyDraftRepository.takeoverDraft(parcelId, unitId, newSurveyorId, note);
+    note?: string,
+    guard?: { handoverCode: string; lockMinutes: number }
+  ): Promise<any | null> {
+    return SurveyDraftRepository.takeoverDraft(parcelId, unitId, newSurveyorId, note, guard);
+  }
+
+  public static async touchDraftLockHeartbeat(
+    reportId: string,
+    userId: string
+  ): Promise<{ id: string; lock_heartbeat_at: Date } | null> {
+    return SurveyDraftRepository.touchDraftLockHeartbeat(reportId, userId);
   }
 
   public static async ensureHandoverCode(reportId: string): Promise<string> {

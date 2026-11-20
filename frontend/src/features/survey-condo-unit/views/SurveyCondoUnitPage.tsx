@@ -19,6 +19,8 @@ import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/Active
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
+import { useDraftLockHeartbeat } from '../../../core/hooks/useDraftLockHeartbeat';
+import { getDraftOwnedByOther } from '../../survey-phase1/services/surveyDraftService';
 import { RotateCcw, ShieldAlert, Unlock, AlertTriangle } from 'lucide-react';
 
 export interface SurveyCondoUnitPageProps {
@@ -58,6 +60,8 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     markDraftHydrated,
     unsyncedRemotePhotos,
     setIsPhotoAuditOpen,
+    hasServerHydrated,
+    markDraftOwnershipLost,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -81,6 +85,14 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   // Admin luôn mở ở chế độ CHỈ XEM (không sửa, không đồng bộ) cho tới khi chủ động mở khóa chỉnh sửa
   const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
   const isAbsenteeReport = unitStatus === 'POSTPONED_ABSENT' || formData.status === 'POSTPONED_ABSENT' || Boolean(formData.isAbsentee && isSubmittedOrApproved);
+
+  // Giữ khóa ca khi form mở mà chưa sửa gì; bị KSV khác tiếp quản thì dừng đồng bộ + hiện màn khóa ca
+  useDraftLockHeartbeat({
+    parcelId: formData.parcelId,
+    unitId: formData.unitId,
+    enabled: hasServerHydrated && !effectiveReadOnly && !isLockedByOther,
+    onOwnershipLost: markDraftOwnershipLost,
+  });
 
   useEffect(() => {
     if (parcel) {
@@ -240,6 +252,11 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       }
     } catch (err: unknown) {
       console.error('[CondoUnit] Error submitting unit survey:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       const statusCode = getErrorStatus(err);
       const serverMsg = getErrorMessage(err);
       alert(`❌ Nộp hồ sơ thất bại (${statusCode || 'Lỗi mạng'}): ${serverMsg || 'Vui lòng kiểm tra lại'}`);

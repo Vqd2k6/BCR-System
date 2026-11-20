@@ -34,7 +34,14 @@ import {
   STRUCTURAL_MATERIALS,
 } from '../types/masterAreaSurvey.types';
 import { auditMasterAreaPhotos } from '../utils/masterAreaPhotoAudit';
-import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/services/surveyDraftService';
+import {
+  getDraftOwnedByOther,
+  surveyDraftService,
+  toLostOwnershipLockedInfo,
+  type DraftOwnedByOtherInfo,
+  type DraftResponseData,
+} from '../../survey-phase1/services/surveyDraftService';
+import { useDraftLockHeartbeat } from '../../../core/hooks/useDraftLockHeartbeat';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import type { MasterAreaAbsentPayload } from '../components/master-area/MasterAreaAbsentModal';
@@ -242,6 +249,13 @@ export function useMasterAreaSurveyState({
   // Concurrency Lock, Handover & Absence States
   const [isLockedByOther, setIsLockedByOther] = useState<boolean>(false);
   const [lockedInfo, setLockedInfo] = useState<LockedInfo | null>(null);
+  /** Server báo ca đã thuộc KSV khác (409): dừng lưu cloud (isLockedByOther chặn mọi effect lưu), hiện màn mất ca */
+  const handleOwnershipLost = useCallback((info: DraftOwnedByOtherInfo) => {
+    console.error('[useMasterAreaSurveyState:OwnershipLost] Ca khảo sát đã thuộc KSV khác:', info.activeSurveyorName);
+    setSyncStatus('ERROR');
+    setLockedInfo(toLostOwnershipLockedInfo(info));
+    setIsLockedByOther(true);
+  }, []);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState<boolean>(false);
   const [handoverInfo, setHandoverInfo] = useState<HandoverInfo | null>(null);
   const [isAbsentModalOpen, setIsAbsentModalOpen] = useState<boolean>(false);
@@ -983,6 +997,11 @@ export function useMasterAreaSurveyState({
         setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
         setIsDirty(false);
       } catch (err: unknown) {
+        const ownedByOther = getDraftOwnedByOther(err);
+        if (ownedByOther) {
+          handleOwnershipLost(ownedByOther);
+          return;
+        }
         console.warn('[useMasterAreaSurveyState] Lỗi lưu nháp máy chủ:', err);
         setSyncStatus('SAVED_LOCAL');
       }
@@ -1046,6 +1065,11 @@ export function useMasterAreaSurveyState({
       setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
       setIsDirty(false);
     } catch (err: unknown) {
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        handleOwnershipLost(ownedByOther);
+        return;
+      }
       console.warn('[useMasterAreaSurveyState] Lỗi flush draft khi đóng:', err);
     }
   }, [
@@ -1070,12 +1094,21 @@ export function useMasterAreaSurveyState({
     }
   }, [parcelId, unitId, isReadOnly, isSubmittedOrApproved, isLockedByOther]);
 
-  // Chủ động đóng modal: Lưu tức thì, Giải phóng khóa và kích hoạt cập nhật lại Hub
+  // Chủ động đóng modal: Lưu tức thì và cập nhật lại Hub. KHÔNG tự nhả khóa ca: đóng màn để đi đo chỗ khác
+  // không có nghĩa là bàn giao. Ca tự hết hạn sau 15 phút không có nhịp giữ khóa; muốn bàn giao ngay
+  // thì chủ ca bấm "Mở khóa ca". Nhả khóa chỉ còn sau khi nộp / ghi nhận tạm hoãn.
   const handleClose = useCallback(async () => {
     await handleFlushSaveDraft();
-    await handleReleaseLock();
     onSurveyCompleted();
-  }, [handleFlushSaveDraft, handleReleaseLock, onSurveyCompleted]);
+  }, [handleFlushSaveDraft, onSurveyCompleted]);
+
+  // Giữ khóa ca khi màn mở mà chưa sửa gì; bị tiếp quản thì dừng lưu + hiện màn mất ca
+  useDraftLockHeartbeat({
+    parcelId,
+    unitId,
+    enabled: hasHydrated && !isReadOnly && !isSubmittedOrApproved && !isLockedByOther,
+    onOwnershipLost: handleOwnershipLost,
+  });
 
   // KSV ca sau nhập mã 6 số để tiếp quản ca khảo sát
   const handleTakeoverDraft = useCallback(
@@ -1145,6 +1178,12 @@ export function useMasterAreaSurveyState({
         onSurveyCompleted();
       } catch (err: unknown) {
         console.error('[useMasterAreaSurveyState] Lỗi ghi nhận tạm hoãn:', err);
+        const ownedByOther = getDraftOwnedByOther(err);
+        if (ownedByOther) {
+          setIsAbsentModalOpen(false);
+          handleOwnershipLost(ownedByOther);
+          return;
+        }
         alert(`Không thể ghi nhận tạm hoãn: ${getErrorMessage(err)}`);
       }
     },
@@ -2271,6 +2310,11 @@ export function useMasterAreaSurveyState({
       }
     } catch (err: unknown) {
       console.error('[useMasterAreaSurveyState] Lỗi nộp khảo sát:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        handleOwnershipLost(ownedByOther);
+        return;
+      }
       setSyncStatus('ERROR');
       alert(`Nộp hồ sơ thất bại: ${getErrorMessage(err)}`);
     } finally {

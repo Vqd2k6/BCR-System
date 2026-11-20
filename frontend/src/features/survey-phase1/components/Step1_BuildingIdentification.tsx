@@ -1,6 +1,7 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
+import { getDraftOwnedByOther } from '../services/surveyDraftService';
 import { api } from '../../../services/api';
 import { ABSENTEE_REASONS, ABSENTEE_REASON_CODES } from './step1/step1.constants';
 import { Step1IdentificationSection } from './step1/Step1IdentificationSection';
@@ -29,7 +30,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
   onFinished,
   onBackToHome,
 }) => {
-  const { formData, updateFormData, nextStep, clearDraft } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, clearDraft, markDraftOwnershipLost } = usePhase1SurveyStore();
 
   const [isDrawingPolygon, setIsDrawingPolygon] = useState(false);
   const [isSubmittingAbsentee, setIsSubmittingAbsentee] = useState(false);
@@ -219,6 +220,11 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       setShowAbsenteeSuccessModal(true);
     } catch (err) {
       console.error('Submit absentee error:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       alert('Có lỗi khi gửi báo cáo vắng nhà.');
     } finally {
       setIsSubmittingAbsentee(false);
@@ -293,6 +299,11 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       setShowUnderConstructionSuccessModal(true);
     } catch (err) {
       console.error('Submit under construction error:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       alert('Có lỗi khi gửi báo cáo công trình đang xây dựng.');
     } finally {
       setIsSubmittingUnderConstruction(false);
@@ -367,6 +378,11 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       setShowVacantLandSuccessModal(true);
     } catch (err) {
       console.error('Submit vacant land error:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       alert('Có lỗi khi gửi báo cáo đất trống.');
     } finally {
       setIsSubmittingVacantLand(false);

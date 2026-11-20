@@ -14,6 +14,8 @@ import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
+import { useDraftLockHeartbeat } from '../../../core/hooks/useDraftLockHeartbeat';
+import { getDraftOwnedByOther } from '../../survey-phase1/services/surveyDraftService';
 import { ShieldAlert, RotateCcw, Unlock } from 'lucide-react';
 import { CloudPhotoSyncModal } from '../../survey-phase1/components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../../survey-phase1/utils/photoSyncAudit';
@@ -73,6 +75,9 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     takeoverDraft,
     requestEditUnlock,
     markServerHydrated,
+    hasServerHydrated,
+    isSubmitted,
+    markDraftOwnershipLost,
   } = usePhase1SurveyStore();
   const { isAdmin: isZoneAdmin, isViewOnlyForAdmin, unlockEdit, lockEdit } = useAdminViewLock();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,6 +104,14 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   // Triple-lock readOnly: Đã nộp/phê duyệt -> MỌI VAI TRÒ (kể cả Admin) đều CHỈ ĐỌC, không đồng bộ.
   // Admin mở biểu mẫu đang làm dở cũng mặc định CHỈ XEM cho tới khi chủ động "Mở khóa chỉnh sửa".
   const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
+
+  // Giữ khóa ca khi form mở mà chưa sửa gì; bị KSV khác tiếp quản thì dừng đồng bộ + hiện màn khóa ca
+  useDraftLockHeartbeat({
+    parcelId: formData.parcelId,
+    unitId: null,
+    enabled: hasServerHydrated && !effectiveReadOnly && !isSubmitted && !isLockedByOther,
+    onOwnershipLost: markDraftOwnershipLost,
+  });
   const parcelStatusSubmitted = Boolean(
     parcel?.surveyStatus === 'SUBMITTED' ||
     parcel?.surveyStatus === 'APPROVED' ||
@@ -364,6 +377,11 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       }
     } catch (err: unknown) {
       console.error('[CondoMaster] Failed to submit master survey:', err);
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       const statusCode = getErrorStatus(err);
       const serverMsg = getErrorMessage(err);
 

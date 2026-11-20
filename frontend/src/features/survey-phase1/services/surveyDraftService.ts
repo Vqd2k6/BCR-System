@@ -1,6 +1,7 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
+import { getErrorMessage, getErrorResponseData, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { api } from '../../../services/api';
 import type { Phase1SurveyFormData } from '../types/phase1.types';
+import type { LockedInfo } from '../components/ActiveSurveyorLockedModal';
 
 export interface OrphanPhotoRecoveryResult {
   status: 'DONE' | 'UNAVAILABLE' | 'NO_DRAFT' | 'NOTHING_TO_RECOVER';
@@ -45,6 +46,42 @@ export interface SaveDraftPayload {
   currentStep: number;
   surveyData: Partial<Phase1SurveyFormData> | Record<string, unknown>;
   syncVersion?: number;
+}
+
+/** Người đang giữ ca khi server trả 409 DRAFT_OWNED_BY_OTHER (máy này đã mất quyền ghi nháp) */
+export interface DraftOwnedByOtherInfo {
+  activeSurveyorName: string;
+  activeSurveyorPhone: string;
+  lastActiveAt: string | null;
+  minutesAgo: number;
+  message: string;
+}
+
+/** Nhận diện lỗi "ca khảo sát thuộc về KSV khác" từ lượt lưu nháp / nhịp giữ khóa; lỗi khác trả null */
+export function getDraftOwnedByOther(err: unknown): DraftOwnedByOtherInfo | null {
+  if (getErrorStatus(err) !== 409) return null;
+  const data = getErrorResponseData<{ code?: string; detail?: string; meta?: Record<string, unknown> }>(err);
+  if (data?.code !== 'DRAFT_OWNED_BY_OTHER') return null;
+  const meta = data.meta || {};
+  return {
+    activeSurveyorName: typeof meta.activeSurveyorName === 'string' ? meta.activeSurveyorName : 'Kỹ sư khác',
+    activeSurveyorPhone: typeof meta.activeSurveyorPhone === 'string' ? meta.activeSurveyorPhone : '',
+    lastActiveAt: typeof meta.lastActiveAt === 'string' ? meta.lastActiveAt : null,
+    minutesAgo: typeof meta.minutesAgo === 'number' ? meta.minutesAgo : 0,
+    message: getErrorMessage(err),
+  };
+}
+
+/** Thông tin hiển thị ở ActiveSurveyorLockedModal khi máy này vừa mất ca */
+export function toLostOwnershipLockedInfo(info: DraftOwnedByOtherInfo): LockedInfo {
+  return {
+    surveyorName: info.activeSurveyorName,
+    phone: info.activeSurveyorPhone || undefined,
+    minutesAgo: Math.max(1, info.minutesAgo),
+    message: info.message,
+    lostOwnership: true,
+    lastActiveAt: info.lastActiveAt,
+  };
 }
 
 export interface TakeoverDraftPayload {
@@ -93,6 +130,18 @@ export const surveyDraftService = {
    */
   async releaseLock(parcelId: string, unitId?: string | null) {
     const res = await api.post('/surveys/draft/release-lock', {
+      parcelId,
+      unitId: unitId || undefined,
+    });
+    return res.data?.data || res.data;
+  },
+
+  /**
+   * Nhịp giữ khóa ca khi form đang mở mà KSV chưa sửa gì (không đổi nội dung nháp).
+   * Lỗi 409 DRAFT_OWNED_BY_OTHER được ném ra để nơi gọi dừng tự lưu.
+   */
+  async heartbeatLock(parcelId: string, unitId?: string | null): Promise<{ held: boolean; status: 'HELD' | 'NO_DRAFT' }> {
+    const res = await api.post('/surveys/draft/heartbeat', {
       parcelId,
       unitId: unitId || undefined,
     });

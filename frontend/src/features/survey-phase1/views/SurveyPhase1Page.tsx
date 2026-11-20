@@ -34,6 +34,8 @@ import { auditSurveyPhotos } from '../utils/photoSyncAudit';
 import { AlertOctagon, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { useDraftLockHeartbeat } from '../../../core/hooks/useDraftLockHeartbeat';
+import { getDraftOwnedByOther } from '../services/surveyDraftService';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
 import {
   rehydrateIdentificationPhotos,
@@ -321,6 +323,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     isDirty,
     setCurrentStep,
     unsyncedRemotePhotos,
+    hasServerHydrated,
+    isSubmitted,
+    currentUnitId,
+    markDraftOwnershipLost,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const { isAdmin, isViewOnlyForAdmin, unlockEdit } = useAdminViewLock();
@@ -388,6 +394,14 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       window.removeEventListener('beforeunload', handleBeforeUnloadSync);
     };
   }, [effectiveReadOnly]);
+
+  // Giữ khóa ca khi form mở mà chưa sửa gì; bị KSV khác tiếp quản thì dừng đồng bộ + hiện màn khóa ca
+  useDraftLockHeartbeat({
+    parcelId: formData.parcelId,
+    unitId: currentUnitId,
+    enabled: hasServerHydrated && !effectiveReadOnly && !isSubmitted && !isLockedByOther,
+    onOwnershipLost: markDraftOwnershipLost,
+  });
 
   // Ngăn chặn Safari iOS và Android pinch-zoom/gesture làm vỡ tỷ lệ trang,
   // ngoại trừ khi người dùng chủ động tương tác trong vùng CAD/Defect Canvas hoặc Photo Lightbox.
@@ -967,6 +981,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       }
     } catch (err: unknown) {
       console.error('[Phase1] Failed to submit survey:', err);
+      // Ca đang do KSV khác giữ: dừng đồng bộ, hiện màn khóa ca (nháp trên máy giữ nguyên)
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        markDraftOwnershipLost(ownedByOther);
+        return;
+      }
       // ❌ Lỗi thực sự - KHÔNG báo thành công, hiển thị thông báo lỗi rõ ràng
       const statusCode = getErrorStatus(err);
       const serverMsg = getErrorMessage(err);

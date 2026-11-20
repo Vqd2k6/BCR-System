@@ -702,6 +702,7 @@ CREATE TABLE base_survey_reports (
     handover_security_code VARCHAR(8),
     is_ready_for_handover BOOLEAN NOT NULL DEFAULT FALSE,
     handover_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+    lock_heartbeat_at TIMESTAMPTZ, -- Nhịp giữ khóa ca khi form đang mở (không đổi updated_at)
     submitted_at TIMESTAMPTZ,
     approved_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ, -- Soft delete (#30)
@@ -1059,10 +1060,14 @@ CREATE INDEX idx_share_token ON guest_share_links(share_token);
 -- 10. TRIGGERS & BUSINESS LOGIC INTEGRITY ENFORCEMENT
 -- ============================================================================
 
--- Tự động cập nhật thời gian updated_at
+-- Tự động cập nhật thời gian updated_at.
+-- Cờ phiên metro2.keep_updated_at = 'on': trigger không đụng updated_at (nhịp giữ khóa ca, migration 20261122).
 CREATE OR REPLACE FUNCTION update_timestamp_column()
 RETURNS TRIGGER AS $$
 BEGIN
+    IF current_setting('metro2.keep_updated_at', true) = 'on' THEN
+        RETURN NEW;
+    END IF;
     NEW.updated_at = NOW();
     RETURN NEW;
 END;

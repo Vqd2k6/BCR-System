@@ -1,7 +1,7 @@
 import { SurveyRepository } from './survey.repository';
 import { Database } from '../../database/db';
 import type { SurveyWriteOptions } from './repositories/survey-photo-preservation';
-import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, DraftOwnedByOtherError } from '../../common/errors/problem-details';
 import { assertParcelsNotExcludedByIds } from '../cadastral/utils/parcel-exclusion';
 
 export class SurveyService {
@@ -67,11 +67,8 @@ export class SurveyService {
 
       if (existingDraft.rows[0]) {
         const foundReport = existingDraft.rows[0];
-        // Cập nhật lại surveyor_id nếu ca làm việc này do surveyor hiện tại tiếp quản
-        await Database.query(
-          `UPDATE base_survey_reports SET surveyor_id = $2, updated_at = NOW() WHERE id = $1;`,
-          [foundReport.id, surveyorId]
-        );
+        // Nhận ca theo khóa: người khác đang giữ ca (chưa mở khóa) ⇒ 409, không được ghi đè qua đường nộp
+        await SurveyService.claimDraftForSubmit(foundReport.id, surveyorId);
         await Database.query(
           `UPDATE parcels SET survey_status = 'IN_PROGRESS', active_phase1_report_id = $2 WHERE id = $1;`,
           [parcelId, foundReport.id]
@@ -96,10 +93,7 @@ export class SurveyService {
       );
       if (existingUnitDraft.rows[0]) {
         const foundReport = existingUnitDraft.rows[0];
-        await Database.query(
-          `UPDATE base_survey_reports SET surveyor_id = $2, updated_at = NOW() WHERE id = $1;`,
-          [foundReport.id, surveyorId]
-        );
+        await SurveyService.claimDraftForSubmit(foundReport.id, surveyorId);
         return {
           reportId: foundReport.id,
           reportCode: foundReport.report_code,
@@ -543,6 +537,121 @@ export class SurveyService {
     return draft.surveyor_id === userId || draft.last_edited_by_id === userId;
   }
 
+  /** Số phút không hoạt động trước khi KSV khác được tiếp quản ca (không lưu nháp và không có nhịp giữ khóa). */
+  static readonly DRAFT_LOCK_MINUTES = 15;
+
+  /**
+   * Trạng thái khóa ca: lần hoạt động cuối = max(lần lưu nháp, nhịp giữ khóa từ form đang mở).
+   * Ca còn bị giữ khi chưa quá DRAFT_LOCK_MINUTES và chủ ca chưa bấm "Mở khóa ca".
+   */
+  private static draftLockState(draft: {
+    updated_at?: string | Date | null;
+    lock_heartbeat_at?: string | Date | null;
+    is_ready_for_handover?: boolean | null;
+  }): { isHeld: boolean; minutesAgo: number; lastActiveAt: string | null } {
+    const toMs = (v: string | Date | null | undefined): number => {
+      if (!v) return 0;
+      const ms = new Date(v).getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    };
+    const lastActiveMs = Math.max(toMs(draft.updated_at), toMs(draft.lock_heartbeat_at));
+    if (lastActiveMs === 0) return { isHeld: false, minutesAgo: 0, lastActiveAt: null };
+    const minutesAgo = Math.max(0, Math.floor((Date.now() - lastActiveMs) / 60000));
+    return {
+      isHeld: minutesAgo < SurveyService.DRAFT_LOCK_MINUTES && !draft.is_ready_for_handover,
+      minutesAgo,
+      lastActiveAt: new Date(lastActiveMs).toISOString(),
+    };
+  }
+
+  private static draftOwnedByOtherError(
+    draft: { surveyor_name?: string | null; surveyor_phone?: string | null },
+    lock: { minutesAgo: number; lastActiveAt: string | null },
+    message: string
+  ): DraftOwnedByOtherError {
+    return new DraftOwnedByOtherError(message, {
+      activeSurveyorName: draft.surveyor_name || 'Kỹ sư khác',
+      activeSurveyorPhone: draft.surveyor_phone || '',
+      lastActiveAt: lock.lastActiveAt,
+      minutesAgo: lock.minutesAgo,
+    });
+  }
+
+  /**
+   * Nhận ca của một bản nháp có sẵn khi nộp / khởi tạo lại hồ sơ (đường createPhase1Report).
+   * - Người đang giữ ca: giữ hành vi cũ (gán surveyor_id = mình).
+   * - Người khác, chủ ca đã bấm "Mở khóa ca": nhận ca, ghi handover_history, đóng lại cờ mở khóa.
+   * - Người khác, ca chưa mở khóa (kể cả admin): 409 DRAFT_OWNED_BY_OTHER, phải tiếp quản bằng mã 6 số.
+   * Điều kiện nằm ngay trong câu UPDATE nên không đua được với lượt tiếp quản / mở khóa song song.
+   */
+  static async claimDraftForSubmit(reportId: string, userId: string): Promise<void> {
+    type ClaimRow = {
+      id: string;
+      surveyor_id: string | null;
+      last_edited_by_id: string | null;
+      is_ready_for_handover: boolean | null;
+      updated_at: Date | null;
+      lock_heartbeat_at: Date | null;
+      current_step: number | null;
+      surveyor_name: string | null;
+      surveyor_phone: string | null;
+    };
+    const loadDraft = async (): Promise<ClaimRow | undefined> => {
+      const res = await Database.query<ClaimRow>(
+        `SELECT r.id, r.surveyor_id, r.last_edited_by_id, r.is_ready_for_handover, r.updated_at, r.lock_heartbeat_at,
+                r.current_step, u.full_name AS surveyor_name, u.phone AS surveyor_phone
+         FROM base_survey_reports r
+         LEFT JOIN users u ON u.id = r.surveyor_id
+         WHERE r.id = $1;`,
+        [reportId]
+      );
+      return res.rows[0];
+    };
+    const ownedByOther = (row: ClaimRow) =>
+      SurveyService.draftOwnedByOtherError(
+        row,
+        SurveyService.draftLockState(row),
+        `Hồ sơ đang do Kỹ sư ${row.surveyor_name || 'khác'} giữ ca. Bạn cần được bàn giao (tiếp quản bằng mã 6 số) trước khi nộp.`
+      );
+
+    const draft = await loadDraft();
+    if (!draft) throw new NotFoundError('Không tìm thấy bản nháp để nộp');
+
+    if (SurveyService.isActiveEditor(draft, userId)) {
+      await Database.query(
+        `UPDATE base_survey_reports SET surveyor_id = $2, updated_at = NOW() WHERE id = $1;`,
+        [reportId, userId]
+      );
+      return;
+    }
+    if (!draft.is_ready_for_handover) throw ownedByOther(draft);
+
+    const entry = {
+      fromSurveyorId: draft.surveyor_id,
+      fromSurveyorName: draft.surveyor_name,
+      toSurveyorId: userId,
+      step: draft.current_step,
+      handoverAt: new Date().toISOString(),
+      note: 'Nhận ca khi nộp sau khi chủ ca mở khóa',
+    };
+    const res = await Database.query<{ id: string }>(
+      `UPDATE base_survey_reports
+       SET surveyor_id = $2,
+           last_edited_by_id = $2,
+           is_ready_for_handover = FALSE,
+           lock_heartbeat_at = NULL,
+           handover_history = COALESCE(handover_history, '[]'::jsonb) || $3::jsonb,
+           updated_at = NOW()
+       WHERE id = $1 AND (surveyor_id = $2 OR last_edited_by_id = $2 OR is_ready_for_handover = TRUE)
+       RETURNING id;`,
+      [reportId, userId, JSON.stringify([entry])]
+    );
+    if (!res.rows[0]) {
+      const latest = await loadDraft();
+      throw ownedByOther(latest || draft);
+    }
+  }
+
   static async getSurveyDraft(
     parcelId: string,
     currentUserId: string,
@@ -609,17 +718,17 @@ export class SurveyService {
     }
 
     if (!isOwner) {
-      const diffMs = Date.now() - new Date(draft.updated_at).getTime();
-      const diffMinutes = Math.floor(diffMs / (60 * 1000));
+      const lock = SurveyService.draftLockState(draft);
 
-      if (diffMinutes < 15 && !draft.is_ready_for_handover) {
+      if (lock.isHeld) {
+        const minutesAgo = Math.max(1, lock.minutesAgo);
         return {
           hasDraft: true,
           isLocked: true,
           activeSurveyorName: draft.surveyor_name || 'Kỹ sư khác',
           activeSurveyorPhone: draft.surveyor_phone || '',
-          minutesAgo: Math.max(1, diffMinutes),
-          message: `Công trình đang được Kỹ sư ${draft.surveyor_name || 'khác'} khảo sát (vừa cập nhật ${Math.max(1, diffMinutes)} phút trước). Vui lòng chờ 15 phút hoặc liên hệ KSV để bàn giao ca.`,
+          minutesAgo,
+          message: `Công trình đang được Kỹ sư ${draft.surveyor_name || 'khác'} khảo sát (hoạt động ${minutesAgo} phút trước). Chỉ tiếp quản được khi Kỹ sư đó bấm "Mở khóa ca" hoặc sau ${SurveyService.DRAFT_LOCK_MINUTES} phút không hoạt động. Vui lòng liên hệ KSV để bàn giao ca.`,
           unsyncedPhotosInfo,
           photoMappings,
         };
@@ -806,7 +915,9 @@ export class SurveyService {
       // Người không phải chủ nháp (kể cả admin) luôn phải tiếp quản chính thức trước khi ghi đè nháp,
       // trừ khi chủ nháp đã chủ động mở khóa ca (is_ready_for_handover).
       if (!existing.is_ready_for_handover) {
-        throw new BadRequestError(
+        throw SurveyService.draftOwnedByOtherError(
+          existing,
+          SurveyService.draftLockState(existing),
           `Bản nháp thuộc về Kỹ sư ${existing.surveyor_name || 'khác'}. Bạn cần tiếp quản ca trước khi lưu.`
         );
       }
@@ -868,9 +979,19 @@ export class SurveyService {
   }
 
   static async releaseDraftLock(parcelId: string, unitId: string | null, surveyorId: string) {
+    const draft = await SurveyRepository.findActiveDraft(parcelId, unitId);
+    if (!draft) {
+      throw new NotFoundError('Không tìm thấy bản nháp để mở khóa');
+    }
+    // Chỉ người đang giữ ca được mở khóa: người khác gọi sẽ mở đường tiếp quản ca của người đang làm
+    if (!SurveyService.isActiveEditor(draft, surveyorId)) {
+      throw new ForbiddenError(
+        `Chỉ Kỹ sư đang giữ ca (${draft.surveyor_name || 'khác'}) mới được mở khóa ca khảo sát này.`
+      );
+    }
     const result = await SurveyRepository.releaseDraftLock(parcelId, unitId, surveyorId);
     if (!result) {
-      throw new NotFoundError('Không tìm thấy bản nháp để mở khóa');
+      throw new ConflictError('Ca khảo sát vừa đổi người giữ, không mở khóa được. Vui lòng mở lại hồ sơ.');
     }
     return {
       success: true,
@@ -894,12 +1015,29 @@ export class SurveyService {
       throw new BadRequestError('Mã xác nhận bảo mật 6 số không chính xác. Vui lòng nhập đúng mã hiển thị trên màn hình.');
     }
 
+    // Mã bàn giao chỉ đổi sau mỗi lượt tiếp quản: phải kiểm lại khóa, không thì người từng thấy mã
+    // (hoặc để màn tiếp quản mở từ trước) cướp được ca khi người giữ ca vẫn đang làm.
+    const lock = SurveyService.draftLockState(draft);
+    if (!SurveyService.isActiveEditor(draft, data.newSurveyorId) && lock.isHeld) {
+      const minutesAgo = Math.max(1, lock.minutesAgo);
+      throw SurveyService.draftOwnedByOtherError(
+        draft,
+        lock,
+        `Kỹ sư ${draft.surveyor_name || 'khác'} vẫn đang khảo sát (hoạt động ${minutesAgo} phút trước). Chỉ tiếp quản được khi Kỹ sư đó bấm "Mở khóa ca" hoặc sau ${SurveyService.DRAFT_LOCK_MINUTES} phút không hoạt động.`
+      );
+    }
+
+    // Repository kiểm lại mã + khóa ngay trong câu UPDATE: hai người tiếp quản cùng lúc chỉ một người thắng
     const updated = await SurveyRepository.takeoverDraft(
       data.parcelId,
       data.unitId || null,
       data.newSurveyorId,
-      data.note
+      data.note,
+      { handoverCode: String(data.handoverCode).trim(), lockMinutes: SurveyService.DRAFT_LOCK_MINUTES }
     );
+    if (!updated) {
+      throw new ConflictError('Ca khảo sát vừa được người khác tiếp quản hoặc người giữ ca vừa hoạt động lại. Vui lòng mở lại hồ sơ.');
+    }
 
     const draftData = typeof updated.survey_data_json === 'string'
       ? JSON.parse(updated.survey_data_json)
@@ -917,6 +1055,36 @@ export class SurveyService {
         updatedAt: updated.updated_at,
       },
     };
+  }
+
+  /**
+   * Nhịp giữ khóa ca từ form đang mở (5 phút/lượt): KSV đang đo đạc, chưa sửa gì vẫn giữ được ca.
+   * Không đổi updated_at (mốc so nháp cục bộ) và sync_version.
+   * Chưa có nháp ⇒ chưa có gì để giữ. Người khác đang giữ ca ⇒ 409 DRAFT_OWNED_BY_OTHER để máy này dừng tự lưu.
+   */
+  static async heartbeatDraftLock(parcelId: string, unitId: string | null, userId: string) {
+    const draft = await SurveyRepository.findActiveDraft(parcelId, unitId);
+    if (!draft) {
+      return { held: false, status: 'NO_DRAFT' as const };
+    }
+    if (!SurveyService.isActiveEditor(draft, userId)) {
+      throw SurveyService.draftOwnedByOtherError(
+        draft,
+        SurveyService.draftLockState(draft),
+        `Ca khảo sát đã được Kỹ sư ${draft.surveyor_name || 'khác'} tiếp quản. Thay đổi từ lúc đó chỉ còn trên máy này.`
+      );
+    }
+    const touched = await SurveyRepository.touchDraftLockHeartbeat(draft.id, userId);
+    if (!touched) {
+      // Vừa bị tiếp quản giữa lúc đọc và ghi
+      const latest = await SurveyRepository.findActiveDraft(parcelId, unitId);
+      throw SurveyService.draftOwnedByOtherError(
+        latest || draft,
+        SurveyService.draftLockState(latest || draft),
+        `Ca khảo sát vừa được Kỹ sư ${(latest || draft).surveyor_name || 'khác'} tiếp quản.`
+      );
+    }
+    return { held: true, status: 'HELD' as const, heartbeatAt: touched.lock_heartbeat_at };
   }
 }
 

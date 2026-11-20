@@ -15,6 +15,8 @@ export interface ProblemDetails {
   instance: string;
   code?: string;
   invalidParams?: Array<{ field: string; message: string }>;
+  /** Dữ liệu có cấu trúc kèm lỗi nghiệp vụ (vd người đang giữ ca khảo sát) */
+  meta?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -22,6 +24,7 @@ export class AppError extends Error {
   public readonly status: number;
   public readonly code: string;
   public readonly invalidParams?: Array<{ field: string; message: string }>;
+  public meta?: Record<string, unknown>;
 
   constructor(
     message: string,
@@ -65,6 +68,20 @@ export class NotFoundError extends AppError {
 export class ConflictError extends AppError {
   constructor(message: string = 'Tài nguyên đã tồn tại hoặc xảy ra xung đột dữ liệu') {
     super(message, 409, 'CONFLICT');
+  }
+}
+
+/**
+ * Bản nháp khảo sát đang do KSV khác giữ ca (hoặc đã bị tiếp quản). Frontend dựa vào mã này để dừng
+ * tự lưu và hiện màn khóa ca, không ghi đè nháp của người đang giữ.
+ */
+export class DraftOwnedByOtherError extends AppError {
+  constructor(
+    message: string,
+    meta: { activeSurveyorName: string; activeSurveyorPhone: string; lastActiveAt: string | null; minutesAgo: number }
+  ) {
+    super(message, 409, 'DRAFT_OWNED_BY_OTHER');
+    this.meta = meta;
   }
 }
 
@@ -145,6 +162,7 @@ export function problemDetailsErrorHandler(
     instance: req.originalUrl,
     code,
     invalidParams: isAppError ? err.invalidParams : undefined,
+    meta: isAppError ? err.meta : undefined,
     timestamp: new Date().toISOString(),
   };
 

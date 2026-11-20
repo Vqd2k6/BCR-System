@@ -623,6 +623,24 @@ export class SurveyController {
     }
   }
 
+  /** Nhịp giữ khóa ca từ form đang mở (cùng payload với mở khóa: parcelId + unitId) */
+  static async heartbeatDraftLock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = ReleaseDraftLockDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError('parcelId là bắt buộc');
+      }
+      const result = await SurveyService.heartbeatDraftLock(
+        parsed.data.parcelId,
+        parsed.data.unitId || null,
+        req.user!.userId
+      );
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async takeoverSurveyDraft(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = TakeoverSurveyDraftDto.safeParse(req.body);

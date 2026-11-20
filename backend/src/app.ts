@@ -200,6 +200,7 @@ export function createApp(): express.Application {
   api.post('/surveys/draft/:parcelId/photo-mappings', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.savePhotoMappings);
   api.post('/surveys/draft/:parcelId/recover-orphan-photos', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.recoverOrphanPhotos);
   api.post('/surveys/draft/release-lock', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.releaseDraftLock);
+  api.post('/surveys/draft/heartbeat', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.heartbeatDraftLock);
   api.post('/surveys/draft/takeover', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.takeoverSurveyDraft);
 
 

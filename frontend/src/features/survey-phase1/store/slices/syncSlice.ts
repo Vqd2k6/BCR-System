@@ -1,7 +1,7 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import type { StateCreator } from 'zustand';
 import type { Phase1SurveyStore, SyncSlice } from '../types';
-import { surveyDraftService } from '../../services/surveyDraftService';
+import { getDraftOwnedByOther, surveyDraftService, toLostOwnershipLockedInfo } from '../../services/surveyDraftService';
 import type { DraftResponseData } from '../../services/surveyDraftService';
 import { sanitizeSurveyDataForSync, uploadQueue } from '../../../../core/services/uploadQueueService';
 import { calculateEcsScore } from '../../engine/ecsCalculator';
@@ -83,6 +83,14 @@ export const createSyncSlice: StateCreator<
   markServerHydrated: () => set({ hasServerHydrated: true }),
   closeHandoverModal: () => set({ isHandoverModalOpen: false }),
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
+  // Mất ca: hasServerHydrated = false chặn mọi lượt lưu nháp lên server tới khi nạp lại / tiếp quản lại
+  markDraftOwnershipLost: (info) =>
+    set({
+      syncStatus: 'ERROR',
+      hasServerHydrated: false,
+      isLockedByOther: true,
+      lockedInfo: toLostOwnershipLockedInfo(info),
+    }),
 
   syncDraftToServer: async () => {
     const { formData, currentUnitId, currentStep, syncVersion, isReadOnly, isSubmitted, hasServerHydrated } = get();
@@ -112,7 +120,11 @@ export const createSyncSlice: StateCreator<
       });
     } catch (err: unknown) {
       const is404 = isNotFoundError(err);
-      if (is404) {
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        console.error('[SurveyPhase1Store:SyncDraft] Ca khảo sát đã được KSV khác tiếp quản, dừng đồng bộ:', err);
+        get().markDraftOwnershipLost(ownedByOther);
+      } else if (is404) {
         // Server chưa có route nháp hoặc đang bảo trì: Giữ trạng thái OFFLINE an toàn (dữ liệu đã lưu trọn vẹn trong IndexedDB)
         set({ syncStatus: 'OFFLINE', isDirty: false });
       } else {

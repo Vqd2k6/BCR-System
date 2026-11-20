@@ -11,7 +11,13 @@ import {
   type DefectItem,
   type CadZonePin,
 } from '../types/condo-unit.types';
-import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/services/surveyDraftService';
+import {
+  getDraftOwnedByOther,
+  surveyDraftService,
+  toLostOwnershipLockedInfo,
+  type DraftOwnedByOtherInfo,
+  type DraftResponseData,
+} from '../../survey-phase1/services/surveyDraftService';
 import api from '../../../services/api';
 import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
@@ -81,6 +87,10 @@ interface CondoUnitSurveyStore {
   clearDraft: () => void;
   syncDraftToServer: () => Promise<void>;
   releaseDraftLock: () => Promise<void>;
+  /** Đã nạp xong nháp thật từ server (bản phản ứng của hasHydratedDraft, để component bật nhịp giữ khóa ca) */
+  hasServerHydrated: boolean;
+  /** Lượt lưu nháp / nộp / nhịp giữ khóa bị từ chối vì KSV khác đã tiếp quản: dừng đồng bộ, hiện màn khóa ca */
+  markDraftOwnershipLost: (info: DraftOwnedByOtherInfo) => void;
 
   isReadOnly: boolean;
   setIsReadOnly: (readOnly: boolean) => void;
@@ -611,9 +621,25 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   setIsPhotoAuditOpen: (isPhotoAuditOpen) => set({ isPhotoAuditOpen }),
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
   closeHandoverModal: () => set({ isHandoverModalOpen: false, handoverInfo: null }),
+  hasServerHydrated: false,
+  // Mất ca: chặn mọi lượt lưu nháp lên server tới khi nạp lại / tiếp quản lại (nháp trên máy giữ nguyên)
+  markDraftOwnershipLost: (info) => {
+    hasHydratedDraft = false;
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    set({
+      hasServerHydrated: false,
+      syncStatus: 'ERROR',
+      isLockedByOther: true,
+      lockedInfo: toLostOwnershipLockedInfo(info),
+    });
+  },
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null, options?: { readOnly?: boolean }) => {
     hasHydratedDraft = false;
+    set({ hasServerHydrated: false });
     if (debounceTimer) {
       clearTimeout(debounceTimer);
       debounceTimer = null;
@@ -1011,12 +1037,14 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         // Đã nạp xong dữ liệu thật từ server -> từ giờ mới cho phép đồng bộ nháp (chỉ khi KHÔNG ở chế độ chỉ xem)
         if (!isViewingOnly && get().formData.parcelId === pId && get().formData.unitId === uId) {
           hasHydratedDraft = true;
+          set({ hasServerHydrated: true });
         }
       })
       .catch((err) => {
         console.warn('[CondoUnitStore] Không thể tải bản nháp cloud:', err);
         if (!isViewingOnly && get().formData.parcelId === pId && get().formData.unitId === uId) {
           hasHydratedDraft = true;
+          set({ hasServerHydrated: true });
         }
       });
   },
@@ -1067,16 +1095,18 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
       });
     } catch (err: unknown) {
-      console.warn('[CondoUnitStore] Lỗi lưu bản nháp cloud:', err);
+      // Ca đã thuộc KSV khác (409 DRAFT_OWNED_BY_OTHER): dừng đồng bộ, hiện màn mất ca
+      const ownedByOther = getDraftOwnedByOther(err);
+      if (ownedByOther) {
+        console.error('[CondoUnitStore:SyncDraft] Ca khảo sát đã được KSV khác tiếp quản, dừng đồng bộ:', err);
+        get().markDraftOwnershipLost(ownedByOther);
+        return;
+      }
+      console.error('[CondoUnitStore:SyncDraft] Lỗi lưu bản nháp cloud:', getErrorMessage(err), err);
       set({ syncStatus: 'ERROR' });
-
-      // Nếu lỗi do bị khóa ca bởi KSV khác (HTTP 400)
+      // Lỗi khóa từ server cũ (chưa trả mã 409): giữ nhánh dò cũ để kiểm lại khóa ca
       const errorMsg = getErrorMessage(err);
-      if (
-        errorMsg.includes('khóa') ||
-        errorMsg.includes('tiếp quản') ||
-        errorMsg.includes('Kỹ sư')
-      ) {
+      if (errorMsg.includes('khóa') || errorMsg.includes('tiếp quản') || errorMsg.includes('Kỹ sư')) {
         void get().checkDraftLock();
       }
     }
@@ -1551,6 +1581,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         }
       }
       hasHydratedDraft = true;
+      set({ hasServerHydrated: true });
       return true;
     } catch (err) {
       console.warn('[CondoUnitStore] Không thể mở khóa chỉnh sửa:', err);
@@ -1560,6 +1591,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
 
   markDraftHydrated: () => {
     hasHydratedDraft = true;
+    set({ hasServerHydrated: true });
   },
 
   takeoverDraft: async (handoverCode: string, note?: string) => {
@@ -1596,6 +1628,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         }));
 
         hasHydratedDraft = true;
+        set({ hasServerHydrated: true });
         try {
           const draftKey = `metro2_condo_unit_draft_${formData.parcelId}_${formData.unitId}`;
           localStorage.setItem(draftKey, JSON.stringify(get().formData));

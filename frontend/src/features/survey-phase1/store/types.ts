@@ -1,6 +1,8 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import type { MissingFieldItem } from '../utils/stepValidator';
+import type { LockedInfo } from '../components/ActiveSurveyorLockedModal';
+import type { DraftOwnedByOtherInfo } from '../services/surveyDraftService';
 
 export interface NavigationSliceState {
   currentStep: number;
@@ -28,7 +30,7 @@ export interface SyncSliceState {
   /** Chỉ cho phép đồng bộ nháp lên server sau khi đã nạp xong dữ liệu thật (tránh ghi đè dữ liệu mặc định/rỗng) */
   hasServerHydrated: boolean;
   isLockedByOther: boolean;
-  lockedInfo: { surveyorName: string; phone?: string; minutesAgo: number; message?: string } | null;
+  lockedInfo: LockedInfo | null;
   isHandoverModalOpen: boolean;
   handoverInfo: {
     fromSurveyorName: string;
@@ -59,6 +61,8 @@ export interface SyncSliceActions {
   closeLockedModal: () => void;
   setIsDirty: (isDirty: boolean) => void;
   markServerHydrated: () => void;
+  /** Lượt lưu nháp / nhịp giữ khóa bị từ chối vì KSV khác đã tiếp quản: dừng đồng bộ, hiện màn khóa ca */
+  markDraftOwnershipLost: (info: DraftOwnedByOtherInfo) => void;
 }
 
 export type SyncSlice = SyncSliceState & SyncSliceActions;

@@ -363,23 +363,46 @@ export class SurveyDraftRepository {
     const existing = await this.findActiveDraft(parcelId, unitId);
     if (!existing) return null;
 
+    // Chỉ người đang giữ ca được mở khóa (service đã kiểm, điều kiện ở đây chặn đua với lượt tiếp quản)
     const res = await Database.query(
       `UPDATE base_survey_reports
        SET is_ready_for_handover = TRUE,
            updated_at = NOW()
-       WHERE id = $1
+       WHERE id = $1 AND (surveyor_id = $2 OR last_edited_by_id = $2)
        RETURNING *;`,
-      [existing.id]
+      [existing.id, surveyorId]
     );
-    return res.rows[0];
+    return res.rows[0] || null;
+  }
+
+  /** Nhịp giữ khóa ca: chỉ ghi lock_heartbeat_at, không đổi updated_at / sync_version / nội dung nháp. */
+  static async touchDraftLockHeartbeat(
+    reportId: string,
+    userId: string
+  ): Promise<{ id: string; lock_heartbeat_at: Date } | null> {
+    // Trigger trg_update_reports_timestamp đặt updated_at = NOW() ở mọi UPDATE; cờ phiên giữ nguyên updated_at
+    // (mốc so nháp cục bộ / máy chủ) trong đúng transaction này (migration 20261122).
+    return Database.transaction(async (client) => {
+      await client.query(`SET LOCAL metro2.keep_updated_at = 'on';`);
+      const res = await client.query<{ id: string; lock_heartbeat_at: Date }>(
+        `UPDATE base_survey_reports
+         SET lock_heartbeat_at = NOW()
+         WHERE id = $1 AND (surveyor_id = $2 OR last_edited_by_id = $2)
+           AND (status = 'DRAFT' OR status = 'REJECTED')
+         RETURNING id, lock_heartbeat_at;`,
+        [reportId, userId]
+      );
+      return res.rows[0] || null;
+    });
   }
 
   static async takeoverDraft(
     parcelId: string,
     unitId: string | null,
     newSurveyorId: string,
-    note?: string
-  ): Promise<any> {
+    note?: string,
+    guard?: { handoverCode: string; lockMinutes: number }
+  ): Promise<any | null> {
     const existing = await this.findActiveDraft(parcelId, unitId);
     if (!existing) {
       throw new Error('Không tìm thấy bản nháp đang khảo sát để tiếp quản');
@@ -395,6 +418,22 @@ export class SurveyDraftRepository {
       note: note || 'Tiếp quản ca làm việc',
     };
 
+    const params: unknown[] = [existing.id, newSurveyorId, newSecurityCode, JSON.stringify([handoverEntry])];
+    // Kiểm lại ngay trong câu UPDATE (nguyên tử): đúng mã hiện hành, và người giữ ca đã mở khóa
+    // hoặc không hoạt động quá lockMinutes (theo cả lần lưu nháp lẫn nhịp giữ khóa), hoặc chính mình đang giữ ca.
+    let guardSql = '';
+    if (guard) {
+      params.push(guard.handoverCode, guard.lockMinutes);
+      guardSql = `
+         AND TRIM(handover_security_code) = $5
+         AND (
+           surveyor_id = $2
+           OR last_edited_by_id = $2
+           OR is_ready_for_handover = TRUE
+           OR GREATEST(updated_at, COALESCE(lock_heartbeat_at, updated_at)) <= NOW() - make_interval(mins => $6::int)
+         )`;
+    }
+
     const res = await Database.query(
       `UPDATE base_survey_reports
        SET surveyor_id = $2,
@@ -403,18 +442,14 @@ export class SurveyDraftRepository {
            handover_security_code = $3,
            handover_history = COALESCE(handover_history, '[]'::jsonb) || $4::jsonb,
            sync_version = sync_version + 1,
+           lock_heartbeat_at = NULL,
            updated_at = NOW()
-       WHERE id = $1
+       WHERE id = $1${guardSql}
        RETURNING *;`,
-      [
-        existing.id,
-        newSurveyorId,
-        newSecurityCode,
-        JSON.stringify([handoverEntry]),
-      ]
+      params
     );
 
-    return res.rows[0];
+    return res.rows[0] || null;
   }
 
   static async savePhotoMappings(

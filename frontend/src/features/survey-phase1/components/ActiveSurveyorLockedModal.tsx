@@ -6,6 +6,10 @@ export interface LockedInfo {
   phone?: string;
   minutesAgo: number;
   message?: string;
+  /** Máy này đang giữ ca thì bị KSV khác tiếp quản (lượt lưu / nhịp giữ khóa bị từ chối) */
+  lostOwnership?: boolean;
+  /** Lần hoạt động cuối của người đang giữ ca (ISO) */
+  lastActiveAt?: string | null;
 }
 
 export interface ActiveSurveyorLockedModalProps {
@@ -37,6 +41,10 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
   const phone = lockedInfo?.phone ?? propPhone;
   const minutesAgo = lockedInfo?.minutesAgo ?? propMinutes ?? 1;
   const message = lockedInfo?.message ?? propMessage;
+  const lostOwnership = Boolean(lockedInfo?.lostOwnership);
+  const takenOverTime = lockedInfo?.lastActiveAt
+    ? new Date(lockedInfo.lastActiveAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const handleRecheck = async () => {
     if (!onRecheck) {
@@ -60,10 +68,28 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
           </div>
 
           <h3 className="text-lg font-bold text-slate-900">
-            Công Trình Đang Được Khảo Sát
+            {lostOwnership ? 'Ca Khảo Sát Đã Được Tiếp Quản' : 'Công Trình Đang Được Khảo Sát'}
           </h3>
 
-          <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-left space-y-2">
+          {lostOwnership && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-left space-y-1.5">
+              <p className="text-xs text-rose-900 font-medium leading-relaxed">
+                Kỹ sư <strong className="text-slate-900 font-bold">{surveyorName}</strong> đã tiếp quản ca khảo sát này
+                {takenOverTime ? <> (hoạt động lúc <strong>{takenOverTime}</strong>)</> : null}. Máy này đã dừng đồng bộ để không ghi đè dữ liệu của họ.
+              </p>
+              <p className="text-[11px] text-rose-800 leading-relaxed">
+                Những gì bạn nhập sau thời điểm đó chỉ còn lưu trên máy này. Hãy liên hệ Kỹ sư {surveyorName} hoặc Zone Admin để thống nhất trước khi làm tiếp.
+              </p>
+              {phone && (
+                <div className="flex items-center gap-1.5 text-xs text-rose-800 pt-1 border-t border-rose-200/80">
+                  <Phone className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Liên hệ: <strong>{phone}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className={`p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-left space-y-2 ${lostOwnership ? 'hidden' : ''}`}>
             <p className="text-xs text-amber-900 font-medium leading-relaxed">
               Kỹ sư <strong className="text-slate-900 font-bold">{surveyorName}</strong> đang tích cực thực hiện khảo sát hiện trường tại công trình này (vừa cập nhật <strong>{minutesAgo} phút trước</strong>).
             </p>
@@ -75,7 +101,7 @@ export const ActiveSurveyorLockedModal: React.FC<ActiveSurveyorLockedModalProps>
             )}
           </div>
 
-          <div className="text-xs text-slate-600 space-y-1.5 text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div className={`text-xs text-slate-600 space-y-1.5 text-left bg-slate-50 p-3 rounded-xl border border-slate-200 ${lostOwnership ? 'hidden' : ''}`}>
             <p className="font-semibold text-slate-700"> Để bảo vệ dữ liệu và tránh xung đột:</p>
             <ul className="list-disc list-inside space-y-1 text-slate-500 text-[11px]">
               <li>Hệ thống tạm khóa chỉnh sửa đối với tài khoản khác trong vòng 15 phút.</li>

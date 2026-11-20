@@ -1,6 +1,6 @@
 import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
-import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, DraftOwnedByOtherError } from '../../common/errors/problem-details';
 import { EXCLUDED_LIFECYCLE_STATUSES } from './utils/parcel-exclusion';
 import { resolveFloorCode } from './utils/floor-code.rules';
 import {
@@ -757,17 +757,54 @@ export class CadastralRepository {
             throw new ConflictError('Hồ sơ đã được phê duyệt nên không thể ghi đè bằng lượt vắng mặt mới.');
           }
           repId = repRes.rows[0].id;
-          await client.query(
+          // Khóa ca: nháp đang làm (DRAFT/REJECTED) chỉ người giữ ca, hoặc người khác khi chủ ca đã mở khóa,
+          // mới được ghi đè bằng lượt vắng mặt. Kiểm trong chính câu UPDATE; lỗi ⇒ rollback cả transaction.
+          const absUpdate = await client.query<{ id: string }>(
             `UPDATE base_survey_reports
              SET is_refused_or_absent = TRUE,
                  status = $4::report_status_enum,
                  submitted_at = CASE WHEN $4::text = 'SUBMITTED' THEN NOW() ELSE submitted_at END,
                  survey_data_json = $2,
                  surveyor_id = $3,
+                 last_edited_by_id = CASE WHEN status::text IN ('DRAFT', 'REJECTED') THEN $3 ELSE last_edited_by_id END,
+                 is_ready_for_handover = CASE WHEN status::text IN ('DRAFT', 'REJECTED') THEN FALSE ELSE is_ready_for_handover END,
+                 lock_heartbeat_at = NULL,
+                 handover_history = CASE
+                   WHEN status::text IN ('DRAFT', 'REJECTED') AND surveyor_id IS DISTINCT FROM $3 AND last_edited_by_id IS DISTINCT FROM $3
+                   THEN COALESCE(handover_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+                     'fromSurveyorId', surveyor_id, 'toSurveyorId', $3::text, 'step', current_step,
+                     'handoverAt', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                     'note', 'Nhận ca khi ghi nhận vắng mặt sau khi chủ ca mở khóa'))
+                   ELSE handover_history
+                 END,
                  updated_at = NOW()
-             WHERE id = $1;`,
+             WHERE id = $1
+               AND (
+                 status::text NOT IN ('DRAFT', 'REJECTED')
+                 OR surveyor_id = $3 OR last_edited_by_id = $3 OR is_ready_for_handover = TRUE
+               )
+             RETURNING id;`,
             [repId, JSON.stringify(data.surveyData), data.surveyorId, absentReportStatus]
           );
+          if (!absUpdate.rows[0]) {
+            const holder = await client.query<{ full_name: string | null; phone: string | null; last_active: Date | null }>(
+              `SELECT u.full_name, u.phone, GREATEST(r.updated_at, COALESCE(r.lock_heartbeat_at, r.updated_at)) AS last_active
+               FROM base_survey_reports r LEFT JOIN users u ON u.id = r.surveyor_id
+               WHERE r.id = $1;`,
+              [repId]
+            );
+            const h = holder.rows[0];
+            const lastActive = h?.last_active ? new Date(h.last_active) : null;
+            throw new DraftOwnedByOtherError(
+              `Hồ sơ đang do Kỹ sư ${h?.full_name || 'khác'} giữ ca. Bạn cần được bàn giao (tiếp quản bằng mã 6 số) trước khi ghi nhận vắng mặt.`,
+              {
+                activeSurveyorName: h?.full_name || 'Kỹ sư khác',
+                activeSurveyorPhone: h?.phone || '',
+                lastActiveAt: lastActive ? lastActive.toISOString() : null,
+                minutesAgo: lastActive ? Math.max(0, Math.floor((Date.now() - lastActive.getTime()) / 60000)) : 0,
+              }
+            );
+          }
         } else {
           const reportCode = `REPORT-ABSENT-${Date.now()}`;
           const reportType = data.unitId ? 'CONDO_UNIT' : 'STANDALONE';
